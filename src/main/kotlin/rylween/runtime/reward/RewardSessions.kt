@@ -4,9 +4,27 @@
 
 package rylween.runtime.reward
 
-import rylween.runtime.*
-
-import rylween.dsl.*
+import rylween.dsl.InputBindingModel
+import rylween.dsl.ItemId
+import rylween.dsl.ItemStorageKind
+import rylween.dsl.PartyState
+import rylween.dsl.RandomItemOfferModel
+import rylween.dsl.RuntimeContent
+import rylween.dsl.ScriptRewardModel
+import rylween.dsl.TextBlock
+import rylween.dsl.TextLine
+import rylween.dsl.TextPart
+import rylween.dsl.item
+import rylween.dsl.line
+import rylween.dsl.lines
+import rylween.runtime.InventoryPlacementResult
+import rylween.runtime.RandomItemOfferInput
+import rylween.runtime.RewardGrantInput
+import rylween.runtime.floorMod
+import rylween.runtime.party
+import rylween.runtime.placeInventoryItem
+import rylween.runtime.prompt
+import rylween.runtime.withGold
 
 enum class RandomItemOfferStatus {
     Bought,
@@ -67,7 +85,9 @@ sealed interface RandomItemOfferStep {
         val result: RandomItemOfferResult,
     ) : RandomItemOfferStep
 
-    data class Finished(val result: RandomItemOfferResult) : RandomItemOfferStep {
+    data class Finished(
+        val result: RandomItemOfferResult,
+    ) : RandomItemOfferStep {
         val party: PartyState get() = result.party
     }
 }
@@ -84,7 +104,9 @@ sealed interface RewardGrantStep {
         val result: RewardGrantResult,
     ) : RewardGrantStep
 
-    data class Finished(val result: RewardGrantResult) : RewardGrantStep {
+    data class Finished(
+        val result: RewardGrantResult,
+    ) : RewardGrantStep {
         val party: PartyState get() = result.party
     }
 }
@@ -102,13 +124,15 @@ data class RandomItemOfferSession(
     fun apply(input: RandomItemOfferInput): RandomItemOfferSession =
         when (val current = step) {
             is RandomItemOfferStep.Choice -> {
-                val buy = (input as? RandomItemOfferInput.Buy)
-                    ?: error("random item offer is waiting for buy/decline input")
+                val buy =
+                    (input as? RandomItemOfferInput.Buy)
+                        ?: error("random item offer is waiting for buy/decline input")
                 if (buy.accept) buy() else decline()
             }
             is RandomItemOfferStep.DropSlot -> {
-                val drop = (input as? RandomItemOfferInput.DropSlot)
-                    ?: error("random item offer is waiting for a drop slot")
+                val drop =
+                    (input as? RandomItemOfferInput.DropSlot)
+                        ?: error("random item offer is waiting for a drop slot")
                 place(drop.slot)
             }
             is RandomItemOfferStep.Message -> {
@@ -130,13 +154,16 @@ data class RandomItemOfferSession(
         } ?: finishSilently(RandomItemOfferStatus.Declined, party)
 
     private fun place(dropSlot: Int?): RandomItemOfferSession =
-        when (val placed = party.placeInventoryItem(
-            item,
-            offer.application.overflow,
-            dropSlot,
-            itemRecords = content.itemRecords,
-            realmContent = content.realm,
-        )) {
+        when (
+            val placed =
+                party.placeInventoryItem(
+                    item,
+                    offer.application.overflow,
+                    dropSlot,
+                    itemRecords = content.itemRecords,
+                    realmContent = content.realm,
+                )
+        ) {
             is InventoryPlacementResult.Placed -> {
                 val updated = placed.party.copy(resources = placed.party.resources.copy(gold = placed.party.resources.gold - price))
                 finish(RandomItemOfferStatus.Bought, updated, offer.deal, placed.slot)
@@ -144,15 +171,17 @@ data class RandomItemOfferSession(
             is InventoryPlacementResult.NeedsDropSlot -> {
                 val result = result(RandomItemOfferStatus.NeedsDropSlot, placed.party)
                 copy(
-                    step = RandomItemOfferStep.DropSlot(
-                        prompt = checkNotNull(offer.messages.cantCarry) {
-                            "drop-prompt random item offer requires cant-carry text"
-                        },
-                        item = item,
-                        itemName = itemName,
-                        price = price,
-                        result = result,
-                    ),
+                    step =
+                        RandomItemOfferStep.DropSlot(
+                            prompt =
+                                checkNotNull(offer.messages.cantCarry) {
+                                    "drop-prompt random item offer requires cant-carry text"
+                                },
+                            item = item,
+                            itemName = itemName,
+                            price = price,
+                            result = result,
+                        ),
                     lastResult = result,
                 )
             }
@@ -161,13 +190,14 @@ data class RandomItemOfferSession(
             is InventoryPlacementResult.InvalidDropSlot -> {
                 val result = result(RandomItemOfferStatus.InvalidDropSlot, placed.party, placed.slot)
                 copy(
-                    step = RandomItemOfferStep.DropSlot(
-                        prompt = checkNotNull(offer.messages.cantCarry),
-                        item = item,
-                        itemName = itemName,
-                        price = price,
-                        result = result,
-                    ),
+                    step =
+                        RandomItemOfferStep.DropSlot(
+                            prompt = checkNotNull(offer.messages.cantCarry),
+                            item = item,
+                            itemName = itemName,
+                            price = price,
+                            result = result,
+                        ),
                     lastResult = result,
                 )
             }
@@ -204,8 +234,7 @@ data class RandomItemOfferSession(
         status: RandomItemOfferStatus,
         nextParty: PartyState,
         slot: Int? = null,
-    ): RandomItemOfferResult =
-        RandomItemOfferResult(status, nextParty, item, price, slot)
+    ): RandomItemOfferResult = RandomItemOfferResult(status, nextParty, item, price, slot)
 
     companion object {
         fun start(
@@ -216,9 +245,10 @@ data class RandomItemOfferSession(
         ): RandomItemOfferSession {
             require(offer.pool.items.isNotEmpty()) { "random item offer ${offer.pool.slug} has no items" }
             val item = offer.pool.items[selectedIndex.floorMod(offer.pool.items.size)]
-            val record = checkNotNull(content.itemRecords.associateBy { it.id }[item]) {
-                "unknown item ${item.slug}"
-            }
+            val record =
+                checkNotNull(content.itemRecords.associateBy { it.id }[item]) {
+                    "unknown item ${item.slug}"
+                }
             val price = offer.priceOverride ?: record.cost
             return RandomItemOfferSession(
                 offer = offer,
@@ -226,15 +256,16 @@ data class RandomItemOfferSession(
                 item = item,
                 itemName = record.displayName,
                 price = price,
-                step = RandomItemOfferStep.Choice(
-                    offerText = offer.offer.withRandomItemOffer(record.displayName, price),
-                    prompt = offer.choicePrompt,
-                    item = item,
-                    itemName = record.displayName,
-                    price = price,
-                    buy = offer.buy,
-                    decline = offer.decline,
-                ),
+                step =
+                    RandomItemOfferStep.Choice(
+                        offerText = offer.offer.withRandomItemOffer(record.displayName, price),
+                        prompt = offer.choicePrompt,
+                        item = item,
+                        itemName = record.displayName,
+                        price = price,
+                        buy = offer.buy,
+                        decline = offer.decline,
+                    ),
                 content = content,
             )
         }
@@ -252,8 +283,9 @@ data class RewardGrantSession(
     fun apply(input: RewardGrantInput): RewardGrantSession =
         when (val current = step) {
             is RewardGrantStep.DropSlot -> {
-                val drop = (input as? RewardGrantInput.DropSlot)
-                    ?: error("reward grant is waiting for a drop slot")
+                val drop =
+                    (input as? RewardGrantInput.DropSlot)
+                        ?: error("reward grant is waiting for a drop slot")
                 place(party, current.item, drop.slot, pendingItems)
             }
             is RewardGrantStep.Message -> {
@@ -261,9 +293,12 @@ data class RewardGrantSession(
                 continueWith(party, pendingItems)
             }
             is RewardGrantStep.Finished -> error("reward grant is already finished: $current")
-    }
+        }
 
-    private fun continueWith(nextParty: PartyState, items: List<ItemId>): RewardGrantSession {
+    private fun continueWith(
+        nextParty: PartyState,
+        items: List<ItemId>,
+    ): RewardGrantSession {
         val item = items.firstOrNull() ?: return finish(nextParty)
         return place(nextParty, item, dropSlot = null, pendingItems = items)
     }
@@ -275,13 +310,16 @@ data class RewardGrantSession(
         pendingItems: List<ItemId>,
     ): RewardGrantSession {
         val remainingItems = pendingItems.drop(1)
-        return when (val placed = nextParty.placeInventoryItem(
-            item,
-            reward.application.overflow,
-            dropSlot,
-            itemRecords = content.itemRecords,
-            realmContent = content.realm,
-        )) {
+        return when (
+            val placed =
+                nextParty.placeInventoryItem(
+                    item,
+                    reward.application.overflow,
+                    dropSlot,
+                    itemRecords = content.itemRecords,
+                    realmContent = content.realm,
+                )
+        ) {
             is InventoryPlacementResult.Placed -> {
                 val result = result(RewardGrantStatus.Granted, placed.party, item, placed.slot)
                 val pickedUp = reward.messages.pickedUp
@@ -301,13 +339,15 @@ data class RewardGrantSession(
                 copy(
                     party = placed.party,
                     pendingItems = pendingItems,
-                    step = RewardGrantStep.DropSlot(
-                        prompt = checkNotNull(reward.messages.cantCarry) {
-                            "drop-prompt reward requires cant-carry text"
-                        },
-                        item = item,
-                        result = result,
-                    ),
+                    step =
+                        RewardGrantStep.DropSlot(
+                            prompt =
+                                checkNotNull(reward.messages.cantCarry) {
+                                    "drop-prompt reward requires cant-carry text"
+                                },
+                            item = item,
+                            result = result,
+                        ),
                     lastResult = result,
                 )
             }
@@ -320,11 +360,12 @@ data class RewardGrantSession(
                 copy(
                     party = placed.party,
                     pendingItems = pendingItems,
-                    step = RewardGrantStep.DropSlot(
-                        prompt = checkNotNull(reward.messages.cantCarry),
-                        item = item,
-                        result = result,
-                    ),
+                    step =
+                        RewardGrantStep.DropSlot(
+                            prompt = checkNotNull(reward.messages.cantCarry),
+                            item = item,
+                            result = result,
+                        ),
                     lastResult = result,
                 )
             }
@@ -346,8 +387,7 @@ data class RewardGrantSession(
         nextParty: PartyState,
         item: ItemId? = null,
         slot: Int? = null,
-    ): RewardGrantResult =
-        RewardGrantResult(status, nextParty, item, slot)
+    ): RewardGrantResult = RewardGrantResult(status, nextParty, item, slot)
 
     companion object {
         fun start(
@@ -363,33 +403,38 @@ data class RewardGrantSession(
                     "script reward item ${item.slug} is ${record.storage}; use achieve(...) for milestone-special items"
                 }
             }
-            val session = RewardGrantSession(
-                reward = reward,
-                party = party.withGold(party.resources.gold + gold),
-                pendingItems = reward.items,
-                step = RewardGrantStep.Finished(RewardGrantResult(RewardGrantStatus.Granted, party)),
-                content = content,
-            )
+            val session =
+                RewardGrantSession(
+                    reward = reward,
+                    party = party.withGold(party.resources.gold + gold),
+                    pendingItems = reward.items,
+                    step = RewardGrantStep.Finished(RewardGrantResult(RewardGrantStatus.Granted, party)),
+                    content = content,
+                )
             return session.continueWith(session.party, session.pendingItems)
         }
     }
 }
 
-internal fun TextBlock.withRandomItemOffer(itemName: String, itemPrice: Int): TextBlock =
+internal fun TextBlock.withRandomItemOffer(
+    itemName: String,
+    itemPrice: Int,
+): TextBlock =
     when (this) {
         is TextBlock.Inline -> this
         is TextBlock.Ref -> this
-        is TextBlock.Structured -> TextBlock.Structured(
-            lines.map { line ->
-                TextLine(
-                    line.parts.map { part ->
-                        when (part) {
-                            TextPart.OfferedItemName -> TextPart.Literal(itemName)
-                            TextPart.OfferedItemPrice -> TextPart.Literal(itemPrice.toString())
-                            else -> part
-                        }
-                    },
-                )
-            },
-        )
+        is TextBlock.Structured ->
+            TextBlock.Structured(
+                lines.map { line ->
+                    TextLine(
+                        line.parts.map { part ->
+                            when (part) {
+                                TextPart.OfferedItemName -> TextPart.Literal(itemName)
+                                TextPart.OfferedItemPrice -> TextPart.Literal(itemPrice.toString())
+                                else -> part
+                            }
+                        },
+                    )
+                },
+            )
     }

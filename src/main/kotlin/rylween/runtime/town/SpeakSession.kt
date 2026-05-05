@@ -4,9 +4,53 @@
 
 package rylween.runtime.town
 
-import rylween.runtime.*
-
-import rylween.dsl.*
+import rylween.dsl.BuildingId
+import rylween.dsl.CharacterModel
+import rylween.dsl.CharacterPlacementModel
+import rylween.dsl.ChitchatPromptAudience
+import rylween.dsl.ChitchatSubject
+import rylween.dsl.ConversationMenuActionModel
+import rylween.dsl.DialogueBranchModel
+import rylween.dsl.DialogueModel
+import rylween.dsl.DslDefaultBuildings
+import rylween.dsl.DslDefaultRumourTables
+import rylween.dsl.DslDefaultText
+import rylween.dsl.Gender
+import rylween.dsl.NpcId
+import rylween.dsl.NpcJobId
+import rylween.dsl.NpcVisitState
+import rylween.dsl.Op
+import rylween.dsl.PartyState
+import rylween.dsl.QuestionActionScriptModel
+import rylween.dsl.QuestionMenuActionModel
+import rylween.dsl.QuestionTopic
+import rylween.dsl.RumourEntryModel
+import rylween.dsl.RumourTableId
+import rylween.dsl.RuntimeContent
+import rylween.dsl.SpeakSystemModel
+import rylween.dsl.StandardConversationModel
+import rylween.dsl.TextBlock
+import rylween.dsl.Wilderness
+import rylween.dsl.WorldPosition
+import rylween.dsl.building
+import rylween.dsl.character
+import rylween.dsl.inlineText
+import rylween.dsl.matches
+import rylween.dsl.npc
+import rylween.dsl.rumour
+import rylween.dsl.text
+import rylween.dsl.town
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.ScriptBranch
+import rylween.runtime.ScriptContinuation
+import rylween.runtime.ScriptRootRef
+import rylween.runtime.SpeakInput
+import rylween.runtime.SpeakMainChoice
+import rylween.runtime.drawRandom
+import rylween.runtime.hasFlagState
+import rylween.runtime.party
+import rylween.runtime.scriptRootForDialogueBranch
+import rylween.runtime.scriptRootForQuestionAction
 
 data class SpeakRuntimeContent(
     val speak: SpeakSystemModel = SpeakSystemModel(null),
@@ -15,7 +59,10 @@ data class SpeakRuntimeContent(
 )
 
 sealed interface SpeakStep {
-    data class ChooseNpc(val npcs: List<CharacterModel>) : SpeakStep
+    data class ChooseNpc(
+        val npcs: List<CharacterModel>,
+    ) : SpeakStep
+
     data class ScriptBranch(
         val npc: CharacterModel,
         val ops: List<Op>,
@@ -23,10 +70,25 @@ sealed interface SpeakStep {
         val next: SpeakStep,
         val continuation: ScriptContinuation? = null,
     ) : SpeakStep
-    data class MainMenu(val npc: CharacterModel, val actions: List<ConversationMenuActionModel>) : SpeakStep
-    data class QuestionMenu(val npc: CharacterModel, val actions: List<QuestionMenuActionModel>) : SpeakStep
-    data class Message(val blocks: List<TextBlock>, val next: SpeakStep) : SpeakStep
-    data class Finished(val runtime: RuntimeSessionState) : SpeakStep {
+
+    data class MainMenu(
+        val npc: CharacterModel,
+        val actions: List<ConversationMenuActionModel>,
+    ) : SpeakStep
+
+    data class QuestionMenu(
+        val npc: CharacterModel,
+        val actions: List<QuestionMenuActionModel>,
+    ) : SpeakStep
+
+    data class Message(
+        val blocks: List<TextBlock>,
+        val next: SpeakStep,
+    ) : SpeakStep
+
+    data class Finished(
+        val runtime: RuntimeSessionState,
+    ) : SpeakStep {
         val party: PartyState get() = runtime.activeParty
     }
 }
@@ -40,37 +102,42 @@ data class SpeakSession(
     val rumourTold: Boolean = false,
 ) {
     private val conversation: StandardConversationModel
-        get() = requireNotNull(content.speak.standardConversation) {
-            "standard conversation system is not configured"
-        }
+        get() =
+            requireNotNull(content.speak.standardConversation) {
+                "standard conversation system is not configured"
+            }
 
     fun apply(input: SpeakInput): SpeakSession =
         when (val current = step) {
             is SpeakStep.ChooseNpc -> {
-                val npc = (input as? SpeakInput.Npc)
-                    ?: error("speak session is choosing an NPC")
-                val character = current.npcs.firstOrNull { it.id == npc.npc }
-                    ?: error("NPC ${npc.npc.slug} is not available for ${building.slug}")
+                val npc =
+                    (input as? SpeakInput.Npc)
+                        ?: error("speak session is choosing an NPC")
+                val character =
+                    current.npcs.firstOrNull { it.id == npc.npc }
+                        ?: error("NPC ${npc.npc.slug} is not available for ${building.slug}")
                 val nextRuntime = runtime.withActiveParty(runtime.activeParty.withNpcVisit(character.id, visited = true))
                 val branch = content.firstMatchingDialogueBranch(character.id, nextRuntime.activeParty)
                 val menu = mainMenu(character)
                 copy(
                     runtime = nextRuntime,
                     selectedNpc = character,
-                    step = branch?.let {
-                        SpeakStep.ScriptBranch(
-                            npc = character,
-                            ops = it.ops,
-                            root = content.scriptRootForDialogueBranch(character.id, it),
-                            next = menu,
-                        )
-                    } ?: menu,
+                    step =
+                        branch?.let {
+                            SpeakStep.ScriptBranch(
+                                npc = character,
+                                ops = it.ops,
+                                root = content.scriptRootForDialogueBranch(character.id, it),
+                                next = menu,
+                            )
+                        } ?: menu,
                 )
             }
             is SpeakStep.ScriptBranch -> error("speak session is running an authored script branch")
             is SpeakStep.MainMenu -> {
-                val choice = (input as? SpeakInput.Main)
-                    ?: error("speak session is at the main conversation menu")
+                val choice =
+                    (input as? SpeakInput.Main)
+                        ?: error("speak session is at the main conversation menu")
                 when (choice.choice) {
                     SpeakMainChoice.Chitchat -> chitchat(current.npc)
                     SpeakMainChoice.Question -> copy(step = questionMenu(current.npc))
@@ -79,8 +146,9 @@ data class SpeakSession(
                 }
             }
             is SpeakStep.QuestionMenu -> {
-                val question = (input as? SpeakInput.Question)
-                    ?: error("speak session is at the question menu")
+                val question =
+                    (input as? SpeakInput.Question)
+                        ?: error("speak session is at the question menu")
                 when (question.topic) {
                     QuestionTopic.Nothing -> {
                         copy(step = mainMenu(current.npc))
@@ -88,16 +156,17 @@ data class SpeakSession(
                     else -> {
                         val action = content.firstMatchingQuestionAction(question.topic, current.npc.job)
                         copy(
-                            step = action
-                                ?.let {
-                                    SpeakStep.ScriptBranch(
-                                        npc = current.npc,
-                                        ops = it.ops,
-                                        root = content.scriptRootForQuestionAction(it),
-                                        next = mainMenu(current.npc),
-                                    )
-                                }
-                                ?: message(questionReply(question.topic, current.npc), mainMenu(current.npc)),
+                            step =
+                                action
+                                    ?.let {
+                                        SpeakStep.ScriptBranch(
+                                            npc = current.npc,
+                                            ops = it.ops,
+                                            root = content.scriptRootForQuestionAction(it),
+                                            next = mainMenu(current.npc),
+                                        )
+                                    }
+                                    ?: message(questionReply(question.topic, current.npc), mainMenu(current.npc)),
                         )
                     }
                 }
@@ -115,10 +184,11 @@ data class SpeakSession(
         val subject = subjects[draw.value]
         return copy(
             runtime = draw.runtime,
-            step = message(
-                listOf(chitchatPrompt(subject), chitchatReply(subject, npc)),
-                mainMenu(npc),
-            ),
+            step =
+                message(
+                    listOf(chitchatPrompt(subject), chitchatReply(subject, npc)),
+                    mainMenu(npc),
+                ),
         )
     }
 
@@ -129,30 +199,42 @@ data class SpeakSession(
             runtime = selection?.runtime ?: runtime,
             rumourTold = true,
             step = message(text, mainMenu(npc)),
-            )
+        )
     }
 
-    private fun mainMenu(npc: CharacterModel): SpeakStep.MainMenu =
-        SpeakStep.MainMenu(npc, conversation.menu.actions)
+    private fun mainMenu(npc: CharacterModel): SpeakStep.MainMenu = SpeakStep.MainMenu(npc, conversation.menu.actions)
 
-    private fun questionMenu(npc: CharacterModel): SpeakStep.QuestionMenu =
-        SpeakStep.QuestionMenu(npc, conversation.menu.questions)
+    private fun questionMenu(npc: CharacterModel): SpeakStep.QuestionMenu = SpeakStep.QuestionMenu(npc, conversation.menu.questions)
 
-    private fun message(text: TextBlock, next: SpeakStep): SpeakStep.Message =
-        message(listOf(text), next)
+    private fun message(
+        text: TextBlock,
+        next: SpeakStep,
+    ): SpeakStep.Message = message(listOf(text), next)
 
-    private fun message(blocks: List<TextBlock>, next: SpeakStep): SpeakStep.Message =
-        SpeakStep.Message(blocks, next)
+    private fun message(
+        blocks: List<TextBlock>,
+        next: SpeakStep,
+    ): SpeakStep.Message = SpeakStep.Message(blocks, next)
 
     private fun chitchatPrompt(subject: ChitchatSubject): TextBlock {
-        val leaderGender = runtime.activeParty.members.firstOrNull()?.gender
-        val variants = content.speak.textTables.chitchatPrompts.firstOrNull { it.subject == subject }?.variants.orEmpty()
+        val leaderGender =
+            runtime.activeParty.members
+                .firstOrNull()
+                ?.gender
+        val variants =
+            content.speak.textTables.chitchatPrompts
+                .firstOrNull { it.subject == subject }
+                ?.variants
+                .orEmpty()
         return variants.firstOrNull { it.audience.matches(leaderGender) }?.text
             ?: variants.firstOrNull()?.text
             ?: inlineText("- Hello.")
     }
 
-    private fun chitchatReply(subject: ChitchatSubject, npc: CharacterModel): TextBlock =
+    private fun chitchatReply(
+        subject: ChitchatSubject,
+        npc: CharacterModel,
+    ): TextBlock =
         content.speak.textTables.chitchatReplies
             .firstOrNull { it.subject == subject }
             ?.replies
@@ -160,7 +242,10 @@ data class SpeakSession(
             ?.text
             ?: inlineText("- I have nothing to say.")
 
-    private fun questionReply(topic: QuestionTopic, npc: CharacterModel): TextBlock =
+    private fun questionReply(
+        topic: QuestionTopic,
+        npc: CharacterModel,
+    ): TextBlock =
         content.speak.textTables.questionReplies
             .firstOrNull { it.topic == topic }
             ?.replies
@@ -175,17 +260,21 @@ data class SpeakSession(
             building: BuildingId,
         ): SpeakSession {
             val npcs = content.charactersFor(runtime, building)
-            val step = if (npcs.isEmpty()) {
-                SpeakStep.Message(
-                    blocks = listOf(
-                        content.speak.textTables.screens.firstOrNull { it.id == DslDefaultText.Speak.noNpc }?.text
-                            ?: inlineText("Noone is here!"),
-                    ),
-                    next = SpeakStep.Finished(runtime),
-                )
-            } else {
-                SpeakStep.ChooseNpc(npcs)
-            }
+            val step =
+                if (npcs.isEmpty()) {
+                    SpeakStep.Message(
+                        blocks =
+                            listOf(
+                                content.speak.textTables.screens
+                                    .firstOrNull { it.id == DslDefaultText.Speak.noNpc }
+                                    ?.text
+                                    ?: inlineText("Noone is here!"),
+                            ),
+                        next = SpeakStep.Finished(runtime),
+                    )
+                } else {
+                    SpeakStep.ChooseNpc(npcs)
+                }
             return SpeakSession(content, runtime, building, step)
         }
     }
@@ -196,21 +285,24 @@ data class RumourSelection(
     val runtime: RuntimeSessionState,
 )
 
-fun SpeakRuntimeContent.charactersFor(runtime: RuntimeSessionState, building: BuildingId): List<CharacterModel> {
+fun SpeakRuntimeContent.charactersFor(
+    runtime: RuntimeSessionState,
+    building: BuildingId,
+): List<CharacterModel> {
     val realizedByNpc = runtime.npcs.associateBy { it.npc }
     val town = runtime.realm.currentTown
     val wildernessPoint = runtime.activeParty.position.let { (it as? WorldPosition.Wilderness)?.point }
     return characters
         .filter { character ->
-            val position = realizedByNpc[character.id]?.position
-                ?: (character.placement as? CharacterPlacementModel.Fixed)?.position
+            val position =
+                realizedByNpc[character.id]?.position
+                    ?: (character.placement as? CharacterPlacementModel.Fixed)?.position
             if (town != null) {
                 position == WorldPosition.Town(town, building)
             } else {
                 building == DslDefaultBuildings.none && position == wildernessPoint?.let { WorldPosition.Wilderness(it) }
             }
-        }
-        .sortedBy { it.name }
+        }.sortedBy { it.name }
 }
 
 fun RuntimeContent.speakRuntimeContent(): SpeakRuntimeContent =
@@ -220,31 +312,40 @@ fun RuntimeContent.speakRuntimeContent(): SpeakRuntimeContent =
         dialogue = dialogue,
     )
 
-fun SpeakRuntimeContent.firstMatchingDialogueBranch(npc: NpcId, party: PartyState): DialogueBranchModel? {
+fun SpeakRuntimeContent.firstMatchingDialogueBranch(
+    npc: NpcId,
+    party: PartyState,
+): DialogueBranchModel? {
     val branches = dialogue.firstOrNull { it.npc == npc }?.branches.orEmpty()
     return branches.firstOrNull { branch ->
         branch.whenState?.let(party::hasFlagState) == true
     } ?: branches.firstOrNull { it.whenState == null }
 }
 
-fun SpeakRuntimeContent.firstMatchingQuestionAction(topic: QuestionTopic, job: NpcJobId): QuestionActionScriptModel? =
-    speak.questionActions.firstOrNull { it.topic == topic && it.job == job }
+fun SpeakRuntimeContent.firstMatchingQuestionAction(
+    topic: QuestionTopic,
+    job: NpcJobId,
+): QuestionActionScriptModel? = speak.questionActions.firstOrNull { it.topic == topic && it.job == job }
 
-fun SpeakRuntimeContent.standardRumours(party: PartyState): List<RumourEntryModel> =
-    rumours(DslDefaultRumourTables.standardTown, party)
+fun SpeakRuntimeContent.standardRumours(party: PartyState): List<RumourEntryModel> = rumours(DslDefaultRumourTables.standardTown, party)
 
-fun SpeakRuntimeContent.rumours(table: RumourTableId, party: PartyState): List<RumourEntryModel> =
+fun SpeakRuntimeContent.rumours(
+    table: RumourTableId,
+    party: PartyState,
+): List<RumourEntryModel> =
     speak.textTables.rumourTables
         .firstOrNull { it.id == table }
         ?.entries
         ?.filter { entry -> entry.excludedBy.none(party::hasFlagState) }
         .orEmpty()
 
-fun SpeakRuntimeContent.selectStandardRumour(runtime: RuntimeSessionState): RumourSelection? {
-    return selectRumour(DslDefaultRumourTables.standardTown, runtime)
-}
+fun SpeakRuntimeContent.selectStandardRumour(runtime: RuntimeSessionState): RumourSelection? =
+    selectRumour(DslDefaultRumourTables.standardTown, runtime)
 
-fun SpeakRuntimeContent.selectRumour(table: RumourTableId, runtime: RuntimeSessionState): RumourSelection? {
+fun SpeakRuntimeContent.selectRumour(
+    table: RumourTableId,
+    runtime: RuntimeSessionState,
+): RumourSelection? {
     val entries = rumours(table, runtime.activeParty)
     if (entries.isEmpty()) return null
     val draw = runtime.drawRandom(0, entries.lastIndex)
@@ -252,10 +353,15 @@ fun SpeakRuntimeContent.selectRumour(table: RumourTableId, runtime: RuntimeSessi
 }
 
 fun SpeakRuntimeContent.noRumourText(): TextBlock =
-    speak.textTables.screens.firstOrNull { it.id == DslDefaultText.Speak.noRumour }?.text
+    speak.textTables.screens
+        .firstOrNull { it.id == DslDefaultText.Speak.noRumour }
+        ?.text
         ?: inlineText("- Sorry. There's", "nothing new I can", "tell you.", "")
 
-fun PartyState.withNpcVisit(npc: NpcId, visited: Boolean): PartyState {
+fun PartyState.withNpcVisit(
+    npc: NpcId,
+    visited: Boolean,
+): PartyState {
     val visits = visitedNpcs.associateBy { it.npc } + (npc to NpcVisitState(npc = npc, visited = visited))
     return copy(visitedNpcs = visits.values.sortedBy { it.npc.slug })
 }

@@ -20,19 +20,23 @@ fun GameModel.renderTerminalStaticScreen(
 ): TerminalStaticScreen? {
     require(maxLinesPerPage > 0) { "maxLinesPerPage must be positive" }
     val screen = visuals.staticScreens.singleOrNull { it.id == id } ?: return null
-    val runtimePages = context.runtime?.let { runtime ->
-        screen.runtimeReport?.renderRuntimeStaticScreenPages(
-            content = this,
-            runtime = runtime,
-            maxLinesPerPage = maxLinesPerPage,
-        )
-    }
-    val pages = runtimePages ?: when {
-        screen.commandHelp -> wilderness.keys.effectiveHelpPages(maxLinesPerPage)
-            .map { page -> renderer.lines(page, context) }
-        screen.resource != null -> resourceText(screen.resource).documentPages(maxLinesPerPage)
-        else -> emptyList()
-    }
+    val runtimePages =
+        context.runtime?.let { runtime ->
+            screen.runtimeReport?.renderRuntimeStaticScreenPages(
+                content = this,
+                runtime = runtime,
+                maxLinesPerPage = maxLinesPerPage,
+            )
+        }
+    val pages =
+        runtimePages ?: when {
+            screen.commandHelp ->
+                wilderness.keys
+                    .effectiveHelpPages(maxLinesPerPage)
+                    .map { page -> renderer.lines(page, context) }
+            screen.resource != null -> resourceText(screen.resource).documentPages(maxLinesPerPage)
+            else -> emptyList()
+        }
     return TerminalStaticScreen(
         id = screen.id,
         image = screen.image,
@@ -44,16 +48,16 @@ private fun String.documentPages(maxLinesPerPage: Int): List<List<String>> =
     normalizeLineEndings()
         .split('\u000C')
         .flatMap { explicitPage ->
-            val lines = explicitPage
-                .lineSequence()
-                .map { line -> line.trimEnd('\r') }
-                .toList()
-                .dropTrailingEmptyLines()
+            val lines =
+                explicitPage
+                    .lineSequence()
+                    .map { line -> line.trimEnd('\r') }
+                    .toList()
+                    .dropTrailingEmptyLines()
             if (lines.isEmpty()) emptyList() else lines.chunked(maxLinesPerPage)
         }
 
-private fun String.normalizeLineEndings(): String =
-    replace("\r\n", "\n").replace('\r', '\n')
+private fun String.normalizeLineEndings(): String = replace("\r\n", "\n").replace('\r', '\n')
 
 private fun List<String>.dropTrailingEmptyLines(): List<String> {
     val end = indexOfLast { it.isNotEmpty() }

@@ -1,8 +1,8 @@
 package rylween.runtime
 
-import rylween.dsl.GridPoint
 import rylween.dsl.DungeonEventId
 import rylween.dsl.DungeonId
+import rylween.dsl.GridPoint
 import rylween.dsl.ItemId
 import rylween.dsl.MissionId
 import rylween.dsl.SceneId
@@ -23,7 +23,10 @@ data class RuntimeSnapshotMetadata(
 )
 
 sealed interface RuntimeModeSnapshot {
-    data class YdargCastle(val session: YdargSessionSnapshot) : RuntimeModeSnapshot
+    data class YdargCastle(
+        val session: YdargSessionSnapshot,
+    ) : RuntimeModeSnapshot
+
     data class Dungeon(
         val session: DungeonSessionSnapshot,
         val postDungeon: MissionPostDungeonSnapshot? = null,

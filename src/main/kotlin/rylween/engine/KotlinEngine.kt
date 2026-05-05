@@ -2,9 +2,29 @@
 
 package rylween.engine
 
-import rylween.dsl.*
-import rylween.runtime.*
+import rylween.dsl.GameModel
+import rylween.dsl.PartyId
+import rylween.dsl.PartyState
+import rylween.dsl.RuntimeMode
+import rylween.dsl.StateModel
+import rylween.dsl.TownId
+import rylween.dsl.Wilderness
+import rylween.dsl.dungeon
+import rylween.dsl.partyId
+import rylween.dsl.random
+import rylween.dsl.runtimeContent
+import rylween.dsl.town
+import rylween.dsl.worldMap
+import rylween.runtime.NpcPlacementRealizerConfig
+import rylween.runtime.ReferenceRylweenRandom
+import rylween.runtime.RuntimeModeSnapshot
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.RuntimeSnapshotModel
+import rylween.runtime.RylweenRandomPort
 import rylween.runtime.dungeon.toDungeonSession
+import rylween.runtime.party
+import rylween.runtime.realizeNpcPlacements
+import rylween.runtime.toRuntimeSessionState
 import rylween.runtime.town.CharacterCreationSession
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.TownSession
@@ -38,12 +58,13 @@ class RylweenKotlinEngine(
         rngState: Long? = null,
         realizeNpcs: Boolean = true,
     ): RuntimeSessionState {
-        val runtime = RuntimeSessionState.singleParty(
-            party = party,
-            hour = hour,
-            currentTown = currentTown,
-            rngState = rngState,
-        )
+        val runtime =
+            RuntimeSessionState.singleParty(
+                party = party,
+                hour = hour,
+                currentTown = currentTown,
+                rngState = rngState,
+            )
         return if (realizeNpcs) {
             runtime.realizeNpcPlacements(content.characters, content.towns, npcPlacementConfig)
         } else {
@@ -84,11 +105,12 @@ class RylweenKotlinEngine(
         worldMap: WorldMapGrid,
         realizeNpcs: Boolean = true,
     ): WildernessSession {
-        val realized = if (realizeNpcs) {
-            runtime.realizeNpcPlacements(content.characters, content.towns, npcPlacementConfig)
-        } else {
-            runtime
-        }
+        val realized =
+            if (realizeNpcs) {
+                runtime.realizeNpcPlacements(content.characters, content.towns, npcPlacementConfig)
+            } else {
+                runtime
+            }
         return WildernessSession.start(
             content = content.runtimeContent(),
             runtime = realized,
@@ -118,11 +140,12 @@ class RylweenKotlinEngine(
     ): WildernessSession {
         val runtime = initialRuntime(snapshot.state, rngState, realizeNpcs)
         val map = worldMap.withNpcHuts(runtime.npcs)
-        val base = WildernessSession.start(
-            content = content.runtimeContent(),
-            runtime = runtime,
-            worldMap = map,
-        )
+        val base =
+            WildernessSession.start(
+                content = content.runtimeContent(),
+                runtime = runtime,
+                worldMap = map,
+            )
         return when (val mode = snapshot.mode) {
             null -> {
                 require(snapshot.state.realm.currentMode == RuntimeMode.Wilderness) {
@@ -139,13 +162,15 @@ class RylweenKotlinEngine(
                 val dungeon = mode.toDungeonSession(runtime, runtimeContent, map)
                 base.copy(
                     runtime = dungeon.runtime,
-                    step = WildernessSessionStep.Dungeon(
-                        session = dungeon,
-                        postDungeon = mode.postDungeon?.toMissionPostDungeonContinuation(
-                            runtime = dungeon.runtime,
-                            content = runtimeContent,
+                    step =
+                        WildernessSessionStep.Dungeon(
+                            session = dungeon,
+                            postDungeon =
+                                mode.postDungeon?.toMissionPostDungeonContinuation(
+                                    runtime = dungeon.runtime,
+                                    content = runtimeContent,
+                                ),
                         ),
-                    ),
                 )
             }
         }

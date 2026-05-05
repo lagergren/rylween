@@ -1,8 +1,5 @@
 package rylween
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import rylween.dsl.BuildingServiceModel
 import rylween.dsl.FormulaModel
 import rylween.dsl.IntAst
@@ -23,21 +20,26 @@ import rylween.game.RylweenCompiledGame
 import rylween.runtime.ScriptContinuation
 import rylween.runtime.battle.evalFormula
 import rylween.runtime.toRuntimeSessionState
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class RuntimeEventLoggingTest {
     @Test
     fun formulaEvaluationEmitsDebugRuntimeEvent() {
         val sink = CapturingRuntimeEventSink()
-        val formulas = listOf(
-            FormulaModel(
-                formula("diagnostic_formula"),
-                IntAst.Binary(IntAst.Var("base"), "add", IntAst.Lit(7)),
-            ),
-        )
+        val formulas =
+            listOf(
+                FormulaModel(
+                    formula("diagnostic_formula"),
+                    IntAst.Binary(IntAst.Var("base"), "add", IntAst.Lit(7)),
+                ),
+            )
 
-        val value = RuntimeEventScope.withSink(sink) {
-            formulas.evalFormula(formula("diagnostic_formula"), mapOf("base" to 35))
-        }
+        val value =
+            RuntimeEventScope.withSink(sink) {
+                formulas.evalFormula(formula("diagnostic_formula"), mapOf("base" to 35))
+            }
 
         assertEquals(42, value)
         val event = sink.events.single()
@@ -52,16 +54,20 @@ class RuntimeEventLoggingTest {
     fun liveScriptBridgeEmitsVmOpDiagnosticsWithoutAddingTraceEvents() {
         val sink = CapturingRuntimeEventSink()
         val engine = TraceEnginePort(eventSink = sink)
-        val service = BuildingServiceModel(
-            building = building("diagnostic"),
-            action = keyAction("diagnostic"),
-            scene = SceneId("diagnostic"),
-            opensAt = null,
-            closesAt = null,
-            nativeServices = emptyList(),
-        )
+        val service =
+            BuildingServiceModel(
+                building = building("diagnostic"),
+                action = keyAction("diagnostic"),
+                scene = SceneId("diagnostic"),
+                opensAt = null,
+                closesAt = null,
+                nativeServices = emptyList(),
+            )
         val scene = SceneModel(SceneId("diagnostic"), listOf(Op.Screen(inlineText("hello"))))
-        val runtime = RylweenCompiledGame.nextRylween.states.first().toRuntimeSessionState()
+        val runtime =
+            RylweenCompiledGame.nextRylween.states
+                .first()
+                .toRuntimeSessionState()
 
         StatefulScriptBridge(NoopTerminalPort, engine = engine).run(
             service = service,
@@ -88,5 +94,6 @@ private class CapturingRuntimeEventSink : RuntimeEventSink {
 
 private object NoopTerminalPort : TerminalPort {
     override fun write(lines: List<String>) = Unit
+
     override fun readLine(): String? = null
 }

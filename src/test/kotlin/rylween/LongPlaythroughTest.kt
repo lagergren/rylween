@@ -1,14 +1,67 @@
 package rylween
 
-import rylween.dsl.*
-import rylween.frontend.terminal.*
+import rylween.dsl.BoolAst
+import rylween.dsl.BuildingId
+import rylween.dsl.DungeonId
+import rylween.dsl.EquipmentState
+import rylween.dsl.FlagState
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.GridPoint
+import rylween.dsl.IntAst
+import rylween.dsl.InventorySaveSlotMax
+import rylween.dsl.InventorySlotState
+import rylween.dsl.LocationPlacement
+import rylween.dsl.MissionId
+import rylween.dsl.MissionModel
+import rylween.dsl.PartyState
+import rylween.dsl.RuntimeContent
+import rylween.dsl.RuntimeMode
+import rylween.dsl.StaticScreenId
+import rylween.dsl.TerrainId
+import rylween.dsl.TownId
+import rylween.dsl.Trigger
+import rylween.dsl.Wilderness
+import rylween.dsl.WorldPosition
+import rylween.dsl.building
+import rylween.dsl.dungeon
+import rylween.dsl.formula
+import rylween.dsl.item
+import rylween.dsl.line
+import rylween.dsl.lines
+import rylween.dsl.location
+import rylween.dsl.milestone
+import rylween.dsl.monster
+import rylween.dsl.of
+import rylween.dsl.render
+import rylween.dsl.runtimeContent
+import rylween.dsl.terrain
+import rylween.dsl.text
+import rylween.dsl.town
+import rylween.dsl.worldMap
+import rylween.dsl.xy
+import rylween.frontend.terminal.TerminalAdapterResult
+import rylween.frontend.terminal.TerminalRunStatus
+import rylween.frontend.terminal.TerminalTextContext
+import rylween.frontend.terminal.TerminalTextRenderer
+import rylween.frontend.terminal.TownSessionTerminalAdapter
+import rylween.frontend.terminal.WildernessSessionTerminalAdapter
+import rylween.frontend.terminal.YdargSessionTerminalAdapter
+import rylween.frontend.terminal.map
+import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.game.*
-import rylween.runtime.*
+import rylween.runtime.ReferenceRylweenRandom
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.WildernessDirection
+import rylween.runtime.delta
+import rylween.runtime.hasFlagState
+import rylween.runtime.party
+import rylween.runtime.toRuntimeSessionState
 import rylween.runtime.town.TownSession
 import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WildernessSessionResultStatus
 import rylween.runtime.wilderness.WildernessSessionStep
 import rylween.runtime.wilderness.worldMapGrid
+import rylween.runtime.withFlagState
 import rylween.runtime.ydarg.YdargSession
 import rylween.runtime.ydarg.YdargSessionStatus
 import rylween.runtime.ydarg.YdargSessionStep
@@ -125,39 +178,46 @@ class LongPlaythroughTest {
 
 private class CheatedLongPlaythrough {
     private val game = RylweenCompiledGame.nextDsl
-    private val renderer = TerminalTextRenderer(
-        towns = game.towns,
-        characters = game.characters,
-        dungeons = game.dungeons,
-        prompts = game.prompts,
-    )
-    private val worldMap = checkNotNull(game.worldMapGrid(Maps.wilderness))
-    private val baseLocations = RylweenCompiledGame.nextRylween.states
-        .single { it.id == States.freshReplay }
-        .locations
-    private val strongReplayState = RylweenCompiledGame.nextRylween.states
-        .single { it.id == States.strongReplay }
-    private val baseCheatedParty = strongReplayState
-        .parties
-        .single()
-        .cheatedForLongPlaythrough()
-    private val playthroughLocations = (
-        baseLocations + listOf(
-            LocationPlacement(Locations.hermitDungeon, GridPoint(45, 13)),
-            LocationPlacement(Locations.thunTemple, GridPoint(41, 30)),
-            LocationPlacement(Locations.koboldVillage, GridPoint(53, 10)),
-            LocationPlacement(Locations.borinCamp, GridPoint(47, 28)),
-            LocationPlacement(Locations.nolrimCrypt, GridPoint(11, 23)),
-            LocationPlacement(Locations.masterCrownDungeon, GridPoint(22, 32)),
+    private val renderer =
+        TerminalTextRenderer(
+            towns = game.towns,
+            characters = game.characters,
+            dungeons = game.dungeons,
+            prompts = game.prompts,
         )
-    ).distinctBy { it.location }
+    private val worldMap = checkNotNull(game.worldMapGrid(Maps.wilderness))
+    private val baseLocations =
+        RylweenCompiledGame.nextRylween.states
+            .single { it.id == States.freshReplay }
+            .locations
+    private val strongReplayState =
+        RylweenCompiledGame.nextRylween.states
+            .single { it.id == States.strongReplay }
+    private val baseCheatedParty =
+        strongReplayState
+            .parties
+            .single()
+            .cheatedForLongPlaythrough()
+    private val playthroughLocations =
+        (
+            baseLocations +
+                listOf(
+                    LocationPlacement(Locations.hermitDungeon, GridPoint(45, 13)),
+                    LocationPlacement(Locations.thunTemple, GridPoint(41, 30)),
+                    LocationPlacement(Locations.koboldVillage, GridPoint(53, 10)),
+                    LocationPlacement(Locations.borinCamp, GridPoint(47, 28)),
+                    LocationPlacement(Locations.nolrimCrypt, GridPoint(11, 23)),
+                    LocationPlacement(Locations.masterCrownDungeon, GridPoint(22, 32)),
+                )
+        ).distinctBy { it.location }
 
     private val runtimeContent = game.runtimeContent().cheatedForLongPlaythrough()
 
-    var runtime: RuntimeSessionState = strongReplayState
-        .toRuntimeSessionState()
-        .withActiveParty(baseCheatedParty)
-        .copy(locations = playthroughLocations)
+    var runtime: RuntimeSessionState =
+        strongReplayState
+            .toRuntimeSessionState()
+            .withActiveParty(baseCheatedParty)
+            .copy(locations = playthroughLocations)
         private set
 
     val coveredBuildings = linkedSetOf<BuildingId>()
@@ -169,7 +229,10 @@ private class CheatedLongPlaythrough {
         private set
 
     val allTownBuildings: Set<BuildingId> =
-        game.towns.single { it.id == Towns.thord.id }.services.mapTo(linkedSetOf()) { it.building }
+        game.towns
+            .single { it.id == Towns.thord.id }
+            .services
+            .mapTo(linkedSetOf()) { it.building }
 
     val allMissions: Set<MissionId> =
         game.missions.mapTo(linkedSetOf()) { it.id }
@@ -187,19 +250,25 @@ private class CheatedLongPlaythrough {
         )
 
     val dungeonHandoffMissions: Set<MissionId>
-        get() = missionLegs()
-            .filter { leg -> leg.expectedEnd is MissionEnd.DungeonHandoff }
-            .mapTo(linkedSetOf()) { leg -> leg.id }
+        get() =
+            missionLegs()
+                .filter { leg -> leg.expectedEnd is MissionEnd.DungeonHandoff }
+                .mapTo(linkedSetOf()) { leg -> leg.id }
 
-    fun visitTownService(building: BuildingId, inputs: List<String>, expectedText: String) {
+    fun visitTownService(
+        building: BuildingId,
+        inputs: List<String>,
+        expectedText: String,
+    ) {
         val terminal = ScenarioTerminalPort(*(listOf("P") + inputs).toTypedArray())
-        val result = TownSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
-            TownSession.start(
-                town = game.towns.single { it.id == Towns.thord.id },
-                runtime = runtime.asTown(Towns.thord.id).withHour(12),
-                content = runtimeContent,
-            ),
-        )
+        val result =
+            TownSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+                TownSession.start(
+                    town = game.towns.single { it.id == Towns.thord.id },
+                    runtime = runtime.asTown(Towns.thord.id).withHour(12),
+                    content = runtimeContent,
+                ),
+            )
 
         assertTrue(
             result.status is TerminalRunStatus.Finished,
@@ -216,24 +285,51 @@ private class CheatedLongPlaythrough {
     }
 
     fun visitEveryThordServiceThroughWilderness(): ScenarioTerminalPort {
-        val routeAndTownInputs = listOf(
-            "2", "2", "E", "P",
-            "M", "B", "A", "1", "P", "L",
-            "S", "B", "W", "1", "P", "L",
-            "I", "N", "N", "N", "L",
-            "T", "N", "T", "1", "T", "", "L",
-            "C", "L",
-            "L",
-            "X", "Y",
-        )
+        val routeAndTownInputs =
+            listOf(
+                "2",
+                "2",
+                "E",
+                "P",
+                "M",
+                "B",
+                "A",
+                "1",
+                "P",
+                "L",
+                "S",
+                "B",
+                "W",
+                "1",
+                "P",
+                "L",
+                "I",
+                "N",
+                "N",
+                "N",
+                "L",
+                "T",
+                "N",
+                "T",
+                "1",
+                "T",
+                "",
+                "L",
+                "C",
+                "L",
+                "L",
+                "X",
+                "Y",
+            )
         val terminal = ScenarioTerminalPort(*routeAndTownInputs.toTypedArray())
-        val result = WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
-            WildernessSession.start(
-                content = runtimeContent,
-                runtime = runtime.withHour(12).asWilderness(),
-                worldMap = worldMap,
-            ),
-        )
+        val result =
+            WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+                WildernessSession.start(
+                    content = runtimeContent,
+                    runtime = runtime.withHour(12).asWilderness(),
+                    worldMap = worldMap,
+                ),
+            )
 
         assertTrue(
             result.status is TerminalRunStatus.Finished,
@@ -291,16 +387,18 @@ private class CheatedLongPlaythrough {
         val mission = game.missions.single { it.id == leg.id }
         val scene = game.scenes.single { it.id == mission.action }
         val terminal = ScenarioTerminalPort(*leg.inputs.toTypedArray())
-        val result = WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
-            WildernessSession(
-                runtime = runtime
-                    .withActiveParty(runtime.activeParty.cheatedForLongPlaythrough())
-                    .asWilderness(),
-                worldMap = worldMap,
-                content = runtimeContent,
-                step = WildernessSessionStep.Mission(mission, scene),
-            ),
-        )
+        val result =
+            WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+                WildernessSession(
+                    runtime =
+                        runtime
+                            .withActiveParty(runtime.activeParty.cheatedForLongPlaythrough())
+                            .asWilderness(),
+                    worldMap = worldMap,
+                    content = runtimeContent,
+                    step = WildernessSessionStep.Mission(mission, scene),
+                ),
+            )
 
         verifyMissionRun(leg, result, terminal.output)
     }
@@ -316,27 +414,30 @@ private class CheatedLongPlaythrough {
     private fun runAcceptanceTriggeredMission(leg: MissionLeg) {
         val mission = game.missions.single { it.id == leg.id }
         val route = routeToTrigger(mission.trigger)
-        val terminalRun = runTriggeredMission(
-            leg = leg,
-            mission = mission,
-            route = route,
-            startParty = runtime.activeParty,
-        )
+        val terminalRun =
+            runTriggeredMission(
+                leg = leg,
+                mission = mission,
+                route = route,
+                startParty = runtime.activeParty,
+            )
 
         verifyMissionRun(leg, terminalRun.result, terminalRun.output)
     }
 
     private fun runTriggeredMissionThroughDungeonReturn(leg: MissionLeg) {
-        val expectedEnd = leg.expectedEnd as? MissionEnd.DungeonHandoff
-            ?: error("mission ${leg.id.slug} does not hand off to a dungeon")
+        val expectedEnd =
+            leg.expectedEnd as? MissionEnd.DungeonHandoff
+                ?: error("mission ${leg.id.slug} does not hand off to a dungeon")
         val mission = game.missions.single { it.id == leg.id }
         val route = routeToTrigger(mission.trigger).copy(rngState = firstStandardDungeonMessageSeed())
-        val terminalRun = runTriggeredMission(
-            leg = leg,
-            mission = mission,
-            route = route,
-            extraInputs = listOf("", "A"),
-        )
+        val terminalRun =
+            runTriggeredMission(
+                leg = leg,
+                mission = mission,
+                route = route,
+                extraInputs = listOf("", "A"),
+            )
 
         verifyPostDungeonContinuation(leg, expectedEnd, terminalRun.result, terminalRun.output)
     }
@@ -349,19 +450,21 @@ private class CheatedLongPlaythrough {
         val leg = missionLegs().single { it.id == completion.mission }
         val mission = game.missions.single { it.id == leg.id }
         val route = routeToTrigger(mission.trigger)
-        val terminalRun = runTriggeredMission(
-            leg = leg,
-            mission = mission,
-            route = route,
-            extraInputs = completion.inputs,
-            content = runtimeContent.withFixedDungeonEventsOnly(),
-            startParty = startParty,
-        )
+        val terminalRun =
+            runTriggeredMission(
+                leg = leg,
+                mission = mission,
+                route = route,
+                extraInputs = completion.inputs,
+                content = runtimeContent.withFixedDungeonEventsOnly(),
+                startParty = startParty,
+            )
 
         verifyPostDungeonContinuation(leg, completion.expectedEnd, terminalRun.result, terminalRun.output)
         completion.expectedFlags.forEach { flag ->
             assertTrue(
-                terminalRun.result.session.party.hasFlagState(flag),
+                terminalRun.result.session.party
+                    .hasFlagState(flag),
                 "mission ${leg.id.slug} did not set ${flag.flag.slug}=${flag.native}",
             )
         }
@@ -379,8 +482,12 @@ private class CheatedLongPlaythrough {
         }
         coveredFixedDungeonCompletions += completion.expectedEnd.dungeon
         if (applyRuntime) {
-            runtime = terminalRun.result.session.runtime
-                .withActiveParty(terminalRun.result.session.party.cheatedForLongPlaythrough())
+            runtime =
+                terminalRun.result.session.runtime
+                    .withActiveParty(
+                        terminalRun.result.session.party
+                            .cheatedForLongPlaythrough(),
+                    )
         }
     }
 
@@ -392,30 +499,32 @@ private class CheatedLongPlaythrough {
         content: RuntimeContent = runtimeContent,
         startParty: PartyState = baseCheatedParty,
     ): MissionTerminalRun {
-        val party = startParty
-            .cheatedForLongPlaythrough()
-            .copy(position = WorldPosition.Wilderness(route.start))
-            .withRequirement(mission.requires)
-        val startRuntime = runtime
-            .withActiveParty(party)
-            .withRealm(
-                runtime.realm.copy(
-                    hour = 12,
-                    rngState = route.rngState,
-                    currentMap = Maps.wilderness,
-                    currentMode = RuntimeMode.Wilderness,
-                    currentTown = null,
+        val party =
+            startParty
+                .cheatedForLongPlaythrough()
+                .copy(position = WorldPosition.Wilderness(route.start))
+                .withRequirement(mission.requires)
+        val startRuntime =
+            runtime
+                .withActiveParty(party)
+                .withRealm(
+                    runtime.realm.copy(
+                        hour = 12,
+                        rngState = route.rngState,
+                        currentMap = Maps.wilderness,
+                        currentMode = RuntimeMode.Wilderness,
+                        currentTown = null,
+                    ),
+                ).copy(locations = playthroughLocations)
+        val terminal = ScenarioTerminalPort(*(route.inputs + leg.inputs + extraInputs).toTypedArray())
+        val result =
+            WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+                WildernessSession.start(
+                    content = content,
+                    runtime = startRuntime.asWilderness(),
+                    worldMap = worldMap,
                 ),
             )
-            .copy(locations = playthroughLocations)
-        val terminal = ScenarioTerminalPort(*(route.inputs + leg.inputs + extraInputs).toTypedArray())
-        val result = WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
-            WildernessSession.start(
-                content = content,
-                runtime = startRuntime.asWilderness(),
-                worldMap = worldMap,
-            ),
-        )
 
         return MissionTerminalRun(result, terminal.output)
     }
@@ -492,35 +601,49 @@ private class CheatedLongPlaythrough {
     }
 
     fun finishYdarg(grantPowerMilestones: Boolean = true) {
-        val party = runtime.activeParty
-            .cheatedForLongPlaythrough()
-            .let { party ->
-                if (grantPowerMilestones) {
-                    party.withMilestones(*requiredYdargMilestones.toTypedArray())
-                } else {
-                    party
+        val party =
+            runtime.activeParty
+                .cheatedForLongPlaythrough()
+                .let { party ->
+                    if (grantPowerMilestones) {
+                        party.withMilestones(*requiredYdargMilestones.toTypedArray())
+                    } else {
+                        party
+                    }
                 }
-            }
-        val startRuntime = RuntimeSessionState.singleParty(
-            party = party,
-            hour = 12,
-            currentTown = null,
-            rngState = 1L,
-            locations = playthroughLocations,
-        )
-        val session = YdargSession.start(startRuntime, runtimeContent).copy(
-            step = YdargSessionStep.StairGive,
-            floor = 4,
-            point = GridPoint(5, 5),
-        )
-        val terminal = ScenarioTerminalPort(
-            "4",
-            "F", "A", "A",
-            "F", "A", "A",
-            "F", "A", "A",
-            "F", "A", "A",
-            "F", "A", "A",
-        )
+        val startRuntime =
+            RuntimeSessionState.singleParty(
+                party = party,
+                hour = 12,
+                currentTown = null,
+                rngState = 1L,
+                locations = playthroughLocations,
+            )
+        val session =
+            YdargSession.start(startRuntime, runtimeContent).copy(
+                step = YdargSessionStep.StairGive,
+                floor = 4,
+                point = GridPoint(5, 5),
+            )
+        val terminal =
+            ScenarioTerminalPort(
+                "4",
+                "F",
+                "A",
+                "A",
+                "F",
+                "A",
+                "A",
+                "F",
+                "A",
+                "A",
+                "F",
+                "A",
+                "A",
+                "F",
+                "A",
+                "A",
+            )
         val result = YdargSessionTerminalAdapter(terminal, renderer).runUntilBlocked(session)
 
         assertTrue(result.status is TerminalRunStatus.Finished)
@@ -533,15 +656,20 @@ private class CheatedLongPlaythrough {
 
     private fun renderRuntimeReports(): AcceptanceReports {
         val context = TerminalTextContext(runtime = runtime)
-        fun render(screen: StaticScreenId, label: String): List<String> {
-            val rendered = checkNotNull(
-                game.renderTerminalStaticScreen(
-                    id = screen,
-                    renderer = renderer,
-                    resourceText = { error("$label should render from runtime state") },
-                    context = context,
-                ),
-            )
+
+        fun render(
+            screen: StaticScreenId,
+            label: String,
+        ): List<String> {
+            val rendered =
+                checkNotNull(
+                    game.renderTerminalStaticScreen(
+                        id = screen,
+                        renderer = renderer,
+                        resourceText = { error("$label should render from runtime state") },
+                        context = context,
+                    ),
+                )
             val lines = rendered.pages.flatten()
             assertNoUnresolvedText(label, lines)
             return lines
@@ -665,44 +793,51 @@ private class CheatedLongPlaythrough {
             DungeonCompletionLeg(
                 mission = Missions.erethorEntry,
                 expectedEnd = MissionEnd.DungeonHandoff(Dungeons.erethorTemple, levels = 12),
-                inputs = completeDungeon(
-                    levels = 12,
-                    descendEvents = mapOf(
-                        3 to erethorPriestsInputs(),
-                        7 to erethorPriestsInputs(),
-                        12 to luteChamberInputs(),
+                inputs =
+                    completeDungeon(
+                        levels = 12,
+                        descendEvents =
+                            mapOf(
+                                3 to erethorPriestsInputs(),
+                                7 to erethorPriestsInputs(),
+                                12 to luteChamberInputs(),
+                            ),
+                        ascendRecurringEvents =
+                            mapOf(
+                                7 to erethorPriestsInputs(),
+                                3 to erethorPriestsInputs(),
+                            ),
                     ),
-                    ascendRecurringEvents = mapOf(
-                        7 to erethorPriestsInputs(),
-                        3 to erethorPriestsInputs(),
-                    ),
-                ),
                 expectedFlags = listOf(Story.erethor.lute.luteTaken),
                 expectedText = "Lute",
             ),
             DungeonCompletionLeg(
                 mission = Missions.husbandCave,
                 expectedEnd = MissionEnd.DungeonHandoff(Dungeons.ogreCave, levels = 7),
-                inputs = completeDungeon(
-                    levels = 7,
-                    descendEvents = mapOf(
-                        6 to orcNestInputs(),
-                        7 to listOf(""),
+                inputs =
+                    completeDungeon(
+                        levels = 7,
+                        descendEvents =
+                            mapOf(
+                                6 to orcNestInputs(),
+                                7 to listOf(""),
+                            ),
                     ),
-                ),
                 expectedFlags = listOf(Story.peasant.wife.rescued),
                 expectedText = "wife is in",
             ),
             DungeonCompletionLeg(
                 mission = Missions.hermitDungeon,
                 expectedEnd = MissionEnd.DungeonHandoff(Dungeons.fireShieldCave, levels = 20),
-                inputs = completeDungeon(
-                    levels = 20,
-                    descendEvents = mapOf(
-                        19 to (listOf("") + battleInputs()),
-                        20 to listOf(""),
+                inputs =
+                    completeDungeon(
+                        levels = 20,
+                        descendEvents =
+                            mapOf(
+                                19 to (listOf("") + battleInputs()),
+                                20 to listOf(""),
+                            ),
                     ),
-                ),
                 expectedFlags = listOf(Story.hermit.trollTooth.fireShieldAcquired),
                 expectedMilestones = listOf(Milestones.fireShield),
                 expectedText = "FIRE SHIELD",
@@ -710,15 +845,17 @@ private class CheatedLongPlaythrough {
             DungeonCompletionLeg(
                 mission = Missions.thunTemple,
                 expectedEnd = MissionEnd.DungeonHandoff(Dungeons.thunTemple, levels = 18),
-                inputs = completeDungeon(
-                    levels = 18,
-                    descendEvents = mapOf(
-                        4 to thunRiddleInputs("water"),
-                        8 to thunRiddleInputs("night"),
-                        12 to thunRiddleInputs("a well"),
-                        18 to listOf(""),
+                inputs =
+                    completeDungeon(
+                        levels = 18,
+                        descendEvents =
+                            mapOf(
+                                4 to thunRiddleInputs("water"),
+                                8 to thunRiddleInputs("night"),
+                                12 to thunRiddleInputs("a well"),
+                                18 to listOf(""),
+                            ),
                     ),
-                ),
                 expectedFlags = listOf(Story.bracelets.thun.braceletsTaken),
                 expectedMilestones = listOf(Milestones.braceletsOfThun),
                 expectedText = "Bracelets of Thun",
@@ -726,42 +863,47 @@ private class CheatedLongPlaythrough {
             DungeonCompletionLeg(
                 mission = Missions.nolrimCrypt,
                 expectedEnd = MissionEnd.DungeonHandoff(Dungeons.reebarTomb, levels = 20),
-                inputs = completeDungeon(
-                    levels = 20,
-                    descendEvents = mapOf(
-                        12 to listOf(""),
-                        13 to colourRiddleInputs(13),
-                        14 to colourRiddleInputs(14),
-                        15 to colourRiddleInputs(15),
-                        16 to colourRiddleInputs(16),
-                        17 to colourRiddleInputs(17),
-                        18 to colourRiddleInputs(18),
-                        19 to colourRiddleInputs(19),
-                        20 to listOf(""),
+                inputs =
+                    completeDungeon(
+                        levels = 20,
+                        descendEvents =
+                            mapOf(
+                                12 to listOf(""),
+                                13 to colourRiddleInputs(13),
+                                14 to colourRiddleInputs(14),
+                                15 to colourRiddleInputs(15),
+                                16 to colourRiddleInputs(16),
+                                17 to colourRiddleInputs(17),
+                                18 to colourRiddleInputs(18),
+                                19 to colourRiddleInputs(19),
+                                20 to listOf(""),
+                            ),
+                        ascendRecurringEvents =
+                            mapOf(
+                                19 to colourRiddleInputs(19),
+                                18 to colourRiddleInputs(18),
+                                17 to colourRiddleInputs(17),
+                                16 to colourRiddleInputs(16),
+                                15 to colourRiddleInputs(15),
+                                14 to colourRiddleInputs(14),
+                                13 to colourRiddleInputs(13),
+                                12 to listOf(""),
+                            ),
                     ),
-                    ascendRecurringEvents = mapOf(
-                        19 to colourRiddleInputs(19),
-                        18 to colourRiddleInputs(18),
-                        17 to colourRiddleInputs(17),
-                        16 to colourRiddleInputs(16),
-                        15 to colourRiddleInputs(15),
-                        14 to colourRiddleInputs(14),
-                        13 to colourRiddleInputs(13),
-                        12 to listOf(""),
-                    ),
-                ),
                 expectedFlags = listOf(Story.masterCrown.daggerTaken),
                 expectedText = "dagger you seek",
             ),
             DungeonCompletionLeg(
                 mission = Missions.masterCrown,
                 expectedEnd = MissionEnd.DungeonHandoff(Dungeons.masterCrownDungeon, levels = 10),
-                inputs = completeDungeon(
-                    levels = 10,
-                    descendEvents = mapOf(
-                        10 to (listOf("", "") + battleInputs()),
+                inputs =
+                    completeDungeon(
+                        levels = 10,
+                        descendEvents =
+                            mapOf(
+                                10 to (listOf("", "") + battleInputs()),
+                            ),
                     ),
-                ),
                 expectedFlags = listOf(Story.masterCrown.crownTaken),
                 expectedMilestones = listOf(Milestones.masterCrown),
                 expectedText = "Master Crown",
@@ -769,48 +911,55 @@ private class CheatedLongPlaythrough {
             DungeonCompletionLeg(
                 mission = Missions.silverKey,
                 expectedEnd = MissionEnd.DungeonHandoff(Dungeons.silverSanctum, levels = 20),
-                inputs = completeDungeon(
-                    levels = 20,
-                    descendEvents = mapOf(
-                        20 to List(4) { "" },
+                inputs =
+                    completeDungeon(
+                        levels = 20,
+                        descendEvents =
+                            mapOf(
+                                20 to List(4) { "" },
+                            ),
                     ),
-                ),
                 expectedFlags = listOf(Story.silverKey.noteFound),
                 expectedText = "Master Thief",
             ),
             DungeonCompletionLeg(
                 mission = Missions.hobgoblinCave,
                 expectedEnd = MissionEnd.DungeonHandoff(Dungeons.hobgoblinStronghold, levels = 22),
-                inputs = completeDungeon(
-                    levels = 22,
-                    descendEvents = mapOf(
-                        3 to hobgoblinPatrolInputs(note = true),
-                        6 to hobgoblinPatrolInputs(note = true),
-                        9 to hobgoblinPatrolInputs(note = true),
-                        14 to hobgoblinPatrolInputs(),
-                        17 to hobgoblinPatrolInputs(),
-                        19 to hobgoblinPatrolInputs(),
-                        20 to (listOf("") + battleInputs()),
-                        21 to (listOf("") + battleInputs()),
-                        22 to hobgoblinChiefInputs(),
+                inputs =
+                    completeDungeon(
+                        levels = 22,
+                        descendEvents =
+                            mapOf(
+                                3 to hobgoblinPatrolInputs(note = true),
+                                6 to hobgoblinPatrolInputs(note = true),
+                                9 to hobgoblinPatrolInputs(note = true),
+                                14 to hobgoblinPatrolInputs(),
+                                17 to hobgoblinPatrolInputs(),
+                                19 to hobgoblinPatrolInputs(),
+                                20 to (listOf("") + battleInputs()),
+                                21 to (listOf("") + battleInputs()),
+                                22 to hobgoblinChiefInputs(),
+                            ),
+                        ascendRecurringEvents =
+                            mapOf(
+                                19 to hobgoblinPatrolInputs(),
+                                17 to hobgoblinPatrolInputs(),
+                                14 to hobgoblinPatrolInputs(note = true),
+                                9 to hobgoblinPatrolInputs(),
+                                6 to hobgoblinPatrolInputs(),
+                                3 to hobgoblinPatrolInputs(),
+                            ),
                     ),
-                    ascendRecurringEvents = mapOf(
-                        19 to hobgoblinPatrolInputs(),
-                        17 to hobgoblinPatrolInputs(),
-                        14 to hobgoblinPatrolInputs(note = true),
-                        9 to hobgoblinPatrolInputs(),
-                        6 to hobgoblinPatrolInputs(),
-                        3 to hobgoblinPatrolInputs(),
-                    ),
-                ),
                 expectedFlags = listOf(Story.silverKey.keyTaken),
                 expectedMilestones = listOf(Milestones.silverKey),
                 expectedText = "precious Silver Key",
             ),
         )
 
-    private fun battleInputs(prefixReturns: Int = 0, suffixReturns: Int = 0): List<String> =
-        List(prefixReturns) { "" } + listOf("F", "A", "A") + List(suffixReturns) { "" }
+    private fun battleInputs(
+        prefixReturns: Int = 0,
+        suffixReturns: Int = 0,
+    ): List<String> = List(prefixReturns) { "" } + listOf("F", "A", "A") + List(suffixReturns) { "" }
 
     private fun completeDungeon(
         levels: Int,
@@ -829,8 +978,7 @@ private class CheatedLongPlaythrough {
             add("A")
         }
 
-    private fun erethorPriestsInputs(): List<String> =
-        listOf("") + battleInputs()
+    private fun erethorPriestsInputs(): List<String> = listOf("") + battleInputs()
 
     private fun luteChamberInputs(): List<String> =
         List(5) { "" } +
@@ -842,44 +990,44 @@ private class CheatedLongPlaythrough {
             battleInputs() +
             List(2) { "" }
 
-    private fun orcNestInputs(): List<String> =
-        listOf("") + battleInputs() + listOf("") + battleInputs() + battleInputs() + listOf("")
+    private fun orcNestInputs(): List<String> = listOf("") + battleInputs() + listOf("") + battleInputs() + battleInputs() + listOf("")
 
-    private fun thunRiddleInputs(answer: String): List<String> =
-        listOf("", answer, "")
+    private fun thunRiddleInputs(answer: String): List<String> = listOf("", answer, "")
 
-    private fun colourRiddleInputs(level: Int): List<String> =
-        listOf("", "", (20 - level).toString(), "")
+    private fun colourRiddleInputs(level: Int): List<String> = listOf("", "", (20 - level).toString(), "")
 
     private fun hobgoblinPatrolInputs(note: Boolean = false): List<String> =
         listOf("") + battleInputs() + if (note) listOf("") else emptyList()
 
-    private fun hobgoblinChiefInputs(): List<String> =
-        listOf("", "RISH EKKIN", "") + battleInputs() + listOf("")
+    private fun hobgoblinChiefInputs(): List<String> = listOf("", "RISH EKKIN", "") + battleInputs() + listOf("")
 
     private fun routeToTrigger(trigger: Trigger): TriggerRoute =
         when (trigger) {
             is Trigger.AtPosition -> routeToPoint(trigger.point)
-            is Trigger.AtLocation -> routeToPoint(
-                checkNotNull(playthroughLocations.firstOrNull { it.location == trigger.location }?.point) {
-                    "mission trigger location ${trigger.location.slug} is not placed in the playthrough state"
-                },
-            )
+            is Trigger.AtLocation ->
+                routeToPoint(
+                    checkNotNull(playthroughLocations.firstOrNull { it.location == trigger.location }?.point) {
+                        "mission trigger location ${trigger.location.slug} is not placed in the playthrough state"
+                    },
+                )
             is Trigger.OnTerrain -> routeToTerrain(trigger.terrain)
             is Trigger.RandomStep -> randomStepRoute(trigger.percent)
         }
 
     private fun routeToTerrain(terrain: TerrainId): TriggerRoute {
-        val route = worldMap.rows.indices.asSequence().flatMap { y ->
-            val row = worldMap.rows[y]
-            row.indices.asSequence().map { x -> GridPoint(x, y) }
-        }.firstNotNullOfOrNull { point ->
-            if (worldMap.isPassable(point) && point.terrainId() == terrain) {
-                routeToPointOrNull(point)
-            } else {
-                null
-            }
-        }
+        val route =
+            worldMap.rows.indices
+                .asSequence()
+                .flatMap { y ->
+                    val row = worldMap.rows[y]
+                    row.indices.asSequence().map { x -> GridPoint(x, y) }
+                }.firstNotNullOfOrNull { point ->
+                    if (worldMap.isPassable(point) && point.terrainId() == terrain) {
+                        routeToPointOrNull(point)
+                    } else {
+                        null
+                    }
+                }
         return checkNotNull(route) { "no reachable terrain tile for mission trigger ${terrain.slug}" }
     }
 
@@ -900,8 +1048,7 @@ private class CheatedLongPlaythrough {
         }
     }
 
-    private fun GridPoint.terrainId(): TerrainId? =
-        worldMap.tileAt(this)?.let { tile -> worldMap.terrain.byMapCode(tile)?.id }
+    private fun GridPoint.terrainId(): TerrainId? = worldMap.tileAt(this)?.let { tile -> worldMap.terrain.byMapCode(tile)?.id }
 
     private fun firstRandomStepSeed(percent: Int): Long =
         generateSequence(1L) { it + 1L }
@@ -920,7 +1067,10 @@ private class CheatedLongPlaythrough {
             Milestones.braceletsOfThun,
         )
 
-    private fun assertNoUnresolvedText(label: String, output: List<String>) {
+    private fun assertNoUnresolvedText(
+        label: String,
+        output: List<String>,
+    ) {
         val unresolved = output.filter { "{" in it || "}" in it }
         assertTrue(unresolved.isEmpty(), "$label rendered unresolved text placeholders: $unresolved")
     }
@@ -952,7 +1102,10 @@ private data class DungeonCompletionLeg(
     val expectedText: String? = null,
 )
 
-private enum class DirectionRoute(val direction: WildernessDirection, val input: String) {
+private enum class DirectionRoute(
+    val direction: WildernessDirection,
+    val input: String,
+) {
     South(WildernessDirection.South, "2"),
     North(WildernessDirection.North, "8"),
     East(WildernessDirection.East, "6"),
@@ -968,83 +1121,97 @@ private data class MissionLeg(
 
 private sealed interface MissionEnd {
     object Completed : MissionEnd
-    data class DungeonHandoff(val dungeon: DungeonId, val levels: Int) : MissionEnd
+
+    data class DungeonHandoff(
+        val dungeon: DungeonId,
+        val levels: Int,
+    ) : MissionEnd
 }
 
 private fun RuntimeContent.cheatedForLongPlaythrough(): RuntimeContent =
     copy(
-        monsters = monsters.map { monster ->
-            monster.copy(
-                count = 1..1,
-                hitPoints = 1..1,
-                weaponSkill = 0,
-                spellPower = 0,
-                immune = false,
-            )
-        },
-        formulas = formulas.map { formula ->
-            when (formula.id) {
-                Formulas.rewardGoldParty,
-                Formulas.rewardXpPerSurvivor -> formula.copy(value = IntAst.Lit(0))
-                else -> formula
-            }
-        },
-        rewards = rewards.map { reward ->
-            reward.copy(loot = reward.loot.copy(dropChancePercent = 0))
-        },
+        monsters =
+            monsters.map { monster ->
+                monster.copy(
+                    count = 1..1,
+                    hitPoints = 1..1,
+                    weaponSkill = 0,
+                    spellPower = 0,
+                    immune = false,
+                )
+            },
+        formulas =
+            formulas.map { formula ->
+                when (formula.id) {
+                    Formulas.rewardGoldParty,
+                    Formulas.rewardXpPerSurvivor,
+                    -> formula.copy(value = IntAst.Lit(0))
+                    else -> formula
+                }
+            },
+        rewards =
+            rewards.map { reward ->
+                reward.copy(loot = reward.loot.copy(dropChancePercent = 0))
+            },
     )
 
 private fun RuntimeContent.withFixedDungeonEventsOnly(): RuntimeContent =
     copy(
-        dungeons = dungeons.copy(
-            scenarios = dungeons.scenarios.map { scenario ->
-                scenario.copy(randomEvents = emptyList())
-            },
-        ),
+        dungeons =
+            dungeons.copy(
+                scenarios =
+                    dungeons.scenarios.map { scenario ->
+                        scenario.copy(randomEvents = emptyList())
+                    },
+            ),
     )
 
 private fun PartyState.cheatedForLongPlaythrough(): PartyState =
     copy(
-        resources = resources.copy(
-            gold = 50_000,
-            torches = 80,
-            food = 500,
-            timeLeft = 500,
-            restedHours = 14,
-        ),
-        inventory = (1..InventorySaveSlotMax).map { slot ->
-            InventorySlotState(
-                slot = slot,
-                item = when (slot) {
-                    1 -> Items.redGem
-                    2 -> Items.blueGem
-                    3 -> Items.greenGem
-                    4 -> Items.redGem
-                    5 -> Items.blueGem
-                    else -> null
-                },
-            )
-        },
-        members = members.mapIndexed { index, member ->
-            member.copy(
-                level = maxOf(member.level, 28),
-                health = 5000,
-                hitPoints = 5000 of 5000,
-                weaponSkill = 100,
-                wisdom = maxOf(member.wisdom, 90),
-                mana = 5000 of 5000,
-                charisma = maxOf(member.charisma, 90),
-                equipment = EquipmentState(
-                    weapon = if (index == 0) Items.deathBlade else member.weapon,
-                    armor = Items.admtMail,
-                ),
-                dead = false,
-            )
-        },
+        resources =
+            resources.copy(
+                gold = 50_000,
+                torches = 80,
+                food = 500,
+                timeLeft = 500,
+                restedHours = 14,
+            ),
+        inventory =
+            (1..InventorySaveSlotMax).map { slot ->
+                InventorySlotState(
+                    slot = slot,
+                    item =
+                        when (slot) {
+                            1 -> Items.redGem
+                            2 -> Items.blueGem
+                            3 -> Items.greenGem
+                            4 -> Items.redGem
+                            5 -> Items.blueGem
+                            else -> null
+                        },
+                )
+            },
+        members =
+            members.mapIndexed { index, member ->
+                member.copy(
+                    level = maxOf(member.level, 28),
+                    health = 5000,
+                    hitPoints = 5000 of 5000,
+                    weaponSkill = 100,
+                    wisdom = maxOf(member.wisdom, 90),
+                    mana = 5000 of 5000,
+                    charisma = maxOf(member.charisma, 90),
+                    equipment =
+                        EquipmentState(
+                            weapon = if (index == 0) Items.deathBlade else member.weapon,
+                            armor = Items.admtMail,
+                        ),
+                    dead = false,
+                )
+            },
     )
 
-private fun PartyState.withMilestones(vararg extra: GameMilestoneId): PartyState =
-    copy(milestones = (milestones + extra).distinct())
+private fun PartyState.withMilestones(vararg extra: GameMilestoneId): PartyState = copy(milestones = (milestones + extra).distinct())
 
 private fun PartyState.withRequirement(requirement: BoolAst?): PartyState =
     when (requirement) {
@@ -1072,5 +1239,4 @@ private fun RuntimeSessionState.asWilderness(): RuntimeSessionState =
         ),
     )
 
-private fun RuntimeSessionState.withHour(hour: Int): RuntimeSessionState =
-    withRealm(realm.copy(hour = hour))
+private fun RuntimeSessionState.withHour(hour: Int): RuntimeSessionState = withRealm(realm.copy(hour = hour))

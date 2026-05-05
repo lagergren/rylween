@@ -10,7 +10,36 @@
 
 package rylween.game
 
-import rylween.dsl.*
+import rylween.dsl.BattleTextBuilder
+import rylween.dsl.DungeonId
+import rylween.dsl.DungeonScenarioBuilder
+import rylween.dsl.ItemPoolId
+import rylween.dsl.JournalBuilder
+import rylween.dsl.MemberChoiceFilter
+import rylween.dsl.MemberRef
+import rylween.dsl.MonsterId
+import rylween.dsl.MonsterRef
+import rylween.dsl.PcClass
+import rylween.dsl.PronounCase
+import rylween.dsl.ScriptScope
+import rylween.dsl.StructuredTextBlockBuilder
+import rylween.dsl.TextBlock
+import rylween.dsl.TextLineSink
+import rylween.dsl.dungeon
+import rylween.dsl.eq
+import rylween.dsl.gt
+import rylween.dsl.gte
+import rylween.dsl.inputKey
+import rylween.dsl.line
+import rylween.dsl.lines
+import rylween.dsl.lit
+import rylween.dsl.lt
+import rylween.dsl.partyName
+import rylween.dsl.pronoun
+import rylween.dsl.random
+import rylween.dsl.structuredText
+import rylween.dsl.text
+import rylween.dsl.textLines
 
 private fun TextLineSink.standardBattleTargetPromptLines() {
     line("Who?")
@@ -36,8 +65,7 @@ fun BattleTextBuilder.monsterKilledLine() {
     killed { standardBattleKilledLines() }
 }
 
-fun ScriptScope.askAliveBattleMonster(): MonsterRef =
-    ask.monsterAlive(structuredText { standardBattleTargetPromptLines() })
+fun ScriptScope.askAliveBattleMonster(): MonsterRef = ask.monsterAlive(structuredText { standardBattleTargetPromptLines() })
 
 fun ScriptScope.showBattleKilled() {
     screen { standardBattleKilledLines() }
@@ -184,7 +212,11 @@ fun ScriptScope.notEnoughSpellPoints() {
     clearText()
 }
 
-fun ScriptScope.withPriestSpellPoints(caster: MemberRef, baseCost: Int, body: ScriptScope.() -> Unit) {
+fun ScriptScope.withPriestSpellPoints(
+    caster: MemberRef,
+    baseCost: Int,
+    body: ScriptScope.() -> Unit,
+) {
     val cost = lit(baseCost) + caster.level
     whenever(caster.mp gte cost) {
         caster.mp -= cost
@@ -218,16 +250,17 @@ fun ScriptScope.priestTeleport(caster: MemberRef) {
         }
         waitInput("after teleport slab")
         clearText()
-        val direction = ask.wildernessDirection(
-            textLines(
-                "Teleport :",
-                "",
-                "   8",
-                " 4-+-6",
-                "   2",
-                "",
-            ),
-        )
+        val direction =
+            ask.wildernessDirection(
+                textLines(
+                    "Teleport :",
+                    "",
+                    "   8",
+                    " 4-+-6",
+                    "   2",
+                    "",
+                ),
+            )
         clearText()
         val distance = ask.digit(textLines("How many miles do you", "want to travel? (1-9)"), 1..9)
         teleportParty(direction, distance)
@@ -241,14 +274,15 @@ fun ScriptScope.priestTeleport(caster: MemberRef) {
 fun ScriptScope.travellerStory() {
     clearText()
     val maxMembers = realm.partyMemberMax
-    val storyteller = choice.member(
-        structuredText {
-            line("Who wants to tell")
-            line("a story? (1-", maxMembers, ")")
-        },
-        filter = MemberChoiceFilter.AliveOnly,
-        accepting = MemberChoiceFilter.Any,
-    )
+    val storyteller =
+        choice.member(
+            structuredText {
+                line("Who wants to tell")
+                line("a story? (1-", maxMembers, ")")
+            },
+            filter = MemberChoiceFilter.AliveOnly,
+            accepting = MemberChoiceFilter.Any,
+        )
 
     whenever(storyteller.dead) {
         clearText()

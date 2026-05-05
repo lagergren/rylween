@@ -107,7 +107,9 @@ data class YdargContentModel(
 )
 
 @RylNextDsl
-class YdargBuilder(private val id: CastleId = DslDefaultCastles.ydarg) {
+class YdargBuilder(
+    private val id: CastleId = DslDefaultCastles.ydarg,
+) {
     var entry: GridPoint = GridPoint(14, 30)
     var image: ImageId? = null
     var requiredKey: GameMilestoneId? = null
@@ -115,11 +117,12 @@ class YdargBuilder(private val id: CastleId = DslDefaultCastles.ydarg) {
     var mapSize: Int = 5
     var roomTypeMax: Int = 5
     var monsterTier: EncounterTier? = null
-    private val roomEvents = mutableMapOf(
-        1 to YdargRoomEvent.Monster,
-        2 to YdargRoomEvent.Pitfall,
-        3 to YdargRoomEvent.Treasure,
-    )
+    private val roomEvents =
+        mutableMapOf(
+            1 to YdargRoomEvent.Monster,
+            2 to YdargRoomEvent.Pitfall,
+            3 to YdargRoomEvent.Treasure,
+        )
     private var treasureModel = YdargTreasureBuilder().build()
     private var pitfallModel = YdargPitfallBuilder().build()
     private var stairsModel = YdargStairsBuilder().build()
@@ -127,12 +130,18 @@ class YdargBuilder(private val id: CastleId = DslDefaultCastles.ydarg) {
     private var keysModel = YdargKeysModel()
     private var textModel = YdargTextBuilder().build()
 
-    fun map(size: Int, roomTypeMax: Int = this.roomTypeMax) {
+    fun map(
+        size: Int,
+        roomTypeMax: Int = this.roomTypeMax,
+    ) {
         this.mapSize = size
         this.roomTypeMax = roomTypeMax
     }
 
-    fun roomEvent(roll: Int, event: YdargRoomEvent) {
+    fun roomEvent(
+        roll: Int,
+        event: YdargRoomEvent,
+    ) {
         roomEvents[roll] = event
     }
 
@@ -181,7 +190,9 @@ class YdargBuilder(private val id: CastleId = DslDefaultCastles.ydarg) {
 }
 
 @RylNextDsl
-class YdargTreasureBuilder(initial: YdargTreasureModel = YdargTreasureModel()) {
+class YdargTreasureBuilder(
+    initial: YdargTreasureModel = YdargTreasureModel(),
+) {
     var gateMax: Int = initial.gateMax
     private val regularKinds = initial.regularKinds.toMutableList()
     private val magic = initial.magic.toMutableList()
@@ -204,7 +215,9 @@ class YdargTreasureBuilder(initial: YdargTreasureModel = YdargTreasureModel()) {
 }
 
 @RylNextDsl
-class YdargPitfallBuilder(initial: YdargPitfallModel = YdargPitfallModel()) {
+class YdargPitfallBuilder(
+    initial: YdargPitfallModel = YdargPitfallModel(),
+) {
     var damageDivisor: Int = initial.damageDivisor
     private val trapTypes = initial.trapTypes.toMutableList()
 
@@ -220,11 +233,18 @@ class YdargPitfallBuilder(initial: YdargPitfallModel = YdargPitfallModel()) {
 }
 
 @RylNextDsl
-class YdargStairsBuilder(initial: YdargStairsModel = YdargStairsModel()) {
+class YdargStairsBuilder(
+    initial: YdargStairsModel = YdargStairsModel(),
+) {
     var floorCount: Int = initial.floorCount
     private val items = initial.items.toMutableList()
 
-    fun item(digit: Int, milestone: GameMilestoneId, itemName: String, reject: TextBlock) {
+    fun item(
+        digit: Int,
+        milestone: GameMilestoneId,
+        itemName: String,
+        reject: TextBlock,
+    ) {
         items += YdargStairItemModel(digit, milestone, itemName, reject)
     }
 
@@ -236,7 +256,9 @@ class YdargStairsBuilder(initial: YdargStairsModel = YdargStairsModel()) {
 }
 
 @RylNextDsl
-class YdargConfrontationBuilder(initial: YdargConfrontationModel = YdargConfrontationModel()) {
+class YdargConfrontationBuilder(
+    initial: YdargConfrontationModel = YdargConfrontationModel(),
+) {
     private val sequence = initial.sequence.toMutableList()
     var baron: MonsterId? = initial.baron
 
@@ -245,12 +267,13 @@ class YdargConfrontationBuilder(initial: YdargConfrontationModel = YdargConfront
         sequence += monsters
     }
 
-    fun build(): YdargConfrontationModel =
-        YdargConfrontationModel(sequence = sequence.toList(), baron = baron)
+    fun build(): YdargConfrontationModel = YdargConfrontationModel(sequence = sequence.toList(), baron = baron)
 }
 
 @RylNextDsl
-class YdargKeysBuilder(initial: YdargKeysModel = YdargKeysModel()) {
+class YdargKeysBuilder(
+    initial: YdargKeysModel = YdargKeysModel(),
+) {
     var moveNorth: InputBindingModel = initial.moveNorth
     var moveSouth: InputBindingModel = initial.moveSouth
     var moveWest: InputBindingModel = initial.moveWest
@@ -296,7 +319,9 @@ class YdargKeysBuilder(initial: YdargKeysModel = YdargKeysModel()) {
 }
 
 @RylNextDsl
-class YdargTextBuilder(initial: YdargTextModel = YdargTextModel()) {
+class YdargTextBuilder(
+    initial: YdargTextModel = YdargTextModel(),
+) {
     var ruin: TextBlock = initial.ruin
     var approach: TextBlock = initial.approach
     var jaaraForm: TextBlock = initial.jaaraForm

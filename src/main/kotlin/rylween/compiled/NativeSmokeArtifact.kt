@@ -1,6 +1,22 @@
 package rylween.compiled
 
-import rylween.dsl.*
+import rylween.dsl.BoolExpr
+import rylween.dsl.IntExpr
+import rylween.dsl.RewardApplicationModel
+import rylween.dsl.ShopQuantityCap
+import rylween.dsl.ShopSellBargainModel
+import rylween.dsl.TextBlock
+import rylween.dsl.ViewCommand
+import rylween.dsl.building
+import rylween.dsl.image
+import rylween.dsl.item
+import rylween.dsl.line
+import rylween.dsl.lines
+import rylween.dsl.location
+import rylween.dsl.milestone
+import rylween.dsl.monster
+import rylween.dsl.text
+import rylween.dsl.town
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.enums.enumEntries
@@ -10,19 +26,16 @@ private const val NativeSmokeVersion = 1
 private const val NativeSmokeFalse = 0
 private const val NativeSmokeTrue = 1
 
-fun CompiledGameBundle.toNativeSmokeArtifact(): ByteArray =
-    NativeSmokeArtifactWriter().write(this)
+fun CompiledGameBundle.toNativeSmokeArtifact(): ByteArray = NativeSmokeArtifactWriter().write(this)
 
 fun CompiledGameBundle.writeNativeSmokeArtifact(file: File) {
     file.parentFile?.mkdirs()
     file.writeBytes(toNativeSmokeArtifact())
 }
 
-fun ByteArray.readNativeSmokeArtifact(): NativeSmokeArtifactSummary =
-    NativeSmokeArtifactReader(this).read()
+fun ByteArray.readNativeSmokeArtifact(): NativeSmokeArtifactSummary = NativeSmokeArtifactReader(this).read()
 
-fun File.readNativeSmokeArtifact(): NativeSmokeArtifactSummary =
-    readBytes().readNativeSmokeArtifact()
+fun File.readNativeSmokeArtifact(): NativeSmokeArtifactSummary = readBytes().readNativeSmokeArtifact()
 
 data class NativeSmokeArtifactSummary(
     val version: Int,
@@ -38,7 +51,9 @@ private interface NativeSmokeTag {
     val code: Int
 }
 
-private enum class NativeSmokeOperandTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeOperandTag(
+    override val code: Int,
+) : NativeSmokeTag {
     Integer(0),
     BooleanValue(1),
     Character(2),
@@ -63,13 +78,17 @@ private enum class NativeSmokeOperandTag(override val code: Int) : NativeSmokeTa
     EnumName(21),
 }
 
-private enum class NativeSmokeTextBlockTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeTextBlockTag(
+    override val code: Int,
+) : NativeSmokeTag {
     Ref(0),
     Inline(1),
     Structured(2),
 }
 
-private enum class NativeSmokeTextPartTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeTextPartTag(
+    override val code: Int,
+) : NativeSmokeTag {
     Literal(0),
     IntValue(1),
     StringValue(2),
@@ -81,7 +100,9 @@ private enum class NativeSmokeTextPartTag(override val code: Int) : NativeSmokeT
     Runtime(8),
 }
 
-private enum class NativeSmokeViewCommandTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeViewCommandTag(
+    override val code: Int,
+) : NativeSmokeTag {
     ClearText(0),
     ClearMapWindow(1),
     RenderMap(2),
@@ -89,7 +110,9 @@ private enum class NativeSmokeViewCommandTag(override val code: Int) : NativeSmo
     ShowImage(4),
 }
 
-private enum class NativeSmokeIntExprTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeIntExprTag(
+    override val code: Int,
+) : NativeSmokeTag {
     Literal(0),
     Local(1),
     Binary(2),
@@ -106,7 +129,9 @@ private enum class NativeSmokeIntExprTag(override val code: Int) : NativeSmokeTa
     NativeInt(13),
 }
 
-private enum class NativeSmokeBoolExprTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeBoolExprTag(
+    override val code: Int,
+) : NativeSmokeTag {
     Cmp(0),
     Not(1),
     And(2),
@@ -119,16 +144,22 @@ private enum class NativeSmokeBoolExprTag(override val code: Int) : NativeSmokeT
     RuntimeFlag(9),
 }
 
-private enum class NativeSmokeStringExprTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeStringExprTag(
+    override val code: Int,
+) : NativeSmokeTag {
     NativeString(0),
 }
 
-private enum class NativeSmokeNativeStringArgTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeNativeStringArgTag(
+    override val code: Int,
+) : NativeSmokeTag {
     Literal(0),
     IntValue(1),
 }
 
-private enum class NativeSmokeLValueTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeLValueTag(
+    override val code: Int,
+) : NativeSmokeTag {
     RealmScalar(0),
     PartyScalar(1),
     MemberField(2),
@@ -136,7 +167,9 @@ private enum class NativeSmokeLValueTag(override val code: Int) : NativeSmokeTag
     BattleFlag(4),
 }
 
-private enum class NativeSmokeShopPriceTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeShopPriceTag(
+    override val code: Int,
+) : NativeSmokeTag {
     ItemCost(0),
     HalfItemCost(1),
     Fixed(2),
@@ -144,12 +177,16 @@ private enum class NativeSmokeShopPriceTag(override val code: Int) : NativeSmoke
     ItemCostPlusLeaderLevelTimes(4),
 }
 
-private enum class NativeSmokeShopPurchaseTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeShopPurchaseTag(
+    override val code: Int,
+) : NativeSmokeTag {
     InventoryItem(0),
     Bulk(1),
 }
 
-private enum class NativeSmokeShopQuantityCapTag(override val code: Int) : NativeSmokeTag {
+private enum class NativeSmokeShopQuantityCapTag(
+    override val code: Int,
+) : NativeSmokeTag {
     FixedAmount(0),
     CarryCapacity(1),
 }
@@ -220,23 +257,28 @@ private class NativeSmokeArtifactWriter {
             is CompiledOperand.StringExprValue -> tag(NativeSmokeOperandTag.StringExpr) { stringExpr(operand.value) }
             is CompiledOperand.LValueValue -> tag(NativeSmokeOperandTag.LValue) { lValue(operand.value) }
             is CompiledOperand.ViewCommandValue -> tag(NativeSmokeOperandTag.ViewCommand) { viewCommand(operand.value) }
-            is CompiledOperand.Instructions -> tag(NativeSmokeOperandTag.Instructions) {
-                instructions(operand.instructions)
-            }
-            is CompiledOperand.SwitchCases -> tag(NativeSmokeOperandTag.SwitchCases) {
-                list(operand.cases, ::switchCase)
-            }
-            is CompiledOperand.MenuOptions -> tag(NativeSmokeOperandTag.MenuOptions) {
-                list(operand.options, ::menuOption)
-            }
-            is CompiledOperand.InputBindings -> tag(NativeSmokeOperandTag.InputBindings) {
-                list(operand.bindings, ::inputBinding)
-            }
+            is CompiledOperand.Instructions ->
+                tag(NativeSmokeOperandTag.Instructions) {
+                    instructions(operand.instructions)
+                }
+            is CompiledOperand.SwitchCases ->
+                tag(NativeSmokeOperandTag.SwitchCases) {
+                    list(operand.cases, ::switchCase)
+                }
+            is CompiledOperand.MenuOptions ->
+                tag(NativeSmokeOperandTag.MenuOptions) {
+                    list(operand.options, ::menuOption)
+                }
+            is CompiledOperand.InputBindings ->
+                tag(NativeSmokeOperandTag.InputBindings) {
+                    list(operand.bindings, ::inputBinding)
+                }
             is CompiledOperand.TextAnswer -> tag(NativeSmokeOperandTag.TextAnswer) { textAnswer(operand.answer) }
             is CompiledOperand.Reward -> tag(NativeSmokeOperandTag.Reward) { scriptReward(operand.reward) }
-            is CompiledOperand.RandomItemOffer -> tag(NativeSmokeOperandTag.RandomItemOffer) {
-                randomItemOffer(operand.offer)
-            }
+            is CompiledOperand.RandomItemOffer ->
+                tag(NativeSmokeOperandTag.RandomItemOffer) {
+                    randomItemOffer(operand.offer)
+                }
             is CompiledOperand.ShopService -> tag(NativeSmokeOperandTag.ShopService) { shopService(operand.service) }
             is CompiledOperand.EnumName -> tag(NativeSmokeOperandTag.EnumName) { inlineString(operand.name) }
         }
@@ -287,13 +329,15 @@ private class NativeSmokeArtifactWriter {
             is CompiledTextPart.RoleName -> tag(NativeSmokeTextPartTag.RoleName) { handleRef(part.role) }
             is CompiledTextPart.RoleLocation -> tag(NativeSmokeTextPartTag.RoleLocation) { handleRef(part.role) }
             is CompiledTextPart.TownName -> tag(NativeSmokeTextPartTag.TownName) { handleRef(part.town) }
-            is CompiledTextPart.FuzzyTownLocation -> tag(NativeSmokeTextPartTag.FuzzyTownLocation) {
-                handleRef(part.town)
-                i32(part.radius)
-            }
-            is CompiledTextPart.LocationCoordinate -> tag(NativeSmokeTextPartTag.LocationCoordinate) {
-                handleRef(part.location)
-            }
+            is CompiledTextPart.FuzzyTownLocation ->
+                tag(NativeSmokeTextPartTag.FuzzyTownLocation) {
+                    handleRef(part.town)
+                    i32(part.radius)
+                }
+            is CompiledTextPart.LocationCoordinate ->
+                tag(NativeSmokeTextPartTag.LocationCoordinate) {
+                    handleRef(part.location)
+                }
             is CompiledTextPart.Runtime -> tag(NativeSmokeTextPartTag.Runtime) { u32(part.kind.ordinal) }
         }
     }
@@ -312,76 +356,91 @@ private class NativeSmokeArtifactWriter {
         when (expr) {
             is CompiledIntExpr.Literal -> tag(NativeSmokeIntExprTag.Literal) { i32(expr.value) }
             is CompiledIntExpr.Local -> tag(NativeSmokeIntExprTag.Local) { stringId(expr.nameString) }
-            is CompiledIntExpr.Binary -> tag(NativeSmokeIntExprTag.Binary) {
-                intExpr(expr.left)
-                enumName(expr.op)
-                intExpr(expr.right)
-            }
-            is CompiledIntExpr.If -> tag(NativeSmokeIntExprTag.If) {
-                boolExpr(expr.cond)
-                intExpr(expr.thenValue)
-                intExpr(expr.elseValue)
-            }
-            is CompiledIntExpr.Random -> tag(NativeSmokeIntExprTag.Random) {
-                intExpr(expr.lo)
-                intExpr(expr.hi)
-            }
-            is CompiledIntExpr.MemberField -> tag(NativeSmokeIntExprTag.MemberField) {
-                intExpr(expr.member)
-                stringId(expr.fieldString)
-            }
-            is CompiledIntExpr.MonsterField -> tag(NativeSmokeIntExprTag.MonsterField) {
-                intExpr(expr.monster)
-                stringId(expr.fieldString)
-            }
+            is CompiledIntExpr.Binary ->
+                tag(NativeSmokeIntExprTag.Binary) {
+                    intExpr(expr.left)
+                    enumName(expr.op)
+                    intExpr(expr.right)
+                }
+            is CompiledIntExpr.If ->
+                tag(NativeSmokeIntExprTag.If) {
+                    boolExpr(expr.cond)
+                    intExpr(expr.thenValue)
+                    intExpr(expr.elseValue)
+                }
+            is CompiledIntExpr.Random ->
+                tag(NativeSmokeIntExprTag.Random) {
+                    intExpr(expr.lo)
+                    intExpr(expr.hi)
+                }
+            is CompiledIntExpr.MemberField ->
+                tag(NativeSmokeIntExprTag.MemberField) {
+                    intExpr(expr.member)
+                    stringId(expr.fieldString)
+                }
+            is CompiledIntExpr.MonsterField ->
+                tag(NativeSmokeIntExprTag.MonsterField) {
+                    intExpr(expr.monster)
+                    stringId(expr.fieldString)
+                }
             is CompiledIntExpr.BattleFlag -> tag(NativeSmokeIntExprTag.BattleFlag) { stringId(expr.nameString) }
             is CompiledIntExpr.BattleQuery -> tag(NativeSmokeIntExprTag.BattleQuery) { stringId(expr.nameString) }
             is CompiledIntExpr.RealmScalar -> tag(NativeSmokeIntExprTag.RealmScalar) { stringId(expr.nameString) }
             is CompiledIntExpr.PartyScalar -> tag(NativeSmokeIntExprTag.PartyScalar) { stringId(expr.nameString) }
-            is CompiledIntExpr.InventoryPoolCount -> tag(NativeSmokeIntExprTag.InventoryPoolCount) {
-                handleRef(expr.pool)
-            }
-            is CompiledIntExpr.InventorySlotCost -> tag(NativeSmokeIntExprTag.InventorySlotCost) {
-                intExpr(expr.slot)
-            }
-            is CompiledIntExpr.NativeInt -> tag(NativeSmokeIntExprTag.NativeInt) {
-                stringId(expr.pathString)
-                stringIds(expr.argStrings)
-            }
+            is CompiledIntExpr.InventoryPoolCount ->
+                tag(NativeSmokeIntExprTag.InventoryPoolCount) {
+                    handleRef(expr.pool)
+                }
+            is CompiledIntExpr.InventorySlotCost ->
+                tag(NativeSmokeIntExprTag.InventorySlotCost) {
+                    intExpr(expr.slot)
+                }
+            is CompiledIntExpr.NativeInt ->
+                tag(NativeSmokeIntExprTag.NativeInt) {
+                    stringId(expr.pathString)
+                    stringIds(expr.argStrings)
+                }
         }
     }
 
     private fun boolExpr(expr: CompiledBoolExpr) {
         when (expr) {
-            is CompiledBoolExpr.Cmp -> tag(NativeSmokeBoolExprTag.Cmp) {
-                intExpr(expr.left)
-                enumName(expr.op)
-                intExpr(expr.right)
-            }
+            is CompiledBoolExpr.Cmp ->
+                tag(NativeSmokeBoolExprTag.Cmp) {
+                    intExpr(expr.left)
+                    enumName(expr.op)
+                    intExpr(expr.right)
+                }
             is CompiledBoolExpr.Not -> tag(NativeSmokeBoolExprTag.Not) { boolExpr(expr.expr) }
-            is CompiledBoolExpr.And -> tag(NativeSmokeBoolExprTag.And) {
-                boolExpr(expr.left)
-                boolExpr(expr.right)
-            }
-            is CompiledBoolExpr.Or -> tag(NativeSmokeBoolExprTag.Or) {
-                boolExpr(expr.left)
-                boolExpr(expr.right)
-            }
-            is CompiledBoolExpr.FlagIs -> tag(NativeSmokeBoolExprTag.FlagIs) {
-                handleRef(expr.flag)
-                handleRef(expr.state)
-            }
-            is CompiledBoolExpr.MilestoneAchieved -> tag(NativeSmokeBoolExprTag.MilestoneAchieved) {
-                handleRef(expr.milestone)
-            }
-            is CompiledBoolExpr.MemberFlag -> tag(NativeSmokeBoolExprTag.MemberFlag) {
-                intExpr(expr.member)
-                stringId(expr.nameString)
-            }
-            is CompiledBoolExpr.MonsterFlag -> tag(NativeSmokeBoolExprTag.MonsterFlag) {
-                intExpr(expr.monster)
-                stringId(expr.nameString)
-            }
+            is CompiledBoolExpr.And ->
+                tag(NativeSmokeBoolExprTag.And) {
+                    boolExpr(expr.left)
+                    boolExpr(expr.right)
+                }
+            is CompiledBoolExpr.Or ->
+                tag(NativeSmokeBoolExprTag.Or) {
+                    boolExpr(expr.left)
+                    boolExpr(expr.right)
+                }
+            is CompiledBoolExpr.FlagIs ->
+                tag(NativeSmokeBoolExprTag.FlagIs) {
+                    handleRef(expr.flag)
+                    handleRef(expr.state)
+                }
+            is CompiledBoolExpr.MilestoneAchieved ->
+                tag(NativeSmokeBoolExprTag.MilestoneAchieved) {
+                    handleRef(expr.milestone)
+                }
+            is CompiledBoolExpr.MemberFlag ->
+                tag(NativeSmokeBoolExprTag.MemberFlag) {
+                    intExpr(expr.member)
+                    stringId(expr.nameString)
+                }
+            is CompiledBoolExpr.MonsterFlag ->
+                tag(NativeSmokeBoolExprTag.MonsterFlag) {
+                    intExpr(expr.monster)
+                    stringId(expr.nameString)
+                }
             is CompiledBoolExpr.BattleFlag -> tag(NativeSmokeBoolExprTag.BattleFlag) { stringId(expr.nameString) }
             is CompiledBoolExpr.RuntimeFlag -> tag(NativeSmokeBoolExprTag.RuntimeFlag) { stringId(expr.nameString) }
         }
@@ -389,21 +448,24 @@ private class NativeSmokeArtifactWriter {
 
     private fun stringExpr(expr: CompiledStringExpr) {
         when (expr) {
-            is CompiledStringExpr.NativeString -> tag(NativeSmokeStringExprTag.NativeString) {
-                stringId(expr.pathString)
-                list(expr.args, ::nativeStringArg)
-            }
+            is CompiledStringExpr.NativeString ->
+                tag(NativeSmokeStringExprTag.NativeString) {
+                    stringId(expr.pathString)
+                    list(expr.args, ::nativeStringArg)
+                }
         }
     }
 
     private fun nativeStringArg(arg: CompiledNativeStringArg) {
         when (arg) {
-            is CompiledNativeStringArg.Literal -> tag(NativeSmokeNativeStringArgTag.Literal) {
-                stringId(arg.string)
-            }
-            is CompiledNativeStringArg.IntValue -> tag(NativeSmokeNativeStringArgTag.IntValue) {
-                intExpr(arg.value)
-            }
+            is CompiledNativeStringArg.Literal ->
+                tag(NativeSmokeNativeStringArgTag.Literal) {
+                    stringId(arg.string)
+                }
+            is CompiledNativeStringArg.IntValue ->
+                tag(NativeSmokeNativeStringArgTag.IntValue) {
+                    intExpr(arg.value)
+                }
         }
     }
 
@@ -411,14 +473,16 @@ private class NativeSmokeArtifactWriter {
         when (value) {
             is CompiledLValue.RealmScalar -> tag(NativeSmokeLValueTag.RealmScalar) { stringId(value.nameString) }
             is CompiledLValue.PartyScalar -> tag(NativeSmokeLValueTag.PartyScalar) { stringId(value.nameString) }
-            is CompiledLValue.MemberField -> tag(NativeSmokeLValueTag.MemberField) {
-                intExpr(value.member)
-                stringId(value.fieldString)
-            }
-            is CompiledLValue.MonsterField -> tag(NativeSmokeLValueTag.MonsterField) {
-                intExpr(value.monster)
-                stringId(value.fieldString)
-            }
+            is CompiledLValue.MemberField ->
+                tag(NativeSmokeLValueTag.MemberField) {
+                    intExpr(value.member)
+                    stringId(value.fieldString)
+                }
+            is CompiledLValue.MonsterField ->
+                tag(NativeSmokeLValueTag.MonsterField) {
+                    intExpr(value.monster)
+                    stringId(value.fieldString)
+                }
             is CompiledLValue.BattleFlag -> tag(NativeSmokeLValueTag.BattleFlag) { stringId(value.nameString) }
         }
     }
@@ -514,9 +578,10 @@ private class NativeSmokeArtifactWriter {
             CompiledShopPrice.ItemCost -> tag(NativeSmokeShopPriceTag.ItemCost)
             CompiledShopPrice.HalfItemCost -> tag(NativeSmokeShopPriceTag.HalfItemCost)
             is CompiledShopPrice.Fixed -> tag(NativeSmokeShopPriceTag.Fixed) { i32(price.amount) }
-            is CompiledShopPrice.LeaderLevelPlus -> tag(NativeSmokeShopPriceTag.LeaderLevelPlus) {
-                i32(price.addend)
-            }
+            is CompiledShopPrice.LeaderLevelPlus ->
+                tag(NativeSmokeShopPriceTag.LeaderLevelPlus) {
+                    i32(price.addend)
+                }
             is CompiledShopPrice.ItemCostPlusLeaderLevelTimes -> {
                 tag(NativeSmokeShopPriceTag.ItemCostPlusLeaderLevelTimes) { i32(price.multiplier) }
             }
@@ -526,25 +591,28 @@ private class NativeSmokeArtifactWriter {
     private fun shopPurchase(purchase: CompiledShopPurchase) {
         when (purchase) {
             CompiledShopPurchase.InventoryItem -> tag(NativeSmokeShopPurchaseTag.InventoryItem)
-            is CompiledShopPurchase.Bulk -> tag(NativeSmokeShopPurchaseTag.Bulk) {
-                enumName(purchase.resource)
-                textBlock(purchase.quantityPrompt)
-                shopQuantityCap(purchase.cap)
-                textBlock(purchase.tooMany)
-                enumName(purchase.zeroQuantityDeal)
-            }
+            is CompiledShopPurchase.Bulk ->
+                tag(NativeSmokeShopPurchaseTag.Bulk) {
+                    enumName(purchase.resource)
+                    textBlock(purchase.quantityPrompt)
+                    shopQuantityCap(purchase.cap)
+                    textBlock(purchase.tooMany)
+                    enumName(purchase.zeroQuantityDeal)
+                }
         }
     }
 
     private fun shopQuantityCap(cap: ShopQuantityCap) {
         when (cap) {
-            is ShopQuantityCap.FixedAmount -> tag(NativeSmokeShopQuantityCapTag.FixedAmount) {
-                enumName(cap.resource)
-                i32(cap.amount)
-            }
-            is ShopQuantityCap.CarryCapacity -> tag(NativeSmokeShopQuantityCapTag.CarryCapacity) {
-                enumName(cap.resource)
-            }
+            is ShopQuantityCap.FixedAmount ->
+                tag(NativeSmokeShopQuantityCapTag.FixedAmount) {
+                    enumName(cap.resource)
+                    i32(cap.amount)
+                }
+            is ShopQuantityCap.CarryCapacity ->
+                tag(NativeSmokeShopQuantityCapTag.CarryCapacity) {
+                    enumName(cap.resource)
+                }
         }
     }
 
@@ -580,7 +648,10 @@ private class NativeSmokeArtifactWriter {
         bool(interlude.runsRumourAfterAccept)
     }
 
-    private fun tag(value: NativeSmokeTag, body: () -> Unit = {}) {
+    private fun tag(
+        value: NativeSmokeTag,
+        body: () -> Unit = {},
+    ) {
         u32(value.code)
         body()
     }
@@ -616,12 +687,18 @@ private class NativeSmokeArtifactWriter {
         bytes(encoded)
     }
 
-    private fun <T> list(values: Collection<T>, writeValue: (T) -> Unit) {
+    private fun <T> list(
+        values: Collection<T>,
+        writeValue: (T) -> Unit,
+    ) {
         u32(values.size)
         values.forEach(writeValue)
     }
 
-    private fun <T> nullable(value: T?, writeValue: (T) -> Unit) {
+    private fun <T> nullable(
+        value: T?,
+        writeValue: (T) -> Unit,
+    ) {
         bool(value != null)
         value?.let(writeValue)
     }
@@ -680,12 +757,13 @@ private class NativeSmokeArtifactReader(
         stringCount = u32("string count")
         repeatCount(stringCount) { skipBytes(u32("string length")) }
 
-        val handles = List(u32("handle count")) {
-            val ref = rawHandleRef()
-            u32("dense handle id")
-            stringRef()
-            ref
-        }
+        val handles =
+            List(u32("handle count")) {
+                val ref = rawHandleRef()
+                u32("dense handle id")
+                stringRef()
+                ref
+            }
         if (handles.toSet().size != handles.size) fail("declared handle refs must be unique")
         declaredHandles = handles.toSet()
 
@@ -773,7 +851,8 @@ private class NativeSmokeArtifactReader(
             NativeSmokeTextPartTag.RoleName,
             NativeSmokeTextPartTag.RoleLocation,
             NativeSmokeTextPartTag.TownName,
-            NativeSmokeTextPartTag.LocationCoordinate -> handleRef()
+            NativeSmokeTextPartTag.LocationCoordinate,
+            -> handleRef()
             NativeSmokeTextPartTag.FuzzyTownLocation -> {
                 handleRef()
                 u32("fuzzy town radius")
@@ -790,7 +869,8 @@ private class NativeSmokeArtifactReader(
             NativeSmokeViewCommandTag.ClearText,
             NativeSmokeViewCommandTag.ClearMapWindow,
             NativeSmokeViewCommandTag.RenderMap,
-            NativeSmokeViewCommandTag.StatusLine -> Unit
+            NativeSmokeViewCommandTag.StatusLine,
+            -> Unit
             NativeSmokeViewCommandTag.ShowImage -> handleRef()
         }
     }
@@ -802,7 +882,8 @@ private class NativeSmokeArtifactReader(
             NativeSmokeIntExprTag.BattleFlag,
             NativeSmokeIntExprTag.BattleQuery,
             NativeSmokeIntExprTag.RealmScalar,
-            NativeSmokeIntExprTag.PartyScalar -> stringRef()
+            NativeSmokeIntExprTag.PartyScalar,
+            -> stringRef()
             NativeSmokeIntExprTag.Binary -> {
                 intExpr()
                 enumName()
@@ -818,7 +899,8 @@ private class NativeSmokeArtifactReader(
                 intExpr()
             }
             NativeSmokeIntExprTag.MemberField,
-            NativeSmokeIntExprTag.MonsterField -> {
+            NativeSmokeIntExprTag.MonsterField,
+            -> {
                 intExpr()
                 stringRef()
             }
@@ -840,7 +922,8 @@ private class NativeSmokeArtifactReader(
             }
             NativeSmokeBoolExprTag.Not -> boolExpr()
             NativeSmokeBoolExprTag.And,
-            NativeSmokeBoolExprTag.Or -> {
+            NativeSmokeBoolExprTag.Or,
+            -> {
                 boolExpr()
                 boolExpr()
             }
@@ -850,12 +933,14 @@ private class NativeSmokeArtifactReader(
             }
             NativeSmokeBoolExprTag.MilestoneAchieved -> handleRef()
             NativeSmokeBoolExprTag.MemberFlag,
-            NativeSmokeBoolExprTag.MonsterFlag -> {
+            NativeSmokeBoolExprTag.MonsterFlag,
+            -> {
                 intExpr()
                 stringRef()
             }
             NativeSmokeBoolExprTag.BattleFlag,
-            NativeSmokeBoolExprTag.RuntimeFlag -> stringRef()
+            NativeSmokeBoolExprTag.RuntimeFlag,
+            -> stringRef()
         }
     }
 
@@ -879,9 +964,11 @@ private class NativeSmokeArtifactReader(
         when (tag<NativeSmokeLValueTag>("lvalue")) {
             NativeSmokeLValueTag.RealmScalar,
             NativeSmokeLValueTag.PartyScalar,
-            NativeSmokeLValueTag.BattleFlag -> stringRef()
+            NativeSmokeLValueTag.BattleFlag,
+            -> stringRef()
             NativeSmokeLValueTag.MemberField,
-            NativeSmokeLValueTag.MonsterField -> {
+            NativeSmokeLValueTag.MonsterField,
+            -> {
                 intExpr()
                 stringRef()
             }
@@ -1010,10 +1097,12 @@ private class NativeSmokeArtifactReader(
     private fun shopPrice() {
         when (tag<NativeSmokeShopPriceTag>("shop price")) {
             NativeSmokeShopPriceTag.ItemCost,
-            NativeSmokeShopPriceTag.HalfItemCost -> Unit
+            NativeSmokeShopPriceTag.HalfItemCost,
+            -> Unit
             NativeSmokeShopPriceTag.Fixed,
             NativeSmokeShopPriceTag.LeaderLevelPlus,
-            NativeSmokeShopPriceTag.ItemCostPlusLeaderLevelTimes -> u32("shop price value")
+            NativeSmokeShopPriceTag.ItemCostPlusLeaderLevelTimes,
+            -> u32("shop price value")
         }
     }
 
@@ -1073,10 +1162,11 @@ private class NativeSmokeArtifactReader(
     }
 
     private fun rawHandleRef(): NativeSmokeHandleRef {
-        val ref = NativeSmokeHandleRef(
-            kind = u32("handle kind"),
-            id = u32("handle id"),
-        )
+        val ref =
+            NativeSmokeHandleRef(
+                kind = u32("handle kind"),
+                id = u32("handle id"),
+            )
         if (ref.kind !in 0 until handleKindCount) fail("handle kind is out of range")
         return ref
     }
@@ -1118,7 +1208,8 @@ private class NativeSmokeArtifactReader(
     private fun bool() {
         when (u32("boolean")) {
             NativeSmokeFalse,
-            NativeSmokeTrue -> Unit
+            NativeSmokeTrue,
+            -> Unit
             else -> fail("boolean value is not 0/1")
         }
     }
@@ -1129,17 +1220,21 @@ private class NativeSmokeArtifactReader(
             ?: fail("unknown $label tag $code")
     }
 
-    private fun repeatCount(count: Int, body: () -> Unit) {
+    private fun repeatCount(
+        count: Int,
+        body: () -> Unit,
+    ) {
         if (count < 0) fail("count is out of range")
         repeat(count) { body() }
     }
 
     private fun u32(label: String): Int {
         requireAvailable(4)
-        val value = (data[pos].toInt() and 0xff) or
-            ((data[pos + 1].toInt() and 0xff) shl 8) or
-            ((data[pos + 2].toInt() and 0xff) shl 16) or
-            ((data[pos + 3].toInt() and 0xff) shl 24)
+        val value =
+            (data[pos].toInt() and 0xff) or
+                ((data[pos + 1].toInt() and 0xff) shl 8) or
+                ((data[pos + 2].toInt() and 0xff) shl 16) or
+                ((data[pos + 3].toInt() and 0xff) shl 24)
         pos += 4
         if (value < 0 && label.contains("count")) fail("$label is out of range")
         return value
@@ -1155,6 +1250,5 @@ private class NativeSmokeArtifactReader(
         if (count < 0 || pos > data.size || count > data.size - pos) fail("unexpected end of file")
     }
 
-    private fun fail(message: String): Nothing =
-        error("native smoke loader failed at byte $pos: $message")
+    private fun fail(message: String): Nothing = error("native smoke loader failed at byte $pos: $message")
 }

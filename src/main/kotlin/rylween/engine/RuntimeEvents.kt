@@ -1,6 +1,9 @@
 package rylween.engine
 
-enum class RuntimeEventLevel(val tag: String, val priority: Int) {
+enum class RuntimeEventLevel(
+    val tag: String,
+    val priority: Int,
+) {
     Debug("DBG", 10),
     Info("INF", 20),
     Warn("WRN", 30),
@@ -36,10 +39,12 @@ fun interface RuntimeEventSink {
 object RuntimeEventScope {
     private val currentSink = ThreadLocal.withInitial { RuntimeEventSink.Noop }
 
-    fun current(): RuntimeEventSink =
-        currentSink.get()
+    fun current(): RuntimeEventSink = currentSink.get()
 
-    fun <T> withSink(sink: RuntimeEventSink, body: () -> T): T {
+    fun <T> withSink(
+        sink: RuntimeEventSink,
+        body: () -> T,
+    ): T {
         val previous = currentSink.get()
         currentSink.set(sink)
         return try {
@@ -60,9 +65,11 @@ fun runtimeEvent(
         level = level,
         module = module,
         action = action,
-        fields = fields.mapNotNull { (key, value) ->
-            value?.let { key to it.toString() }
-        }.toMap(),
+        fields =
+            fields
+                .mapNotNull { (key, value) ->
+                    value?.let { key to it.toString() }
+                }.toMap(),
     )
 
 private fun String.logValue(): String =

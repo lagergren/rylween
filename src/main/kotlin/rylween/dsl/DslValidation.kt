@@ -4,15 +4,14 @@ data class ValidationDiagnostic(
     val path: String,
     val message: String,
 ) {
-    override fun toString(): String =
-        if (path.isBlank()) message else "$path: $message"
+    override fun toString(): String = if (path.isBlank()) message else "$path: $message"
 }
 
 class RylweenValidationException(
     val diagnostics: List<ValidationDiagnostic>,
 ) : IllegalStateException(
-    diagnostics.joinToString(separator = "\n") { it.toString() },
-)
+        diagnostics.joinToString(separator = "\n") { it.toString() },
+    )
 
 fun RylweenValidationException.withDiagnosticPathPrefix(prefix: String): RylweenValidationException =
     RylweenValidationException(
@@ -23,7 +22,10 @@ fun RylweenValidationException.withDiagnosticPathPrefix(prefix: String): Rylween
         },
     )
 
-private inline fun MutableList<ValidationDiagnostic>.captureValidation(path: String, block: () -> Unit) {
+private inline fun MutableList<ValidationDiagnostic>.captureValidation(
+    path: String,
+    block: () -> Unit,
+) {
     try {
         block()
     } catch (error: RylweenValidationException) {
@@ -41,33 +43,39 @@ private inline fun MutableList<ValidationDiagnostic>.captureValidation(path: Str
     }
 }
 
-private class FlagStateIndex(flags: List<FlagRef>) {
+private class FlagStateIndex(
+    flags: List<FlagRef>,
+) {
     private val bySlug: Map<String, FlagRef> = flags.associateBy { it.slug }
     private val states: Set<Pair<String, String>> =
         flags.flatMap { flag -> flag.states.map { state -> flag.slug to state.native } }.toSet()
     private val stateByKey: Map<Pair<String, String>, FlagState> =
         flags.flatMap { flag -> flag.states.map { state -> (flag.slug to state.native) to state } }.toMap()
     private val orderByKey: Map<Pair<String, String>, Int> =
-        flags.flatMap { flag -> flag.states.mapIndexed { index, state -> (flag.slug to state.native) to index } }
+        flags
+            .flatMap { flag -> flag.states.mapIndexed { index, state -> (flag.slug to state.native) to index } }
             .toMap()
 
-    fun contains(state: FlagState): Boolean =
-        state.flag.slug to state.native in states
+    fun contains(state: FlagState): Boolean = state.flag.slug to state.native in states
 
-    fun contains(slug: String, native: String): Boolean =
-        slug to native in states
+    fun contains(
+        slug: String,
+        native: String,
+    ): Boolean = slug to native in states
 
-    fun flag(slug: String): FlagRef? =
-        bySlug[slug]
+    fun flag(slug: String): FlagRef? = bySlug[slug]
 
-    fun state(slug: String, native: String): FlagState? =
-        stateByKey[slug to native]
+    fun state(
+        slug: String,
+        native: String,
+    ): FlagState? = stateByKey[slug to native]
 
-    fun order(state: FlagState): Int? =
-        orderByKey[state.flag.slug to state.native]
+    fun order(state: FlagState): Int? = orderByKey[state.flag.slug to state.native]
 
-    fun order(slug: String, native: String): Int? =
-        orderByKey[slug to native]
+    fun order(
+        slug: String,
+        native: String,
+    ): Int? = orderByKey[slug to native]
 }
 
 private class TerrainBindingIndex(
@@ -86,7 +94,10 @@ private class TerrainBindingIndex(
             .flatMap { layer -> layer.rows.flatMap { row -> row.toList() } }
             .toSet()
 
-    fun requireStyled(terrain: TerrainId, label: String) {
+    fun requireStyled(
+        terrain: TerrainId,
+        label: String,
+    ) {
         check(terrain.slug.isNotBlank()) { "$label references blank terrain" }
         val semantics = terrainBySlug[terrain.slug]
         check(semantics != null) {
@@ -104,7 +115,10 @@ private class TerrainBindingIndex(
         }
     }
 
-    fun requireMapReachable(terrain: TerrainId, label: String) {
+    fun requireMapReachable(
+        terrain: TerrainId,
+        label: String,
+    ) {
         requireStyled(terrain, label)
         terrainBySlug[terrain.slug]?.let { semantics ->
             check(semantics.mapCode in mapCodes) {
@@ -115,47 +129,59 @@ private class TerrainBindingIndex(
 }
 
 private val EmptyTextBindings: Set<TextPart> = emptySet()
-private val HuntTextBindings: Set<TextPart> = setOf(
-    TextPart.HuntMemberName,
-    TextPart.HuntMemberSubjectPronoun,
-    TextPart.HuntFoodGained,
-    TextPart.PartyMemberMax,
-)
-private val RandomItemOfferTextBindings: Set<TextPart> = setOf(
-    TextPart.OfferedItemName,
-    TextPart.OfferedItemPrice,
-)
+private val HuntTextBindings: Set<TextPart> =
+    setOf(
+        TextPart.HuntMemberName,
+        TextPart.HuntMemberSubjectPronoun,
+        TextPart.HuntFoodGained,
+        TextPart.PartyMemberMax,
+    )
+private val RandomItemOfferTextBindings: Set<TextPart> =
+    setOf(
+        TextPart.OfferedItemName,
+        TextPart.OfferedItemPrice,
+    )
 private val SelectedItemTextBindings: Set<TextPart> = setOf(TextPart.SelectedItemName)
 private val ShopPriceTextBindings: Set<TextPart> = setOf(TextPart.ShopPrice)
 private val ShopCapacityTextBindings: Set<TextPart> = setOf(TextPart.ShopCarryCap)
-private val WildernessDungeonHandoffTextBindings: Set<TextPart> = setOf(
-    TextPart.WildernessDungeonName,
-    TextPart.WildernessDungeonLevels,
-)
+private val WildernessDungeonHandoffTextBindings: Set<TextPart> =
+    setOf(
+        TextPart.WildernessDungeonName,
+        TextPart.WildernessDungeonLevels,
+    )
 private val DungeonDepthTextBindings: Set<TextPart> = setOf(TextPart.DungeonDepth)
 private val ConversationTextBindings: Set<TextPart> = setOf(TextPart.ConversationNpcName)
-private val TownEntryTaxTextBindings: Set<TextPart> = setOf(
-    TextPart.CurrentTownName,
-    TextPart.TownTaxPercent,
-    TextPart.TownTaxAmount,
-)
-private val CharacterCreationStatsTextBindings: Set<TextPart> = setOf(
-    TextPart.CreationMemberNumber,
-    TextPart.CreationWeaponSkill,
-    TextPart.CreationHealth,
-    TextPart.CreationWisdom,
-    TextPart.CreationCharisma,
-)
+private val TownEntryTaxTextBindings: Set<TextPart> =
+    setOf(
+        TextPart.CurrentTownName,
+        TextPart.TownTaxPercent,
+        TextPart.TownTaxAmount,
+    )
+private val CharacterCreationStatsTextBindings: Set<TextPart> =
+    setOf(
+        TextPart.CreationMemberNumber,
+        TextPart.CreationWeaponSkill,
+        TextPart.CreationHealth,
+        TextPart.CreationWisdom,
+        TextPart.CreationCharisma,
+    )
 private val CharacterCreationMemberNumberTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberNumber)
 private val CharacterCreationMemberNameTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberName)
 
-private fun FlagStateIndex.requireKnown(state: FlagState, label: String) {
+private fun FlagStateIndex.requireKnown(
+    state: FlagState,
+    label: String,
+) {
     check(contains(state)) {
         "$label references unknown story state ${state.flag.slug}.${state.native}"
     }
 }
 
-private fun FlagStateIndex.requireKnown(slug: String, native: String, label: String) {
+private fun FlagStateIndex.requireKnown(
+    slug: String,
+    native: String,
+    label: String,
+) {
     check(contains(slug, native)) {
         "$label references unknown story state $slug.$native"
     }
@@ -206,7 +232,8 @@ fun validateItemCatalog(records: List<ItemRecordModel>) {
             }
             ItemKind.Gear,
             ItemKind.Treasure,
-            ItemKind.MagicItem -> {
+            ItemKind.MagicItem,
+            -> {
                 check(record.storage == ItemStorageKind.SlottedInventory) {
                     "item ${record.id.slug} must use slotted-inventory storage"
                 }
@@ -254,7 +281,10 @@ fun validateFormulas(formulas: List<FormulaModel>) {
     check(formulas.map { it.id }.toSet().size == formulas.size) { "duplicate formula" }
 }
 
-fun validateLeveling(leveling: LevelingModel?, formulas: List<FormulaModel>) {
+fun validateLeveling(
+    leveling: LevelingModel?,
+    formulas: List<FormulaModel>,
+) {
     leveling ?: return
     check(leveling.maxLevel > 0) { "leveling max level must be positive" }
     check(leveling.xpThresholds.size > leveling.maxLevel) {
@@ -264,7 +294,12 @@ fun validateLeveling(leveling: LevelingModel?, formulas: List<FormulaModel>) {
     check(leveling.hitPointFloor in formulas.map { it.id }.toSet()) {
         "leveling hit point floor references missing formula ${leveling.hitPointFloor.slug}"
     }
-    check(leveling.classGrowth.map { it.klass }.toSet().size == leveling.classGrowth.size) {
+    check(
+        leveling.classGrowth
+            .map { it.klass }
+            .toSet()
+            .size == leveling.classGrowth.size,
+    ) {
         "duplicate class level-up declaration"
     }
 }
@@ -298,7 +333,10 @@ fun validateRewardBundles(
     }
 }
 
-fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleModel>) {
+fun validateCombatSystem(
+    combat: CombatSystemModel,
+    rewards: List<RewardBundleModel>,
+) {
     val rewardIds = rewards.map { it.id }.toSet()
 
     combat.standardBattle?.let { battle ->
@@ -408,7 +446,10 @@ private fun validateBattleText(text: BattleTextModel) {
     }
 }
 
-private fun validateWildernessSystem(wilderness: WildernessSystemModel, terrainBindings: TerrainBindingIndex) {
+private fun validateWildernessSystem(
+    wilderness: WildernessSystemModel,
+    terrainBindings: TerrainBindingIndex,
+) {
     validateWildernessKeys(wilderness.keys)
 
     val events = wilderness.events
@@ -436,8 +477,16 @@ private fun validateWildernessSystem(wilderness: WildernessSystemModel, terrainB
     }
 }
 
-fun validateDungeonSystem(dungeons: DungeonSystemModel, monsters: List<MonsterModel>? = null) {
-    check(dungeons.events.map { it.id }.toSet().size == dungeons.events.size) {
+fun validateDungeonSystem(
+    dungeons: DungeonSystemModel,
+    monsters: List<MonsterModel>? = null,
+) {
+    check(
+        dungeons.events
+            .map { it.id }
+            .toSet()
+            .size == dungeons.events.size,
+    ) {
         "duplicate dungeon event"
     }
     val eventIds = dungeons.events.map { it.id }.toSet()
@@ -462,7 +511,12 @@ fun validateDungeonSystem(dungeons: DungeonSystemModel, monsters: List<MonsterMo
         }
     }
 
-    check(dungeons.scenarios.map { it.dungeon }.toSet().size == dungeons.scenarios.size) {
+    check(
+        dungeons.scenarios
+            .map { it.dungeon }
+            .toSet()
+            .size == dungeons.scenarios.size,
+    ) {
         "duplicate dungeon scenario"
     }
     dungeons.scenarios.forEach { scenario ->
@@ -548,7 +602,12 @@ fun validateYdargSystem(
     }
 
     check(ydarg.stairs.floorCount > 0) { "Ydarg floor count must be positive" }
-    check(ydarg.stairs.items.map { it.digit }.toSet().size == ydarg.stairs.items.size) {
+    check(
+        ydarg.stairs.items
+            .map { it.digit }
+            .toSet()
+            .size == ydarg.stairs.items.size,
+    ) {
         "Ydarg stairs contain duplicate give digits"
     }
     ydarg.stairs.items.forEach { item ->
@@ -564,11 +623,15 @@ fun validateYdargSystem(
     validateYdargText(ydarg.text)
 }
 
-private fun validateYdargEntryTile(ydarg: YdargContentModel, worldMaps: List<WorldMapModel>) {
+private fun validateYdargEntryTile(
+    ydarg: YdargContentModel,
+    worldMaps: List<WorldMapModel>,
+) {
     if (worldMaps.isEmpty()) return
     val worldMap = worldMaps.singleOrNull { map -> map.id == DslDefaultMaps.wilderness } ?: return
-    val terrainRows = worldMap.layers.singleOrNull { layer -> layer.id == DslDefaultMapLayers.terrain }?.rows
-        ?: return
+    val terrainRows =
+        worldMap.layers.singleOrNull { layer -> layer.id == DslDefaultMapLayers.terrain }?.rows
+            ?: return
     val row = if (ydarg.entry.y > 0) terrainRows.getOrNull(ydarg.entry.y - 1) else null
     val tile = row?.getOrNull(ydarg.entry.x)
     val castleTile = DslDefaultTerrain.castle.sourceMapCode
@@ -628,28 +691,30 @@ private fun validateSecretAction(
 }
 
 private fun validateYdargKeys(keys: YdargKeysModel) {
-    val navigate = listOf(
-        "move north" to keys.moveNorth,
-        "move south" to keys.moveSouth,
-        "move west" to keys.moveWest,
-        "move east" to keys.moveEast,
-        "save" to keys.save,
-        "help" to keys.help,
-        "view party" to keys.viewParty,
-        "remove armor" to keys.removeArmor,
-        "remove weapon" to keys.removeWeapon,
-        "drop" to keys.drop,
-        "ready weapon" to keys.readyWeapon,
-        "ready armor" to keys.readyArmor,
-        "quaff" to keys.quaff,
-        "cast spell" to keys.castSpell,
-    )
+    val navigate =
+        listOf(
+            "move north" to keys.moveNorth,
+            "move south" to keys.moveSouth,
+            "move west" to keys.moveWest,
+            "move east" to keys.moveEast,
+            "save" to keys.save,
+            "help" to keys.help,
+            "view party" to keys.viewParty,
+            "remove armor" to keys.removeArmor,
+            "remove weapon" to keys.removeWeapon,
+            "drop" to keys.drop,
+            "ready weapon" to keys.readyWeapon,
+            "ready armor" to keys.readyArmor,
+            "quaff" to keys.quaff,
+            "cast spell" to keys.castSpell,
+        )
     val treasure = listOf("take treasure" to keys.treasureTake, "leave treasure" to keys.treasureLeave)
-    val stairs = listOf(
-        "teleport" to keys.stairsTeleport,
-        "give" to keys.stairsGive,
-        "leave" to keys.stairsLeave,
-    )
+    val stairs =
+        listOf(
+            "teleport" to keys.stairsTeleport,
+            "give" to keys.stairsGive,
+            "leave" to keys.stairsLeave,
+        )
     (navigate + treasure + stairs).forEach { (label, binding) ->
         validateInputBinding(binding, "Ydarg key $label")
     }
@@ -743,7 +808,10 @@ private fun validateWildernessKeys(keys: WildernessKeysModel) {
     }
 }
 
-private fun validateInputBinding(binding: InputBindingModel, label: String) {
+private fun validateInputBinding(
+    binding: InputBindingModel,
+    label: String,
+) {
     check(binding.primary.isNotEmpty()) { "$label has blank primary input" }
     check(binding.label.isNotBlank()) { "$label has blank display label" }
     check(binding.tokens.none { it.isEmpty() }) { "$label has blank input alias" }
@@ -751,12 +819,18 @@ private fun validateInputBinding(binding: InputBindingModel, label: String) {
     check(tokens.toSet().size == tokens.size) { "$label has duplicate input aliases" }
 }
 
-private fun validateInputChoiceBinding(binding: InputBindingModel, label: String) {
+private fun validateInputChoiceBinding(
+    binding: InputBindingModel,
+    label: String,
+) {
     validateInputBinding(binding, label)
     check(binding.primary.length == 1) { "$label primary input must be one character for the current terminal adapter" }
 }
 
-private fun checkUniqueBindings(bindings: List<InputBindingModel>, label: String) {
+private fun checkUniqueBindings(
+    bindings: List<InputBindingModel>,
+    label: String,
+) {
     val tokens = bindings.flatMap { binding -> binding.tokens.flatMap(::inputTokenVariants).toSet() }
     check(tokens.toSet().size == tokens.size) {
         "$label keys must be unique"
@@ -775,7 +849,12 @@ fun validateTowns(towns: List<TownModel>) {
         }
         checkPercent(town.taxPercent, "town ${town.id.slug} tax")
         check(town.services.isNotEmpty()) { "town ${town.id.slug} needs at least one service" }
-        check(town.services.map { it.building }.toSet().size == town.services.size) {
+        check(
+            town.services
+                .map { it.building }
+                .toSet()
+                .size == town.services.size,
+        ) {
             "town ${town.id.slug} has duplicate services"
         }
         town.services.forEach { service ->
@@ -879,7 +958,10 @@ fun validateTownSystem(
     }
 }
 
-fun validateCharacters(characters: List<CharacterModel>, towns: List<TownModel> = emptyList()) {
+fun validateCharacters(
+    characters: List<CharacterModel>,
+    towns: List<TownModel> = emptyList(),
+) {
     check(characters.map { it.id }.toSet().size == characters.size) { "duplicate character id" }
     val townsById = towns.associateBy { it.id }
 
@@ -898,22 +980,24 @@ fun validateCharacters(characters: List<CharacterModel>, towns: List<TownModel> 
             check(role.slug.isNotBlank()) { "character ${character.id.slug} has blank role" }
         }
         when (val placement = character.placement) {
-            is CharacterPlacementModel.Fixed -> when (val position = placement.position) {
-                is WorldPosition.Wilderness -> {
-                    check(position.point.x >= 0 && position.point.y >= 0) {
-                        "character ${character.id.slug} has invalid wilderness coordinate ${position.point}"
+            is CharacterPlacementModel.Fixed ->
+                when (val position = placement.position) {
+                    is WorldPosition.Wilderness -> {
+                        check(position.point.x >= 0 && position.point.y >= 0) {
+                            "character ${character.id.slug} has invalid wilderness coordinate ${position.point}"
+                        }
                     }
-                }
-                is WorldPosition.Town -> {
-                    townsById[position.town]?.let { town ->
-                        check(position.building in town.services.map { it.building }) {
-                            "character ${character.id.slug} is placed in ${position.town.slug}.${position.building.slug}, but that town does not offer the service"
+                    is WorldPosition.Town -> {
+                        townsById[position.town]?.let { town ->
+                            check(position.building in town.services.map { it.building }) {
+                                "character ${character.id.slug} is placed in ${position.town.slug}.${position.building.slug}, but that town does not offer the service"
+                            }
                         }
                     }
                 }
-            }
             CharacterPlacementModel.Randomized,
-            CharacterPlacementModel.RandomizedWilderness -> Unit
+            CharacterPlacementModel.RandomizedWilderness,
+            -> Unit
         }
     }
 }
@@ -958,6 +1042,7 @@ private fun validateTextBlock(
             is TextPart.LocationCoordinate -> {
                 check(part.location.slug.isNotBlank()) { "$label references blank location" }
             }
+            // CPD-OFF
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
             TextPart.SelectedItemName,
@@ -979,9 +1064,12 @@ private fun validateTextBlock(
             TextPart.CreationWeaponSkill,
             TextPart.CreationHealth,
             TextPart.CreationWisdom,
-            TextPart.CreationCharisma -> check(part in allowedRuntimeBindings) {
-                "$label uses runtime text binding ${part.fallbackText()}, but this text is not rendered with that binding"
-            }
+            TextPart.CreationCharisma,
+            ->
+                check(part in allowedRuntimeBindings) {
+                    "$label uses runtime text binding ${part.fallbackText()}, but this text is not rendered with that binding"
+                }
+            // CPD-ON
         }
     }
 
@@ -993,9 +1081,11 @@ private fun validateTextBlock(
         }
         is TextBlock.Structured -> {
             check(block.lines.isNotEmpty()) { "$label structured text has no lines" }
-            check(block.lines.any { line ->
-                line.parts.any { it !is TextPart.Literal || it.text.isNotBlank() }
-            }) {
+            check(
+                block.lines.any { line ->
+                    line.parts.any { it !is TextPart.Literal || it.text.isNotBlank() }
+                },
+            ) {
                 "$label structured text is blank"
             }
             block.lines.forEachIndexed { index, line ->
@@ -1036,22 +1126,24 @@ fun validateSpeakSystem(
         checkUniqueConversationActions(conversation.menu.actions)
         checkUniqueQuestionActions(conversation.menu.questions)
 
-        val expectedTopics = listOf(
-            ConversationTopic.Chitchat,
-            ConversationTopic.Question,
-            ConversationTopic.Rumour,
-            ConversationTopic.Bye,
-        )
+        val expectedTopics =
+            listOf(
+                ConversationTopic.Chitchat,
+                ConversationTopic.Question,
+                ConversationTopic.Rumour,
+                ConversationTopic.Bye,
+            )
         check(conversation.menu.actions.map { it.topic } == expectedTopics) {
             "standard conversation top-level menu must be C/Q/R/B chitchat, question, rumour, bye"
         }
 
-        val expectedQuestionTopics = listOf(
-            QuestionTopic.Lodging,
-            QuestionTopic.Magic,
-            QuestionTopic.People,
-            QuestionTopic.Nothing,
-        )
+        val expectedQuestionTopics =
+            listOf(
+                QuestionTopic.Lodging,
+                QuestionTopic.Magic,
+                QuestionTopic.People,
+                QuestionTopic.Nothing,
+            )
         check(conversation.menu.questions.map { it.topic } == expectedQuestionTopics) {
             "standard conversation question menu must be L/M/P/N lodging, magic, people, nothing"
         }
@@ -1063,11 +1155,14 @@ fun validateSpeakSystem(
             "standard conversation question menu keys must match L/M/P/N"
         }
 
-        check(conversation.chitchat.subjects == listOf(
-            ChitchatSubject.Well,
-            ChitchatSubject.Weather,
-            ChitchatSubject.Health,
-        )) {
+        check(
+            conversation.chitchat.subjects ==
+                listOf(
+                    ChitchatSubject.Well,
+                    ChitchatSubject.Weather,
+                    ChitchatSubject.Health,
+                ),
+        ) {
             "standard conversation chitchat subjects must match well/weather/health roll"
         }
         check(conversation.chitchat.replies == ChitchatReplyPolicy.BySubjectAndNpcJob) {
@@ -1133,19 +1228,34 @@ private fun validateSpeakTextTables(
     val knownRoles = characters.flatMap { it.roles }.toSet()
     val knownTowns = towns.map { it.id }.toSet()
 
-    check(tables.screens.map { it.id }.toSet().size == tables.screens.size) {
+    check(
+        tables.screens
+            .map { it.id }
+            .toSet()
+            .size == tables.screens.size,
+    ) {
         "duplicate reusable speak screen"
     }
     tables.screens.forEach { screen ->
         validateTextBlock(screen.text, "reusable speak screen ${screen.id.id}", knownTowns = knownTowns)
     }
 
-    check(tables.chitchatPrompts.map { it.subject }.toSet().size == tables.chitchatPrompts.size) {
+    check(
+        tables.chitchatPrompts
+            .map { it.subject }
+            .toSet()
+            .size == tables.chitchatPrompts.size,
+    ) {
         "duplicate chitchat prompt table"
     }
     tables.chitchatPrompts.forEach { prompt ->
         check(prompt.variants.isNotEmpty()) { "chitchat prompt ${prompt.subject} has no variants" }
-        check(prompt.variants.map { it.audience }.toSet().size == prompt.variants.size) {
+        check(
+            prompt.variants
+                .map { it.audience }
+                .toSet()
+                .size == prompt.variants.size,
+        ) {
             "chitchat prompt ${prompt.subject} has duplicate audience variants"
         }
         prompt.variants.forEach { variant ->
@@ -1157,14 +1267,24 @@ private fun validateSpeakTextTables(
         }
     }
 
-    check(tables.chitchatReplies.map { it.subject }.toSet().size == tables.chitchatReplies.size) {
+    check(
+        tables.chitchatReplies
+            .map { it.subject }
+            .toSet()
+            .size == tables.chitchatReplies.size,
+    ) {
         "duplicate chitchat reply table"
     }
     tables.chitchatReplies.forEach { replies ->
         validateJobReplies(replies.replies, "chitchat reply ${replies.subject}", knownRoles, knownTowns)
     }
 
-    check(tables.questionReplies.map { it.topic }.toSet().size == tables.questionReplies.size) {
+    check(
+        tables.questionReplies
+            .map { it.topic }
+            .toSet()
+            .size == tables.questionReplies.size,
+    ) {
         "duplicate question reply table"
     }
     tables.questionReplies.forEach { replies ->
@@ -1174,7 +1294,12 @@ private fun validateSpeakTextTables(
         validateJobReplies(replies.replies, "question reply ${replies.topic}", knownRoles, knownTowns)
     }
 
-    check(tables.rumourTables.map { it.id }.toSet().size == tables.rumourTables.size) {
+    check(
+        tables.rumourTables
+            .map { it.id }
+            .toSet()
+            .size == tables.rumourTables.size,
+    ) {
         "duplicate rumour table"
     }
     tables.rumourTables.forEach { table ->
@@ -1256,15 +1381,18 @@ fun validateItemUses(
 
         val consumesInBody = itemUse.ops.containsConsumeActiveItem()
         when (itemUse.consume) {
-            ItemConsumePolicy.BeforeUse -> check(!consumesInBody) {
-                "item use ${itemUse.id.slug} consumes before use and should not consume in script"
-            }
-            ItemConsumePolicy.ScriptControlled -> check(consumesInBody) {
-                "item use ${itemUse.id.slug} is script-controlled but never consumes active item"
-            }
-            ItemConsumePolicy.NeverConsumes -> check(!consumesInBody) {
-                "item use ${itemUse.id.slug} is non-consuming but consumes active item in script"
-            }
+            ItemConsumePolicy.BeforeUse ->
+                check(!consumesInBody) {
+                    "item use ${itemUse.id.slug} consumes before use and should not consume in script"
+                }
+            ItemConsumePolicy.ScriptControlled ->
+                check(consumesInBody) {
+                    "item use ${itemUse.id.slug} is script-controlled but never consumes active item"
+                }
+            ItemConsumePolicy.NeverConsumes ->
+                check(!consumesInBody) {
+                    "item use ${itemUse.id.slug} is non-consuming but consumes active item in script"
+                }
         }
     }
 }
@@ -1316,7 +1444,8 @@ private fun List<Op>.containsConsumeActiveItem(): Boolean =
             is Op.If -> op.thenOps.containsConsumeActiveItem() || op.elseOps.containsConsumeActiveItem()
             is Op.Loop -> op.body.containsConsumeActiveItem()
             is Op.Switch -> op.cases.any { it.body.containsConsumeActiveItem() }
-            is Op.Menu -> op.options.any { it.body.containsConsumeActiveItem() } ||
+            is Op.Menu ->
+                op.options.any { it.body.containsConsumeActiveItem() } ||
                     op.defaultOps.containsConsumeActiveItem()
             is Op.ForEachMember -> op.body.containsConsumeActiveItem()
             is Op.ForEachMonster -> op.body.containsConsumeActiveItem()
@@ -1336,10 +1465,16 @@ fun validateScriptRewards(
     val knownScenes = content.scenes.map { it.id }.toSet()
     val knownMonsters = content.monsters.map { it.id }.toSet()
     val knownEncounterTiers = content.monsters.mapNotNull { it.tier }.toSet()
-    val knownMilestones = content.progress.milestones.map { it.id }.toSet()
+    val knownMilestones =
+        content.progress.milestones
+            .map { it.id }
+            .toSet()
     val dungeonScenarios = content.dungeons.scenarios.associateBy { it.dungeon }
 
-    fun validateSlottedItemPool(pool: ItemPoolId, label: String) {
+    fun validateSlottedItemPool(
+        pool: ItemPoolId,
+        label: String,
+    ) {
         validateItemPool(pool, itemRecords)
         pool.items.forEach { item ->
             val record = itemRecordById[item]
@@ -1352,64 +1487,74 @@ fun validateScriptRewards(
     lateinit var validateIntExpression: (IntAst, String) -> Unit
     lateinit var validateBoolExpression: (BoolAst, String) -> Unit
 
-    validateIntExpression = fun(ast: IntAst, label: String) {
-        when (ast) {
-            is IntAst.Lit -> Unit
-            is IntAst.Var -> Unit
-            is IntAst.Binary -> {
-                validateIntExpression(ast.left, label)
-                validateIntExpression(ast.right, label)
-            }
-            is IntAst.If -> {
-                validateBoolExpression(ast.cond, label)
-                validateIntExpression(ast.thenValue, label)
-                validateIntExpression(ast.elseValue, label)
-            }
-            is IntAst.Random -> {
-                validateIntExpression(ast.lo, label)
-                validateIntExpression(ast.hi, label)
-            }
-            is IntAst.MemberField -> validateIntExpression(ast.member, label)
-            is IntAst.MonsterField -> validateIntExpression(ast.monster, label)
-            is IntAst.BattleFlag -> Unit
-            is IntAst.BattleQuery -> Unit
-            is IntAst.RealmScalar -> Unit
-            is IntAst.PartyScalar -> Unit
-            is IntAst.InventoryPoolCount -> validateSlottedItemPool(ast.pool, label)
-            is IntAst.InventorySlotCost -> validateIntExpression(ast.slot, label)
-            is IntAst.NativeInt -> Unit
-        }
-    }
+    validateIntExpression =
 
-    validateBoolExpression = fun(ast: BoolAst, label: String) {
-        when (ast) {
-            is BoolAst.Cmp -> {
-                validateIntExpression(ast.left, label)
-                validateIntExpression(ast.right, label)
-            }
-            is BoolAst.Not -> validateBoolExpression(ast.expr, label)
-            is BoolAst.And -> {
-                validateBoolExpression(ast.left, label)
-                validateBoolExpression(ast.right, label)
-            }
-            is BoolAst.Or -> {
-                validateBoolExpression(ast.left, label)
-                validateBoolExpression(ast.right, label)
-            }
-            is BoolAst.FlagIs ->
-                flagStates?.requireKnown(ast.slug, ast.nativeValue, "$label condition")
-            is BoolAst.MilestoneAchieved -> {
-                check(ast.milestone.slug.isNotBlank()) { "$label references blank milestone" }
-                check(ast.milestone in knownMilestones) {
-                    "$label references unknown milestone ${ast.milestone.slug}"
+        fun(
+            ast: IntAst,
+            label: String,
+        ) {
+            when (ast) {
+                is IntAst.Lit -> Unit
+                is IntAst.Var -> Unit
+                is IntAst.Binary -> {
+                    validateIntExpression(ast.left, label)
+                    validateIntExpression(ast.right, label)
                 }
+                is IntAst.If -> {
+                    validateBoolExpression(ast.cond, label)
+                    validateIntExpression(ast.thenValue, label)
+                    validateIntExpression(ast.elseValue, label)
+                }
+                is IntAst.Random -> {
+                    validateIntExpression(ast.lo, label)
+                    validateIntExpression(ast.hi, label)
+                }
+                is IntAst.MemberField -> validateIntExpression(ast.member, label)
+                is IntAst.MonsterField -> validateIntExpression(ast.monster, label)
+                is IntAst.BattleFlag -> Unit
+                is IntAst.BattleQuery -> Unit
+                is IntAst.RealmScalar -> Unit
+                is IntAst.PartyScalar -> Unit
+                is IntAst.InventoryPoolCount -> validateSlottedItemPool(ast.pool, label)
+                is IntAst.InventorySlotCost -> validateIntExpression(ast.slot, label)
+                is IntAst.NativeInt -> Unit
             }
-            is BoolAst.MemberFlag -> validateIntExpression(ast.member, label)
-            is BoolAst.MonsterFlag -> validateIntExpression(ast.monster, label)
-            is BoolAst.BattleFlag -> Unit
-            is BoolAst.RuntimeFlag -> check(ast.name.isNotBlank()) { "$label references blank runtime flag" }
         }
-    }
+
+    validateBoolExpression =
+
+        fun(
+            ast: BoolAst,
+            label: String,
+        ) {
+            when (ast) {
+                is BoolAst.Cmp -> {
+                    validateIntExpression(ast.left, label)
+                    validateIntExpression(ast.right, label)
+                }
+                is BoolAst.Not -> validateBoolExpression(ast.expr, label)
+                is BoolAst.And -> {
+                    validateBoolExpression(ast.left, label)
+                    validateBoolExpression(ast.right, label)
+                }
+                is BoolAst.Or -> {
+                    validateBoolExpression(ast.left, label)
+                    validateBoolExpression(ast.right, label)
+                }
+                is BoolAst.FlagIs ->
+                    flagStates?.requireKnown(ast.slug, ast.nativeValue, "$label condition")
+                is BoolAst.MilestoneAchieved -> {
+                    check(ast.milestone.slug.isNotBlank()) { "$label references blank milestone" }
+                    check(ast.milestone in knownMilestones) {
+                        "$label references unknown milestone ${ast.milestone.slug}"
+                    }
+                }
+                is BoolAst.MemberFlag -> validateIntExpression(ast.member, label)
+                is BoolAst.MonsterFlag -> validateIntExpression(ast.monster, label)
+                is BoolAst.BattleFlag -> Unit
+                is BoolAst.RuntimeFlag -> check(ast.name.isNotBlank()) { "$label references blank runtime flag" }
+            }
+        }
 
     fun validateReward(reward: ScriptRewardModel) {
         check(reward.gold != null || reward.items.isNotEmpty()) { "script reward has no gold or items" }
@@ -1448,9 +1593,10 @@ fun validateScriptRewards(
         check(offer.application.regularItems == RewardItemPlacement.FirstFreeInventorySlot) {
             "random item offer ${offer.pool.slug} only supports first-free-slot placement for now"
         }
-        val cantCarry = checkNotNull(offer.messages.cantCarry) {
-            "random item offer ${offer.pool.slug} requires full/cant-carry text"
-        }
+        val cantCarry =
+            checkNotNull(offer.messages.cantCarry) {
+                "random item offer ${offer.pool.slug} requires full/cant-carry text"
+            }
         validateTextBlock(cantCarry, "random item offer ${offer.pool.slug} full")
         offer.messages.pickedUp?.let { validateTextBlock(it, "random item offer ${offer.pool.slug} picked-up") }
         if (offer.messages.pickedUp != null) {
@@ -1478,17 +1624,23 @@ fun validateScriptRewards(
         }
     }
 
-    fun validateShopPrice(price: ShopPriceModel, label: String) {
+    fun validateShopPrice(
+        price: ShopPriceModel,
+        label: String,
+    ) {
         when (price) {
             ShopPriceModel.ItemCost,
-            ShopPriceModel.HalfItemCost -> Unit
+            ShopPriceModel.HalfItemCost,
+            -> Unit
             is ShopPriceModel.Fixed -> check(price.amount >= 0) { "$label fixed price is negative" }
-            is ShopPriceModel.LeaderLevelPlus -> check(price.addend >= 0) {
-                "$label leader-level addend is negative"
-            }
-            is ShopPriceModel.ItemCostPlusLeaderLevelTimes -> check(price.multiplier >= 0) {
-                "$label leader-level multiplier is negative"
-            }
+            is ShopPriceModel.LeaderLevelPlus ->
+                check(price.addend >= 0) {
+                    "$label leader-level addend is negative"
+                }
+            is ShopPriceModel.ItemCostPlusLeaderLevelTimes ->
+                check(price.multiplier >= 0) {
+                    "$label leader-level multiplier is negative"
+                }
         }
     }
 
@@ -1498,11 +1650,12 @@ fun validateScriptRewards(
         validateTextBlock(shop.intro, "shop ${shop.building.slug} intro")
         validateTextBlock(shop.menu, "shop ${shop.building.slug} menu")
         validateTextBlock(shop.goodbye, "shop ${shop.building.slug} goodbye")
-        val shopMenuKeys = buildList {
-            if (shop.buy != null) add(shop.keys.buy)
-            if (shop.sell != null) add(shop.keys.sell)
-            add(shop.keys.leave)
-        }
+        val shopMenuKeys =
+            buildList {
+                if (shop.buy != null) add(shop.keys.buy)
+                if (shop.sell != null) add(shop.keys.sell)
+                add(shop.keys.leave)
+            }
         shopMenuKeys.forEach { binding -> validateInputChoiceBinding(binding, "shop ${shop.building.slug} menu key") }
         checkUniqueBindings(shopMenuKeys, "shop ${shop.building.slug} menu")
 
@@ -1578,9 +1731,10 @@ fun validateScriptRewards(
                         validateTextBlock(it, "shop ${shop.building.slug} ${catalog.title} page $pageIndex footer")
                     }
                     page.entries.forEach { entry ->
-                        val record = checkNotNull(itemRecordById[entry.item]) {
-                            "shop ${shop.building.slug} catalog ${catalog.title} references unknown item ${entry.item.slug}"
-                        }
+                        val record =
+                            checkNotNull(itemRecordById[entry.item]) {
+                                "shop ${shop.building.slug} catalog ${catalog.title} references unknown item ${entry.item.slug}"
+                            }
                         check(record.storage != ItemStorageKind.EmptySentinel) {
                             "shop ${shop.building.slug} cannot sell the empty-slot sentinel"
                         }
@@ -1589,9 +1743,10 @@ fun validateScriptRewards(
                         }
                         validateShopPrice(entry.price, "shop ${shop.building.slug} ${entry.item.slug}")
                         when (val purchase = entry.purchase) {
-                            ShopPurchaseModel.InventoryItem -> check(record.storage == ItemStorageKind.SlottedInventory) {
-                                "shop ${shop.building.slug} inventory item ${entry.item.slug} must be slotted"
-                            }
+                            ShopPurchaseModel.InventoryItem ->
+                                check(record.storage == ItemStorageKind.SlottedInventory) {
+                                    "shop ${shop.building.slug} inventory item ${entry.item.slug} must be slotted"
+                                }
                             is ShopPurchaseModel.Bulk -> {
                                 validateTextBlock(
                                     purchase.quantityPrompt,
@@ -1642,12 +1797,19 @@ fun validateScriptRewards(
         }
     }
 
-    fun requireEncounterTier(tier: EncounterTier, label: String) {
+    fun requireEncounterTier(
+        tier: EncounterTier,
+        label: String,
+    ) {
         check(tier.slug.isNotBlank()) { "$label references blank encounter tier" }
         check(tier in knownEncounterTiers) { "$label tier ${tier.slug} has no authored monsters" }
     }
 
-    fun requireDungeonScenario(dungeon: DungeonId, label: String, levels: Int? = null) {
+    fun requireDungeonScenario(
+        dungeon: DungeonId,
+        label: String,
+        levels: Int? = null,
+    ) {
         check(dungeon.slug.isNotBlank()) { "$label references blank dungeon" }
         val scenario = dungeonScenarios[dungeon]
         check(scenario != null) { "$label references missing dungeon scenario ${dungeon.slug}" }
@@ -1661,7 +1823,10 @@ fun validateScriptRewards(
     }
 
     fun visit(ops: List<Op>) {
-        fun visitOps(items: List<Op>, loopDepth: Int) {
+        fun visitOps(
+            items: List<Op>,
+            loopDepth: Int,
+        ) {
             items.forEach { op ->
                 when (op) {
                     is Op.Screen -> validateTextBlock(op.text, "screen", knownRoles, knownTowns)
@@ -1744,25 +1909,28 @@ fun validateScriptRewards(
                         visitOps(op.elseOps, loopDepth)
                     }
                     is Op.Loop -> visitOps(op.body, loopDepth + 1)
-                    is Op.Break -> check(loopDepth > 0) {
-                        "breakLoop(${op.reason ?: ""}) must be inside loop { ... }"
-                    }
+                    is Op.Break ->
+                        check(loopDepth > 0) {
+                            "breakLoop(${op.reason ?: ""}) must be inside loop { ... }"
+                        }
                     is Op.Switch -> {
                         validateIntExpression(op.expr, "script switch")
                         op.cases.forEach { visitOps(it.body, loopDepth) }
                     }
-                    is Op.RunScene -> check(op.scene in knownScenes) {
-                        "script run references missing scene ${op.scene.slug}"
-                    }
+                    is Op.RunScene ->
+                        check(op.scene in knownScenes) {
+                            "script run references missing scene ${op.scene.slug}"
+                        }
                     is Op.Encounter -> {
                         check(op.foe in knownMonsters) {
                             "script encounter references unknown monster ${op.foe.slug}"
                         }
                         op.tier?.let { tier -> requireEncounterTier(tier, "script encounter ${op.foe.slug}") }
                     }
-                    is Op.AchieveMilestone -> check(op.milestone in knownMilestones) {
-                        "script achieve references unknown milestone ${op.milestone.slug}"
-                    }
+                    is Op.AchieveMilestone ->
+                        check(op.milestone in knownMilestones) {
+                            "script achieve references unknown milestone ${op.milestone.slug}"
+                        }
                     is Op.ForEachMember -> visitOps(op.body, loopDepth)
                     is Op.ForEachMonster -> visitOps(op.body, loopDepth)
                     else -> Unit
@@ -1783,7 +1951,10 @@ fun validateScriptRewards(
     content.itemUses.forEach { visit(it.ops) }
 }
 
-private fun validateItemPool(pool: ItemPoolId, itemRecords: List<ItemRecordModel>) {
+private fun validateItemPool(
+    pool: ItemPoolId,
+    itemRecords: List<ItemRecordModel>,
+) {
     check(pool.items.isNotEmpty()) { "item pool ${pool.slug} has no items" }
     check(pool.items.toSet().size == pool.items.size) { "item pool ${pool.slug} has duplicate items" }
 
@@ -1795,10 +1966,12 @@ private fun validateItemPool(pool: ItemPoolId, itemRecords: List<ItemRecordModel
             "item pool ${pool.slug} cannot include the empty-slot sentinel"
         }
     }
-
 }
 
-private fun checkPercent(value: Int, label: String) {
+private fun checkPercent(
+    value: Int,
+    label: String,
+) {
     check(value in 0..100) { "$label must be 0..100" }
 }
 
@@ -1814,11 +1987,19 @@ private fun validateRealmContent(realm: RealmContentModel) {
     realm.hunt?.let(::validateHuntRules)
 }
 
-private fun validateCharacterCreation(model: CharacterCreationModel?, worldMaps: List<WorldMapModel>) {
+private fun validateCharacterCreation(
+    model: CharacterCreationModel?,
+    worldMaps: List<WorldMapModel>,
+) {
     if (model == null) return
 
     check(model.races.isNotEmpty()) { "character creation needs at least one race option" }
-    check(model.races.map { it.race }.toSet().size == model.races.size) {
+    check(
+        model.races
+            .map { it.race }
+            .toSet()
+            .size == model.races.size,
+    ) {
         "character creation has duplicate race options"
     }
     model.races.forEach { option ->
@@ -1826,7 +2007,12 @@ private fun validateCharacterCreation(model: CharacterCreationModel?, worldMaps:
     }
 
     check(model.classes.isNotEmpty()) { "character creation needs at least one class option" }
-    check(model.classes.map { it.klass }.toSet().size == model.classes.size) {
+    check(
+        model.classes
+            .map { it.klass }
+            .toSet()
+            .size == model.classes.size,
+    ) {
         "character creation has duplicate class options"
     }
     model.classes.forEach { option ->
@@ -1882,8 +2068,16 @@ private fun validateHuntRules(hunt: HuntRulesModel) {
     validateTextBlock(hunt.fails, "hunt fails", allowedRuntimeBindings = HuntTextBindings)
 }
 
-private fun validateTerminalPresentation(model: TerminalPresentationModel, terrain: TerrainCatalogModel) {
-    check(model.terrain.map { it.terrain }.toSet().size == model.terrain.size) {
+private fun validateTerminalPresentation(
+    model: TerminalPresentationModel,
+    terrain: TerrainCatalogModel,
+) {
+    check(
+        model.terrain
+            .map { it.terrain }
+            .toSet()
+            .size == model.terrain.size,
+    ) {
         "duplicate terminal terrain style"
     }
     val sourceMapCodes = model.terrain.mapNotNull { it.terrain.sourceMapCode }
@@ -1904,10 +2098,20 @@ private fun validateTerminalPresentation(model: TerminalPresentationModel, terra
 }
 
 private fun validateTerrainCatalog(model: TerrainCatalogModel) {
-    check(model.terrain.map { it.id }.toSet().size == model.terrain.size) {
+    check(
+        model.terrain
+            .map { it.id }
+            .toSet()
+            .size == model.terrain.size,
+    ) {
         "duplicate terrain declaration"
     }
-    check(model.terrain.map { it.mapCode }.toSet().size == model.terrain.size) {
+    check(
+        model.terrain
+            .map { it.mapCode }
+            .toSet()
+            .size == model.terrain.size,
+    ) {
         "duplicate terrain map tile code"
     }
     model.terrain.forEach { terrain ->
@@ -1926,7 +2130,12 @@ private fun validateTerrainCatalog(model: TerrainCatalogModel) {
 }
 
 private fun validateLayouts(layouts: LayoutModel) {
-    check(layouts.regions.map { it.id }.toSet().size == layouts.regions.size) {
+    check(
+        layouts.regions
+            .map { it.id }
+            .toSet()
+            .size == layouts.regions.size,
+    ) {
         "duplicate screen region"
     }
     layouts.regions.forEach { region ->
@@ -1937,24 +2146,35 @@ private fun validateLayouts(layouts: LayoutModel) {
 }
 
 private fun validateVisuals(visuals: VisualsModel) {
-    check(visuals.images.map { it.id }.toSet().size == visuals.images.size) {
+    check(
+        visuals.images
+            .map { it.id }
+            .toSet()
+            .size == visuals.images.size,
+    ) {
         "duplicate visual image asset"
     }
     visuals.images.forEach { image ->
         check(image.id.slug.isNotBlank()) { "visual image has blank id" }
         validateRelativeResource(image.resource, "visual image ${image.id.slug}")
     }
-    check(visuals.staticScreens.map { it.id }.toSet().size == visuals.staticScreens.size) {
+    check(
+        visuals.staticScreens
+            .map { it.id }
+            .toSet()
+            .size == visuals.staticScreens.size,
+    ) {
         "duplicate static screen"
     }
     val imageIds = visuals.images.map { it.id }.toSet()
     visuals.staticScreens.forEach { screen ->
-        val sourceCount = listOf(
-            screen.image != null,
-            screen.resource != null,
-            screen.commandHelp,
-            screen.runtimeReport != null,
-        ).count { it }
+        val sourceCount =
+            listOf(
+                screen.image != null,
+                screen.resource != null,
+                screen.commandHelp,
+                screen.runtimeReport != null,
+            ).count { it }
         check(sourceCount == 1) {
             "static screen ${screen.id.slug} must have exactly one source"
         }
@@ -1967,7 +2187,10 @@ private fun validateVisuals(visuals: VisualsModel) {
     }
 }
 
-private fun validateRelativeResource(resource: String, label: String) {
+private fun validateRelativeResource(
+    resource: String,
+    label: String,
+) {
     check(resource.isNotBlank()) { "$label has blank resource" }
     check(!resource.startsWith("/")) { "$label resource must be relative" }
     check(resource.split('/').none { it == ".." }) {
@@ -1976,31 +2199,36 @@ private fun validateRelativeResource(resource: String, label: String) {
 }
 
 private fun validateImageReferences(content: GameModel) {
-    val declared = content.visuals.images.map { it.id }.toSet()
-    val references = buildList {
-        content.visuals.staticScreens.forEach { screen ->
-            screen.image?.let { add(it to "static screen ${screen.id.slug}") }
-        }
-        content.itemCatalog.forEach { item ->
-            item.campImage?.let { add(it to "item ${item.id.slug} camp image") }
-        }
-        content.wilderness.events.caveImage?.let { add(it to "wilderness cave image") }
-        content.dungeons.backdrop?.let { add(it to "dungeon backdrop") }
-        content.ydarg?.image?.let { add(it to "Ydarg backdrop") }
-        content.combat.standardBattle?.let { battle ->
-            battle.opening.banners.forEach { add(it to "battle opening banner") }
-            battle.victoryImage?.let { add(it to "battle victory image") }
-        }
-        content.scenes.forEach { scene -> addAll(scene.ops.imageReferences("scene ${scene.id.slug}")) }
-        content.dungeons.events.forEach { event -> addAll(event.ops.imageReferences("dungeon event ${event.id.slug}")) }
-        content.dialogue.forEach { dialogue ->
-            dialogue.branches.forEach { branch ->
-                addAll(branch.ops.imageReferences("dialogue ${dialogue.npc.slug}"))
+    val declared =
+        content.visuals.images
+            .map { it.id }
+            .toSet()
+    val references =
+        buildList {
+            content.visuals.staticScreens.forEach { screen ->
+                screen.image?.let { add(it to "static screen ${screen.id.slug}") }
             }
+            content.itemCatalog.forEach { item ->
+                item.campImage?.let { add(it to "item ${item.id.slug} camp image") }
+            }
+            content.wilderness.events.caveImage
+                ?.let { add(it to "wilderness cave image") }
+            content.dungeons.backdrop?.let { add(it to "dungeon backdrop") }
+            content.ydarg?.image?.let { add(it to "Ydarg backdrop") }
+            content.combat.standardBattle?.let { battle ->
+                battle.opening.banners.forEach { add(it to "battle opening banner") }
+                battle.victoryImage?.let { add(it to "battle victory image") }
+            }
+            content.scenes.forEach { scene -> addAll(scene.ops.imageReferences("scene ${scene.id.slug}")) }
+            content.dungeons.events.forEach { event -> addAll(event.ops.imageReferences("dungeon event ${event.id.slug}")) }
+            content.dialogue.forEach { dialogue ->
+                dialogue.branches.forEach { branch ->
+                    addAll(branch.ops.imageReferences("dialogue ${dialogue.npc.slug}"))
+                }
+            }
+            content.spells.forEach { spell -> addAll(spell.ops.imageReferences("spell ${spell.id.slug}")) }
+            content.itemUses.forEach { itemUse -> addAll(itemUse.ops.imageReferences("item use ${itemUse.id.slug}")) }
         }
-        content.spells.forEach { spell -> addAll(spell.ops.imageReferences("spell ${spell.id.slug}")) }
-        content.itemUses.forEach { itemUse -> addAll(itemUse.ops.imageReferences("item use ${itemUse.id.slug}")) }
-    }
     references.forEach { (image, label) ->
         check(image in declared) { "$label references undeclared image ${image.slug}" }
     }
@@ -2008,7 +2236,10 @@ private fun validateImageReferences(content: GameModel) {
 
 private fun List<Op>.imageReferences(label: String): List<Pair<ImageId, String>> =
     buildList {
-        fun visit(ops: List<Op>, nestedLabel: String) {
+        fun visit(
+            ops: List<Op>,
+            nestedLabel: String,
+        ) {
             ops.forEach { op ->
                 when (op) {
                     is Op.View -> {
@@ -2065,24 +2296,34 @@ private fun List<Op>.imageReferences(label: String): List<Pair<ImageId, String>>
                     is Op.GrantReward,
                     is Op.RandomItemOffer,
                     is Op.AchieveMilestone,
-                    is Op.NativeCall -> Unit
+                    is Op.NativeCall,
+                    -> Unit
                 }
             }
         }
         visit(this@imageReferences, label)
     }
 
-private fun validateWorldMaps(worldMaps: List<WorldMapModel>, terrain: TerrainCatalogModel) {
+private fun validateWorldMaps(
+    worldMaps: List<WorldMapModel>,
+    terrain: TerrainCatalogModel,
+) {
     check(worldMaps.map { it.id }.toSet().size == worldMaps.size) {
         "duplicate world map"
     }
     val terrainCodes = terrain.terrain.map { it.mapCode }.toSet()
     worldMaps.forEach { map ->
-        check(map.layers.map { it.id }.toSet().size == map.layers.size) {
+        check(
+            map.layers
+                .map { it.id }
+                .toSet()
+                .size == map.layers.size,
+        ) {
             "world map ${map.id.slug} has duplicate layers"
         }
-        val terrainLayer = map.layers.singleOrNull { it.id == DslDefaultMapLayers.terrain }
-            ?: error("world map ${map.id.slug} requires terrain layer")
+        val terrainLayer =
+            map.layers.singleOrNull { it.id == DslDefaultMapLayers.terrain }
+                ?: error("world map ${map.id.slug} requires terrain layer")
         check(terrainLayer.rows.isNotEmpty()) { "world map ${map.id.slug} terrain layer has no rows" }
         val width = terrainLayer.rows.first().length
         check(width > 0) { "world map ${map.id.slug} terrain layer has blank first row" }
@@ -2115,67 +2356,80 @@ private fun validateWorldMaps(worldMaps: List<WorldMapModel>, terrain: TerrainCa
     }
 }
 
-private fun validateFlagReferences(ast: BoolAst, label: String, flagStates: FlagStateIndex) {
+private fun validateFlagReferences(
+    ast: BoolAst,
+    label: String,
+    flagStates: FlagStateIndex,
+) {
     lateinit var bool: (BoolAst) -> Unit
     lateinit var int: (IntAst) -> Unit
 
-    int = fun(value: IntAst) {
-        when (value) {
-            is IntAst.Lit,
-            is IntAst.Var,
-            is IntAst.BattleFlag,
-            is IntAst.BattleQuery,
-            is IntAst.RealmScalar,
-            is IntAst.PartyScalar,
-            is IntAst.InventoryPoolCount,
-            is IntAst.NativeInt -> Unit
-            is IntAst.Binary -> {
-                int(value.left)
-                int(value.right)
-            }
-            is IntAst.If -> {
-                bool(value.cond)
-                int(value.thenValue)
-                int(value.elseValue)
-            }
-            is IntAst.Random -> {
-                int(value.lo)
-                int(value.hi)
-            }
-            is IntAst.MemberField -> int(value.member)
-            is IntAst.MonsterField -> int(value.monster)
-            is IntAst.InventorySlotCost -> int(value.slot)
-        }
-    }
+    int =
 
-    bool = fun(value: BoolAst) {
-        when (value) {
-            is BoolAst.Cmp -> {
-                int(value.left)
-                int(value.right)
+        fun(value: IntAst) {
+            when (value) {
+                is IntAst.Lit,
+                is IntAst.Var,
+                is IntAst.BattleFlag,
+                is IntAst.BattleQuery,
+                is IntAst.RealmScalar,
+                is IntAst.PartyScalar,
+                is IntAst.InventoryPoolCount,
+                is IntAst.NativeInt,
+                -> Unit
+                is IntAst.Binary -> {
+                    int(value.left)
+                    int(value.right)
+                }
+                is IntAst.If -> {
+                    bool(value.cond)
+                    int(value.thenValue)
+                    int(value.elseValue)
+                }
+                is IntAst.Random -> {
+                    int(value.lo)
+                    int(value.hi)
+                }
+                is IntAst.MemberField -> int(value.member)
+                is IntAst.MonsterField -> int(value.monster)
+                is IntAst.InventorySlotCost -> int(value.slot)
             }
-            is BoolAst.Not -> bool(value.expr)
-            is BoolAst.And -> {
-                bool(value.left)
-                bool(value.right)
-            }
-            is BoolAst.Or -> {
-                bool(value.left)
-                bool(value.right)
-            }
-            is BoolAst.FlagIs -> flagStates.requireKnown(value.slug, value.nativeValue, label)
-            is BoolAst.MilestoneAchieved -> Unit
-            is BoolAst.MemberFlag -> int(value.member)
-            is BoolAst.MonsterFlag -> int(value.monster)
-            is BoolAst.BattleFlag,
-            is BoolAst.RuntimeFlag -> Unit
         }
-    }
+
+    bool =
+
+        fun(value: BoolAst) {
+            when (value) {
+                is BoolAst.Cmp -> {
+                    int(value.left)
+                    int(value.right)
+                }
+                is BoolAst.Not -> bool(value.expr)
+                is BoolAst.And -> {
+                    bool(value.left)
+                    bool(value.right)
+                }
+                is BoolAst.Or -> {
+                    bool(value.left)
+                    bool(value.right)
+                }
+                is BoolAst.FlagIs -> flagStates.requireKnown(value.slug, value.nativeValue, label)
+                is BoolAst.MilestoneAchieved -> Unit
+                is BoolAst.MemberFlag -> int(value.member)
+                is BoolAst.MonsterFlag -> int(value.monster)
+                is BoolAst.BattleFlag,
+                is BoolAst.RuntimeFlag,
+                -> Unit
+            }
+        }
 
     bool(ast)
 }
 
-private fun validateFlagTransitions(content: GameModel, flagStates: FlagStateIndex) {
+private fun validateFlagTransitions(
+    content: GameModel,
+    flagStates: FlagStateIndex,
+) {
     val scenesById = content.scenes.associateBy { it.id }
 
     fun combineStates(
@@ -2208,12 +2462,14 @@ private fun validateFlagTransitions(content: GameModel, flagStates: FlagStateInd
         val source = context[slug] ?: return
         if (source.native == native) return
 
-        val sourceOrder = checkNotNull(flagStates.order(source)) {
-            "flag transition source ${source.flag.slug}.${source.native} is not declared"
-        }
-        val targetOrder = checkNotNull(flagStates.order(slug, native)) {
-            "flag transition target $slug.$native is not declared"
-        }
+        val sourceOrder =
+            checkNotNull(flagStates.order(source)) {
+                "flag transition source ${source.flag.slug}.${source.native} is not declared"
+            }
+        val targetOrder =
+            checkNotNull(flagStates.order(slug, native)) {
+                "flag transition target $slug.$native is not declared"
+            }
         check(targetOrder >= sourceOrder) {
             "$label moves ${source.flag.slug} backward from ${source.native} to $native"
         }
@@ -2232,9 +2488,10 @@ private fun validateFlagTransitions(content: GameModel, flagStates: FlagStateInd
                     visitOps(op.elseOps, context, "$label if-else")
                 }
                 is Op.Loop -> visitOps(op.body, context, "$label loop")
-                is Op.Switch -> op.cases.forEachIndexed { index, case ->
-                    visitOps(case.body, context, "$label switch case ${index + 1}")
-                }
+                is Op.Switch ->
+                    op.cases.forEachIndexed { index, case ->
+                        visitOps(case.body, context, "$label switch case ${index + 1}")
+                    }
                 is Op.Menu -> {
                     op.options.forEach { option ->
                         visitOps(option.body, context, "$label menu ${option.key}")
@@ -2261,9 +2518,10 @@ private fun validateFlagTransitions(content: GameModel, flagStates: FlagStateInd
     content.dialogue.forEach { dialogue ->
         dialogue.branches.forEach { branch ->
             val context = branch.whenState?.let { mapOf(it.flag.slug to it) }.orEmpty()
-            val label = branch.whenState
-                ?.let { "dialogue ${dialogue.npc.slug} when ${it.flag.slug}.${it.native}" }
-                ?: "dialogue ${dialogue.npc.slug} default"
+            val label =
+                branch.whenState
+                    ?.let { "dialogue ${dialogue.npc.slug} when ${it.flag.slug}.${it.native}" }
+                    ?: "dialogue ${dialogue.npc.slug} default"
             visitOps(branch.ops, context, label)
         }
     }
@@ -2331,7 +2589,11 @@ private fun validateGameMetadata(metadata: GameMetadataModel) {
     check(metadata.universe.compatibilityId.isNotBlank()) { "universe compatibility id must not be blank" }
 }
 
-private fun validateGameLimits(limits: GameLimitsModel, worldMaps: List<WorldMapModel>, layouts: LayoutModel) {
+private fun validateGameLimits(
+    limits: GameLimitsModel,
+    worldMaps: List<WorldMapModel>,
+    layouts: LayoutModel,
+) {
     limits.maxWorldMaps?.let { max ->
         check(max > 0) { "max world maps must be positive" }
         check(worldMaps.size <= max) { "declares ${worldMaps.size} world maps, but limit is $max" }
@@ -2339,7 +2601,11 @@ private fun validateGameLimits(limits: GameLimitsModel, worldMaps: List<WorldMap
     limits.maxMapCells?.let { max ->
         check(max > 0) { "max map cells must be positive" }
         worldMaps.forEach { map ->
-            val rows = map.layers.singleOrNull { it.id == DslDefaultMapLayers.terrain }?.rows.orEmpty()
+            val rows =
+                map.layers
+                    .singleOrNull { it.id == DslDefaultMapLayers.terrain }
+                    ?.rows
+                    .orEmpty()
             val cells = rows.size * (rows.firstOrNull()?.length ?: 0)
             check(cells <= max) { "world map ${map.id.slug} uses $cells cells, but limit is $max" }
         }
@@ -2455,16 +2721,27 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.party.dropCapacityReduced, "party drop-capacity-reduced prompt")
 }
 
-private fun validateItemPools(itemPools: List<ItemPoolId>, itemCatalog: List<ItemRecordModel>) {
+private fun validateItemPools(
+    itemPools: List<ItemPoolId>,
+    itemCatalog: List<ItemRecordModel>,
+) {
     check(itemPools.map { it.slug }.toSet().size == itemPools.size) {
         "duplicate item pool"
     }
     itemPools.forEach { validateItemPool(it, itemCatalog) }
 }
 
-private fun validateAuthoredFlags(content: GameModel, flagStates: FlagStateIndex) {
+private fun validateAuthoredFlags(
+    content: GameModel,
+    flagStates: FlagStateIndex,
+) {
     val declaredFlags = content.flags.toSet()
-    check(content.authoredFlags.map { it.ref.slug }.toSet().size == content.authoredFlags.size) {
+    check(
+        content.authoredFlags
+            .map { it.ref.slug }
+            .toSet()
+            .size == content.authoredFlags.size,
+    ) {
         "duplicate authored flag"
     }
     content.authoredFlags.forEach { flag ->
@@ -2506,7 +2783,12 @@ private fun validateMissions(
     flagStates: FlagStateIndex,
     terrainBindings: TerrainBindingIndex,
 ) {
-    check(content.missions.map { it.id }.toSet().size == content.missions.size) {
+    check(
+        content.missions
+            .map { it.id }
+            .toSet()
+            .size == content.missions.size,
+    ) {
         "duplicate authored mission"
     }
     val scenes = content.scenes.map { it.id }.toSet()
@@ -2524,47 +2806,80 @@ private fun validateMissions(
                     "mission ${mission.id.slug} position trigger must use non-negative world coordinates"
                 }
             }
-            is Trigger.AtLocation -> check(trigger.location.slug.isNotBlank()) {
-                "mission ${mission.id.slug} location trigger references blank location"
-            }
-            is Trigger.OnTerrain -> terrainBindings.requireMapReachable(
-                trigger.terrain,
-                "mission ${mission.id.slug} terrain trigger",
-            )
+            is Trigger.AtLocation ->
+                check(trigger.location.slug.isNotBlank()) {
+                    "mission ${mission.id.slug} location trigger references blank location"
+                }
+            is Trigger.OnTerrain ->
+                terrainBindings.requireMapReachable(
+                    trigger.terrain,
+                    "mission ${mission.id.slug} terrain trigger",
+                )
         }
     }
 }
 
-fun specialInventoryItems(content: GameModel, party: PartyState): List<ItemId> =
+fun specialInventoryItems(
+    content: GameModel,
+    party: PartyState,
+): List<ItemId> =
     party.milestones.toSet().let { achieved ->
         content.progress.milestones
             .filter { it.id in achieved }
             .mapNotNull { it.specialInventoryItem }
     }
 
-fun isWinningConfiguration(content: GameModel, party: PartyState): Boolean =
+fun isWinningConfiguration(
+    content: GameModel,
+    party: PartyState,
+): Boolean =
     content.progress.win?.let { win ->
         party.milestones.toSet().let { achieved ->
             (win.completedBy?.let { it in achieved } ?: true) &&
-                    win.required.all { it in achieved }
+                win.required.all { it in achieved }
         }
     } ?: false
 
-fun validateStates(states: List<StateModel>, content: GameModel? = null) {
+fun validateStates(
+    states: List<StateModel>,
+    content: GameModel? = null,
+) {
     check(states.map { it.id }.toSet().size == states.size) { "duplicate state id" }
 
-    val itemIds = content?.itemCatalog?.map { it.id }?.toSet().orEmpty()
-    val milestoneIds = content?.progress?.milestones?.map { it.id }?.toSet().orEmpty()
+    val itemIds =
+        content
+            ?.itemCatalog
+            ?.map { it.id }
+            ?.toSet()
+            .orEmpty()
+    val milestoneIds =
+        content
+            ?.progress
+            ?.milestones
+            ?.map { it.id }
+            ?.toSet()
+            .orEmpty()
     val flagStates = content?.flags?.let(::FlagStateIndex)
-    val npcIds = content?.characters?.map { it.id }?.toSet().orEmpty()
-    val mapIds = content?.worldMaps?.map { it.id }?.toSet().orEmpty()
+    val npcIds =
+        content
+            ?.characters
+            ?.map { it.id }
+            ?.toSet()
+            .orEmpty()
+    val mapIds =
+        content
+            ?.worldMaps
+            ?.map { it.id }
+            ?.toSet()
+            .orEmpty()
     val terrainBindings = content?.let { TerrainBindingIndex(it.terrain, it.terminal, it.worldMaps) }
-    val specialItems = content
-        ?.progress
-        ?.milestones
-        ?.mapNotNull { it.specialInventoryItem }
-        ?.toSet()
-        ?: emptySet()
+    val specialItems =
+        content
+            ?.progress
+            ?.milestones
+            ?.mapNotNull { it.specialInventoryItem }
+            ?.toSet()
+            ?: emptySet()
 
     states.forEach { state ->
         val partyIds = state.parties.map { it.id }
@@ -2616,7 +2931,12 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
                     }
                 }
             }
-            check(party.flags.map { it.flag }.toSet().size == party.flags.size) {
+            check(
+                party.flags
+                    .map { it.flag }
+                    .toSet()
+                    .size == party.flags.size,
+            ) {
                 "party ${party.id.slug}: duplicate party flag state"
             }
             flagStates?.let { statesByFlag ->
@@ -2624,7 +2944,12 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
                     statesByFlag.requireKnown(state, "party ${party.id.slug}")
                 }
             }
-            check(party.visitedNpcs.map { it.npc }.toSet().size == party.visitedNpcs.size) {
+            check(
+                party.visitedNpcs
+                    .map { it.npc }
+                    .toSet()
+                    .size == party.visitedNpcs.size,
+            ) {
                 "party ${party.id.slug}: duplicate NPC visit record"
             }
             if (content != null) {
@@ -2644,7 +2969,8 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
                 "party ${party.id.slug}: ${special?.slug} is special state, not a slotted inventory item"
             }
             content?.let { game ->
-                game.progress.win?.completedBy
+                game.progress.win
+                    ?.completedBy
                     ?.takeIf { it in party.milestones }
                     ?.let {
                         check(isWinningConfiguration(game, party)) {
@@ -2662,7 +2988,11 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
                 check(slots == (0..InventorySaveSlotMax).toList()) {
                     "runtime state ${state.id.slug}: party ${party.id.slug} must list inventory slots 0..$InventorySaveSlotMax"
                 }
-                check(party.counters.attackedToday.map { it.party }.toSet() == partyIds.toSet()) {
+                check(
+                    party.counters.attackedToday
+                        .map { it.party }
+                        .toSet() == partyIds.toSet(),
+                ) {
                     "runtime state ${state.id.slug}: party ${party.id.slug} must list attackToday for every party"
                 }
                 state.npcs
@@ -2674,9 +3004,11 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
                             "runtime state ${state.id.slug}: party ${party.id.slug} must list every declared NPC visit bit"
                         }
                     }
-                check(party.journal.all { entry ->
-                    entry !is JournalEntryState.Line || entry.text.isNotBlank()
-                }) {
+                check(
+                    party.journal.all { entry ->
+                        entry !is JournalEntryState.Line || entry.text.isNotBlank()
+                    },
+                ) {
                     "runtime state ${state.id.slug}: party ${party.id.slug} has a blank journal line"
                 }
             }

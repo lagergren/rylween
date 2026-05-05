@@ -1,15 +1,15 @@
 package rylween.runtime.score
 
-import rylween.runtime.*
-
 import rylween.dsl.GameMilestoneId
 import rylween.dsl.GameModel
 import rylween.dsl.ItemId
 import rylween.dsl.ItemRecordModel
-import rylween.dsl.PartyState
 import rylween.dsl.PartyMemberState
+import rylween.dsl.PartyState
 import rylween.dsl.PcClass
 import rylween.dsl.SourceSpecialField
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.party
 
 data class ScorePowerItem(
     val milestone: GameMilestoneId,
@@ -42,32 +42,39 @@ data class HallOfHeroesReport(
 fun RuntimeSessionState.scoreReport(content: GameModel): ScoreReport {
     val itemRecords = content.itemCatalog.associateBy(ItemRecordModel::id)
     val powerItems = content.scorePowerItems(itemRecords)
-    val sorted = parties
-        .withIndex()
-        .sortedWith(compareByDescending { entry -> entry.value.averageExperience() })
-        .map(IndexedValue<PartyState>::value)
+    val sorted =
+        parties
+            .withIndex()
+            .sortedWith(compareByDescending { entry -> entry.value.averageExperience() })
+            .map(IndexedValue<PartyState>::value)
     return ScoreReport(
-        entries = sorted.mapIndexed { index, party ->
-            ScoreReportEntry(
-                rank = index + 1,
-                partyName = party.name,
-                leaderName = party.members.firstOrNull()?.name.orEmpty(),
-                classes = party.members.map(PartyMemberState::pcClass),
-                kills = party.counters.kills,
-                averageExperience = party.averageExperience(),
-                averageLevel = party.averageLevel(),
-                powerItems = powerItems.filter { item -> item.milestone in party.milestones },
-            )
-        },
+        entries =
+            sorted.mapIndexed { index, party ->
+                ScoreReportEntry(
+                    rank = index + 1,
+                    partyName = party.name,
+                    leaderName =
+                        party.members
+                            .firstOrNull()
+                            ?.name
+                            .orEmpty(),
+                    classes = party.members.map(PartyMemberState::pcClass),
+                    kills = party.counters.kills,
+                    averageExperience = party.averageExperience(),
+                    averageLevel = party.averageLevel(),
+                    powerItems = powerItems.filter { item -> item.milestone in party.milestones },
+                )
+            },
     )
 }
 
 fun RuntimeSessionState.hallOfHeroesReport(content: GameModel): HallOfHeroesReport {
     val completion = content.progress.win?.completedBy ?: return HallOfHeroesReport(emptyList())
-    val entries = parties
-        .filter { party -> completion in party.milestones }
-        .sortedWith(compareBy<PartyState> { party -> party.name.lowercase() }.thenBy { party -> party.id.slug })
-        .map { party -> HallOfHeroesEntry(partyName = party.name) }
+    val entries =
+        parties
+            .filter { party -> completion in party.milestones }
+            .sortedWith(compareBy<PartyState> { party -> party.name.lowercase() }.thenBy { party -> party.id.slug })
+            .map { party -> HallOfHeroesEntry(partyName = party.name) }
     return HallOfHeroesReport(entries)
 }
 
@@ -80,13 +87,13 @@ private fun GameModel.scorePowerItems(records: Map<ItemId, ItemRecordModel>): Li
             IndexedScorePowerItem(
                 index = index,
                 sourceOrder = milestone.sourceSpecial?.field?.scoreOrder(),
-                item = ScorePowerItem(
-                    milestone = milestone.id,
-                    name = record?.displayName ?: item.slug,
-                ),
+                item =
+                    ScorePowerItem(
+                        milestone = milestone.id,
+                        name = record?.displayName ?: item.slug,
+                    ),
             )
-        }
-        .sortedWith(compareBy<IndexedScorePowerItem> { it.sourceOrder ?: Int.MAX_VALUE }.thenBy { it.index })
+        }.sortedWith(compareBy<IndexedScorePowerItem> { it.sourceOrder ?: Int.MAX_VALUE }.thenBy { it.index })
         .map(IndexedScorePowerItem::item)
 
 private data class IndexedScorePowerItem(
@@ -104,11 +111,9 @@ private fun SourceSpecialField.scoreOrder(): Int =
         SourceSpecialField.Jazzyfoot -> 5
     }
 
-private fun PartyState.averageExperience(): Int =
-    averageOfMembers(PartyMemberState::experience)
+private fun PartyState.averageExperience(): Int = averageOfMembers(PartyMemberState::experience)
 
-private fun PartyState.averageLevel(): Int =
-    averageOfMembers(PartyMemberState::level)
+private fun PartyState.averageLevel(): Int = averageOfMembers(PartyMemberState::level)
 
 private fun PartyState.averageOfMembers(value: (PartyMemberState) -> Int): Int {
     val divisor = members.size.coerceAtLeast(1)

@@ -3,9 +3,14 @@
 
 package rylween.runtime.wilderness
 
-import rylween.runtime.*
-
-import rylween.dsl.*
+import rylween.dsl.HuntRulesModel
+import rylween.dsl.PartyState
+import rylween.dsl.PcClass
+import rylween.dsl.TextBlock
+import rylween.dsl.chance
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.drawRandom
+import rylween.runtime.party
 
 enum class HuntSessionStatus {
     Succeeded,
@@ -23,19 +28,28 @@ data class HuntSessionResult(
 )
 
 sealed interface HuntSessionInput {
-    data class Member(val memberNumber: Int) : HuntSessionInput
+    data class Member(
+        val memberNumber: Int,
+    ) : HuntSessionInput
+
     object Continue : HuntSessionInput
 }
 
 sealed interface HuntSessionStep {
-    data class ChooseMember(val prompt: TextBlock) : HuntSessionStep
+    data class ChooseMember(
+        val prompt: TextBlock,
+    ) : HuntSessionStep
+
     data class Messages(
         val blocks: List<TextBlock>,
         val next: HuntSessionStep,
         val memberNumber: Int? = null,
         val foodGained: Int = 0,
     ) : HuntSessionStep
-    data class Finished(val result: HuntSessionResult) : HuntSessionStep
+
+    data class Finished(
+        val result: HuntSessionResult,
+    ) : HuntSessionStep
 }
 
 data class HuntSession(
@@ -46,14 +60,14 @@ data class HuntSession(
 ) {
     val party: PartyState get() = runtime.activeParty
 
-    fun memberChoices(): List<Int> =
-        (1..runtime.realm.partyMemberMax.coerceAtLeast(party.members.size)).toList()
+    fun memberChoices(): List<Int> = (1..runtime.realm.partyMemberMax.coerceAtLeast(party.members.size)).toList()
 
     fun apply(input: HuntSessionInput): HuntSession =
         when (val current = step) {
             is HuntSessionStep.ChooseMember -> {
-                val member = (input as? HuntSessionInput.Member)
-                    ?: error("hunt session is asking for a member")
+                val member =
+                    (input as? HuntSessionInput.Member)
+                        ?: error("hunt session is asking for a member")
                 chooseMember(member.memberNumber)
             }
             is HuntSessionStep.Messages -> {
@@ -71,11 +85,12 @@ data class HuntSession(
         if (member == null || member.dead) {
             val result = HuntSessionResult(runtime, HuntSessionStatus.DeadMember, memberNumber = memberNumber)
             return copy(
-                step = HuntSessionStep.Messages(
-                    blocks = listOf(rules.dead),
-                    next = HuntSessionStep.ChooseMember(rules.whoPrompt),
-                    memberNumber = memberNumber,
-                ),
+                step =
+                    HuntSessionStep.Messages(
+                        blocks = listOf(rules.dead),
+                        next = HuntSessionStep.ChooseMember(rules.whoPrompt),
+                        memberNumber = memberNumber,
+                    ),
                 lastResult = result,
             )
         }
@@ -83,11 +98,12 @@ data class HuntSession(
         if (member.pcClass != PcClass.Ranger) {
             val result = HuntSessionResult(runtime, HuntSessionStatus.NotRanger, memberNumber = memberNumber)
             return copy(
-                step = HuntSessionStep.Messages(
-                    blocks = listOf(rules.notRanger),
-                    next = HuntSessionStep.Finished(result),
-                    memberNumber = memberNumber,
-                ),
+                step =
+                    HuntSessionStep.Messages(
+                        blocks = listOf(rules.notRanger),
+                        next = HuntSessionStep.Finished(result),
+                        memberNumber = memberNumber,
+                    ),
                 lastResult = result,
             )
         }
@@ -95,11 +111,12 @@ data class HuntSession(
         if (party.resources.timeLeft < rules.timeCost) {
             val result = HuntSessionResult(runtime, HuntSessionStatus.TooFewMoves, memberNumber = memberNumber)
             return copy(
-                step = HuntSessionStep.Messages(
-                    blocks = listOf(rules.tooFewMoves),
-                    next = HuntSessionStep.Finished(result),
-                    memberNumber = memberNumber,
-                ),
+                step =
+                    HuntSessionStep.Messages(
+                        blocks = listOf(rules.tooFewMoves),
+                        next = HuntSessionStep.Finished(result),
+                        memberNumber = memberNumber,
+                    ),
                 lastResult = result,
             )
         }
@@ -111,43 +128,49 @@ data class HuntSession(
             val food = chance.runtime.drawRandom(rules.foodMin, rules.foodMax)
             val gained = food.value + party.leaderLevel()
             val afterFood = food.runtime.addHuntFood(gained)
-            val result = HuntSessionResult(
-                runtime = afterFood,
-                status = HuntSessionStatus.Succeeded,
-                memberNumber = memberNumber,
-                foodGained = gained,
-            )
-            copy(
-                runtime = afterFood,
-                step = HuntSessionStep.Messages(
-                    blocks = listOf(rules.tries, rules.succeeds),
-                    next = HuntSessionStep.Finished(result),
+            val result =
+                HuntSessionResult(
+                    runtime = afterFood,
+                    status = HuntSessionStatus.Succeeded,
                     memberNumber = memberNumber,
                     foodGained = gained,
-                ),
+                )
+            copy(
+                runtime = afterFood,
+                step =
+                    HuntSessionStep.Messages(
+                        blocks = listOf(rules.tries, rules.succeeds),
+                        next = HuntSessionStep.Finished(result),
+                        memberNumber = memberNumber,
+                        foodGained = gained,
+                    ),
                 lastResult = result,
             )
         } else {
-            val result = HuntSessionResult(
-                runtime = chance.runtime,
-                status = HuntSessionStatus.Failed,
-                memberNumber = memberNumber,
-            )
+            val result =
+                HuntSessionResult(
+                    runtime = chance.runtime,
+                    status = HuntSessionStatus.Failed,
+                    memberNumber = memberNumber,
+                )
             copy(
                 runtime = chance.runtime,
-                step = HuntSessionStep.Messages(
-                    blocks = listOf(rules.tries, rules.fails),
-                    next = HuntSessionStep.Finished(result),
-                    memberNumber = memberNumber,
-                ),
+                step =
+                    HuntSessionStep.Messages(
+                        blocks = listOf(rules.tries, rules.fails),
+                        next = HuntSessionStep.Finished(result),
+                        memberNumber = memberNumber,
+                    ),
                 lastResult = result,
             )
         }
     }
 
     companion object {
-        fun start(runtime: RuntimeSessionState, rules: HuntRulesModel): HuntSession =
-            HuntSession(runtime = runtime, rules = rules, step = HuntSessionStep.ChooseMember(rules.whoPrompt))
+        fun start(
+            runtime: RuntimeSessionState,
+            rules: HuntRulesModel,
+        ): HuntSession = HuntSession(runtime = runtime, rules = rules, step = HuntSessionStep.ChooseMember(rules.whoPrompt))
     }
 }
 
@@ -165,5 +188,4 @@ private fun RuntimeSessionState.addHuntFood(amount: Int): RuntimeSessionState =
         ),
     )
 
-private fun PartyState.leaderLevel(): Int =
-    members.firstOrNull()?.level ?: 0
+private fun PartyState.leaderLevel(): Int = members.firstOrNull()?.level ?: 0

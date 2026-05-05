@@ -4,12 +4,26 @@
 
 package rylween.runtime.party
 
-import rylween.runtime.*
+import rylween.dsl.PartyState
+import rylween.dsl.PcClass
+import rylween.dsl.PriestSpellPromptsModel
+import rylween.dsl.SpellId
+import rylween.dsl.SpellModel
+import rylween.dsl.TextBlock
+import rylween.dsl.text
+import rylween.runtime.PriestSpellInput
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.ScriptContinuation
+import rylween.runtime.ScriptRootRef
+import rylween.runtime.digitKey
+import rylween.runtime.party
+import rylween.runtime.plus
+import rylween.runtime.prompt
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 
-import rylween.dsl.*
-
-enum class PriestSpellPlace(val code: Int) {
+enum class PriestSpellPlace(
+    val code: Int,
+) {
     Wilderness(0),
     Dungeon(1),
 }
@@ -25,7 +39,10 @@ enum class PriestSpellStatus {
     NoSpells,
 }
 
-fun <T> PriestSpellStatus?.toParentStatus(cast: T, unavailable: T): T =
+fun <T> PriestSpellStatus?.toParentStatus(
+    cast: T,
+    unavailable: T,
+): T =
     when (this) {
         PriestSpellStatus.Cast -> cast
         else -> unavailable
@@ -40,19 +57,31 @@ data class PriestSpellResult(
 )
 
 sealed interface PriestSpellStep {
-    data class ChooseCaster(val prompt: TextBlock, val casterKeys: List<Char>) : PriestSpellStep
+    data class ChooseCaster(
+        val prompt: TextBlock,
+        val casterKeys: List<Char>,
+    ) : PriestSpellStep
+
     data class ChooseSpell(
         val casterNumber: Int,
         val prompt: TextBlock,
         val spellKeys: List<Char>,
     ) : PriestSpellStep
+
     data class Script(
         val spell: SpellModel,
         val casterNumber: Int,
         val continuation: ScriptContinuation,
     ) : PriestSpellStep
-    data class Message(val text: TextBlock, val next: PriestSpellStep) : PriestSpellStep
-    data class Finished(val result: PriestSpellResult) : PriestSpellStep {
+
+    data class Message(
+        val text: TextBlock,
+        val next: PriestSpellStep,
+    ) : PriestSpellStep
+
+    data class Finished(
+        val result: PriestSpellResult,
+    ) : PriestSpellStep {
         val runtime: RuntimeSessionState get() = result.runtime
     }
 }
@@ -72,13 +101,15 @@ data class PriestSpellSession(
     fun apply(input: PriestSpellInput): PriestSpellSession =
         when (val current = step) {
             is PriestSpellStep.ChooseCaster -> {
-                val caster = input as? PriestSpellInput.Caster
-                    ?: error("priest spell session is choosing a caster")
+                val caster =
+                    input as? PriestSpellInput.Caster
+                        ?: error("priest spell session is choosing a caster")
                 chooseCaster(caster.memberNumber)
             }
             is PriestSpellStep.ChooseSpell -> {
-                val spell = input as? PriestSpellInput.SpellSlot
-                    ?: error("priest spell session is choosing a spell")
+                val spell =
+                    input as? PriestSpellInput.SpellSlot
+                        ?: error("priest spell session is choosing a spell")
                 chooseSpell(current.casterNumber, spell.slot)
             }
             is PriestSpellStep.Message -> {
@@ -91,8 +122,9 @@ data class PriestSpellSession(
         }
 
     fun replaceScriptContinuation(continuation: ScriptContinuation): PriestSpellSession {
-        val current = step as? PriestSpellStep.Script
-            ?: error("priest spell session is not running a script")
+        val current =
+            step as? PriestSpellStep.Script
+                ?: error("priest spell session is not running a script")
         return copy(
             runtime = continuation.runtime,
             step = current.copy(continuation = continuation),
@@ -103,14 +135,16 @@ data class PriestSpellSession(
         nextRuntime: RuntimeSessionState,
         dungeonHandoff: WildernessDungeonHandoff? = null,
     ): PriestSpellSession {
-        val current = step as? PriestSpellStep.Script
-            ?: error("priest spell session is not running a script")
+        val current =
+            step as? PriestSpellStep.Script
+                ?: error("priest spell session is not running a script")
         return finish(PriestSpellStatus.Cast, nextRuntime, current.casterNumber, current.spell.id, dungeonHandoff)
     }
 
     private fun chooseCaster(memberNumber: Int): PriestSpellSession {
-        val member = party.members.getOrNull(memberNumber - 1)
-            ?: return message(PriestSpellStatus.InvalidCaster, prompts.invalidCaster, memberNumber)
+        val member =
+            party.members.getOrNull(memberNumber - 1)
+                ?: return message(PriestSpellStatus.InvalidCaster, prompts.invalidCaster, memberNumber)
         return when {
             member.pcClass == PcClass.Mage ->
                 message(PriestSpellStatus.MageCombatOnly, prompts.mageCombatOnly, memberNumber)
@@ -120,32 +154,41 @@ data class PriestSpellSession(
                 message(PriestSpellStatus.Dead, prompts.dead, memberNumber)
             priestSpells.isEmpty() ->
                 message(PriestSpellStatus.NoSpells, prompts.noSpells, memberNumber)
-            else -> copy(
-                step = PriestSpellStep.ChooseSpell(
-                    casterNumber = memberNumber,
-                    prompt = prompts.spellList(member, priestSpells, abortSlot()),
-                    spellKeys = spellKeys(),
-                ),
-            )
+            else ->
+                copy(
+                    step =
+                        PriestSpellStep.ChooseSpell(
+                            casterNumber = memberNumber,
+                            prompt = prompts.spellList(member, priestSpells, abortSlot()),
+                            spellKeys = spellKeys(),
+                        ),
+                )
         }
     }
 
-    private fun chooseSpell(casterNumber: Int, slot: Int): PriestSpellSession {
+    private fun chooseSpell(
+        casterNumber: Int,
+        slot: Int,
+    ): PriestSpellSession {
         if (slot == abortSlot()) {
             return finish(PriestSpellStatus.Aborted, runtime, casterNumber)
         }
-        val spell = priestSpells.firstOrNull { it.slot == slot }
-            ?: return message(PriestSpellStatus.InvalidSpell, prompts.invalidSpell, casterNumber)
+        val spell =
+            priestSpells.firstOrNull { it.slot == slot }
+                ?: return message(PriestSpellStatus.InvalidSpell, prompts.invalidSpell, casterNumber)
         return copy(
-            step = PriestSpellStep.Script(
-                spell = spell,
-                casterNumber = casterNumber,
-                continuation = ScriptContinuation.start(runtime, ScriptRootRef.spell(spell.id)).copy(
-                    locals = mapOf(
-                        "caster_idx" to casterNumber,
-                    ),
+            step =
+                PriestSpellStep.Script(
+                    spell = spell,
+                    casterNumber = casterNumber,
+                    continuation =
+                        ScriptContinuation.start(runtime, ScriptRootRef.spell(spell.id)).copy(
+                            locals =
+                                mapOf(
+                                    "caster_idx" to casterNumber,
+                                ),
+                        ),
                 ),
-            ),
         )
     }
 
@@ -175,14 +218,11 @@ data class PriestSpellSession(
         casterNumber: Int? = null,
         spell: SpellId? = null,
         dungeonHandoff: WildernessDungeonHandoff? = null,
-    ): PriestSpellResult =
-        PriestSpellResult(status, nextRuntime, casterNumber, spell, dungeonHandoff)
+    ): PriestSpellResult = PriestSpellResult(status, nextRuntime, casterNumber, spell, dungeonHandoff)
 
-    private fun abortSlot(): Int =
-        priestSpells.maxOfOrNull { it.slot }?.plus(1) ?: 1
+    private fun abortSlot(): Int = priestSpells.maxOfOrNull { it.slot }?.plus(1) ?: 1
 
-    private fun spellKeys(): List<Char> =
-        (priestSpells.map { it.slot } + abortSlot()).map(Int::digitKey)
+    private fun spellKeys(): List<Char> = (priestSpells.map { it.slot } + abortSlot()).map(Int::digitKey)
 
     companion object {
         fun start(
@@ -196,10 +236,12 @@ data class PriestSpellSession(
                 spells = spells,
                 place = place,
                 prompts = prompts,
-                step = PriestSpellStep.ChooseCaster(
-                    prompts.who,
-                    runtime.activeParty.members.indices.map { (it + 1).digitKey() },
-                ),
+                step =
+                    PriestSpellStep.ChooseCaster(
+                        prompts.who,
+                        runtime.activeParty.members.indices
+                            .map { (it + 1).digitKey() },
+                    ),
             )
     }
 }

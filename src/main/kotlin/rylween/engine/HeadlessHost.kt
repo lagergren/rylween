@@ -1,11 +1,34 @@
 package rylween.engine
 
 import rylween.compiled.readExternalRuntimeGame
-import rylween.dsl.*
-import rylween.runtime.*
+import rylween.dsl.BuildingId
+import rylween.dsl.DungeonId
+import rylween.dsl.DungeonSystemModel
+import rylween.dsl.EncounterTier
+import rylween.dsl.GameModel
+import rylween.dsl.ImageAssetModel
+import rylween.dsl.ImageId
+import rylween.dsl.RuntimeContent
+import rylween.dsl.RuntimeMode
+import rylween.dsl.RylweenModel
+import rylween.dsl.StateId
+import rylween.dsl.StateModel
+import rylween.dsl.StaticScreenId
+import rylween.dsl.StaticScreenModel
+import rylween.dsl.TownId
+import rylween.dsl.WorldMapId
+import rylween.dsl.building
+import rylween.dsl.dungeon
+import rylween.dsl.image
+import rylween.dsl.runtimeContent
+import rylween.dsl.stateId
+import rylween.dsl.town
+import rylween.dsl.worldMap
+import rylween.runtime.RuntimeSessionState
 import rylween.runtime.battle.BattleSession
 import rylween.runtime.dungeon.DungeonSession
-import rylween.runtime.town.CharacterCreationSession
+import rylween.runtime.realizeNpcPlacements
+import rylween.runtime.toRuntimeSessionState
 import rylween.runtime.town.ShopServiceSession
 import rylween.runtime.town.SpeakSession
 import rylween.runtime.town.TownSession
@@ -15,7 +38,6 @@ import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WorldMapGrid
 import rylween.runtime.wilderness.worldMapGrid
 import rylween.runtime.ydarg.YdargSession
-import java.io.File
 
 /**
  * Non-ANSI runtime host over the same J1 JSON artifact used by the terminal app.
@@ -38,17 +60,13 @@ class KotlinHeadlessHost private constructor(
     private val runtimeContent: RuntimeContent
         get() = content.runtimeContent()
 
-    fun state(id: StateId): StateModel =
-        game.states.single { state -> state.id == id }
+    fun state(id: StateId): StateModel = game.states.single { state -> state.id == id }
 
-    fun worldMap(id: WorldMapId): WorldMapGrid =
-        checkNotNull(content.worldMapGrid(id)) { "world map ${id.slug} is not declared" }
+    fun worldMap(id: WorldMapId): WorldMapGrid = checkNotNull(content.worldMapGrid(id)) { "world map ${id.slug} is not declared" }
 
-    fun staticScreen(id: StaticScreenId): StaticScreenModel? =
-        content.visuals.staticScreens.singleOrNull { screen -> screen.id == id }
+    fun staticScreen(id: StaticScreenId): StaticScreenModel? = content.visuals.staticScreens.singleOrNull { screen -> screen.id == id }
 
-    fun image(id: ImageId): ImageAssetModel? =
-        content.visuals.images.singleOrNull { image -> image.id == id }
+    fun image(id: ImageId): ImageAssetModel? = content.visuals.images.singleOrNull { image -> image.id == id }
 
     fun runtime(
         stateId: StateId,
@@ -64,23 +82,6 @@ class KotlinHeadlessHost private constructor(
         }
     }
 
-    fun characterCreationSession(
-        stateId: StateId,
-        partyId: PartyId = state(stateId).realm.activeParty,
-        playerName: String = "Player",
-        rngState: Long? = null,
-        random: RylweenRandomPort = ReferenceRylweenRandom,
-    ): CharacterCreationSession {
-        val state = state(stateId)
-        return CharacterCreationSession.start(
-            partyId = partyId,
-            playerName = playerName,
-            baseRealm = state.realm.copy(rngState = rngState ?: state.realm.rngState),
-            content = runtimeContent,
-            random = random,
-        )
-    }
-
     fun wildernessSession(
         stateId: StateId,
         mapId: WorldMapId,
@@ -92,7 +93,7 @@ class KotlinHeadlessHost private constructor(
             worldMap = worldMap(mapId),
         )
 
-    fun wildernessSession(
+    private fun wildernessSession(
         runtime: RuntimeSessionState,
         worldMap: WorldMapGrid,
     ): WildernessSession =
@@ -109,12 +110,13 @@ class KotlinHeadlessHost private constructor(
         val townModel = content.towns.single { model -> model.id == town }
         return TownSession.start(
             town = townModel,
-            runtime = runtime.withRealm(
-                runtime.realm.copy(
-                    currentMode = RuntimeMode.Town,
-                    currentTown = town,
+            runtime =
+                runtime.withRealm(
+                    runtime.realm.copy(
+                        currentMode = RuntimeMode.Town,
+                        currentTown = town,
+                    ),
                 ),
-            ),
             content = runtimeContent,
         )
     }
@@ -135,8 +137,7 @@ class KotlinHeadlessHost private constructor(
             dungeons = dungeons,
         )
 
-    fun castleSession(runtime: RuntimeSessionState): YdargSession =
-        YdargSession.start(runtime, runtimeContent)
+    fun castleSession(runtime: RuntimeSessionState): YdargSession = YdargSession.start(runtime, runtimeContent)
 
     fun battleSession(
         runtime: RuntimeSessionState,
@@ -154,26 +155,21 @@ class KotlinHeadlessHost private constructor(
         runtime: RuntimeSessionState,
         building: BuildingId,
     ): ShopServiceSession {
-        val shop = checkNotNull(content.scenes.shopServicesByBuilding()[building]) {
-            "shop for building ${building.slug} is not declared"
-        }
+        val shop =
+            checkNotNull(content.scenes.shopServicesByBuilding()[building]) {
+                "shop for building ${building.slug} is not declared"
+            }
         return ShopServiceSession.start(shop, runtime.activeParty, runtimeContent)
     }
 
     fun speakSession(
         runtime: RuntimeSessionState,
         building: BuildingId,
-    ): SpeakSession =
-        SpeakSession.start(runtimeContent.speakRuntimeContent(), runtime, building)
+    ): SpeakSession = SpeakSession.start(runtimeContent.speakRuntimeContent(), runtime, building)
 
     companion object {
-        fun fromGame(game: RylweenModel): KotlinHeadlessHost =
-            KotlinHeadlessHost(game)
+        private fun fromGame(game: RylweenModel): KotlinHeadlessHost = KotlinHeadlessHost(game)
 
-        fun fromExternalBundle(bytes: ByteArray): KotlinHeadlessHost =
-            fromGame(bytes.readExternalRuntimeGame())
-
-        fun fromExternalBundle(file: File): KotlinHeadlessHost =
-            fromExternalBundle(file.readBytes())
+        fun fromExternalBundle(bytes: ByteArray): KotlinHeadlessHost = fromGame(bytes.readExternalRuntimeGame())
     }
 }

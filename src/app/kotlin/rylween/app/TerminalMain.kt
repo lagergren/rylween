@@ -2,20 +2,45 @@
 
 package rylween.app
 
-import rylween.dsl.*
-import rylween.engine.*
-import rylween.frontend.terminal.*
+import rylween.dsl.GameModel
+import rylween.dsl.StateId
+import rylween.dsl.StaticScreenId
+import rylween.dsl.TownId
+import rylween.dsl.Wilderness
+import rylween.dsl.image
+import rylween.dsl.lines
+import rylween.dsl.runtimeContent
+import rylween.dsl.stateId
+import rylween.dsl.staticScreen
+import rylween.dsl.town
+import rylween.dsl.worldMap
+import rylween.engine.RuntimeStartupTarget
+import rylween.engine.RylweenKotlinEngine
+import rylween.engine.requireStartupTown
+import rylween.engine.selectStartupState
+import rylween.engine.validateStartupState
+import rylween.frontend.terminal.StatefulScriptBridge
+import rylween.frontend.terminal.TerminalAdapterResult
+import rylween.frontend.terminal.TerminalInputRejection
+import rylween.frontend.terminal.TerminalPort
+import rylween.frontend.terminal.TerminalRunStatus
+import rylween.frontend.terminal.TerminalTextContext
+import rylween.frontend.terminal.TownSessionTerminalAdapter
+import rylween.frontend.terminal.WildernessSessionTerminalAdapter
+import rylween.frontend.terminal.renderTerminalStaticScreen
+import rylween.frontend.terminal.staticScreenRequiresRuntimeState
+import rylween.frontend.terminal.terminalTextRenderer
 import rylween.game.*
 import rylween.game.RylweenCompiledGame
-import rylween.runtime.*
-import rylween.runtime.town.*
-import rylween.runtime.wilderness.*
+import rylween.runtime.NpcPlacementRealizerConfig
+import rylween.runtime.RuntimeSnapshotModel
+import rylween.runtime.WildernessNpcPlacementPolicy
+import rylween.runtime.party
+import rylween.runtime.toRuntimeSessionState
+import rylween.runtime.wilderness.worldMapGrid
 import rylween.save.FileRuntimeSavePort
 import rylween.save.loadRuntimeSnapshot
 import rylween.save.loadRuntimeStateSnapshot
-import rylween.save.runtimeSaveSlotFile
-import rylween.save.runtimeSaveSlotStateId
-
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -42,76 +67,10 @@ private class StdioTerminalPort : TerminalPort {
     }
 }
 
-fun main(args: Array<String>): Unit = runRylweenCli {
-    val config = parseTerminalConfig(args.toList(), ::printTownUsage)
-    require(!config.newGame) { "--new is only supported by runKotlinGame" }
-    val game = RylweenCompiledGame.nextRylween
-    val content = RylweenCompiledGame.nextDsl
-    val terminal = StdioTerminalPort()
-    config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
-        terminal.writeStaticScreen(content, screenId)
-        return@runRylweenCli
-    }
-    val startupTarget = if (config.staticScreen != null) RuntimeStartupTarget.StaticScreen else RuntimeStartupTarget.Town
-    val state = config.loadFile
-        ?.let {
-            validateStartupState(
-                state = loadRuntimeStateSnapshot(it, content),
-                content = content,
-                target = startupTarget,
-                sourceName = "save file ${it.path}",
-            )
-        }
-        ?: selectStartupState(game, content, config.state, startupTarget)
-    val bootState = config.hour
-        ?.let { hour -> state.copy(realm = state.realm.copy(hour = hour)) }
-        ?: state
-    config.staticScreen?.let { screenId ->
-        terminal.writeStaticScreen(content, screenId, TerminalTextContext(runtime = bootState.toRuntimeSessionState()))
-        return@runRylweenCli
-    }
-    val town = requireStartupTown(content, config.town)
-    val party = state.parties.firstOrNull { it.id == state.realm.activeParty }
-        ?: error("state ${state.id.slug} is missing active party ${state.realm.activeParty.slug}")
-    val engine = RylweenKotlinEngine(
-        content = content,
-        npcPlacementConfig = NpcPlacementRealizerConfig(
-            wilderness = wildernessPlacementPolicy(content),
-        ),
-    )
-    val session = engine.townSession(
-        party = party,
-        town = town.id,
-        hour = config.hour ?: state.realm.hour,
-        rngState = config.seed ?: state.realm.rngState,
-    )
-    val adapter = TownSessionTerminalAdapter(
-        terminal = terminal,
-        renderer = content.terminalTextRenderer(),
-        serviceBridge = StatefulScriptBridge(
-            terminal,
-            speakContent = engine.speakContent(),
-            battleContent = content.runtimeContent(),
-        ),
-    )
-
-    terminal.write(
-        listOf(
-            "Rylween Kotlin town runtime",
-            "State: ${state.id.slug}",
-            "Town: ${town.name}",
-            "Ctrl-D exits.",
-            "",
-        ),
-    )
-
-    terminal.runAdapterLoop(session, "Town session finished.", adapter::runUntilBlocked)
-}
-
-object RylweenGameTerminalMain {
-    @JvmStatic
-    fun main(args: Array<String>): Unit = runRylweenCli {
-        val config = parseTerminalConfig(args.toList(), ::printGameUsage)
+fun main(args: Array<String>): Unit =
+    runRylweenCli {
+        val config = parseTerminalConfig(args.toList(), ::printTownUsage)
+        require(!config.newGame) { "--new is only supported by runKotlinGame" }
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
         val terminal = StdioTerminalPort()
@@ -119,71 +78,156 @@ object RylweenGameTerminalMain {
             terminal.writeStaticScreen(content, screenId)
             return@runRylweenCli
         }
-        val startupTarget = if (config.staticScreen != null) {
-            RuntimeStartupTarget.StaticScreen
-        } else {
-            RuntimeStartupTarget.Wilderness
-        }
-        val snapshot = config.loadFile
-            ?.let {
-                loadRuntimeSnapshot(it, content)
-            }
-            ?: RuntimeSnapshotModel(selectStartupState(game, content, config.state, startupTarget))
-        validateStartupState(
-            snapshot.state,
-            content,
-            startupTarget,
-            config.loadFile?.let { "save file ${it.path}" } ?: "startup.state.${snapshot.state.id.slug}",
-        )
-        val bootSnapshot = config.hour
-            ?.let { hour -> snapshot.copy(state = snapshot.state.copy(realm = snapshot.state.realm.copy(hour = hour))) }
-            ?: snapshot
+        val startupTarget = if (config.staticScreen != null) RuntimeStartupTarget.StaticScreen else RuntimeStartupTarget.Town
+        val state =
+            config.loadFile
+                ?.let {
+                    validateStartupState(
+                        state = loadRuntimeStateSnapshot(it, content),
+                        content = content,
+                        target = startupTarget,
+                        sourceName = "save file ${it.path}",
+                    )
+                }
+                ?: selectStartupState(game, content, config.state, startupTarget)
+        val bootState =
+            config.hour
+                ?.let { hour -> state.copy(realm = state.realm.copy(hour = hour)) }
+                ?: state
         config.staticScreen?.let { screenId ->
-            terminal.writeStaticScreen(
-                content,
-                screenId,
-                TerminalTextContext(runtime = bootSnapshot.state.toRuntimeSessionState()),
-            )
+            terminal.writeStaticScreen(content, screenId, TerminalTextContext(runtime = bootState.toRuntimeSessionState()))
             return@runRylweenCli
         }
-        val worldMap = content.worldMapGrid(Maps.wilderness)
-            ?: error("missing authored wilderness map")
-        val engine = RylweenKotlinEngine(
-            content = content,
-            npcPlacementConfig = NpcPlacementRealizerConfig(
-                wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
-            ),
-        )
-        val session = bootWildernessSession(
-            engine = engine,
-            terminal = terminal,
-            renderer = content.terminalTextRenderer(),
-            snapshot = bootSnapshot,
-            worldMap = worldMap,
-            rngState = config.seed ?: bootSnapshot.state.realm.rngState,
-            newGame = config.newGame,
-        )
-        val adapter = WildernessSessionTerminalAdapter(
-            terminal = terminal,
-            renderer = content.terminalTextRenderer(),
-            serviceBridge = StatefulScriptBridge(
-                terminal,
-                speakContent = engine.speakContent(),
-                battleContent = content.runtimeContent(),
-            ),
-            savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content),
-        )
+        val town = requireStartupTown(content, config.town)
+        val party =
+            state.parties.firstOrNull { it.id == state.realm.activeParty }
+                ?: error("state ${state.id.slug} is missing active party ${state.realm.activeParty.slug}")
+        val engine =
+            RylweenKotlinEngine(
+                content = content,
+                npcPlacementConfig =
+                    NpcPlacementRealizerConfig(
+                        wilderness = wildernessPlacementPolicy(content),
+                    ),
+            )
+        val session =
+            engine.townSession(
+                party = party,
+                town = town.id,
+                hour = config.hour ?: state.realm.hour,
+                rngState = config.seed ?: state.realm.rngState,
+            )
+        val adapter =
+            TownSessionTerminalAdapter(
+                terminal = terminal,
+                renderer = content.terminalTextRenderer(),
+                serviceBridge =
+                    StatefulScriptBridge(
+                        terminal,
+                        speakContent = engine.speakContent(),
+                        battleContent = content.runtimeContent(),
+                    ),
+            )
 
         terminal.write(
             listOf(
-                "Rylween Kotlin wilderness runtime",
-                "State: ${bootSnapshot.state.id.slug}",
+                "Rylween Kotlin town runtime",
+                "State: ${state.id.slug}",
+                "Town: ${town.name}",
                 "Ctrl-D exits.",
+                "",
             ),
         )
 
-        terminal.runAdapterLoop(session, "Wilderness session finished.", adapter::runUntilBlocked)
+        terminal.runAdapterLoop(session, "Town session finished.", adapter::runUntilBlocked)
     }
+
+object RylweenGameTerminalMain {
+    @JvmStatic
+    fun main(args: Array<String>): Unit =
+        runRylweenCli {
+            val config = parseTerminalConfig(args.toList(), ::printGameUsage)
+            val game = RylweenCompiledGame.nextRylween
+            val content = RylweenCompiledGame.nextDsl
+            val terminal = StdioTerminalPort()
+            config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
+                terminal.writeStaticScreen(content, screenId)
+                return@runRylweenCli
+            }
+            val startupTarget =
+                if (config.staticScreen != null) {
+                    RuntimeStartupTarget.StaticScreen
+                } else {
+                    RuntimeStartupTarget.Wilderness
+                }
+            val snapshot =
+                config.loadFile
+                    ?.let {
+                        loadRuntimeSnapshot(it, content)
+                    }
+                    ?: RuntimeSnapshotModel(selectStartupState(game, content, config.state, startupTarget))
+            validateStartupState(
+                snapshot.state,
+                content,
+                startupTarget,
+                config.loadFile?.let { "save file ${it.path}" } ?: "startup.state.${snapshot.state.id.slug}",
+            )
+            val bootSnapshot =
+                config.hour
+                    ?.let { hour -> snapshot.copy(state = snapshot.state.copy(realm = snapshot.state.realm.copy(hour = hour))) }
+                    ?: snapshot
+            config.staticScreen?.let { screenId ->
+                terminal.writeStaticScreen(
+                    content,
+                    screenId,
+                    TerminalTextContext(runtime = bootSnapshot.state.toRuntimeSessionState()),
+                )
+                return@runRylweenCli
+            }
+            val worldMap =
+                content.worldMapGrid(Maps.wilderness)
+                    ?: error("missing authored wilderness map")
+            val engine =
+                RylweenKotlinEngine(
+                    content = content,
+                    npcPlacementConfig =
+                        NpcPlacementRealizerConfig(
+                            wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
+                        ),
+                )
+            val session =
+                bootWildernessSession(
+                    engine = engine,
+                    terminal = terminal,
+                    renderer = content.terminalTextRenderer(),
+                    snapshot = bootSnapshot,
+                    worldMap = worldMap,
+                    rngState = config.seed ?: bootSnapshot.state.realm.rngState,
+                    newGame = config.newGame,
+                )
+            val adapter =
+                WildernessSessionTerminalAdapter(
+                    terminal = terminal,
+                    renderer = content.terminalTextRenderer(),
+                    serviceBridge =
+                        StatefulScriptBridge(
+                            terminal,
+                            speakContent = engine.speakContent(),
+                            battleContent = content.runtimeContent(),
+                        ),
+                    savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content),
+                )
+
+            terminal.write(
+                listOf(
+                    "Rylween Kotlin wilderness runtime",
+                    "State: ${bootSnapshot.state.id.slug}",
+                    "Ctrl-D exits.",
+                ),
+            )
+
+            terminal.runAdapterLoop(session, "Wilderness session finished.", adapter::runUntilBlocked)
+        }
 }
 
 private fun <S> TerminalPort.runAdapterLoop(
@@ -231,12 +275,13 @@ private fun TerminalPort.writeStaticScreen(
     screenId: StaticScreenId,
     context: TerminalTextContext = TerminalTextContext(),
 ) {
-    val rendered = content.renderTerminalStaticScreen(
-        id = screenId,
-        renderer = content.terminalTextRenderer(),
-        resourceText = RylweenAppAssets::readText,
-        context = context,
-    ) ?: error("unknown static screen ${screenId.slug}")
+    val rendered =
+        content.renderTerminalStaticScreen(
+            id = screenId,
+            renderer = content.terminalTextRenderer(),
+            resourceText = RylweenAppAssets::readText,
+            context = context,
+        ) ?: error("unknown static screen ${screenId.slug}")
     rendered.image?.let { image ->
         val asset = AnsiImageAssets.resolve(content.visuals, image)
         if (asset == null) {
@@ -251,54 +296,41 @@ private fun TerminalPort.writeStaticScreen(
     }
 }
 
-private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): TerminalConfig {
+private fun parseTerminalConfig(
+    args: List<String>,
+    printUsage: () -> Unit,
+): TerminalConfig {
     var config = TerminalConfig()
+    // CPD-OFF
+    val handler =
+        commonCliFlagHandler(
+            setHour = { config = config.copy(hour = it) },
+            setSeed = { config = config.copy(seed = it) },
+            setState = { config = config.copy(state = it) },
+            setLoadFile = { config = config.copy(loadFile = it) },
+            setSaveFile = { file, state ->
+                config =
+                    if (state == null) {
+                        config.copy(saveFile = file)
+                    } else {
+                        config.copy(saveFile = file, saveState = state)
+                    }
+            },
+            setStaticScreen = { config = config.copy(staticScreen = it) },
+            setNewGame = { config = config.copy(newGame = true) },
+        )
+    // CPD-ON
     var index = 0
     while (index < args.size) {
+        val advance = args.consumeCommonCliFlag(index, handler)
+        if (advance != null) {
+            index = advance
+            continue
+        }
         when (val arg = args[index]) {
             "--town" -> {
                 config = config.copy(town = townArg(args.valueAfter(index, arg)))
                 index += 2
-            }
-            "--hour" -> {
-                config = config.copy(hour = args.valueAfter(index, arg).toInt().mod(24))
-                index += 2
-            }
-            "--seed" -> {
-                config = config.copy(seed = args.valueAfter(index, arg).toLong())
-                index += 2
-            }
-            "--state" -> {
-                config = config.copy(state = stateId(args.valueAfter(index, arg)))
-                index += 2
-            }
-            "--load" -> {
-                config = config.copy(loadFile = File(args.valueAfter(index, arg)))
-                index += 2
-            }
-            "--load-slot" -> {
-                config = config.copy(loadFile = runtimeSaveSlotFile(args.valueAfter(index, arg)))
-                index += 2
-            }
-            "--save" -> {
-                config = config.copy(saveFile = File(args.valueAfter(index, arg)))
-                index += 2
-            }
-            "--save-slot" -> {
-                val slot = args.valueAfter(index, arg)
-                config = config.copy(
-                    saveFile = runtimeSaveSlotFile(slot),
-                    saveState = runtimeSaveSlotStateId(slot),
-                )
-                index += 2
-            }
-            "--screen" -> {
-                config = config.copy(staticScreen = staticScreenArg(args.valueAfter(index, arg)))
-                index += 2
-            }
-            "--new", "--new-game" -> {
-                config = config.copy(newGame = true)
-                index += 1
             }
             "--help", "-h" -> {
                 printUsage()
@@ -309,9 +341,6 @@ private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): Ter
     }
     return config
 }
-
-private fun List<String>.valueAfter(index: Int, option: String): String =
-    getOrNull(index + 1) ?: error("$option requires a value")
 
 private fun townArg(value: String): TownId =
     when (value.lowercase()) {
@@ -324,8 +353,10 @@ private fun townArg(value: String): TownId =
 
 private fun wildernessPlacementPolicy(content: GameModel): WildernessNpcPlacementPolicy =
     WildernessNpcPlacementPolicy(
-        allowedPoints = content.worldMapGrid(Maps.wilderness)
-            ?.passableNpcPoints(),
+        allowedPoints =
+            content
+                .worldMapGrid(Maps.wilderness)
+                ?.passableNpcPoints(),
     )
 
 private fun printTownUsage() {

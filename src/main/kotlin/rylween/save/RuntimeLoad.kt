@@ -9,29 +9,25 @@ import rylween.dsl.validateStates
 import rylween.dsl.withDiagnosticPathPrefix
 import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSnapshotModel
-
 import java.io.File
 
 fun loadRuntimeStateSnapshot(
     file: File,
     content: GameModel,
     sourceName: String = "save file ${file.path}",
-): StateModel =
-    parseRuntimeStateSnapshotForLoad(file.readText(), content, sourceName)
+): StateModel = parseRuntimeStateSnapshotForLoad(file.readText(), content, sourceName)
 
 fun loadRuntimeSnapshot(
     file: File,
     content: GameModel,
     sourceName: String = "save file ${file.path}",
-): RuntimeSnapshotModel =
-    parseRuntimeSnapshotForLoad(file.readText(), content, sourceName)
+): RuntimeSnapshotModel = parseRuntimeSnapshotForLoad(file.readText(), content, sourceName)
 
 fun parseRuntimeStateSnapshotForLoad(
     source: String,
     content: GameModel,
     sourceName: String = "runtime snapshot",
-): StateModel =
-    parseRuntimeSnapshotForLoad(source, content, sourceName).state
+): StateModel = parseRuntimeSnapshotForLoad(source, content, sourceName).state
 
 fun parseRuntimeSnapshotForLoad(
     source: String,
@@ -48,8 +44,7 @@ fun validateRuntimeStateSnapshotForLoad(
     state: StateModel,
     content: GameModel,
     sourceName: String = "runtime snapshot",
-): StateModel =
-    validateRuntimeStateSnapshotForLoad(RuntimeSnapshotModel(state), content, sourceName).state
+): StateModel = validateRuntimeStateSnapshotForLoad(RuntimeSnapshotModel(state), content, sourceName).state
 
 fun validateRuntimeStateSnapshotForLoad(
     snapshot: RuntimeSnapshotModel,
@@ -68,14 +63,21 @@ fun validateRuntimeStateSnapshotForLoad(
     return snapshot
 }
 
-private fun parseRuntimeSnapshotWithDiagnostics(source: String, sourceName: String): RuntimeSnapshotModel =
+private fun parseRuntimeSnapshotWithDiagnostics(
+    source: String,
+    sourceName: String,
+): RuntimeSnapshotModel =
     try {
         parseRuntimeSnapshot(source)
     } catch (error: RuntimeException) {
         throw runtimeLoadFailure(sourceName, "could not parse runtime snapshot: ${error.message ?: error::class.simpleName}")
     }
 
-private fun validateSnapshotMetadata(snapshot: RuntimeSnapshotModel, content: GameModel, sourceName: String) {
+private fun validateSnapshotMetadata(
+    snapshot: RuntimeSnapshotModel,
+    content: GameModel,
+    sourceName: String,
+) {
     val metadata = snapshot.metadata ?: return
     if (metadata.formatVersion != RuntimeSnapshotFormatVersion) {
         throw runtimeLoadFailure(
@@ -105,7 +107,11 @@ private fun validateSnapshotMetadata(snapshot: RuntimeSnapshotModel, content: Ga
     }
 }
 
-private fun validateModeSnapshot(snapshot: RuntimeSnapshotModel, content: GameModel, sourceName: String) {
+private fun validateModeSnapshot(
+    snapshot: RuntimeSnapshotModel,
+    content: GameModel,
+    sourceName: String,
+) {
     when (snapshot.state.realm.currentMode) {
         RuntimeMode.YdargCastle -> {
             if (snapshot.mode !is RuntimeModeSnapshot.YdargCastle) {
@@ -113,8 +119,9 @@ private fun validateModeSnapshot(snapshot: RuntimeSnapshotModel, content: GameMo
             }
         }
         RuntimeMode.Dungeon -> {
-            val dungeon = snapshot.mode as? RuntimeModeSnapshot.Dungeon
-                ?: throw runtimeLoadFailure(sourceName, "Dungeon runtime snapshot requires sessions { dungeon { ... } }")
+            val dungeon =
+                snapshot.mode as? RuntimeModeSnapshot.Dungeon
+                    ?: throw runtimeLoadFailure(sourceName, "Dungeon runtime snapshot requires sessions { dungeon { ... } }")
             validateDungeonSnapshot(dungeon, content, sourceName)
         }
         else -> {
@@ -144,7 +151,10 @@ private fun validateDungeonSnapshot(
     if (content.dungeons.scenarios.none { it.dungeon == session.dungeon }) {
         throw runtimeLoadFailure(sourceName, "Dungeon session references unknown dungeon ${session.dungeon.slug}")
     }
-    val eventIds = content.dungeons.events.map { it.id }.toSet()
+    val eventIds =
+        content.dungeons.events
+            .map { it.id }
+            .toSet()
     session.levelEvents.forEach { (level, event) ->
         if (level !in 1..session.maxDepth) {
             throw runtimeLoadFailure(sourceName, "Dungeon level event $level is outside maxDepth ${session.maxDepth}")
@@ -166,5 +176,7 @@ private fun validateDungeonSnapshot(
     }
 }
 
-private fun runtimeLoadFailure(sourceName: String, message: String): RylweenValidationException =
-    RylweenValidationException(listOf(ValidationDiagnostic(sourceName, message)))
+private fun runtimeLoadFailure(
+    sourceName: String,
+    message: String,
+): RylweenValidationException = RylweenValidationException(listOf(ValidationDiagnostic(sourceName, message)))

@@ -2,8 +2,8 @@ package rylween
 
 import rylween.compiled.readExternalRuntimeGame
 import rylween.compiled.toExternalBundleArtifact
-import rylween.dsl.GameModel
 import rylween.dsl.DungeonScenarioModel
+import rylween.dsl.GameModel
 import rylween.dsl.RuntimeContent
 import rylween.dsl.StateModel
 import rylween.dsl.building
@@ -29,8 +29,8 @@ import rylween.game.Dungeons
 import rylween.game.EncounterTiers
 import rylween.game.Maps
 import rylween.game.RylweenCompiledGame
-import rylween.game.StaticScreens
 import rylween.game.States
+import rylween.game.StaticScreens
 import rylween.game.Towns
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.battle.BattleSession
@@ -42,9 +42,9 @@ import rylween.runtime.dungeon.DungeonSessionResultStatus
 import rylween.runtime.dungeon.DungeonSessionStep
 import rylween.runtime.dungeon.effectiveHelpPages
 import rylween.runtime.toRuntimeSessionState
-import rylween.runtime.town.TownSession
 import rylween.runtime.town.ShopServiceStep
 import rylween.runtime.town.SpeakStep
+import rylween.runtime.town.TownSession
 import rylween.runtime.town.TownSessionStep
 import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WildernessSessionInput
@@ -94,9 +94,10 @@ class RuntimeHostContractTest {
         val probe = RylweenRuntimeHostContract.nativeJsonBundleReader
         assertEquals(emptyList(), RylweenRuntimeHostContract.standard.validate(probe))
 
-        val diagnostics = RylweenRuntimeHostContract.standard.validate(
-            probe.copy(status = RuntimeHostStatus.PlayableRuntime),
-        )
+        val diagnostics =
+            RylweenRuntimeHostContract.standard.validate(
+                probe.copy(status = RuntimeHostStatus.PlayableRuntime),
+            )
 
         assertTrue(diagnostics.any { it.kind == RuntimeHostDiagnosticKind.MissingRequirement })
         assertTrue(diagnostics.any { it.kind == RuntimeHostDiagnosticKind.MissingScriptExecution })
@@ -130,16 +131,17 @@ class RuntimeHostContractTest {
                     renderer = content.terminalTextRenderer(),
                 ).runUntilBlocked(session)
             },
-            checkpoints = listOf(
-                checkpoint("bundle host consumes semantic input and renders generated help") {
-                    assertTrue(result.status is TerminalRunStatus.Waiting)
-                    assertEquals(WildernessSessionResultStatus.HelpShown, result.session.lastResult?.status)
-                    assertOutputContains("Move North")
-                    assertOutputContains("Save Game")
-                    assertOutputDoesNotContain("not wired")
-                    assertOutputDoesNotContain("not ported")
-                },
-            ),
+            checkpoints =
+                listOf(
+                    checkpoint("bundle host consumes semantic input and renders generated help") {
+                        assertTrue(result.status is TerminalRunStatus.Waiting)
+                        assertEquals(WildernessSessionResultStatus.HelpShown, result.session.lastResult?.status)
+                        assertOutputContains("Move North")
+                        assertOutputContains("Save Game")
+                        assertOutputDoesNotContain("not wired")
+                        assertOutputDoesNotContain("not ported")
+                    },
+                ),
         ).run()
     }
 
@@ -167,9 +169,10 @@ class RuntimeHostContractTest {
 
     @Test
     fun bundleLoadedHeadlessHostCoversTheNamedJ3ConformanceSuites() {
-        val host = KotlinHeadlessHost.fromExternalBundle(
-            RylweenCompiledGame.nextRylween.toExternalBundleArtifact(),
-        )
+        val host =
+            KotlinHeadlessHost.fromExternalBundle(
+                RylweenCompiledGame.nextRylween.toExternalBundleArtifact(),
+            )
         val runtime = host.runtime(States.freshReplay)
         val worldMap = host.worldMap(Maps.wilderness)
         val covered = mutableSetOf<RuntimeConformanceSuite>()
@@ -196,39 +199,46 @@ class RuntimeHostContractTest {
             fixture = ScenarioFixture(startState = States.freshReplay),
             start = { content },
             steps = listOf(headlessStep("render help") { it }),
-            checkpoints = listOf(
-                headlessCheckpoint("help screen is rendered from authored command bindings") {
-                    val screen = checkNotNull(
-                        result.renderTerminalStaticScreen(
-                            id = StaticScreens.help,
-                            resourceText = { "" },
-                            context = TerminalTextContext(runtime = runtime),
-                        ),
-                    )
-                    assertTrue(screen.pages.flatten().any { "Move North" in it })
-                },
-            ),
+            checkpoints =
+                listOf(
+                    headlessCheckpoint("help screen is rendered from authored command bindings") {
+                        val screen =
+                            checkNotNull(
+                                result.renderTerminalStaticScreen(
+                                    id = StaticScreens.help,
+                                    resourceText = { "" },
+                                    context = TerminalTextContext(runtime = runtime),
+                                ),
+                            )
+                        assertTrue(screen.pages.flatten().any { "Move North" in it })
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.StaticScreens),
         )
 
-    private fun headlessStaticScreenScenario(
-        host: KotlinHeadlessHost,
-    ): HeadlessScenario<KotlinHeadlessHost> =
+    private fun headlessStaticScreenScenario(host: KotlinHeadlessHost): HeadlessScenario<KotlinHeadlessHost> =
         HeadlessScenario(
             name = "j3c-headless-static-screen-help",
             fixture = ScenarioFixture(startState = States.freshReplay),
             start = { host },
             steps = listOf(headlessStep("inspect generated help") { it }),
-            checkpoints = listOf(
-                headlessCheckpoint("help screen is command-generated without terminal rendering") {
-                    val screen = checkNotNull(result.staticScreen(StaticScreens.help))
-                    val commands = result.content.wilderness.keys.exploreCommands()
-                    assertTrue(screen.commandHelp)
-                    assertTrue(result.content.wilderness.keys.effectiveHelpPages().isNotEmpty())
-                    assertTrue(commands.any { command -> command.help == "Move North" })
-                    assertTrue(commands.any { command -> command.help == "Save Game" })
-                },
-            ),
+            checkpoints =
+                listOf(
+                    headlessCheckpoint("help screen is command-generated without terminal rendering") {
+                        val screen = checkNotNull(result.staticScreen(StaticScreens.help))
+                        val commands =
+                            result.content.wilderness.keys
+                                .exploreCommands()
+                        assertTrue(screen.commandHelp)
+                        assertTrue(
+                            result.content.wilderness.keys
+                                .effectiveHelpPages()
+                                .isNotEmpty(),
+                        )
+                        assertTrue(commands.any { command -> command.help == "Move North" })
+                        assertTrue(commands.any { command -> command.help == "Save Game" })
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.StaticScreens),
         )
 
@@ -256,41 +266,44 @@ class RuntimeHostContractTest {
                     renderer = content.terminalTextRenderer(),
                 ).runUntilBlocked(session)
             },
-            checkpoints = listOf(
-                checkpoint("semantic input and generated help") {
-                    assertTrue(result.status is TerminalRunStatus.Waiting)
-                    assertEquals(WildernessSessionResultStatus.HelpShown, result.session.lastResult?.status)
-                    assertOutputContains("Move North")
-                },
-            ),
-            suites = setOf(
-                RuntimeConformanceSuite.BundleBoot,
-                RuntimeConformanceSuite.WildernessNavigation,
-            ),
+            checkpoints =
+                listOf(
+                    checkpoint("semantic input and generated help") {
+                        assertTrue(result.status is TerminalRunStatus.Waiting)
+                        assertEquals(WildernessSessionResultStatus.HelpShown, result.session.lastResult?.status)
+                        assertOutputContains("Move North")
+                    },
+                ),
+            suites =
+                setOf(
+                    RuntimeConformanceSuite.BundleBoot,
+                    RuntimeConformanceSuite.WildernessNavigation,
+                ),
         )
 
-    private fun headlessWildernessBundleBootScenario(
-        host: KotlinHeadlessHost,
-    ): HeadlessScenario<WildernessSession> =
+    private fun headlessWildernessBundleBootScenario(host: KotlinHeadlessHost): HeadlessScenario<WildernessSession> =
         HeadlessScenario(
             name = "j3c-headless-wilderness-help",
             fixture = ScenarioFixture(startState = States.freshReplay),
             start = { host.wildernessSession(States.freshReplay, Maps.wilderness) },
-            steps = listOf(
-                headlessStep("semantic help input") { session ->
-                    session.apply(WildernessSessionInput.Help)
-                },
-            ),
-            checkpoints = listOf(
-                headlessCheckpoint("bundle host consumes semantic wilderness input") {
-                    assertEquals(WildernessSessionResultStatus.HelpShown, result.lastResult?.status)
-                    assertTrue(result.step is WildernessSessionStep.Messages)
-                },
-            ),
-            suites = setOf(
-                RuntimeConformanceSuite.BundleBoot,
-                RuntimeConformanceSuite.WildernessNavigation,
-            ),
+            steps =
+                listOf(
+                    headlessStep("semantic help input") { session ->
+                        session.apply(WildernessSessionInput.Help)
+                    },
+                ),
+            checkpoints =
+                listOf(
+                    headlessCheckpoint("bundle host consumes semantic wilderness input") {
+                        assertEquals(WildernessSessionResultStatus.HelpShown, result.lastResult?.status)
+                        assertTrue(result.step is WildernessSessionStep.Messages)
+                    },
+                ),
+            suites =
+                setOf(
+                    RuntimeConformanceSuite.BundleBoot,
+                    RuntimeConformanceSuite.WildernessNavigation,
+                ),
         )
 
     private fun townScenario(
@@ -317,13 +330,14 @@ class RuntimeHostContractTest {
                     renderer = content.terminalTextRenderer(),
                 ).runUntilBlocked(session)
             },
-            checkpoints = listOf(
-                checkpoint("town choices render through bindings") {
-                    assertTrue(result.status is TerminalRunStatus.Waiting)
-                    assertOutputContains("(M)erchant")
-                    assertOutputContains("(L)eave")
-                },
-            ),
+            checkpoints =
+                listOf(
+                    checkpoint("town choices render through bindings") {
+                        assertTrue(result.status is TerminalRunStatus.Waiting)
+                        assertOutputContains("(M)erchant")
+                        assertOutputContains("(L)eave")
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.TownServices),
         )
 
@@ -336,16 +350,17 @@ class RuntimeHostContractTest {
             fixture = ScenarioFixture(startState = States.freshReplay, seed = runtime.realm.rngState),
             start = { host.townSession(runtime, Towns.thord.id) },
             steps = listOf(headlessStep("inspect menu") { it }),
-            checkpoints = listOf(
-                headlessCheckpoint("town services are exposed as semantic actions") {
-                    val menu = result.step as TownSessionStep.Menu
-                    assertTrue(menu.actions.any { action -> action.building?.slug == "merchant" })
-                    assertTrue(menu.actions.any { action -> action.building == null && action.endsMenu })
-                    assertTrue(host.shopSession(result.runtime, building("merchant")).step is ShopServiceStep.Intro)
-                    val speakStep = host.speakSession(result.runtime, building("tavern")).step
-                    assertTrue(speakStep is SpeakStep.ChooseNpc || speakStep is SpeakStep.Message)
-                },
-            ),
+            checkpoints =
+                listOf(
+                    headlessCheckpoint("town services are exposed as semantic actions") {
+                        val menu = result.step as TownSessionStep.Menu
+                        assertTrue(menu.actions.any { action -> action.building?.slug == "merchant" })
+                        assertTrue(menu.actions.any { action -> action.building == null && action.endsMenu })
+                        assertTrue(host.shopSession(result.runtime, building("merchant")).step is ShopServiceStep.Intro)
+                        val speakStep = host.speakSession(result.runtime, building("tavern")).step
+                        assertTrue(speakStep is SpeakStep.ChooseNpc || speakStep is SpeakStep.Message)
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.TownServices),
         )
 
@@ -360,16 +375,18 @@ class RuntimeHostContractTest {
             fixture = ScenarioFixture(startState = States.freshReplay, seed = runtime.realm.rngState),
             inputs = listOf("?", ""),
             start = {
-                val dungeons = content.dungeons.copy(
-                    scenarios = listOf(
-                        DungeonScenarioModel(
-                            dungeon = Dungeons.randomCave,
-                            levelRange = 1..1,
-                            fixedLevelEvents = emptyMap(),
-                            randomEvents = emptyList(),
-                        ),
-                    ),
-                )
+                val dungeons =
+                    content.dungeons.copy(
+                        scenarios =
+                            listOf(
+                                DungeonScenarioModel(
+                                    dungeon = Dungeons.randomCave,
+                                    levelRange = 1..1,
+                                    fixedLevelEvents = emptyMap(),
+                                    randomEvents = emptyList(),
+                                ),
+                            ),
+                    )
                 DungeonSession.start(
                     runtime = runtime,
                     worldMap = worldMap,
@@ -385,13 +402,14 @@ class RuntimeHostContractTest {
                     renderer = content.terminalTextRenderer(),
                 ).runUntilBlocked(session)
             },
-            checkpoints = listOf(
-                checkpoint("dungeon help renders authored dungeon bindings") {
-                    assertTrue(result.status is TerminalRunStatus.Waiting)
-                    assertEquals(DungeonSessionResultStatus.HelpShown, result.session.lastResult?.status)
-                    assertOutputContains("Descend")
-                },
-            ),
+            checkpoints =
+                listOf(
+                    checkpoint("dungeon help renders authored dungeon bindings") {
+                        assertTrue(result.status is TerminalRunStatus.Waiting)
+                        assertEquals(DungeonSessionResultStatus.HelpShown, result.session.lastResult?.status)
+                        assertOutputContains("Descend")
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.DungeonFlow),
         )
 
@@ -404,30 +422,34 @@ class RuntimeHostContractTest {
             name = "j3c-headless-dungeon-help",
             fixture = ScenarioFixture(startState = States.freshReplay, seed = runtime.realm.rngState),
             start = {
-                val dungeons = host.content.dungeons.copy(
-                    scenarios = listOf(
-                        DungeonScenarioModel(
-                            dungeon = Dungeons.randomCave,
-                            levelRange = 1..1,
-                            fixedLevelEvents = emptyMap(),
-                            randomEvents = emptyList(),
-                        ),
-                    ),
-                )
+                val dungeons =
+                    host.content.dungeons.copy(
+                        scenarios =
+                            listOf(
+                                DungeonScenarioModel(
+                                    dungeon = Dungeons.randomCave,
+                                    levelRange = 1..1,
+                                    fixedLevelEvents = emptyMap(),
+                                    randomEvents = emptyList(),
+                                ),
+                            ),
+                    )
                 host.dungeonSession(runtime, worldMap, Dungeons.randomCave, 1, dungeons)
             },
-            steps = listOf(
-                headlessStep("semantic help input") { session ->
-                    session.apply(DungeonSessionInput.Help)
-                },
-            ),
-            checkpoints = listOf(
-                headlessCheckpoint("dungeon bindings drive semantic help") {
-                    assertEquals(DungeonSessionResultStatus.HelpShown, result.lastResult?.status)
-                    assertTrue(result.step is DungeonSessionStep.Messages)
-                    assertTrue(result.keys.effectiveHelpPages().isNotEmpty())
-                },
-            ),
+            steps =
+                listOf(
+                    headlessStep("semantic help input") { session ->
+                        session.apply(DungeonSessionInput.Help)
+                    },
+                ),
+            checkpoints =
+                listOf(
+                    headlessCheckpoint("dungeon bindings drive semantic help") {
+                        assertEquals(DungeonSessionResultStatus.HelpShown, result.lastResult?.status)
+                        assertTrue(result.step is DungeonSessionStep.Messages)
+                        assertTrue(result.keys.effectiveHelpPages().isNotEmpty())
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.DungeonFlow),
         )
 
@@ -447,14 +469,15 @@ class RuntimeHostContractTest {
                     renderer = content.terminalTextRenderer(),
                 ).runUntilBlocked(session)
             },
-            checkpoints = listOf(
-                checkpoint("castle flow emits typed image view command") {
-                    assertTrue(result.status is TerminalRunStatus.Finished)
-                    assertEquals(YdargSessionStatus.MissingKey, result.session.lastResult?.status)
-                    assertFalse(terminal.viewCommands.isEmpty())
-                    assertImageShown("blitgfx.ydarg_castle")
-                },
-            ),
+            checkpoints =
+                listOf(
+                    checkpoint("castle flow emits typed image view command") {
+                        assertTrue(result.status is TerminalRunStatus.Finished)
+                        assertEquals(YdargSessionStatus.MissingKey, result.session.lastResult?.status)
+                        assertFalse(terminal.viewCommands.isEmpty())
+                        assertImageShown("blitgfx.ydarg_castle")
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.CastleFlow, RuntimeConformanceSuite.ViewCommands),
         )
 
@@ -467,14 +490,15 @@ class RuntimeHostContractTest {
             fixture = ScenarioFixture(startState = States.freshReplay, seed = runtime.realm.rngState),
             start = { host.castleSession(runtime) },
             steps = listOf(headlessStep("inspect gate result") { it }),
-            checkpoints = listOf(
-                headlessCheckpoint("castle emits typed image data without ANSI adapter") {
-                    val messages = result.step as YdargSessionStep.Messages
-                    assertEquals(YdargSessionStatus.MissingKey, result.lastResult?.status)
-                    assertTrue(messages.image != null)
-                    assertTrue(host.image(checkNotNull(messages.image)) != null)
-                },
-            ),
+            checkpoints =
+                listOf(
+                    headlessCheckpoint("castle emits typed image data without ANSI adapter") {
+                        val messages = result.step as YdargSessionStep.Messages
+                        assertEquals(YdargSessionStatus.MissingKey, result.lastResult?.status)
+                        assertTrue(messages.image != null)
+                        assertTrue(host.image(checkNotNull(messages.image)) != null)
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.CastleFlow, RuntimeConformanceSuite.ViewCommands),
         )
 
@@ -500,13 +524,14 @@ class RuntimeHostContractTest {
                     renderer = content.terminalTextRenderer(),
                 ).runUntilBlocked(session)
             },
-            checkpoints = listOf(
-                checkpoint("battle opening blocks on authored fight-run prompt") {
-                    assertTrue(result.status is TerminalRunStatus.Waiting)
-                    assertOutputContains("(F)ight")
-                    assertOutputContains("(R)un")
-                },
-            ),
+            checkpoints =
+                listOf(
+                    checkpoint("battle opening blocks on authored fight-run prompt") {
+                        assertTrue(result.status is TerminalRunStatus.Waiting)
+                        assertOutputContains("(F)ight")
+                        assertOutputContains("(R)un")
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.BattleFlow),
         )
 
@@ -519,12 +544,13 @@ class RuntimeHostContractTest {
             fixture = ScenarioFixture(startState = States.freshReplay, seed = runtime.realm.rngState),
             start = { host.battleSession(runtime, EncounterTiers.weak) },
             steps = listOf(headlessStep("inspect opening") { it }),
-            checkpoints = listOf(
-                headlessCheckpoint("battle opens as a semantic prompt") {
-                    assertEquals(BattleSessionResultStatus.EncounterStarted, result.lastResult.status)
-                    assertTrue(result.step is BattleSessionStep.Opening)
-                },
-            ),
+            checkpoints =
+                listOf(
+                    headlessCheckpoint("battle opens as a semantic prompt") {
+                        assertEquals(BattleSessionResultStatus.EncounterStarted, result.lastResult.status)
+                        assertTrue(result.step is BattleSessionStep.Opening)
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.BattleFlow),
         )
 
@@ -551,45 +577,47 @@ class RuntimeHostContractTest {
                 WildernessSessionTerminalAdapter(
                     terminal = terminal,
                     renderer = content.terminalTextRenderer(),
-                    savePort = RuntimeSavePort { runtime ->
-                        renderedSave = renderRuntimeStateSnapshot(runtime.toRuntimeStateSnapshot(stateId("j3-save")))
-                        RuntimeSaveOutcome(saved = true, target = "memory")
-                    },
+                    savePort =
+                        RuntimeSavePort { runtime ->
+                            renderedSave = renderRuntimeStateSnapshot(runtime.toRuntimeStateSnapshot(stateId("j3-save")))
+                            RuntimeSaveOutcome(saved = true, target = "memory")
+                        },
                 ).runUntilBlocked(session)
             },
-            checkpoints = listOf(
-                checkpoint("save port receives parseable runtime state") {
-                    assertTrue(result.status is TerminalRunStatus.Waiting)
-                    assertTrue(checkNotNull(renderedSave).contains("runtimeState"))
-                    assertOutputContains("Saving position")
-                    assertOutputContains("Done.")
-                },
-            ),
+            checkpoints =
+                listOf(
+                    checkpoint("save port receives parseable runtime state") {
+                        assertTrue(result.status is TerminalRunStatus.Waiting)
+                        assertTrue(checkNotNull(renderedSave).contains("runtimeState"))
+                        assertOutputContains("Saving position")
+                        assertOutputContains("Done.")
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.SaveLoad),
         )
     }
 
-    private fun headlessSaveLoadScenario(
-        runtime: RuntimeSessionState,
-    ): HeadlessScenario<RuntimeSessionState> {
+    private fun headlessSaveLoadScenario(runtime: RuntimeSessionState): HeadlessScenario<RuntimeSessionState> {
         var renderedSave: String? = null
         return HeadlessScenario(
             name = "j3c-headless-save-load",
             fixture = ScenarioFixture(startState = States.freshReplay, seed = runtime.realm.rngState),
             start = { runtime },
-            steps = listOf(
-                headlessStep("round-trip runtime state") { current ->
-                    renderedSave = renderRuntimeStateSnapshot(current.toRuntimeStateSnapshot(stateId("j3c-headless-save")))
-                    parseRuntimeStateSnapshot(checkNotNull(renderedSave)).toRuntimeSessionState()
-                },
-            ),
-            checkpoints = listOf(
-                headlessCheckpoint("runtime state round-trips without a terminal save port") {
-                    assertTrue(checkNotNull(renderedSave).contains("runtimeState"))
-                    assertEquals(runtime.realm.activeParty, result.realm.activeParty)
-                    assertEquals(runtime.activeParty.members.size, result.activeParty.members.size)
-                },
-            ),
+            steps =
+                listOf(
+                    headlessStep("round-trip runtime state") { current ->
+                        renderedSave = renderRuntimeStateSnapshot(current.toRuntimeStateSnapshot(stateId("j3c-headless-save")))
+                        parseRuntimeStateSnapshot(checkNotNull(renderedSave)).toRuntimeSessionState()
+                    },
+                ),
+            checkpoints =
+                listOf(
+                    headlessCheckpoint("runtime state round-trips without a terminal save port") {
+                        assertTrue(checkNotNull(renderedSave).contains("runtimeState"))
+                        assertEquals(runtime.realm.activeParty, result.realm.activeParty)
+                        assertEquals(runtime.activeParty.members.size, result.activeParty.members.size)
+                    },
+                ),
             suites = setOf(RuntimeConformanceSuite.SaveLoad),
         )
     }

@@ -3,13 +3,74 @@
 
 package rylween.frontend.terminal
 
-import rylween.dsl.*
-import rylween.engine.*
-import rylween.runtime.*
+import rylween.dsl.BoolAst
+import rylween.dsl.BuildingServiceModel
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.Gender
+import rylween.dsl.IntAst
+import rylween.dsl.ItemPoolId
+import rylween.dsl.LValueAst
+import rylween.dsl.LocationId
+import rylween.dsl.MenuOption
+import rylween.dsl.NativeAllowlist
+import rylween.dsl.NativeStringArg
+import rylween.dsl.NpcJobId
+import rylween.dsl.NpcRole
+import rylween.dsl.Op
+import rylween.dsl.PartyState
+import rylween.dsl.PronounCase
+import rylween.dsl.RealmState
+import rylween.dsl.RuntimeContent
+import rylween.dsl.RuntimeMode
+import rylween.dsl.SceneModel
+import rylween.dsl.ScriptControlSignal
+import rylween.dsl.StrAst
+import rylween.dsl.SwitchCase
+import rylween.dsl.TextBlock
+import rylween.dsl.TextPart
+import rylween.dsl.building
+import rylween.dsl.dungeon
+import rylween.dsl.fallbackText
+import rylween.dsl.item
+import rylween.dsl.line
+import rylween.dsl.lines
+import rylween.dsl.location
+import rylween.dsl.milestone
+import rylween.dsl.monster
+import rylween.dsl.pronoun
+import rylween.dsl.rumour
+import rylween.dsl.text
+import rylween.dsl.town
+import rylween.dsl.townNpcName
+import rylween.dsl.worldMap
+import rylween.engine.EngineRequest
+import rylween.engine.EngineTraceEvent
+import rylween.engine.RuntimeEventLevel
+import rylween.engine.TraceEnginePort
+import rylween.engine.runtimeEvent
+import rylween.runtime.IntAstEvaluator
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.ScriptBlockRef
+import rylween.runtime.ScriptBranch
+import rylween.runtime.ScriptContinuation
+import rylween.runtime.ScriptFrame
+import rylween.runtime.ScriptRootRef
 import rylween.runtime.battle.BattleSession
 import rylween.runtime.battle.BattleSessionStep
+import rylween.runtime.consumeInventoryItems
+import rylween.runtime.countInventoryItems
+import rylween.runtime.drawRandom
+import rylween.runtime.inventoryItem
+import rylween.runtime.party
+import rylween.runtime.prompt
 import rylween.runtime.reward.RandomItemOfferSession
 import rylween.runtime.reward.RewardGrantSession
+import rylween.runtime.scriptMemberField
+import rylween.runtime.scriptMemberFlag
+import rylween.runtime.scriptPartyScalar
+import rylween.runtime.scriptRealmScalar
+import rylween.runtime.scriptRootForScene
+import rylween.runtime.scriptRuntimeFlag
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.SpeakSession
 import rylween.runtime.town.noRumourText
@@ -17,9 +78,17 @@ import rylween.runtime.town.selectRumour
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 import rylween.runtime.wilderness.WorldMapGrid
 import rylween.runtime.wilderness.teleportParty
+import rylween.runtime.withFlagState
+import rylween.runtime.withInventoryItem
+import rylween.runtime.withJournalLines
+import rylween.runtime.withMilestone
+import rylween.runtime.withScriptMemberField
+import rylween.runtime.withScriptPartyScalar
+import rylween.runtime.withScriptRealmScalar
 
 sealed interface ScriptBridgeStatus {
     object Finished : ScriptBridgeStatus
+
     object Waiting : ScriptBridgeStatus
 }
 
@@ -59,17 +128,18 @@ class StatefulScriptBridge(
         val eventStart = engine.events.size
         engine.trace(EngineTraceEvent.TownService(service, scene))
         val root = battleContent.scriptRootForScene(scene.id)
-        val result = StatefulScriptServiceRunner(
-            terminal,
-            engine,
-            scene.ops,
-            continuation,
-            speakContent,
-            battleContent,
-            worldMap,
-            renderer,
-            scriptRoot = root,
-        ).run()
+        val result =
+            StatefulScriptServiceRunner(
+                terminal,
+                engine,
+                scene.ops,
+                continuation,
+                speakContent,
+                battleContent,
+                worldMap,
+                renderer,
+                scriptRoot = root,
+            ).run()
         return ScriptBridgeResult(
             runtime = result.runtime,
             status = result.status,
@@ -115,10 +185,11 @@ class StatefulScriptServiceRunner(
     private var randomItemOfferSession = initialContinuation.randomItemOfferSession
     private var rewardGrantSession = initialContinuation.rewardGrantSession
     private val activeInventorySlot = initialContinuation.activeInventorySlot
-    private val worldText = TerminalWorldTextResolver(
-        towns = battleContent.towns,
-        characters = speakContent.characters.ifEmpty { battleContent.characters },
-    )
+    private val worldText =
+        TerminalWorldTextResolver(
+            towns = battleContent.towns,
+            characters = speakContent.characters.ifEmpty { battleContent.characters },
+        )
     private var rejection: TerminalInputRejection? = null
     private var dungeonHandoff: WildernessDungeonHandoff? = null
     private var waiting = false
@@ -156,7 +227,10 @@ class StatefulScriptServiceRunner(
         }
     }
 
-    private fun run(op: Op, frame: ScriptFrame) {
+    private fun run(
+        op: Op,
+        frame: ScriptFrame,
+    ) {
         val opIndex = frame.nextIndex
         engine.diagnostic(
             runtimeEvent(
@@ -263,12 +337,13 @@ class StatefulScriptServiceRunner(
             is Op.ForEachMember -> {
                 advanceTop()
                 op.memberFrames(party, frame, opIndex).asReversed().forEach { (memberNumber, block) ->
-                    stack += ScriptFrame(
-                        block = block,
-                        nextIndex = 0,
-                        localName = op.varName,
-                        localValue = memberNumber,
-                    )
+                    stack +=
+                        ScriptFrame(
+                            block = block,
+                            nextIndex = 0,
+                            localName = op.varName,
+                            localValue = memberNumber,
+                        )
                 }
             }
             is Op.ForEachMonster -> advanceTop()
@@ -323,20 +398,22 @@ class StatefulScriptServiceRunner(
 
     private fun appendJournal(text: TextBlock) {
         val rendered = renderText(text)
-        party = party.withJournalLines(
-            textRenderer.lines(rendered, TerminalTextContext(runtime = currentRuntime())),
-        )
+        party =
+            party.withJournalLines(
+                textRenderer.lines(rendered, TerminalTextContext(runtime = currentRuntime())),
+            )
         advanceTop()
         engine.trace(EngineTraceEvent.AppendJournal(rendered))
     }
 
     private fun waitInput(reason: String?) {
-        val prompt = textRenderer.pauseVerbIndexRange()?.let { range ->
-            val draw = currentRuntime().drawRandom(range.first, range.last)
-            runtime = draw.runtime
-            party = runtime.activeParty
-            textRenderer.pausePrompt(draw.value)
-        } ?: textRenderer.pausePrompt()
+        val prompt =
+            textRenderer.pauseVerbIndexRange()?.let { range ->
+                val draw = currentRuntime().drawRandom(range.first, range.last)
+                runtime = draw.runtime
+                party = runtime.activeParty
+                textRenderer.pausePrompt(draw.value)
+            } ?: textRenderer.pausePrompt()
         engine.trace(EngineTraceEvent.WaitInput(reason, prompt))
         flushScriptOutput()
         when (terminal.readReturn()) {
@@ -410,15 +487,20 @@ class StatefulScriptServiceRunner(
         }
     }
 
-    private fun askText(op: Op.AskText, frame: ScriptFrame, opIndex: Int) {
+    private fun askText(
+        op: Op.AskText,
+        frame: ScriptFrame,
+        opIndex: Int,
+    ) {
         engine.trace(EngineTraceEvent.AskText(renderText(op.prompt), op.accepted, op.maxLength))
         flushScriptOutput()
         val raw = terminal.readTextLine(op.maxLength) ?: return wait()
-        val branch = if (op.accepts(raw)) {
-            ScriptBranch.TextAnswerMatch
-        } else {
-            ScriptBranch.TextAnswerMiss
-        }
+        val branch =
+            if (op.accepts(raw)) {
+                ScriptBranch.TextAnswerMatch
+            } else {
+                ScriptBranch.TextAnswerMiss
+            }
         advanceTop()
         pushChild(frame.block.child(opIndex, branch))
     }
@@ -438,7 +520,10 @@ class StatefulScriptServiceRunner(
         stack[index] = stack[index].copy(nextIndex = stack[index].nextIndex + 1)
     }
 
-    private fun pushChild(block: ScriptBlockRef, loop: Boolean = false) {
+    private fun pushChild(
+        block: ScriptBlockRef,
+        loop: Boolean = false,
+    ) {
         if (opsFor(block).isNotEmpty() || loop) {
             stack += ScriptFrame(block, nextIndex = 0, loop = loop)
         }
@@ -483,8 +568,7 @@ class StatefulScriptServiceRunner(
         stack[loopIndex] = loopFrame.copy(nextIndex = opsFor(loopFrame.block).size)
     }
 
-    private fun currentRuntime(): RuntimeSessionState =
-        runtime.withActiveParty(party)
+    private fun currentRuntime(): RuntimeSessionState = runtime.withActiveParty(party)
 
     private fun RuntimeSessionState.afterScriptBattle(): RuntimeSessionState {
         val mode = resumeModeAfterBattle ?: return this
@@ -557,10 +641,13 @@ class StatefulScriptServiceRunner(
     private fun tellRumour(op: Op.TellRumour) {
         advanceTop()
         val selection = speakContent.selectRumour(op.table, currentRuntime())
-        val text = selection?.also { selected ->
-            runtime = selected.runtime
-            party = runtime.activeParty
-        }?.rumour?.text ?: speakContent.noRumourText()
+        val text =
+            selection
+                ?.also { selected ->
+                    runtime = selected.runtime
+                    party = runtime.activeParty
+                }?.rumour
+                ?.text ?: speakContent.noRumourText()
         engine.trace(EngineTraceEvent.Screen(text))
     }
 
@@ -572,16 +659,18 @@ class StatefulScriptServiceRunner(
         }
         val current = battleSession
         if (current == null) {
-            val monster = checkNotNull(battleContent.monsters.firstOrNull { it.id == op.foe }) {
-                "encounter references unknown monster ${op.foe.slug}"
-            }
-            battleSession = BattleSession.startMonster(
-                runtime = currentRuntime(),
-                monster = monster,
-                content = battleContent,
-                tier = op.tier ?: monster.tier,
-                mandatory = op.mandatory,
-            )
+            val monster =
+                checkNotNull(battleContent.monsters.firstOrNull { it.id == op.foe }) {
+                    "encounter references unknown monster ${op.foe.slug}"
+                }
+            battleSession =
+                BattleSession.startMonster(
+                    runtime = currentRuntime(),
+                    monster = monster,
+                    content = battleContent,
+                    tier = op.tier ?: monster.tier,
+                    mandatory = op.mandatory,
+                )
             wait()
             return
         }
@@ -605,12 +694,13 @@ class StatefulScriptServiceRunner(
 
     private fun runEnterDungeon(op: Op.EnterDungeon) {
         val handoff = WildernessDungeonHandoff(op.dungeon, op.levels)
-        runtime = currentRuntime().withRealm(
-            runtime.realm.copy(
-                currentMode = RuntimeMode.Dungeon,
-                currentTown = null,
-            ),
-        )
+        runtime =
+            currentRuntime().withRealm(
+                runtime.realm.copy(
+                    currentMode = RuntimeMode.Dungeon,
+                    currentTown = null,
+                ),
+            )
         party = runtime.activeParty
         dungeonHandoff = handoff
         advanceTop()
@@ -630,17 +720,20 @@ class StatefulScriptServiceRunner(
         val levels = eval(op.levels)
         val moveCost = eval(op.moveCost)
         val handoff = WildernessDungeonHandoff(op.dungeon, levels)
-        party = party.copy(
-            resources = party.resources.copy(
-                timeLeft = (party.resources.timeLeft - moveCost).coerceAtLeast(0),
-            ),
-        )
-        runtime = currentRuntime().withRealm(
-            runtime.realm.copy(
-                currentMode = RuntimeMode.Dungeon,
-                currentTown = null,
-            ),
-        )
+        party =
+            party.copy(
+                resources =
+                    party.resources.copy(
+                        timeLeft = (party.resources.timeLeft - moveCost).coerceAtLeast(0),
+                    ),
+            )
+        runtime =
+            currentRuntime().withRealm(
+                runtime.realm.copy(
+                    currentMode = RuntimeMode.Dungeon,
+                    currentTown = null,
+                ),
+            )
         party = runtime.activeParty
         dungeonHandoff = handoff
         advanceTop()
@@ -650,16 +743,17 @@ class StatefulScriptServiceRunner(
 
     private fun runRandomItemOffer(op: Op.RandomItemOffer) {
         engine.trace(EngineTraceEvent.RandomItemOffer(op.offer))
-        val initial = randomItemOfferSession ?: run {
-            val draw = runtime.drawRandom(0, op.offer.pool.items.lastIndex)
-            runtime = draw.runtime
-            RandomItemOfferSession.start(
-                op.offer,
-                party,
-                content = battleContent,
-                selectedIndex = draw.value,
-            )
-        }
+        val initial =
+            randomItemOfferSession ?: run {
+                val draw = runtime.drawRandom(0, op.offer.pool.items.lastIndex)
+                runtime = draw.runtime
+                RandomItemOfferSession.start(
+                    op.offer,
+                    party,
+                    content = battleContent,
+                    selectedIndex = draw.value,
+                )
+            }
         val result = RandomItemOfferSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
         party = result.session.party
         runtime = runtime.withActiveParty(party)
@@ -672,12 +766,13 @@ class StatefulScriptServiceRunner(
 
     private fun runGrantReward(op: Op.GrantReward) {
         engine.trace(EngineTraceEvent.GrantReward(op.reward))
-        val initial = rewardGrantSession ?: RewardGrantSession.start(
-            reward = op.reward,
-            party = party,
-            gold = op.reward.gold?.let(::eval) ?: 0,
-            content = battleContent,
-        )
+        val initial =
+            rewardGrantSession ?: RewardGrantSession.start(
+                reward = op.reward,
+                party = party,
+                gold = op.reward.gold?.let(::eval) ?: 0,
+                content = battleContent,
+            )
         val result = RewardGrantSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
         party = result.session.party
         runtime = runtime.withActiveParty(party)
@@ -692,20 +787,29 @@ class StatefulScriptServiceRunner(
         var ops = rootOps
         block.segments.forEach { segment ->
             val op = ops.getOrNull(segment.opIndex) ?: return emptyList()
-            ops = when (segment.branch) {
-                ScriptBranch.IfThen -> (op as? Op.If)?.thenOps.orEmpty()
-                ScriptBranch.IfElse -> (op as? Op.If)?.elseOps.orEmpty()
-                ScriptBranch.LoopBody -> (op as? Op.Loop)?.body.orEmpty()
-                ScriptBranch.ForEachMemberBody -> (op as? Op.ForEachMember)?.body.orEmpty()
-                ScriptBranch.ForEachMonsterBody -> (op as? Op.ForEachMonster)?.body.orEmpty()
-                ScriptBranch.SwitchCase ->
-                    (op as? Op.Switch)?.cases?.getOrNull(segment.caseIndex ?: -1)?.body.orEmpty()
-                ScriptBranch.MenuOption ->
-                    (op as? Op.Menu)?.options?.firstOrNull { it.key == segment.key }?.body.orEmpty()
-                ScriptBranch.MenuDefault -> (op as? Op.Menu)?.defaultOps.orEmpty()
-                ScriptBranch.TextAnswerMatch -> (op as? Op.AskText)?.matchOps.orEmpty()
-                ScriptBranch.TextAnswerMiss -> (op as? Op.AskText)?.missOps.orEmpty()
-            }
+            ops =
+                when (segment.branch) {
+                    ScriptBranch.IfThen -> (op as? Op.If)?.thenOps.orEmpty()
+                    ScriptBranch.IfElse -> (op as? Op.If)?.elseOps.orEmpty()
+                    ScriptBranch.LoopBody -> (op as? Op.Loop)?.body.orEmpty()
+                    ScriptBranch.ForEachMemberBody -> (op as? Op.ForEachMember)?.body.orEmpty()
+                    ScriptBranch.ForEachMonsterBody -> (op as? Op.ForEachMonster)?.body.orEmpty()
+                    ScriptBranch.SwitchCase ->
+                        (op as? Op.Switch)
+                            ?.cases
+                            ?.getOrNull(segment.caseIndex ?: -1)
+                            ?.body
+                            .orEmpty()
+                    ScriptBranch.MenuOption ->
+                        (op as? Op.Menu)
+                            ?.options
+                            ?.firstOrNull { it.key == segment.key }
+                            ?.body
+                            .orEmpty()
+                    ScriptBranch.MenuDefault -> (op as? Op.Menu)?.defaultOps.orEmpty()
+                    ScriptBranch.TextAnswerMatch -> (op as? Op.AskText)?.matchOps.orEmpty()
+                    ScriptBranch.TextAnswerMiss -> (op as? Op.AskText)?.missOps.orEmpty()
+                }
         }
         return ops
     }
@@ -719,81 +823,105 @@ class StatefulScriptServiceRunner(
         return party.members.mapIndexedNotNull { index, member ->
             val memberNumber = index + 1
             (memberNumber to block).takeIf { includeDead || !member.dead }
-            }
         }
+    }
 
     private fun renderText(block: TextBlock): TextBlock =
         when (block) {
             is TextBlock.Ref,
-            is TextBlock.Inline -> block
-            is TextBlock.Structured -> TextBlock.Inline(
-                block.lines.map { line ->
-                    line.parts.joinToString(separator = "") { part ->
-                        when (part) {
-                            is TextPart.Literal -> part.text
-                            is TextPart.IntValue -> eval(part.value).toString()
-                            is TextPart.StringValue -> evalString(part.value)
-                            is TextPart.RoleName -> worldText.roleName(part.role)
-                                ?: part.fallbackText()
-                            is TextPart.RoleLocation -> worldText.roleLocation(part.role, currentRuntime())
-                                ?: part.fallbackText()
-                            is TextPart.TownName -> worldText.townName(part.town)
-                            is TextPart.FuzzyTownLocation -> worldText.townLocation(part.town, part.radius)
-                                ?: part.fallbackText()
-                            is TextPart.LocationCoordinate -> locationCoordinate(part.location) ?: part.fallbackText()
-                            TextPart.OfferedItemName,
-                            TextPart.OfferedItemPrice,
-                            TextPart.SelectedItemName,
-                            TextPart.ShopPrice,
-                            TextPart.ShopCarryCap,
-                            TextPart.HuntMemberName,
-                            TextPart.HuntMemberSubjectPronoun,
-                            TextPart.HuntFoodGained,
-                            TextPart.PartyMemberMax,
-                            TextPart.WildernessDungeonName,
-                            TextPart.WildernessDungeonLevels,
-                            TextPart.DungeonDepth,
-                            TextPart.ConversationNpcName,
-                            TextPart.CurrentTownName,
-                            TextPart.TownTaxPercent,
-                            TextPart.TownTaxAmount,
-                            TextPart.CreationMemberNumber,
-                            TextPart.CreationMemberName,
-                            TextPart.CreationWeaponSkill,
-                            TextPart.CreationHealth,
-                            TextPart.CreationWisdom,
-                            TextPart.CreationCharisma -> part.fallbackText()
+            is TextBlock.Inline,
+            -> block
+            is TextBlock.Structured ->
+                TextBlock.Inline(
+                    block.lines.map { line ->
+                        line.parts.joinToString(separator = "") { part ->
+                            when (part) {
+                                is TextPart.Literal -> part.text
+                                is TextPart.IntValue -> eval(part.value).toString()
+                                is TextPart.StringValue -> evalString(part.value)
+                                is TextPart.RoleName ->
+                                    worldText.roleName(part.role)
+                                        ?: part.fallbackText()
+                                is TextPart.RoleLocation ->
+                                    worldText.roleLocation(part.role, currentRuntime())
+                                        ?: part.fallbackText()
+                                is TextPart.TownName -> worldText.townName(part.town)
+                                is TextPart.FuzzyTownLocation ->
+                                    worldText.townLocation(part.town, part.radius)
+                                        ?: part.fallbackText()
+                                is TextPart.LocationCoordinate -> locationCoordinate(part.location) ?: part.fallbackText()
+                                // CPD-OFF
+                                TextPart.OfferedItemName,
+                                TextPart.OfferedItemPrice,
+                                TextPart.SelectedItemName,
+                                TextPart.ShopPrice,
+                                TextPart.ShopCarryCap,
+                                TextPart.HuntMemberName,
+                                TextPart.HuntMemberSubjectPronoun,
+                                TextPart.HuntFoodGained,
+                                TextPart.PartyMemberMax,
+                                TextPart.WildernessDungeonName,
+                                TextPart.WildernessDungeonLevels,
+                                TextPart.DungeonDepth,
+                                TextPart.ConversationNpcName,
+                                TextPart.CurrentTownName,
+                                TextPart.TownTaxPercent,
+                                TextPart.TownTaxAmount,
+                                TextPart.CreationMemberNumber,
+                                TextPart.CreationMemberName,
+                                TextPart.CreationWeaponSkill,
+                                TextPart.CreationHealth,
+                                TextPart.CreationWisdom,
+                                TextPart.CreationCharisma,
+                                -> part.fallbackText()
+                                // CPD-ON
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
         }
 
     private fun evalString(ast: StrAst): String =
         when (ast) {
-            is StrAst.NativeString -> when (ast.path) {
-                NativeAllowlist.partyMemberName.path ->
-                    party.members.getOrNull(evalStringIntArg(ast.args.single()) - 1)?.name.orEmpty()
-                NativeAllowlist.partyPronounSubject.path ->
-                    pronoun(evalStringIntArg(ast.args.single()), PronounCase.Subject)
-                NativeAllowlist.partyPronounObject.path ->
-                    pronoun(evalStringIntArg(ast.args.single()), PronounCase.Object)
-                NativeAllowlist.partyPronounPossessive.path ->
-                    pronoun(evalStringIntArg(ast.args.single()), PronounCase.Possessive)
-                NativeAllowlist.townNpcName.path -> {
-                    val job = ast.args.singleOrNull()?.let(::evalStringLiteralArg)?.let(::NpcJobId)
-                    job?.let { worldText.townNpcName(it, currentRuntime()) } ?: "{town.npc.name}"
+            is StrAst.NativeString ->
+                when (ast.path) {
+                    NativeAllowlist.partyMemberName.path ->
+                        party.members
+                            .getOrNull(evalStringIntArg(ast.args.single()) - 1)
+                            ?.name
+                            .orEmpty()
+                    NativeAllowlist.partyPronounSubject.path ->
+                        pronoun(evalStringIntArg(ast.args.single()), PronounCase.Subject)
+                    NativeAllowlist.partyPronounObject.path ->
+                        pronoun(evalStringIntArg(ast.args.single()), PronounCase.Object)
+                    NativeAllowlist.partyPronounPossessive.path ->
+                        pronoun(evalStringIntArg(ast.args.single()), PronounCase.Possessive)
+                    NativeAllowlist.townNpcName.path -> {
+                        val job =
+                            ast.args
+                                .singleOrNull()
+                                ?.let(::evalStringLiteralArg)
+                                ?.let(::NpcJobId)
+                        job?.let { worldText.townNpcName(it, currentRuntime()) } ?: "{town.npc.name}"
+                    }
+                    NativeAllowlist.npcRoleName.path -> {
+                        val role =
+                            ast.args
+                                .singleOrNull()
+                                ?.let(::evalStringLiteralArg)
+                                ?.let(::NpcRole)
+                        role?.let(worldText::roleName) ?: "{npc.role.name}"
+                    }
+                    NativeAllowlist.npcRoleLocation.path -> {
+                        val role =
+                            ast.args
+                                .singleOrNull()
+                                ?.let(::evalStringLiteralArg)
+                                ?.let(::NpcRole)
+                        role?.let { worldText.roleLocation(it, currentRuntime()) } ?: "{npc.role.location}"
+                    }
+                    else -> "{${ast.path}}"
                 }
-                NativeAllowlist.npcRoleName.path -> {
-                    val role = ast.args.singleOrNull()?.let(::evalStringLiteralArg)?.let(::NpcRole)
-                    role?.let(worldText::roleName) ?: "{npc.role.name}"
-                }
-                NativeAllowlist.npcRoleLocation.path -> {
-                    val role = ast.args.singleOrNull()?.let(::evalStringLiteralArg)?.let(::NpcRole)
-                    role?.let { worldText.roleLocation(it, currentRuntime()) } ?: "{npc.role.location}"
-                }
-                else -> "{${ast.path}}"
-            }
         }
 
     private fun evalStringIntArg(arg: NativeStringArg): Int =
@@ -808,7 +936,10 @@ class StatefulScriptServiceRunner(
             is NativeStringArg.Literal -> arg.value
         }
 
-    private fun pronoun(memberNumber: Int, case: PronounCase): String {
+    private fun pronoun(
+        memberNumber: Int,
+        case: PronounCase,
+    ): String {
         val gender = party.members.getOrNull(memberNumber - 1)?.gender ?: Gender.Male
         return gender.pronoun(case)
     }
@@ -820,37 +951,65 @@ class StatefulScriptServiceRunner(
             ?.point
             ?.let { "${it.x}x${it.y}" }
 
-    private val evaluator = object : IntAstEvaluator() {
-        override fun local(name: String): Int = locals[name] ?: 0
-        override fun random(lo: Int, hi: Int): Int {
-            val draw = runtime.drawRandom(lo, hi)
-            runtime = draw.runtime
-            return draw.value
+    private val evaluator =
+        object : IntAstEvaluator() {
+            override fun local(name: String): Int = locals[name] ?: 0
+
+            override fun random(
+                lo: Int,
+                hi: Int,
+            ): Int {
+                val draw = runtime.drawRandom(lo, hi)
+                runtime = draw.runtime
+                return draw.value
+            }
+
+            override fun memberField(
+                member: Int,
+                field: String,
+            ): Int = this@StatefulScriptServiceRunner.memberField(member, field)
+
+            override fun monsterField(
+                monster: Int,
+                field: String,
+            ): Int = error("town/service scripts cannot read combat monster fields")
+
+            override fun realmScalar(name: String): Int = this@StatefulScriptServiceRunner.realmScalar(name)
+
+            override fun partyScalar(name: String): Int = this@StatefulScriptServiceRunner.partyScalar(name)
+
+            override fun inventoryPoolCount(pool: ItemPoolId): Int = party.countInventoryItems(pool)
+
+            override fun inventorySlotCost(slot: Int): Int =
+                party
+                    .inventoryItem(slot)
+                    ?.let { item -> battleContent.itemRecords.firstOrNull { it.id == item }?.cost }
+                    ?: 0
+
+            override fun nativeInt(
+                path: String,
+                args: List<String>,
+            ): Int = engine.readInt(EngineRequest(path, args))
+
+            override fun flagIs(
+                slug: String,
+                native: String,
+            ): Boolean = party.flags.any { it.flag.slug == slug && it.native == native }
+
+            override fun milestoneAchieved(milestone: GameMilestoneId): Boolean = milestone in party.milestones
+
+            override fun memberFlag(
+                member: Int,
+                name: String,
+            ): Boolean = this@StatefulScriptServiceRunner.memberFlag(member, name)
+
+            override fun monsterFlag(
+                monster: Int,
+                name: String,
+            ): Boolean = error("town/service scripts cannot read combat monster flags")
+
+            override fun runtimeFlag(name: String): Boolean = runtime.scriptRuntimeFlag(name)
         }
-        override fun memberField(member: Int, field: String): Int =
-            this@StatefulScriptServiceRunner.memberField(member, field)
-        override fun monsterField(monster: Int, field: String): Int =
-            error("town/service scripts cannot read combat monster fields")
-        override fun realmScalar(name: String): Int = this@StatefulScriptServiceRunner.realmScalar(name)
-        override fun partyScalar(name: String): Int = this@StatefulScriptServiceRunner.partyScalar(name)
-        override fun inventoryPoolCount(pool: ItemPoolId): Int = party.countInventoryItems(pool)
-        override fun inventorySlotCost(slot: Int): Int =
-            party.inventoryItem(slot)
-                ?.let { item -> battleContent.itemRecords.firstOrNull { it.id == item }?.cost }
-                ?: 0
-        override fun nativeInt(path: String, args: List<String>): Int =
-            engine.readInt(EngineRequest(path, args))
-        override fun flagIs(slug: String, native: String): Boolean =
-            party.flags.any { it.flag.slug == slug && it.native == native }
-        override fun milestoneAchieved(milestone: GameMilestoneId): Boolean =
-            milestone in party.milestones
-        override fun memberFlag(member: Int, name: String): Boolean =
-            this@StatefulScriptServiceRunner.memberFlag(member, name)
-        override fun monsterFlag(monster: Int, name: String): Boolean =
-            error("town/service scripts cannot read combat monster flags")
-        override fun runtimeFlag(name: String): Boolean =
-            runtime.scriptRuntimeFlag(name)
-    }
 
     private fun eval(ast: IntAst): Int = evaluator.int(ast)
 
@@ -865,7 +1024,10 @@ class StatefulScriptServiceRunner(
             is LValueAst.BattleFlag -> error("town/service scripts cannot read combat battle flags")
         }
 
-    private fun set(target: LValueAst, value: Int) {
+    private fun set(
+        target: LValueAst,
+        value: Int,
+    ) {
         when (target) {
             is LValueAst.PartyScalar -> party = party.withScriptPartyScalar(target.name, value)
             is LValueAst.MemberField -> party = party.withScriptMemberField(eval(target.member), target.field, value)
@@ -875,24 +1037,27 @@ class StatefulScriptServiceRunner(
         }
     }
 
-    private fun realmScalar(name: String): Int =
-        runtime.scriptRealmScalar(name, realmInts)
+    private fun realmScalar(name: String): Int = runtime.scriptRealmScalar(name, realmInts)
 
-    private fun setRealmScalar(name: String, value: Int) {
+    private fun setRealmScalar(
+        name: String,
+        value: Int,
+    ) {
         runtime = runtime.withScriptRealmScalar(name, value)
             ?: runtime.also { realmInts[name] = value }
     }
 
-    private fun partyScalar(name: String): Int =
-        party.scriptPartyScalar(name)
+    private fun partyScalar(name: String): Int = party.scriptPartyScalar(name)
 
-    private fun memberField(memberNumber: Int, field: String): Int {
-        return party.scriptMemberField(memberNumber, field)
-    }
+    private fun memberField(
+        memberNumber: Int,
+        field: String,
+    ): Int = party.scriptMemberField(memberNumber, field)
 
-    private fun memberFlag(memberNumber: Int, name: String): Boolean {
-        return party.scriptMemberFlag(memberNumber, name)
-    }
+    private fun memberFlag(
+        memberNumber: Int,
+        name: String,
+    ): Boolean = party.scriptMemberFlag(memberNumber, name)
 }
 
 private fun Op.AskText.accepts(raw: String): Boolean {
@@ -1004,11 +1169,11 @@ private fun Op.vmArgs(): String =
         is Op.If,
         is Op.Loop,
         Op.ConsumeActiveItem,
-        Op.ConsumeTorch -> ""
+        Op.ConsumeTorch,
+        -> ""
     }
 
-private fun IntAst.diagnosticExpr(): String =
-    toString().replace(Regex("\\s+"), "")
+private fun IntAst.diagnosticExpr(): String = toString().replace(Regex("\\s+"), "")
 
 private fun LValueAst.diagnosticTarget(): String =
     when (this) {
@@ -1019,7 +1184,11 @@ private fun LValueAst.diagnosticTarget(): String =
         is LValueAst.BattleFlag -> "battle.$name"
     }
 
-private fun String.normalizedTextAnswer(trim: Boolean, caseSensitive: Boolean, maxLength: Int?): String {
+private fun String.normalizedTextAnswer(
+    trim: Boolean,
+    caseSensitive: Boolean,
+    maxLength: Int?,
+): String {
     val limited = maxLength?.let { take(it) } ?: this
     val spaced = if (trim) limited.trim() else limited
     return if (caseSensitive) spaced else spaced.lowercase()

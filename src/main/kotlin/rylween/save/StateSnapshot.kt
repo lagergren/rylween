@@ -1,11 +1,71 @@
 package rylween.save
 
-import rylween.dsl.*
+import rylween.dsl.BuildingId
+import rylween.dsl.DslDefaultItems
+import rylween.dsl.DslDefaultMaps
+import rylween.dsl.DungeonEventId
+import rylween.dsl.DungeonId
+import rylween.dsl.EquipmentState
+import rylween.dsl.Facing
+import rylween.dsl.FlagState
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.Gender
+import rylween.dsl.GridPoint
+import rylween.dsl.InventorySlotState
+import rylween.dsl.ItemId
+import rylween.dsl.JournalEntryState
+import rylween.dsl.LocationId
+import rylween.dsl.LocationPlacement
+import rylween.dsl.MissionId
+import rylween.dsl.NpcId
+import rylween.dsl.NpcPlacement
+import rylween.dsl.NpcVisitState
+import rylween.dsl.PartyAttackRecord
+import rylween.dsl.PartyCounters
+import rylween.dsl.PartyId
+import rylween.dsl.PartyMemberState
+import rylween.dsl.PartyResources
+import rylween.dsl.PartyState
+import rylween.dsl.PcClass
+import rylween.dsl.Race
+import rylween.dsl.RealmState
+import rylween.dsl.RuntimeMode
+import rylween.dsl.SceneId
+import rylween.dsl.StateId
+import rylween.dsl.StateKind
+import rylween.dsl.StateModel
+import rylween.dsl.TerrainId
+import rylween.dsl.TextId
+import rylween.dsl.TownId
+import rylween.dsl.Wilderness
+import rylween.dsl.WorldMapId
+import rylween.dsl.WorldPosition
+import rylween.dsl.YdargRoomEvent
+import rylween.dsl.building
+import rylween.dsl.dungeon
+import rylween.dsl.dungeonEvent
+import rylween.dsl.item
+import rylween.dsl.line
+import rylween.dsl.location
+import rylween.dsl.milestone
+import rylween.dsl.missionId
+import rylween.dsl.npc
+import rylween.dsl.of
+import rylween.dsl.partyId
+import rylween.dsl.render
+import rylween.dsl.runtimeFlagState
+import rylween.dsl.sceneId
+import rylween.dsl.stateId
+import rylween.dsl.terrain
+import rylween.dsl.text
+import rylween.dsl.town
+import rylween.dsl.worldMap
+import rylween.dsl.xy
 import rylween.runtime.DungeonSavedStep
 import rylween.runtime.DungeonSessionSnapshot
 import rylween.runtime.MissionPostDungeonSnapshot
-import rylween.runtime.RuntimeSnapshotMetadata
 import rylween.runtime.RuntimeModeSnapshot
+import rylween.runtime.RuntimeSnapshotMetadata
 import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.ScriptBlockRef
 import rylween.runtime.ScriptBranch
@@ -31,13 +91,13 @@ fun renderRuntimeStateSnapshot(snapshot: RuntimeSnapshotModel): String {
     return RuntimeStateSnapshotWriter().render(snapshot)
 }
 
-fun parseRuntimeStateSnapshot(source: String): StateModel =
-    parseRuntimeSnapshot(source).state
+fun parseRuntimeStateSnapshot(source: String): StateModel = parseRuntimeSnapshot(source).state
 
-fun parseRuntimeSnapshot(source: String): RuntimeSnapshotModel =
-    RuntimeStateSnapshotParser(source).parseSingle()
+fun parseRuntimeSnapshot(source: String): RuntimeSnapshotModel = RuntimeStateSnapshotParser(source).parseSingle()
 
-private class RuntimeStateSnapshotParser(source: String) {
+private class RuntimeStateSnapshotParser(
+    source: String,
+) {
     private val lexer = RuntimeSnapshotLexer(source)
     private var token: SnapshotToken = lexer.next()
 
@@ -294,13 +354,14 @@ private class RuntimeStateSnapshotParser(source: String) {
             }
         }
         return RuntimeModeSnapshot.Dungeon(
-            session = DungeonSessionSnapshot(
-                dungeon = checkNotNull(dungeon) { "Dungeon session requires dungeon" },
-                maxDepth = maxDepth,
-                depth = depth,
-                levelEvents = levelEvents,
-                step = step,
-            ),
+            session =
+                DungeonSessionSnapshot(
+                    dungeon = checkNotNull(dungeon) { "Dungeon session requires dungeon" },
+                    maxDepth = maxDepth,
+                    depth = depth,
+                    levelEvents = levelEvents,
+                    step = step,
+                ),
             postDungeon = postDungeon,
         )
     }
@@ -506,13 +567,14 @@ private class RuntimeStateSnapshotParser(source: String) {
         var position: WorldPosition = Wilderness.xy(0, 0)
         var facing: Facing? = null
         var resources = PartyResources(0, 0, 0, 0, 0)
-        var counters = PartyCounters(
-            memberCount = null,
-            kills = 0,
-            waitingMail = false,
-            attacked = false,
-            attackedToday = emptyList(),
-        )
+        var counters =
+            PartyCounters(
+                memberCount = null,
+                kills = 0,
+                waitingMail = false,
+                attacked = false,
+                attackedToday = emptyList(),
+            )
         var flags = emptyList<FlagState>()
         var milestones = emptyList<GameMilestoneId>()
         var inventory = emptyList<InventorySlotState>()
@@ -737,7 +799,22 @@ private class RuntimeStateSnapshotParser(source: String) {
                 else -> unexpected("member field $field")
             }
         }
-        return PartyMemberState(name, gender, race, klass, level, health, hitPoints, weaponSkill, wisdom, mana, charisma, equipment, experience, dead)
+        return PartyMemberState(
+            name,
+            gender,
+            race,
+            klass,
+            level,
+            health,
+            hitPoints,
+            weaponSkill,
+            wisdom,
+            mana,
+            charisma,
+            equipment,
+            experience,
+            dead,
+        )
     }
 
     private fun parseEquipmentBody(): EquipmentState {
@@ -836,18 +913,31 @@ private class RuntimeStateSnapshotParser(source: String) {
     }
 
     private fun parseStateId(): StateId = parseStringCall("stateId", ::stateId)
+
     private fun parsePartyId(): PartyId = parseStringCall("partyId", ::partyId)
+
     private fun parseWorldMapId(): WorldMapId = parseStringCall("worldMap", ::worldMap)
+
     private fun parseTownId(): TownId = parseStringCall("town", ::town)
+
     private fun parseBuildingId(): BuildingId = parseStringCall("building", ::building)
+
     private fun parseLocationId(): LocationId = parseStringCall("location", ::location)
+
     private fun parseNpcId(): NpcId = parseStringCall("npc", ::npc)
+
     private fun parseItemId(): ItemId = parseStringCall("item", ::item)
+
     private fun parseMilestoneId(): GameMilestoneId = parseStringCall("milestone", ::milestone)
+
     private fun parseTextId(): TextId = parseStringCall("text", ::text)
+
     private fun parseSceneId(): SceneId = parseStringCall("scene", ::sceneId)
+
     private fun parseMissionId(): MissionId = parseStringCall("mission", ::missionId)
+
     private fun parseDungeonId(): DungeonId = parseStringCall("dungeon", ::dungeon)
+
     private fun parseDungeonEventId(): DungeonEventId = parseStringCall("dungeonEvent", ::dungeonEvent)
 
     private fun parseTerrainId(): TerrainId {
@@ -859,7 +949,10 @@ private class RuntimeStateSnapshotParser(source: String) {
         return terrain(slug, sourceMapCode)
     }
 
-    private fun <T> parseStringCall(name: String, build: (String) -> T): T {
+    private fun <T> parseStringCall(
+        name: String,
+        build: (String) -> T,
+    ): T {
         expectIdent(name)
         expectSymbol('(')
         val value = build(parseString())
@@ -887,8 +980,7 @@ private class RuntimeStateSnapshotParser(source: String) {
         return parseString()
     }
 
-    private fun <T> parseNullable(parseValue: () -> T): T? =
-        if (matchIdent("null")) null else parseValue()
+    private fun <T> parseNullable(parseValue: () -> T): T? = if (matchIdent("null")) null else parseValue()
 
     private inline fun <reified T : Enum<T>> parseEnum(prefix: String): T {
         expectIdent(prefix)
@@ -934,12 +1026,13 @@ private class RuntimeStateSnapshotParser(source: String) {
 
     private fun matchIdent(value: String): Boolean =
         when (val current = token) {
-            is SnapshotToken.Identifier -> if (current.value == value) {
-                advance()
-                true
-            } else {
-                false
-            }
+            is SnapshotToken.Identifier ->
+                if (current.value == value) {
+                    advance()
+                    true
+                } else {
+                    false
+                }
             else -> false
         }
 
@@ -955,12 +1048,13 @@ private class RuntimeStateSnapshotParser(source: String) {
 
     private fun matchSymbol(value: Char): Boolean =
         when (val current = token) {
-            is SnapshotToken.Symbol -> if (current.value == value) {
-                advance()
-                true
-            } else {
-                false
-            }
+            is SnapshotToken.Symbol ->
+                if (current.value == value) {
+                    advance()
+                    true
+                } else {
+                    false
+                }
             else -> false
         }
 
@@ -968,20 +1062,36 @@ private class RuntimeStateSnapshotParser(source: String) {
         token = lexer.next()
     }
 
-    private fun unexpected(expected: String): Nothing =
-        error("expected $expected at ${lexer.position}, found $token")
+    private fun unexpected(expected: String): Nothing = error("expected $expected at ${lexer.position}, found $token")
 }
 
 private sealed interface SnapshotToken {
-    data class Identifier(val value: String) : SnapshotToken
-    data class StringLiteral(val value: String) : SnapshotToken
-    data class CharLiteral(val value: Char) : SnapshotToken
-    data class Number(val value: Long) : SnapshotToken
-    data class Symbol(val value: Char) : SnapshotToken
+    data class Identifier(
+        val value: String,
+    ) : SnapshotToken
+
+    data class StringLiteral(
+        val value: String,
+    ) : SnapshotToken
+
+    data class CharLiteral(
+        val value: Char,
+    ) : SnapshotToken
+
+    data class Number(
+        val value: Long,
+    ) : SnapshotToken
+
+    data class Symbol(
+        val value: Char,
+    ) : SnapshotToken
+
     object End : SnapshotToken
 }
 
-private class RuntimeSnapshotLexer(private val source: String) {
+private class RuntimeSnapshotLexer(
+    private val source: String,
+) {
     private var index = 0
     val position: Int get() = index
 
@@ -1028,24 +1138,26 @@ private class RuntimeSnapshotLexer(private val source: String) {
 
     private fun stringLiteral(): SnapshotToken.StringLiteral {
         index += 1
-        val value = buildString {
-            while (index < source.length) {
-                when (val char = source[index++]) {
-                    '"' -> return SnapshotToken.StringLiteral(toString())
-                    '\\' -> append(escapedChar())
-                    else -> append(char)
+        val value =
+            buildString {
+                while (index < source.length) {
+                    when (val char = source[index++]) {
+                        '"' -> return SnapshotToken.StringLiteral(toString())
+                        '\\' -> append(escapedChar())
+                        else -> append(char)
+                    }
                 }
             }
-        }
         error("unterminated string literal at $index: $value")
     }
 
     private fun charLiteral(): SnapshotToken.CharLiteral {
         index += 1
-        val value = when (val char = source.getOrNull(index++) ?: error("unterminated char literal")) {
-            '\\' -> escapedChar()
-            else -> char
-        }
+        val value =
+            when (val char = source.getOrNull(index++) ?: error("unterminated char literal")) {
+                '\\' -> escapedChar()
+                else -> char
+            }
         check(source.getOrNull(index) == '\'') { "unterminated char literal at $index" }
         index += 1
         return SnapshotToken.CharLiteral(value)
@@ -1096,9 +1208,10 @@ private class RuntimeStateSnapshotWriter {
     }
 
     private fun realm(realm: RealmState) {
-        val rngState = checkNotNull(realm.rngState) {
-            "runtime snapshot ${realm.activeParty.slug} requires rngState before emission"
-        }
+        val rngState =
+            checkNotNull(realm.rngState) {
+                "runtime snapshot ${realm.activeParty.slug} requires rngState before emission"
+            }
         line("realm {")
         indented {
             assignment("day", realm.day)
@@ -1226,7 +1339,10 @@ private class RuntimeStateSnapshotWriter {
         line("}")
     }
 
-    private fun namedIntMap(name: String, values: Map<String, Int>) {
+    private fun namedIntMap(
+        name: String,
+        values: Map<String, Int>,
+    ) {
         line("$name {")
         indented {
             values.entries.sortedBy { it.key }.forEach { (key, value) ->
@@ -1415,27 +1531,53 @@ private class RuntimeStateSnapshotWriter {
         }
 
     private fun point(point: GridPoint): String = "xy(${point.x}, ${point.y})"
+
     private fun stateId(id: StateId): String = "stateId(${quote(id.slug)})"
+
     private fun partyId(id: PartyId): String = "partyId(${quote(id.slug)})"
+
     private fun worldMapId(id: WorldMapId): String = "worldMap(${quote(id.slug)})"
+
     private fun terrainId(id: TerrainId): String =
         id.sourceMapCode?.let { "terrain(${quote(id.slug)}, ${charLiteral(it)})" }
             ?: "terrain(${quote(id.slug)})"
+
     private fun townId(id: TownId): String = "town(${quote(id.slug)})"
+
     private fun buildingId(id: BuildingId): String = "building(${quote(id.slug)})"
+
     private fun locationId(id: LocationId): String = "location(${quote(id.slug)})"
+
     private fun npcId(id: NpcId): String = "npc(${quote(id.slug)})"
+
     private fun itemId(id: ItemId): String = "item(${quote(id.slug)})"
+
     private fun milestoneId(id: GameMilestoneId): String = "milestone(${quote(id.slug)})"
+
     private fun textId(id: TextId): String = "text(${quote(id.id)})"
+
     private fun sceneId(id: SceneId): String = "scene(${quote(id.slug)})"
+
     private fun missionId(id: MissionId): String = "mission(${quote(id.slug)})"
+
     private fun dungeonId(id: DungeonId): String = "dungeon(${quote(id.slug)})"
+
     private fun dungeonEventId(id: DungeonEventId): String = "dungeonEvent(${quote(id.slug)})"
 
-    private fun assignment(name: String, value: Int) = line("$name = $value")
-    private fun assignment(name: String, value: Boolean) = line("$name = $value")
-    private fun assignment(name: String, value: String) = line("$name = ${quote(value)}")
+    private fun assignment(
+        name: String,
+        value: Int,
+    ) = line("$name = $value")
+
+    private fun assignment(
+        name: String,
+        value: Boolean,
+    ) = line("$name = $value")
+
+    private fun assignment(
+        name: String,
+        value: String,
+    ) = line("$name = ${quote(value)}")
 
     private fun indented(body: () -> Unit) {
         indent += 1
@@ -1447,8 +1589,7 @@ private class RuntimeStateSnapshotWriter {
         out.append("    ".repeat(indent)).appendLine(text)
     }
 
-    private fun quote(value: String): String =
-        dslQuotedString(value)
+    private fun quote(value: String): String = dslQuotedString(value)
 
     private fun charLiteral(value: Char): String =
         when (value) {

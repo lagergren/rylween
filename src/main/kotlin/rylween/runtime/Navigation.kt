@@ -21,5 +21,4 @@ fun WildernessDirection.facing(): Facing =
         WildernessDirection.West -> Facing.West
     }
 
-operator fun GridPoint.plus(other: GridPoint): GridPoint =
-    GridPoint(x + other.x, y + other.y)
+operator fun GridPoint.plus(other: GridPoint): GridPoint = GridPoint(x + other.x, y + other.y)

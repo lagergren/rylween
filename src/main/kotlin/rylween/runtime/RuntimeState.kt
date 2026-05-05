@@ -6,7 +6,25 @@
 
 package rylween.runtime
 
-import rylween.dsl.*
+import rylween.dsl.BuildingId
+import rylween.dsl.CharacterModel
+import rylween.dsl.CharacterPlacementModel
+import rylween.dsl.DslDefaultBuildings
+import rylween.dsl.DslDefaultMaps
+import rylween.dsl.GridPoint
+import rylween.dsl.LocationPlacement
+import rylween.dsl.NpcPlacement
+import rylween.dsl.PartyState
+import rylween.dsl.RealmState
+import rylween.dsl.RuntimeMode
+import rylween.dsl.StateModel
+import rylween.dsl.TownId
+import rylween.dsl.TownModel
+import rylween.dsl.Wilderness
+import rylween.dsl.WorldPosition
+import rylween.dsl.character
+import rylween.dsl.random
+import rylween.dsl.town
 
 data class RuntimeSessionState(
     val realm: RealmState,
@@ -15,18 +33,19 @@ data class RuntimeSessionState(
     val locations: List<LocationPlacement> = emptyList(),
 ) {
     val activeParty: PartyState
-        get() = parties.firstOrNull { party -> party.id == realm.activeParty }
-            ?: error("active party ${realm.activeParty.slug} is missing from runtime state")
+        get() =
+            parties.firstOrNull { party -> party.id == realm.activeParty }
+                ?: error("active party ${realm.activeParty.slug} is missing from runtime state")
 
-    fun withRealm(realm: RealmState): RuntimeSessionState =
-        copy(realm = realm)
+    fun withRealm(realm: RealmState): RuntimeSessionState = copy(realm = realm)
 
     fun withActiveParty(party: PartyState): RuntimeSessionState {
-        val nextParties = if (parties.any { it.id == party.id }) {
-            parties.map { existing -> if (existing.id == party.id) party else existing }
-        } else {
-            parties + party
-        }
+        val nextParties =
+            if (parties.any { it.id == party.id }) {
+                parties.map { existing -> if (existing.id == party.id) party else existing }
+            } else {
+                parties + party
+            }
         return copy(
             realm = realm.copy(activeParty = party.id),
             parties = nextParties,
@@ -43,19 +62,20 @@ data class RuntimeSessionState(
             locations: List<LocationPlacement> = emptyList(),
         ): RuntimeSessionState =
             RuntimeSessionState(
-                realm = RealmState(
-                    day = 0,
-                    hour = hour,
-                    minute = 0,
-                    rngState = rngState,
-                    activeParty = party.id,
-                    currentMap = DslDefaultMaps.wilderness,
-                    currentMode = RuntimeMode.Town,
-                    currentTown = currentTown,
-                    banished = false,
-                    lastPlayedDay = 0,
-                    partyMemberMax = 4,
-                ),
+                realm =
+                    RealmState(
+                        day = 0,
+                        hour = hour,
+                        minute = 0,
+                        rngState = rngState,
+                        activeParty = party.id,
+                        currentMap = DslDefaultMaps.wilderness,
+                        currentMode = RuntimeMode.Town,
+                        currentTown = currentTown,
+                        banished = false,
+                        lastPlayedDay = 0,
+                        partyMemberMax = 4,
+                    ),
                 parties = listOf(party),
                 npcs = npcs,
                 locations = locations,
@@ -82,13 +102,21 @@ data class RuntimeRandomDraw(
 )
 
 interface RylweenRandomPort {
-    fun draw(seed: Long, lo: Int, hi: Int): RylweenRandomDraw
+    fun draw(
+        seed: Long,
+        lo: Int,
+        hi: Int,
+    ): RylweenRandomDraw
 }
 
 object ReferenceRylweenRandom : RylweenRandomPort {
     private const val MULTIPLIER: Long = 0x2545F4914F6CDD1DL
 
-    override fun draw(seed: Long, lo: Int, hi: Int): RylweenRandomDraw {
+    override fun draw(
+        seed: Long,
+        lo: Int,
+        hi: Int,
+    ): RylweenRandomDraw {
         require(lo <= hi) { "random range must be ascending: $lo..$hi" }
         var state = seed.takeUnless { it == 0L } ?: 1L
         state = state xor (state ushr 12)
@@ -124,8 +152,7 @@ data class WildernessNpcPlacementPolicy(
         require(maxAttempts > 0) { "wilderness NPC placement attempts must be positive" }
     }
 
-    fun allows(point: GridPoint): Boolean =
-        allowedPoints?.contains(point) ?: true
+    fun allows(point: GridPoint): Boolean = allowedPoints?.contains(point) ?: true
 }
 
 data class NpcPlacementRealizerConfig(
@@ -147,31 +174,34 @@ fun RuntimeSessionState.realizeNpcPlacements(
     val capacity = ((randomTownOrWildernessCount + bins.lastIndex) / bins.size) + config.townSlack.coerceAtLeast(0)
     val counts = IntArray(bins.size)
     val placements = mutableListOf<NpcPlacement>()
-    val occupiedWilderness = characters
-        .mapNotNull { (it.placement as? CharacterPlacementModel.Fixed)?.position as? WorldPosition.Wilderness }
-        .mapTo(mutableSetOf()) { it.point }
+    val occupiedWilderness =
+        characters
+            .mapNotNull { (it.placement as? CharacterPlacementModel.Fixed)?.position as? WorldPosition.Wilderness }
+            .mapTo(mutableSetOf()) { it.point }
     val fixtureRng = realm.rngState == null
     var runtime = if (fixtureRng) withRealm(realm.copy(rngState = config.deterministicSeed)) else this
 
     characters.forEach { character ->
-        val position = when (val placement = character.placement) {
-            is CharacterPlacementModel.Fixed -> placement.position
-            CharacterPlacementModel.Randomized -> {
-                val draw = runtime.drawRandom(0, bins.lastIndex, random)
-                runtime = draw.runtime
-                val bin = firstAvailableBin(draw.value, counts, capacity)
-                counts[bin]++
-                val realized = bins[bin]?.let { town -> runtime.drawTownBuilding(town, config.townBuildings, random) }
-                    ?: runtime.drawWildernessHutPoint(occupiedWilderness, config.wilderness, random)
-                runtime = realized.runtime
-                realized.position
+        val position =
+            when (val placement = character.placement) {
+                is CharacterPlacementModel.Fixed -> placement.position
+                CharacterPlacementModel.Randomized -> {
+                    val draw = runtime.drawRandom(0, bins.lastIndex, random)
+                    runtime = draw.runtime
+                    val bin = firstAvailableBin(draw.value, counts, capacity)
+                    counts[bin]++
+                    val realized =
+                        bins[bin]?.let { town -> runtime.drawTownBuilding(town, config.townBuildings, random) }
+                            ?: runtime.drawWildernessHutPoint(occupiedWilderness, config.wilderness, random)
+                    runtime = realized.runtime
+                    realized.position
+                }
+                CharacterPlacementModel.RandomizedWilderness -> {
+                    val realized = runtime.drawWildernessHutPoint(occupiedWilderness, config.wilderness, random)
+                    runtime = realized.runtime
+                    realized.position
+                }
             }
-            CharacterPlacementModel.RandomizedWilderness -> {
-                val realized = runtime.drawWildernessHutPoint(occupiedWilderness, config.wilderness, random)
-                runtime = realized.runtime
-                realized.position
-            }
-        }
         placements += NpcPlacement(character.id, position)
         (position as? WorldPosition.Wilderness)?.let { occupiedWilderness += it.point }
     }
@@ -180,7 +210,11 @@ fun RuntimeSessionState.realizeNpcPlacements(
     return realizedRuntime.copy(npcs = placements)
 }
 
-private fun firstAvailableBin(start: Int, counts: IntArray, capacity: Int): Int {
+private fun firstAvailableBin(
+    start: Int,
+    counts: IntArray,
+    capacity: Int,
+): Int {
     require(capacity > 0) { "NPC placement bin capacity must be positive" }
     var bin = start
     repeat(counts.size) {

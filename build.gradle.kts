@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    id("rylween.qa-conventions")
 }
 
 abstract class CompileNativeCExecutableTask @Inject constructor(

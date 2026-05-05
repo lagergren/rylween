@@ -10,7 +10,9 @@ import rylween.frontend.terminal.TerminalTextRenderer
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class ScenarioTerminalPort(vararg inputs: String) : TerminalPort {
+class ScenarioTerminalPort(
+    vararg inputs: String,
+) : TerminalPort {
     private val queue = ArrayDeque(inputs.toList())
     val output: List<String> get() = mutableOutput
     val viewCommands: List<ViewCommand> get() = mutableViewCommands
@@ -24,8 +26,7 @@ class ScenarioTerminalPort(vararg inputs: String) : TerminalPort {
         mutableOutput += lines
     }
 
-    override fun readLine(): String? =
-        queue.removeFirstOrNull()
+    override fun readLine(): String? = queue.removeFirstOrNull()
 
     override fun writeViewCommand(
         command: ViewCommand,
@@ -122,14 +123,20 @@ data class HeadlessScenarioRun<S>(
     val suites: Set<RuntimeConformanceSuite> = emptySet(),
 )
 
-fun <S> checkpoint(name: String, verify: TerminalScenarioRun<S>.() -> Unit): TerminalScenarioCheckpoint<S> =
-    TerminalScenarioCheckpoint(name, verify)
+fun <S> checkpoint(
+    name: String,
+    verify: TerminalScenarioRun<S>.() -> Unit,
+): TerminalScenarioCheckpoint<S> = TerminalScenarioCheckpoint(name, verify)
 
-fun <S> headlessStep(name: String, apply: (S) -> S): HeadlessScenarioStep<S> =
-    HeadlessScenarioStep(name, apply)
+fun <S> headlessStep(
+    name: String,
+    apply: (S) -> S,
+): HeadlessScenarioStep<S> = HeadlessScenarioStep(name, apply)
 
-fun <S> headlessCheckpoint(name: String, verify: HeadlessScenarioRun<S>.() -> Unit): HeadlessScenarioCheckpoint<S> =
-    HeadlessScenarioCheckpoint(name, verify)
+fun <S> headlessCheckpoint(
+    name: String,
+    verify: HeadlessScenarioRun<S>.() -> Unit,
+): HeadlessScenarioCheckpoint<S> = HeadlessScenarioCheckpoint(name, verify)
 
 fun <S> TerminalScenarioRun<S>.assertOutputContains(fragment: String) {
     assertTrue(

@@ -1,8 +1,16 @@
 package rylween.runtime.wilderness
 
-import rylween.runtime.*
-
-import rylween.dsl.*
+import rylween.dsl.PartyState
+import rylween.dsl.SecretActionModel
+import rylween.dsl.SecretKeyActionModel
+import rylween.dsl.SecretPlayerModel
+import rylween.dsl.SecretStepTriggerModel
+import rylween.dsl.SecretSystemModel
+import rylween.dsl.item
+import rylween.runtime.InputCommand
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.party
+import rylween.runtime.withInventoryItem
 
 data class SecretRuntimeActionResult(
     val runtime: RuntimeSessionState,
@@ -12,8 +20,7 @@ data class SecretRuntimeActionResult(
 fun SecretSystemModel.playerSecrets(playerName: String): SecretPlayerModel? =
     players.firstOrNull { player -> player.playerName == playerName }
 
-fun SecretSystemModel.keyActionsFor(playerName: String): List<SecretKeyActionModel> =
-    playerSecrets(playerName)?.keyActions.orEmpty()
+fun SecretSystemModel.keyActionsFor(playerName: String): List<SecretKeyActionModel> = playerSecrets(playerName)?.keyActions.orEmpty()
 
 fun SecretSystemModel.stepTriggerFor(runtime: RuntimeSessionState): SecretStepTriggerModel? {
     val playerSecrets = playerSecrets(runtime.activeParty.player) ?: return null
@@ -25,15 +32,17 @@ fun SecretSystemModel.stepTriggerFor(runtime: RuntimeSessionState): SecretStepTr
 fun RuntimeSessionState.applySecretAction(action: SecretActionModel): SecretRuntimeActionResult =
     when (action) {
         is SecretActionModel.AddGold -> {
-            val nextParty = activeParty.copy(
-                resources = activeParty.resources.copy(gold = activeParty.resources.gold + action.amount),
-            )
+            val nextParty =
+                activeParty.copy(
+                    resources = activeParty.resources.copy(gold = activeParty.resources.gold + action.amount),
+                )
             SecretRuntimeActionResult(withActiveParty(nextParty), action.refreshStatus)
         }
         is SecretActionModel.AddTimeLeft -> {
-            val nextParty = activeParty.copy(
-                resources = activeParty.resources.copy(timeLeft = activeParty.resources.timeLeft + action.amount),
-            )
+            val nextParty =
+                activeParty.copy(
+                    resources = activeParty.resources.copy(timeLeft = activeParty.resources.timeLeft + action.amount),
+                )
             SecretRuntimeActionResult(withActiveParty(nextParty), action.refreshStatus)
         }
         is SecretActionModel.SetInventory ->

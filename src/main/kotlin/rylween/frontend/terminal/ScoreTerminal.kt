@@ -25,9 +25,11 @@ internal fun StaticScreenRuntimeReport.renderRuntimeStaticScreenPages(
     when (this) {
         StaticScreenRuntimeReport.Score -> runtime.scoreReport(content).summaryScoreLines().chunked(maxLinesPerPage)
         StaticScreenRuntimeReport.VerboseScore -> runtime.scoreReport(content).verboseScoreLines().chunked(maxLinesPerPage)
-        StaticScreenRuntimeReport.HallOfHeroes -> runtime.hallOfHeroesReport(content)
-            .hallOfHeroesLines()
-            .chunked(maxLinesPerPage)
+        StaticScreenRuntimeReport.HallOfHeroes ->
+            runtime
+                .hallOfHeroesReport(content)
+                .hallOfHeroesLines()
+                .chunked(maxLinesPerPage)
     }
 
 private fun ScoreReport.summaryScoreLines(): List<String> =
@@ -85,8 +87,7 @@ private fun HallOfHeroesReport.hallOfHeroesLines(): List<String> =
         add("")
     }
 
-private fun scoreHeaderLines(): List<String> =
-    framedHeaderLines(ScoreHeader)
+private fun scoreHeaderLines(): List<String> = framedHeaderLines(ScoreHeader)
 
 private fun framedHeaderLines(title: String): List<String> =
     listOf(

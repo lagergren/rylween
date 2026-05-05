@@ -1,9 +1,58 @@
 package rylween.runtime.ydarg
 
-import rylween.dsl.*
-import rylween.runtime.*
-import rylween.runtime.battle.*
-import rylween.runtime.party.*
+import rylween.dsl.EquipmentCommand
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.GridPoint
+import rylween.dsl.ImageId
+import rylween.dsl.ItemId
+import rylween.dsl.ItemKind
+import rylween.dsl.MonsterId
+import rylween.dsl.PartyState
+import rylween.dsl.PcClass
+import rylween.dsl.RewardOverflowPolicy
+import rylween.dsl.RuntimeContent
+import rylween.dsl.RuntimeMode
+import rylween.dsl.TextBlock
+import rylween.dsl.Wilderness
+import rylween.dsl.YdargContentModel
+import rylween.dsl.YdargRoomEvent
+import rylween.dsl.chance
+import rylween.dsl.combineTextBlocks
+import rylween.dsl.image
+import rylween.dsl.inlineText
+import rylween.dsl.item
+import rylween.dsl.milestone
+import rylween.dsl.monster
+import rylween.dsl.of
+import rylween.dsl.text
+import rylween.runtime.EquipmentPromptSession
+import rylween.runtime.EquipmentPromptStep
+import rylween.runtime.InventoryPlacementResult
+import rylween.runtime.RuntimeModeSnapshot
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.WildernessDirection
+import rylween.runtime.YdargSavedStep
+import rylween.runtime.YdargSessionSnapshot
+import rylween.runtime.battle.BattleSession
+import rylween.runtime.battle.BattleSessionStep
+import rylween.runtime.delta
+import rylween.runtime.drawRandom
+import rylween.runtime.party
+import rylween.runtime.party.InventoryDropSession
+import rylween.runtime.party.InventoryDropStep
+import rylween.runtime.party.InventoryItemUseSession
+import rylween.runtime.party.InventoryItemUseStep
+import rylween.runtime.party.PartyViewSession
+import rylween.runtime.party.PartyViewStep
+import rylween.runtime.party.PriestSpellPlace
+import rylween.runtime.party.PriestSpellSession
+import rylween.runtime.party.PriestSpellStep
+import rylween.runtime.party.toParentStatus
+import rylween.runtime.placeInventoryItem
+import rylween.runtime.plus
+import rylween.runtime.toParentStatus
+import rylween.runtime.withMilestone
+import rylween.runtime.withoutMilestone
 
 enum class YdargSessionStatus {
     Entered,
@@ -69,19 +118,37 @@ enum class YdargCommand {
 
 sealed interface YdargSessionInput {
     object Continue : YdargSessionInput
-    data class Move(val direction: WildernessDirection) : YdargSessionInput
-    data class Command(val command: YdargCommand) : YdargSessionInput
+
+    data class Move(
+        val direction: WildernessDirection,
+    ) : YdargSessionInput
+
+    data class Command(
+        val command: YdargCommand,
+    ) : YdargSessionInput
+
     object TakeTreasure : YdargSessionInput
+
     object LeaveTreasure : YdargSessionInput
+
     object TeleportOut : YdargSessionInput
+
     object GiveStairsItem : YdargSessionInput
+
     object LeaveStairs : YdargSessionInput
-    data class StairItem(val digit: Int) : YdargSessionInput
+
+    data class StairItem(
+        val digit: Int,
+    ) : YdargSessionInput
 }
 
 sealed interface YdargBattleContinuation {
     object RoomMonster : YdargBattleContinuation
-    data class ConfrontationSequence(val index: Int) : YdargBattleContinuation
+
+    data class ConfrontationSequence(
+        val index: Int,
+    ) : YdargBattleContinuation
+
     object Baron : YdargBattleContinuation
 }
 
@@ -91,22 +158,51 @@ sealed interface YdargSessionStep {
         val next: YdargSessionStep,
         val image: ImageId? = null,
     ) : YdargSessionStep
-    data class Save(val next: YdargSessionStep) : YdargSessionStep
+
+    data class Save(
+        val next: YdargSessionStep,
+    ) : YdargSessionStep
+
     object RoomEntry : YdargSessionStep
+
     object Navigate : YdargSessionStep
-    data class TreasureOffer(val item: ItemId) : YdargSessionStep
+
+    data class TreasureOffer(
+        val item: ItemId,
+    ) : YdargSessionStep
+
     object StairsMenu : YdargSessionStep
+
     object StairGive : YdargSessionStep
+
     data class Battle(
         val session: BattleSession,
         val continuation: YdargBattleContinuation,
     ) : YdargSessionStep
-    data class PartyView(val session: PartyViewSession) : YdargSessionStep
-    data class InventoryDrop(val session: InventoryDropSession) : YdargSessionStep
-    data class Equipment(val session: EquipmentPromptSession) : YdargSessionStep
-    data class InventoryItemUse(val session: InventoryItemUseSession) : YdargSessionStep
-    data class PriestSpell(val session: PriestSpellSession) : YdargSessionStep
-    data class Finished(val runtime: RuntimeSessionState) : YdargSessionStep
+
+    data class PartyView(
+        val session: PartyViewSession,
+    ) : YdargSessionStep
+
+    data class InventoryDrop(
+        val session: InventoryDropSession,
+    ) : YdargSessionStep
+
+    data class Equipment(
+        val session: EquipmentPromptSession,
+    ) : YdargSessionStep
+
+    data class InventoryItemUse(
+        val session: InventoryItemUseSession,
+    ) : YdargSessionStep
+
+    data class PriestSpell(
+        val session: PriestSpellSession,
+    ) : YdargSessionStep
+
+    data class Finished(
+        val runtime: RuntimeSessionState,
+    ) : YdargSessionStep
 }
 
 data class YdargSession(
@@ -134,28 +230,33 @@ data class YdargSession(
                 error("Ydarg save step is advanced by completeSave()")
             YdargSessionStep.RoomEntry ->
                 error("Ydarg room entry is advanced by enterRoom()")
-            YdargSessionStep.Navigate -> when (input) {
-                is YdargSessionInput.Move -> move(input.direction)
-                is YdargSessionInput.Command -> command(input.command)
-                else -> error("Ydarg navigation cannot apply $input")
-            }
-            is YdargSessionStep.TreasureOffer -> when (input) {
-                YdargSessionInput.TakeTreasure -> takeTreasure(current.item)
-                YdargSessionInput.LeaveTreasure -> copy(
-                    step = YdargSessionStep.Navigate,
-                    lastResult = YdargSessionResult(YdargSessionStatus.TreasureLeft, floor, point, current.item),
-                )
-                else -> error("Ydarg treasure room cannot apply $input")
-            }
-            YdargSessionStep.StairsMenu -> when (input) {
-                YdargSessionInput.TeleportOut -> teleportOut()
-                YdargSessionInput.GiveStairsItem -> copy(step = YdargSessionStep.StairGive)
-                YdargSessionInput.LeaveStairs -> leaveStairs()
-                else -> error("Ydarg stairs cannot apply $input")
-            }
+            YdargSessionStep.Navigate ->
+                when (input) {
+                    is YdargSessionInput.Move -> move(input.direction)
+                    is YdargSessionInput.Command -> command(input.command)
+                    else -> error("Ydarg navigation cannot apply $input")
+                }
+            is YdargSessionStep.TreasureOffer ->
+                when (input) {
+                    YdargSessionInput.TakeTreasure -> takeTreasure(current.item)
+                    YdargSessionInput.LeaveTreasure ->
+                        copy(
+                            step = YdargSessionStep.Navigate,
+                            lastResult = YdargSessionResult(YdargSessionStatus.TreasureLeft, floor, point, current.item),
+                        )
+                    else -> error("Ydarg treasure room cannot apply $input")
+                }
+            YdargSessionStep.StairsMenu ->
+                when (input) {
+                    YdargSessionInput.TeleportOut -> teleportOut()
+                    YdargSessionInput.GiveStairsItem -> copy(step = YdargSessionStep.StairGive)
+                    YdargSessionInput.LeaveStairs -> leaveStairs()
+                    else -> error("Ydarg stairs cannot apply $input")
+                }
             YdargSessionStep.StairGive -> {
-                val digit = (input as? YdargSessionInput.StairItem)
-                    ?: error("Ydarg stairs are waiting for an item digit")
+                val digit =
+                    (input as? YdargSessionInput.StairItem)
+                        ?: error("Ydarg stairs are waiting for an item digit")
                 giveStairItem(digit.digit)
             }
             is YdargSessionStep.Battle ->
@@ -164,7 +265,8 @@ data class YdargSession(
             is YdargSessionStep.InventoryDrop,
             is YdargSessionStep.Equipment,
             is YdargSessionStep.InventoryItemUse,
-            is YdargSessionStep.PriestSpell ->
+            is YdargSessionStep.PriestSpell,
+            ->
                 error("Ydarg child session is advanced by its terminal adapter")
             is YdargSessionStep.Finished ->
                 error("Ydarg session is already finished: $current")
@@ -174,10 +276,11 @@ data class YdargSession(
         require(step is YdargSessionStep.RoomEntry) { "Ydarg session is not entering a room" }
         if (point.x == ydarg.mapSize && point.y == ydarg.mapSize) {
             return copy(
-                step = YdargSessionStep.Messages(
-                    listOf(ydarg.text.stairsIntro, ydarg.text.stairsMageOffer),
-                    YdargSessionStep.StairsMenu,
-                ),
+                step =
+                    YdargSessionStep.Messages(
+                        listOf(ydarg.text.stairsIntro, ydarg.text.stairsMageOffer),
+                        YdargSessionStep.StairsMenu,
+                    ),
                 lastResult = YdargSessionResult(YdargSessionStatus.Stairs, floor, point),
             )
         }
@@ -190,8 +293,9 @@ data class YdargSession(
     }
 
     fun replaceBattleSession(session: BattleSession): YdargSession {
-        val current = step as? YdargSessionStep.Battle
-            ?: error("Ydarg session is not running a battle")
+        val current =
+            step as? YdargSessionStep.Battle
+                ?: error("Ydarg session is not running a battle")
         if (session.step !is BattleSessionStep.Finished) {
             return copy(runtime = session.runtime, step = current.copy(session = session))
         }
@@ -208,12 +312,13 @@ data class YdargSession(
                 copy(
                     runtime = nextRuntime,
                     step = YdargSessionStep.Navigate,
-                    lastResult = YdargSessionResult(
-                        YdargSessionStatus.MonsterEncounter,
-                        floor,
-                        point,
-                        monster = session.encounter.monster.id,
-                    ),
+                    lastResult =
+                        YdargSessionResult(
+                            YdargSessionStatus.MonsterEncounter,
+                            floor,
+                            point,
+                            monster = session.encounter.monster.id,
+                        ),
                 )
             is YdargBattleContinuation.ConfrontationSequence ->
                 continueConfrontationSequence(nextRuntime, continuation.index)
@@ -237,17 +342,19 @@ data class YdargSession(
 
     private fun startRoomMonster(): YdargSession {
         val cleared = clearCurrentRoom()
-        val battle = BattleSession.start(
-            runtime = cleared.runtime,
-            tier = ydarg.monsterTier,
-            content = content,
-        )
+        val battle =
+            BattleSession.start(
+                runtime = cleared.runtime,
+                tier = ydarg.monsterTier,
+                content = content,
+            )
         return cleared.copy(
             runtime = battle.runtime,
-            step = YdargSessionStep.Messages(
-                blocks = listOf(ydarg.text.roomMonster),
-                next = YdargSessionStep.Battle(battle, YdargBattleContinuation.RoomMonster),
-            ),
+            step =
+                YdargSessionStep.Messages(
+                    blocks = listOf(ydarg.text.roomMonster),
+                    next = YdargSessionStep.Battle(battle, YdargBattleContinuation.RoomMonster),
+                ),
             lastResult = YdargSessionResult(YdargSessionStatus.MonsterEncounter, floor, point, monster = battle.encounter.monster.id),
         )
     }
@@ -256,10 +363,14 @@ data class YdargSession(
         var session = clearCurrentRoom()
         val victimDraw = session.runtime.drawRandom(0, (session.runtime.realm.partyMemberMax - 1).coerceAtLeast(0))
         session = session.copy(runtime = victimDraw.runtime)
-        val victim = session.party.members.getOrNull(victimDraw.value)?.name ?: "Someone"
-        val texts = buildList {
-            add(inlineText("$victim springs a", "trap!!!"))
-        }.toMutableList()
+        val victim =
+            session.party.members
+                .getOrNull(victimDraw.value)
+                ?.name ?: "Someone"
+        val texts =
+            buildList {
+                add(inlineText("$victim springs a", "trap!!!"))
+            }.toMutableList()
 
         val thiefIndex = session.party.members.indexOfFirst { !it.dead && it.pcClass == PcClass.Thief }
         var disarmed = false
@@ -297,12 +408,15 @@ data class YdargSession(
     }
 
     private fun takeTreasure(item: ItemId): YdargSession =
-        when (val placed = party.placeInventoryItem(
-            item = item,
-            overflow = RewardOverflowPolicy.SkipIfInventoryFull,
-            itemRecords = content.itemRecords,
-            realmContent = content.realm,
-        )) {
+        when (
+            val placed =
+                party.placeInventoryItem(
+                    item = item,
+                    overflow = RewardOverflowPolicy.SkipIfInventoryFull,
+                    itemRecords = content.itemRecords,
+                    realmContent = content.realm,
+                )
+        ) {
             is InventoryPlacementResult.Placed ->
                 copy(
                     runtime = runtime.withActiveParty(placed.party),
@@ -311,7 +425,8 @@ data class YdargSession(
                 )
             is InventoryPlacementResult.Full,
             is InventoryPlacementResult.NeedsDropSlot,
-            is InventoryPlacementResult.InvalidDropSlot ->
+            is InventoryPlacementResult.InvalidDropSlot,
+            ->
                 copy(
                     step = YdargSessionStep.Messages(listOf(ydarg.text.treasureFull), YdargSessionStep.Navigate),
                     lastResult = YdargSessionResult(YdargSessionStatus.TreasureInventoryFull, floor, point, item = item),
@@ -344,14 +459,15 @@ data class YdargSession(
                 )
             YdargCommand.ViewParty ->
                 copy(
-                    step = YdargSessionStep.PartyView(
-                        PartyViewSession(
-                            party = party,
-                            itemRecords = content.itemRecords,
-                            progress = content.progress,
-                            prompts = content.prompts.party,
+                    step =
+                        YdargSessionStep.PartyView(
+                            PartyViewSession(
+                                party = party,
+                                itemRecords = content.itemRecords,
+                                progress = content.progress,
+                                prompts = content.prompts.party,
+                            ),
                         ),
-                    ),
                     lastResult = YdargSessionResult(YdargSessionStatus.ViewPartyRequested, floor, point),
                 )
             YdargCommand.RemoveArmor -> equipment(EquipmentCommand.RemoveArmor)
@@ -364,15 +480,17 @@ data class YdargSession(
         }
 
     fun completeSave(saved: Boolean): YdargSession {
-        val current = step as? YdargSessionStep.Save
-            ?: error("Ydarg session is not saving")
+        val current =
+            step as? YdargSessionStep.Save
+                ?: error("Ydarg session is not saving")
         return copy(
             step = current.next,
-            lastResult = YdargSessionResult(
-                if (saved) YdargSessionStatus.Saved else YdargSessionStatus.SaveFailed,
-                floor,
-                point,
-            ),
+            lastResult =
+                YdargSessionResult(
+                    if (saved) YdargSessionStatus.Saved else YdargSessionStatus.SaveFailed,
+                    floor,
+                    point,
+                ),
         )
     }
 
@@ -391,10 +509,11 @@ data class YdargSession(
     fun replaceInventoryDropSession(session: InventoryDropSession): YdargSession {
         require(step is YdargSessionStep.InventoryDrop) { "Ydarg session is not running inventory drop" }
         return if (session.step is InventoryDropStep.Finished) {
-            val status = session.lastResult.status.toParentStatus(
-                dropped = YdargSessionStatus.DropUsed,
-                unavailable = YdargSessionStatus.InventoryUnavailable,
-            )
+            val status =
+                session.lastResult.status.toParentStatus(
+                    dropped = YdargSessionStatus.DropUsed,
+                    unavailable = YdargSessionStatus.InventoryUnavailable,
+                )
             copy(
                 runtime = runtime.withActiveParty(session.party),
                 step = YdargSessionStep.Navigate,
@@ -407,10 +526,11 @@ data class YdargSession(
 
     fun replaceEquipmentSession(session: EquipmentPromptSession): YdargSession {
         require(step is YdargSessionStep.Equipment) { "Ydarg session is not running equipment prompts" }
-        val status = (session.step as? EquipmentPromptStep.Finished)?.result?.toParentStatus(
-            used = YdargSessionStatus.EquipmentUsed,
-            unavailable = YdargSessionStatus.EquipmentUnavailable,
-        )
+        val status =
+            (session.step as? EquipmentPromptStep.Finished)?.result?.toParentStatus(
+                used = YdargSessionStatus.EquipmentUsed,
+                unavailable = YdargSessionStatus.EquipmentUnavailable,
+            )
         return if (status != null) {
             copy(
                 runtime = runtime.withActiveParty(session.party),
@@ -425,10 +545,11 @@ data class YdargSession(
     fun replaceInventoryItemUseSession(session: InventoryItemUseSession): YdargSession {
         require(step is YdargSessionStep.InventoryItemUse) { "Ydarg session is not running inventory item use" }
         return if (session.step is InventoryItemUseStep.Finished) {
-            val status = session.lastResult?.status.toParentStatus(
-                used = YdargSessionStatus.InventoryUsed,
-                unavailable = YdargSessionStatus.InventoryUnavailable,
-            )
+            val status =
+                session.lastResult?.status.toParentStatus(
+                    used = YdargSessionStatus.InventoryUsed,
+                    unavailable = YdargSessionStatus.InventoryUnavailable,
+                )
             copy(
                 runtime = session.runtime,
                 step = YdargSessionStep.Navigate,
@@ -442,10 +563,11 @@ data class YdargSession(
     fun replacePriestSpellSession(session: PriestSpellSession): YdargSession {
         require(step is YdargSessionStep.PriestSpell) { "Ydarg session is not running priest spell casting" }
         return if (session.step is PriestSpellStep.Finished) {
-            val status = session.lastResult?.status.toParentStatus(
-                cast = YdargSessionStatus.CastSpellUsed,
-                unavailable = YdargSessionStatus.CastSpellUnavailable,
-            )
+            val status =
+                session.lastResult?.status.toParentStatus(
+                    cast = YdargSessionStatus.CastSpellUsed,
+                    unavailable = YdargSessionStatus.CastSpellUnavailable,
+                )
             copy(
                 runtime = session.runtime,
                 step = YdargSessionStep.Navigate,
@@ -458,48 +580,52 @@ data class YdargSession(
 
     private fun equipment(command: EquipmentCommand): YdargSession =
         copy(
-            step = YdargSessionStep.Equipment(
-                EquipmentPromptSession.start(command, party, content.itemRecords, content.prompts.equipment),
-            ),
+            step =
+                YdargSessionStep.Equipment(
+                    EquipmentPromptSession.start(command, party, content.itemRecords, content.prompts.equipment),
+                ),
             lastResult = YdargSessionResult(YdargSessionStatus.EquipmentRequested, floor, point),
         )
 
     private fun drop(): YdargSession =
         copy(
-            step = YdargSessionStep.InventoryDrop(
-                InventoryDropSession(
-                    party = party,
-                    itemRecords = content.itemRecords,
-                    realm = content.realm,
-                    prompts = content.prompts.party,
+            step =
+                YdargSessionStep.InventoryDrop(
+                    InventoryDropSession(
+                        party = party,
+                        itemRecords = content.itemRecords,
+                        realm = content.realm,
+                        prompts = content.prompts.party,
+                    ),
                 ),
-            ),
             lastResult = YdargSessionResult(YdargSessionStatus.DropRequested, floor, point),
         )
 
     private fun quaff(): YdargSession =
         copy(
-            step = YdargSessionStep.InventoryItemUse(
-                InventoryItemUseSession.start(
-                    runtime = runtime,
-                    content = content,
-                    allowedKinds = setOf(ItemKind.Potion),
-                    choosePrompt = content.prompts.inventoryUse.quaff,
+            step =
+                YdargSessionStep.InventoryItemUse(
+                    InventoryItemUseSession.start(
+                        runtime = runtime,
+                        content = content,
+                        allowedKinds = setOf(ItemKind.Potion),
+                        choosePrompt = content.prompts.inventoryUse.quaff,
+                    ),
                 ),
-            ),
             lastResult = YdargSessionResult(YdargSessionStatus.InventoryRequested, floor, point),
         )
 
     private fun castSpell(): YdargSession =
         copy(
-            step = YdargSessionStep.PriestSpell(
-                PriestSpellSession.start(
-                    runtime = runtime,
-                    spells = content.spells,
-                    place = PriestSpellPlace.Dungeon,
-                    prompts = content.prompts.priest,
+            step =
+                YdargSessionStep.PriestSpell(
+                    PriestSpellSession.start(
+                        runtime = runtime,
+                        spells = content.spells,
+                        place = PriestSpellPlace.Dungeon,
+                        prompts = content.prompts.priest,
+                    ),
                 ),
-            ),
             lastResult = YdargSessionResult(YdargSessionStatus.CastSpellRequested, floor, point),
         )
 
@@ -514,10 +640,11 @@ data class YdargSession(
         val finished = runtime.asWilderness()
         return copy(
             runtime = finished,
-            step = YdargSessionStep.Messages(
-                blocks = listOf(ydarg.text.teleportVortex, ydarg.text.teleportOutside),
-                next = YdargSessionStep.Finished(finished),
-            ),
+            step =
+                YdargSessionStep.Messages(
+                    blocks = listOf(ydarg.text.teleportVortex, ydarg.text.teleportOutside),
+                    next = YdargSessionStep.Finished(finished),
+                ),
             lastResult = YdargSessionResult(YdargSessionStatus.TeleportedOut, floor, point),
         )
     }
@@ -530,28 +657,31 @@ data class YdargSession(
         if (item.milestone !in party.milestones) {
             return copy(
                 step = YdargSessionStep.Messages(listOf(item.reject), YdargSessionStep.StairsMenu),
-                lastResult = YdargSessionResult(
-                    YdargSessionStatus.StairsItemMissing,
-                    floor,
-                    point,
-                    milestone = item.milestone,
-                ),
+                lastResult =
+                    YdargSessionResult(
+                        YdargSessionStatus.StairsItemMissing,
+                        floor,
+                        point,
+                        milestone = item.milestone,
+                    ),
             )
         }
 
         val nextFloor = floor + 1
         val nextRuntime = runtime.withActiveParty(party.withoutMilestone(item.milestone))
-        val moved = copy(
-            runtime = nextRuntime,
-            floor = nextFloor,
-            point = GridPoint(1, 1),
-            lastResult = YdargSessionResult(
-                YdargSessionStatus.StairsItemGiven,
-                floor,
-                point,
-                milestone = item.milestone,
-            ),
-        )
+        val moved =
+            copy(
+                runtime = nextRuntime,
+                floor = nextFloor,
+                point = GridPoint(1, 1),
+                lastResult =
+                    YdargSessionResult(
+                        YdargSessionStatus.StairsItemGiven,
+                        floor,
+                        point,
+                        milestone = item.milestone,
+                    ),
+            )
         return if (nextFloor > ydarg.stairs.floorCount) {
             moved.startConfrontation()
         } else {
@@ -563,48 +693,56 @@ data class YdargSession(
         val battle = startConfrontationBattle(runtime, 0)
         return copy(
             runtime = battle.runtime,
-            step = YdargSessionStep.Messages(
-                blocks = ydarg.text.confrontationAct1,
-                next = YdargSessionStep.Battle(battle, YdargBattleContinuation.ConfrontationSequence(0)),
-            ),
-            lastResult = YdargSessionResult(
-                YdargSessionStatus.ConfrontationStarted,
-                floor,
-                point,
-                monster = battle.encounter.monster.id,
-            ),
+            step =
+                YdargSessionStep.Messages(
+                    blocks = ydarg.text.confrontationAct1,
+                    next = YdargSessionStep.Battle(battle, YdargBattleContinuation.ConfrontationSequence(0)),
+                ),
+            lastResult =
+                YdargSessionResult(
+                    YdargSessionStatus.ConfrontationStarted,
+                    floor,
+                    point,
+                    monster = battle.encounter.monster.id,
+                ),
         )
     }
 
-    private fun continueConfrontationSequence(runtime: RuntimeSessionState, completedIndex: Int): YdargSession {
+    private fun continueConfrontationSequence(
+        runtime: RuntimeSessionState,
+        completedIndex: Int,
+    ): YdargSession {
         val nextIndex = completedIndex + 1
         if (nextIndex < ydarg.confrontation.sequence.size) {
             val battle = startConfrontationBattle(runtime, nextIndex)
             return copy(
                 runtime = battle.runtime,
                 step = YdargSessionStep.Battle(battle, YdargBattleContinuation.ConfrontationSequence(nextIndex)),
-                lastResult = YdargSessionResult(
-                    YdargSessionStatus.ConfrontationStarted,
-                    floor,
-                    point,
-                    monster = battle.encounter.monster.id,
-                ),
+                lastResult =
+                    YdargSessionResult(
+                        YdargSessionStatus.ConfrontationStarted,
+                        floor,
+                        point,
+                        monster = battle.encounter.monster.id,
+                    ),
             )
         }
         val baron = requireNotNull(ydarg.confrontation.baron) { "Ydarg confrontation baron is missing" }
         val battle = startMandatoryMonsterBattle(runtime, baron)
         return copy(
             runtime = battle.runtime,
-            step = YdargSessionStep.Messages(
-                blocks = ydarg.text.confrontationAct2,
-                next = YdargSessionStep.Battle(battle, YdargBattleContinuation.Baron),
-            ),
-            lastResult = YdargSessionResult(
-                YdargSessionStatus.ConfrontationStarted,
-                floor,
-                point,
-                monster = battle.encounter.monster.id,
-            ),
+            step =
+                YdargSessionStep.Messages(
+                    blocks = ydarg.text.confrontationAct2,
+                    next = YdargSessionStep.Battle(battle, YdargBattleContinuation.Baron),
+                ),
+            lastResult =
+                YdargSessionResult(
+                    YdargSessionStatus.ConfrontationStarted,
+                    floor,
+                    point,
+                    monster = battle.encounter.monster.id,
+                ),
         )
     }
 
@@ -613,23 +751,31 @@ data class YdargSession(
         val finished = completed.asWilderness()
         return copy(
             runtime = completed,
-            step = YdargSessionStep.Messages(
-                blocks = ydarg.text.confrontationAct3,
-                next = YdargSessionStep.Messages(
-                    blocks = ydarg.text.confrontationAct4,
-                    next = YdargSessionStep.Finished(finished),
+            step =
+                YdargSessionStep.Messages(
+                    blocks = ydarg.text.confrontationAct3,
+                    next =
+                        YdargSessionStep.Messages(
+                            blocks = ydarg.text.confrontationAct4,
+                            next = YdargSessionStep.Finished(finished),
+                        ),
                 ),
-            ),
             lastResult = YdargSessionResult(YdargSessionStatus.Victory, floor, point),
         )
     }
 
-    private fun startConfrontationBattle(runtime: RuntimeSessionState, index: Int): BattleSession =
-        startMandatoryMonsterBattle(runtime, ydarg.confrontation.sequence[index])
+    private fun startConfrontationBattle(
+        runtime: RuntimeSessionState,
+        index: Int,
+    ): BattleSession = startMandatoryMonsterBattle(runtime, ydarg.confrontation.sequence[index])
 
-    private fun startMandatoryMonsterBattle(runtime: RuntimeSessionState, monsterId: MonsterId): BattleSession {
-        val monster = content.monsters.firstOrNull { it.id == monsterId }
-            ?: error("Ydarg references missing monster ${monsterId.slug}")
+    private fun startMandatoryMonsterBattle(
+        runtime: RuntimeSessionState,
+        monsterId: MonsterId,
+    ): BattleSession {
+        val monster =
+            content.monsters.firstOrNull { it.id == monsterId }
+                ?: error("Ydarg references missing monster ${monsterId.slug}")
         return BattleSession.startMonster(
             runtime = runtime,
             monster = monster,
@@ -638,8 +784,7 @@ data class YdargSession(
         )
     }
 
-    private fun clearCurrentRoom(): YdargSession =
-        copy(rooms = rooms + (point to YdargRoomEvent.Empty))
+    private fun clearCurrentRoom(): YdargSession = copy(rooms = rooms + (point to YdargRoomEvent.Empty))
 
     private fun rollTreasure(): TreasureRoll {
         val gate = runtime.drawRandom(0, ydarg.treasure.gateMax)
@@ -655,29 +800,31 @@ data class YdargSession(
 
     private fun PartyState.applyPitfallDamage(): PartyState =
         copy(
-            members = members.map { member ->
-                if (member.dead) {
-                    member
-                } else {
-                    val damage = member.hitPoints.current / ydarg.pitfall.damageDivisor
-                    val nextHp = (member.hitPoints.current - damage).coerceAtLeast(0)
-                    member.copy(
-                        hitPoints = nextHp of member.hitPoints.max,
-                        dead = nextHp == 0,
-                    )
-                }
-            },
+            members =
+                members.map { member ->
+                    if (member.dead) {
+                        member
+                    } else {
+                        val damage = member.hitPoints.current / ydarg.pitfall.damageDivisor
+                        val nextHp = (member.hitPoints.current - damage).coerceAtLeast(0)
+                        member.copy(
+                            hitPoints = nextHp of member.hitPoints.max,
+                            dead = nextHp == 0,
+                        )
+                    }
+                },
         )
 
     private fun compassBlock(): TextBlock {
         val north = if (point.y > 1) "    8  North  " else ""
         val northStem = if (point.y > 1) "    |" else ""
-        val eastWest = when {
-            point.x > 1 && point.x < ydarg.mapSize -> " 4 -+- 6  East/West"
-            point.x < ydarg.mapSize -> "    +- 6  East"
-            point.x > 1 -> " 4 -+     West"
-            else -> ""
-        }
+        val eastWest =
+            when {
+                point.x > 1 && point.x < ydarg.mapSize -> " 4 -+- 6  East/West"
+                point.x < ydarg.mapSize -> "    +- 6  East"
+                point.x > 1 -> " 4 -+     West"
+                else -> ""
+            }
         val south = if (point.y < ydarg.mapSize) listOf("    |", "    2  South  ") else emptyList()
         return inlineText(*(listOf(north, northStem, eastWest) + south).toTypedArray())
     }
@@ -705,28 +852,33 @@ data class YdargSession(
     )
 
     companion object {
-        fun start(runtime: RuntimeSessionState, content: RuntimeContent): YdargSession {
+        fun start(
+            runtime: RuntimeSessionState,
+            content: RuntimeContent,
+        ): YdargSession {
             val ydarg = requireNotNull(content.ydarg) { "Ydarg content is not configured" }
             val startRuntime = runtime.asYdarg()
-            val base = YdargSession(
-                runtime = startRuntime,
-                content = content,
-                ydarg = ydarg,
-                rooms = emptyMap(),
-                floor = 1,
-                point = GridPoint(1, 1),
-                step = YdargSessionStep.RoomEntry,
-            )
+            val base =
+                YdargSession(
+                    runtime = startRuntime,
+                    content = content,
+                    ydarg = ydarg,
+                    rooms = emptyMap(),
+                    floor = 1,
+                    point = GridPoint(1, 1),
+                    step = YdargSessionStep.RoomEntry,
+                )
 
             if (ydarg.victoryMilestone in startRuntime.activeParty.milestones) {
                 val finished = startRuntime.asWilderness()
                 return base.copy(
                     runtime = finished,
-                    step = YdargSessionStep.Messages(
-                        blocks = listOf(ydarg.text.ruin),
-                        next = YdargSessionStep.Finished(finished),
-                        image = ydarg.image,
-                    ),
+                    step =
+                        YdargSessionStep.Messages(
+                            blocks = listOf(ydarg.text.ruin),
+                            next = YdargSessionStep.Finished(finished),
+                            image = ydarg.image,
+                        ),
                     lastResult = YdargSessionResult(YdargSessionStatus.AlreadyCleared),
                 )
             }
@@ -735,11 +887,12 @@ data class YdargSession(
                 val finished = startRuntime.asWilderness()
                 return base.copy(
                     runtime = finished,
-                    step = YdargSessionStep.Messages(
-                        blocks = listOf(ydarg.text.approach, ydarg.text.jaaraForm, ydarg.text.jaaraSpeech, ydarg.text.noKey),
-                        next = YdargSessionStep.Finished(finished),
-                        image = ydarg.image,
-                    ),
+                    step =
+                        YdargSessionStep.Messages(
+                            blocks = listOf(ydarg.text.approach, ydarg.text.jaaraForm, ydarg.text.jaaraSpeech, ydarg.text.noKey),
+                            next = YdargSessionStep.Finished(finished),
+                            image = ydarg.image,
+                        ),
                     lastResult = YdargSessionResult(YdargSessionStatus.MissingKey),
                 )
             }
@@ -748,18 +901,20 @@ data class YdargSession(
             return base.copy(
                 runtime = seeded.runtime,
                 rooms = seeded.rooms,
-                step = YdargSessionStep.Messages(
-                    blocks = listOf(
-                        ydarg.text.approach,
-                        ydarg.text.jaaraForm,
-                        ydarg.text.jaaraSpeech,
-                        ydarg.text.keyAccepted,
-                        ydarg.text.enter,
-                        ydarg.text.doorSlams,
+                step =
+                    YdargSessionStep.Messages(
+                        blocks =
+                            listOf(
+                                ydarg.text.approach,
+                                ydarg.text.jaaraForm,
+                                ydarg.text.jaaraSpeech,
+                                ydarg.text.keyAccepted,
+                                ydarg.text.enter,
+                                ydarg.text.doorSlams,
+                            ),
+                        next = YdargSessionStep.RoomEntry,
+                        image = ydarg.image,
                     ),
-                    next = YdargSessionStep.RoomEntry,
-                    image = ydarg.image,
-                ),
                 lastResult = YdargSessionResult(YdargSessionStatus.Entered, floor = 1, point = GridPoint(1, 1)),
             )
         }
@@ -767,16 +922,17 @@ data class YdargSession(
 
     private fun seedRooms(): SeededRooms {
         var nextRuntime = runtime
-        val generated = buildMap {
-            (1..ydarg.mapSize).forEach { x ->
-                (1..ydarg.mapSize).forEach { y ->
-                    val draw = nextRuntime.drawRandom(1, ydarg.roomTypeMax)
-                    nextRuntime = draw.runtime
-                    put(GridPoint(x, y), ydarg.roomEvents[draw.value] ?: YdargRoomEvent.Empty)
+        val generated =
+            buildMap {
+                (1..ydarg.mapSize).forEach { x ->
+                    (1..ydarg.mapSize).forEach { y ->
+                        val draw = nextRuntime.drawRandom(1, ydarg.roomTypeMax)
+                        nextRuntime = draw.runtime
+                        put(GridPoint(x, y), ydarg.roomEvents[draw.value] ?: YdargRoomEvent.Empty)
+                    }
                 }
+                put(GridPoint(ydarg.mapSize, ydarg.mapSize), YdargRoomEvent.Empty)
             }
-            put(GridPoint(ydarg.mapSize, ydarg.mapSize), YdargRoomEvent.Empty)
-        }
         return SeededRooms(nextRuntime, generated)
     }
 
@@ -823,16 +979,16 @@ private fun YdargSession.savedStep(): YdargSavedStep =
         else -> error("cannot save Ydarg while ${step.javaClass.simpleName} is active")
     }
 
-private fun YdargSession.snapshotStep(): YdargSessionStep =
-    (step as? YdargSessionStep.Save)?.next ?: step
+private fun YdargSession.snapshotStep(): YdargSessionStep = (step as? YdargSessionStep.Save)?.next ?: step
 
 private fun YdargSessionSnapshot.toStep(): YdargSessionStep =
     when (step) {
         YdargSavedStep.RoomEntry -> YdargSessionStep.RoomEntry
         YdargSavedStep.Navigate -> YdargSessionStep.Navigate
-        YdargSavedStep.TreasureOffer -> YdargSessionStep.TreasureOffer(
-            checkNotNull(treasureItem) { "Ydarg treasure-offer snapshot requires treasureItem" },
-        )
+        YdargSavedStep.TreasureOffer ->
+            YdargSessionStep.TreasureOffer(
+                checkNotNull(treasureItem) { "Ydarg treasure-offer snapshot requires treasureItem" },
+            )
         YdargSavedStep.StairsMenu -> YdargSessionStep.StairsMenu
         YdargSavedStep.StairGive -> YdargSessionStep.StairGive
     }

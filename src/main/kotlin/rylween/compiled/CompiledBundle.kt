@@ -1,7 +1,147 @@
 package rylween.compiled
 
-import rylween.dsl.*
-import rylween.runtime.*
+import rylween.dsl.BoolAst
+import rylween.dsl.BuildingId
+import rylween.dsl.BuildingServiceModel
+import rylween.dsl.CharacterModel
+import rylween.dsl.CharacterPlacementModel
+import rylween.dsl.DungeonEventDisposition
+import rylween.dsl.DungeonEventId
+import rylween.dsl.DungeonEventModel
+import rylween.dsl.DungeonId
+import rylween.dsl.DungeonScenarioModel
+import rylween.dsl.EncounterTier
+import rylween.dsl.EngineServiceUse
+import rylween.dsl.Facing
+import rylween.dsl.FlagContentModel
+import rylween.dsl.FlagScope
+import rylween.dsl.FlagState
+import rylween.dsl.FormulaId
+import rylween.dsl.FormulaModel
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.GameModel
+import rylween.dsl.GameUniverseModel
+import rylween.dsl.Gender
+import rylween.dsl.GridPoint
+import rylween.dsl.GridSize
+import rylween.dsl.HitPoints
+import rylween.dsl.ImageAssetKind
+import rylween.dsl.ImageAssetModel
+import rylween.dsl.ImageId
+import rylween.dsl.ImagePlacement
+import rylween.dsl.InputBindingModel
+import rylween.dsl.IntAst
+import rylween.dsl.ItemConsumePolicy
+import rylween.dsl.ItemId
+import rylween.dsl.ItemKind
+import rylween.dsl.ItemPoolId
+import rylween.dsl.ItemRecordModel
+import rylween.dsl.ItemStorageKind
+import rylween.dsl.ItemUseContext
+import rylween.dsl.ItemUseModel
+import rylween.dsl.JournalEntryState
+import rylween.dsl.KeyActionId
+import rylween.dsl.LValueAst
+import rylween.dsl.LocationId
+import rylween.dsl.LootTableId
+import rylween.dsl.LootTableModel
+import rylween.dsl.Mana
+import rylween.dsl.MapLayerId
+import rylween.dsl.MissionId
+import rylween.dsl.MissionModel
+import rylween.dsl.MonsterId
+import rylween.dsl.MonsterModel
+import rylween.dsl.NativeStringArg
+import rylween.dsl.NpcId
+import rylween.dsl.NpcJobId
+import rylween.dsl.NpcRole
+import rylween.dsl.Op
+import rylween.dsl.PartyId
+import rylween.dsl.PartyMemberState
+import rylween.dsl.PartyResources
+import rylween.dsl.PartyState
+import rylween.dsl.PcClass
+import rylween.dsl.Race
+import rylween.dsl.RandomItemOfferModel
+import rylween.dsl.RealmState
+import rylween.dsl.Resource
+import rylween.dsl.RewardApplicationModel
+import rylween.dsl.RewardBundleId
+import rylween.dsl.RewardBundleModel
+import rylween.dsl.RewardMessageModel
+import rylween.dsl.RumourTableId
+import rylween.dsl.RuntimeMode
+import rylween.dsl.RylweenModel
+import rylween.dsl.SceneId
+import rylween.dsl.ScreenRegionId
+import rylween.dsl.ScreenRegionModel
+import rylween.dsl.ScriptRewardModel
+import rylween.dsl.ShopBuyModel
+import rylween.dsl.ShopCatalogModel
+import rylween.dsl.ShopInterludeModel
+import rylween.dsl.ShopItemOfferModel
+import rylween.dsl.ShopPriceModel
+import rylween.dsl.ShopPurchaseModel
+import rylween.dsl.ShopQuantityCap
+import rylween.dsl.ShopSellBargainModel
+import rylween.dsl.ShopSellModel
+import rylween.dsl.ShopServiceModel
+import rylween.dsl.ShopZeroQuantityDealPolicy
+import rylween.dsl.SpellId
+import rylween.dsl.SpellModel
+import rylween.dsl.StateId
+import rylween.dsl.StateKind
+import rylween.dsl.StateModel
+import rylween.dsl.StaticScreenId
+import rylween.dsl.StaticScreenModel
+import rylween.dsl.StaticScreenRuntimeReport
+import rylween.dsl.StrAst
+import rylween.dsl.TemperatureBand
+import rylween.dsl.TerrainId
+import rylween.dsl.TerrainSemanticsModel
+import rylween.dsl.TerrainSettlement
+import rylween.dsl.TerrainTagId
+import rylween.dsl.TextBlock
+import rylween.dsl.TextPart
+import rylween.dsl.TownId
+import rylween.dsl.TownKind
+import rylween.dsl.TownModel
+import rylween.dsl.Trigger
+import rylween.dsl.ViewCommand
+import rylween.dsl.Wilderness
+import rylween.dsl.WorldMapId
+import rylween.dsl.WorldMapModel
+import rylween.dsl.WorldPosition
+import rylween.dsl.building
+import rylween.dsl.character
+import rylween.dsl.dungeon
+import rylween.dsl.dungeonEvent
+import rylween.dsl.formula
+import rylween.dsl.image
+import rylween.dsl.item
+import rylween.dsl.line
+import rylween.dsl.lines
+import rylween.dsl.location
+import rylween.dsl.lootTable
+import rylween.dsl.milestone
+import rylween.dsl.monster
+import rylween.dsl.npc
+import rylween.dsl.rumour
+import rylween.dsl.runtimeContent
+import rylween.dsl.terrain
+import rylween.dsl.text
+import rylween.dsl.town
+import rylween.runtime.DungeonSavedStep
+import rylween.runtime.RuntimeModeSnapshot
+import rylween.runtime.RuntimeSnapshotMetadata
+import rylween.runtime.RuntimeSnapshotModel
+import rylween.runtime.ScriptContinuationSnapshot
+import rylween.runtime.ScriptRootRef
+import rylween.runtime.YdargSessionSnapshot
+import rylween.runtime.facing
+import rylween.runtime.party
+import rylween.runtime.prompt
+import rylween.runtime.scriptRootCatalog
 
 data class CompiledGameBundle(
     val content: CompiledContentBundle,
@@ -57,8 +197,7 @@ data class CompiledStringTable(
 
     fun idOf(value: String): Int? = lookup[value]
 
-    fun value(id: Int): String =
-        entries.getOrNull(id - 1) ?: error("unknown string id $id")
+    fun value(id: Int): String = entries.getOrNull(id - 1) ?: error("unknown string id $id")
 }
 
 data class CompiledStringHashEntry(
@@ -135,17 +274,25 @@ data class CompiledHandleTable(
             CompiledHandleHashEntry(
                 kind = handle.ref.kind,
                 slugString = handle.slugString,
-                hash = 31 * handle.ref.kind.name.hashCode() + handle.slugString,
+                hash =
+                    31 *
+                        handle.ref.kind.name
+                            .hashCode() + handle.slugString,
                 ref = handle.ref,
             )
         }
 
-    fun ref(kind: CompiledHandleKind, slugString: Int): CompiledHandleRef =
+    fun ref(
+        kind: CompiledHandleKind,
+        slugString: Int,
+    ): CompiledHandleRef =
         lookup[kind to slugString]?.ref
             ?: error("unknown compiled handle ${kind.name} string id $slugString")
 
-    fun refOrNull(kind: CompiledHandleKind, slugString: Int): CompiledHandleRef? =
-        lookup[kind to slugString]?.ref
+    fun refOrNull(
+        kind: CompiledHandleKind,
+        slugString: Int,
+    ): CompiledHandleRef? = lookup[kind to slugString]?.ref
 
     fun handle(ref: CompiledHandleRef): CompiledHandle =
         handles.firstOrNull { it.ref == ref }
@@ -277,8 +424,12 @@ data class CompiledCharacter(
 )
 
 sealed interface CompiledCharacterPlacement {
-    data class Fixed(val position: CompiledWorldPosition) : CompiledCharacterPlacement
+    data class Fixed(
+        val position: CompiledWorldPosition,
+    ) : CompiledCharacterPlacement
+
     data object Randomized : CompiledCharacterPlacement
+
     data object RandomizedWilderness : CompiledCharacterPlacement
 }
 
@@ -339,17 +490,27 @@ data class CompiledDungeonRandomEvent(
 )
 
 sealed interface CompiledTrigger {
-    data class RandomStep(val percent: Int) : CompiledTrigger
-    data class AtPosition(val point: GridPoint) : CompiledTrigger
-    data class AtLocation(val location: CompiledHandleRef) : CompiledTrigger
-    data class OnTerrain(val terrain: CompiledHandleRef) : CompiledTrigger
+    data class RandomStep(
+        val percent: Int,
+    ) : CompiledTrigger
+
+    data class AtPosition(
+        val point: GridPoint,
+    ) : CompiledTrigger
+
+    data class AtLocation(
+        val location: CompiledHandleRef,
+    ) : CompiledTrigger
+
+    data class OnTerrain(
+        val terrain: CompiledHandleRef,
+    ) : CompiledTrigger
 }
 
 data class CompiledScriptBundle(
     val roots: List<CompiledScriptProgram>,
 ) {
-    fun root(root: ScriptRootRef): CompiledScriptProgram? =
-        roots.firstOrNull { it.root.sameRoot(root) }
+    fun root(root: ScriptRootRef): CompiledScriptProgram? = roots.firstOrNull { it.root.sameRoot(root) }
 }
 
 data class CompiledScriptProgram(
@@ -410,28 +571,93 @@ data class CompiledInstruction(
 )
 
 sealed interface CompiledOperand {
-    data class Integer(val value: Int) : CompiledOperand
-    data class BooleanValue(val value: Boolean) : CompiledOperand
-    data class Character(val value: Char) : CompiledOperand
-    data class StringId(val id: Int) : CompiledOperand
-    data class StringIdList(val ids: List<Int>) : CompiledOperand
-    data class Handle(val ref: CompiledHandleRef) : CompiledOperand
-    data class HandleList(val refs: List<CompiledHandleRef>) : CompiledOperand
-    data class TextBlockValue(val value: CompiledTextBlock) : CompiledOperand
-    data class IntExprValue(val value: CompiledIntExpr) : CompiledOperand
-    data class BoolExprValue(val value: CompiledBoolExpr) : CompiledOperand
-    data class StringExprValue(val value: CompiledStringExpr) : CompiledOperand
-    data class LValueValue(val value: CompiledLValue) : CompiledOperand
-    data class ViewCommandValue(val value: CompiledViewCommand) : CompiledOperand
-    data class Instructions(val instructions: List<CompiledInstruction>) : CompiledOperand
-    data class SwitchCases(val cases: List<CompiledSwitchCase>) : CompiledOperand
-    data class MenuOptions(val options: List<CompiledMenuOption>) : CompiledOperand
-    data class InputBindings(val bindings: List<CompiledInputBinding>) : CompiledOperand
-    data class TextAnswer(val answer: CompiledTextAnswer) : CompiledOperand
-    data class Reward(val reward: CompiledScriptReward) : CompiledOperand
-    data class RandomItemOffer(val offer: CompiledRandomItemOffer) : CompiledOperand
-    data class ShopService(val service: CompiledShopService) : CompiledOperand
-    data class EnumName(val name: String) : CompiledOperand
+    data class Integer(
+        val value: Int,
+    ) : CompiledOperand
+
+    data class BooleanValue(
+        val value: Boolean,
+    ) : CompiledOperand
+
+    data class Character(
+        val value: Char,
+    ) : CompiledOperand
+
+    data class StringId(
+        val id: Int,
+    ) : CompiledOperand
+
+    data class StringIdList(
+        val ids: List<Int>,
+    ) : CompiledOperand
+
+    data class Handle(
+        val ref: CompiledHandleRef,
+    ) : CompiledOperand
+
+    data class HandleList(
+        val refs: List<CompiledHandleRef>,
+    ) : CompiledOperand
+
+    data class TextBlockValue(
+        val value: CompiledTextBlock,
+    ) : CompiledOperand
+
+    data class IntExprValue(
+        val value: CompiledIntExpr,
+    ) : CompiledOperand
+
+    data class BoolExprValue(
+        val value: CompiledBoolExpr,
+    ) : CompiledOperand
+
+    data class StringExprValue(
+        val value: CompiledStringExpr,
+    ) : CompiledOperand
+
+    data class LValueValue(
+        val value: CompiledLValue,
+    ) : CompiledOperand
+
+    data class ViewCommandValue(
+        val value: CompiledViewCommand,
+    ) : CompiledOperand
+
+    data class Instructions(
+        val instructions: List<CompiledInstruction>,
+    ) : CompiledOperand
+
+    data class SwitchCases(
+        val cases: List<CompiledSwitchCase>,
+    ) : CompiledOperand
+
+    data class MenuOptions(
+        val options: List<CompiledMenuOption>,
+    ) : CompiledOperand
+
+    data class InputBindings(
+        val bindings: List<CompiledInputBinding>,
+    ) : CompiledOperand
+
+    data class TextAnswer(
+        val answer: CompiledTextAnswer,
+    ) : CompiledOperand
+
+    data class Reward(
+        val reward: CompiledScriptReward,
+    ) : CompiledOperand
+
+    data class RandomItemOffer(
+        val offer: CompiledRandomItemOffer,
+    ) : CompiledOperand
+
+    data class ShopService(
+        val service: CompiledShopService,
+    ) : CompiledOperand
+
+    data class EnumName(
+        val name: String,
+    ) : CompiledOperand
 }
 
 data class CompiledSwitchCase(
@@ -460,9 +686,17 @@ data class CompiledTextAnswer(
 )
 
 sealed interface CompiledTextBlock {
-    data class Ref(val text: CompiledHandleRef) : CompiledTextBlock
-    data class Inline(val lineStrings: List<Int>) : CompiledTextBlock
-    data class Structured(val lines: List<CompiledTextLine>) : CompiledTextBlock
+    data class Ref(
+        val text: CompiledHandleRef,
+    ) : CompiledTextBlock
+
+    data class Inline(
+        val lineStrings: List<Int>,
+    ) : CompiledTextBlock
+
+    data class Structured(
+        val lines: List<CompiledTextLine>,
+    ) : CompiledTextBlock
 }
 
 data class CompiledTextLine(
@@ -470,15 +704,42 @@ data class CompiledTextLine(
 )
 
 sealed interface CompiledTextPart {
-    data class Literal(val string: Int) : CompiledTextPart
-    data class IntValue(val value: CompiledIntExpr) : CompiledTextPart
-    data class StringValue(val value: CompiledStringExpr) : CompiledTextPart
-    data class RoleName(val role: CompiledHandleRef) : CompiledTextPart
-    data class RoleLocation(val role: CompiledHandleRef) : CompiledTextPart
-    data class TownName(val town: CompiledHandleRef) : CompiledTextPart
-    data class FuzzyTownLocation(val town: CompiledHandleRef, val radius: Int) : CompiledTextPart
-    data class LocationCoordinate(val location: CompiledHandleRef) : CompiledTextPart
-    data class Runtime(val kind: CompiledRuntimeTextPart) : CompiledTextPart
+    data class Literal(
+        val string: Int,
+    ) : CompiledTextPart
+
+    data class IntValue(
+        val value: CompiledIntExpr,
+    ) : CompiledTextPart
+
+    data class StringValue(
+        val value: CompiledStringExpr,
+    ) : CompiledTextPart
+
+    data class RoleName(
+        val role: CompiledHandleRef,
+    ) : CompiledTextPart
+
+    data class RoleLocation(
+        val role: CompiledHandleRef,
+    ) : CompiledTextPart
+
+    data class TownName(
+        val town: CompiledHandleRef,
+    ) : CompiledTextPart
+
+    data class FuzzyTownLocation(
+        val town: CompiledHandleRef,
+        val radius: Int,
+    ) : CompiledTextPart
+
+    data class LocationCoordinate(
+        val location: CompiledHandleRef,
+    ) : CompiledTextPart
+
+    data class Runtime(
+        val kind: CompiledRuntimeTextPart,
+    ) : CompiledTextPart
 }
 
 enum class CompiledRuntimeTextPart {
@@ -508,64 +769,176 @@ enum class CompiledRuntimeTextPart {
 
 sealed interface CompiledViewCommand {
     data object ClearText : CompiledViewCommand
+
     data object ClearMapWindow : CompiledViewCommand
+
     data object RenderMap : CompiledViewCommand
+
     data object StatusLine : CompiledViewCommand
-    data class ShowImage(val image: CompiledHandleRef) : CompiledViewCommand
+
+    data class ShowImage(
+        val image: CompiledHandleRef,
+    ) : CompiledViewCommand
 }
 
 sealed interface CompiledIntExpr {
-    data class Literal(val value: Int) : CompiledIntExpr
-    data class Local(val nameString: Int) : CompiledIntExpr
-    data class Binary(val left: CompiledIntExpr, val op: CompiledBinaryOp, val right: CompiledIntExpr) :
-        CompiledIntExpr
-    data class If(val cond: CompiledBoolExpr, val thenValue: CompiledIntExpr, val elseValue: CompiledIntExpr) :
-        CompiledIntExpr
-    data class Random(val lo: CompiledIntExpr, val hi: CompiledIntExpr) : CompiledIntExpr
-    data class MemberField(val member: CompiledIntExpr, val fieldString: Int) : CompiledIntExpr
-    data class MonsterField(val monster: CompiledIntExpr, val fieldString: Int) : CompiledIntExpr
-    data class BattleFlag(val nameString: Int) : CompiledIntExpr
-    data class BattleQuery(val nameString: Int) : CompiledIntExpr
-    data class RealmScalar(val nameString: Int) : CompiledIntExpr
-    data class PartyScalar(val nameString: Int) : CompiledIntExpr
-    data class InventoryPoolCount(val pool: CompiledHandleRef) : CompiledIntExpr
-    data class InventorySlotCost(val slot: CompiledIntExpr) : CompiledIntExpr
-    data class NativeInt(val pathString: Int, val argStrings: List<Int>) : CompiledIntExpr
+    data class Literal(
+        val value: Int,
+    ) : CompiledIntExpr
+
+    data class Local(
+        val nameString: Int,
+    ) : CompiledIntExpr
+
+    data class Binary(
+        val left: CompiledIntExpr,
+        val op: CompiledBinaryOp,
+        val right: CompiledIntExpr,
+    ) : CompiledIntExpr
+
+    data class If(
+        val cond: CompiledBoolExpr,
+        val thenValue: CompiledIntExpr,
+        val elseValue: CompiledIntExpr,
+    ) : CompiledIntExpr
+
+    data class Random(
+        val lo: CompiledIntExpr,
+        val hi: CompiledIntExpr,
+    ) : CompiledIntExpr
+
+    data class MemberField(
+        val member: CompiledIntExpr,
+        val fieldString: Int,
+    ) : CompiledIntExpr
+
+    data class MonsterField(
+        val monster: CompiledIntExpr,
+        val fieldString: Int,
+    ) : CompiledIntExpr
+
+    data class BattleFlag(
+        val nameString: Int,
+    ) : CompiledIntExpr
+
+    data class BattleQuery(
+        val nameString: Int,
+    ) : CompiledIntExpr
+
+    data class RealmScalar(
+        val nameString: Int,
+    ) : CompiledIntExpr
+
+    data class PartyScalar(
+        val nameString: Int,
+    ) : CompiledIntExpr
+
+    data class InventoryPoolCount(
+        val pool: CompiledHandleRef,
+    ) : CompiledIntExpr
+
+    data class InventorySlotCost(
+        val slot: CompiledIntExpr,
+    ) : CompiledIntExpr
+
+    data class NativeInt(
+        val pathString: Int,
+        val argStrings: List<Int>,
+    ) : CompiledIntExpr
 }
 
 enum class CompiledBinaryOp { Add, Sub, Mul, Div, Mod }
 
 sealed interface CompiledBoolExpr {
-    data class Cmp(val left: CompiledIntExpr, val op: CompiledComparisonOp, val right: CompiledIntExpr) :
-        CompiledBoolExpr
-    data class Not(val expr: CompiledBoolExpr) : CompiledBoolExpr
-    data class And(val left: CompiledBoolExpr, val right: CompiledBoolExpr) : CompiledBoolExpr
-    data class Or(val left: CompiledBoolExpr, val right: CompiledBoolExpr) : CompiledBoolExpr
-    data class FlagIs(val flag: CompiledHandleRef, val state: CompiledHandleRef) : CompiledBoolExpr
-    data class MilestoneAchieved(val milestone: CompiledHandleRef) : CompiledBoolExpr
-    data class MemberFlag(val member: CompiledIntExpr, val nameString: Int) : CompiledBoolExpr
-    data class MonsterFlag(val monster: CompiledIntExpr, val nameString: Int) : CompiledBoolExpr
-    data class BattleFlag(val nameString: Int) : CompiledBoolExpr
-    data class RuntimeFlag(val nameString: Int) : CompiledBoolExpr
+    data class Cmp(
+        val left: CompiledIntExpr,
+        val op: CompiledComparisonOp,
+        val right: CompiledIntExpr,
+    ) : CompiledBoolExpr
+
+    data class Not(
+        val expr: CompiledBoolExpr,
+    ) : CompiledBoolExpr
+
+    data class And(
+        val left: CompiledBoolExpr,
+        val right: CompiledBoolExpr,
+    ) : CompiledBoolExpr
+
+    data class Or(
+        val left: CompiledBoolExpr,
+        val right: CompiledBoolExpr,
+    ) : CompiledBoolExpr
+
+    data class FlagIs(
+        val flag: CompiledHandleRef,
+        val state: CompiledHandleRef,
+    ) : CompiledBoolExpr
+
+    data class MilestoneAchieved(
+        val milestone: CompiledHandleRef,
+    ) : CompiledBoolExpr
+
+    data class MemberFlag(
+        val member: CompiledIntExpr,
+        val nameString: Int,
+    ) : CompiledBoolExpr
+
+    data class MonsterFlag(
+        val monster: CompiledIntExpr,
+        val nameString: Int,
+    ) : CompiledBoolExpr
+
+    data class BattleFlag(
+        val nameString: Int,
+    ) : CompiledBoolExpr
+
+    data class RuntimeFlag(
+        val nameString: Int,
+    ) : CompiledBoolExpr
 }
 
 enum class CompiledComparisonOp { Eq, Ne, Lt, Lte, Gt, Gte }
 
 sealed interface CompiledStringExpr {
-    data class NativeString(val pathString: Int, val args: List<CompiledNativeStringArg>) : CompiledStringExpr
+    data class NativeString(
+        val pathString: Int,
+        val args: List<CompiledNativeStringArg>,
+    ) : CompiledStringExpr
 }
 
 sealed interface CompiledNativeStringArg {
-    data class Literal(val string: Int) : CompiledNativeStringArg
-    data class IntValue(val value: CompiledIntExpr) : CompiledNativeStringArg
+    data class Literal(
+        val string: Int,
+    ) : CompiledNativeStringArg
+
+    data class IntValue(
+        val value: CompiledIntExpr,
+    ) : CompiledNativeStringArg
 }
 
 sealed interface CompiledLValue {
-    data class RealmScalar(val nameString: Int) : CompiledLValue
-    data class PartyScalar(val nameString: Int) : CompiledLValue
-    data class MemberField(val member: CompiledIntExpr, val fieldString: Int) : CompiledLValue
-    data class MonsterField(val monster: CompiledIntExpr, val fieldString: Int) : CompiledLValue
-    data class BattleFlag(val nameString: Int) : CompiledLValue
+    data class RealmScalar(
+        val nameString: Int,
+    ) : CompiledLValue
+
+    data class PartyScalar(
+        val nameString: Int,
+    ) : CompiledLValue
+
+    data class MemberField(
+        val member: CompiledIntExpr,
+        val fieldString: Int,
+    ) : CompiledLValue
+
+    data class MonsterField(
+        val monster: CompiledIntExpr,
+        val fieldString: Int,
+    ) : CompiledLValue
+
+    data class BattleFlag(
+        val nameString: Int,
+    ) : CompiledLValue
 }
 
 data class CompiledScriptReward(
@@ -662,14 +1035,25 @@ data class CompiledShopItemOffer(
 
 sealed interface CompiledShopPrice {
     data object ItemCost : CompiledShopPrice
+
     data object HalfItemCost : CompiledShopPrice
-    data class Fixed(val amount: Int) : CompiledShopPrice
-    data class LeaderLevelPlus(val addend: Int) : CompiledShopPrice
-    data class ItemCostPlusLeaderLevelTimes(val multiplier: Int) : CompiledShopPrice
+
+    data class Fixed(
+        val amount: Int,
+    ) : CompiledShopPrice
+
+    data class LeaderLevelPlus(
+        val addend: Int,
+    ) : CompiledShopPrice
+
+    data class ItemCostPlusLeaderLevelTimes(
+        val multiplier: Int,
+    ) : CompiledShopPrice
 }
 
 sealed interface CompiledShopPurchase {
     data object InventoryItem : CompiledShopPurchase
+
     data class Bulk(
         val resource: Resource,
         val quantityPrompt: CompiledTextBlock,
@@ -744,8 +1128,14 @@ data class CompiledNpcPlacement(
 )
 
 sealed interface CompiledWorldPosition {
-    data class Wilderness(val point: GridPoint) : CompiledWorldPosition
-    data class Town(val town: CompiledHandleRef, val building: CompiledHandleRef) : CompiledWorldPosition
+    data class Wilderness(
+        val point: GridPoint,
+    ) : CompiledWorldPosition
+
+    data class Town(
+        val town: CompiledHandleRef,
+        val building: CompiledHandleRef,
+    ) : CompiledWorldPosition
 }
 
 data class CompiledPartyImage(
@@ -788,8 +1178,13 @@ data class CompiledNpcVisit(
 )
 
 sealed interface CompiledJournalEntry {
-    data class Text(val text: CompiledHandleRef) : CompiledJournalEntry
-    data class Line(val textString: Int) : CompiledJournalEntry
+    data class Text(
+        val text: CompiledHandleRef,
+    ) : CompiledJournalEntry
+
+    data class Line(
+        val textString: Int,
+    ) : CompiledJournalEntry
 }
 
 data class CompiledPartyMember(
@@ -815,7 +1210,10 @@ data class CompiledEquipment(
 )
 
 sealed interface CompiledRuntimeModeImage {
-    data class YdargCastle(val session: YdargSessionSnapshot) : CompiledRuntimeModeImage
+    data class YdargCastle(
+        val session: YdargSessionSnapshot,
+    ) : CompiledRuntimeModeImage
+
     data class Dungeon(
         val session: CompiledDungeonSessionImage,
         val postDungeon: CompiledMissionPostDungeonImage?,
@@ -836,11 +1234,9 @@ data class CompiledMissionPostDungeonImage(
     val continuation: ScriptContinuationSnapshot,
 )
 
-fun RylweenModel.toCompiledGameBundle(): CompiledGameBundle =
-    CompiledBundleCompiler(content, states).compile()
+fun RylweenModel.toCompiledGameBundle(): CompiledGameBundle = CompiledBundleCompiler(content, states).compile()
 
-fun GameModel.toCompiledContentBundle(): CompiledContentBundle =
-    CompiledBundleCompiler(this, emptyList()).compile().content
+fun GameModel.toCompiledContentBundle(): CompiledContentBundle = CompiledBundleCompiler(this, emptyList()).compile().content
 
 private class CompiledBundleCompiler(
     private val game: GameModel,
@@ -854,11 +1250,12 @@ private class CompiledBundleCompiler(
         declareStateHandles()
         val scripts = compileScripts()
         val universe = compileUniverse(game.metadata.universe)
-        val limits = CompiledLimits(
-            maxWorldMaps = game.limits.maxWorldMaps,
-            maxMapCells = game.limits.maxMapCells,
-            screenSize = game.limits.screenSize,
-        )
+        val limits =
+            CompiledLimits(
+                maxWorldMaps = game.limits.maxWorldMaps,
+                maxMapCells = game.limits.maxMapCells,
+                screenSize = game.limits.screenSize,
+            )
         val flags = game.authoredFlags.map(::compileFlag)
         val items = game.itemCatalog.map(::compileItem)
         val itemPools = game.itemPools.map(::compileItemPool)
@@ -870,7 +1267,11 @@ private class CompiledBundleCompiler(
         val staticScreens = game.visuals.staticScreens.map(::compileStaticScreen)
         val screenRegions = game.layouts.regions.map(::compileRegion)
         val towns = game.towns.map(::compileTown)
-        val buildingServices = game.townSystem?.buildingServices.orEmpty().map(::compileBuildingService)
+        val buildingServices =
+            game.townSystem
+                ?.buildingServices
+                .orEmpty()
+                .map(::compileBuildingService)
         val characters = game.characters.map(::compileCharacter)
         val monsters = game.monsters.map(::compileMonster)
         val missions = game.missions.map(::compileMission)
@@ -879,32 +1280,33 @@ private class CompiledBundleCompiler(
         val dungeonEvents = game.dungeons.events.map(::compileDungeonEvent)
         val dungeonScenarios = game.dungeons.scenarios.map(::compileDungeonScenario)
         val stateImages = states.map { state -> compileState(RuntimeSnapshotModel(state)) }
-        val content = CompiledContentBundle(
-            universe = universe,
-            limits = limits,
-            strings = strings.toTable(),
-            handles = handles.toTable(),
-            flags = flags,
-            items = items,
-            itemPools = itemPools,
-            formulas = formulas,
-            rewards = rewards,
-            terrain = terrain,
-            worldMaps = worldMaps,
-            images = images,
-            staticScreens = staticScreens,
-            screenRegions = screenRegions,
-            towns = towns,
-            buildingServices = buildingServices,
-            characters = characters,
-            monsters = monsters,
-            missions = missions,
-            spells = spells,
-            itemUses = itemUses,
-            dungeonEvents = dungeonEvents,
-            dungeonScenarios = dungeonScenarios,
-            scripts = scripts,
-        )
+        val content =
+            CompiledContentBundle(
+                universe = universe,
+                limits = limits,
+                strings = strings.toTable(),
+                handles = handles.toTable(),
+                flags = flags,
+                items = items,
+                itemPools = itemPools,
+                formulas = formulas,
+                rewards = rewards,
+                terrain = terrain,
+                worldMaps = worldMaps,
+                images = images,
+                staticScreens = staticScreens,
+                screenRegions = screenRegions,
+                towns = towns,
+                buildingServices = buildingServices,
+                characters = characters,
+                monsters = monsters,
+                missions = missions,
+                spells = spells,
+                itemUses = itemUses,
+                dungeonEvents = dungeonEvents,
+                dungeonScenarios = dungeonScenarios,
+                scripts = scripts,
+            )
         return CompiledGameBundle(
             content = content,
             states = stateImages,
@@ -967,7 +1369,8 @@ private class CompiledBundleCompiler(
             when (val placement = character.placement) {
                 is CharacterPlacementModel.Fixed -> declarePositionHandles(placement.position)
                 CharacterPlacementModel.Randomized,
-                CharacterPlacementModel.RandomizedWilderness -> Unit
+                CharacterPlacementModel.RandomizedWilderness,
+                -> Unit
             }
         }
         game.scenes.forEach { handles.add(CompiledHandleKind.Scene, it.id.slug) }
@@ -1071,7 +1474,8 @@ private class CompiledBundleCompiler(
             is Trigger.AtLocation -> handles.add(CompiledHandleKind.Location, trigger.location.slug)
             is Trigger.OnTerrain -> handles.add(CompiledHandleKind.Terrain, trigger.terrain.slug)
             is Trigger.AtPosition,
-            is Trigger.RandomStep -> Unit
+            is Trigger.RandomStep,
+            -> Unit
         }
     }
 
@@ -1082,8 +1486,8 @@ private class CompiledBundleCompiler(
 
     private fun compileScripts(): CompiledScriptBundle {
         val catalog = game.runtimeContent().scriptRootCatalog()
-        fun rootHandle(root: ScriptRootRef): CompiledHandleRef =
-            handles.ref(CompiledHandleKind.ScriptRoot, scriptRootSlug(root))
+
+        fun rootHandle(root: ScriptRootRef): CompiledHandleRef = handles.ref(CompiledHandleKind.ScriptRoot, scriptRootSlug(root))
 
         return CompiledScriptBundle(
             buildList {
@@ -1117,200 +1521,233 @@ private class CompiledBundleCompiler(
         )
     }
 
-    private fun compileOps(ops: List<Op>): List<CompiledInstruction> =
-        ops.map(::compileOp)
+    private fun compileOps(ops: List<Op>): List<CompiledInstruction> = ops.map(::compileOp)
 
     private fun compileOp(op: Op): CompiledInstruction =
         when (op) {
             is Op.Screen -> instruction(CompiledOpcode.Screen, CompiledOperand.TextBlockValue(text(op.text)))
             is Op.Emit -> instruction(CompiledOpcode.Emit, CompiledOperand.Handle(textRef(op.text.id)))
-            is Op.EmitIndexed -> instruction(
-                CompiledOpcode.EmitIndexed,
-                CompiledOperand.StringId(strings.id(op.pattern.pattern)),
-                CompiledOperand.IntExprValue(intExpr(op.value)),
-            )
+            is Op.EmitIndexed ->
+                instruction(
+                    CompiledOpcode.EmitIndexed,
+                    CompiledOperand.StringId(strings.id(op.pattern.pattern)),
+                    CompiledOperand.IntExprValue(intExpr(op.value)),
+                )
             is Op.WaitInput -> instruction(CompiledOpcode.WaitInput, op.reason?.let { CompiledOperand.StringId(strings.id(it)) })
             is Op.Pause -> instruction(CompiledOpcode.Pause, CompiledOperand.Integer(op.millis))
             is Op.View -> instruction(CompiledOpcode.View, CompiledOperand.ViewCommandValue(viewCommand(op.command)))
-            is Op.LetInt -> instruction(
-                CompiledOpcode.LetInt,
-                CompiledOperand.StringId(strings.id(op.name)),
-                CompiledOperand.IntExprValue(intExpr(op.value)),
-            )
-            is Op.BindText -> instruction(
-                CompiledOpcode.BindText,
-                CompiledOperand.StringId(strings.id(op.name)),
-                CompiledOperand.StringExprValue(stringExpr(op.value)),
-            )
-            is Op.Set -> instruction(
-                CompiledOpcode.Set,
-                CompiledOperand.LValueValue(lvalue(op.target)),
-                CompiledOperand.IntExprValue(intExpr(op.value)),
-            )
-            is Op.Add -> instruction(
-                CompiledOpcode.Add,
-                CompiledOperand.LValueValue(lvalue(op.target)),
-                CompiledOperand.IntExprValue(intExpr(op.value)),
-            )
-            is Op.Sub -> instruction(
-                CompiledOpcode.Sub,
-                CompiledOperand.LValueValue(lvalue(op.target)),
-                CompiledOperand.IntExprValue(intExpr(op.value)),
-            )
-            is Op.AddClamped -> instruction(
-                CompiledOpcode.AddClamped,
-                CompiledOperand.LValueValue(lvalue(op.target)),
-                CompiledOperand.IntExprValue(intExpr(op.value)),
-                CompiledOperand.IntExprValue(intExpr(op.max)),
-            )
-            is Op.SetFlag -> instruction(
-                CompiledOpcode.SetFlag,
-                CompiledOperand.Handle(flagRef(op.slug)),
-                CompiledOperand.Handle(flagStateRef(op.slug, op.nativeValue)),
-            )
+            is Op.LetInt ->
+                instruction(
+                    CompiledOpcode.LetInt,
+                    CompiledOperand.StringId(strings.id(op.name)),
+                    CompiledOperand.IntExprValue(intExpr(op.value)),
+                )
+            is Op.BindText ->
+                instruction(
+                    CompiledOpcode.BindText,
+                    CompiledOperand.StringId(strings.id(op.name)),
+                    CompiledOperand.StringExprValue(stringExpr(op.value)),
+                )
+            is Op.Set ->
+                instruction(
+                    CompiledOpcode.Set,
+                    CompiledOperand.LValueValue(lvalue(op.target)),
+                    CompiledOperand.IntExprValue(intExpr(op.value)),
+                )
+            is Op.Add ->
+                instruction(
+                    CompiledOpcode.Add,
+                    CompiledOperand.LValueValue(lvalue(op.target)),
+                    CompiledOperand.IntExprValue(intExpr(op.value)),
+                )
+            is Op.Sub ->
+                instruction(
+                    CompiledOpcode.Sub,
+                    CompiledOperand.LValueValue(lvalue(op.target)),
+                    CompiledOperand.IntExprValue(intExpr(op.value)),
+                )
+            is Op.AddClamped ->
+                instruction(
+                    CompiledOpcode.AddClamped,
+                    CompiledOperand.LValueValue(lvalue(op.target)),
+                    CompiledOperand.IntExprValue(intExpr(op.value)),
+                    CompiledOperand.IntExprValue(intExpr(op.max)),
+                )
+            is Op.SetFlag ->
+                instruction(
+                    CompiledOpcode.SetFlag,
+                    CompiledOperand.Handle(flagRef(op.slug)),
+                    CompiledOperand.Handle(flagStateRef(op.slug, op.nativeValue)),
+                )
             is Op.AppendJournal -> instruction(CompiledOpcode.AppendJournal, CompiledOperand.TextBlockValue(text(op.text)))
-            is Op.If -> instruction(
-                CompiledOpcode.If,
-                CompiledOperand.BoolExprValue(boolExpr(op.cond)),
-                CompiledOperand.Instructions(compileOps(op.thenOps)),
-                CompiledOperand.Instructions(compileOps(op.elseOps)),
-            )
+            is Op.If ->
+                instruction(
+                    CompiledOpcode.If,
+                    CompiledOperand.BoolExprValue(boolExpr(op.cond)),
+                    CompiledOperand.Instructions(compileOps(op.thenOps)),
+                    CompiledOperand.Instructions(compileOps(op.elseOps)),
+                )
             is Op.Loop -> instruction(CompiledOpcode.Loop, CompiledOperand.Instructions(compileOps(op.body)))
-            is Op.Break -> instruction(
-                CompiledOpcode.Break,
-                op.reason?.let { CompiledOperand.StringId(strings.id(it)) },
-                CompiledOperand.EnumName(op.signal.name),
-            )
-            is Op.Stop -> instruction(
-                CompiledOpcode.Stop,
-                op.reason?.let { CompiledOperand.StringId(strings.id(it)) },
-                CompiledOperand.EnumName(op.signal.name),
-            )
-            is Op.Switch -> instruction(
-                CompiledOpcode.Switch,
-                CompiledOperand.IntExprValue(intExpr(op.expr)),
-                CompiledOperand.SwitchCases(op.cases.map { case -> CompiledSwitchCase(case.match, compileOps(case.body)) }),
-            )
-            is Op.Menu -> instruction(
-                CompiledOpcode.Menu,
-                CompiledOperand.TextBlockValue(text(op.prompt)),
-                CompiledOperand.MenuOptions(op.options.map { option ->
-                    CompiledMenuOption(binding(option.binding), compileOps(option.body))
-                }),
-                CompiledOperand.Instructions(compileOps(op.defaultOps)),
-            )
-            is Op.AskKey -> instruction(
-                CompiledOpcode.AskKey,
-                CompiledOperand.TextBlockValue(text(op.prompt)),
-                CompiledOperand.StringId(strings.id(op.varName)),
-                CompiledOperand.InputBindings(op.bindings.map(::binding)),
-            )
-            is Op.AskMember -> instruction(
-                CompiledOpcode.AskMember,
-                CompiledOperand.TextBlockValue(text(op.prompt)),
-                CompiledOperand.StringId(strings.id(op.varName)),
-                CompiledOperand.EnumName(op.filter.name),
-                CompiledOperand.EnumName(op.accepting.name),
-            )
-            is Op.AskInventorySlot -> instruction(
-                CompiledOpcode.AskInventorySlot,
-                CompiledOperand.TextBlockValue(text(op.prompt)),
-                CompiledOperand.StringId(strings.id(op.varName)),
-                CompiledOperand.Character(op.firstKey),
-                CompiledOperand.Integer(op.slots.first),
-                CompiledOperand.Integer(op.slots.last),
-                CompiledOperand.EnumName(op.filter.name),
-            )
-            is Op.AskText -> instruction(
-                CompiledOpcode.AskText,
-                CompiledOperand.TextBlockValue(text(op.prompt)),
-                CompiledOperand.TextAnswer(
-                    CompiledTextAnswer(
-                        acceptedStrings = op.accepted.map(strings::id),
-                        matchOps = compileOps(op.matchOps),
-                        missOps = compileOps(op.missOps),
-                        caseSensitive = op.caseSensitive,
-                        trim = op.trim,
-                        maxLength = op.maxLength,
+            is Op.Break ->
+                instruction(
+                    CompiledOpcode.Break,
+                    op.reason?.let { CompiledOperand.StringId(strings.id(it)) },
+                    CompiledOperand.EnumName(op.signal.name),
+                )
+            is Op.Stop ->
+                instruction(
+                    CompiledOpcode.Stop,
+                    op.reason?.let { CompiledOperand.StringId(strings.id(it)) },
+                    CompiledOperand.EnumName(op.signal.name),
+                )
+            is Op.Switch ->
+                instruction(
+                    CompiledOpcode.Switch,
+                    CompiledOperand.IntExprValue(intExpr(op.expr)),
+                    CompiledOperand.SwitchCases(op.cases.map { case -> CompiledSwitchCase(case.match, compileOps(case.body)) }),
+                )
+            is Op.Menu ->
+                instruction(
+                    CompiledOpcode.Menu,
+                    CompiledOperand.TextBlockValue(text(op.prompt)),
+                    CompiledOperand.MenuOptions(
+                        op.options.map { option ->
+                            CompiledMenuOption(binding(option.binding), compileOps(option.body))
+                        },
                     ),
-                ),
-            )
-            is Op.AskMonster -> instruction(
-                CompiledOpcode.AskMonster,
-                CompiledOperand.TextBlockValue(text(op.prompt)),
-                CompiledOperand.StringId(strings.id(op.varName)),
-            )
-            is Op.ForEachMember -> instruction(
-                CompiledOpcode.ForEachMember,
-                CompiledOperand.StringId(strings.id(op.varName)),
-                CompiledOperand.BooleanValue(op.includeDead),
-                CompiledOperand.Instructions(compileOps(op.body)),
-            )
-            is Op.ForEachMonster -> instruction(
-                CompiledOpcode.ForEachMonster,
-                CompiledOperand.StringId(strings.id(op.varName)),
-                CompiledOperand.BooleanValue(op.includeDead),
-                CompiledOperand.Instructions(compileOps(op.body)),
-            )
+                    CompiledOperand.Instructions(compileOps(op.defaultOps)),
+                )
+            is Op.AskKey ->
+                instruction(
+                    CompiledOpcode.AskKey,
+                    CompiledOperand.TextBlockValue(text(op.prompt)),
+                    CompiledOperand.StringId(strings.id(op.varName)),
+                    CompiledOperand.InputBindings(op.bindings.map(::binding)),
+                )
+            is Op.AskMember ->
+                instruction(
+                    CompiledOpcode.AskMember,
+                    CompiledOperand.TextBlockValue(text(op.prompt)),
+                    CompiledOperand.StringId(strings.id(op.varName)),
+                    CompiledOperand.EnumName(op.filter.name),
+                    CompiledOperand.EnumName(op.accepting.name),
+                )
+            is Op.AskInventorySlot ->
+                instruction(
+                    CompiledOpcode.AskInventorySlot,
+                    CompiledOperand.TextBlockValue(text(op.prompt)),
+                    CompiledOperand.StringId(strings.id(op.varName)),
+                    CompiledOperand.Character(op.firstKey),
+                    CompiledOperand.Integer(op.slots.first),
+                    CompiledOperand.Integer(op.slots.last),
+                    CompiledOperand.EnumName(op.filter.name),
+                )
+            is Op.AskText ->
+                instruction(
+                    CompiledOpcode.AskText,
+                    CompiledOperand.TextBlockValue(text(op.prompt)),
+                    CompiledOperand.TextAnswer(
+                        CompiledTextAnswer(
+                            acceptedStrings = op.accepted.map(strings::id),
+                            matchOps = compileOps(op.matchOps),
+                            missOps = compileOps(op.missOps),
+                            caseSensitive = op.caseSensitive,
+                            trim = op.trim,
+                            maxLength = op.maxLength,
+                        ),
+                    ),
+                )
+            is Op.AskMonster ->
+                instruction(
+                    CompiledOpcode.AskMonster,
+                    CompiledOperand.TextBlockValue(text(op.prompt)),
+                    CompiledOperand.StringId(strings.id(op.varName)),
+                )
+            is Op.ForEachMember ->
+                instruction(
+                    CompiledOpcode.ForEachMember,
+                    CompiledOperand.StringId(strings.id(op.varName)),
+                    CompiledOperand.BooleanValue(op.includeDead),
+                    CompiledOperand.Instructions(compileOps(op.body)),
+                )
+            is Op.ForEachMonster ->
+                instruction(
+                    CompiledOpcode.ForEachMonster,
+                    CompiledOperand.StringId(strings.id(op.varName)),
+                    CompiledOperand.BooleanValue(op.includeDead),
+                    CompiledOperand.Instructions(compileOps(op.body)),
+                )
             is Op.Speak -> instruction(CompiledOpcode.Speak, CompiledOperand.Handle(buildingRef(op.building)))
             is Op.TellRumour -> instruction(CompiledOpcode.TellRumour, CompiledOperand.Handle(rumourTableRef(op.table)))
-            is Op.RunScene -> instruction(
-                CompiledOpcode.RunScene,
-                CompiledOperand.Handle(sceneRef(op.scene)),
-                CompiledOperand.StringIdList(op.bindings.flatMap { (key, value) -> listOf(strings.id(key), strings.id(value)) }),
-            )
-            is Op.Encounter -> instruction(
-                CompiledOpcode.Encounter,
-                CompiledOperand.Handle(monsterRef(op.foe)),
-                CompiledOperand.BooleanValue(op.mandatory),
-                op.tier?.let { CompiledOperand.Handle(encounterTierRef(it)) },
-            )
-            is Op.EnterDungeon -> instruction(
-                CompiledOpcode.EnterDungeon,
-                CompiledOperand.Handle(dungeonRef(op.dungeon)),
-                CompiledOperand.Integer(op.levels),
-            )
+            is Op.RunScene ->
+                instruction(
+                    CompiledOpcode.RunScene,
+                    CompiledOperand.Handle(sceneRef(op.scene)),
+                    CompiledOperand.StringIdList(op.bindings.flatMap { (key, value) -> listOf(strings.id(key), strings.id(value)) }),
+                )
+            is Op.Encounter ->
+                instruction(
+                    CompiledOpcode.Encounter,
+                    CompiledOperand.Handle(monsterRef(op.foe)),
+                    CompiledOperand.BooleanValue(op.mandatory),
+                    op.tier?.let { CompiledOperand.Handle(encounterTierRef(it)) },
+                )
+            is Op.EnterDungeon ->
+                instruction(
+                    CompiledOpcode.EnterDungeon,
+                    CompiledOperand.Handle(dungeonRef(op.dungeon)),
+                    CompiledOperand.Integer(op.levels),
+                )
             Op.ConsumeActiveItem -> instruction(CompiledOpcode.ConsumeActiveItem)
-            is Op.ClearInventorySlot -> instruction(
-                CompiledOpcode.ClearInventorySlot,
-                CompiledOperand.IntExprValue(intExpr(op.slot)),
-            )
-            is Op.ConsumeInventoryPool -> instruction(
-                CompiledOpcode.ConsumeInventoryPool,
-                CompiledOperand.Handle(itemPoolRef(op.pool)),
-                CompiledOperand.IntExprValue(intExpr(op.quantity)),
-            )
+            is Op.ClearInventorySlot ->
+                instruction(
+                    CompiledOpcode.ClearInventorySlot,
+                    CompiledOperand.IntExprValue(intExpr(op.slot)),
+                )
+            is Op.ConsumeInventoryPool ->
+                instruction(
+                    CompiledOpcode.ConsumeInventoryPool,
+                    CompiledOperand.Handle(itemPoolRef(op.pool)),
+                    CompiledOperand.IntExprValue(intExpr(op.quantity)),
+                )
             Op.ConsumeTorch -> instruction(CompiledOpcode.ConsumeTorch)
-            is Op.TeleportParty -> instruction(
-                CompiledOpcode.TeleportParty,
-                CompiledOperand.IntExprValue(intExpr(op.directionKey)),
-                CompiledOperand.IntExprValue(intExpr(op.distance)),
-            )
-            is Op.DiscoverCave -> instruction(
-                CompiledOpcode.DiscoverCave,
-                CompiledOperand.Handle(dungeonRef(op.dungeon)),
-                CompiledOperand.IntExprValue(intExpr(op.levels)),
-                CompiledOperand.IntExprValue(intExpr(op.moveCost)),
-            )
+            is Op.TeleportParty ->
+                instruction(
+                    CompiledOpcode.TeleportParty,
+                    CompiledOperand.IntExprValue(intExpr(op.directionKey)),
+                    CompiledOperand.IntExprValue(intExpr(op.distance)),
+                )
+            is Op.DiscoverCave ->
+                instruction(
+                    CompiledOpcode.DiscoverCave,
+                    CompiledOperand.Handle(dungeonRef(op.dungeon)),
+                    CompiledOperand.IntExprValue(intExpr(op.levels)),
+                    CompiledOperand.IntExprValue(intExpr(op.moveCost)),
+                )
             is Op.GrantReward -> instruction(CompiledOpcode.GrantReward, CompiledOperand.Reward(reward(op.reward)))
-            is Op.RandomItemOffer -> instruction(
-                CompiledOpcode.RandomItemOffer,
-                CompiledOperand.RandomItemOffer(randomItemOffer(op.offer)),
-            )
+            is Op.RandomItemOffer ->
+                instruction(
+                    CompiledOpcode.RandomItemOffer,
+                    CompiledOperand.RandomItemOffer(randomItemOffer(op.offer)),
+                )
             is Op.ShopService -> instruction(CompiledOpcode.ShopService, CompiledOperand.ShopService(shopService(op.shop)))
-            is Op.AchieveMilestone -> instruction(
-                CompiledOpcode.AchieveMilestone,
-                CompiledOperand.Handle(milestoneRef(op.milestone)),
-            )
-            is Op.NativeCall -> instruction(
-                CompiledOpcode.NativeCall,
-                CompiledOperand.StringId(strings.id(op.path)),
-                CompiledOperand.StringIdList(op.args.map(strings::id)),
-            )
+            is Op.AchieveMilestone ->
+                instruction(
+                    CompiledOpcode.AchieveMilestone,
+                    CompiledOperand.Handle(milestoneRef(op.milestone)),
+                )
+            is Op.NativeCall ->
+                instruction(
+                    CompiledOpcode.NativeCall,
+                    CompiledOperand.StringId(strings.id(op.path)),
+                    CompiledOperand.StringIdList(op.args.map(strings::id)),
+                )
         }
 
-    private fun instruction(opcode: CompiledOpcode, vararg operands: CompiledOperand?): CompiledInstruction =
-        CompiledInstruction(opcode, operands.filterNotNull())
+    private fun instruction(
+        opcode: CompiledOpcode,
+        vararg operands: CompiledOperand?,
+    ): CompiledInstruction = CompiledInstruction(opcode, operands.filterNotNull())
 
     private fun intExpr(expr: IntAst): CompiledIntExpr =
         when (expr) {
@@ -1367,15 +1804,17 @@ private class CompiledBundleCompiler(
 
     private fun stringExpr(expr: StrAst): CompiledStringExpr =
         when (expr) {
-            is StrAst.NativeString -> CompiledStringExpr.NativeString(
-                pathString = strings.id(expr.path),
-                args = expr.args.map { arg ->
-                    when (arg) {
-                        is NativeStringArg.Literal -> CompiledNativeStringArg.Literal(strings.id(arg.value))
-                        is NativeStringArg.IntValue -> CompiledNativeStringArg.IntValue(intExpr(arg.value))
-                    }
-                },
-            )
+            is StrAst.NativeString ->
+                CompiledStringExpr.NativeString(
+                    pathString = strings.id(expr.path),
+                    args =
+                        expr.args.map { arg ->
+                            when (arg) {
+                                is NativeStringArg.Literal -> CompiledNativeStringArg.Literal(strings.id(arg.value))
+                                is NativeStringArg.IntValue -> CompiledNativeStringArg.IntValue(intExpr(arg.value))
+                            }
+                        },
+                )
         }
 
     private fun lvalue(value: LValueAst): CompiledLValue =
@@ -1391,9 +1830,10 @@ private class CompiledBundleCompiler(
         when (block) {
             is TextBlock.Ref -> CompiledTextBlock.Ref(textRef(block.id.id))
             is TextBlock.Inline -> CompiledTextBlock.Inline(block.lines.map(strings::id))
-            is TextBlock.Structured -> CompiledTextBlock.Structured(
-                block.lines.map { line -> CompiledTextLine(line.parts.map(::textPart)) },
-            )
+            is TextBlock.Structured ->
+                CompiledTextBlock.Structured(
+                    block.lines.map { line -> CompiledTextLine(line.parts.map(::textPart)) },
+                )
         }
 
     private fun textPart(part: TextPart): CompiledTextPart =
@@ -1473,12 +1913,13 @@ private class CompiledBundleCompiler(
             buy = binding(offer.buy),
             decline = binding(offer.decline),
             priceOverride = offer.priceOverride,
-            pauseMillis = CompiledOfferPauses(
-                broke = offer.brokePauseMillis,
-                full = offer.fullPauseMillis,
-                deal = offer.dealPauseMillis,
-                declined = offer.declinedPauseMillis,
-            ),
+            pauseMillis =
+                CompiledOfferPauses(
+                    broke = offer.brokePauseMillis,
+                    full = offer.fullPauseMillis,
+                    deal = offer.dealPauseMillis,
+                    declined = offer.declinedPauseMillis,
+                ),
         )
 
     private fun shopService(service: ShopServiceModel): CompiledShopService =
@@ -1488,11 +1929,12 @@ private class CompiledBundleCompiler(
             closed = text(service.closed),
             intro = text(service.intro),
             menu = text(service.menu),
-            keys = CompiledShopMenuKeys(
-                buy = binding(service.keys.buy),
-                sell = binding(service.keys.sell),
-                leave = binding(service.keys.leave),
-            ),
+            keys =
+                CompiledShopMenuKeys(
+                    buy = binding(service.keys.buy),
+                    sell = binding(service.keys.sell),
+                    leave = binding(service.keys.leave),
+                ),
             goodbye = text(service.goodbye),
             buy = service.buy?.let(::shopBuy),
             sell = service.sell?.let(::shopSell),
@@ -1518,12 +1960,13 @@ private class CompiledBundleCompiler(
             binding = binding(catalog.binding),
             titleString = strings.id(catalog.title),
             intro = catalog.intro?.let(::text),
-            pages = catalog.pages.map { page ->
-                CompiledShopCatalogPage(
-                    entries = page.entries.map(::shopItemOffer),
-                    footer = page.footer?.let(::text),
-                )
-            },
+            pages =
+                catalog.pages.map { page ->
+                    CompiledShopCatalogPage(
+                        entries = page.entries.map(::shopItemOffer),
+                        footer = page.footer?.let(::text),
+                    )
+                },
         )
 
     private fun shopItemOffer(offer: ShopItemOfferModel): CompiledShopItemOffer =
@@ -1549,13 +1992,14 @@ private class CompiledBundleCompiler(
     private fun shopPurchase(purchase: ShopPurchaseModel): CompiledShopPurchase =
         when (purchase) {
             ShopPurchaseModel.InventoryItem -> CompiledShopPurchase.InventoryItem
-            is ShopPurchaseModel.Bulk -> CompiledShopPurchase.Bulk(
-                resource = purchase.resource,
-                quantityPrompt = text(purchase.quantityPrompt),
-                cap = purchase.cap,
-                tooMany = text(purchase.tooMany),
-                zeroQuantityDeal = purchase.zeroQuantityDeal,
-            )
+            is ShopPurchaseModel.Bulk ->
+                CompiledShopPurchase.Bulk(
+                    resource = purchase.resource,
+                    quantityPrompt = text(purchase.quantityPrompt),
+                    cap = purchase.cap,
+                    tooMany = text(purchase.tooMany),
+                    zeroQuantityDeal = purchase.zeroQuantityDeal,
+                )
         }
 
     private fun shopSell(sell: ShopSellModel): CompiledShopSell =
@@ -1598,8 +2042,7 @@ private class CompiledBundleCompiler(
             resourceCapacityBonus = item.resourceCapacityBonus,
         )
 
-    private fun compileItemPool(pool: ItemPoolId): CompiledItemPool =
-        CompiledItemPool(itemPoolRef(pool), pool.items.map(::itemRef))
+    private fun compileItemPool(pool: ItemPoolId): CompiledItemPool = CompiledItemPool(itemPoolRef(pool), pool.items.map(::itemRef))
 
     private fun compileTerrain(terrain: TerrainSemanticsModel): CompiledTerrain =
         CompiledTerrain(
@@ -1618,9 +2061,10 @@ private class CompiledBundleCompiler(
             width = map.size?.width,
             height = map.size?.height,
             storageCapacity = map.storageCapacity,
-            layers = map.layers.map { layer ->
-                CompiledWorldMapLayer(mapLayerRef(layer.id), layer.rows.map(strings::id))
-            },
+            layers =
+                map.layers.map { layer ->
+                    CompiledWorldMapLayer(mapLayerRef(layer.id), layer.rows.map(strings::id))
+                },
         )
 
     private fun compileImage(image: ImageAssetModel): CompiledImageAsset =
@@ -1669,11 +2113,12 @@ private class CompiledBundleCompiler(
             nameString = strings.id(character.name),
             job = npcJobRef(character.job),
             gender = character.gender,
-            placement = when (val placement = character.placement) {
-                is CharacterPlacementModel.Fixed -> CompiledCharacterPlacement.Fixed(position(placement.position))
-                CharacterPlacementModel.Randomized -> CompiledCharacterPlacement.Randomized
-                CharacterPlacementModel.RandomizedWilderness -> CompiledCharacterPlacement.RandomizedWilderness
-            },
+            placement =
+                when (val placement = character.placement) {
+                    is CharacterPlacementModel.Fixed -> CompiledCharacterPlacement.Fixed(position(placement.position))
+                    CharacterPlacementModel.Randomized -> CompiledCharacterPlacement.Randomized
+                    CharacterPlacementModel.RandomizedWilderness -> CompiledCharacterPlacement.RandomizedWilderness
+                },
             roles = character.roles.map(::roleRef),
         )
 
@@ -1702,12 +2147,13 @@ private class CompiledBundleCompiler(
         CompiledFlag(
             id = flagRef(flag.ref.slug),
             scope = flag.ref.scope,
-            states = flag.states.map { state ->
-                CompiledFlagState(
-                    id = flagStateRef(state.flag.slug, state.native),
-                    nativeString = strings.id(state.native),
-                )
-            },
+            states =
+                flag.states.map { state ->
+                    CompiledFlagState(
+                        id = flagStateRef(state.flag.slug, state.native),
+                        nativeString = strings.id(state.native),
+                    )
+                },
         )
 
     private fun compileFormula(formula: FormulaModel): CompiledFormula =
@@ -1767,9 +2213,10 @@ private class CompiledBundleCompiler(
             levelFirst = scenario.levelRange?.first,
             levelLast = scenario.levelRange?.last,
             fixedLevelEvents = scenario.fixedLevelEvents.mapValues { (_, event) -> dungeonEventRef(event) },
-            randomEvents = scenario.randomEvents.map { event ->
-                CompiledDungeonRandomEvent(dungeonEventRef(event.event), event.weight)
-            },
+            randomEvents =
+                scenario.randomEvents.map { event ->
+                    CompiledDungeonRandomEvent(dungeonEventRef(event.event), event.weight)
+                },
         )
 
     private fun trigger(trigger: Trigger): CompiledTrigger =
@@ -1780,8 +2227,7 @@ private class CompiledBundleCompiler(
             is Trigger.OnTerrain -> CompiledTrigger.OnTerrain(terrainRef(trigger.terrain))
         }
 
-    private fun compileState(snapshot: RuntimeSnapshotModel): CompiledStateImage =
-        compileStateImage(snapshot)
+    private fun compileState(snapshot: RuntimeSnapshotModel): CompiledStateImage = compileStateImage(snapshot)
 
     private fun compileStateImage(snapshot: RuntimeSnapshotModel): CompiledStateImage {
         val state = snapshot.state
@@ -1821,15 +2267,17 @@ private class CompiledBundleCompiler(
             position = position(party.position),
             facing = party.facing,
             resources = party.resources,
-            counters = CompiledPartyCounters(
-                memberCount = party.counters.memberCount,
-                kills = party.counters.kills,
-                waitingMail = party.counters.waitingMail,
-                attacked = party.counters.attacked,
-                attackedToday = party.counters.attackedToday.map {
-                    CompiledPartyAttackRecord(partyRef(it.party), it.attacked)
-                },
-            ),
+            counters =
+                CompiledPartyCounters(
+                    memberCount = party.counters.memberCount,
+                    kills = party.counters.kills,
+                    waitingMail = party.counters.waitingMail,
+                    attacked = party.counters.attacked,
+                    attackedToday =
+                        party.counters.attackedToday.map {
+                            CompiledPartyAttackRecord(partyRef(it.party), it.attacked)
+                        },
+                ),
             flags = party.flags.map { flagStateRef(it.flag.slug, it.native) },
             milestones = party.milestones.map(::milestoneRef),
             inventory = party.inventory.map { slot -> CompiledInventorySlot(slot.slot, slot.item?.let(::itemRef)) },
@@ -1865,22 +2313,25 @@ private class CompiledBundleCompiler(
     private fun mode(mode: RuntimeModeSnapshot): CompiledRuntimeModeImage =
         when (mode) {
             is RuntimeModeSnapshot.YdargCastle -> CompiledRuntimeModeImage.YdargCastle(mode.session)
-            is RuntimeModeSnapshot.Dungeon -> CompiledRuntimeModeImage.Dungeon(
-                session = CompiledDungeonSessionImage(
-                    dungeon = dungeonRef(mode.session.dungeon),
-                    maxDepth = mode.session.maxDepth,
-                    depth = mode.session.depth,
-                    levelEvents = mode.session.levelEvents.mapValues { (_, event) -> dungeonEventRef(event) },
-                    step = mode.session.step,
-                ),
-                postDungeon = mode.postDungeon?.let {
-                    CompiledMissionPostDungeonImage(
-                        mission = missionRef(it.mission),
-                        scene = sceneRef(it.scene),
-                        continuation = it.continuation,
-                    )
-                },
-            )
+            is RuntimeModeSnapshot.Dungeon ->
+                CompiledRuntimeModeImage.Dungeon(
+                    session =
+                        CompiledDungeonSessionImage(
+                            dungeon = dungeonRef(mode.session.dungeon),
+                            maxDepth = mode.session.maxDepth,
+                            depth = mode.session.depth,
+                            levelEvents = mode.session.levelEvents.mapValues { (_, event) -> dungeonEventRef(event) },
+                            step = mode.session.step,
+                        ),
+                    postDungeon =
+                        mode.postDungeon?.let {
+                            CompiledMissionPostDungeonImage(
+                                mission = missionRef(it.mission),
+                                scene = sceneRef(it.scene),
+                                continuation = it.continuation,
+                            )
+                        },
+                )
         }
 
     private fun position(position: WorldPosition): CompiledWorldPosition =
@@ -1890,53 +2341,79 @@ private class CompiledBundleCompiler(
         }
 
     private fun itemRef(id: ItemId): CompiledHandleRef = handles.ref(CompiledHandleKind.Item, id.slug)
+
     private fun itemPoolRef(id: ItemPoolId): CompiledHandleRef = handles.ref(CompiledHandleKind.ItemPool, id.slug)
+
     private fun monsterRef(id: MonsterId): CompiledHandleRef = handles.ref(CompiledHandleKind.Monster, id.slug)
-    private fun encounterTierRef(id: EncounterTier): CompiledHandleRef =
-        handles.ref(CompiledHandleKind.EncounterTier, id.slug)
+
+    private fun encounterTierRef(id: EncounterTier): CompiledHandleRef = handles.ref(CompiledHandleKind.EncounterTier, id.slug)
+
     private fun worldMapRef(id: WorldMapId): CompiledHandleRef = handles.ref(CompiledHandleKind.WorldMap, id.slug)
+
     private fun mapLayerRef(id: MapLayerId): CompiledHandleRef = handles.ref(CompiledHandleKind.MapLayer, id.slug)
+
     private fun terrainRef(id: TerrainId): CompiledHandleRef = handles.ref(CompiledHandleKind.Terrain, id.slug)
-    private fun terrainTagRef(id: TerrainTagId): CompiledHandleRef =
-        handles.ref(CompiledHandleKind.TerrainTag, id.slug)
+
+    private fun terrainTagRef(id: TerrainTagId): CompiledHandleRef = handles.ref(CompiledHandleKind.TerrainTag, id.slug)
+
     private fun imageRef(id: ImageId): CompiledHandleRef = handles.ref(CompiledHandleKind.Image, id.slug)
-    private fun staticScreenRef(id: StaticScreenId): CompiledHandleRef =
-        handles.ref(CompiledHandleKind.StaticScreen, id.slug)
-    private fun screenRegionRef(id: ScreenRegionId): CompiledHandleRef =
-        handles.ref(CompiledHandleKind.ScreenRegion, id.slug)
+
+    private fun staticScreenRef(id: StaticScreenId): CompiledHandleRef = handles.ref(CompiledHandleKind.StaticScreen, id.slug)
+
+    private fun screenRegionRef(id: ScreenRegionId): CompiledHandleRef = handles.ref(CompiledHandleKind.ScreenRegion, id.slug)
+
     private fun sceneRef(id: SceneId): CompiledHandleRef = handles.ref(CompiledHandleKind.Scene, id.slug)
+
     private fun spellRef(id: SpellId): CompiledHandleRef = handles.ref(CompiledHandleKind.Spell, id.slug)
+
     private fun formulaRef(id: FormulaId): CompiledHandleRef = handles.ref(CompiledHandleKind.Formula, id.slug)
-    private fun rewardBundleRef(id: RewardBundleId): CompiledHandleRef =
-        handles.ref(CompiledHandleKind.RewardBundle, id.slug)
+
+    private fun rewardBundleRef(id: RewardBundleId): CompiledHandleRef = handles.ref(CompiledHandleKind.RewardBundle, id.slug)
+
     private fun lootTableRef(id: LootTableId): CompiledHandleRef = handles.ref(CompiledHandleKind.LootTable, id.slug)
+
     private fun missionRef(id: MissionId): CompiledHandleRef = handles.ref(CompiledHandleKind.Mission, id.slug)
+
     private fun npcJobRef(id: NpcJobId): CompiledHandleRef = handles.ref(CompiledHandleKind.NpcJob, id.slug)
+
     private fun roleRef(id: NpcRole): CompiledHandleRef = handles.ref(CompiledHandleKind.Role, id.slug)
+
     private fun stateRef(id: StateId): CompiledHandleRef = handles.ref(CompiledHandleKind.State, id.slug)
+
     private fun partyRef(id: PartyId): CompiledHandleRef = handles.ref(CompiledHandleKind.Party, id.slug)
+
     private fun npcRef(id: NpcId): CompiledHandleRef = handles.ref(CompiledHandleKind.Npc, id.slug)
+
     private fun locationRef(id: LocationId): CompiledHandleRef = handles.ref(CompiledHandleKind.Location, id.slug)
+
     private fun townRef(id: TownId): CompiledHandleRef = handles.ref(CompiledHandleKind.Town, id.slug)
+
     private fun buildingRef(id: BuildingId): CompiledHandleRef = handles.ref(CompiledHandleKind.Building, id.slug)
+
     private fun keyActionRef(id: KeyActionId): CompiledHandleRef = handles.ref(CompiledHandleKind.KeyAction, id.slug)
+
     private fun dungeonRef(id: DungeonId): CompiledHandleRef = handles.ref(CompiledHandleKind.Dungeon, id.slug)
-    private fun dungeonEventRef(id: DungeonEventId): CompiledHandleRef =
-        handles.ref(CompiledHandleKind.DungeonEvent, id.slug)
-    private fun milestoneRef(id: GameMilestoneId): CompiledHandleRef =
-        handles.ref(CompiledHandleKind.Milestone, id.slug)
-    private fun rumourTableRef(id: RumourTableId): CompiledHandleRef =
-        handles.ref(CompiledHandleKind.RumourTable, id.slug)
+
+    private fun dungeonEventRef(id: DungeonEventId): CompiledHandleRef = handles.ref(CompiledHandleKind.DungeonEvent, id.slug)
+
+    private fun milestoneRef(id: GameMilestoneId): CompiledHandleRef = handles.ref(CompiledHandleKind.Milestone, id.slug)
+
+    private fun rumourTableRef(id: RumourTableId): CompiledHandleRef = handles.ref(CompiledHandleKind.RumourTable, id.slug)
+
     private fun textRef(id: String): CompiledHandleRef = handles.ref(CompiledHandleKind.Text, id)
+
     private fun flagRef(slug: String): CompiledHandleRef = handles.ref(CompiledHandleKind.Flag, slug)
-    private fun flagStateRef(flag: String, native: String): CompiledHandleRef =
-        handles.ref(CompiledHandleKind.FlagState, "$flag.$native")
+
+    private fun flagStateRef(
+        flag: String,
+        native: String,
+    ): CompiledHandleRef = handles.ref(CompiledHandleKind.FlagState, "$flag.$native")
+
     private fun scriptRootRef(root: ScriptRootRef): CompiledHandleRef {
         val catalog = game.runtimeContent().scriptRootCatalog()
         val resolved = catalog.rootFor(root)
         return handles.ref(CompiledHandleKind.ScriptRoot, scriptRootSlug(resolved))
     }
-
 }
 
 private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
@@ -1944,14 +2421,17 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
         fun collectText(block: TextBlock) {
             when (block) {
                 is TextBlock.Ref,
-                is TextBlock.Inline -> Unit
-                is TextBlock.Structured -> block.lines.forEach { line ->
-                    line.parts.forEach { part ->
-                        if (part is TextPart.LocationCoordinate) add(part.location)
+                is TextBlock.Inline,
+                -> Unit
+                is TextBlock.Structured ->
+                    block.lines.forEach { line ->
+                        line.parts.forEach { part ->
+                            if (part is TextPart.LocationCoordinate) add(part.location)
+                        }
                     }
-                }
             }
         }
+
         fun collectOps(ops: List<Op>) {
             ops.forEach { op ->
                 when (op) {
@@ -1980,8 +2460,10 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                     is Op.ForEachMember -> collectOps(op.body)
                     is Op.ForEachMonster -> collectOps(op.body)
                     is Op.GrantReward -> {
-                        op.reward.messages.cantCarry?.let(::collectText)
-                        op.reward.messages.pickedUp?.let(::collectText)
+                        op.reward.messages.cantCarry
+                            ?.let(::collectText)
+                        op.reward.messages.pickedUp
+                            ?.let(::collectText)
                     }
                     is Op.RandomItemOffer -> {
                         collectText(op.offer.offer)
@@ -2002,13 +2484,13 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
         speak.questionActions.forEach { collectOps(it.ops) }
     }.distinctBy { it.slug }
 
-private fun flagStateSlug(state: FlagState): String =
-    "${state.flag.slug}.${state.native}"
+private fun flagStateSlug(state: FlagState): String = "${state.flag.slug}.${state.native}"
 
-private fun scriptRootSlug(root: ScriptRootRef): String =
-    "${root.kind.name.lowercase()}.${root.slug}"
+private fun scriptRootSlug(root: ScriptRootRef): String = "${root.kind.name.lowercase()}.${root.slug}"
 
-private class MutableStringInterner(initial: List<String> = emptyList()) {
+private class MutableStringInterner(
+    initial: List<String> = emptyList(),
+) {
     private val values = mutableListOf<String>()
     private val lookup = linkedMapOf<String, Int>()
 
@@ -2023,7 +2505,6 @@ private class MutableStringInterner(initial: List<String> = emptyList()) {
         }
 
     fun toTable(): CompiledStringTable = CompiledStringTable(values.toList())
-
 }
 
 private class MutableHandleTable(
@@ -2033,7 +2514,10 @@ private class MutableHandleTable(
     private val perKindCounts = mutableMapOf<CompiledHandleKind, Int>()
     private val lookup = linkedMapOf<Pair<CompiledHandleKind, String>, CompiledHandleRef>()
 
-    fun add(kind: CompiledHandleKind, slug: String): CompiledHandleRef =
+    fun add(
+        kind: CompiledHandleKind,
+        slug: String,
+    ): CompiledHandleRef =
         lookup.getOrPut(kind to slug) {
             val ref = CompiledHandleRef(kind, (perKindCounts[kind] ?: 0) + 1)
             perKindCounts[kind] = ref.id
@@ -2041,9 +2525,10 @@ private class MutableHandleTable(
             ref
         }
 
-    fun ref(kind: CompiledHandleKind, slug: String): CompiledHandleRef =
-        add(kind, slug)
+    fun ref(
+        kind: CompiledHandleKind,
+        slug: String,
+    ): CompiledHandleRef = add(kind, slug)
 
     fun toTable(): CompiledHandleTable = CompiledHandleTable(entries.toList())
-
 }

@@ -56,8 +56,7 @@ abstract class FlagRef(
     private val declaredStates = mutableListOf<FlagState>()
     val states: List<FlagState> get() = declaredStates
 
-    protected fun state(native: String): FlagState =
-        FlagState(this, native).also { declaredStates += it }
+    protected fun state(native: String): FlagState = FlagState(this, native).also { declaredStates += it }
 }
 
 open class FlagState internal constructor(
@@ -71,49 +70,106 @@ val declaredFlags: MutableList<FlagRef> = mutableListOf()
 
 fun <F : FlagRef> F.declareFlag(): F = also { declaredFlags += it }
 
-private class RuntimeFlagRef(slug: String) : FlagRef(slug) {
+private class RuntimeFlagRef(
+    slug: String,
+) : FlagRef(slug) {
     fun value(native: String): FlagState = state(native)
 }
 
-fun runtimeFlagState(flag: String, native: String): FlagState =
+fun runtimeFlagState(
+    flag: String,
+    native: String,
+): FlagState =
     declaredFlags
         .firstOrNull { it.slug == flag }
         ?.states
         ?.firstOrNull { it.native == native }
         ?: RuntimeFlagRef(flag).value(native)
 
-data class TextId(val id: String)
-data class TextPattern(val pattern: String)
+data class TextId(
+    val id: String,
+)
+
+data class TextPattern(
+    val pattern: String,
+)
+
 sealed interface TextPart {
-    data class Literal(val text: String) : TextPart
-    data class IntValue(val value: IntAst) : TextPart
-    data class StringValue(val value: StrAst) : TextPart
-    data class RoleName(val role: NpcRole) : TextPart
-    data class RoleLocation(val role: NpcRole) : TextPart
-    data class TownName(val town: TownId) : TextPart
-    data class FuzzyTownLocation(val town: TownId, val radius: Int) : TextPart
-    data class LocationCoordinate(val location: LocationId) : TextPart
+    data class Literal(
+        val text: String,
+    ) : TextPart
+
+    data class IntValue(
+        val value: IntAst,
+    ) : TextPart
+
+    data class StringValue(
+        val value: StrAst,
+    ) : TextPart
+
+    data class RoleName(
+        val role: NpcRole,
+    ) : TextPart
+
+    data class RoleLocation(
+        val role: NpcRole,
+    ) : TextPart
+
+    data class TownName(
+        val town: TownId,
+    ) : TextPart
+
+    data class FuzzyTownLocation(
+        val town: TownId,
+        val radius: Int,
+    ) : TextPart
+
+    data class LocationCoordinate(
+        val location: LocationId,
+    ) : TextPart
+
     object OfferedItemName : TextPart
+
     object OfferedItemPrice : TextPart
+
     object SelectedItemName : TextPart
+
     object ShopPrice : TextPart
+
     object ShopCarryCap : TextPart
+
     object HuntMemberName : TextPart
+
     object HuntMemberSubjectPronoun : TextPart
+
     object HuntFoodGained : TextPart
+
     object PartyMemberMax : TextPart
+
     object WildernessDungeonName : TextPart
+
     object WildernessDungeonLevels : TextPart
+
     object DungeonDepth : TextPart
+
     object ConversationNpcName : TextPart
+
     object CurrentTownName : TextPart
+
     object TownTaxPercent : TextPart
+
     object TownTaxAmount : TextPart
+
     object CreationMemberNumber : TextPart
+
     object CreationMemberName : TextPart
+
     object CreationWeaponSkill : TextPart
+
     object CreationHealth : TextPart
+
     object CreationWisdom : TextPart
+
     object CreationCharisma : TextPart
 }
 
@@ -151,15 +207,28 @@ fun TextPart.fallbackText(): String =
         TextPart.CreationCharisma -> "{charisma}"
     }
 
-data class TextLine(val parts: List<TextPart>)
+data class TextLine(
+    val parts: List<TextPart>,
+)
+
 sealed interface TextBlock {
-    data class Ref(val id: TextId) : TextBlock
-    data class Inline(val lines: List<String>) : TextBlock
-    data class Structured(val lines: List<TextLine>) : TextBlock
+    data class Ref(
+        val id: TextId,
+    ) : TextBlock
+
+    data class Inline(
+        val lines: List<String>,
+    ) : TextBlock
+
+    data class Structured(
+        val lines: List<TextLine>,
+    ) : TextBlock
 }
+
 fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(lines.toList())
-fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock =
-    StructuredTextBlockBuilder().apply(body).build()
+
+fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = StructuredTextBlockBuilder().apply(body).build()
+
 fun textLines(vararg lines: String): TextBlock = structuredText { lines(*lines) }
 
 interface TextLineSink {
@@ -178,8 +247,7 @@ fun <T : TextLineSink> T.lines(body: T.() -> Unit) {
     body()
 }
 
-fun combineTextBlocks(vararg blocks: TextBlock): TextBlock =
-    combineTextBlocks(blocks.toList())
+fun combineTextBlocks(vararg blocks: TextBlock): TextBlock = combineTextBlocks(blocks.toList())
 
 fun combineTextBlocks(blocks: List<TextBlock>): TextBlock =
     TextBlock.Structured(
@@ -202,14 +270,20 @@ private fun textPart(part: Any): TextPart =
         else -> TextPart.Literal(part.toString())
     }
 
-class CharacterTextRef(private val role: NpcRole) {
+class CharacterTextRef(
+    private val role: NpcRole,
+) {
     val name: TextPart = TextPart.RoleName(role)
     val location: TextPart = TextPart.RoleLocation(role)
 }
+
 fun character(role: NpcRole): CharacterTextRef = CharacterTextRef(role)
 
-class TownTextRef(private val town: TownId) {
+class TownTextRef(
+    private val town: TownId,
+) {
     val name: TextPart = TextPart.TownName(town)
+
     fun near(radius: Int = 5): TextPart = TextPart.FuzzyTownLocation(town, radius)
 }
 
@@ -219,46 +293,56 @@ interface TownHandle {
 
 fun town(town: TownHandle): TownTextRef = TownTextRef(town.id)
 
-class LocationTextRef(private val location: LocationId) {
+class LocationTextRef(
+    private val location: LocationId,
+) {
     val coordinates: TextPart = TextPart.LocationCoordinate(location)
 }
+
 fun location(location: LocationId): LocationTextRef = LocationTextRef(location)
 
-class ItemId private constructor(val slug: String) {
-    override fun equals(other: Any?): Boolean =
-        other is ItemId && slug == other.slug
+class ItemId private constructor(
+    val slug: String,
+) {
+    override fun equals(other: Any?): Boolean = other is ItemId && slug == other.slug
 
     override fun hashCode(): Int = slug.hashCode()
 
-    override fun toString(): String =
-        "ItemId(slug=$slug)"
+    override fun toString(): String = "ItemId(slug=$slug)"
 
     companion object {
         fun authored(slug: String): ItemId = ItemId(slug)
     }
 }
+
 class ItemPoolId private constructor(
     val slug: String,
     val items: List<ItemId> = emptyList(),
 ) {
-    override fun equals(other: Any?): Boolean =
-        other is ItemPoolId && slug == other.slug
+    override fun equals(other: Any?): Boolean = other is ItemPoolId && slug == other.slug
 
     override fun hashCode(): Int = slug.hashCode()
 
-    override fun toString(): String =
-        "ItemPoolId(slug=$slug)"
+    override fun toString(): String = "ItemPoolId(slug=$slug)"
 
     companion object {
-        fun authored(slug: String, items: List<ItemId> = emptyList()): ItemPoolId =
-            ItemPoolId(slug, items)
+        fun authored(
+            slug: String,
+            items: List<ItemId> = emptyList(),
+        ): ItemPoolId = ItemPoolId(slug, items)
     }
 }
+
 enum class ItemKind { Empty, Weapon, Armor, Gear, Potion, Treasure, Special, MagicItem }
+
 enum class EquipmentCommand { ReadyWeapon, ReadyArmor, RemoveWeapon, RemoveArmor }
+
 enum class ItemStorageKind { EmptySentinel, SlottedInventory, SpecialMilestone }
+
 enum class Resource { Food, Torches }
+
 enum class TemperatureBand { Low, VeryLow }
+
 data class ItemRecordModel(
     val id: ItemId,
     val kind: ItemKind,
@@ -272,6 +356,7 @@ data class ItemRecordModel(
     val campProtection: Set<TemperatureBand> = emptySet(),
     val resourceCapacityBonus: Map<Resource, Int> = emptyMap(),
 )
+
 data class RealmContentModel(
     val baseResourceCapacity: Map<Resource, Int> = emptyMap(),
     val upkeep: WildernessUpkeepRules = WildernessUpkeepRules(),
@@ -343,7 +428,10 @@ data class CampRulesModel(
     val noShelterMessage: Map<TemperatureBand, TextBlock> = emptyMap(),
 )
 
-data class TemperatureBandRange(val band: TemperatureBand, val range: IntRange)
+data class TemperatureBandRange(
+    val band: TemperatureBand,
+    val range: IntRange,
+)
 
 /**
  * Authored wilderness hunting balance. The runtime owns party-state mutation
@@ -371,40 +459,142 @@ data class HuntRulesModel(
     }
 }
 
-data class MonsterId(val slug: String)
-data class EncounterTier(val slug: String)
-data class WorldMapId(val slug: String)
-data class MapLayerId(val slug: String)
-data class TerrainId(val slug: String, val sourceMapCode: Char? = null)
-data class TerrainTagId(val slug: String)
-data class ImageId(val slug: String)
-data class StaticScreenId(val slug: String)
-data class PaletteId(val slug: String)
-data class PaletteColorId(val slug: String)
-data class LayoutId(val slug: String)
-data class ScreenRegionId(val slug: String)
-data class SceneId(val slug: String)
-data class SpellId(val slug: String)
-data class MissionId(val slug: String)
-data class NpcRole(val slug: String)
-data class NpcJobId(val slug: String)
-data class NativeOpId(val slug: String)
-data class StateId(val slug: String)
-data class PartyId(val slug: String)
-data class NpcId(val slug: String)
-data class LocationId(val slug: String)
-data class TownId(val slug: String)
-data class BuildingId(val slug: String)
-data class FormulaId(val slug: String)
-data class KeyActionId(val slug: String)
-data class DungeonId(val slug: String)
-data class DungeonEventId(val slug: String)
-data class CastleId(val slug: String)
-data class GameMilestoneId(val slug: String)
-data class LootTableId(val slug: String)
-data class RewardBundleId(val slug: String)
-data class RumourTableId(val slug: String)
-data class RumourId(val slug: String)
+data class MonsterId(
+    val slug: String,
+)
+
+data class EncounterTier(
+    val slug: String,
+)
+
+data class WorldMapId(
+    val slug: String,
+)
+
+data class MapLayerId(
+    val slug: String,
+)
+
+data class TerrainId(
+    val slug: String,
+    val sourceMapCode: Char? = null,
+)
+
+data class TerrainTagId(
+    val slug: String,
+)
+
+data class ImageId(
+    val slug: String,
+)
+
+data class StaticScreenId(
+    val slug: String,
+)
+
+data class PaletteId(
+    val slug: String,
+)
+
+data class PaletteColorId(
+    val slug: String,
+)
+
+data class LayoutId(
+    val slug: String,
+)
+
+data class ScreenRegionId(
+    val slug: String,
+)
+
+data class SceneId(
+    val slug: String,
+)
+
+data class SpellId(
+    val slug: String,
+)
+
+data class MissionId(
+    val slug: String,
+)
+
+data class NpcRole(
+    val slug: String,
+)
+
+data class NpcJobId(
+    val slug: String,
+)
+
+data class NativeOpId(
+    val slug: String,
+)
+
+data class StateId(
+    val slug: String,
+)
+
+data class PartyId(
+    val slug: String,
+)
+
+data class NpcId(
+    val slug: String,
+)
+
+data class LocationId(
+    val slug: String,
+)
+
+data class TownId(
+    val slug: String,
+)
+
+data class BuildingId(
+    val slug: String,
+)
+
+data class FormulaId(
+    val slug: String,
+)
+
+data class KeyActionId(
+    val slug: String,
+)
+
+data class DungeonId(
+    val slug: String,
+)
+
+data class DungeonEventId(
+    val slug: String,
+)
+
+data class CastleId(
+    val slug: String,
+)
+
+data class GameMilestoneId(
+    val slug: String,
+)
+
+data class LootTableId(
+    val slug: String,
+)
+
+data class RewardBundleId(
+    val slug: String,
+)
+
+data class RumourTableId(
+    val slug: String,
+)
+
+data class RumourId(
+    val slug: String,
+)
 
 private fun String.compatibilityId(): String =
     lowercase()
@@ -434,8 +624,7 @@ enum class TerrainSettlement { Town, Hut, Castle }
 data class TerrainCatalogModel(
     val terrain: List<TerrainSemanticsModel> = referenceDefaults(),
 ) {
-    fun byMapCode(tile: Char): TerrainSemanticsModel? =
-        terrain.firstOrNull { it.mapCode == tile }
+    fun byMapCode(tile: Char): TerrainSemanticsModel? = terrain.firstOrNull { it.mapCode == tile }
 
     companion object {
         fun referenceDefaults(): List<TerrainSemanticsModel> =
@@ -449,7 +638,12 @@ data class TerrainCatalogModel(
                 TerrainSemanticsModel(terrain("desert", 'd'), mapCode = 'd'),
                 TerrainSemanticsModel(terrain("swamp", 't'), mapCode = 't'),
                 TerrainSemanticsModel(terrain("forest", 'g'), mapCode = 'g'),
-                TerrainSemanticsModel(terrain("castle", '2'), mapCode = '2', allowsNpcPlacement = false, settlement = TerrainSettlement.Castle),
+                TerrainSemanticsModel(
+                    terrain("castle", '2'),
+                    mapCode = '2',
+                    allowsNpcPlacement = false,
+                    settlement = TerrainSettlement.Castle,
+                ),
             )
     }
 }
@@ -482,8 +676,15 @@ data class TerminalPresentationModel(
     val terrain: List<TerminalTerrainStyleModel> = emptyList(),
 )
 
-data class GridSize(val width: Int, val height: Int)
-fun cells(width: Int, height: Int): GridSize = GridSize(width, height)
+data class GridSize(
+    val width: Int,
+    val height: Int,
+)
+
+fun cells(
+    width: Int,
+    height: Int,
+): GridSize = GridSize(width, height)
 
 data class LayoutModel(
     val regions: List<ScreenRegionModel> = emptyList(),
@@ -507,6 +708,7 @@ data class VisualsModel(
 )
 
 enum class ImageAssetKind { Ansi, Bitmap }
+
 enum class ImagePlacement { FullScreen, MapWindow }
 
 data class ImageAssetModel(
@@ -527,42 +729,85 @@ data class StaticScreenModel(
 )
 
 fun text(id: String): TextId = TextId(id)
+
 fun textPattern(pattern: String): TextPattern = TextPattern(pattern)
+
 fun item(slug: String): ItemId = ItemId.authored(slug)
-fun itemPool(slug: String, items: List<ItemId> = emptyList()): ItemPoolId = ItemPoolId.authored(slug, items)
+
+fun itemPool(
+    slug: String,
+    items: List<ItemId> = emptyList(),
+): ItemPoolId = ItemPoolId.authored(slug, items)
+
 fun monster(slug: String): MonsterId = MonsterId(slug)
+
 fun encounterTier(slug: String): EncounterTier = EncounterTier(slug)
+
 fun worldMap(slug: String): WorldMapId = WorldMapId(slug)
+
 fun mapLayer(slug: String): MapLayerId = MapLayerId(slug)
-fun terrain(slug: String, sourceMapCode: Char? = null): TerrainId = TerrainId(slug, sourceMapCode)
+
+fun terrain(
+    slug: String,
+    sourceMapCode: Char? = null,
+): TerrainId = TerrainId(slug, sourceMapCode)
+
 fun terrainTag(slug: String): TerrainTagId = TerrainTagId(slug)
+
 fun image(slug: String): ImageId = ImageId(slug)
+
 fun staticScreen(slug: String): StaticScreenId = StaticScreenId(slug)
+
 fun palette(slug: String): PaletteId = PaletteId(slug)
+
 fun paletteColor(slug: String): PaletteColorId = PaletteColorId(slug)
+
 fun layout(slug: String): LayoutId = LayoutId(slug)
+
 fun screenRegion(slug: String): ScreenRegionId = ScreenRegionId(slug)
+
 fun sceneId(slug: String): SceneId = SceneId(slug)
+
 fun spellId(slug: String): SpellId = SpellId(slug)
+
 fun missionId(slug: String): MissionId = MissionId(slug)
+
 fun npcRole(slug: String): NpcRole = NpcRole(slug)
+
 fun npcJob(slug: String): NpcJobId = NpcJobId(slug)
+
 fun nativeOp(slug: String): NativeOpId = NativeOpId(slug)
+
 fun stateId(slug: String): StateId = StateId(slug)
+
 fun partyId(slug: String): PartyId = PartyId(slug)
+
 fun npc(slug: String): NpcId = NpcId(slug)
+
 fun location(slug: String): LocationId = LocationId(slug)
+
 fun town(slug: String): TownId = TownId(slug)
+
 fun building(slug: String): BuildingId = BuildingId(slug)
+
 fun formula(slug: String): FormulaId = FormulaId(slug)
+
 fun keyAction(slug: String): KeyActionId = KeyActionId(slug)
+
 fun dungeon(slug: String): DungeonId = DungeonId(slug)
+
 fun dungeonEvent(slug: String): DungeonEventId = DungeonEventId(slug)
+
 fun castle(slug: String): CastleId = CastleId(slug)
+
 fun milestone(slug: String): GameMilestoneId = GameMilestoneId(slug)
+
 fun lootTable(slug: String): LootTableId = LootTableId(slug)
+
 fun rewardBundle(slug: String): RewardBundleId = RewardBundleId(slug)
+
 fun rumourTable(slug: String): RumourTableId = RumourTableId(slug)
+
 fun rumour(slug: String): RumourId = RumourId(slug)
 
 // Engine-native operation handles are part of the reusable runtime boundary,
@@ -580,70 +825,187 @@ class NativeOpRefs {
     val npcRoleName: NativeOpId = nativeOp("npc.role.name")
     val npcRoleLocation: NativeOpId = nativeOp("npc.role.location")
 }
-val NativeOps: NativeOpRefs = NativeOpRefs()
 
+val NativeOps: NativeOpRefs = NativeOpRefs()
 
 // =============================================================================
 // 02. DSL kernel: recorded script AST
 // =============================================================================
 
 sealed interface IntAst {
-    data class Lit(val value: Int) : IntAst
-    data class Var(val name: String) : IntAst
-    data class Binary(val left: IntAst, val op: String, val right: IntAst) : IntAst
-    data class If(val cond: BoolAst, val thenValue: IntAst, val elseValue: IntAst) : IntAst
-    data class Random(val lo: IntAst, val hi: IntAst) : IntAst
-    data class MemberField(val member: IntAst, val field: String) : IntAst
-    data class MonsterField(val monster: IntAst, val field: String) : IntAst
-    data class BattleFlag(val name: String) : IntAst
-    data class BattleQuery(val name: String) : IntAst
-    data class RealmScalar(val name: String) : IntAst
-    data class PartyScalar(val name: String) : IntAst
-    data class InventoryPoolCount(val pool: ItemPoolId) : IntAst
-    data class InventorySlotCost(val slot: IntAst) : IntAst
-    data class NativeInt(val path: String, val args: List<String>) : IntAst
+    data class Lit(
+        val value: Int,
+    ) : IntAst
+
+    data class Var(
+        val name: String,
+    ) : IntAst
+
+    data class Binary(
+        val left: IntAst,
+        val op: String,
+        val right: IntAst,
+    ) : IntAst
+
+    data class If(
+        val cond: BoolAst,
+        val thenValue: IntAst,
+        val elseValue: IntAst,
+    ) : IntAst
+
+    data class Random(
+        val lo: IntAst,
+        val hi: IntAst,
+    ) : IntAst
+
+    data class MemberField(
+        val member: IntAst,
+        val field: String,
+    ) : IntAst
+
+    data class MonsterField(
+        val monster: IntAst,
+        val field: String,
+    ) : IntAst
+
+    data class BattleFlag(
+        val name: String,
+    ) : IntAst
+
+    data class BattleQuery(
+        val name: String,
+    ) : IntAst
+
+    data class RealmScalar(
+        val name: String,
+    ) : IntAst
+
+    data class PartyScalar(
+        val name: String,
+    ) : IntAst
+
+    data class InventoryPoolCount(
+        val pool: ItemPoolId,
+    ) : IntAst
+
+    data class InventorySlotCost(
+        val slot: IntAst,
+    ) : IntAst
+
+    data class NativeInt(
+        val path: String,
+        val args: List<String>,
+    ) : IntAst
 }
 
 sealed interface BoolAst {
-    data class Cmp(val left: IntAst, val op: String, val right: IntAst) : BoolAst
-    data class Not(val expr: BoolAst) : BoolAst
-    data class And(val left: BoolAst, val right: BoolAst) : BoolAst
-    data class Or(val left: BoolAst, val right: BoolAst) : BoolAst
-    data class FlagIs(val slug: String, val nativeValue: String) : BoolAst
-    data class MilestoneAchieved(val milestone: GameMilestoneId) : BoolAst
-    data class MemberFlag(val member: IntAst, val name: String) : BoolAst
-    data class MonsterFlag(val monster: IntAst, val name: String) : BoolAst
-    data class BattleFlag(val name: String) : BoolAst
-    data class RuntimeFlag(val name: String) : BoolAst
+    data class Cmp(
+        val left: IntAst,
+        val op: String,
+        val right: IntAst,
+    ) : BoolAst
+
+    data class Not(
+        val expr: BoolAst,
+    ) : BoolAst
+
+    data class And(
+        val left: BoolAst,
+        val right: BoolAst,
+    ) : BoolAst
+
+    data class Or(
+        val left: BoolAst,
+        val right: BoolAst,
+    ) : BoolAst
+
+    data class FlagIs(
+        val slug: String,
+        val nativeValue: String,
+    ) : BoolAst
+
+    data class MilestoneAchieved(
+        val milestone: GameMilestoneId,
+    ) : BoolAst
+
+    data class MemberFlag(
+        val member: IntAst,
+        val name: String,
+    ) : BoolAst
+
+    data class MonsterFlag(
+        val monster: IntAst,
+        val name: String,
+    ) : BoolAst
+
+    data class BattleFlag(
+        val name: String,
+    ) : BoolAst
+
+    data class RuntimeFlag(
+        val name: String,
+    ) : BoolAst
 }
 
 sealed interface StrAst {
-    data class NativeString(val path: String, val args: List<NativeStringArg>) : StrAst
+    data class NativeString(
+        val path: String,
+        val args: List<NativeStringArg>,
+    ) : StrAst
 }
 
 sealed interface NativeStringArg {
-    data class Literal(val value: String) : NativeStringArg
-    data class IntValue(val value: IntAst) : NativeStringArg
+    data class Literal(
+        val value: String,
+    ) : NativeStringArg
+
+    data class IntValue(
+        val value: IntAst,
+    ) : NativeStringArg
 }
 
 sealed interface LValueAst {
-    data class RealmScalar(val name: String) : LValueAst
-    data class PartyScalar(val name: String) : LValueAst
-    data class MemberField(val member: IntAst, val field: String) : LValueAst
-    data class MonsterField(val monster: IntAst, val field: String) : LValueAst
-    data class BattleFlag(val name: String) : LValueAst
+    data class RealmScalar(
+        val name: String,
+    ) : LValueAst
+
+    data class PartyScalar(
+        val name: String,
+    ) : LValueAst
+
+    data class MemberField(
+        val member: IntAst,
+        val field: String,
+    ) : LValueAst
+
+    data class MonsterField(
+        val monster: IntAst,
+        val field: String,
+    ) : LValueAst
+
+    data class BattleFlag(
+        val name: String,
+    ) : LValueAst
 }
 
 enum class ScriptControlSignal { Continue, BreakNearestLoop, StopScript }
+
 enum class MemberChoiceFilter { Any, AliveOnly, DeadOnly, SpellcasterOnly }
+
 enum class InventorySlotChoiceFilter { Any, NonEmpty, Empty }
 
 sealed interface ViewCommand {
     data object ClearText : ViewCommand
+
     data object ClearMapWindow : ViewCommand
+
     data object RenderMap : ViewCommand
+
     data object StatusLine : ViewCommand
-    data class ShowImage(val image: ImageId) : ViewCommand
+
+    data class ShowImage(
+        val image: ImageId,
+    ) : ViewCommand
 }
 
 data class InputBindingModel(
@@ -653,8 +1015,9 @@ data class InputBindingModel(
 ) {
     val tokens: List<String> get() = listOf(primary) + aliases
     val primaryChar: Char
-        get() = primary.singleOrNull()?.uppercaseChar()
-            ?: error("input binding primary '$primary' is not a single character")
+        get() =
+            primary.singleOrNull()?.uppercaseChar()
+                ?: error("input binding primary '$primary' is not a single character")
 }
 
 object InputAliases {
@@ -664,11 +1027,17 @@ object InputAliases {
     const val ArrowLeft: String = "\u001B[D"
 }
 
-fun inputKey(primary: Char, vararg aliases: String, label: String = primary.uppercaseChar().toString()): InputBindingModel =
-    inputKey(primary.uppercaseChar().toString(), *aliases, label = label)
+fun inputKey(
+    primary: Char,
+    vararg aliases: String,
+    label: String = primary.uppercaseChar().toString(),
+): InputBindingModel = inputKey(primary.uppercaseChar().toString(), *aliases, label = label)
 
-fun inputKey(primary: String, vararg aliases: String, label: String = primary): InputBindingModel =
-    InputBindingModel(primary = primary, aliases = aliases.toList(), label = label)
+fun inputKey(
+    primary: String,
+    vararg aliases: String,
+    label: String = primary,
+): InputBindingModel = InputBindingModel(primary = primary, aliases = aliases.toList(), label = label)
 
 fun InputBindingModel.matches(raw: String): Boolean {
     val accepted = tokens.flatMap(::inputTokenVariants).toSet()
@@ -688,43 +1057,115 @@ fun inputTokenVariants(raw: String): Set<String> =
     }
 
 sealed interface Op {
-    data class Screen(val text: TextBlock) : Op
-    data class Emit(val text: TextId) : Op
-    data class EmitIndexed(val pattern: TextPattern, val value: IntAst) : Op
-    data class WaitInput(val reason: String? = null) : Op
-    data class Pause(val millis: Int) : Op
-    data class View(val command: ViewCommand) : Op
-    data class LetInt(val name: String, val value: IntAst) : Op
-    data class BindText(val name: String, val value: StrAst) : Op
-    data class Set(val target: LValueAst, val value: IntAst) : Op
-    data class Add(val target: LValueAst, val value: IntAst) : Op
-    data class Sub(val target: LValueAst, val value: IntAst) : Op
-    data class AddClamped(val target: LValueAst, val value: IntAst, val max: IntAst) : Op
-    data class SetFlag(val slug: String, val nativeValue: String) : Op
-    data class AppendJournal(val text: TextBlock) : Op
-    data class If(val cond: BoolAst, val thenOps: List<Op>, val elseOps: List<Op>) : Op
-    data class Loop(val body: List<Op>) : Op
+    data class Screen(
+        val text: TextBlock,
+    ) : Op
+
+    data class Emit(
+        val text: TextId,
+    ) : Op
+
+    data class EmitIndexed(
+        val pattern: TextPattern,
+        val value: IntAst,
+    ) : Op
+
+    data class WaitInput(
+        val reason: String? = null,
+    ) : Op
+
+    data class Pause(
+        val millis: Int,
+    ) : Op
+
+    data class View(
+        val command: ViewCommand,
+    ) : Op
+
+    data class LetInt(
+        val name: String,
+        val value: IntAst,
+    ) : Op
+
+    data class BindText(
+        val name: String,
+        val value: StrAst,
+    ) : Op
+
+    data class Set(
+        val target: LValueAst,
+        val value: IntAst,
+    ) : Op
+
+    data class Add(
+        val target: LValueAst,
+        val value: IntAst,
+    ) : Op
+
+    data class Sub(
+        val target: LValueAst,
+        val value: IntAst,
+    ) : Op
+
+    data class AddClamped(
+        val target: LValueAst,
+        val value: IntAst,
+        val max: IntAst,
+    ) : Op
+
+    data class SetFlag(
+        val slug: String,
+        val nativeValue: String,
+    ) : Op
+
+    data class AppendJournal(
+        val text: TextBlock,
+    ) : Op
+
+    data class If(
+        val cond: BoolAst,
+        val thenOps: List<Op>,
+        val elseOps: List<Op>,
+    ) : Op
+
+    data class Loop(
+        val body: List<Op>,
+    ) : Op
+
     data class Break(
         val reason: String? = null,
         val signal: ScriptControlSignal = ScriptControlSignal.BreakNearestLoop,
     ) : Op
+
     data class Stop(
         val reason: String? = null,
         val signal: ScriptControlSignal = ScriptControlSignal.StopScript,
     ) : Op
-    data class Switch(val expr: IntAst, val cases: List<SwitchCase>) : Op
-    data class Menu(val prompt: TextBlock, val options: List<MenuOption>, val defaultOps: List<Op>) : Op
+
+    data class Switch(
+        val expr: IntAst,
+        val cases: List<SwitchCase>,
+    ) : Op
+
+    data class Menu(
+        val prompt: TextBlock,
+        val options: List<MenuOption>,
+        val defaultOps: List<Op>,
+    ) : Op
+
     data class AskKey(
         val prompt: TextBlock,
         val varName: String,
         val bindings: List<InputBindingModel>,
     ) : Op
+
     data class AskMember(
         val prompt: TextBlock,
         val varName: String,
         val filter: MemberChoiceFilter,
         val accepting: MemberChoiceFilter = filter,
     ) : Op
+
     data class AskInventorySlot(
         val prompt: TextBlock,
         val varName: String,
@@ -732,6 +1173,7 @@ sealed interface Op {
         val slots: IntRange,
         val filter: InventorySlotChoiceFilter,
     ) : Op
+
     data class AskText(
         val prompt: TextBlock,
         val accepted: List<String>,
@@ -741,38 +1183,131 @@ sealed interface Op {
         val trim: Boolean = true,
         val maxLength: Int? = null,
     ) : Op
-    data class AskMonster(val prompt: TextBlock, val varName: String) : Op
-    data class ForEachMember(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
-    data class ForEachMonster(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
-    data class Speak(val building: BuildingId) : Op
-    data class TellRumour(val table: RumourTableId) : Op
-    data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : Op
-    data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
-    data class EnterDungeon(val dungeon: DungeonId, val levels: Int) : Op
+
+    data class AskMonster(
+        val prompt: TextBlock,
+        val varName: String,
+    ) : Op
+
+    data class ForEachMember(
+        val varName: String,
+        val includeDead: Boolean,
+        val body: List<Op>,
+    ) : Op
+
+    data class ForEachMonster(
+        val varName: String,
+        val includeDead: Boolean,
+        val body: List<Op>,
+    ) : Op
+
+    data class Speak(
+        val building: BuildingId,
+    ) : Op
+
+    data class TellRumour(
+        val table: RumourTableId,
+    ) : Op
+
+    data class RunScene(
+        val scene: SceneId,
+        val bindings: Map<String, String>,
+    ) : Op
+
+    data class Encounter(
+        val foe: MonsterId,
+        val mandatory: Boolean,
+        val tier: EncounterTier? = null,
+    ) : Op
+
+    data class EnterDungeon(
+        val dungeon: DungeonId,
+        val levels: Int,
+    ) : Op
+
     object ConsumeActiveItem : Op
-    data class ClearInventorySlot(val slot: IntAst) : Op
-    data class ConsumeInventoryPool(val pool: ItemPoolId, val quantity: IntAst) : Op
+
+    data class ClearInventorySlot(
+        val slot: IntAst,
+    ) : Op
+
+    data class ConsumeInventoryPool(
+        val pool: ItemPoolId,
+        val quantity: IntAst,
+    ) : Op
+
     object ConsumeTorch : Op
-    data class TeleportParty(val directionKey: IntAst, val distance: IntAst) : Op
-    data class DiscoverCave(val dungeon: DungeonId, val levels: IntAst, val moveCost: IntAst) : Op
-    data class GrantReward(val reward: ScriptRewardModel) : Op
-    data class RandomItemOffer(val offer: RandomItemOfferModel) : Op
-    data class ShopService(val shop: ShopServiceModel) : Op
-    data class AchieveMilestone(val milestone: GameMilestoneId) : Op
-    data class NativeCall(val path: String, val args: List<String>) : Op
+
+    data class TeleportParty(
+        val directionKey: IntAst,
+        val distance: IntAst,
+    ) : Op
+
+    data class DiscoverCave(
+        val dungeon: DungeonId,
+        val levels: IntAst,
+        val moveCost: IntAst,
+    ) : Op
+
+    data class GrantReward(
+        val reward: ScriptRewardModel,
+    ) : Op
+
+    data class RandomItemOffer(
+        val offer: RandomItemOfferModel,
+    ) : Op
+
+    data class ShopService(
+        val shop: ShopServiceModel,
+    ) : Op
+
+    data class AchieveMilestone(
+        val milestone: GameMilestoneId,
+    ) : Op
+
+    data class NativeCall(
+        val path: String,
+        val args: List<String>,
+    ) : Op
 }
 
-data class SwitchCase(val match: Int?, val body: List<Op>)
-data class MenuOption(val binding: InputBindingModel, val body: List<Op>) {
+data class SwitchCase(
+    val match: Int?,
+    val body: List<Op>,
+)
+
+data class MenuOption(
+    val binding: InputBindingModel,
+    val body: List<Op>,
+) {
     constructor(key: Char, body: List<Op>) : this(inputKey(key), body)
 
     val key: Char get() = binding.primaryChar
 }
 
-data class SceneModel(val id: SceneId, val ops: List<Op>)
-data class DialogueModel(val npc: NpcId, val branches: List<DialogueBranchModel>)
-data class DialogueBranchModel(val whenState: FlagState?, val ops: List<Op>)
-data class SpellModel(val id: SpellId, val slot: Int, val baseCost: Int, val name: String, val ops: List<Op>)
+data class SceneModel(
+    val id: SceneId,
+    val ops: List<Op>,
+)
+
+data class DialogueModel(
+    val npc: NpcId,
+    val branches: List<DialogueBranchModel>,
+)
+
+data class DialogueBranchModel(
+    val whenState: FlagState?,
+    val ops: List<Op>,
+)
+
+data class SpellModel(
+    val id: SpellId,
+    val slot: Int,
+    val baseCost: Int,
+    val name: String,
+    val ops: List<Op>,
+)
+
 data class ItemUseModel(
     val id: ItemId,
     val contexts: Set<ItemUseContext>,
@@ -817,8 +1352,12 @@ data class DungeonSystemModel(
 }
 
 sealed interface CharacterPlacementModel {
-    data class Fixed(val position: WorldPosition) : CharacterPlacementModel
+    data class Fixed(
+        val position: WorldPosition,
+    ) : CharacterPlacementModel
+
     object Randomized : CharacterPlacementModel
+
     object RandomizedWilderness : CharacterPlacementModel
 }
 
@@ -1004,8 +1543,11 @@ data class CharacterCreationModel(
 )
 
 enum class MandatoryRunRule { NoEscape }
+
 enum class CombatActionKind { Attack, Defend, UseMagicItem, BattleCry, CastMageSpell }
+
 enum class CombatActionRequirement { Always, Mage }
+
 enum class EngineService {
     KeyboardInput,
     Rendering,
@@ -1082,13 +1624,14 @@ data class BattleTextModel(
     val notEnoughMagic: TextBlock = inlineText("Not enough magic!"),
     val restGainHits: TextBlock = inlineText("You gain some hits pts", "as you rest this round."),
     val defendStance: TextBlock = inlineText("You put up a defensive", "stance..."),
-    val battleCry: TextBlock = inlineText(
-        "HI-YAAAA!",
-        "",
-        "(You manage to scare your",
-        " enemies enough to get",
-        " them off guard.)",
-    ),
+    val battleCry: TextBlock =
+        inlineText(
+            "HI-YAAAA!",
+            "",
+            "(You manage to scare your",
+            " enemies enough to get",
+            " them off guard.)",
+        ),
     val killed: TextBlock = inlineText("...KILLED!"),
     val partyHeld: TextBlock = inlineText("PARTY IS HELD!"),
     val victoryBested: TextBlock = inlineText("Thou hast bested", "thy foes.", ""),
@@ -1142,8 +1685,11 @@ data class LootTableModel(
 )
 
 enum class RewardItemPlacement { FirstFreeInventorySlot }
+
 enum class RewardOverflowPolicy { SkipIfInventoryFull, PromptDropThenPlace }
+
 enum class RewardSpecialItemPolicy { ProjectMilestoneState }
+
 data class RewardApplicationModel(
     val regularItems: RewardItemPlacement,
     val overflow: RewardOverflowPolicy,
@@ -1209,8 +1755,14 @@ data class ShopSellBargainModel(
 sealed interface ShopQuantityCap {
     val resource: Resource
 
-    data class FixedAmount(override val resource: Resource, val amount: Int) : ShopQuantityCap
-    data class CarryCapacity(override val resource: Resource) : ShopQuantityCap
+    data class FixedAmount(
+        override val resource: Resource,
+        val amount: Int,
+    ) : ShopQuantityCap
+
+    data class CarryCapacity(
+        override val resource: Resource,
+    ) : ShopQuantityCap
 }
 
 object ShopResources {
@@ -1219,11 +1771,12 @@ object ShopResources {
 }
 
 object ShopQuantityCaps {
-    fun fixed(resource: Resource, amount: Int): ShopQuantityCap =
-        ShopQuantityCap.FixedAmount(resource, amount)
+    fun fixed(
+        resource: Resource,
+        amount: Int,
+    ): ShopQuantityCap = ShopQuantityCap.FixedAmount(resource, amount)
 
-    fun carryCapacity(resource: Resource): ShopQuantityCap =
-        ShopQuantityCap.CarryCapacity(resource)
+    fun carryCapacity(resource: Resource): ShopQuantityCap = ShopQuantityCap.CarryCapacity(resource)
 }
 
 object ShopZeroQuantityDeal {
@@ -1246,24 +1799,38 @@ object TownText {
 
 sealed interface ShopPriceModel {
     object ItemCost : ShopPriceModel
+
     object HalfItemCost : ShopPriceModel
-    data class Fixed(val amount: Int) : ShopPriceModel
-    data class LeaderLevelPlus(val addend: Int) : ShopPriceModel
-    data class ItemCostPlusLeaderLevelTimes(val multiplier: Int) : ShopPriceModel
+
+    data class Fixed(
+        val amount: Int,
+    ) : ShopPriceModel
+
+    data class LeaderLevelPlus(
+        val addend: Int,
+    ) : ShopPriceModel
+
+    data class ItemCostPlusLeaderLevelTimes(
+        val multiplier: Int,
+    ) : ShopPriceModel
 }
 
 class ShopPriceRefs {
     val itemCost: ShopPriceModel = ShopPriceModel.ItemCost
     val halfItemCost: ShopPriceModel = ShopPriceModel.HalfItemCost
+
     fun fixed(amount: Int): ShopPriceModel = ShopPriceModel.Fixed(amount)
+
     fun leaderLevelPlus(addend: Int): ShopPriceModel = ShopPriceModel.LeaderLevelPlus(addend)
-    fun itemCostPlusLeaderLevelTimes(multiplier: Int): ShopPriceModel =
-        ShopPriceModel.ItemCostPlusLeaderLevelTimes(multiplier)
+
+    fun itemCostPlusLeaderLevelTimes(multiplier: Int): ShopPriceModel = ShopPriceModel.ItemCostPlusLeaderLevelTimes(multiplier)
 }
+
 val ShopPrices: ShopPriceRefs = ShopPriceRefs()
 
 sealed interface ShopPurchaseModel {
     object InventoryItem : ShopPurchaseModel
+
     data class Bulk(
         val resource: Resource,
         val quantityPrompt: TextBlock,
@@ -1396,6 +1963,7 @@ data class FormulaModel(
 )
 
 enum class ItemUseContext { Combat, Inventory }
+
 enum class ItemConsumePolicy { BeforeUse, ScriptControlled, NeverConsumes }
 
 data class StandardBattleModel(
@@ -1416,15 +1984,25 @@ data class CombatSystemModel(
 )
 
 enum class ConversationNpcSelection { BuildingListOrWildernessLocation }
+
 enum class NpcVisitPolicy { PerPartyVisitedBit }
+
 enum class DialogueBranchSelection { FirstMatchingStateThenDefault }
+
 enum class MissionHintPolicy { BeforeEachMenu }
+
 enum class ConversationTopic { Chitchat, Question, Rumour, Bye }
+
 enum class QuestionTopic { Lodging, Magic, People, Nothing }
+
 enum class ChitchatSubject { Well, Weather, Health }
+
 enum class ChitchatReplyPolicy { BySubjectAndNpcJob }
+
 enum class RumourUsagePolicy { OncePerConversationThenFallback }
+
 enum class RumourSourcePolicy { StandardTownRumours }
+
 enum class ChitchatPromptAudience { Any, Female, Male }
 
 data class ConversationMenuActionModel(
@@ -1468,14 +2046,14 @@ data class ConversationRumourModel(
 
 data class ConversationPromptTextModel(
     val chooseNpc: TextBlock = inlineText("Speak with whom?", ""),
-    val mainMenu: TextBlock = structuredText {
-        line("Chatting with")
-        line(TextPart.ConversationNpcName, ":")
-        line("")
-    },
+    val mainMenu: TextBlock =
+        structuredText {
+            line("Chatting with")
+            line(TextPart.ConversationNpcName, ":")
+            line("")
+        },
 ) {
-    fun renderMainMenu(npcName: String): TextBlock =
-        mainMenu.resolvePromptValues(PromptTextValues(conversationNpcName = npcName))
+    fun renderMainMenu(npcName: String): TextBlock = mainMenu.resolvePromptValues(PromptTextValues(conversationNpcName = npcName))
 }
 
 data class ReusableScreenTextModel(
@@ -1680,8 +2258,7 @@ data class GameModel(
     }
 }
 
-fun GameModel.itemPool(pool: ItemPoolId): ItemPoolId =
-    itemPools.firstOrNull { it == pool } ?: pool
+fun GameModel.itemPool(pool: ItemPoolId): ItemPoolId = itemPools.firstOrNull { it == pool } ?: pool
 
 fun GameModel.runtimeContent(): RuntimeContent =
     RuntimeContent(
@@ -1712,10 +2289,21 @@ fun GameModel.runtimeContent(): RuntimeContent =
     )
 
 sealed interface Trigger {
-    data class RandomStep(val percent: Int) : Trigger
-    data class AtPosition(val point: GridPoint) : Trigger
-    data class AtLocation(val location: LocationId) : Trigger
-    data class OnTerrain(val terrain: TerrainId) : Trigger
+    data class RandomStep(
+        val percent: Int,
+    ) : Trigger
+
+    data class AtPosition(
+        val point: GridPoint,
+    ) : Trigger
+
+    data class AtLocation(
+        val location: LocationId,
+    ) : Trigger
+
+    data class OnTerrain(
+        val terrain: TerrainId,
+    ) : Trigger
 }
 
 data class WildernessSystemModel(
@@ -1781,14 +2369,11 @@ fun WildernessKeysModel.exploreKeys(): List<InputBindingModel> =
         quit,
     )
 
-fun WildernessKeysModel.caveKeys(): List<InputBindingModel> =
-    listOf(caveEnter, caveLeave)
+fun WildernessKeysModel.caveKeys(): List<InputBindingModel> = listOf(caveEnter, caveLeave)
 
-fun WildernessKeysModel.outOfMovesKeys(): List<InputBindingModel> =
-    listOf(outOfMovesSave, outOfMovesQuit)
+fun WildernessKeysModel.outOfMovesKeys(): List<InputBindingModel> = listOf(outOfMovesSave, outOfMovesQuit)
 
-fun WildernessKeysModel.quitConfirmKeys(): List<InputBindingModel> =
-    listOf(quitYes, quitNo)
+fun WildernessKeysModel.quitConfirmKeys(): List<InputBindingModel> = listOf(quitYes, quitNo)
 
 data class DungeonKeysModel(
     val descend: InputBindingModel = inputKey("D"),
@@ -1860,11 +2445,9 @@ data class CharacterCreationPromptsModel(
     fun renderMemberName(memberNumber: Int): TextBlock =
         memberName.resolvePromptValues(PromptTextValues(creationMemberNumber = memberNumber))
 
-    fun renderGender(memberName: String): TextBlock =
-        gender.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
+    fun renderGender(memberName: String): TextBlock = gender.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
 
-    fun renderRace(memberName: String): TextBlock =
-        race.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
+    fun renderRace(memberName: String): TextBlock = race.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
 }
 
 data class PriestSpellPromptsModel(
@@ -1876,12 +2459,18 @@ data class PriestSpellPromptsModel(
     val invalidSpell: TextBlock = inlineText("Not possible."),
     val noSpells: TextBlock = inlineText("No priest spells are", "declared."),
 ) {
-    fun spellList(member: PartyMemberState, spells: List<SpellModel>, abortSlot: Int): TextBlock =
+    fun spellList(
+        member: PartyMemberState,
+        spells: List<SpellModel>,
+        abortSlot: Int,
+    ): TextBlock =
         inlineText(
-            *(spells.map { spell ->
-                val cost = spell.baseCost + member.level
-                "${spell.slot}. ${spell.name.padEnd(12)}(${cost.toString().padStart(3)}/${member.mana.current.toString().padStart(3)})"
-            } + "$abortSlot. Abort").toTypedArray(),
+            *(
+                spells.map { spell ->
+                    val cost = spell.baseCost + member.level
+                    "${spell.slot}. ${spell.name.padEnd(12)}(${cost.toString().padStart(3)}/${member.mana.current.toString().padStart(3)})"
+                } + "$abortSlot. Abort"
+            ).toTypedArray(),
         )
 }
 
@@ -1897,14 +2486,14 @@ data class InventoryUsePromptsModel(
     val notUsableSecondPrefix: String = "with ",
     val notUsableSecondSuffix: String = ".",
 ) {
-    fun choose(prompt: TextBlock, choiceLines: List<String>): TextBlock =
-        combineTextBlocks(prompt, TextBlock.Inline(choiceLines))
+    fun choose(
+        prompt: TextBlock,
+        choiceLines: List<String>,
+    ): TextBlock = combineTextBlocks(prompt, TextBlock.Inline(choiceLines))
 
-    fun invalidSlot(slot: Int): TextBlock =
-        inlineText("$invalidSlotFirstPrefix$slot$invalidSlotFirstSuffix", invalidSlotSecond)
+    fun invalidSlot(slot: Int): TextBlock = inlineText("$invalidSlotFirstPrefix$slot$invalidSlotFirstSuffix", invalidSlotSecond)
 
-    fun notUsable(itemName: String): TextBlock =
-        inlineText(notUsableFirst, "$notUsableSecondPrefix$itemName$notUsableSecondSuffix")
+    fun notUsable(itemName: String): TextBlock = inlineText(notUsableFirst, "$notUsableSecondPrefix$itemName$notUsableSecondSuffix")
 }
 
 data class EquipmentPromptsModel(
@@ -1921,18 +2510,21 @@ data class TownPromptsModel(
     val entryTax: TextBlock = missingPrompt("town.entry_tax"),
     val entryTaxThanks: TextBlock = missingPrompt("town.entry_tax_thanks"),
 ) {
-    fun unavailable(building: BuildingId): TextBlock =
-        inlineText("${building.slug}$unavailableSuffix")
+    fun unavailable(building: BuildingId): TextBlock = inlineText("${building.slug}$unavailableSuffix")
 
-    fun closed(building: BuildingId): TextBlock =
-        inlineText("${building.slug}$closedSuffix")
+    fun closed(building: BuildingId): TextBlock = inlineText("${building.slug}$closedSuffix")
 
-    fun renderEntryTaxPrompt(townName: String, taxPercent: Int, taxAmount: Int): TextBlock {
-        val values = PromptTextValues(
-            currentTownName = townName,
-            townTaxPercent = taxPercent,
-            townTaxAmount = taxAmount,
-        )
+    fun renderEntryTaxPrompt(
+        townName: String,
+        taxPercent: Int,
+        taxAmount: Int,
+    ): TextBlock {
+        val values =
+            PromptTextValues(
+                currentTownName = townName,
+                townTaxPercent = taxPercent,
+                townTaxAmount = taxAmount,
+            )
         return combineTextBlocks(
             entryWelcome.resolvePromptValues(values),
             entryTax.resolvePromptValues(values),
@@ -1946,14 +2538,14 @@ data class PartyPromptsModel(
     val dropPrompt: TextBlock = inlineText("Drop what?"),
     val dropEmptySlot: TextBlock = inlineText("Nothing to drop."),
     val dropAborted: TextBlock = inlineText("Aborted."),
-    val dropDropped: TextBlock = structuredText {
-        line("You drop the")
-        line(TextPart.SelectedItemName, ".")
-    },
+    val dropDropped: TextBlock =
+        structuredText {
+            line("You drop the")
+            line(TextPart.SelectedItemName, ".")
+        },
     val dropCapacityReduced: TextBlock = inlineText("You are forced to", "leave some of your", "food behind..."),
 ) {
-    fun renderDropped(itemName: String): TextBlock =
-        dropDropped.resolvePromptValues(PromptTextValues(selectedItemName = itemName))
+    fun renderDropped(itemName: String): TextBlock = dropDropped.resolvePromptValues(PromptTextValues(selectedItemName = itemName))
 }
 
 data class WildernessPromptsModel(
@@ -1965,7 +2557,10 @@ data class WildernessPromptsModel(
     val quitConfirm: TextBlock = missingPrompt("wilderness.quit_confirm"),
     val dungeonHandoff: TextBlock = missingPrompt("wilderness.dungeon_handoff"),
 ) {
-    fun renderDungeonHandoff(dungeonName: String, levels: Int): TextBlock =
+    fun renderDungeonHandoff(
+        dungeonName: String,
+        levels: Int,
+    ): TextBlock =
         dungeonHandoff.resolvePromptValues(
             PromptTextValues(
                 wildernessDungeonName = dungeonName,
@@ -1981,15 +2576,12 @@ data class DungeonPromptsModel(
     val noTorches: TextBlock = missingPrompt("dungeon.no_torches"),
     val leaveCavern: TextBlock = missingPrompt("dungeon.leave_cavern"),
 ) {
-    fun renderLevelMenu(depth: Int): TextBlock =
-        levelMenu.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
+    fun renderLevelMenu(depth: Int): TextBlock = levelMenu.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
 
-    fun renderEnterLevel(depth: Int): TextBlock =
-        enterLevel.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
+    fun renderEnterLevel(depth: Int): TextBlock = enterLevel.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
 }
 
-private fun missingPrompt(name: String): TextBlock =
-    inlineText("[missing prompt: $name]")
+private fun missingPrompt(name: String): TextBlock = inlineText("[missing prompt: $name]")
 
 private data class PromptTextValues(
     val wildernessDungeonName: String? = null,
@@ -2011,12 +2603,14 @@ private data class PromptTextValues(
 private fun TextBlock.resolvePromptValues(values: PromptTextValues): TextBlock =
     when (this) {
         is TextBlock.Inline,
-        is TextBlock.Ref -> this
-        is TextBlock.Structured -> TextBlock.Structured(
-            lines.map { line ->
-                TextLine(line.parts.map { part -> part.resolvePromptValue(values) })
-            },
-        )
+        is TextBlock.Ref,
+        -> this
+        is TextBlock.Structured ->
+            TextBlock.Structured(
+                lines.map { line ->
+                    TextLine(line.parts.map { part -> part.resolvePromptValue(values) })
+                },
+            )
     }
 
 private fun TextPart.resolvePromptValue(values: PromptTextValues): TextPart =
@@ -2054,7 +2648,6 @@ private fun QuestionTopic.defaultLabel(): String =
         QuestionTopic.Nothing -> "Nothing"
     }
 
-
 data class WildernessEventModel(
     val caveChancePercent: Int = 3,
     val quietChancePercent: Int = 91,
@@ -2084,41 +2677,70 @@ data class TerrainTransitionTextModel(
 // =============================================================================
 
 enum class Gender { Male, Female }
+
 enum class Race { Human, Dwarf, Elf, Halfling }
+
 enum class PcClass { Fighter, Thief, Mage, Priest, Bard, Ranger }
+
 val PcClass.sourceId: Int
-    get() = when (this) {
-        PcClass.Fighter -> 1
-        PcClass.Thief -> 2
-        PcClass.Mage -> 3
-        PcClass.Priest -> 4
-        PcClass.Bard -> 5
-        PcClass.Ranger -> 6
-    }
+    get() =
+        when (this) {
+            PcClass.Fighter -> 1
+            PcClass.Thief -> 2
+            PcClass.Mage -> 3
+            PcClass.Priest -> 4
+            PcClass.Bard -> 5
+            PcClass.Ranger -> 6
+        }
+
 enum class RuntimeMode { TitleMenu, Wilderness, Town, Dungeon, Battle, YdargCastle, GameOver }
+
 enum class Facing { North, East, South, West }
+
 enum class StateKind { AuthoredFixture, RuntimeSnapshot }
 
 const val InventorySaveSlotMax: Int = 16
 
-data class StatPool(val current: Int, val max: Int)
+data class StatPool(
+    val current: Int,
+    val max: Int,
+)
 typealias HitPoints = StatPool
 typealias Mana = StatPool
+
 infix fun Int.of(max: Int): StatPool = StatPool(this, max)
 
-data class GridPoint(val x: Int, val y: Int)
-fun xy(x: Int, y: Int): GridPoint = GridPoint(x, y)
+data class GridPoint(
+    val x: Int,
+    val y: Int,
+)
+
+fun xy(
+    x: Int,
+    y: Int,
+): GridPoint = GridPoint(x, y)
 
 sealed interface WorldPosition {
-    data class Wilderness(val point: GridPoint) : WorldPosition
-    data class Town(val town: TownId, val building: BuildingId) : WorldPosition
+    data class Wilderness(
+        val point: GridPoint,
+    ) : WorldPosition
+
+    data class Town(
+        val town: TownId,
+        val building: BuildingId,
+    ) : WorldPosition
 }
 
-fun townPosition(town: TownId, building: BuildingId): WorldPosition =
-    WorldPosition.Town(town, building)
+fun townPosition(
+    town: TownId,
+    building: BuildingId,
+): WorldPosition = WorldPosition.Town(town, building)
 
 object Wilderness {
-    fun xy(x: Int, y: Int): WorldPosition = WorldPosition.Wilderness(GridPoint(x, y))
+    fun xy(
+        x: Int,
+        y: Int,
+    ): WorldPosition = WorldPosition.Wilderness(GridPoint(x, y))
 }
 
 data class RealmState(
@@ -2136,8 +2758,15 @@ data class RealmState(
     val lastTerrain: TerrainId? = null,
 )
 
-data class LocationPlacement(val location: LocationId, val point: GridPoint)
-data class NpcPlacement(val npc: NpcId, val position: WorldPosition)
+data class LocationPlacement(
+    val location: LocationId,
+    val point: GridPoint,
+)
+
+data class NpcPlacement(
+    val npc: NpcId,
+    val position: WorldPosition,
+)
 
 data class PartyResources(
     val gold: Int,
@@ -2155,14 +2784,34 @@ data class PartyCounters(
     val attackedToday: List<PartyAttackRecord>,
 )
 
-data class PartyAttackRecord(val party: PartyId, val attacked: Boolean)
-data class InventorySlotState(val slot: Int, val item: ItemId?)
-data class EquipmentState(val weapon: ItemId, val armor: ItemId)
-data class NpcVisitState(val npc: NpcId, val visited: Boolean)
+data class PartyAttackRecord(
+    val party: PartyId,
+    val attacked: Boolean,
+)
+
+data class InventorySlotState(
+    val slot: Int,
+    val item: ItemId?,
+)
+
+data class EquipmentState(
+    val weapon: ItemId,
+    val armor: ItemId,
+)
+
+data class NpcVisitState(
+    val npc: NpcId,
+    val visited: Boolean,
+)
 
 sealed interface JournalEntryState {
-    data class Text(val id: TextId) : JournalEntryState
-    data class Line(val text: String) : JournalEntryState
+    data class Text(
+        val id: TextId,
+    ) : JournalEntryState
+
+    data class Line(
+        val text: String,
+    ) : JournalEntryState
 }
 
 data class PartyMemberState(
@@ -2223,51 +2872,81 @@ abstract class IntExpr {
     abstract val ast: IntAst
 
     operator fun plus(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "add", other.ast))
+
     operator fun plus(other: Int): IntExpr = this + lit(other)
+
     operator fun minus(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "sub", other.ast))
+
     operator fun minus(other: Int): IntExpr = this - lit(other)
+
     operator fun times(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "mul", other.ast))
+
     operator fun times(other: Int): IntExpr = this * lit(other)
+
     operator fun div(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "div", other.ast))
+
     operator fun div(other: Int): IntExpr = this / lit(other)
 }
 
-data class Expr(override val ast: IntAst) : IntExpr()
-class LocalIntRef internal constructor(val name: String) : IntExpr() {
+data class Expr(
+    override val ast: IntAst,
+) : IntExpr()
+
+class LocalIntRef internal constructor(
+    val name: String,
+) : IntExpr() {
     override val ast: IntAst = IntAst.Var(name)
 }
 
 fun lit(value: Int): IntExpr = Expr(IntAst.Lit(value))
+
 fun v(name: String): IntExpr = Expr(IntAst.Var(name))
+
 fun random(range: IntRange): IntExpr = Expr(IntAst.Random(IntAst.Lit(range.first), IntAst.Lit(range.last)))
+
 fun chance(percent: IntExpr): BoolExpr = random(0..99) lt percent
+
 fun chance(percent: Int): BoolExpr = chance(lit(percent))
 
 infix fun IntExpr.eq(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "eq", other.ast))
+
 infix fun IntExpr.eq(other: Int): BoolExpr = this eq lit(other)
+
 infix fun IntExpr.ne(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "ne", other.ast))
+
 infix fun IntExpr.ne(other: Int): BoolExpr = this ne lit(other)
+
 infix fun IntExpr.lt(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "lt", other.ast))
+
 infix fun IntExpr.lt(other: Int): BoolExpr = this lt lit(other)
+
 infix fun IntExpr.lte(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "lte", other.ast))
+
 infix fun IntExpr.lte(other: Int): BoolExpr = this lte lit(other)
+
 infix fun IntExpr.gt(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "gt", other.ast))
+
 infix fun IntExpr.gt(other: Int): BoolExpr = this gt lit(other)
+
 infix fun IntExpr.gte(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "gte", other.ast))
+
 infix fun IntExpr.gte(other: Int): BoolExpr = this gte lit(other)
 
 abstract class BoolExpr {
     abstract val ast: BoolAst
 
     infix fun and(other: BoolExpr): BoolExpr = Bool(BoolAst.And(ast, other.ast))
+
     infix fun or(other: BoolExpr): BoolExpr = Bool(BoolAst.Or(ast, other.ast))
+
     operator fun not(): BoolExpr = Bool(BoolAst.Not(ast))
 }
 
-data class Bool(override val ast: BoolAst) : BoolExpr()
+data class Bool(
+    override val ast: BoolAst,
+) : BoolExpr()
 
-fun achieved(milestone: GameMilestoneId): BoolExpr =
-    Bool(BoolAst.MilestoneAchieved(milestone))
+fun achieved(milestone: GameMilestoneId): BoolExpr = Bool(BoolAst.MilestoneAchieved(milestone))
 
 class IntSlot(
     private val script: ScriptScope,
@@ -2275,31 +2954,52 @@ class IntSlot(
     override val ast: IntAst,
 ) : IntExpr() {
     infix fun set(value: IntExpr): Unit = script.record(Op.Set(lvalue, value.ast))
+
     infix fun set(value: Int): Unit = set(lit(value))
+
     operator fun plusAssign(value: IntExpr): Unit = script.record(Op.Add(lvalue, value.ast))
+
     operator fun plusAssign(value: Int): Unit = plusAssign(lit(value))
+
     operator fun minusAssign(value: IntExpr): Unit = script.record(Op.Sub(lvalue, value.ast))
+
     operator fun minusAssign(value: Int): Unit = minusAssign(lit(value))
+
     operator fun timesAssign(value: IntExpr): Unit = script.record(Op.Set(lvalue, (this * value).ast))
+
     operator fun timesAssign(value: Int): Unit = timesAssign(lit(value))
+
     operator fun divAssign(value: IntExpr): Unit = script.record(Op.Set(lvalue, (this / value).ast))
+
     operator fun divAssign(value: Int): Unit = divAssign(lit(value))
-    fun addClamped(value: IntExpr, max: IntExpr): Unit = script.record(Op.AddClamped(lvalue, value.ast, max.ast))
-    fun addClamped(value: Int, max: IntExpr): Unit = addClamped(lit(value), max)
+
+    fun addClamped(
+        value: IntExpr,
+        max: IntExpr,
+    ): Unit = script.record(Op.AddClamped(lvalue, value.ast, max.ast))
+
+    fun addClamped(
+        value: Int,
+        max: IntExpr,
+    ): Unit = addClamped(lit(value), max)
 }
 
-class RealmRef(private val script: ScriptScope) {
+class RealmRef(
+    private val script: ScriptScope,
+) {
     val hour: IntSlot = IntSlot(script, LValueAst.RealmScalar("hour"), IntAst.RealmScalar("hour"))
-    val partyMemberMax: IntSlot = IntSlot(
-        script,
-        LValueAst.RealmScalar("party_member_max"),
-        IntAst.RealmScalar("party_member_max"),
-    )
-    val banished: BoolSlot = BoolSlot(
-        script,
-        LValueAst.RealmScalar("banished"),
-        BoolAst.Cmp(IntAst.RealmScalar("banished"), "ne", IntAst.Lit(0)),
-    )
+    val partyMemberMax: IntSlot =
+        IntSlot(
+            script,
+            LValueAst.RealmScalar("party_member_max"),
+            IntAst.RealmScalar("party_member_max"),
+        )
+    val banished: BoolSlot =
+        BoolSlot(
+            script,
+            LValueAst.RealmScalar("banished"),
+            BoolAst.Cmp(IntAst.RealmScalar("banished"), "ne", IntAst.Lit(0)),
+        )
 }
 
 class RuntimeContextRef {
@@ -2314,10 +3014,13 @@ class BoolSlot(
     private val read: BoolAst,
 ) : BoolExpr() {
     override val ast: BoolAst = read
+
     infix fun set(value: Boolean): Unit = script.record(Op.Set(lvalue, IntAst.Lit(if (value) 1 else 0)))
 }
 
-class PartyRef(private val script: ScriptScope) {
+class PartyRef(
+    private val script: ScriptScope,
+) {
     val gold: IntSlot = IntSlot(script, LValueAst.PartyScalar("gold"), IntAst.PartyScalar("gold"))
     val torches: IntSlot = IntSlot(script, LValueAst.PartyScalar("torches"), IntAst.PartyScalar("torches"))
     val food: IntSlot = IntSlot(script, LValueAst.PartyScalar("food"), IntAst.PartyScalar("food"))
@@ -2326,28 +3029,40 @@ class PartyRef(private val script: ScriptScope) {
     val memberCount: IntSlot = IntSlot(script, LValueAst.PartyScalar("member_count"), IntAst.PartyScalar("member_count"))
     val inventory: PartyInventoryRef = PartyInventoryRef(script)
     val leader: MemberRef get() = member(lit(1))
+
     fun member(index: Int): MemberRef = member(lit(index))
+
     fun member(index: IntExpr): MemberRef = MemberRef(script, index)
 }
 
-class PartyInventoryRef(private val script: ScriptScope) {
+class PartyInventoryRef(
+    private val script: ScriptScope,
+) {
     fun count(pool: ItemPoolId): IntExpr = Expr(IntAst.InventoryPoolCount(pool))
 
-    fun itemCost(slot: InventorySlotRef): IntExpr =
-        Expr(IntAst.InventorySlotCost(slot.index.ast))
+    fun itemCost(slot: InventorySlotRef): IntExpr = Expr(IntAst.InventorySlotCost(slot.index.ast))
 
-    fun consume(pool: ItemPoolId, quantity: IntExpr) {
+    fun consume(
+        pool: ItemPoolId,
+        quantity: IntExpr,
+    ) {
         script.record(Op.ConsumeInventoryPool(pool, quantity.ast))
     }
 
-    fun consume(pool: ItemPoolId, quantity: Int): Unit = consume(pool, lit(quantity))
+    fun consume(
+        pool: ItemPoolId,
+        quantity: Int,
+    ): Unit = consume(pool, lit(quantity))
 
     fun clear(slot: InventorySlotRef) {
         script.record(Op.ClearInventorySlot(slot.index.ast))
     }
 }
 
-class MemberRef(private val script: ScriptScope, val index: IntExpr) {
+class MemberRef(
+    private val script: ScriptScope,
+    val index: IntExpr,
+) {
     val hp: IntSlot = intField("hit_points")
     val maxHp: IntSlot = intField("health")
     val mp: IntSlot = intField("magic")
@@ -2360,14 +3075,16 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
     val charisma: IntSlot = intField("charisma")
     val weaponSkill: IntSlot = intField("weapon_skill")
     val pcClass: IntSlot = intField("class")
-    val dead: BoolSlot = BoolSlot(
-        script,
-        LValueAst.MemberField(index.ast, "dead"),
-        BoolAst.MemberFlag(index.ast, "dead"),
-    )
+    val dead: BoolSlot =
+        BoolSlot(
+            script,
+            LValueAst.MemberField(index.ast, "dead"),
+            BoolAst.MemberFlag(index.ast, "dead"),
+        )
     val spellcaster: BoolExpr = Bool(BoolAst.MemberFlag(index.ast, "spellcaster"))
 
     fun isClass(klass: PcClass): BoolExpr = pcClass eq klass.sourceId
+
     fun fullHeal() {
         script.record(Op.Set(LValueAst.MemberField(index.ast, "hit_points"), maxHp.ast))
     }
@@ -2376,21 +3093,28 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
         IntSlot(script, LValueAst.MemberField(index.ast, field), IntAst.MemberField(index.ast, field))
 }
 
-class MonsterRef(private val script: ScriptScope, val index: IntExpr) {
+class MonsterRef(
+    private val script: ScriptScope,
+    val index: IntExpr,
+) {
     val hp: IntSlot = IntSlot(script, LValueAst.MonsterField(index.ast, "hit_points"), IntAst.MonsterField(index.ast, "hit_points"))
-    val dead: BoolSlot = BoolSlot(
-        script,
-        LValueAst.MonsterField(index.ast, "dead"),
-        BoolAst.MonsterFlag(index.ast, "dead"),
-    )
+    val dead: BoolSlot =
+        BoolSlot(
+            script,
+            LValueAst.MonsterField(index.ast, "dead"),
+            BoolAst.MonsterFlag(index.ast, "dead"),
+        )
 }
 
-class BattleRef(private val script: ScriptScope) {
-    val monsterWeaponSkill: IntSlot = IntSlot(
-        script,
-        LValueAst.BattleFlag("monster_weapon_skill"),
-        IntAst.BattleFlag("monster_weapon_skill"),
-    )
+class BattleRef(
+    private val script: ScriptScope,
+) {
+    val monsterWeaponSkill: IntSlot =
+        IntSlot(
+            script,
+            LValueAst.BattleFlag("monster_weapon_skill"),
+            IntAst.BattleFlag("monster_weapon_skill"),
+        )
     val encounterHitPointMax: IntExpr = Expr(IntAst.BattleFlag("encounter_hit_point_max"))
     val monsterConfused: BoolSlot = boolFlag("monster_confused")
     val monstersHeld: BoolSlot = boolFlag("monsters_held")
@@ -2399,30 +3123,44 @@ class BattleRef(private val script: ScriptScope) {
     val partyConfused: BoolSlot = boolFlag("party_confused")
     val actionRetry: BoolSlot = boolFlag("action_retry")
 
-    fun firstAliveMonster(): MonsterRef =
-        MonsterRef(script, script.localInt(Expr(IntAst.BattleQuery("first_alive_monster")), "monster"))
+    fun firstAliveMonster(): MonsterRef = MonsterRef(script, script.localInt(Expr(IntAst.BattleQuery("first_alive_monster")), "monster"))
 
-    fun randomAliveMember(): MemberRef =
-        MemberRef(script, script.localInt(Expr(IntAst.BattleQuery("random_alive_member")), "member"))
+    fun randomAliveMember(): MemberRef = MemberRef(script, script.localInt(Expr(IntAst.BattleQuery("random_alive_member")), "member"))
 
-    private fun boolFlag(name: String): BoolSlot =
-        BoolSlot(script, LValueAst.BattleFlag(name), BoolAst.BattleFlag(name))
+    private fun boolFlag(name: String): BoolSlot = BoolSlot(script, LValueAst.BattleFlag(name), BoolAst.BattleFlag(name))
 }
 
 sealed interface StrExpr {
     val ast: StrAst
 }
 
-data class Str(override val ast: StrAst) : StrExpr
+data class Str(
+    override val ast: StrAst,
+) : StrExpr
 
 enum class PronounCase { Subject, Object, Possessive }
 
-sealed class NativeSpec(val id: NativeOpId, val reason: String) {
+sealed class NativeSpec(
+    val id: NativeOpId,
+    val reason: String,
+) {
     val path: String get() = id.slug
 }
-class NativeEffectSpec(id: NativeOpId, reason: String) : NativeSpec(id, reason)
-class NativeIntSpec(id: NativeOpId, reason: String) : NativeSpec(id, reason)
-class NativeStringSpec(id: NativeOpId, reason: String) : NativeSpec(id, reason)
+
+class NativeEffectSpec(
+    id: NativeOpId,
+    reason: String,
+) : NativeSpec(id, reason)
+
+class NativeIntSpec(
+    id: NativeOpId,
+    reason: String,
+) : NativeSpec(id, reason)
+
+class NativeStringSpec(
+    id: NativeOpId,
+    reason: String,
+) : NativeSpec(id, reason)
 
 class NativeAllowlistRefs {
     val inventoryAdd: NativeEffectSpec = effect(NativeOps.inventoryAdd, "inventory slot mutation")
@@ -2439,19 +3177,20 @@ class NativeAllowlistRefs {
     val npcRoleName: NativeStringSpec = string(NativeOps.npcRoleName, "role-resolved NPC name binding")
     val npcRoleLocation: NativeStringSpec = string(NativeOps.npcRoleLocation, "role-resolved NPC location binding")
 
-    val all: List<NativeSpec> = listOf(
-        inventoryAdd,
-        townEnterService,
-        inputKeyUpper,
-        partyMemberName,
-        combatMonsterName,
-        partyPronounSubject,
-        partyPronounObject,
-        partyPronounPossessive,
-        townNpcName,
-        npcRoleName,
-        npcRoleLocation,
-    )
+    val all: List<NativeSpec> =
+        listOf(
+            inventoryAdd,
+            townEnterService,
+            inputKeyUpper,
+            partyMemberName,
+            combatMonsterName,
+            partyPronounSubject,
+            partyPronounObject,
+            partyPronounPossessive,
+            townNpcName,
+            npcRoleName,
+            npcRoleLocation,
+        )
 
     val byPath: Map<String, NativeSpec> = all.associateBy { it.path }
 
@@ -2459,10 +3198,22 @@ class NativeAllowlistRefs {
         check(byPath.size == all.size) { "duplicate native allowlist path" }
     }
 
-    private fun effect(id: NativeOpId, reason: String) = NativeEffectSpec(id, reason)
-    private fun int(id: NativeOpId, reason: String) = NativeIntSpec(id, reason)
-    private fun string(id: NativeOpId, reason: String) = NativeStringSpec(id, reason)
+    private fun effect(
+        id: NativeOpId,
+        reason: String,
+    ) = NativeEffectSpec(id, reason)
+
+    private fun int(
+        id: NativeOpId,
+        reason: String,
+    ) = NativeIntSpec(id, reason)
+
+    private fun string(
+        id: NativeOpId,
+        reason: String,
+    ) = NativeStringSpec(id, reason)
 }
+
 val NativeAllowlist: NativeAllowlistRefs = NativeAllowlistRefs()
 
 fun partyName(member: MemberRef): StrExpr =
@@ -2471,12 +3222,16 @@ fun partyName(member: MemberRef): StrExpr =
 fun monsterName(monster: MonsterRef): StrExpr =
     Str(StrAst.NativeString(NativeAllowlist.combatMonsterName.path, listOf(NativeStringArg.IntValue(monster.index.ast))))
 
-fun pronoun(member: MemberRef, case: PronounCase): StrExpr {
-    val native = when (case) {
-        PronounCase.Subject -> NativeAllowlist.partyPronounSubject
-        PronounCase.Object -> NativeAllowlist.partyPronounObject
-        PronounCase.Possessive -> NativeAllowlist.partyPronounPossessive
-    }
+fun pronoun(
+    member: MemberRef,
+    case: PronounCase,
+): StrExpr {
+    val native =
+        when (case) {
+            PronounCase.Subject -> NativeAllowlist.partyPronounSubject
+            PronounCase.Object -> NativeAllowlist.partyPronounObject
+            PronounCase.Possessive -> NativeAllowlist.partyPronounPossessive
+        }
     return Str(StrAst.NativeString(native.path, listOf(NativeStringArg.IntValue(member.index.ast))))
 }
 
@@ -2490,53 +3245,54 @@ fun Gender.pronoun(case: PronounCase): String =
 fun townNpcName(job: NpcJobId): StrExpr =
     Str(StrAst.NativeString(NativeAllowlist.townNpcName.path, listOf(NativeStringArg.Literal(render(job)))))
 
-fun npcName(role: NpcRole): StrExpr =
-    Str(StrAst.NativeString(NativeAllowlist.npcRoleName.path, listOf(NativeStringArg.Literal(role.slug))))
+fun npcName(role: NpcRole): StrExpr = Str(StrAst.NativeString(NativeAllowlist.npcRoleName.path, listOf(NativeStringArg.Literal(role.slug))))
 
 fun npcLocation(role: NpcRole): StrExpr =
     Str(StrAst.NativeString(NativeAllowlist.npcRoleLocation.path, listOf(NativeStringArg.Literal(role.slug))))
 
 fun render(ast: IntAst): String = ast.toString()
-fun render(arg: Any): String = when (arg) {
-    is IntExpr -> render(arg.ast)
-    is IntAst -> render(arg)
-    is TextId -> arg.id
-    is ItemId -> arg.slug
-    is ItemPoolId -> arg.slug
-    is MonsterId -> arg.slug
-    is EncounterTier -> arg.slug
-    is WorldMapId -> arg.slug
-    is MapLayerId -> arg.slug
-    is TerrainId -> arg.slug
-    is TerrainTagId -> arg.slug
-    is ImageId -> arg.slug
-    is PaletteId -> arg.slug
-    is PaletteColorId -> arg.slug
-    is LayoutId -> arg.slug
-    is ScreenRegionId -> arg.slug
-    is SceneId -> arg.slug
-    is SpellId -> arg.slug
-    is MissionId -> arg.slug
-    is NpcRole -> arg.slug
-    is NativeOpId -> arg.slug
-    is FlagState -> "${arg.flag.slug}.${arg.native}"
-    is StateId -> arg.slug
-    is PartyId -> arg.slug
-    is NpcId -> arg.slug
-    is LocationId -> arg.slug
-    is TownId -> arg.slug
-    is BuildingId -> arg.slug
-    is FormulaId -> arg.slug
-    is KeyActionId -> arg.slug
-    is DungeonId -> arg.slug
-    is GameMilestoneId -> arg.slug
-    is LootTableId -> arg.slug
-    is RewardBundleId -> arg.slug
-    is NpcJobId -> arg.slug
-    is RumourTableId -> arg.slug
-    is RumourId -> arg.slug
-    else -> arg.toString()
-}
+
+fun render(arg: Any): String =
+    when (arg) {
+        is IntExpr -> render(arg.ast)
+        is IntAst -> render(arg)
+        is TextId -> arg.id
+        is ItemId -> arg.slug
+        is ItemPoolId -> arg.slug
+        is MonsterId -> arg.slug
+        is EncounterTier -> arg.slug
+        is WorldMapId -> arg.slug
+        is MapLayerId -> arg.slug
+        is TerrainId -> arg.slug
+        is TerrainTagId -> arg.slug
+        is ImageId -> arg.slug
+        is PaletteId -> arg.slug
+        is PaletteColorId -> arg.slug
+        is LayoutId -> arg.slug
+        is ScreenRegionId -> arg.slug
+        is SceneId -> arg.slug
+        is SpellId -> arg.slug
+        is MissionId -> arg.slug
+        is NpcRole -> arg.slug
+        is NativeOpId -> arg.slug
+        is FlagState -> "${arg.flag.slug}.${arg.native}"
+        is StateId -> arg.slug
+        is PartyId -> arg.slug
+        is NpcId -> arg.slug
+        is LocationId -> arg.slug
+        is TownId -> arg.slug
+        is BuildingId -> arg.slug
+        is FormulaId -> arg.slug
+        is KeyActionId -> arg.slug
+        is DungeonId -> arg.slug
+        is GameMilestoneId -> arg.slug
+        is LootTableId -> arg.slug
+        is RewardBundleId -> arg.slug
+        is NpcJobId -> arg.slug
+        is RumourTableId -> arg.slug
+        is RumourId -> arg.slug
+        else -> arg.toString()
+    }
 
 // =============================================================================
 // 05. DSL kernel: builders and validation
@@ -2548,11 +3304,17 @@ class ScriptContext {
 
     fun fresh(prefix: String): String = "${prefix}_${nextVar++}"
 
-    fun record(fallback: MutableList<Op>, op: Op) {
+    fun record(
+        fallback: MutableList<Op>,
+        op: Op,
+    ) {
         (opTargets.lastOrNull() ?: fallback) += op
     }
 
-    fun <T> recording(target: MutableList<Op>, body: () -> T): T {
+    fun <T> recording(
+        target: MutableList<Op>,
+        body: () -> T,
+    ): T {
         opTargets += target
         return try {
             body()
@@ -2589,43 +3351,76 @@ class ScriptScope(
     fun fresh(prefix: String): String = ctx.fresh(prefix)
 
     fun screen(text: TextBlock): Unit = record(Op.Screen(text))
+
     fun screen(id: TextId): Unit = screen(TextBlock.Ref(id))
+
     fun screen(vararg lines: String): Unit = screen(textLines(*lines))
+
     fun screen(body: StructuredTextBlockBuilder.() -> Unit): Unit = screen(structuredText(body))
 
     fun say(text: TextBlock): Unit = screen(text)
+
     fun say(id: TextId): Unit = screen(id)
+
     fun say(vararg lines: String): Unit = screen(*lines)
+
     fun say(body: StructuredTextBlockBuilder.() -> Unit): Unit = screen(body)
+
     fun emit(id: TextId): Unit = record(Op.Emit(id))
-    fun emitIndexed(pattern: TextPattern, value: IntExpr): Unit = record(Op.EmitIndexed(pattern, value.ast))
+
+    fun emitIndexed(
+        pattern: TextPattern,
+        value: IntExpr,
+    ): Unit = record(Op.EmitIndexed(pattern, value.ast))
+
     fun journal(text: TextBlock): Unit = record(Op.AppendJournal(text))
+
     fun journal(vararg lines: String): Unit = journal(textLines(*lines))
+
     fun journal(body: StructuredTextBlockBuilder.() -> Unit): Unit = journal(structuredText(body))
+
     fun waitInput(reason: String? = null): Unit = record(Op.WaitInput(reason))
+
     fun pause(ms: Int): Unit = record(Op.Pause(ms))
 
     fun clearText(): Unit = view.clearText()
+
     fun clearMapWindow(): Unit = view.clearMapWindow()
+
     fun renderMap(): Unit = view.renderMap()
+
     fun showBackdrop(image: ImageId): Unit = view.showBackdrop(image)
+
     fun showImage(image: ImageId): Unit = view.showImage(image)
+
     fun statusLine(): Unit = view.statusLine()
 
-    fun let(name: String, value: IntExpr): IntExpr {
+    fun let(
+        name: String,
+        value: IntExpr,
+    ): IntExpr {
         record(Op.LetInt(name, value.ast))
         return v(name)
     }
 
-    fun let(name: String, value: Int): IntExpr = let(name, lit(value))
+    fun let(
+        name: String,
+        value: Int,
+    ): IntExpr = let(name, lit(value))
 
-    fun localInt(value: IntExpr, hint: String = "local"): LocalIntRef {
+    fun localInt(
+        value: IntExpr,
+        hint: String = "local",
+    ): LocalIntRef {
         val ref = LocalIntRef(fresh(hint))
         record(Op.LetInt(ref.name, value.ast))
         return ref
     }
 
-    fun localInt(value: Int, hint: String = "local"): LocalIntRef = localInt(lit(value), hint)
+    fun localInt(
+        value: Int,
+        hint: String = "local",
+    ): LocalIntRef = localInt(lit(value), hint)
 
     infix fun LocalIntRef.set(value: IntExpr) {
         record(Op.LetInt(name, value.ast))
@@ -2645,7 +3440,10 @@ class ScriptScope(
 
     operator fun LocalIntRef.minusAssign(value: Int): Unit = minusAssign(lit(value))
 
-    fun bind(name: String, value: StrExpr) {
+    fun bind(
+        name: String,
+        value: StrExpr,
+    ) {
         record(Op.BindText(name, value.ast))
     }
 
@@ -2653,7 +3451,10 @@ class ScriptScope(
         record(Op.SetFlag(state.flag.slug, state.native))
     }
 
-    fun whenever(cond: BoolExpr, then: ScriptScope.() -> Unit): ElseBranch {
+    fun whenever(
+        cond: BoolExpr,
+        then: ScriptScope.() -> Unit,
+    ): ElseBranch {
         val thenOps = capture(then)
         val index = ops.size
         ops += Op.If(cond.ast, thenOps, emptyList())
@@ -2661,52 +3462,76 @@ class ScriptScope(
     }
 
     @Deprecated("Use whenever(...) in author-facing script blocks.")
-    fun when_(cond: BoolExpr, then: ScriptScope.() -> Unit): ElseBranch = whenever(cond, then)
+    fun when_(
+        cond: BoolExpr,
+        then: ScriptScope.() -> Unit,
+    ): ElseBranch = whenever(cond, then)
 
     fun stop(reason: String? = null): Unit = record(Op.Stop(reason))
+
     fun breakLoop(reason: String? = null): Unit = record(Op.Break(reason))
 
     fun loop(body: ScriptScope.() -> Unit) {
         record(Op.Loop(capture(body)))
     }
 
-    fun choose(expr: IntExpr, body: SwitchBuilder.() -> Unit) {
+    fun choose(
+        expr: IntExpr,
+        body: SwitchBuilder.() -> Unit,
+    ) {
         val builder = SwitchBuilder(ctx)
         builder.body()
         record(Op.Switch(expr.ast, builder.cases))
     }
 
-    fun menu(prompt: TextId, body: MenuBuilder.() -> Unit) {
+    fun menu(
+        prompt: TextId,
+        body: MenuBuilder.() -> Unit,
+    ) {
         val builder = MenuBuilder(ctx)
         builder.body()
         record(builder.build(TextBlock.Ref(prompt)))
     }
 
-    fun menu(vararg promptLines: String, body: MenuBuilder.() -> Unit) {
+    fun menu(
+        vararg promptLines: String,
+        body: MenuBuilder.() -> Unit,
+    ) {
         val builder = MenuBuilder(ctx)
         builder.body()
         record(builder.build(textLines(*promptLines)))
     }
 
-    fun menu(prompt: TextBlock, body: MenuBuilder.() -> Unit) {
+    fun menu(
+        prompt: TextBlock,
+        body: MenuBuilder.() -> Unit,
+    ) {
         val builder = MenuBuilder(ctx)
         builder.body()
         record(builder.build(prompt))
     }
 
-    fun forEachMonster(includeDead: Boolean = false, body: ScriptScope.(MonsterRef) -> Unit) {
+    fun forEachMonster(
+        includeDead: Boolean = false,
+        body: ScriptScope.(MonsterRef) -> Unit,
+    ) {
         val name = ctx.fresh("monster")
-        val childOps = capture {
-            body(MonsterRef(this, v(name)))
-        }
+        val childOps =
+            capture {
+                body(MonsterRef(this, v(name)))
+            }
         record(Op.ForEachMonster(name, includeDead, childOps))
     }
 
-    fun forEachMember(includeDead: Boolean = false, body: ScriptScope.(MemberRef) -> Unit) {
+    fun forEachMember(
+        includeDead: Boolean = false,
+        body: ScriptScope.(MemberRef) -> Unit,
+    ) {
         val name = ctx.fresh("member")
-        val childOps = capture {
-            body(MemberRef(this, v(name)))
-        }
+        val childOps =
+            capture {
+                body(MemberRef(this, v(name)))
+            }
         record(Op.ForEachMember(name, includeDead, childOps))
     }
 
@@ -2718,7 +3543,10 @@ class ScriptScope(
 
     fun healLivingMembers(amount: Int): Unit = healLivingMembers(lit(amount))
 
-    fun run(scene: SceneId, vararg bindings: Pair<String, Any>) {
+    fun run(
+        scene: SceneId,
+        vararg bindings: Pair<String, Any>,
+    ) {
         record(Op.RunScene(scene, bindings.associate { it.first to render(it.second) }))
     }
 
@@ -2730,19 +3558,32 @@ class ScriptScope(
         record(Op.TellRumour(table))
     }
 
-    fun encounter(monster: MonsterId, mandatory: Boolean = false, tier: EncounterTier? = null) {
+    fun encounter(
+        monster: MonsterId,
+        mandatory: Boolean = false,
+        tier: EncounterTier? = null,
+    ) {
         record(Op.Encounter(foe = monster, mandatory = mandatory, tier = tier))
     }
 
-    fun enterDungeon(dungeon: DungeonId, levels: Int) {
+    fun enterDungeon(
+        dungeon: DungeonId,
+        levels: Int,
+    ) {
         record(Op.EnterDungeon(dungeon, levels))
     }
 
-    fun teleportParty(directionKey: IntExpr, distance: IntExpr) {
+    fun teleportParty(
+        directionKey: IntExpr,
+        distance: IntExpr,
+    ) {
         record(Op.TeleportParty(directionKey.ast, distance.ast))
     }
 
-    fun teleportParty(directionKey: Int, distance: Int) {
+    fun teleportParty(
+        directionKey: Int,
+        distance: Int,
+    ) {
         teleportParty(lit(directionKey), lit(distance))
     }
 
@@ -2770,7 +3611,10 @@ class ScriptScope(
         record(Op.GrantReward(ScriptRewardBuilder().apply(body).build()))
     }
 
-    fun shopService(building: BuildingId, body: ShopServiceBuilder.() -> Unit) {
+    fun shopService(
+        building: BuildingId,
+        body: ShopServiceBuilder.() -> Unit,
+    ) {
         record(Op.ShopService(ShopServiceBuilder(building).apply(body).build()))
     }
 
@@ -2778,7 +3622,11 @@ class ScriptScope(
         record(Op.AchieveMilestone(milestone))
     }
 
-    fun pay(amount: IntExpr, broke: ScriptScope.() -> Unit, ok: ScriptScope.() -> Unit) {
+    fun pay(
+        amount: IntExpr,
+        broke: ScriptScope.() -> Unit,
+        ok: ScriptScope.() -> Unit,
+    ) {
         whenever(party.gold lt amount) {
             broke()
         } otherwise {
@@ -2787,9 +3635,7 @@ class ScriptScope(
         }
     }
 
-    internal fun capture(body: ScriptScope.() -> Unit): List<Op> {
-        return recordScript(ctx, body)
-    }
+    internal fun capture(body: ScriptScope.() -> Unit): List<Op> = recordScript(ctx, body)
 }
 
 @RylNextDsl
@@ -2815,24 +3661,32 @@ class ScriptRewardBuilder {
         applicationModel = RewardApplicationBuilder(applicationModel).apply(body).build()
     }
 
-    fun promptDrop(cantCarry: TextBlock, pickedUp: TextBlock? = null) {
+    fun promptDrop(
+        cantCarry: TextBlock,
+        pickedUp: TextBlock? = null,
+    ) {
         applicationModel = applicationModel.copy(overflow = RewardOverflowPolicy.PromptDropThenPlace)
         messagesModel = RewardMessageModel(cantCarry, pickedUp)
     }
 
-    fun promptDrop(cantCarry: String, pickedUp: String? = null) {
+    fun promptDrop(
+        cantCarry: String,
+        pickedUp: String? = null,
+    ) {
         promptDrop(
             TextBlock.Inline(listOf(cantCarry)),
             pickedUp?.let { TextBlock.Inline(listOf(it)) },
         )
     }
 
-    fun promptDrop(cantCarry: TextId, pickedUp: TextId? = null) {
+    fun promptDrop(
+        cantCarry: TextId,
+        pickedUp: TextId? = null,
+    ) {
         promptDrop(TextBlock.Ref(cantCarry), pickedUp?.let(TextBlock::Ref))
     }
 
-    fun build(): ScriptRewardModel =
-        ScriptRewardModel(goldAst, itemIds.toList(), applicationModel, messagesModel)
+    fun build(): ScriptRewardModel = ScriptRewardModel(goldAst, itemIds.toList(), applicationModel, messagesModel)
 }
 
 @RylNextDsl
@@ -2850,15 +3704,19 @@ class RandomItemOfferTextBuilder : TextLineSink {
 }
 
 @RylNextDsl
-class RandomItemOfferBuilder(private val pool: ItemPoolId) {
+class RandomItemOfferBuilder(
+    private val pool: ItemPoolId,
+) {
     private var offerText: TextBlock? = null
     private var choicePromptText: TextBlock = inlineText("(B)uy it", "(N)o thanks")
     private var brokeText: TextBlock? = null
     private var dealText: TextBlock? = null
     private var declinedText: TextBlock? = null
-    private var applicationModel = RewardApplicationBuilder().apply {
-        overflow = RewardOverflowPolicy.PromptDropThenPlace
-    }.build()
+    private var applicationModel =
+        RewardApplicationBuilder()
+            .apply {
+                overflow = RewardOverflowPolicy.PromptDropThenPlace
+            }.build()
     private var messagesModel = RewardMessageModel()
     private var buyBinding: InputBindingModel = inputKey('B')
     private var declineBinding: InputBindingModel = inputKey('N')
@@ -2895,7 +3753,10 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
         choicePromptText = RandomItemOfferTextBuilder().apply(body).build()
     }
 
-    fun choiceKeys(buy: InputBindingModel = buyBinding, decline: InputBindingModel = declineBinding) {
+    fun choiceKeys(
+        buy: InputBindingModel = buyBinding,
+        decline: InputBindingModel = declineBinding,
+    ) {
         buyBinding = buy
         declineBinding = decline
     }
@@ -2966,11 +3827,13 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
             deal = requireNotNull(dealText) { "random item offer requires deal text" },
             declined = declinedText,
             application = applicationModel,
-            messages = messagesModel.copy(
-                cantCarry = requireNotNull(messagesModel.cantCarry) {
-                    "random item offer requires full/cant-carry text"
-                },
-            ),
+            messages =
+                messagesModel.copy(
+                    cantCarry =
+                        requireNotNull(messagesModel.cantCarry) {
+                            "random item offer requires full/cant-carry text"
+                        },
+                ),
             buy = buyBinding,
             decline = declineBinding,
             priceOverride = priceOverrideModel,
@@ -2994,11 +3857,13 @@ class ShopTextBuilder : TextLineSink {
 
     fun build(): TextBlock = text.build()
 }
-fun shopText(body: ShopTextBuilder.() -> Unit): TextBlock =
-    ShopTextBuilder().apply(body).build()
+
+fun shopText(body: ShopTextBuilder.() -> Unit): TextBlock = ShopTextBuilder().apply(body).build()
 
 @RylNextDsl
-class ShopServiceBuilder(private val building: BuildingId) {
+class ShopServiceBuilder(
+    private val building: BuildingId,
+) {
     var image: ImageId? = null
     private var closedText: TextBlock = inlineText("Shop Closed.")
     private var introText: TextBlock? = null
@@ -3045,7 +3910,10 @@ class ShopServiceBuilder(private val building: BuildingId) {
         goodbyeText = structuredText(body)
     }
 
-    fun interlude(chancePercent: Int, body: ShopInterludeBuilder.() -> Unit) {
+    fun interlude(
+        chancePercent: Int,
+        body: ShopInterludeBuilder.() -> Unit,
+    ) {
         interludeModel = ShopInterludeBuilder(chancePercent).apply(body).build()
     }
 
@@ -3073,7 +3941,9 @@ class ShopServiceBuilder(private val building: BuildingId) {
 }
 
 @RylNextDsl
-class ShopMenuKeysBuilder(initial: ShopMenuKeysModel = ShopMenuKeysModel()) {
+class ShopMenuKeysBuilder(
+    initial: ShopMenuKeysModel = ShopMenuKeysModel(),
+) {
     var buy: InputBindingModel = initial.buy
     var sell: InputBindingModel = initial.sell
     var leave: InputBindingModel = initial.leave
@@ -3082,7 +3952,9 @@ class ShopMenuKeysBuilder(initial: ShopMenuKeysModel = ShopMenuKeysModel()) {
 }
 
 @RylNextDsl
-class ShopInterludeBuilder(private val chancePercent: Int) {
+class ShopInterludeBuilder(
+    private val chancePercent: Int,
+) {
     private var offerText: TextBlock? = null
     private val acceptedTexts = mutableListOf<TextBlock>()
     private var declinedText: TextBlock? = null
@@ -3101,7 +3973,10 @@ class ShopInterludeBuilder(private val chancePercent: Int) {
             declineBinding = inputKey(value)
         }
 
-    fun choiceKeys(accept: InputBindingModel = acceptBinding, decline: InputBindingModel = declineBinding) {
+    fun choiceKeys(
+        accept: InputBindingModel = acceptBinding,
+        decline: InputBindingModel = declineBinding,
+    ) {
         acceptBinding = accept
         declineBinding = decline
     }
@@ -3153,9 +4028,11 @@ class ShopBuyBuilder {
     private var singlePriceText: TextBlock? = null
     private var payPromptText: TextBlock = inlineText("(P)ay", "(N)one")
     private var paymentKeysModel: ShopPurchaseKeysModel = ShopPurchaseKeysModel()
-    private var applicationModel = RewardApplicationBuilder().apply {
-        overflow = RewardOverflowPolicy.PromptDropThenPlace
-    }.build()
+    private var applicationModel =
+        RewardApplicationBuilder()
+            .apply {
+                overflow = RewardOverflowPolicy.PromptDropThenPlace
+            }.build()
 
     fun prompt(vararg lines: String) {
         promptText = inlineText(*lines)
@@ -3197,11 +4074,19 @@ class ShopBuyBuilder {
         applicationModel = applicationModel.copy(overflow = RewardOverflowPolicy.SkipIfInventoryFull)
     }
 
-    fun catalog(key: Char, title: String, body: ShopCatalogBuilder.() -> Unit) {
+    fun catalog(
+        key: Char,
+        title: String,
+        body: ShopCatalogBuilder.() -> Unit,
+    ) {
         catalog(inputKey(key), title, body)
     }
 
-    fun catalog(binding: InputBindingModel, title: String, body: ShopCatalogBuilder.() -> Unit) {
+    fun catalog(
+        binding: InputBindingModel,
+        title: String,
+        body: ShopCatalogBuilder.() -> Unit,
+    ) {
         catalogModels += ShopCatalogBuilder(binding, title).apply(body).build()
     }
 
@@ -3221,7 +4106,9 @@ class ShopBuyBuilder {
 }
 
 @RylNextDsl
-class ShopPurchaseKeysBuilder(initial: ShopPurchaseKeysModel = ShopPurchaseKeysModel()) {
+class ShopPurchaseKeysBuilder(
+    initial: ShopPurchaseKeysModel = ShopPurchaseKeysModel(),
+) {
     var pay: InputBindingModel = initial.pay
     var decline: InputBindingModel = initial.decline
 
@@ -3229,60 +4116,20 @@ class ShopPurchaseKeysBuilder(initial: ShopPurchaseKeysModel = ShopPurchaseKeysM
 }
 
 @RylNextDsl
-class ShopCatalogBuilder(private val binding: InputBindingModel, private val title: String) {
+class ShopCatalogBuilder(
+    private val binding: InputBindingModel,
+    private val title: String,
+) : ShopItemSink {
     private var introText: TextBlock? = null
     private val pages = mutableListOf<ShopCatalogPageModel>()
     private val looseEntries = mutableListOf<ShopItemOfferModel>()
 
+    override fun addShopItem(model: ShopItemOfferModel) {
+        looseEntries += model
+    }
+
     fun intro(vararg lines: String) {
         introText = inlineText(*lines)
-    }
-
-    fun item(
-        key: Char,
-        item: ItemId,
-        label: String? = null,
-        price: ShopPriceModel = ShopPriceModel.ItemCost,
-        description: TextBlock? = null,
-    ) {
-        item(inputKey(key), item, label, price, description)
-    }
-
-    fun item(
-        binding: InputBindingModel,
-        item: ItemId,
-        label: String? = null,
-        price: ShopPriceModel = ShopPriceModel.ItemCost,
-        description: TextBlock? = null,
-    ) {
-        looseEntries += ShopItemOfferModel(
-            binding = binding,
-            item = item,
-            label = label,
-            description = description,
-            price = price,
-            purchase = ShopPurchaseModel.InventoryItem,
-        )
-    }
-
-    fun item(
-        key: Char,
-        item: ItemId,
-        label: String? = null,
-        price: ShopPriceModel = ShopPriceModel.ItemCost,
-        description: StructuredTextBlockBuilder.() -> Unit,
-    ) {
-        item(inputKey(key), item, label, price, structuredText(description))
-    }
-
-    fun item(
-        binding: InputBindingModel,
-        item: ItemId,
-        label: String? = null,
-        price: ShopPriceModel = ShopPriceModel.ItemCost,
-        description: StructuredTextBlockBuilder.() -> Unit,
-    ) {
-        item(binding, item, label, price, structuredText(description))
     }
 
     fun resource(
@@ -3312,14 +4159,15 @@ class ShopCatalogBuilder(private val binding: InputBindingModel, private val tit
         quantityPrompt: TextBlock = inlineText("How many? "),
         description: TextBlock? = null,
     ) {
-        looseEntries += ShopItemOfferModel(
-            binding = binding,
-            item = item,
-            label = label,
-            description = description,
-            price = price,
-            purchase = ShopPurchaseModel.Bulk(resource, quantityPrompt, cap, tooMany, zeroQuantityDeal),
-        )
+        looseEntries +=
+            ShopItemOfferModel(
+                binding = binding,
+                item = item,
+                label = label,
+                description = description,
+                price = price,
+                purchase = ShopPurchaseModel.Bulk(resource, quantityPrompt, cap, tooMany, zeroQuantityDeal),
+            )
     }
 
     fun resource(
@@ -3374,11 +4222,17 @@ class ShopCatalogBuilder(private val binding: InputBindingModel, private val tit
         )
     }
 
-    fun page(footer: TextBlock? = null, body: ShopCatalogPageBuilder.() -> Unit) {
+    fun page(
+        footer: TextBlock? = null,
+        body: ShopCatalogPageBuilder.() -> Unit,
+    ) {
         pages += ShopCatalogPageBuilder().apply(body).build(footer)
     }
 
-    fun page(vararg footerLines: String, body: ShopCatalogPageBuilder.() -> Unit) {
+    fun page(
+        vararg footerLines: String,
+        body: ShopCatalogPageBuilder.() -> Unit,
+    ) {
         page(inlineText(*footerLines), body)
     }
 
@@ -3387,45 +4241,78 @@ class ShopCatalogBuilder(private val binding: InputBindingModel, private val tit
             binding = binding,
             title = title,
             intro = introText,
-            pages = pages.toList() + looseEntries.takeIf { entries -> entries.isNotEmpty() }?.let { entries ->
-                listOf(ShopCatalogPageModel(entries.toList(), footer = null))
-            }.orEmpty(),
+            pages =
+                pages.toList() +
+                    looseEntries
+                        .takeIf { entries -> entries.isNotEmpty() }
+                        ?.let { entries ->
+                            listOf(ShopCatalogPageModel(entries.toList(), footer = null))
+                        }.orEmpty(),
         )
 }
 
 @RylNextDsl
-class ShopCatalogPageBuilder {
+class ShopCatalogPageBuilder : ShopItemSink {
     private val entries = mutableListOf<ShopItemOfferModel>()
 
-    fun item(
-        key: Char,
-        item: ItemId,
-        label: String? = null,
-        price: ShopPriceModel = ShopPriceModel.ItemCost,
-        description: TextBlock? = null,
-    ) {
-        item(inputKey(key), item, label, price, description)
+    override fun addShopItem(model: ShopItemOfferModel) {
+        entries += model
     }
 
-    fun item(
-        binding: InputBindingModel,
-        item: ItemId,
-        label: String? = null,
-        price: ShopPriceModel = ShopPriceModel.ItemCost,
-        description: TextBlock? = null,
-    ) {
-        entries += ShopItemOfferModel(
+    fun build(footer: TextBlock?): ShopCatalogPageModel = ShopCatalogPageModel(entries.toList(), footer)
+}
+
+interface ShopItemSink {
+    fun addShopItem(model: ShopItemOfferModel)
+}
+
+fun ShopItemSink.item(
+    binding: InputBindingModel,
+    item: ItemId,
+    label: String? = null,
+    price: ShopPriceModel = ShopPriceModel.ItemCost,
+    description: TextBlock? = null,
+) {
+    addShopItem(
+        ShopItemOfferModel(
             binding = binding,
             item = item,
             label = label,
             description = description,
             price = price,
             purchase = ShopPurchaseModel.InventoryItem,
-        )
-    }
+        ),
+    )
+}
 
-    fun build(footer: TextBlock?): ShopCatalogPageModel =
-        ShopCatalogPageModel(entries.toList(), footer)
+fun ShopItemSink.item(
+    key: Char,
+    item: ItemId,
+    label: String? = null,
+    price: ShopPriceModel = ShopPriceModel.ItemCost,
+    description: TextBlock? = null,
+) {
+    item(inputKey(key), item, label, price, description)
+}
+
+fun ShopItemSink.item(
+    binding: InputBindingModel,
+    item: ItemId,
+    label: String? = null,
+    price: ShopPriceModel = ShopPriceModel.ItemCost,
+    description: StructuredTextBlockBuilder.() -> Unit,
+) {
+    item(binding, item, label, price, structuredText(description))
+}
+
+fun ShopItemSink.item(
+    key: Char,
+    item: ItemId,
+    label: String? = null,
+    price: ShopPriceModel = ShopPriceModel.ItemCost,
+    description: StructuredTextBlockBuilder.() -> Unit,
+) {
+    item(inputKey(key), item, label, price, structuredText(description))
 }
 
 @RylNextDsl
@@ -3505,7 +4392,10 @@ class ShopSellBargainBuilder {
     private val bonuses = mutableListOf<ShopBargainBonusModel>()
     private var rejectRollBelow: Int? = null
 
-    fun bonus(rollGreaterThan: Int, addCurrentDivisor: Int) {
+    fun bonus(
+        rollGreaterThan: Int,
+        addCurrentDivisor: Int,
+    ) {
         bonuses += ShopBargainBonusModel(rollGreaterThan, addCurrentDivisor)
     }
 
@@ -3521,7 +4411,9 @@ class ShopSellBargainBuilder {
 }
 
 @RylNextDsl
-class ShopSaleKeysBuilder(initial: ShopSaleKeysModel = ShopSaleKeysModel()) {
+class ShopSaleKeysBuilder(
+    initial: ShopSaleKeysModel = ShopSaleKeysModel(),
+) {
     var accept: InputBindingModel = initial.accept
     var decline: InputBindingModel = initial.decline
 
@@ -3538,10 +4430,15 @@ class ElseBranch(
 }
 
 @RylNextDsl
-class SwitchBuilder(private val ctx: ScriptContext) {
+class SwitchBuilder(
+    private val ctx: ScriptContext,
+) {
     val cases: MutableList<SwitchCase> = mutableListOf()
 
-    fun case(value: Int, body: ScriptScope.() -> Unit) {
+    fun case(
+        value: Int,
+        body: ScriptScope.() -> Unit,
+    ) {
         cases += SwitchCase(value, recordScript(ctx, body))
     }
 
@@ -3551,23 +4448,37 @@ class SwitchBuilder(private val ctx: ScriptContext) {
 }
 
 @RylNextDsl
-class MenuBuilder(private val ctx: ScriptContext) {
+class MenuBuilder(
+    private val ctx: ScriptContext,
+) {
     private val options = mutableListOf<MenuOption>()
     private var defaultOps = emptyList<Op>()
 
-    fun option(key: Char, body: ScriptScope.() -> Unit) {
+    fun option(
+        key: Char,
+        body: ScriptScope.() -> Unit,
+    ) {
         option(inputKey(key), body)
     }
 
-    fun option(binding: InputBindingModel, body: ScriptScope.() -> Unit) {
+    fun option(
+        binding: InputBindingModel,
+        body: ScriptScope.() -> Unit,
+    ) {
         options += MenuOption(binding, recordScript(ctx, body))
     }
 
-    fun defaultOption(key: Char, body: ScriptScope.() -> Unit) {
+    fun defaultOption(
+        key: Char,
+        body: ScriptScope.() -> Unit,
+    ) {
         defaultOption(inputKey(key), body)
     }
 
-    fun defaultOption(binding: InputBindingModel, body: ScriptScope.() -> Unit) {
+    fun defaultOption(
+        binding: InputBindingModel,
+        body: ScriptScope.() -> Unit,
+    ) {
         val bodyOps = recordScript(ctx, body)
         options += MenuOption(binding, bodyOps)
         defaultOps = bodyOps
@@ -3580,8 +4491,13 @@ class MenuBuilder(private val ctx: ScriptContext) {
     fun build(prompt: TextBlock): Op.Menu = Op.Menu(prompt, options.toList(), defaultOps)
 }
 
-class AskScope(private val script: ScriptScope) {
-    fun key(prompt: TextBlock, vararg bindings: InputBindingModel): IntExpr {
+class AskScope(
+    private val script: ScriptScope,
+) {
+    fun key(
+        prompt: TextBlock,
+        vararg bindings: InputBindingModel,
+    ): IntExpr {
         val uniqueBindings = bindings.toList()
         require(uniqueBindings.isNotEmpty()) { "key prompt must accept at least one key" }
         val name = script.fresh("key")
@@ -3589,11 +4505,15 @@ class AskScope(private val script: ScriptScope) {
         return v(name)
     }
 
-    fun key(prompt: TextBlock, vararg keys: Char): IntExpr =
-        key(prompt, *keys.map(::inputKey).toTypedArray())
+    fun key(
+        prompt: TextBlock,
+        vararg keys: Char,
+    ): IntExpr = key(prompt, *keys.map(::inputKey).toTypedArray())
 
-    fun digit(prompt: TextBlock, range: IntRange): IntExpr =
-        key(prompt, *range.map { inputKey(it.toString()) }.toTypedArray())
+    fun digit(
+        prompt: TextBlock,
+        range: IntRange,
+    ): IntExpr = key(prompt, *range.map { inputKey(it.toString()) }.toTypedArray())
 
     fun wildernessDirection(prompt: TextBlock): IntExpr {
         val keys = WildernessKeysModel()
@@ -3604,8 +4524,7 @@ class AskScope(private val script: ScriptScope) {
         prompt: TextId,
         filter: MemberChoiceFilter = MemberChoiceFilter.Any,
         accepting: MemberChoiceFilter = filter,
-    ): MemberRef =
-        member(TextBlock.Ref(prompt), filter, accepting)
+    ): MemberRef = member(TextBlock.Ref(prompt), filter, accepting)
 
     fun member(
         prompt: TextBlock,
@@ -3628,8 +4547,7 @@ class AskScope(private val script: ScriptScope) {
         return InventorySlotRef(v(name))
     }
 
-    fun monsterAlive(prompt: TextId): MonsterRef =
-        monsterAlive(TextBlock.Ref(prompt))
+    fun monsterAlive(prompt: TextId): MonsterRef = monsterAlive(TextBlock.Ref(prompt))
 
     fun monsterAlive(prompt: TextBlock): MonsterRef {
         val name = script.fresh("monster")
@@ -3638,7 +4556,9 @@ class AskScope(private val script: ScriptScope) {
     }
 }
 
-class ChoiceScope(private val script: ScriptScope) {
+class ChoiceScope(
+    private val script: ScriptScope,
+) {
     fun yesNo(
         prompt: TextBlock,
         yes: ScriptScope.() -> Unit,
@@ -3668,7 +4588,11 @@ class ChoiceScope(private val script: ScriptScope) {
         yesNo(TextBlock.Inline(promptLines.toList()), yes, no)
     }
 
-    fun takeOrLeave(prompt: TextBlock, take: ScriptScope.() -> Unit, leave: ScriptScope.() -> Unit) {
+    fun takeOrLeave(
+        prompt: TextBlock,
+        take: ScriptScope.() -> Unit,
+        leave: ScriptScope.() -> Unit,
+    ) {
         script.menu(prompt) {
             option('T', take)
             option('L', leave)
@@ -3687,7 +4611,11 @@ class ChoiceScope(private val script: ScriptScope) {
         }
     }
 
-    fun payNoThanks(amount: IntExpr, broke: ScriptScope.() -> Unit, paid: ScriptScope.() -> Unit) {
+    fun payNoThanks(
+        amount: IntExpr,
+        broke: ScriptScope.() -> Unit,
+        paid: ScriptScope.() -> Unit,
+    ) {
         script.menu("(P)ay", "(N)o thanks") {
             option('P') {
                 pay(amount, broke, paid)
@@ -3696,7 +4624,10 @@ class ChoiceScope(private val script: ScriptScope) {
         }
     }
 
-    fun randomItemOffer(pool: ItemPoolId, body: RandomItemOfferBuilder.() -> Unit) {
+    fun randomItemOffer(
+        pool: ItemPoolId,
+        body: RandomItemOfferBuilder.() -> Unit,
+    ) {
         script.record(Op.RandomItemOffer(RandomItemOfferBuilder(pool).apply(body).build()))
     }
 
@@ -3739,15 +4670,13 @@ class ChoiceScope(private val script: ScriptScope) {
         prompt: TextId,
         filter: MemberChoiceFilter = MemberChoiceFilter.Any,
         accepting: MemberChoiceFilter = filter,
-    ): MemberRef =
-        script.ask.member(prompt, filter, accepting)
+    ): MemberRef = script.ask.member(prompt, filter, accepting)
 
     fun member(
         prompt: TextBlock,
         filter: MemberChoiceFilter = MemberChoiceFilter.Any,
         accepting: MemberChoiceFilter = filter,
-    ): MemberRef =
-        script.ask.member(prompt, filter, accepting)
+    ): MemberRef = script.ask.member(prompt, filter, accepting)
 
     fun member(
         prompt: TextId,
@@ -3769,19 +4698,31 @@ class ChoiceScope(private val script: ScriptScope) {
     }
 }
 
-data class InventorySlotRef(val index: IntExpr)
+data class InventorySlotRef(
+    val index: IntExpr,
+)
 
-class ViewScope(private val script: ScriptScope) {
+class ViewScope(
+    private val script: ScriptScope,
+) {
     fun clearText(): Unit = script.record(Op.View(ViewCommand.ClearText))
+
     fun clearMapWindow(): Unit = script.record(Op.View(ViewCommand.ClearMapWindow))
+
     fun renderMap(): Unit = script.record(Op.View(ViewCommand.RenderMap))
+
     fun redrawMap(): Unit = renderMap()
+
     fun showBackdrop(image: ImageId): Unit = showImage(image)
+
     fun showImage(image: ImageId): Unit = script.record(Op.View(ViewCommand.ShowImage(image)))
+
     fun statusLine(): Unit = script.record(Op.View(ViewCommand.StatusLine))
 }
 
-class NativeScope(private val script: ScriptScope) {
+class NativeScope(
+    private val script: ScriptScope,
+) {
     // Native is deliberately narrow: rendering, keyboard input, inventory slot
     // plumbing, and helper calls whose implementation is genuinely engine-owned.
     // Game rules should become typed DSL verbs before they are allowed here.
@@ -3791,7 +4732,9 @@ class NativeScope(private val script: ScriptScope) {
     val input: NativeInput = NativeInput(script)
 }
 
-class NativeScreen(private val script: ScriptScope) {
+class NativeScreen(
+    private val script: ScriptScope,
+) {
     @Deprecated("Use view.clearText() or clearText(); rendering is no longer a native string request.")
     fun clearText(): Unit = script.record(Op.View(ViewCommand.ClearText))
 
@@ -3808,24 +4751,31 @@ class NativeScreen(private val script: ScriptScope) {
     fun statusLine(): Unit = script.record(Op.View(ViewCommand.StatusLine))
 }
 
-class NativeInventory(private val script: ScriptScope) {
-    fun add(itemId: IntExpr): Unit =
-        script.record(Op.NativeCall(NativeAllowlist.inventoryAdd.path, listOf(render(itemId))))
+class NativeInventory(
+    private val script: ScriptScope,
+) {
+    fun add(itemId: IntExpr): Unit = script.record(Op.NativeCall(NativeAllowlist.inventoryAdd.path, listOf(render(itemId))))
 }
 
-class NativeTown(private val script: ScriptScope) {
+class NativeTown(
+    private val script: ScriptScope,
+) {
     fun enterService(building: BuildingId): Unit =
         script.record(Op.NativeCall(NativeAllowlist.townEnterService.path, listOf(render(building))))
 }
 
-class NativeInput(private val script: ScriptScope) {
+class NativeInput(
+    private val script: ScriptScope,
+) {
     fun keyUpper(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.inputKeyUpper.path, emptyList()))
 }
 
-private fun recordScript(body: ScriptScope.() -> Unit): List<Op> =
-    recordScript(ScriptContext(), body)
+private fun recordScript(body: ScriptScope.() -> Unit): List<Op> = recordScript(ScriptContext(), body)
 
-private fun recordScript(ctx: ScriptContext, body: ScriptScope.() -> Unit): List<Op> =
+private fun recordScript(
+    ctx: ScriptContext,
+    body: ScriptScope.() -> Unit,
+): List<Op> =
     buildList {
         ctx.recording(this) {
             ScriptScope(ctx, this).body()
@@ -3882,13 +4832,19 @@ class ItemRecordBuilder {
         protection = CampProtectionBuilder().apply(body).build()
     }
 
-    fun resourceCapacityBonus(resource: Resource, amount: Int) {
+    fun resourceCapacityBonus(
+        resource: Resource,
+        amount: Int,
+    ) {
         capacityBonuses[resource] = amount
     }
 
     internal fun equippableByValue(): Set<PcClass> = classes
+
     internal fun campImageValue(): ImageId? = image
+
     internal fun campProtectionValue(): Set<TemperatureBand> = protection
+
     internal fun resourceCapacityBonusValue(): Map<Resource, Int> = capacityBonuses.toMap()
 }
 
@@ -3899,7 +4855,10 @@ class RealmContentBuilder {
     private var camp = CampRulesModel()
     private var hunt: HuntRulesModel? = null
 
-    fun baseResourceCapacity(resource: Resource, amount: Int) {
+    fun baseResourceCapacity(
+        resource: Resource,
+        amount: Int,
+    ) {
         baseCapacity[resource] = amount
     }
 
@@ -3925,7 +4884,9 @@ class RealmContentBuilder {
 }
 
 @RylNextDsl
-class WildernessUpkeepRulesBuilder(initial: WildernessUpkeepRules = WildernessUpkeepRules()) {
+class WildernessUpkeepRulesBuilder(
+    initial: WildernessUpkeepRules = WildernessUpkeepRules(),
+) {
     var foodCostLeaderDiv: Int = initial.foodCostLeaderDiv
     var foodTickEvery: Int = initial.foodTickEvery
     var starveFoodThreshold: Int = initial.starveFoodThreshold
@@ -3934,21 +4895,31 @@ class WildernessUpkeepRulesBuilder(initial: WildernessUpkeepRules = WildernessUp
     var restedHoursCostPerTurn: Int = initial.restedHoursCostPerTurn
     private val fatigue = initial.fatigue.toMutableList()
 
-    fun fatigueAt(restedHours: Int, text: TextBlock, drain: Boolean = false) {
-        fatigue += WildernessFatigueRule(
-            threshold = restedHours,
-            text = text,
-            drain = drain,
-        )
+    fun fatigueAt(
+        restedHours: Int,
+        text: TextBlock,
+        drain: Boolean = false,
+    ) {
+        fatigue +=
+            WildernessFatigueRule(
+                threshold = restedHours,
+                text = text,
+                drain = drain,
+            )
     }
 
-    fun fatigueBelow(restedHours: Int, text: TextBlock, drain: Boolean = false) {
-        fatigue += WildernessFatigueRule(
-            threshold = restedHours,
-            text = text,
-            match = WildernessFatigueMatch.LessThan,
-            drain = drain,
-        )
+    fun fatigueBelow(
+        restedHours: Int,
+        text: TextBlock,
+        drain: Boolean = false,
+    ) {
+        fatigue +=
+            WildernessFatigueRule(
+                threshold = restedHours,
+                text = text,
+                match = WildernessFatigueMatch.LessThan,
+                drain = drain,
+            )
     }
 
     internal fun build(): WildernessUpkeepRules =
@@ -4000,29 +4971,30 @@ class CampRulesBuilder {
         noShelterMessage[band] = noShelter
     }
 
-    internal fun build(): CampRulesModel = CampRulesModel(
-        healthGain = healthGain,
-        foodCostPerMember = foodCostPerMember,
-        hoursAdvanced = hoursAdvanced,
-        hoursRestedReset = hoursRestedReset,
-        temperatureMax = temperatureMax,
-        temperatureBands = bands.toList(),
-        temperatureDamage = damage.toMap(),
-        ambushChancePercent = ambushChancePercent,
-        ambushTier = ambushTier,
-        notTired = notTired,
-        notEnoughFood = notEnoughFood,
-        guardPrompt = guardPrompt,
-        guardMemberPrompt = guardMemberPrompt,
-        guardMemberDead = guardMemberDead,
-        standsGuard = standsGuard,
-        sleeping = sleeping,
-        rested = rested,
-        ambush = ambush,
-        surpriseKill = surpriseKill,
-        temperatureMessage = temperatureMessage.toMap(),
-        noShelterMessage = noShelterMessage.toMap(),
-    )
+    internal fun build(): CampRulesModel =
+        CampRulesModel(
+            healthGain = healthGain,
+            foodCostPerMember = foodCostPerMember,
+            hoursAdvanced = hoursAdvanced,
+            hoursRestedReset = hoursRestedReset,
+            temperatureMax = temperatureMax,
+            temperatureBands = bands.toList(),
+            temperatureDamage = damage.toMap(),
+            ambushChancePercent = ambushChancePercent,
+            ambushTier = ambushTier,
+            notTired = notTired,
+            notEnoughFood = notEnoughFood,
+            guardPrompt = guardPrompt,
+            guardMemberPrompt = guardMemberPrompt,
+            guardMemberDead = guardMemberDead,
+            standsGuard = standsGuard,
+            sleeping = sleeping,
+            rested = rested,
+            ambush = ambush,
+            surpriseKill = surpriseKill,
+            temperatureMessage = temperatureMessage.toMap(),
+            noShelterMessage = noShelterMessage.toMap(),
+        )
 }
 
 @RylNextDsl
@@ -4035,16 +5007,18 @@ class HuntRulesBuilder {
     var dead: TextBlock = inlineText("Dead.")
     var notRanger: TextBlock = structuredText { line(HuntText.memberSubjectPronoun, " is not a ranger.") }
     var tooFewMoves: TextBlock = inlineText("Too few moves for that.")
-    var tries: TextBlock = structuredText {
-        line(HuntText.memberName, " tries")
-        line("to trap a rabbit...")
-    }
-    var succeeds: TextBlock = structuredText {
-        line("...and succeeds.")
-        line("The party gains")
-        line(HuntText.foodGained, " food rations.")
-        line("")
-    }
+    var tries: TextBlock =
+        structuredText {
+            line(HuntText.memberName, " tries")
+            line("to trap a rabbit...")
+        }
+    var succeeds: TextBlock =
+        structuredText {
+            line("...and succeeds.")
+            line("The party gains")
+            line(HuntText.foodGained, " food rations.")
+            line("")
+        }
     var fails: TextBlock = inlineText("...but fails.", "")
 
     internal fun build(): HuntRulesModel =
@@ -4068,7 +5042,11 @@ class ItemCatalogBuilder {
     private val records = mutableListOf<ItemRecordModel>()
     private val pools = mutableListOf<ItemPoolId>()
 
-    fun empty(id: ItemId, name: String = "-", weaponDamage: Int = 1) {
+    fun empty(
+        id: ItemId,
+        name: String = "-",
+        weaponDamage: Int = 1,
+    ) {
         record(
             id = id,
             kind = ItemKind.Empty,
@@ -4079,31 +5057,66 @@ class ItemCatalogBuilder {
         )
     }
 
-    fun weapon(id: ItemId, name: String, cost: Int, damage: Int) {
+    fun weapon(
+        id: ItemId,
+        name: String,
+        cost: Int,
+        damage: Int,
+    ) {
         record(id, ItemKind.Weapon, name, cost, weaponDamage = damage)
     }
 
-    fun weapon(id: ItemId, name: String, cost: Int, damage: Int, body: ItemRecordBuilder.() -> Unit) {
+    fun weapon(
+        id: ItemId,
+        name: String,
+        cost: Int,
+        damage: Int,
+        body: ItemRecordBuilder.() -> Unit,
+    ) {
         customizable(id, ItemKind.Weapon, name, cost, body, weaponDamage = damage)
     }
 
-    fun armor(id: ItemId, name: String, cost: Int, armorClass: Int) {
+    fun armor(
+        id: ItemId,
+        name: String,
+        cost: Int,
+        armorClass: Int,
+    ) {
         record(id, ItemKind.Armor, name, cost, armorClass = armorClass)
     }
 
-    fun armor(id: ItemId, name: String, cost: Int, armorClass: Int, body: ItemRecordBuilder.() -> Unit) {
+    fun armor(
+        id: ItemId,
+        name: String,
+        cost: Int,
+        armorClass: Int,
+        body: ItemRecordBuilder.() -> Unit,
+    ) {
         customizable(id, ItemKind.Armor, name, cost, body, armorClass = armorClass)
     }
 
-    fun gear(id: ItemId, name: String, cost: Int) {
+    fun gear(
+        id: ItemId,
+        name: String,
+        cost: Int,
+    ) {
         record(id, ItemKind.Gear, name, cost)
     }
 
-    fun gear(id: ItemId, name: String, cost: Int, body: ItemRecordBuilder.() -> Unit) {
+    fun gear(
+        id: ItemId,
+        name: String,
+        cost: Int,
+        body: ItemRecordBuilder.() -> Unit,
+    ) {
         customizable(id, ItemKind.Gear, name, cost, body)
     }
 
-    fun potion(id: ItemId, name: String, cost: Int) {
+    fun potion(
+        id: ItemId,
+        name: String,
+        cost: Int,
+    ) {
         record(
             id = id,
             kind = ItemKind.Potion,
@@ -4112,11 +5125,20 @@ class ItemCatalogBuilder {
         )
     }
 
-    fun treasure(id: ItemId, name: String, cost: Int) {
+    fun treasure(
+        id: ItemId,
+        name: String,
+        cost: Int,
+    ) {
         record(id, ItemKind.Treasure, name, cost)
     }
 
-    fun treasure(id: ItemId, name: String, cost: Int, body: ItemRecordBuilder.() -> Unit) {
+    fun treasure(
+        id: ItemId,
+        name: String,
+        cost: Int,
+        body: ItemRecordBuilder.() -> Unit,
+    ) {
         customizable(id, ItemKind.Treasure, name, cost, body)
     }
 
@@ -4144,23 +5166,39 @@ class ItemCatalogBuilder {
         )
     }
 
-    fun special(id: ItemId, name: String) {
+    fun special(
+        id: ItemId,
+        name: String,
+    ) {
         record(id, ItemKind.Special, name, cost = 0, storage = ItemStorageKind.SpecialMilestone)
     }
 
-    fun magicItem(id: ItemId, name: String, cost: Int) {
+    fun magicItem(
+        id: ItemId,
+        name: String,
+        cost: Int,
+    ) {
         record(id, ItemKind.MagicItem, name, cost)
     }
 
-    fun pool(id: ItemPoolId, vararg items: ItemId) {
+    fun pool(
+        id: ItemPoolId,
+        vararg items: ItemId,
+    ) {
         pool(id, items.toList())
     }
 
-    fun pool(id: ItemPoolId, items: List<ItemId>) {
+    fun pool(
+        id: ItemPoolId,
+        items: List<ItemId>,
+    ) {
         pools += itemPool(id.slug, items)
     }
 
-    fun pool(id: ItemPoolId, body: ItemPoolBuilder.() -> Unit) {
+    fun pool(
+        id: ItemPoolId,
+        body: ItemPoolBuilder.() -> Unit,
+    ) {
         pool(id, ItemPoolBuilder().apply(body).build())
     }
 
@@ -4177,39 +5215,44 @@ class ItemCatalogBuilder {
         campProtection: Set<TemperatureBand> = emptySet(),
         resourceCapacityBonus: Map<Resource, Int> = emptyMap(),
     ) {
-        records += ItemRecordModel(
-            id = id,
-            kind = kind,
-            displayName = name,
-            cost = cost,
-            storage = storage,
-            weaponDamage = weaponDamage,
-            armorClass = armorClass,
-            equippableBy = equippableBy,
-            campImage = campImage,
-            campProtection = campProtection,
-            resourceCapacityBonus = resourceCapacityBonus,
-        )
+        records +=
+            ItemRecordModel(
+                id = id,
+                kind = kind,
+                displayName = name,
+                cost = cost,
+                storage = storage,
+                weaponDamage = weaponDamage,
+                armorClass = armorClass,
+                equippableBy = equippableBy,
+                campImage = campImage,
+                campProtection = campProtection,
+                resourceCapacityBonus = resourceCapacityBonus,
+            )
     }
 
-    internal fun build(): ItemCatalogDeclaration =
-        ItemCatalogDeclaration(records.toList(), pools.toList())
+    internal fun build(): ItemCatalogDeclaration = ItemCatalogDeclaration(records.toList(), pools.toList())
 }
 
 @RylNextDsl
 class TerminalPresentationBuilder {
     private val terrainStyles = mutableListOf<TerminalTerrainStyleModel>()
 
-    fun terrain(id: TerrainId, glyph: String, color: PaletteColorId) {
+    fun terrain(
+        id: TerrainId,
+        glyph: String,
+        color: PaletteColorId,
+    ) {
         terrainStyles += TerminalTerrainStyleModel(id, glyph, color)
     }
 
-    fun build(): TerminalPresentationModel =
-        TerminalPresentationModel(terrain = terrainStyles.toList())
+    fun build(): TerminalPresentationModel = TerminalPresentationModel(terrain = terrainStyles.toList())
 }
 
 @RylNextDsl
-class LayoutBuilder(initial: LayoutModel = LayoutModel()) {
+class LayoutBuilder(
+    initial: LayoutModel = LayoutModel(),
+) {
     private val screenRegions = initial.regions.toMutableList()
 
     fun region(
@@ -4222,24 +5265,29 @@ class LayoutBuilder(initial: LayoutModel = LayoutModel()) {
         screenRegions += ScreenRegionModel(id, x, y, width, height)
     }
 
-    fun build(): LayoutModel =
-        LayoutModel(regions = screenRegions.toList())
+    fun build(): LayoutModel = LayoutModel(regions = screenRegions.toList())
 }
 
 @RylNextDsl
-class GameMetadataBuilder(initial: GameMetadataModel = GameMetadataModel()) {
+class GameMetadataBuilder(
+    initial: GameMetadataModel = GameMetadataModel(),
+) {
     private var universeModel = initial.universe
 
-    fun universe(name: String, version: String) {
+    fun universe(
+        name: String,
+        version: String,
+    ) {
         universeModel = GameUniverseModel(name = name, version = version)
     }
 
-    internal fun build(): GameMetadataModel =
-        GameMetadataModel(universe = universeModel)
+    internal fun build(): GameMetadataModel = GameMetadataModel(universe = universeModel)
 }
 
 @RylNextDsl
-class GameLimitsBuilder(initial: GameLimitsModel = GameLimitsModel()) {
+class GameLimitsBuilder(
+    initial: GameLimitsModel = GameLimitsModel(),
+) {
     var maxWorldMaps: Int? = initial.maxWorldMaps
     var maxMapCells: Int? = initial.maxMapCells
     var screenSize: GridSize? = initial.screenSize
@@ -4253,20 +5301,28 @@ class GameLimitsBuilder(initial: GameLimitsModel = GameLimitsModel()) {
 }
 
 @RylNextDsl
-class TerrainCatalogBuilder(initial: TerrainCatalogModel = TerrainCatalogModel()) {
+class TerrainCatalogBuilder(
+    initial: TerrainCatalogModel = TerrainCatalogModel(),
+) {
     private val terrainModels = initial.terrain.toMutableList()
 
-    fun terrain(id: TerrainId, mapCode: Char? = id.sourceMapCode, body: TerrainSemanticsBuilder.() -> Unit = {}) {
+    fun terrain(
+        id: TerrainId,
+        mapCode: Char? = id.sourceMapCode,
+        body: TerrainSemanticsBuilder.() -> Unit = {},
+    ) {
         val tile = requireNotNull(mapCode) { "terrain ${id.slug} requires a map code" }
         terrainModels += TerrainSemanticsBuilder(id, tile).apply(body).build()
     }
 
-    fun build(): TerrainCatalogModel =
-        TerrainCatalogModel(terrain = terrainModels.toList())
+    fun build(): TerrainCatalogModel = TerrainCatalogModel(terrain = terrainModels.toList())
 }
 
 @RylNextDsl
-class TerrainSemanticsBuilder(private val id: TerrainId, private val mapCode: Char) {
+class TerrainSemanticsBuilder(
+    private val id: TerrainId,
+    private val mapCode: Char,
+) {
     var passable: Boolean = true
     var movementCost: Int = 1
     var allowsNpcPlacement: Boolean? = null
@@ -4305,8 +5361,7 @@ class TerrainSemanticsBuilder(private val id: TerrainId, private val mapCode: Ch
 private fun RewardBundleModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): RewardBundleModel =
     copy(loot = loot.copy(treasure = resolve(loot.treasure), magic = resolve(loot.magic)))
 
-private fun SceneModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SceneModel =
-    copy(ops = ops.resolveItemPools(resolve))
+private fun SceneModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SceneModel = copy(ops = ops.resolveItemPools(resolve))
 
 private fun DialogueModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): DialogueModel =
     copy(branches = branches.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
@@ -4314,17 +5369,14 @@ private fun DialogueModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId):
 private fun SpeakSystemModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SpeakSystemModel =
     copy(questionActions = questionActions.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
 
-private fun SpellModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SpellModel =
-    copy(ops = ops.resolveItemPools(resolve))
+private fun SpellModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SpellModel = copy(ops = ops.resolveItemPools(resolve))
 
-private fun ItemUseModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): ItemUseModel =
-    copy(ops = ops.resolveItemPools(resolve))
+private fun ItemUseModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): ItemUseModel = copy(ops = ops.resolveItemPools(resolve))
 
 private fun DungeonSystemModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): DungeonSystemModel =
     copy(events = events.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
 
-private fun List<Op>.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<Op> =
-    map { it.resolveItemPools(resolve) }
+private fun List<Op>.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<Op> = map { it.resolveItemPools(resolve) }
 
 private fun List<SwitchCase>.resolveSwitchItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<SwitchCase> =
     map { it.copy(body = it.body.resolveItemPools(resolve)) }
@@ -4338,40 +5390,46 @@ private fun Op.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): Op =
         is Op.Set -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
         is Op.Add -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
         is Op.Sub -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
-        is Op.AddClamped -> copy(
-            target = target.resolveItemPools(resolve),
-            value = value.resolveItemPools(resolve),
-            max = max.resolveItemPools(resolve),
-        )
-        is Op.If -> copy(
-            cond = cond.resolveItemPools(resolve),
-            thenOps = thenOps.resolveItemPools(resolve),
-            elseOps = elseOps.resolveItemPools(resolve),
-        )
+        is Op.AddClamped ->
+            copy(
+                target = target.resolveItemPools(resolve),
+                value = value.resolveItemPools(resolve),
+                max = max.resolveItemPools(resolve),
+            )
+        is Op.If ->
+            copy(
+                cond = cond.resolveItemPools(resolve),
+                thenOps = thenOps.resolveItemPools(resolve),
+                elseOps = elseOps.resolveItemPools(resolve),
+            )
         is Op.Loop -> copy(body = body.resolveItemPools(resolve))
         is Op.Switch -> copy(expr = expr.resolveItemPools(resolve), cases = cases.resolveSwitchItemPools(resolve))
-        is Op.Menu -> copy(
-            options = options.resolveMenuItemPools(resolve),
-            defaultOps = defaultOps.resolveItemPools(resolve),
-        )
+        is Op.Menu ->
+            copy(
+                options = options.resolveMenuItemPools(resolve),
+                defaultOps = defaultOps.resolveItemPools(resolve),
+            )
         is Op.AskKey -> copy()
         is Op.AskMember -> copy()
         is Op.AskInventorySlot -> copy()
-        is Op.AskText -> copy(
-            matchOps = matchOps.resolveItemPools(resolve),
-            missOps = missOps.resolveItemPools(resolve),
-        )
+        is Op.AskText ->
+            copy(
+                matchOps = matchOps.resolveItemPools(resolve),
+                missOps = missOps.resolveItemPools(resolve),
+            )
         is Op.ForEachMember -> copy(body = body.resolveItemPools(resolve))
         is Op.ForEachMonster -> copy(body = body.resolveItemPools(resolve))
         is Op.ConsumeInventoryPool -> copy(pool = resolve(pool), quantity = quantity.resolveItemPools(resolve))
-        is Op.TeleportParty -> copy(
-            directionKey = directionKey.resolveItemPools(resolve),
-            distance = distance.resolveItemPools(resolve),
-        )
-        is Op.DiscoverCave -> copy(
-            levels = levels.resolveItemPools(resolve),
-            moveCost = moveCost.resolveItemPools(resolve),
-        )
+        is Op.TeleportParty ->
+            copy(
+                directionKey = directionKey.resolveItemPools(resolve),
+                distance = distance.resolveItemPools(resolve),
+            )
+        is Op.DiscoverCave ->
+            copy(
+                levels = levels.resolveItemPools(resolve),
+                moveCost = moveCost.resolveItemPools(resolve),
+            )
         is Op.GrantReward -> copy(reward = reward.resolveItemPools(resolve))
         is Op.RandomItemOffer -> copy(offer = offer.copy(pool = resolve(offer.pool)))
         else -> this
@@ -4390,11 +5448,12 @@ private fun LValueAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): LVa
 private fun IntAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): IntAst =
     when (this) {
         is IntAst.Binary -> copy(left = left.resolveItemPools(resolve), right = right.resolveItemPools(resolve))
-        is IntAst.If -> copy(
-            cond = cond.resolveItemPools(resolve),
-            thenValue = thenValue.resolveItemPools(resolve),
-            elseValue = elseValue.resolveItemPools(resolve),
-        )
+        is IntAst.If ->
+            copy(
+                cond = cond.resolveItemPools(resolve),
+                thenValue = thenValue.resolveItemPools(resolve),
+                elseValue = elseValue.resolveItemPools(resolve),
+            )
         is IntAst.Random -> copy(lo = lo.resolveItemPools(resolve), hi = hi.resolveItemPools(resolve))
         is IntAst.MemberField -> copy(member = member.resolveItemPools(resolve))
         is IntAst.MonsterField -> copy(monster = monster.resolveItemPools(resolve))
@@ -4480,7 +5539,10 @@ class GameBuilder {
         visualsModel = VisualsBuilder(visualsModel).apply(body).build()
     }
 
-    fun worldMap(id: WorldMapId, body: WorldMapBuilder.() -> Unit) {
+    fun worldMap(
+        id: WorldMapId,
+        body: WorldMapBuilder.() -> Unit,
+    ) {
         worldMaps += WorldMapBuilder(id).apply(body).build()
     }
 
@@ -4536,7 +5598,10 @@ class GameBuilder {
         castle(DslDefaultCastles.ydarg, body)
     }
 
-    fun castle(id: CastleId, body: YdargBuilder.() -> Unit) {
+    fun castle(
+        id: CastleId,
+        body: YdargBuilder.() -> Unit,
+    ) {
         castleModels += YdargBuilder(id).apply(body).build()
     }
 
@@ -4564,7 +5629,10 @@ class GameBuilder {
         missions += MissionCatalogBuilder().apply(body).build()
     }
 
-    fun scene(id: SceneId, body: ScriptScope.() -> Unit) {
+    fun scene(
+        id: SceneId,
+        body: ScriptScope.() -> Unit,
+    ) {
         scenes += SceneModel(id, recordScript(body))
     }
 
@@ -4572,22 +5640,32 @@ class GameBuilder {
         dialogue += DialogueCatalogBuilder().apply(body).build()
     }
 
-    fun spell(id: SpellId, slot: Int, baseCost: Int, name: String, body: ScriptScope.() -> Unit) {
+    fun spell(
+        id: SpellId,
+        slot: Int,
+        baseCost: Int,
+        name: String,
+        body: ScriptScope.() -> Unit,
+    ) {
         spells += SpellModel(id, slot, baseCost, name, recordScript(body))
     }
 
-    fun itemUse(id: ItemId, body: ItemUseBuilder.() -> Unit) {
+    fun itemUse(
+        id: ItemId,
+        body: ItemUseBuilder.() -> Unit,
+    ) {
         itemUses += ItemUseBuilder(id).apply(body).build()
     }
 
     fun build(): GameModel {
         val itemPoolBySlug = itemPools.associateBy { it.slug }
-        fun resolveItemPool(pool: ItemPoolId): ItemPoolId =
-            itemPoolBySlug[pool.slug] ?: pool
+
+        fun resolveItemPool(pool: ItemPoolId): ItemPoolId = itemPoolBySlug[pool.slug] ?: pool
 
         val castles = castleModels.toList()
-        val ydarg = castles.singleOrNull { it.id == DslDefaultCastles.ydarg }
-            ?: castles.singleOrNull()
+        val ydarg =
+            castles.singleOrNull { it.id == DslDefaultCastles.ydarg }
+                ?: castles.singleOrNull()
 
         return GameModel(
             metadata = metadataModel,
@@ -4626,43 +5704,66 @@ class GameBuilder {
             secrets = secretsModel,
         )
     }
-
 }
 
 @RylNextDsl
-class SecretSystemBuilder(initial: SecretSystemModel = SecretSystemModel()) {
+class SecretSystemBuilder(
+    initial: SecretSystemModel = SecretSystemModel(),
+) {
     private val players = initial.players.toMutableList()
 
-    fun player(name: String, body: SecretPlayerBuilder.() -> Unit) {
+    fun player(
+        name: String,
+        body: SecretPlayerBuilder.() -> Unit,
+    ) {
         players += SecretPlayerBuilder(name).apply(body).build()
     }
 
-    fun build(): SecretSystemModel =
-        SecretSystemModel(players = players.toList())
+    fun build(): SecretSystemModel = SecretSystemModel(players = players.toList())
 }
 
 @RylNextDsl
-class SecretPlayerBuilder(private val name: String) {
+class SecretPlayerBuilder(
+    private val name: String,
+) {
     private val keyActions = mutableListOf<SecretKeyActionModel>()
     private var stepTrigger: SecretStepTriggerModel? = null
 
-    fun addTimeLeft(key: Char, amount: Int, refreshStatus: Boolean = false) {
+    fun addTimeLeft(
+        key: Char,
+        amount: Int,
+        refreshStatus: Boolean = false,
+    ) {
         onKey(key, SecretActionModel.AddTimeLeft(amount, refreshStatus))
     }
 
-    fun addGold(key: Char, amount: Int, refreshStatus: Boolean = false) {
+    fun addGold(
+        key: Char,
+        amount: Int,
+        refreshStatus: Boolean = false,
+    ) {
         onKey(key, SecretActionModel.AddGold(amount, refreshStatus))
     }
 
-    fun setInventory(key: Char, slot: Int, item: ItemId) {
+    fun setInventory(
+        key: Char,
+        slot: Int,
+        item: ItemId,
+    ) {
         onKey(key, SecretActionModel.SetInventory(slot, item))
     }
 
-    fun spawnEncounterEvery(everySteps: Int, monster: MonsterId) {
+    fun spawnEncounterEvery(
+        everySteps: Int,
+        monster: MonsterId,
+    ) {
         stepTrigger = SecretStepTriggerModel(everySteps, SecretActionModel.SpawnEncounter(monster))
     }
 
-    private fun onKey(key: Char, action: SecretActionModel) {
+    private fun onKey(
+        key: Char,
+        action: SecretActionModel,
+    ) {
         keyActions += SecretKeyActionModel(inputKey(key, label = key.toString()), action)
     }
 
@@ -4675,12 +5776,17 @@ class SecretPlayerBuilder(private val name: String) {
 }
 
 @RylNextDsl
-class WorldMapBuilder(private val id: WorldMapId) {
+class WorldMapBuilder(
+    private val id: WorldMapId,
+) {
     private val layerModels = mutableListOf<WorldMapLayerModel>()
     var size: GridSize? = null
     var storageCapacity: Int? = null
 
-    fun layer(id: MapLayerId, body: WorldMapLayerBuilder.() -> Unit) {
+    fun layer(
+        id: MapLayerId,
+        body: WorldMapLayerBuilder.() -> Unit,
+    ) {
         layerModels += WorldMapLayerBuilder(id).apply(body).build()
     }
 
@@ -4694,7 +5800,9 @@ class WorldMapBuilder(private val id: WorldMapId) {
 }
 
 @RylNextDsl
-class WorldMapLayerBuilder(private val id: MapLayerId) {
+class WorldMapLayerBuilder(
+    private val id: MapLayerId,
+) {
     private var rowModels = emptyList<String>()
 
     fun rows(vararg rows: String) {
@@ -4705,12 +5813,13 @@ class WorldMapLayerBuilder(private val id: MapLayerId) {
         rowModels = rows.toList()
     }
 
-    fun build(): WorldMapLayerModel =
-        WorldMapLayerModel(id = id, rows = rowModels)
+    fun build(): WorldMapLayerModel = WorldMapLayerModel(id = id, rows = rowModels)
 }
 
 @RylNextDsl
-class VisualsBuilder(initial: VisualsModel = VisualsModel()) {
+class VisualsBuilder(
+    initial: VisualsModel = VisualsModel(),
+) {
     private val imageModels = initial.images.toMutableList()
     private val staticScreenModels = initial.staticScreens.toMutableList()
 
@@ -4733,22 +5842,32 @@ class VisualsBuilder(initial: VisualsModel = VisualsModel()) {
 class ImageAssetsBuilder {
     private val images = mutableListOf<ImageAssetModel>()
 
-    fun ansi(id: ImageId, resource: String, placement: ImagePlacement) {
-        images += ImageAssetModel(
-            id = id,
-            kind = ImageAssetKind.Ansi,
-            resource = resource,
-            placement = placement,
-        )
+    fun ansi(
+        id: ImageId,
+        resource: String,
+        placement: ImagePlacement,
+    ) {
+        images +=
+            ImageAssetModel(
+                id = id,
+                kind = ImageAssetKind.Ansi,
+                resource = resource,
+                placement = placement,
+            )
     }
 
-    fun bitmap(id: ImageId, resource: String, placement: ImagePlacement) {
-        images += ImageAssetModel(
-            id = id,
-            kind = ImageAssetKind.Bitmap,
-            resource = resource,
-            placement = placement,
-        )
+    fun bitmap(
+        id: ImageId,
+        resource: String,
+        placement: ImagePlacement,
+    ) {
+        images +=
+            ImageAssetModel(
+                id = id,
+                kind = ImageAssetKind.Bitmap,
+                resource = resource,
+                placement = placement,
+            )
     }
 
     fun build(): List<ImageAssetModel> = images.toList()
@@ -4758,15 +5877,24 @@ class ImageAssetsBuilder {
 class StaticScreensBuilder {
     private val screens = mutableListOf<StaticScreenModel>()
 
-    fun screen(id: StaticScreenId, body: StaticScreenBuilder.() -> Unit) {
+    fun screen(
+        id: StaticScreenId,
+        body: StaticScreenBuilder.() -> Unit,
+    ) {
         screens += StaticScreenBuilder(id).apply(body).build()
     }
 
-    fun image(id: StaticScreenId, staticImage: ImageId) {
+    fun image(
+        id: StaticScreenId,
+        staticImage: ImageId,
+    ) {
         screen(id) { image(staticImage) }
     }
 
-    fun resource(id: StaticScreenId, path: String) {
+    fun resource(
+        id: StaticScreenId,
+        path: String,
+    ) {
         screen(id) { resource(path) }
     }
 
@@ -4778,7 +5906,9 @@ class StaticScreensBuilder {
 }
 
 @RylNextDsl
-class StaticScreenBuilder(private val id: StaticScreenId) {
+class StaticScreenBuilder(
+    private val id: StaticScreenId,
+) {
     private var imageModel: ImageId? = null
     private var resourcePath: String? = null
     private var usesCommandHelp = false
@@ -4796,15 +5926,15 @@ class StaticScreenBuilder(private val id: StaticScreenId) {
         usesCommandHelp = true
     }
 
-    fun scoreReport(): Unit {
+    fun scoreReport() {
         runtimeReportValue = StaticScreenRuntimeReport.Score
     }
 
-    fun verboseScoreReport(): Unit {
+    fun verboseScoreReport() {
         runtimeReportValue = StaticScreenRuntimeReport.VerboseScore
     }
 
-    fun hallOfHeroesReport(): Unit {
+    fun hallOfHeroesReport() {
         runtimeReportValue = StaticScreenRuntimeReport.HallOfHeroes
     }
 
@@ -4819,7 +5949,9 @@ class StaticScreenBuilder(private val id: StaticScreenId) {
 }
 
 @RylNextDsl
-class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
+class GamePromptsBuilder(
+    initial: GamePromptsModel = GamePromptsModel(),
+) {
     private var pauseVerbList = initial.pauseVerbs
     var returnKeyName: String = initial.returnKeyName
     private var priest = initial.priest
@@ -4893,7 +6025,9 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
 }
 
 @RylNextDsl
-class PriestSpellPromptsBuilder(initial: PriestSpellPromptsModel = PriestSpellPromptsModel()) {
+class PriestSpellPromptsBuilder(
+    initial: PriestSpellPromptsModel = PriestSpellPromptsModel(),
+) {
     var who: TextBlock = initial.who
     var mageCombatOnly: TextBlock = initial.mageCombatOnly
     var wrongClass: TextBlock = initial.wrongClass
@@ -4915,7 +6049,9 @@ class PriestSpellPromptsBuilder(initial: PriestSpellPromptsModel = PriestSpellPr
 }
 
 @RylNextDsl
-class InventoryUsePromptsBuilder(initial: InventoryUsePromptsModel = InventoryUsePromptsModel()) {
+class InventoryUsePromptsBuilder(
+    initial: InventoryUsePromptsModel = InventoryUsePromptsModel(),
+) {
     var use: TextBlock = initial.use
     var quaff: TextBlock = initial.quaff
     var noItems: TextBlock = initial.noItems
@@ -4943,7 +6079,9 @@ class InventoryUsePromptsBuilder(initial: InventoryUsePromptsModel = InventoryUs
 }
 
 @RylNextDsl
-class EquipmentPromptsBuilder(initial: EquipmentPromptsModel = EquipmentPromptsModel()) {
+class EquipmentPromptsBuilder(
+    initial: EquipmentPromptsModel = EquipmentPromptsModel(),
+) {
     var inventory: TextBlock = initial.inventory
     var who: TextBlock = initial.who
     var readyWeapons: TextBlock = initial.readyWeapons
@@ -4959,7 +6097,9 @@ class EquipmentPromptsBuilder(initial: EquipmentPromptsModel = EquipmentPromptsM
 }
 
 @RylNextDsl
-class SavePromptsBuilder(initial: SavePromptsModel = SavePromptsModel()) {
+class SavePromptsBuilder(
+    initial: SavePromptsModel = SavePromptsModel(),
+) {
     var saving: TextBlock = initial.saving
     var done: TextBlock = initial.done
     var failed: TextBlock = initial.failed
@@ -4973,7 +6113,9 @@ class SavePromptsBuilder(initial: SavePromptsModel = SavePromptsModel()) {
 }
 
 @RylNextDsl
-class CharacterCreationPromptsBuilder(initial: CharacterCreationPromptsModel = CharacterCreationPromptsModel()) {
+class CharacterCreationPromptsBuilder(
+    initial: CharacterCreationPromptsModel = CharacterCreationPromptsModel(),
+) {
     var header: TextBlock = initial.header
     var partyName: TextBlock = initial.partyName
     private var statsPageText: TextBlock = initial.statsPage
@@ -5019,7 +6161,9 @@ class CharacterCreationPromptsBuilder(initial: CharacterCreationPromptsModel = C
 }
 
 @RylNextDsl
-class TownPromptsBuilder(initial: TownPromptsModel = TownPromptsModel()) {
+class TownPromptsBuilder(
+    initial: TownPromptsModel = TownPromptsModel(),
+) {
     var unavailableSuffix: String = initial.unavailableSuffix
     var closedSuffix: String = initial.closedSuffix
     var entryWelcome: TextBlock = initial.entryWelcome
@@ -5037,7 +6181,9 @@ class TownPromptsBuilder(initial: TownPromptsModel = TownPromptsModel()) {
 }
 
 @RylNextDsl
-class PartyPromptsBuilder(initial: PartyPromptsModel = PartyPromptsModel()) {
+class PartyPromptsBuilder(
+    initial: PartyPromptsModel = PartyPromptsModel(),
+) {
     var viewWho: TextBlock = initial.viewWho
     var journalHeader: TextBlock = initial.journalHeader
     var dropPrompt: TextBlock = initial.dropPrompt
@@ -5063,7 +6209,9 @@ class PartyPromptsBuilder(initial: PartyPromptsModel = PartyPromptsModel()) {
 }
 
 @RylNextDsl
-class WildernessPromptsBuilder(initial: WildernessPromptsModel = WildernessPromptsModel()) {
+class WildernessPromptsBuilder(
+    initial: WildernessPromptsModel = WildernessPromptsModel(),
+) {
     var pass: TextBlock = initial.pass
     var noMoves: TextBlock = initial.noMoves
     var outOfMoves: TextBlock = initial.outOfMoves
@@ -5089,7 +6237,9 @@ class WildernessPromptsBuilder(initial: WildernessPromptsModel = WildernessPromp
 }
 
 @RylNextDsl
-class DungeonPromptsBuilder(initial: DungeonPromptsModel = DungeonPromptsModel()) {
+class DungeonPromptsBuilder(
+    initial: DungeonPromptsModel = DungeonPromptsModel(),
+) {
     private var levelMenuText: TextBlock = initial.levelMenu
     private var enterLevelText: TextBlock = initial.enterLevel
     var atMaxDepth: TextBlock = initial.atMaxDepth
@@ -5224,7 +6374,9 @@ class WildernessSystemBuilder {
 }
 
 @RylNextDsl
-class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()) {
+class WildernessKeysBuilder(
+    initial: WildernessKeysModel = WildernessKeysModel(),
+) {
     private var moveNorthKey = initial.moveNorth
     private var moveSouthKey = initial.moveSouth
     private var moveWestKey = initial.moveWest
@@ -5267,7 +6419,12 @@ class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()
         moveEastKey = east
     }
 
-    fun movement(north: Char, south: Char, west: Char, east: Char) {
+    fun movement(
+        north: Char,
+        south: Char,
+        west: Char,
+        east: Char,
+    ) {
         movement(inputKey(north), inputKey(south), inputKey(west), inputKey(east))
     }
 
@@ -5280,30 +6437,48 @@ class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()
         )
     }
 
-    fun cave(enter: InputBindingModel = caveEnterKey, leave: InputBindingModel = caveLeaveKey) {
+    fun cave(
+        enter: InputBindingModel = caveEnterKey,
+        leave: InputBindingModel = caveLeaveKey,
+    ) {
         caveEnterKey = enter
         caveLeaveKey = leave
     }
 
-    fun cave(enter: Char, leave: Char) {
+    fun cave(
+        enter: Char,
+        leave: Char,
+    ) {
         cave(inputKey(enter), inputKey(leave))
     }
 
-    fun outOfMoves(save: InputBindingModel = outOfMovesSaveKey, quit: InputBindingModel = outOfMovesQuitKey) {
+    fun outOfMoves(
+        save: InputBindingModel = outOfMovesSaveKey,
+        quit: InputBindingModel = outOfMovesQuitKey,
+    ) {
         outOfMovesSaveKey = save
         outOfMovesQuitKey = quit
     }
 
-    fun outOfMoves(save: Char, quit: Char) {
+    fun outOfMoves(
+        save: Char,
+        quit: Char,
+    ) {
         outOfMoves(inputKey(save), inputKey(quit))
     }
 
-    fun quitConfirm(yes: InputBindingModel = quitYesKey, no: InputBindingModel = quitNoKey) {
+    fun quitConfirm(
+        yes: InputBindingModel = quitYesKey,
+        no: InputBindingModel = quitNoKey,
+    ) {
         quitYesKey = yes
         quitNoKey = no
     }
 
-    fun quitConfirm(yes: Char, no: Char) {
+    fun quitConfirm(
+        yes: Char,
+        no: Char,
+    ) {
         quitConfirm(inputKey(yes), inputKey(no))
     }
 
@@ -5383,11 +6558,17 @@ class DungeonSystemBuilder {
         keys = DungeonKeysBuilder(keys).apply(body).build()
     }
 
-    fun event(id: DungeonEventId, body: DungeonEventBuilder.() -> Unit) {
+    fun event(
+        id: DungeonEventId,
+        body: DungeonEventBuilder.() -> Unit,
+    ) {
         events += DungeonEventBuilder(id).apply(body).build()
     }
 
-    fun scenario(dungeon: DungeonId, body: DungeonScenarioBuilder.() -> Unit) {
+    fun scenario(
+        dungeon: DungeonId,
+        body: DungeonScenarioBuilder.() -> Unit,
+    ) {
         scenarios += DungeonScenarioBuilder(dungeon).apply(body).build()
     }
 
@@ -5401,7 +6582,9 @@ class DungeonSystemBuilder {
 }
 
 @RylNextDsl
-class DungeonKeysBuilder(initial: DungeonKeysModel = DungeonKeysModel()) {
+class DungeonKeysBuilder(
+    initial: DungeonKeysModel = DungeonKeysModel(),
+) {
     var descend: InputBindingModel = initial.descend
     var ascend: InputBindingModel = initial.ascend
     var help: InputBindingModel = initial.help
@@ -5449,7 +6632,9 @@ class DungeonKeysBuilder(initial: DungeonKeysModel = DungeonKeysModel()) {
 }
 
 @RylNextDsl
-class DungeonEventBuilder(private val id: DungeonEventId) {
+class DungeonEventBuilder(
+    private val id: DungeonEventId,
+) {
     private var disposition = DungeonEventDisposition.ClearAfterRun
     private var randomEncounterTier: EncounterTier? = null
     private var clearWhenFlag: FlagState? = null
@@ -5489,7 +6674,9 @@ class DungeonEventBuilder(private val id: DungeonEventId) {
 }
 
 @RylNextDsl
-class DungeonScenarioBuilder(private val dungeon: DungeonId) {
+class DungeonScenarioBuilder(
+    private val dungeon: DungeonId,
+) {
     private var name: String? = null
     private var levelRange: IntRange? = null
     private val fixedLevelEvents = linkedMapOf<Int, DungeonEventId>()
@@ -5507,7 +6694,10 @@ class DungeonScenarioBuilder(private val dungeon: DungeonId) {
         levelRange = range
     }
 
-    fun level(number: Int, event: DungeonEventId) {
+    fun level(
+        number: Int,
+        event: DungeonEventId,
+    ) {
         fixedLevelEvents[number] = event
     }
 
@@ -5529,7 +6719,10 @@ class DungeonScenarioBuilder(private val dungeon: DungeonId) {
 class DungeonRandomEventPoolBuilder {
     private val events = mutableListOf<DungeonRandomEventModel>()
 
-    fun event(event: DungeonEventId, weight: Int = 1) {
+    fun event(
+        event: DungeonEventId,
+        weight: Int = 1,
+    ) {
         events += DungeonRandomEventModel(event, weight)
     }
 
@@ -5587,23 +6780,31 @@ class TerrainTransitionBuilder {
     var chancePercent: Int = 9
     private val entries = mutableListOf<TerrainTransitionTextModel>()
 
-    fun terrain(id: TerrainId, vararg lines: String) {
+    fun terrain(
+        id: TerrainId,
+        vararg lines: String,
+    ) {
         entries += TerrainTransitionTextModel(id, inlineText(*lines))
     }
 
-    fun terrain(id: TerrainId, body: StructuredTextBlockBuilder.() -> Unit) {
+    fun terrain(
+        id: TerrainId,
+        body: StructuredTextBlockBuilder.() -> Unit,
+    ) {
         entries += TerrainTransitionTextModel(id, StructuredTextBlockBuilder().apply(body).build())
     }
 
-    fun build(): TerrainTransitionModel =
-        TerrainTransitionModel(chancePercent = chancePercent, entries = entries.toList())
+    fun build(): TerrainTransitionModel = TerrainTransitionModel(chancePercent = chancePercent, entries = entries.toList())
 }
 
 @RylNextDsl
 class DialogueCatalogBuilder {
     private val dialogue = mutableListOf<DialogueModel>()
 
-    fun npc(id: NpcId, body: NpcDialogueBuilder.() -> Unit) {
+    fun npc(
+        id: NpcId,
+        body: NpcDialogueBuilder.() -> Unit,
+    ) {
         dialogue += NpcDialogueBuilder(id).apply(body).build()
     }
 
@@ -5611,10 +6812,15 @@ class DialogueCatalogBuilder {
 }
 
 @RylNextDsl
-class NpcDialogueBuilder(private val id: NpcId) {
+class NpcDialogueBuilder(
+    private val id: NpcId,
+) {
     private val branches = mutableListOf<DialogueBranchModel>()
 
-    fun whenState(state: FlagState, body: ScriptScope.() -> Unit) {
+    fun whenState(
+        state: FlagState,
+        body: ScriptScope.() -> Unit,
+    ) {
         branches += DialogueBranchModel(state, recordScript(body))
     }
 
@@ -5629,11 +6835,17 @@ class NpcDialogueBuilder(private val id: NpcId) {
 class TownCatalogBuilder {
     private val towns = mutableListOf<TownModel>()
 
-    fun town(slug: String, body: TownBuilder.() -> Unit) {
+    fun town(
+        slug: String,
+        body: TownBuilder.() -> Unit,
+    ) {
         towns += TownBuilder(town(slug)).apply(body).build()
     }
 
-    fun town(ref: TownHandle, body: TownBuilder.() -> Unit) {
+    fun town(
+        ref: TownHandle,
+        body: TownBuilder.() -> Unit,
+    ) {
         towns += TownBuilder(ref.id).apply(body).build()
     }
 
@@ -5641,7 +6853,9 @@ class TownCatalogBuilder {
 }
 
 @RylNextDsl
-class TownBuilder(private val id: TownId) {
+class TownBuilder(
+    private val id: TownId,
+) {
     var name: String = ""
     var position: GridPoint = xy(0, 0)
     var taxPercent: Int = 0
@@ -5660,8 +6874,7 @@ class TownBuilder(private val id: TownId) {
         serviceModels += TownServicesBuilder().apply(body).build()
     }
 
-    fun build(): TownModel =
-        TownModel(id, name, position, taxPercent, kindModel, serviceModels.toList())
+    fun build(): TownModel = TownModel(id, name, position, taxPercent, kindModel, serviceModels.toList())
 }
 
 @RylNextDsl
@@ -5728,21 +6941,24 @@ class TownSystemBuilder {
             buildingServices = buildingServiceModels,
             leavePrompts = leavePromptCommands,
             entryTax = entryTaxModel,
-            nativeServices = listOf(
-                EngineServiceUse(EngineService.KeyboardInput, "town menu command selection"),
-                EngineServiceUse(EngineService.Rendering, "town entry art, text panes, and status refresh"),
-                EngineServiceUse(EngineService.TownStateStorage, "current town lookup and available-service checks"),
-                EngineServiceUse(EngineService.TimeState, "service opening-hour checks"),
-                EngineServiceUse(EngineService.PartyStateMutation, "tax, service costs, lodging, healing, and time passage"),
-                EngineServiceUse(EngineService.InventoryStorage, "merchant, smith, and service inventory effects"),
-                EngineServiceUse(EngineService.NpcStateStorage, "building NPC lookup and town conversations"),
-                EngineServiceUse(EngineService.TextFormatting, "town, building, NPC, item, price, and tax bindings"),
-            ),
+            nativeServices =
+                listOf(
+                    EngineServiceUse(EngineService.KeyboardInput, "town menu command selection"),
+                    EngineServiceUse(EngineService.Rendering, "town entry art, text panes, and status refresh"),
+                    EngineServiceUse(EngineService.TownStateStorage, "current town lookup and available-service checks"),
+                    EngineServiceUse(EngineService.TimeState, "service opening-hour checks"),
+                    EngineServiceUse(EngineService.PartyStateMutation, "tax, service costs, lodging, healing, and time passage"),
+                    EngineServiceUse(EngineService.InventoryStorage, "merchant, smith, and service inventory effects"),
+                    EngineServiceUse(EngineService.NpcStateStorage, "building NPC lookup and town conversations"),
+                    EngineServiceUse(EngineService.TextFormatting, "town, building, NPC, item, price, and tax bindings"),
+                ),
         )
 }
 
 @RylNextDsl
-class TownEntryTaxBuilder(initial: TownEntryTaxModel = TownEntryTaxModel()) {
+class TownEntryTaxBuilder(
+    initial: TownEntryTaxModel = TownEntryTaxModel(),
+) {
     var minimumLeaderLevel: Int = initial.minimumLeaderLevel
     var pay: InputBindingModel = initial.pay
     var leave: InputBindingModel = initial.leave
@@ -5799,19 +7015,33 @@ class TownMenuBuilder {
         service(binding, DslDefaultBuildings.tavern, DslDefaultKeyActions.enterTavern)
     }
 
-    fun leave(key: Char = 'L', action: KeyActionId = DslDefaultKeyActions.leaveTown) {
+    fun leave(
+        key: Char = 'L',
+        action: KeyActionId = DslDefaultKeyActions.leaveTown,
+    ) {
         leave(inputKey(key), action)
     }
 
-    fun leave(binding: InputBindingModel, action: KeyActionId = DslDefaultKeyActions.leaveTown) {
+    fun leave(
+        binding: InputBindingModel,
+        action: KeyActionId = DslDefaultKeyActions.leaveTown,
+    ) {
         actions += TownMenuActionModel(binding, action, building = null, endsMenu = true)
     }
 
-    fun service(key: Char, building: BuildingId, action: KeyActionId) {
+    fun service(
+        key: Char,
+        building: BuildingId,
+        action: KeyActionId,
+    ) {
         service(inputKey(key), building, action)
     }
 
-    fun service(binding: InputBindingModel, building: BuildingId, action: KeyActionId) {
+    fun service(
+        binding: InputBindingModel,
+        building: BuildingId,
+        action: KeyActionId,
+    ) {
         actions += TownMenuActionModel(binding, action, building, endsMenu = false)
     }
 
@@ -5875,12 +7105,13 @@ class BuildingServiceBuilder(
             scene = scene,
             opensAt = hours?.first,
             closesAt = hours?.last,
-            nativeServices = listOf(
-                EngineServiceUse(EngineService.Rendering, "${building.slug} service screens and map-window art"),
-                EngineServiceUse(EngineService.KeyboardInput, "${building.slug} service menu input"),
-                EngineServiceUse(EngineService.TimeState, "${building.slug} opening-hour checks"),
-                EngineServiceUse(EngineService.PartyStateMutation, "${building.slug} cost, time, and resource effects"),
-            ),
+            nativeServices =
+                listOf(
+                    EngineServiceUse(EngineService.Rendering, "${building.slug} service screens and map-window art"),
+                    EngineServiceUse(EngineService.KeyboardInput, "${building.slug} service menu input"),
+                    EngineServiceUse(EngineService.TimeState, "${building.slug} opening-hour checks"),
+                    EngineServiceUse(EngineService.PartyStateMutation, "${building.slug} cost, time, and resource effects"),
+                ),
         )
 }
 
@@ -5888,23 +7119,35 @@ class BuildingServiceBuilder(
 class CharacterCatalogBuilder {
     private val characters = mutableListOf<CharacterModel>()
 
-    fun character(id: NpcId, body: CharacterBuilder.() -> Unit) {
+    fun character(
+        id: NpcId,
+        body: CharacterBuilder.() -> Unit,
+    ) {
         characters += CharacterBuilder(id).apply(body).build()
     }
 
-    fun character(id: NpcId, name: String, job: NpcJobId, body: CharacterBuilder.() -> Unit = {}) {
-        characters += CharacterBuilder(id).apply {
-            this.name = name
-            this.job = job
-            body()
-        }.build()
+    fun character(
+        id: NpcId,
+        name: String,
+        job: NpcJobId,
+        body: CharacterBuilder.() -> Unit = {},
+    ) {
+        characters +=
+            CharacterBuilder(id)
+                .apply {
+                    this.name = name
+                    this.job = job
+                    body()
+                }.build()
     }
 
     fun build(): List<CharacterModel> = characters.toList()
 }
 
 @RylNextDsl
-class CharacterBuilder(private val id: NpcId) {
+class CharacterBuilder(
+    private val id: NpcId,
+) {
     var name: String = ""
     var job: NpcJobId = DslDefaultNpcJobs.merchant
     var gender: Gender = Gender.Male
@@ -5942,12 +7185,18 @@ class CharacterBuilder(private val id: NpcId) {
 class FlagContentBuilder {
     private val flags = mutableListOf<FlagContentModel>()
 
-    fun story(flag: FlagRef, body: FlagContentEntryBuilder.() -> Unit = {}) {
+    fun story(
+        flag: FlagRef,
+        body: FlagContentEntryBuilder.() -> Unit = {},
+    ) {
         require(flag.scope == FlagScope.Party) { "story flag ${flag.slug} must have party scope" }
         flags += FlagContentEntryBuilder(flag).apply(body).build()
     }
 
-    fun encounter(flag: FlagRef, body: FlagContentEntryBuilder.() -> Unit = {}) {
+    fun encounter(
+        flag: FlagRef,
+        body: FlagContentEntryBuilder.() -> Unit = {},
+    ) {
         require(flag.scope == FlagScope.Encounter) { "encounter flag ${flag.slug} must have encounter scope" }
         flags += FlagContentEntryBuilder(flag).apply(body).build()
     }
@@ -5956,22 +7205,26 @@ class FlagContentBuilder {
 }
 
 @RylNextDsl
-class FlagContentEntryBuilder(private val flag: FlagRef) {
+class FlagContentEntryBuilder(
+    private val flag: FlagRef,
+) {
     private val explicitStates = mutableListOf<FlagState>()
 
     fun states(vararg states: FlagState) {
         explicitStates += states
     }
 
-    fun build(): FlagContentModel =
-        FlagContentModel(flag, explicitStates.ifEmpty { flag.states })
+    fun build(): FlagContentModel = FlagContentModel(flag, explicitStates.ifEmpty { flag.states })
 }
 
 @RylNextDsl
 class MonsterCatalogBuilder {
     private val monsters = mutableListOf<MonsterModel>()
 
-    fun monster(id: MonsterId, body: MonsterBuilder.() -> Unit) {
+    fun monster(
+        id: MonsterId,
+        body: MonsterBuilder.() -> Unit,
+    ) {
         monsters += MonsterBuilder(id).apply(body).build()
     }
 
@@ -5979,7 +7232,9 @@ class MonsterCatalogBuilder {
 }
 
 @RylNextDsl
-class MonsterBuilder(private val id: MonsterId) {
+class MonsterBuilder(
+    private val id: MonsterId,
+) {
     var name: String = ""
     var count: IntRange = 1..1
     var countMaxLevelDivisor: Int? = null
@@ -5989,15 +7244,17 @@ class MonsterBuilder(private val id: MonsterId) {
     var tier: EncounterTier? = null
     var immune: Boolean = false
 
-    fun build(): MonsterModel =
-        MonsterModel(id, name, count, countMaxLevelDivisor, hitPoints, weaponSkill, spellPower, tier, immune)
+    fun build(): MonsterModel = MonsterModel(id, name, count, countMaxLevelDivisor, hitPoints, weaponSkill, spellPower, tier, immune)
 }
 
 @RylNextDsl
 class MissionCatalogBuilder {
     private val missions = mutableListOf<MissionModel>()
 
-    fun mission(id: MissionId, body: MissionBuilder.() -> Unit) {
+    fun mission(
+        id: MissionId,
+        body: MissionBuilder.() -> Unit,
+    ) {
         missions += MissionBuilder(id).apply(body).build()
     }
 
@@ -6005,7 +7262,9 @@ class MissionCatalogBuilder {
 }
 
 @RylNextDsl
-class MissionBuilder(private val id: MissionId) {
+class MissionBuilder(
+    private val id: MissionId,
+) {
     private var trigger: Trigger? = null
     private var requires: BoolAst? = null
     private var action: SceneId? = null
@@ -6019,8 +7278,9 @@ class MissionBuilder(private val id: MissionId) {
     }
 
     fun at(position: WorldPosition) {
-        val point = (position as? WorldPosition.Wilderness)?.point
-            ?: error("mission ${id.slug} position trigger must be a wilderness position")
+        val point =
+            (position as? WorldPosition.Wilderness)?.point
+                ?: error("mission ${id.slug} position trigger must be a wilderness position")
         at(point)
     }
 
@@ -6058,7 +7318,10 @@ class GameProgressBuilder {
     private val milestones = mutableListOf<GameMilestoneModel>()
     private var winBuilder: WinConditionBuilder? = null
 
-    fun milestone(id: GameMilestoneId, body: GameMilestoneBuilder.() -> Unit) {
+    fun milestone(
+        id: GameMilestoneId,
+        body: GameMilestoneBuilder.() -> Unit,
+    ) {
         milestones += GameMilestoneBuilder(id).apply(body).build()
     }
 
@@ -6066,12 +7329,13 @@ class GameProgressBuilder {
         winBuilder = WinConditionBuilder().apply(body)
     }
 
-    fun build(): GameProgressModel =
-        GameProgressModel(milestones.toList(), winBuilder?.build(milestones))
+    fun build(): GameProgressModel = GameProgressModel(milestones.toList(), winBuilder?.build(milestones))
 }
 
 @RylNextDsl
-class GameMilestoneBuilder(private val id: GameMilestoneId) {
+class GameMilestoneBuilder(
+    private val id: GameMilestoneId,
+) {
     private var specialInventoryItem: ItemId? = null
     private var requiredToWin: Boolean = false
     private var sourceSpecial: SourceSpecialMapping? = null
@@ -6084,12 +7348,14 @@ class GameMilestoneBuilder(private val id: GameMilestoneId) {
         requiredToWin = true
     }
 
-    fun sourcePartyField(field: SourceSpecialField, achievedValue: Int = 1) {
+    fun sourcePartyField(
+        field: SourceSpecialField,
+        achievedValue: Int = 1,
+    ) {
         sourceSpecial = SourceSpecialMapping(field, achievedValue)
     }
 
-    fun build(): GameMilestoneModel =
-        GameMilestoneModel(id, specialInventoryItem, requiredToWin, sourceSpecial)
+    fun build(): GameMilestoneModel = GameMilestoneModel(id, specialInventoryItem, requiredToWin, sourceSpecial)
 }
 
 @RylNextDsl
@@ -6111,11 +7377,12 @@ class WinConditionBuilder {
     }
 
     fun build(defined: List<GameMilestoneModel>): WinConditionModel {
-        val markedRequired = if (includeMarkedRequired) {
-            defined.filter { it.requiredToWin }.map { it.id }
-        } else {
-            emptyList()
-        }
+        val markedRequired =
+            if (includeMarkedRequired) {
+                defined.filter { it.requiredToWin }.map { it.id }
+            } else {
+                emptyList()
+            }
 
         return WinConditionModel((explicitRequired + markedRequired).distinct(), completionMilestone)
     }
@@ -6132,7 +7399,10 @@ class LevelingBuilder {
         thresholdModel = thresholds.toList()
     }
 
-    fun classLevelUp(klass: PcClass, body: ClassLevelUpBuilder.() -> Unit) {
+    fun classLevelUp(
+        klass: PcClass,
+        body: ClassLevelUpBuilder.() -> Unit,
+    ) {
         classGrowthModel += ClassLevelUpBuilder(klass).apply(body).build()
     }
 
@@ -6146,14 +7416,15 @@ class LevelingBuilder {
 }
 
 @RylNextDsl
-class ClassLevelUpBuilder(private val klass: PcClass) {
+class ClassLevelUpBuilder(
+    private val klass: PcClass,
+) {
     var weaponSkill: Int = 0
     var health: Int = 0
     var wisdom: Int = 0
     var charisma: Int = 0
 
-    fun build(): ClassLevelUpModel =
-        ClassLevelUpModel(klass, weaponSkill, health, wisdom, charisma)
+    fun build(): ClassLevelUpModel = ClassLevelUpModel(klass, weaponSkill, health, wisdom, charisma)
 }
 
 @RylNextDsl
@@ -6163,7 +7434,10 @@ class CharacterCreationBuilder {
     private val raceOptions = mutableListOf<CharacterRaceOptionModel>()
     private val classOptions = mutableListOf<CharacterClassOptionModel>()
 
-    fun statRoll(min: Int, max: Int) {
+    fun statRoll(
+        min: Int,
+        max: Int,
+    ) {
         statRollModel = CharacterCreationStatRollModel(min, max)
     }
 
@@ -6171,11 +7445,18 @@ class CharacterCreationBuilder {
         startModel = CharacterCreationStartBuilder().apply(body).build()
     }
 
-    fun race(race: Race, label: String) {
+    fun race(
+        race: Race,
+        label: String,
+    ) {
         raceOptions += CharacterRaceOptionModel(race, label)
     }
 
-    fun playerClass(klass: PcClass, label: String, body: CharacterCreationClassBuilder.() -> Unit = {}) {
+    fun playerClass(
+        klass: PcClass,
+        label: String,
+        body: CharacterCreationClassBuilder.() -> Unit = {},
+    ) {
         classOptions += CharacterCreationClassBuilder(klass, label).apply(body).build()
     }
 
@@ -6215,12 +7496,19 @@ class CharacterCreationStartBuilder {
 }
 
 @RylNextDsl
-class CharacterCreationClassBuilder(private val klass: PcClass, private val label: String) {
+class CharacterCreationClassBuilder(
+    private val klass: PcClass,
+    private val label: String,
+) {
     private var requiredStat: CharacterCreationStat? = null
     private var minimum: Int? = null
     private var failureText: TextBlock? = null
 
-    fun requires(stat: CharacterCreationStat, minimum: Int, failureText: TextBlock) {
+    fun requires(
+        stat: CharacterCreationStat,
+        minimum: Int,
+        failureText: TextBlock,
+    ) {
         requiredStat = stat
         this.minimum = minimum
         this.failureText = failureText
@@ -6240,7 +7528,10 @@ class CharacterCreationClassBuilder(private val klass: PcClass, private val labe
 class FormulaCatalogBuilder {
     private val formulas = mutableListOf<FormulaModel>()
 
-    fun formula(id: FormulaId, body: FormulaBuilder.() -> Unit) {
+    fun formula(
+        id: FormulaId,
+        body: FormulaBuilder.() -> Unit,
+    ) {
         formulas += FormulaBuilder(id).apply(body).build()
     }
 
@@ -6248,7 +7539,9 @@ class FormulaCatalogBuilder {
 }
 
 @RylNextDsl
-class FormulaBuilder(private val id: FormulaId) {
+class FormulaBuilder(
+    private val id: FormulaId,
+) {
     var value: IntExpr = lit(0)
 
     val encounterHitPointMinBase: IntExpr = v("encounter_hit_point_min_base")
@@ -6261,17 +7554,25 @@ class FormulaBuilder(private val id: FormulaId) {
     val monsterSpellPower: IntExpr = v("monster_spell_power")
     val health: IntExpr = v("health")
 
-    fun whenValue(condition: BoolExpr, thenValue: IntExpr, elseValue: IntExpr = lit(0)): IntExpr =
-        Expr(IntAst.If(condition.ast, thenValue.ast, elseValue.ast))
+    fun whenValue(
+        condition: BoolExpr,
+        thenValue: IntExpr,
+        elseValue: IntExpr = lit(0),
+    ): IntExpr = Expr(IntAst.If(condition.ast, thenValue.ast, elseValue.ast))
 
-    fun whenValue(condition: BoolExpr, thenValue: Int, elseValue: Int = 0): IntExpr =
-        whenValue(condition, lit(thenValue), lit(elseValue))
+    fun whenValue(
+        condition: BoolExpr,
+        thenValue: Int,
+        elseValue: Int = 0,
+    ): IntExpr = whenValue(condition, lit(thenValue), lit(elseValue))
 
     fun build(): FormulaModel = FormulaModel(id, value.ast)
 }
 
 @RylNextDsl
-class ItemUseBuilder(private val id: ItemId) {
+class ItemUseBuilder(
+    private val id: ItemId,
+) {
     private val contexts = mutableSetOf(ItemUseContext.Combat)
     var consume: ItemConsumePolicy = ItemConsumePolicy.BeforeUse
     private var ops = emptyList<Op>()
@@ -6291,15 +7592,17 @@ class ItemUseBuilder(private val id: ItemId) {
         ops = recordScript(body)
     }
 
-    fun build(): ItemUseModel =
-        ItemUseModel(id, contexts.toSet(), consume, ops)
+    fun build(): ItemUseModel = ItemUseModel(id, contexts.toSet(), consume, ops)
 }
 
 @RylNextDsl
 class RewardCatalogBuilder {
     private val rewards = mutableListOf<RewardBundleModel>()
 
-    fun reward(id: RewardBundleId, body: RewardBundleBuilder.() -> Unit) {
+    fun reward(
+        id: RewardBundleId,
+        body: RewardBundleBuilder.() -> Unit,
+    ) {
         rewards += RewardBundleBuilder(id).apply(body).build()
     }
 
@@ -6307,7 +7610,9 @@ class RewardCatalogBuilder {
 }
 
 @RylNextDsl
-class RewardBundleBuilder(private val id: RewardBundleId) {
+class RewardBundleBuilder(
+    private val id: RewardBundleId,
+) {
     var experience: FormulaId = DslDefaultFormulas.rewardXpPerSurvivor
     var gold: FormulaId = DslDefaultFormulas.rewardGoldParty
     private var applicationModel = RewardApplicationBuilder().build()
@@ -6317,7 +7622,10 @@ class RewardBundleBuilder(private val id: RewardBundleId) {
         applicationModel = RewardApplicationBuilder(applicationModel).apply(body).build()
     }
 
-    fun lootTable(id: LootTableId, body: LootTableBuilder.() -> Unit) {
+    fun lootTable(
+        id: LootTableId,
+        body: LootTableBuilder.() -> Unit,
+    ) {
         lootModel = LootTableBuilder(id).apply(body).build()
     }
 
@@ -6325,7 +7633,9 @@ class RewardBundleBuilder(private val id: RewardBundleId) {
 }
 
 @RylNextDsl
-class RewardApplicationBuilder(initial: RewardApplicationModel? = null) {
+class RewardApplicationBuilder(
+    initial: RewardApplicationModel? = null,
+) {
     var regularItems: RewardItemPlacement =
         initial?.regularItems ?: RewardItemPlacement.FirstFreeInventorySlot
     var overflow: RewardOverflowPolicy =
@@ -6333,19 +7643,19 @@ class RewardApplicationBuilder(initial: RewardApplicationModel? = null) {
     var specialItems: RewardSpecialItemPolicy =
         initial?.specialItems ?: RewardSpecialItemPolicy.ProjectMilestoneState
 
-    fun build(): RewardApplicationModel =
-        RewardApplicationModel(regularItems, overflow, specialItems)
+    fun build(): RewardApplicationModel = RewardApplicationModel(regularItems, overflow, specialItems)
 }
 
 @RylNextDsl
-class LootTableBuilder(private val id: LootTableId) {
+class LootTableBuilder(
+    private val id: LootTableId,
+) {
     var dropChancePercent: Int = 5
     var treasureChancePercent: Int = 59
     var treasure: ItemPoolId = DslDefaultItemPools.battleSpoils
     var magic: ItemPoolId = DslDefaultItemPools.magicItems
 
-    fun build(): LootTableModel =
-        LootTableModel(id, dropChancePercent, treasureChancePercent, treasure, magic)
+    fun build(): LootTableModel = LootTableModel(id, dropChancePercent, treasureChancePercent, treasure, magic)
 }
 
 @RylNextDsl
@@ -6414,20 +7724,23 @@ class StandardBattleBuilder {
         )
 
     companion object {
-        private val defaultNativeServices = listOf(
-            EngineServiceUse(EngineService.KeyboardInput, "fight/run, action, spell, item, and target selection"),
-            EngineServiceUse(EngineService.Rendering, "combat banners, text panes, map-window art, and status refresh"),
-            EngineServiceUse(EngineService.RandomNumbers, "encounter sizing, hit rolls, damage rolls, fleeing, loot, and AI"),
-            EngineServiceUse(EngineService.CombatContextStorage, "live monster hit points, death bits, and round status effects"),
-            EngineServiceUse(EngineService.InventoryStorage, "item use, consume, loot placement, and first-free-slot lookup"),
-            EngineServiceUse(EngineService.PartyStateMutation, "HP, mana, XP, gold, kills, and death-state updates"),
-            EngineServiceUse(EngineService.TextFormatting, "party, monster, item, pronoun, and reward bindings"),
-        )
+        private val defaultNativeServices =
+            listOf(
+                EngineServiceUse(EngineService.KeyboardInput, "fight/run, action, spell, item, and target selection"),
+                EngineServiceUse(EngineService.Rendering, "combat banners, text panes, map-window art, and status refresh"),
+                EngineServiceUse(EngineService.RandomNumbers, "encounter sizing, hit rolls, damage rolls, fleeing, loot, and AI"),
+                EngineServiceUse(EngineService.CombatContextStorage, "live monster hit points, death bits, and round status effects"),
+                EngineServiceUse(EngineService.InventoryStorage, "item use, consume, loot placement, and first-free-slot lookup"),
+                EngineServiceUse(EngineService.PartyStateMutation, "HP, mana, XP, gold, kills, and death-state updates"),
+                EngineServiceUse(EngineService.TextFormatting, "party, monster, item, pronoun, and reward bindings"),
+            )
     }
 }
 
 @RylNextDsl
-class BattleOpeningKeysBuilder(initial: BattleOpeningKeysModel = BattleOpeningKeysModel()) {
+class BattleOpeningKeysBuilder(
+    initial: BattleOpeningKeysModel = BattleOpeningKeysModel(),
+) {
     var fight: InputBindingModel = initial.fight
     var run: InputBindingModel = initial.run
 
@@ -6435,7 +7748,9 @@ class BattleOpeningKeysBuilder(initial: BattleOpeningKeysModel = BattleOpeningKe
 }
 
 @RylNextDsl
-class BattleTextBuilder(initial: BattleTextModel? = null) {
+class BattleTextBuilder(
+    initial: BattleTextModel? = null,
+) {
     private val defaults = initial ?: BattleTextModel()
     private var encounterBannerText = defaults.encounterBanner
     private var youFaceText = defaults.youFace
@@ -6621,7 +7936,11 @@ class SpeakBuilder {
         textTablesModel = SpeakTextTablesBuilder().apply(body).build()
     }
 
-    fun questionAction(topic: QuestionTopic, job: NpcJobId, body: ScriptScope.() -> Unit) {
+    fun questionAction(
+        topic: QuestionTopic,
+        job: NpcJobId,
+        body: ScriptScope.() -> Unit,
+    ) {
         questionActions += QuestionActionScriptModel(topic, job, recordScript(body))
     }
 
@@ -6641,23 +7960,38 @@ class SpeakTextTablesBuilder {
     private val questionReplies = mutableListOf<QuestionReplyTextModel>()
     private val rumourTables = mutableListOf<RumourTextTableModel>()
 
-    fun screen(id: TextId, body: StructuredTextBlockBuilder.() -> Unit) {
+    fun screen(
+        id: TextId,
+        body: StructuredTextBlockBuilder.() -> Unit,
+    ) {
         screens += ReusableScreenTextModel(id, StructuredTextBlockBuilder().apply(body).build())
     }
 
-    fun chitchatPrompt(subject: ChitchatSubject, body: ChitchatPromptTextBuilder.() -> Unit) {
+    fun chitchatPrompt(
+        subject: ChitchatSubject,
+        body: ChitchatPromptTextBuilder.() -> Unit,
+    ) {
         chitchatPrompts += ChitchatPromptTextBuilder(subject).apply(body).build()
     }
 
-    fun chitchatReplies(subject: ChitchatSubject, body: JobTextTableBuilder.() -> Unit) {
+    fun chitchatReplies(
+        subject: ChitchatSubject,
+        body: JobTextTableBuilder.() -> Unit,
+    ) {
         chitchatReplies += ChitchatReplyTextModel(subject, JobTextTableBuilder().apply(body).build())
     }
 
-    fun questionReplies(topic: QuestionTopic, body: JobTextTableBuilder.() -> Unit) {
+    fun questionReplies(
+        topic: QuestionTopic,
+        body: JobTextTableBuilder.() -> Unit,
+    ) {
         questionReplies += QuestionReplyTextModel(topic, JobTextTableBuilder().apply(body).build())
     }
 
-    fun rumourTable(id: RumourTableId, body: RumourTextTableBuilder.() -> Unit) {
+    fun rumourTable(
+        id: RumourTableId,
+        body: RumourTextTableBuilder.() -> Unit,
+    ) {
         rumourTables += RumourTextTableBuilder(id).apply(body).build()
     }
 
@@ -6672,28 +8006,33 @@ class SpeakTextTablesBuilder {
 }
 
 @RylNextDsl
-class ChitchatPromptTextBuilder(private val subject: ChitchatSubject) {
+class ChitchatPromptTextBuilder(
+    private val subject: ChitchatSubject,
+) {
     private val variants = mutableListOf<ChitchatPromptVariantModel>()
 
     fun any(body: StructuredTextBlockBuilder.() -> Unit) {
-        variants += ChitchatPromptVariantModel(
-            ChitchatPromptAudience.Any,
-            StructuredTextBlockBuilder().apply(body).build(),
-        )
+        variants +=
+            ChitchatPromptVariantModel(
+                ChitchatPromptAudience.Any,
+                StructuredTextBlockBuilder().apply(body).build(),
+            )
     }
 
     fun female(body: StructuredTextBlockBuilder.() -> Unit) {
-        variants += ChitchatPromptVariantModel(
-            ChitchatPromptAudience.Female,
-            StructuredTextBlockBuilder().apply(body).build(),
-        )
+        variants +=
+            ChitchatPromptVariantModel(
+                ChitchatPromptAudience.Female,
+                StructuredTextBlockBuilder().apply(body).build(),
+            )
     }
 
     fun male(body: StructuredTextBlockBuilder.() -> Unit) {
-        variants += ChitchatPromptVariantModel(
-            ChitchatPromptAudience.Male,
-            StructuredTextBlockBuilder().apply(body).build(),
-        )
+        variants +=
+            ChitchatPromptVariantModel(
+                ChitchatPromptAudience.Male,
+                StructuredTextBlockBuilder().apply(body).build(),
+            )
     }
 
     fun build(): ChitchatPromptTextModel = ChitchatPromptTextModel(subject, variants.toList())
@@ -6714,7 +8053,10 @@ class StructuredTextBlockBuilder : TextLineSink {
 class JobTextTableBuilder {
     private val replies = mutableListOf<JobTextModel>()
 
-    fun job(id: NpcJobId, body: StructuredTextBlockBuilder.() -> Unit) {
+    fun job(
+        id: NpcJobId,
+        body: StructuredTextBlockBuilder.() -> Unit,
+    ) {
         replies += JobTextModel(id, StructuredTextBlockBuilder().apply(body).build())
     }
 
@@ -6722,14 +8064,19 @@ class JobTextTableBuilder {
 }
 
 @RylNextDsl
-class RumourTextTableBuilder(private val id: RumourTableId) {
+class RumourTextTableBuilder(
+    private val id: RumourTableId,
+) {
     private val entries = mutableListOf<RumourEntryModel>()
 
     fun rumour(body: RumourEntryBuilder.() -> Unit) {
         entries += RumourEntryBuilder(null).apply(body).build()
     }
 
-    fun rumour(id: RumourId, body: RumourEntryBuilder.() -> Unit) {
+    fun rumour(
+        id: RumourId,
+        body: RumourEntryBuilder.() -> Unit,
+    ) {
         entries += RumourEntryBuilder(id).apply(body).build()
     }
 
@@ -6737,7 +8084,9 @@ class RumourTextTableBuilder(private val id: RumourTableId) {
 }
 
 @RylNextDsl
-class RumourEntryBuilder(private val id: RumourId?) : TextLineSink {
+class RumourEntryBuilder(
+    private val id: RumourId?,
+) : TextLineSink {
     private val text = StructuredTextBlockBuilder()
     private val excludedStates = mutableListOf<FlagState>()
 
@@ -6749,8 +8098,7 @@ class RumourEntryBuilder(private val id: RumourId?) : TextLineSink {
         excludedStates += states
     }
 
-    fun build(): RumourEntryModel =
-        RumourEntryModel(id, text.build(), excludedStates.toList())
+    fun build(): RumourEntryModel = RumourEntryModel(id, text.build(), excludedStates.toList())
 }
 
 @RylNextDsl
@@ -6760,17 +8108,19 @@ class StandardConversationBuilder {
     var branchSelection: DialogueBranchSelection = DialogueBranchSelection.FirstMatchingStateThenDefault
     var missionHints: MissionHintPolicy = MissionHintPolicy.BeforeEachMenu
 
-    private var menuModel = ConversationMenuBuilder().apply {
-        chitchat()
-        question {
-            lodging()
-            magic()
-            people()
-            nothing()
-        }
-        rumour()
-        bye()
-    }.build()
+    private var menuModel =
+        ConversationMenuBuilder()
+            .apply {
+                chitchat()
+                question {
+                    lodging()
+                    magic()
+                    people()
+                    nothing()
+                }
+                rumour()
+                bye()
+            }.build()
     private var chitchatModel = ChitchatBuilder().build()
     private var rumourModel = ConversationRumourBuilder().build()
     private var promptsModel = ConversationPromptTextBuilder().build()
@@ -6805,19 +8155,22 @@ class StandardConversationBuilder {
         )
 
     companion object {
-        private val defaultNativeServices = listOf(
-            EngineServiceUse(EngineService.KeyboardInput, "NPC selection and conversation menu choices"),
-            EngineServiceUse(EngineService.Rendering, "text-window clearing, menu rendering, and dialogue screens"),
-            EngineServiceUse(EngineService.RandomNumbers, "chitchat subject and rumour selection"),
-            EngineServiceUse(EngineService.NpcStateStorage, "NPC lookup, job/gender/role metadata, and visited bits"),
-            EngineServiceUse(EngineService.PartyStateMutation, "dialogue scripts can advance flags, rewards, and journals"),
-            EngineServiceUse(EngineService.TextFormatting, "NPC names, jobs, locations, and role-bound text placeholders"),
-        )
+        private val defaultNativeServices =
+            listOf(
+                EngineServiceUse(EngineService.KeyboardInput, "NPC selection and conversation menu choices"),
+                EngineServiceUse(EngineService.Rendering, "text-window clearing, menu rendering, and dialogue screens"),
+                EngineServiceUse(EngineService.RandomNumbers, "chitchat subject and rumour selection"),
+                EngineServiceUse(EngineService.NpcStateStorage, "NPC lookup, job/gender/role metadata, and visited bits"),
+                EngineServiceUse(EngineService.PartyStateMutation, "dialogue scripts can advance flags, rewards, and journals"),
+                EngineServiceUse(EngineService.TextFormatting, "NPC names, jobs, locations, and role-bound text placeholders"),
+            )
     }
 }
 
 @RylNextDsl
-class ConversationPromptTextBuilder(initial: ConversationPromptTextModel = ConversationPromptTextModel()) {
+class ConversationPromptTextBuilder(
+    initial: ConversationPromptTextModel = ConversationPromptTextModel(),
+) {
     var chooseNpc: TextBlock = initial.chooseNpc
     private var mainMenuText: TextBlock = initial.mainMenu
 
@@ -6850,11 +8203,17 @@ class ConversationMenuBuilder {
     private val actions = mutableListOf<ConversationMenuActionModel>()
     private var questionActions = emptyList<QuestionMenuActionModel>()
 
-    fun chitchat(key: Char = 'C', action: KeyActionId = DslDefaultKeyActions.speakChitchat) {
+    fun chitchat(
+        key: Char = 'C',
+        action: KeyActionId = DslDefaultKeyActions.speakChitchat,
+    ) {
         chitchat(inputKey(key), action)
     }
 
-    fun chitchat(binding: InputBindingModel, action: KeyActionId = DslDefaultKeyActions.speakChitchat) {
+    fun chitchat(
+        binding: InputBindingModel,
+        action: KeyActionId = DslDefaultKeyActions.speakChitchat,
+    ) {
         actions += ConversationMenuActionModel(ConversationTopic.Chitchat, binding, action)
     }
 
@@ -6875,59 +8234,94 @@ class ConversationMenuBuilder {
         questionActions = QuestionMenuBuilder().apply(body).build()
     }
 
-    fun rumour(key: Char = 'R', action: KeyActionId = DslDefaultKeyActions.speakRumour) {
+    fun rumour(
+        key: Char = 'R',
+        action: KeyActionId = DslDefaultKeyActions.speakRumour,
+    ) {
         rumour(inputKey(key), action)
     }
 
-    fun rumour(binding: InputBindingModel, action: KeyActionId = DslDefaultKeyActions.speakRumour) {
+    fun rumour(
+        binding: InputBindingModel,
+        action: KeyActionId = DslDefaultKeyActions.speakRumour,
+    ) {
         actions += ConversationMenuActionModel(ConversationTopic.Rumour, binding, action)
     }
 
-    fun bye(key: Char = 'B', action: KeyActionId = DslDefaultKeyActions.speakBye) {
+    fun bye(
+        key: Char = 'B',
+        action: KeyActionId = DslDefaultKeyActions.speakBye,
+    ) {
         bye(inputKey(key), action)
     }
 
-    fun bye(binding: InputBindingModel, action: KeyActionId = DslDefaultKeyActions.speakBye) {
+    fun bye(
+        binding: InputBindingModel,
+        action: KeyActionId = DslDefaultKeyActions.speakBye,
+    ) {
         actions += ConversationMenuActionModel(ConversationTopic.Bye, binding, action)
     }
 
-    fun build(): ConversationMenuModel =
-        ConversationMenuModel(actions.toList(), questionActions)
+    fun build(): ConversationMenuModel = ConversationMenuModel(actions.toList(), questionActions)
 }
 
 @RylNextDsl
 class QuestionMenuBuilder {
     private val actions = mutableListOf<QuestionMenuActionModel>()
 
-    fun lodging(key: Char = 'L', action: KeyActionId = DslDefaultKeyActions.questionLodging) {
+    fun lodging(
+        key: Char = 'L',
+        action: KeyActionId = DslDefaultKeyActions.questionLodging,
+    ) {
         lodging(inputKey(key), action)
     }
 
-    fun lodging(binding: InputBindingModel, action: KeyActionId = DslDefaultKeyActions.questionLodging) {
+    fun lodging(
+        binding: InputBindingModel,
+        action: KeyActionId = DslDefaultKeyActions.questionLodging,
+    ) {
         actions += QuestionMenuActionModel(QuestionTopic.Lodging, binding, action)
     }
 
-    fun magic(key: Char = 'M', action: KeyActionId = DslDefaultKeyActions.questionMagic) {
+    fun magic(
+        key: Char = 'M',
+        action: KeyActionId = DslDefaultKeyActions.questionMagic,
+    ) {
         magic(inputKey(key), action)
     }
 
-    fun magic(binding: InputBindingModel, action: KeyActionId = DslDefaultKeyActions.questionMagic) {
+    fun magic(
+        binding: InputBindingModel,
+        action: KeyActionId = DslDefaultKeyActions.questionMagic,
+    ) {
         actions += QuestionMenuActionModel(QuestionTopic.Magic, binding, action)
     }
 
-    fun people(key: Char = 'P', action: KeyActionId = DslDefaultKeyActions.questionPeople) {
+    fun people(
+        key: Char = 'P',
+        action: KeyActionId = DslDefaultKeyActions.questionPeople,
+    ) {
         people(inputKey(key), action)
     }
 
-    fun people(binding: InputBindingModel, action: KeyActionId = DslDefaultKeyActions.questionPeople) {
+    fun people(
+        binding: InputBindingModel,
+        action: KeyActionId = DslDefaultKeyActions.questionPeople,
+    ) {
         actions += QuestionMenuActionModel(QuestionTopic.People, binding, action)
     }
 
-    fun nothing(key: Char = 'N', action: KeyActionId = DslDefaultKeyActions.questionNothing) {
+    fun nothing(
+        key: Char = 'N',
+        action: KeyActionId = DslDefaultKeyActions.questionNothing,
+    ) {
         nothing(inputKey(key), action)
     }
 
-    fun nothing(binding: InputBindingModel, action: KeyActionId = DslDefaultKeyActions.questionNothing) {
+    fun nothing(
+        binding: InputBindingModel,
+        action: KeyActionId = DslDefaultKeyActions.questionNothing,
+    ) {
         actions += QuestionMenuActionModel(QuestionTopic.Nothing, binding, action)
     }
 
@@ -6935,7 +8329,9 @@ class QuestionMenuBuilder {
 }
 
 @RylNextDsl
-class ChitchatBuilder(initial: ChitchatModel? = null) {
+class ChitchatBuilder(
+    initial: ChitchatModel? = null,
+) {
     private var subjectModels: List<ChitchatSubject> =
         initial?.subjects ?: listOf(ChitchatSubject.Well, ChitchatSubject.Weather, ChitchatSubject.Health)
     var replies: ChitchatReplyPolicy =
@@ -6949,7 +8345,9 @@ class ChitchatBuilder(initial: ChitchatModel? = null) {
 }
 
 @RylNextDsl
-class ConversationRumourBuilder(initial: ConversationRumourModel? = null) {
+class ConversationRumourBuilder(
+    initial: ConversationRumourModel? = null,
+) {
     var usage: RumourUsagePolicy =
         initial?.usage ?: RumourUsagePolicy.OncePerConversationThenFallback
     var source: RumourSourcePolicy =
@@ -6959,17 +8357,20 @@ class ConversationRumourBuilder(initial: ConversationRumourModel? = null) {
 }
 
 @RylNextDsl
-class EncounterOpeningBuilder(initial: EncounterOpeningModel? = null) {
+class EncounterOpeningBuilder(
+    initial: EncounterOpeningModel? = null,
+) {
     var fleeChancePercent: Int = initial?.fleeChancePercent ?: 95
     var desperateFleeChancePercent: Int = initial?.desperateFleeChancePercent ?: 31
     var mandatoryRun: MandatoryRunRule = initial?.mandatoryRun ?: MandatoryRunRule.NoEscape
-    private val banners = initial?.banners?.toMutableList() ?: mutableListOf(
-        DslDefaultImages.Scene.encounterBanner1,
-        DslDefaultImages.Scene.encounterBanner2,
-        DslDefaultImages.Scene.encounterBanner3,
-        DslDefaultImages.Scene.encounterBanner4,
-        DslDefaultImages.Scene.encounterBanner5,
-    )
+    private val banners =
+        initial?.banners?.toMutableList() ?: mutableListOf(
+            DslDefaultImages.Scene.encounterBanner1,
+            DslDefaultImages.Scene.encounterBanner2,
+            DslDefaultImages.Scene.encounterBanner3,
+            DslDefaultImages.Scene.encounterBanner4,
+            DslDefaultImages.Scene.encounterBanner5,
+        )
 
     fun encounterBanners(vararg images: ImageId) {
         banners.clear()
@@ -7078,27 +8479,41 @@ class PlayerCombatActionsBuilder {
 }
 
 @RylNextDsl
-class PlayerRoundBuilder(initial: PlayerRoundModel? = null) {
-    private var attackRules = initial?.attack ?: PlayerAttackRulesModel(
-        hitBonus = 1,
-        damageSpreadMax = 4,
-        confusionDivisor = 3,
-        hpDefenseDivisor = 12,
-    )
-    private var defendRules = initial?.defend ?: DefendRulesModel(
-        weaponSkillPenalty = 2,
-        restThreshold = 5,
-        cap = 250,
-    )
-    private var battleCryRules = initial?.battleCry ?: BattleCryRulesModel(
-        weaponSkillPenalty = 4,
-    )
+class PlayerRoundBuilder(
+    initial: PlayerRoundModel? = null,
+) {
+    private var attackRules =
+        initial?.attack ?: PlayerAttackRulesModel(
+            hitBonus = 1,
+            damageSpreadMax = 4,
+            confusionDivisor = 3,
+            hpDefenseDivisor = 12,
+        )
+    private var defendRules =
+        initial?.defend ?: DefendRulesModel(
+            weaponSkillPenalty = 2,
+            restThreshold = 5,
+            cap = 250,
+        )
+    private var battleCryRules =
+        initial?.battleCry ?: BattleCryRulesModel(
+            weaponSkillPenalty = 4,
+        )
 
-    fun attack(hitBonus: Int, damageSpreadMax: Int, confusionDivisor: Int, hpDefenseDivisor: Int = 12) {
+    fun attack(
+        hitBonus: Int,
+        damageSpreadMax: Int,
+        confusionDivisor: Int,
+        hpDefenseDivisor: Int = 12,
+    ) {
         attackRules = PlayerAttackRulesModel(hitBonus, damageSpreadMax, confusionDivisor, hpDefenseDivisor)
     }
 
-    fun defend(weaponSkillPenalty: Int, restThreshold: Int, cap: Int = 250) {
+    fun defend(
+        weaponSkillPenalty: Int,
+        restThreshold: Int,
+        cap: Int = 250,
+    ) {
         defendRules = DefendRulesModel(weaponSkillPenalty, restThreshold, cap)
     }
 
@@ -7106,23 +8521,28 @@ class PlayerRoundBuilder(initial: PlayerRoundModel? = null) {
         battleCryRules = BattleCryRulesModel(weaponSkillPenalty)
     }
 
-    fun build(): PlayerRoundModel =
-        PlayerRoundModel(attackRules, defendRules, battleCryRules)
+    fun build(): PlayerRoundModel = PlayerRoundModel(attackRules, defendRules, battleCryRules)
 }
 
 @RylNextDsl
-class MonsterRoundBuilder(initial: MonsterRoundModel? = null) {
+class MonsterRoundBuilder(
+    initial: MonsterRoundModel? = null,
+) {
     var spellChanceBasePercent: Int = initial?.spellChanceBasePercent ?: 15
     var spellPowerDivisor: Int = initial?.spellPowerDivisor ?: 2
-    private var meleeRules = initial?.melee ?: MonsterMeleeRulesModel(
-        hitBonus = 1,
-        damageDivisor = 6,
-        damageSpreadMax = 9,
-        damageMin = 1,
-        fallback = DslDefaultScenes.Battle.monsterMelee,
-    )
+    private var meleeRules =
+        initial?.melee ?: MonsterMeleeRulesModel(
+            hitBonus = 1,
+            damageDivisor = 6,
+            damageSpreadMax = 9,
+            damageMin = 1,
+            fallback = DslDefaultScenes.Battle.monsterMelee,
+        )
 
-    fun spellChance(basePercent: Int, spellPowerDivisor: Int) {
+    fun spellChance(
+        basePercent: Int,
+        spellPowerDivisor: Int,
+    ) {
         spellChanceBasePercent = basePercent
         this.spellPowerDivisor = spellPowerDivisor
     }
@@ -7137,12 +8557,10 @@ class MonsterRoundBuilder(initial: MonsterRoundModel? = null) {
         meleeRules = MonsterMeleeRulesModel(hitBonus, damageDivisor, damageSpreadMax, damageMin, fallback)
     }
 
-    fun build(): MonsterRoundModel =
-        MonsterRoundModel(spellChanceBasePercent, spellPowerDivisor, meleeRules)
+    fun build(): MonsterRoundModel = MonsterRoundModel(spellChanceBasePercent, spellPowerDivisor, meleeRules)
 }
 
-fun rylweenNext(body: GameBuilder.() -> Unit): GameModel =
-    GameBuilder().apply(body).build()
+fun rylweenNext(body: GameBuilder.() -> Unit): GameModel = GameBuilder().apply(body).build()
 
 @RylNextDsl
 class RylweenBuilder {
@@ -7153,15 +8571,24 @@ class RylweenBuilder {
         contentModel = GameBuilder().apply(body).build()
     }
 
-    fun state(id: StateId, body: StateBuilder.() -> Unit) {
+    fun state(
+        id: StateId,
+        body: StateBuilder.() -> Unit,
+    ) {
         stateFixture(id, body)
     }
 
-    fun stateFixture(id: StateId, body: StateBuilder.() -> Unit) {
+    fun stateFixture(
+        id: StateId,
+        body: StateBuilder.() -> Unit,
+    ) {
         states += StateBuilder(id, StateKind.AuthoredFixture).apply(body).build()
     }
 
-    fun runtimeState(id: StateId, body: StateBuilder.() -> Unit) {
+    fun runtimeState(
+        id: StateId,
+        body: StateBuilder.() -> Unit,
+    ) {
         states += StateBuilder(id, StateKind.RuntimeSnapshot).apply(body).build()
     }
 
@@ -7172,11 +8599,13 @@ class RylweenBuilder {
         )
 }
 
-fun rylween(body: RylweenBuilder.() -> Unit): RylweenModel =
-    RylweenBuilder().apply(body).build()
+fun rylween(body: RylweenBuilder.() -> Unit): RylweenModel = RylweenBuilder().apply(body).build()
 
 @RylNextDsl
-class StateBuilder(private val id: StateId, private val kind: StateKind) {
+class StateBuilder(
+    private val id: StateId,
+    private val kind: StateKind,
+) {
     private var realmState: RealmState? = null
     private val locationPlacements = mutableListOf<LocationPlacement>()
     private val npcPlacements = mutableListOf<NpcPlacement>()
@@ -7194,7 +8623,10 @@ class StateBuilder(private val id: StateId, private val kind: StateKind) {
         npcPlacements += NpcStateBuilder().apply(body).build()
     }
 
-    fun party(id: PartyId, body: PartyStateBuilder.() -> Unit) {
+    fun party(
+        id: PartyId,
+        body: PartyStateBuilder.() -> Unit,
+    ) {
         parties += PartyStateBuilder(id).apply(body).build()
     }
 
@@ -7232,7 +8664,10 @@ class RealmStateBuilder {
         enter(RuntimeMode.Wilderness, map)
     }
 
-    fun town(town: TownId, map: WorldMapId = currentMap) {
+    fun town(
+        town: TownId,
+        map: WorldMapId = currentMap,
+    ) {
         enter(RuntimeMode.Town, map, town)
     }
 
@@ -7248,7 +8683,10 @@ class RealmStateBuilder {
         castle(DslDefaultCastles.ydarg, map)
     }
 
-    fun castle(castle: CastleId = DslDefaultCastles.ydarg, map: WorldMapId = currentMap) {
+    fun castle(
+        castle: CastleId = DslDefaultCastles.ydarg,
+        map: WorldMapId = currentMap,
+    ) {
         require(castle == DslDefaultCastles.ydarg) {
             "runtime state currently supports only Castle Ydarg"
         }
@@ -7275,7 +8713,11 @@ class RealmStateBuilder {
             lastTerrain = lastTerrain,
         )
 
-    private fun enter(mode: RuntimeMode, map: WorldMapId, town: TownId? = null) {
+    private fun enter(
+        mode: RuntimeMode,
+        map: WorldMapId,
+        town: TownId? = null,
+    ) {
         currentMode = mode
         currentMap = map
         currentTown = town
@@ -7305,19 +8747,22 @@ class NpcStateBuilder {
 }
 
 @RylNextDsl
-class PartyStateBuilder(private val id: PartyId) {
+class PartyStateBuilder(
+    private val id: PartyId,
+) {
     var player: String = ""
     var name: String = ""
     var position: WorldPosition = Wilderness.xy(0, 0)
     var facing: Facing? = null
     private var resourcesState = PartyResources(0, 0, 0, 0, 0)
-    private var countersState = PartyCounters(
-        memberCount = null,
-        kills = 0,
-        waitingMail = false,
-        attacked = false,
-        attackedToday = emptyList(),
-    )
+    private var countersState =
+        PartyCounters(
+            memberCount = null,
+            kills = 0,
+            waitingMail = false,
+            attacked = false,
+            attackedToday = emptyList(),
+        )
     private val flags = mutableListOf<FlagState>()
     private val milestones = mutableListOf<GameMilestoneId>()
     private val inventory = mutableListOf<InventorySlotState>()
@@ -7410,15 +8855,17 @@ class PartyCountersBuilder {
         AttackTodayBuilder().apply(body).build().forEach { attackedToday[it.party] = it }
     }
 
-    fun build(): PartyCounters =
-        PartyCounters(memberCount, kills, waitingMail, attacked, attackedToday.values.sortedBy { it.party.slug })
+    fun build(): PartyCounters = PartyCounters(memberCount, kills, waitingMail, attacked, attackedToday.values.sortedBy { it.party.slug })
 }
 
 @RylNextDsl
 class AttackTodayBuilder {
     private val records = mutableMapOf<PartyId, PartyAttackRecord>()
 
-    fun party(party: PartyId, attacked: Boolean) {
+    fun party(
+        party: PartyId,
+        attacked: Boolean,
+    ) {
         records[party] = PartyAttackRecord(party = party, attacked = attacked)
     }
 
@@ -7489,8 +8936,7 @@ class JournalBuilder {
 class InventoryStateBuilder {
     private val slots = mutableMapOf<Int, InventorySlotState>()
 
-    fun slot(index: Int): InventorySlotBuilder =
-        InventorySlotBuilder(index) { slot -> slots[index] = slot }
+    fun slot(index: Int): InventorySlotBuilder = InventorySlotBuilder(index) { slot -> slots[index] = slot }
 
     fun build(): List<InventorySlotState> = slots.values.sortedBy { it.slot }
 }
@@ -7513,7 +8959,10 @@ class InventorySlotBuilder(
 class PartyMembersBuilder {
     private val members = mutableListOf<PartyMemberState>()
 
-    fun member(name: String, body: PartyMemberBuilder.() -> Unit) {
+    fun member(
+        name: String,
+        body: PartyMemberBuilder.() -> Unit,
+    ) {
         members += PartyMemberBuilder(name).apply(body).build()
     }
 
@@ -7521,7 +8970,9 @@ class PartyMembersBuilder {
 }
 
 @RylNextDsl
-class PartyMemberBuilder(private val name: String) {
+class PartyMemberBuilder(
+    private val name: String,
+) {
     var gender: Gender = Gender.Male
     var race: Race = Race.Human
     var klass: PcClass = PcClass.Thief
@@ -7578,7 +9029,9 @@ class PartyMemberBuilder(private val name: String) {
 }
 
 @RylNextDsl
-class EquipmentBuilder(initial: EquipmentState = EquipmentState(DslDefaultItems.none, DslDefaultItems.none)) {
+class EquipmentBuilder(
+    initial: EquipmentState = EquipmentState(DslDefaultItems.none, DslDefaultItems.none),
+) {
     var weapon: ItemId = initial.weapon
     var armor: ItemId = initial.armor
 
@@ -7591,58 +9044,62 @@ fun nativePathsIn(model: GameModel): Set<String> {
     lateinit var int: (IntAst) -> Unit
     lateinit var bool: (BoolAst) -> Unit
 
-    int = fun(ast: IntAst) {
-        when (ast) {
-            is IntAst.Lit -> Unit
-            is IntAst.Var -> Unit
-            is IntAst.Binary -> {
-                int(ast.left)
-                int(ast.right)
-            }
-            is IntAst.If -> {
-                bool(ast.cond)
-                int(ast.thenValue)
-                int(ast.elseValue)
-            }
-            is IntAst.Random -> {
-                int(ast.lo)
-                int(ast.hi)
-            }
-            is IntAst.MemberField -> int(ast.member)
-            is IntAst.MonsterField -> int(ast.monster)
-            is IntAst.BattleFlag -> Unit
-            is IntAst.BattleQuery -> Unit
-            is IntAst.RealmScalar -> Unit
-            is IntAst.PartyScalar -> Unit
-            is IntAst.InventoryPoolCount -> Unit
-            is IntAst.InventorySlotCost -> int(ast.slot)
-            is IntAst.NativeInt -> paths += ast.path
-        }
-    }
+    int =
 
-    bool = fun(ast: BoolAst) {
-        when (ast) {
-            is BoolAst.Cmp -> {
-                int(ast.left)
-                int(ast.right)
+        fun(ast: IntAst) {
+            when (ast) {
+                is IntAst.Lit -> Unit
+                is IntAst.Var -> Unit
+                is IntAst.Binary -> {
+                    int(ast.left)
+                    int(ast.right)
+                }
+                is IntAst.If -> {
+                    bool(ast.cond)
+                    int(ast.thenValue)
+                    int(ast.elseValue)
+                }
+                is IntAst.Random -> {
+                    int(ast.lo)
+                    int(ast.hi)
+                }
+                is IntAst.MemberField -> int(ast.member)
+                is IntAst.MonsterField -> int(ast.monster)
+                is IntAst.BattleFlag -> Unit
+                is IntAst.BattleQuery -> Unit
+                is IntAst.RealmScalar -> Unit
+                is IntAst.PartyScalar -> Unit
+                is IntAst.InventoryPoolCount -> Unit
+                is IntAst.InventorySlotCost -> int(ast.slot)
+                is IntAst.NativeInt -> paths += ast.path
             }
-            is BoolAst.Not -> bool(ast.expr)
-            is BoolAst.And -> {
-                bool(ast.left)
-                bool(ast.right)
-            }
-            is BoolAst.Or -> {
-                bool(ast.left)
-                bool(ast.right)
-            }
-            is BoolAst.FlagIs -> Unit
-            is BoolAst.MilestoneAchieved -> Unit
-            is BoolAst.MemberFlag -> int(ast.member)
-            is BoolAst.MonsterFlag -> int(ast.monster)
-            is BoolAst.BattleFlag -> Unit
-            is BoolAst.RuntimeFlag -> Unit
         }
-    }
+
+    bool =
+
+        fun(ast: BoolAst) {
+            when (ast) {
+                is BoolAst.Cmp -> {
+                    int(ast.left)
+                    int(ast.right)
+                }
+                is BoolAst.Not -> bool(ast.expr)
+                is BoolAst.And -> {
+                    bool(ast.left)
+                    bool(ast.right)
+                }
+                is BoolAst.Or -> {
+                    bool(ast.left)
+                    bool(ast.right)
+                }
+                is BoolAst.FlagIs -> Unit
+                is BoolAst.MilestoneAchieved -> Unit
+                is BoolAst.MemberFlag -> int(ast.member)
+                is BoolAst.MonsterFlag -> int(ast.monster)
+                is BoolAst.BattleFlag -> Unit
+                is BoolAst.RuntimeFlag -> Unit
+            }
+        }
 
     fun str(ast: StrAst) {
         when (ast) {
@@ -7662,6 +9119,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
         if (block is TextBlock.Structured) {
             block.lines.forEach { line ->
                 line.parts.forEach { part ->
+                    // CPD-OFF
                     when (part) {
                         is TextPart.IntValue -> int(part.value)
                         is TextPart.StringValue -> str(part.value)
@@ -7692,8 +9150,10 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         TextPart.CreationWeaponSkill,
                         TextPart.CreationHealth,
                         TextPart.CreationWisdom,
-                        TextPart.CreationCharisma -> Unit
+                        TextPart.CreationCharisma,
+                        -> Unit
                     }
+                    // CPD-ON
                 }
             }
         }
@@ -7769,8 +9229,10 @@ fun nativePathsIn(model: GameModel): Set<String> {
                     text(op.offer.offer)
                     text(op.offer.choicePrompt)
                     text(op.offer.broke)
-                    op.offer.messages.cantCarry?.let(::text)
-                    op.offer.messages.pickedUp?.let(::text)
+                    op.offer.messages.cantCarry
+                        ?.let(::text)
+                    op.offer.messages.pickedUp
+                        ?.let(::text)
                     text(op.offer.deal)
                     op.offer.declined?.let(::text)
                 }
