@@ -1,3 +1,9 @@
+/**
+ * Save-file compatibility metadata and deterministic content fingerprinting.
+ *
+ * Runtime saves include this metadata through [runtimeSnapshotMetadata], while
+ * `RuntimeLoad.kt` checks it before accepting a snapshot for the current game.
+ */
 package rylween.save
 
 import rylween.dsl.GameModel
@@ -7,8 +13,10 @@ import java.lang.reflect.Modifier
 import java.security.MessageDigest
 import java.util.IdentityHashMap
 
+/** Current textual runtime snapshot schema version. */
 const val RUNTIME_SNAPSHOT_FORMAT_VERSION: Int = 1
 
+/** Builds the metadata block persisted beside runtime state snapshots. */
 fun GameModel.runtimeSnapshotMetadata(): RuntimeSnapshotMetadata =
     RuntimeSnapshotMetadata(
         formatVersion = RUNTIME_SNAPSHOT_FORMAT_VERSION,
@@ -17,6 +25,7 @@ fun GameModel.runtimeSnapshotMetadata(): RuntimeSnapshotMetadata =
         universeVersion = metadata.universe.version,
     )
 
+/** Produces a deterministic hash of authored content relevant to runtime saves. */
 fun GameModel.runtimeContentHash(): String {
     val digest = MessageDigest.getInstance("SHA-256")
     val canonical = canonicalContentString(this)

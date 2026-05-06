@@ -1,9 +1,18 @@
+/**
+ * DSL model and builders for Ydarg's castle crawl.
+ *
+ * The authored castle content lives with the rest of the game DSL, while runtime
+ * behavior is implemented in `runtime/ydarg/YdargSession.kt` and terminal
+ * presentation in `frontend/terminal/YdargSessionTerminalAdapter.kt`.
+ */
 @file:Suppress("unused", "MemberVisibilityCanBePrivate", "CanBeParameter", "KotlinExplicitApi")
 
 package rylween.dsl
 
+/** Room-event categories encoded in the generated Ydarg room map. */
 enum class YdargRoomEvent { Empty, Monster, Pitfall, Treasure }
 
+/** Authored key bindings used by Ydarg navigation and prompts. */
 data class YdargKeysModel(
     val moveNorth: InputBindingModel = inputKey("8"),
     val moveSouth: InputBindingModel = inputKey("2"),
@@ -26,17 +35,20 @@ data class YdargKeysModel(
     val stairsLeave: InputBindingModel = inputKey("L"),
 )
 
+/** Treasure-generation tables and gates for Ydarg rooms. */
 data class YdargTreasureModel(
     val gateMax: Int = 4,
     val regularKinds: List<List<ItemId>> = emptyList(),
     val magic: List<ItemId> = emptyList(),
 )
 
+/** Pitfall damage and narration configuration for Ydarg trap rooms. */
 data class YdargPitfallModel(
     val damageDivisor: Int = 6,
     val trapTypes: List<TextBlock> = emptyList(),
 )
 
+/** Milestone-backed item accepted by the Ydarg stair guardian. */
 data class YdargStairItemModel(
     val digit: Int,
     val milestone: GameMilestoneId,
@@ -44,16 +56,19 @@ data class YdargStairItemModel(
     val reject: TextBlock,
 )
 
+/** Stair progression and required item configuration for Ydarg. */
 data class YdargStairsModel(
     val floorCount: Int = 4,
     val items: List<YdargStairItemModel> = emptyList(),
 )
 
+/** Final Ydarg confrontation monster sequence. */
 data class YdargConfrontationModel(
     val sequence: List<MonsterId> = emptyList(),
     val baron: MonsterId? = null,
 )
 
+/** Text prompts and narration used by the Ydarg runtime session. */
 data class YdargTextModel(
     val ruin: TextBlock = inlineText("Castle Ydarg is silent.", ""),
     val approach: TextBlock = inlineText("Castle Ydarg looms ahead.", ""),
@@ -88,6 +103,7 @@ data class YdargTextModel(
     val confrontationAct4: List<TextBlock> = emptyList(),
 )
 
+/** Complete authored model consumed by `runtime/ydarg/YdargSession.kt`. */
 data class YdargContentModel(
     val id: CastleId = DslDefaultCastles.ydarg,
     val entry: GridPoint,
@@ -106,6 +122,7 @@ data class YdargContentModel(
     val text: YdargTextModel,
 )
 
+/** Builder for one [YdargContentModel] block in the game DSL. */
 @RylNextDsl
 class YdargBuilder(
     private val id: CastleId = DslDefaultCastles.ydarg,

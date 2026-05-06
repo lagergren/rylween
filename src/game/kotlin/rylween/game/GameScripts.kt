@@ -1,8 +1,11 @@
-// GameScripts.kt -- reusable script helpers for this Rylween game.
-//
-// This layer is game-specific authoring support. It can contain reusable
-// scripted behavior for the current game world, but it must not become DSL
-// kernel machinery or engine runtime code.
+/**
+ * Reusable authored script helpers for the current Rylween game.
+ *
+ * This layer is game-specific authoring support used by `RylweenGame.dsl.kts`.
+ * It can contain shared scripted behavior for this game world, but DSL kernel
+ * machinery belongs in `dsl/Dsl.kt` and runtime behavior belongs under
+ * `runtime/`.
+ */
 
 @file:Suppress(
     "unused",

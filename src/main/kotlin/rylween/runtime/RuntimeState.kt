@@ -1,8 +1,10 @@
-// Reusable live runtime state, deterministic RNG, and NPC placement realization.
-//
-// This file is intentionally backend-neutral. It should hold state/session
-// plumbing only; current-game rules discovered here should move into authored
-// game DSL/model records.
+/**
+ * Live runtime state, deterministic RNG ports, and NPC placement realization.
+ *
+ * This file is intentionally backend-neutral state/session plumbing. Current
+ * game rules discovered here should move into authored DSL/model records in
+ * `dsl/Dsl.kt` and `game/RylweenGame.dsl.kts`.
+ */
 
 package rylween.runtime
 
@@ -26,19 +28,23 @@ import rylween.dsl.character
 import rylween.dsl.random
 import rylween.dsl.town
 
+/** Live mutable-by-copy runtime state shared by all backend-neutral sessions. */
 data class RuntimeSessionState(
     val realm: RealmState,
     val parties: List<PartyState>,
     val npcs: List<NpcPlacement> = emptyList(),
     val locations: List<LocationPlacement> = emptyList(),
 ) {
+    /** Active party resolved from [realm.activeParty]. */
     val activeParty: PartyState
         get() =
             parties.firstOrNull { party -> party.id == realm.activeParty }
                 ?: error("active party ${realm.activeParty.slug} is missing from runtime state")
 
+    /** Returns this state with an updated realm record. */
     fun withRealm(realm: RealmState): RuntimeSessionState = copy(realm = realm)
 
+    /** Inserts or updates [party] and makes it the active party. */
     fun withActiveParty(party: PartyState): RuntimeSessionState {
         val nextParties =
             if (parties.any { it.id == party.id }) {
@@ -53,6 +59,7 @@ data class RuntimeSessionState(
     }
 
     companion object {
+        /** Creates a minimal live runtime state containing one party. */
         fun singleParty(
             party: PartyState,
             hour: Int,
@@ -83,6 +90,7 @@ data class RuntimeSessionState(
     }
 }
 
+/** Converts an authored or saved state model into live runtime state. */
 fun StateModel.toRuntimeSessionState(rngState: Long? = realm.rngState): RuntimeSessionState =
     RuntimeSessionState(
         realm = realm.copy(rngState = rngState),
@@ -91,16 +99,19 @@ fun StateModel.toRuntimeSessionState(rngState: Long? = realm.rngState): RuntimeS
         locations = locations,
     )
 
+/** Raw deterministic random draw result. */
 data class RylweenRandomDraw(
     val value: Int,
     val nextSeed: Long,
 )
 
+/** Runtime-aware deterministic random draw result carrying the updated seed. */
 data class RuntimeRandomDraw(
     val value: Int,
     val runtime: RuntimeSessionState,
 )
 
+/** Deterministic random-number port used by runtime sessions and tests. */
 interface RylweenRandomPort {
     fun draw(
         seed: Long,
@@ -109,6 +120,7 @@ interface RylweenRandomPort {
     ): RylweenRandomDraw
 }
 
+/** Reference deterministic RNG used by the Kotlin runtime. */
 object ReferenceRylweenRandom : RylweenRandomPort {
     private const val MULTIPLIER: Long = 0x2545F4914F6CDD1DL
 
@@ -129,6 +141,7 @@ object ReferenceRylweenRandom : RylweenRandomPort {
     }
 }
 
+/** Draws a deterministic random value and updates [RuntimeSessionState.realm.rngState]. */
 fun RuntimeSessionState.drawRandom(
     lo: Int,
     hi: Int,
@@ -140,6 +153,7 @@ fun RuntimeSessionState.drawRandom(
     return RuntimeRandomDraw(draw.value, withRealm(realm.copy(rngState = draw.nextSeed)))
 }
 
+/** Constraints for randomized wilderness NPC placement. */
 data class WildernessNpcPlacementPolicy(
     val x: IntRange = 8..57,
     val y: IntRange = 8..27,
@@ -152,9 +166,11 @@ data class WildernessNpcPlacementPolicy(
         require(maxAttempts > 0) { "wilderness NPC placement attempts must be positive" }
     }
 
+    /** Returns true when [point] is allowed by the optional authored point set. */
     fun allows(point: GridPoint): Boolean = allowedPoints?.contains(point) ?: true
 }
 
+/** Configuration for realizing randomized NPC placements into live state. */
 data class NpcPlacementRealizerConfig(
     val townSlack: Int = 1,
     val townBuildings: List<BuildingId> = listOf(DslDefaultBuildings.inn, DslDefaultBuildings.tavern),
@@ -162,6 +178,7 @@ data class NpcPlacementRealizerConfig(
     val deterministicSeed: Long = 1L,
 )
 
+/** Materializes authored randomized NPC placements into deterministic live placements. */
 fun RuntimeSessionState.realizeNpcPlacements(
     characters: List<CharacterModel>,
     towns: List<TownModel>,

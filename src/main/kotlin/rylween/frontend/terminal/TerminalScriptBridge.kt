@@ -1,5 +1,10 @@
-// Terminal-driven script bridge for resumable authored scenes.
-// This is frontend-facing glue over backend-neutral script/session models.
+/**
+ * Terminal-driven bridge for resumable authored scenes and script continuations.
+ *
+ * This is frontend-facing glue over backend-neutral script/session models from
+ * `runtime/ScriptContinuation.kt` and engine trace events from
+ * `engine/EnginePort.kt`.
+ */
 
 package rylween.frontend.terminal
 
@@ -86,12 +91,14 @@ import rylween.runtime.withScriptMemberField
 import rylween.runtime.withScriptPartyScalar
 import rylween.runtime.withScriptRealmScalar
 
+/** Status returned after attempting to advance a terminal script bridge. */
 sealed interface ScriptBridgeStatus {
     object Finished : ScriptBridgeStatus
 
     object Waiting : ScriptBridgeStatus
 }
 
+/** Engine state plus bridge status after one script bridge run. */
 data class ScriptBridgeResult(
     val runtime: RuntimeSessionState,
     val status: ScriptBridgeStatus,
@@ -104,6 +111,7 @@ data class ScriptBridgeResult(
     val realm: RealmState get() = runtime.realm
 }
 
+/** Frontend-facing bridge for running or resuming authored script blocks. */
 interface ScriptBridge {
     fun run(
         service: BuildingServiceModel,
@@ -112,6 +120,7 @@ interface ScriptBridge {
     ): ScriptBridgeResult
 }
 
+/** Stateful terminal implementation of [ScriptBridge]. */
 class StatefulScriptBridge(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort = TraceEnginePort(),
@@ -151,6 +160,7 @@ class StatefulScriptBridge(
     }
 }
 
+/** Full result of running a script continuation through terminal adapters. */
 data class StatefulScriptResult(
     val runtime: RuntimeSessionState,
     val status: ScriptBridgeStatus,
@@ -162,6 +172,7 @@ data class StatefulScriptResult(
     val party: PartyState get() = runtime.activeParty
 }
 
+/** Runner that drives service scripts while preserving resumable continuation state. */
 class StatefulScriptServiceRunner(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort,

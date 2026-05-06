@@ -1,8 +1,11 @@
-// Reusable camp / rest session. Backend-neutral: a frontend feeds CampSessionInput
-// values (guard Y/N, member digit, continue) and renders the messages step;
-// nested ambush combat hands off to BattleSession via the Ambush step. Every
-// game rule (food cost, healing, temperature bands and damage, ambush
-// probability, surprise-kill text) is authored data on RealmContentModel.camp.
+/**
+ * Backend-neutral camp and rest runtime session.
+ *
+ * A frontend feeds guard/member/continue inputs and renders message steps;
+ * nested ambush combat hands off to [rylween.runtime.battle.BattleSession].
+ * Food cost, healing, temperature damage, ambush odds, and surprise-kill text
+ * all come from authored camp rules.
+ */
 
 package rylween.runtime.wilderness
 

@@ -1,5 +1,9 @@
-// Pure state operations on PartyState for inventory, equipment, food, torches,
-// and the small camp-gear projection. No UI, no RNG, no scripts.
+/**
+ * Pure [rylween.dsl.PartyState] operations for inventory, equipment, resources, and camp gear.
+ *
+ * Runtime sessions call these helpers when they need deterministic state
+ * mutation without frontend policy, RNG, or authored-script execution.
+ */
 
 package rylween.runtime
 
@@ -35,6 +39,7 @@ import rylween.dsl.milestone
 import rylween.dsl.runtimeFlagState
 import rylween.runtime.party.InventoryItemChoice
 
+/** Result of trying to place an item into party inventory. */
 sealed interface InventoryPlacementResult {
     data class Placed(
         val party: PartyState,
@@ -55,6 +60,7 @@ sealed interface InventoryPlacementResult {
     ) : InventoryPlacementResult
 }
 
+/** Result of trying to equip or unequip one party member. */
 sealed interface EquipmentActionResult {
     data class Equipped(
         val party: PartyState,
@@ -108,6 +114,7 @@ sealed interface EquipmentActionResult {
     ) : EquipmentActionResult
 }
 
+/** Result of consuming one torch for dungeon movement. */
 sealed interface TorchActionResult {
     data class Consumed(
         val party: PartyState,
@@ -118,6 +125,7 @@ sealed interface TorchActionResult {
     ) : TorchActionResult
 }
 
+/** Result of attempting a dungeon descent step. */
 sealed interface DungeonDescentResult {
     data class Descended(
         val party: PartyState,
@@ -132,13 +140,16 @@ sealed interface DungeonDescentResult {
     ) : DungeonDescentResult
 }
 
+/** Aggregate protection and image contributed by carried camp gear. */
 data class CampGearEffect(
     val image: ImageId,
     val protectedBands: Set<TemperatureBand>,
 ) {
+    /** Returns true when carried camp gear protects against [band]. */
     fun protects(band: TemperatureBand): Boolean = band in protectedBands
 }
 
+/** Party state carried by every [EquipmentActionResult]. */
 val EquipmentActionResult.party: PartyState
     get() =
         when (this) {
@@ -153,6 +164,7 @@ val EquipmentActionResult.party: PartyState
             is EquipmentActionResult.InventoryFull -> party
         }
 
+/** Maps equipment-action outcomes to a parent session status token. */
 fun <T> EquipmentActionResult.toParentStatus(
     used: T,
     unavailable: T,
@@ -164,6 +176,7 @@ fun <T> EquipmentActionResult.toParentStatus(
         else -> unavailable
     }
 
+/** Places [item] in the first free inventory slot or applies the configured overflow policy. */
 fun PartyState.placeInventoryItem(
     item: ItemId,
     overflow: RewardOverflowPolicy = RewardOverflowPolicy.PromptDropThenPlace,
@@ -190,6 +203,7 @@ fun PartyState.placeInventoryItem(
     return placed(slot)
 }
 
+/** Equips an inventory item onto one member after validating slot, class, and kind. */
 fun PartyState.equipFromInventory(
     memberNumber: Int,
     slot: Int,
@@ -226,6 +240,7 @@ fun PartyState.equipFromInventory(
     )
 }
 
+/** Moves one equipped item from a member back into the first free inventory slot. */
 fun PartyState.unequipToInventory(
     memberNumber: Int,
     kind: EquipmentKind,
@@ -248,6 +263,7 @@ fun PartyState.unequipToInventory(
     return EquipmentActionResult.Unequipped(updated, memberNumber, slot)
 }
 
+/** Applies a high-level equipment command to this party. */
 fun PartyState.applyEquipmentCommand(
     command: EquipmentCommand,
     memberNumber: Int,
@@ -261,6 +277,7 @@ fun PartyState.applyEquipmentCommand(
         EquipmentCommand.RemoveArmor -> unequipToInventory(memberNumber, EquipmentKind.Armor)
     }
 
+/** Returns true when town-leave flow should prompt for a readyable inventory item. */
 fun PartyState.needsTownLeaveReadyPrompt(
     command: EquipmentCommand,
     itemRecords: List<ItemRecordModel> = emptyList(),
@@ -275,6 +292,7 @@ fun PartyState.needsTownLeaveReadyPrompt(
         -> false
     }
 
+/** Consumes one torch if available. */
 fun PartyState.consumeTorch(): TorchActionResult =
     if (resources.torches <= 0) {
         TorchActionResult.NoTorches(this)
@@ -282,6 +300,7 @@ fun PartyState.consumeTorch(): TorchActionResult =
         TorchActionResult.Consumed(copy(resources = resources.copy(torches = resources.torches - 1)))
     }
 
+/** Applies torch/max-depth rules for moving one level deeper in a dungeon. */
 fun PartyState.tryDungeonDescent(
     currentDepth: Int,
     maxDepth: Int,
@@ -296,8 +315,10 @@ fun PartyState.tryDungeonDescent(
     }
 }
 
+/** Returns the item currently stored in inventory [slot]. */
 fun PartyState.inventoryItem(slot: Int): ItemId? = inventory.firstOrNull { it.slot == slot }?.item
 
+/** Returns terminal/menu choices for all non-empty inventory slots. */
 fun PartyState.inventoryItemChoices(itemRecords: List<ItemRecordModel> = emptyList()): List<InventoryItemChoice> {
     val records = itemRecords.associateBy { it.id }
     return (1..InventorySaveSlotMax).mapNotNull { slot ->
@@ -314,8 +335,10 @@ fun PartyState.inventoryItemChoices(itemRecords: List<ItemRecordModel> = emptyLi
     }
 }
 
+/** Returns the first empty persisted inventory slot, or `null` when full. */
 fun PartyState.firstFreeInventorySlot(): Int? = (1..InventorySaveSlotMax).firstOrNull { inventoryItem(it) == null }
 
+/** Returns this party with [slot] set to [item]. */
 fun PartyState.withInventoryItem(
     slot: Int,
     item: ItemId?,
@@ -326,6 +349,7 @@ fun PartyState.withInventoryItem(
     return copy(inventory = slots.values.sortedBy { it.slot })
 }
 
+/** Computes resource capacity after carried item bonuses. */
 fun PartyState.resourceCapacity(
     itemRecords: List<ItemRecordModel>,
     resource: Resource,
@@ -343,6 +367,7 @@ fun PartyState.resourceCapacity(
     return baseCapacity + bonus
 }
 
+/** Clamps resources that have authored capacity limits. */
 fun PartyState.clampResourcesToCapacity(
     itemRecords: List<ItemRecordModel>,
     realmContent: RealmContentModel,
@@ -374,6 +399,7 @@ private fun PartyState.hasReadyableInventoryEquipment(
     }
 }
 
+/** Computes carried camp-gear image/protection for camp rendering and damage. */
 fun PartyState.campGearEffect(
     itemRecords: List<ItemRecordModel>,
     fallbackImage: ImageId,
@@ -390,13 +416,16 @@ fun PartyState.campGearEffect(
     return CampGearEffect(image = image, protectedBands = protections)
 }
 
+/** Returns this party with non-negative gold set to [gold]. */
 fun PartyState.withGold(gold: Int): PartyState = copy(resources = resources.copy(gold = gold.coerceAtLeast(0)))
 
+/** Counts inventory items that belong to [pool]. */
 fun PartyState.countInventoryItems(pool: ItemPoolId): Int {
     val pooledItems = pool.items.toSet()
     return inventory.count { it.slot in 1..InventorySaveSlotMax && it.item in pooledItems }
 }
 
+/** Consumes up to [quantity] items belonging to [pool] from inventory. */
 fun PartyState.consumeInventoryItems(
     pool: ItemPoolId,
     quantity: Int,
@@ -414,12 +443,15 @@ fun PartyState.consumeInventoryItems(
     )
 }
 
+/** Returns this party with [milestone] achieved. */
 fun PartyState.withMilestone(milestone: GameMilestoneId): PartyState =
     if (milestone in milestones) this else copy(milestones = (milestones + milestone).sortedBy { it.slug })
 
+/** Returns this party without [milestone]. */
 fun PartyState.withoutMilestone(milestone: GameMilestoneId): PartyState =
     if (milestone !in milestones) this else copy(milestones = milestones.filterNot { it == milestone })
 
+/** Sets one party-scoped flag to a native value. */
 fun PartyState.withFlagState(
     flag: String,
     native: String,
@@ -430,8 +462,10 @@ fun PartyState.withFlagState(
                 .sortedWith(compareBy({ it.flag.slug }, { it.native })),
     )
 
+/** Returns true when this party has [state]. */
 fun PartyState.hasFlagState(state: FlagState): Boolean = flags.any { it.flag.slug == state.flag.slug && it.native == state.native }
 
+/** Appends non-blank journal lines to this party. */
 fun PartyState.withJournalLines(lines: List<String>): PartyState =
     copy(journal = journal + lines.filter { it.isNotBlank() }.map(JournalEntryState::Line))
 
@@ -466,6 +500,7 @@ private fun PartyMemberState.withEquipmentItem(
             },
     )
 
+/** Prompt metadata derived from one [EquipmentCommand]. */
 data class EquipmentPromptModel(
     val command: EquipmentCommand,
     val kind: EquipmentKind,
@@ -473,6 +508,7 @@ data class EquipmentPromptModel(
     val inventoryFilter: InventorySlotChoiceFilter?,
 )
 
+/** Current prompt or completion state for [EquipmentPromptSession]. */
 sealed interface EquipmentPromptStep {
     data class ChooseInventorySlot(
         val prompt: TextBlock,
@@ -489,6 +525,7 @@ sealed interface EquipmentPromptStep {
     ) : EquipmentPromptStep
 }
 
+/** Reusable state machine for choosing equipment slot/member and applying the command. */
 data class EquipmentPromptSession(
     val command: EquipmentCommand,
     val party: PartyState,
@@ -523,6 +560,7 @@ data class EquipmentPromptSession(
         }
 
     companion object {
+        /** Starts an equipment prompt from a command and party. */
         fun start(
             command: EquipmentCommand,
             party: PartyState,
@@ -537,6 +575,7 @@ data class EquipmentPromptSession(
             return EquipmentPromptSession(command, party, step, itemRecords, prompts = prompts)
         }
 
+        /** Starts an equipment prompt with the inventory slot already selected. */
         fun startWithInventorySlot(
             command: EquipmentCommand,
             party: PartyState,
@@ -558,6 +597,7 @@ data class EquipmentPromptSession(
     }
 }
 
+/** Returns prompt filters and equipment kind for this command. */
 fun EquipmentCommand.prompt(): EquipmentPromptModel =
     when (this) {
         EquipmentCommand.ReadyWeapon ->
@@ -590,6 +630,7 @@ fun EquipmentCommand.prompt(): EquipmentPromptModel =
             )
     }
 
+/** Returns the town-leave prompt text for ready commands. */
 fun EquipmentCommand.townLeavePrompt(prompts: EquipmentPromptsModel = EquipmentPromptsModel()): TextBlock =
     when (this) {
         EquipmentCommand.ReadyWeapon -> prompts.readyWeapons

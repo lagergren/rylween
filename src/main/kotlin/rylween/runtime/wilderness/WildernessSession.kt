@@ -1,3 +1,11 @@
+/**
+ * Backend-neutral wilderness runtime state machine.
+ *
+ * This session coordinates map movement, terrain transitions, child sessions,
+ * save requests, and script handoffs. Terminal rendering lives in
+ * `frontend/terminal/TerminalAdapters.kt`; save/load mode snapshots live in
+ * `runtime/RuntimeSnapshotModel.kt`.
+ */
 package rylween.runtime.wilderness
 
 import rylween.dsl.BoolAst
@@ -105,6 +113,7 @@ import rylween.runtime.town.TownSessionStep
 import rylween.runtime.ydarg.YdargSession
 import rylween.runtime.ydarg.YdargSessionStep
 
+/** Inputs accepted by [WildernessSession.apply]. */
 sealed interface WildernessSessionInput {
     data class Move(
         val direction: WildernessDirection,
@@ -179,6 +188,7 @@ sealed interface WildernessSessionInput {
     ) : WildernessSessionInput
 }
 
+/** Stable result tokens describing the last wilderness transition. */
 enum class WildernessSessionResultStatus {
     Passed,
     Moved,

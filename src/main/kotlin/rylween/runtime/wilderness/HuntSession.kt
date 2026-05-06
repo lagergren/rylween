@@ -1,5 +1,9 @@
-// Reusable wilderness hunt session. Backend-neutral: a frontend feeds the
-// selected member, then renders authored narration blocks until Finished.
+/**
+ * Backend-neutral wilderness hunt session.
+ *
+ * A frontend feeds the selected member, the session applies authored hunt rules,
+ * and adapters render the returned narration blocks until the session finishes.
+ */
 
 package rylween.runtime.wilderness
 

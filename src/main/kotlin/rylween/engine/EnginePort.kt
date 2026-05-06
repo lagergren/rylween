@@ -1,6 +1,10 @@
-// Backend-neutral engine boundary for executing or tracing DSL scripts.
-// The Kotlin DSL should not care whether the implementation behind this port is
-// the current C engine, a pure Kotlin runtime, a server process, or a test tracer.
+/**
+ * Backend-neutral engine boundary for executing or tracing DSL scripts.
+ *
+ * The Kotlin DSL should not care whether the implementation behind this port is
+ * the current Kotlin runtime, a future compiled VM, a server process, or a test
+ * tracer. Runtime-host capability metadata lives in `RuntimeHostContract.kt`.
+ */
 
 package rylween.engine
 
@@ -33,11 +37,13 @@ import rylween.runtime.town.ShopSellQuoteResult
 import rylween.runtime.town.ShopTransactionResult
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 
+/** Native service request emitted by authored scripts or expression evaluators. */
 data class EngineRequest(
     val path: String,
     val args: List<String> = emptyList(),
 )
 
+/** Host callback surface used by authored script execution. */
 interface RylweenEnginePort {
     fun effect(request: EngineRequest)
 
@@ -46,6 +52,7 @@ interface RylweenEnginePort {
     fun readString(request: EngineRequest): String
 }
 
+/** Traceable semantic event emitted while executing scripts or child sessions. */
 sealed interface EngineTraceEvent {
     data class View(
         val command: ViewCommand,
@@ -208,6 +215,7 @@ sealed interface EngineTraceEvent {
     ) : EngineTraceEvent
 }
 
+/** Recording [RylweenEnginePort] used by tests and terminal script bridges. */
 class TraceEnginePort(
     private val ints: Map<EngineRequest, Int> = emptyMap(),
     private val strings: Map<EngineRequest, String> = emptyMap(),
@@ -240,6 +248,7 @@ class TraceEnginePort(
     }
 }
 
+/** Converts trace events that should appear in runtime logs into [RuntimeEvent] values. */
 fun EngineTraceEvent.toRuntimeEvent(): RuntimeEvent? =
     when (this) {
         is EngineTraceEvent.View -> runtimeEvent(RuntimeEventLevel.Debug, "view", "command", "kind" to command::class.simpleName)

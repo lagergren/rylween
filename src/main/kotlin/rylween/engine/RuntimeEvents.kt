@@ -1,5 +1,13 @@
+/**
+ * Lightweight runtime event logging primitives.
+ *
+ * Runtime sessions and engine drivers can emit structured lines through
+ * [RuntimeEventSink]; app launchers and tests can install scoped sinks with
+ * [RuntimeEventScope].
+ */
 package rylween.engine
 
+/** Severity and audit level for a runtime event line. */
 enum class RuntimeEventLevel(
     val tag: String,
     val priority: Int,
@@ -11,6 +19,7 @@ enum class RuntimeEventLevel(
     Audit("AUD", 50),
 }
 
+/** Structured event payload rendered as a stable single-line log record. */
 data class RuntimeEvent(
     val level: RuntimeEventLevel,
     val module: String,
@@ -28,6 +37,7 @@ data class RuntimeEvent(
         }
 }
 
+/** Sink abstraction for host-provided runtime event collection. */
 fun interface RuntimeEventSink {
     fun emit(event: RuntimeEvent)
 
@@ -36,6 +46,7 @@ fun interface RuntimeEventSink {
     }
 }
 
+/** Thread-local sink scope used by command-line hosts and tests. */
 object RuntimeEventScope {
     private val currentSink = ThreadLocal.withInitial { RuntimeEventSink.Noop }
 
@@ -55,6 +66,7 @@ object RuntimeEventScope {
     }
 }
 
+/** Convenience factory that drops fields whose values are `null`. */
 fun runtimeEvent(
     level: RuntimeEventLevel,
     module: String,

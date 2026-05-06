@@ -1,3 +1,10 @@
+/**
+ * Dungeon input-command builders.
+ *
+ * [DungeonSession] owns semantic state transitions; this file translates
+ * authored [rylween.dsl.DungeonKeysModel] bindings into reusable command lists
+ * and generated help pages for terminal or future non-terminal hosts.
+ */
 package rylween.runtime.dungeon
 
 import rylween.dsl.DungeonKeysModel
@@ -5,6 +12,7 @@ import rylween.dsl.TextBlock
 import rylween.runtime.InputCommand
 import rylween.runtime.generatedHelpPages
 
+/** Commands accepted while a dungeon session is in its explore step. */
 fun DungeonKeysModel.exploreCommands(): List<InputCommand<DungeonSessionInput>> =
     listOf(
         InputCommand(DungeonSessionInput.Descend, descend, "Descend"),
@@ -21,5 +29,6 @@ fun DungeonKeysModel.exploreCommands(): List<InputCommand<DungeonSessionInput>> 
         InputCommand(DungeonSessionInput.Save, save, "Save Game"),
     )
 
+/** Returns authored dungeon help pages, or generated command help when absent. */
 fun DungeonKeysModel.effectiveHelpPages(maxLinesPerPage: Int = 7): List<TextBlock> =
     helpPages.ifEmpty { exploreCommands().generatedHelpPages(maxLinesPerPage) }

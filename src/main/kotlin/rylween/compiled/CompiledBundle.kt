@@ -1,3 +1,11 @@
+/**
+ * In-memory compiled game bundle model and compiler.
+ *
+ * `Dsl.kt` records authored content and script ASTs; this file lowers that
+ * model into J1 compiled tables, handles, string ids, script roots, operands,
+ * and runtime state images. `CompiledLoader.kt` validates and materializes the
+ * resulting bundle for hosts and the future J2 VM.
+ */
 package rylween.compiled
 
 import rylween.dsl.BoolAst
@@ -143,11 +151,13 @@ import rylween.runtime.party
 import rylween.runtime.prompt
 import rylween.runtime.scriptRootCatalog
 
+/** Complete compiled J1 bundle: content tables plus save/start state images. */
 data class CompiledGameBundle(
     val content: CompiledContentBundle,
     val states: List<CompiledStateImage>,
 )
 
+/** Dense compiled content tables emitted from [rylween.dsl.GameModel]. */
 data class CompiledContentBundle(
     val universe: CompiledUniverse,
     val limits: CompiledLimits,
@@ -175,36 +185,44 @@ data class CompiledContentBundle(
     val scripts: CompiledScriptBundle,
 )
 
+/** String-table backed universe metadata stored in the compiled bundle. */
 data class CompiledUniverse(
     val nameString: Int,
     val versionString: Int,
     val compatibilityIdString: Int,
 )
 
+/** Compiled runtime limits used by hosts and artifact validators. */
 data class CompiledLimits(
     val maxWorldMaps: Int?,
     val maxMapCells: Int?,
     val screenSize: GridSize?,
 )
 
+/** One-based interned string table used by compiled handles, text, and scripts. */
 data class CompiledStringTable(
     val entries: List<String>,
 ) {
     private val lookup: Map<String, Int> = entries.withIndex().associate { (index, value) -> value to index + 1 }
 
+    /** Hash rows emitted for non-Kotlin readers that need bucketed lookup. */
     val hashEntries: List<CompiledStringHashEntry> =
         entries.mapIndexed { index, value -> CompiledStringHashEntry(value.hashCode(), index + 1) }
 
+    /** Returns the one-based string id for [value], or `null` if absent. */
     fun idOf(value: String): Int? = lookup[value]
 
+    /** Resolves a one-based string [id] or fails if the id is not in the table. */
     fun value(id: Int): String = entries.getOrNull(id - 1) ?: error("unknown string id $id")
 }
 
+/** Hash bucket row for one compiled string-table entry. */
 data class CompiledStringHashEntry(
     val hash: Int,
     val stringId: Int,
 )
 
+/** Stable kind tag for compiled handle references. */
 enum class CompiledHandleKind {
     Building,
     Dungeon,
@@ -245,17 +263,20 @@ enum class CompiledHandleKind {
     WorldMap,
 }
 
+/** Compact reference to a typed handle row in [CompiledHandleTable]. */
 data class CompiledHandleRef(
     val kind: CompiledHandleKind,
     val id: Int,
 )
 
+/** Interned typed handle with dense id, kind, and slug string id. */
 data class CompiledHandle(
     val ref: CompiledHandleRef,
     val denseId: Int,
     val slugString: Int,
 )
 
+/** Hash bucket row for one compiled handle-table entry. */
 data class CompiledHandleHashEntry(
     val kind: CompiledHandleKind,
     val slugString: Int,
@@ -263,12 +284,14 @@ data class CompiledHandleHashEntry(
     val ref: CompiledHandleRef,
 )
 
+/** Dense handle table plus lookup helpers for compiled handle references. */
 data class CompiledHandleTable(
     val handles: List<CompiledHandle>,
 ) {
     private val lookup: Map<Pair<CompiledHandleKind, Int>, CompiledHandle> =
         handles.associateBy { it.ref.kind to it.slugString }
 
+    /** Hash rows emitted for non-Kotlin readers that need bucketed handle lookup. */
     val hashEntries: List<CompiledHandleHashEntry> =
         handles.map { handle ->
             CompiledHandleHashEntry(
@@ -282,6 +305,7 @@ data class CompiledHandleTable(
             )
         }
 
+    /** Resolves a required handle ref by [kind] and slug string id. */
     fun ref(
         kind: CompiledHandleKind,
         slugString: Int,
@@ -289,11 +313,13 @@ data class CompiledHandleTable(
         lookup[kind to slugString]?.ref
             ?: error("unknown compiled handle ${kind.name} string id $slugString")
 
+    /** Resolves an optional handle ref by [kind] and slug string id. */
     fun refOrNull(
         kind: CompiledHandleKind,
         slugString: Int,
     ): CompiledHandleRef? = lookup[kind to slugString]?.ref
 
+    /** Resolves a handle row by compact [ref]. */
     fun handle(ref: CompiledHandleRef): CompiledHandle =
         handles.firstOrNull { it.ref == ref }
             ?: error("unknown compiled handle ${ref.kind.name}#${ref.id}")

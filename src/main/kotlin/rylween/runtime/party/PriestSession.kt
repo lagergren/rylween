@@ -1,6 +1,10 @@
-// Reusable runtime session for picking a priest spell out of combat.
-// Resolves the caster, picks a spell, and hands a script continuation to the
-// outer service-script runner. Combat priest spells use the battle session.
+/**
+ * Reusable runtime session for choosing a non-combat priest spell.
+ *
+ * The session resolves a caster, validates the chosen spell, and hands a script
+ * continuation to the parent service runner. Combat priest spells stay in
+ * `runtime/battle/BattleSession.kt`.
+ */
 
 package rylween.runtime.party
 

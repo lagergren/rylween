@@ -1,3 +1,10 @@
+/**
+ * Convenience view over the shared runtime content catalog.
+ *
+ * Runtime sessions implement this interface when they need frequent access to
+ * authored systems from [rylween.dsl.RuntimeContent] without threading the
+ * whole model through every helper call.
+ */
 package rylween.runtime
 
 import rylween.dsl.CombatSystemModel
@@ -12,6 +19,7 @@ import rylween.dsl.RewardBundleModel
 import rylween.dsl.RuntimeContent
 import rylween.dsl.SpellModel
 
+/** Session mix-in exposing typed shortcuts for common runtime-content tables. */
 interface RuntimeContentAware {
     val content: RuntimeContent
 

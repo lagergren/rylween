@@ -1,3 +1,10 @@
+/**
+ * Backend-neutral capability contract for runtime hosts.
+ *
+ * `KotlinHeadlessHost.kt`, `RylweenKotlinEngine.kt`, and future server/native
+ * hosts declare their surfaces here so J3 conformance and J2 compiled-VM work
+ * can compare implementation coverage without depending on frontend classes.
+ */
 package rylween.engine
 
 /**
@@ -9,6 +16,7 @@ package rylween.engine
  * so a terminal frontend, bitmap frontend, server, or native process can be
  * compared without depending on Kotlin implementation classes.
  */
+
 enum class RuntimeHostRequirement {
     ReadJ1Bundle,
     VerifyJ1BundleHash,
@@ -36,6 +44,7 @@ enum class RuntimeHostRequirement {
     ScenarioDriver,
 }
 
+/** View-command categories a host frontend may need to render. */
 enum class RuntimeViewCommandKind {
     ClearText,
     ClearMapWindow,
@@ -44,21 +53,25 @@ enum class RuntimeViewCommandKind {
     ShowImage,
 }
 
+/** Script execution strategy advertised by a runtime host. */
 enum class RuntimeScriptExecutionStrategy {
     None,
     KotlinAuthoredOpInterpreter,
     CompiledVm,
 }
 
+/** Bundle/artifact source consumed by a runtime host. */
 enum class RuntimeHostArtifactSource {
     J1JsonBundle,
 }
 
+/** Maturity/status bucket for a runtime host surface. */
 enum class RuntimeHostStatus {
     BoundaryProbe,
     PlayableRuntime,
 }
 
+/** Conformance suite expected for playable runtime hosts. */
 enum class RuntimeConformanceSuite {
     BundleBoot,
     StaticScreens,
@@ -71,6 +84,7 @@ enum class RuntimeConformanceSuite {
     ViewCommands,
 }
 
+/** Declared capability surface for one runtime host implementation. */
 data class RuntimeHostSurface(
     val id: String,
     val status: RuntimeHostStatus,
@@ -81,6 +95,7 @@ data class RuntimeHostSurface(
     val conformanceSuites: Set<RuntimeConformanceSuite> = emptySet(),
 )
 
+/** Failure categories emitted while validating a host surface. */
 enum class RuntimeHostDiagnosticKind {
     MissingRequirement,
     MissingViewCommand,
@@ -89,12 +104,14 @@ enum class RuntimeHostDiagnosticKind {
     MissingBundleArtifact,
 }
 
+/** One host-contract validation failure. */
 data class RuntimeHostDiagnostic(
     val hostId: String,
     val kind: RuntimeHostDiagnosticKind,
     val detail: String,
 )
 
+/** Required capability set used to validate runtime host surfaces. */
 data class RuntimeHostContract(
     val playableRequirements: Set<RuntimeHostRequirement>,
     val viewCommands: Set<RuntimeViewCommandKind>,
@@ -133,6 +150,7 @@ data class RuntimeHostContract(
     }
 }
 
+/** Standard host contract and currently known host declarations. */
 object RylweenRuntimeHostContract {
     val standard: RuntimeHostContract =
         RuntimeHostContract(

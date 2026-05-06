@@ -1,31 +1,21 @@
-// Kotlin implementation for the Rylween authoring DSL.
-//
-// This file is implementation/compiler scaffolding: typed handles, immutable
-// models, builders, and recorded script ASTs. Current-game handles are
-// generated from RylweenGame.dsl.kts by the Gradle content-generation task.
-// Game-specific content belongs in RylweenGame.dsl.kts, with reusable
-// game-script helpers in GameScripts.kt. Validation helpers live in
-// DslValidation.kt.
-//
-// Validate the game source with:
-//
-//   ./gradlew check
-//
-// Current authoring goals:
-//
-//   1. Kotlin is the source format.
-//   2. Scripts record a real AST instead of being Unit-shaped notes.
-//   3. Flags, monsters, items, scenes, text ids, NPC roles, and spells are
-//      typed handles.
-//   4. A script author cannot write arbitrary flag or encounter strings at use
-//      sites. The implementor declares the native slug once; script bodies use
-//      typed state markers and catalog handles.
-//   5. Game scripts mostly use game verbs. Engine-native calls are explicit
-//      under `native.*`.
-//   6. Kotlin implementation code should be idiomatic Kotlin.
-//   7. Game-specific declarations should read like game data, not Kotlin
-//      programming. Generated handles and catalogs should derive from the
-//      author's declarations.
+/**
+ * Kotlin implementation for the Rylween authoring DSL.
+ *
+ * This file is implementation/compiler scaffolding: typed handles, immutable
+ * models, builders, and recorded script ASTs. Current-game handles are
+ * generated from `RylweenGame.dsl.kts` by the Gradle content-generation task.
+ * Game-specific content belongs in `RylweenGame.dsl.kts`, reusable game-script
+ * helpers live in `game/GameScripts.kt`, validation helpers live in
+ * `DslValidation.kt`, and compiled J1 emission lives in
+ * `compiled/CompiledBundle.kt`.
+ *
+ * Authoring goals:
+ * 1. Kotlin is the source format.
+ * 2. Scripts record a real AST instead of being Unit-shaped notes.
+ * 3. Flags, monsters, items, scenes, text ids, NPC roles, and spells are typed handles.
+ * 4. Engine-native calls are explicit under `native.*`.
+ * 5. Game-specific declarations should read like game data, not Kotlin programming.
+ */
 
 @file:Suppress(
     "unused",
@@ -47,8 +37,10 @@ package rylween.dsl
 //
 // Current content catalogs use these reusable types and factories.
 
+/** Runtime storage scope for authored story flags. */
 enum class FlagScope { Party, Encounter }
 
+/** Base class for generated or hand-authored typed flag references. */
 abstract class FlagRef(
     val slug: String,
     val scope: FlagScope = FlagScope.Party,
@@ -59,6 +51,7 @@ abstract class FlagRef(
     protected fun state(native: String): FlagState = FlagState(this, native).also { declaredStates += it }
 }
 
+/** One native state value belonging to a typed [FlagRef]. */
 open class FlagState internal constructor(
     val flag: FlagRef,
     val native: String,
@@ -66,8 +59,10 @@ open class FlagState internal constructor(
     override val ast: BoolAst = BoolAst.FlagIs(flag.slug, native)
 }
 
+/** Process-local registry populated by generated flag declarations. */
 val declaredFlags: MutableList<FlagRef> = mutableListOf()
 
+/** Registers a generated or hand-authored flag reference for validation and save parsing. */
 fun <F : FlagRef> F.declareFlag(): F = also { declaredFlags += it }
 
 private class RuntimeFlagRef(
@@ -76,6 +71,7 @@ private class RuntimeFlagRef(
     fun value(native: String): FlagState = state(native)
 }
 
+/** Resolves a runtime flag state by native strings, falling back to an ad hoc ref for save parsing. */
 fun runtimeFlagState(
     flag: String,
     native: String,
@@ -86,14 +82,17 @@ fun runtimeFlagState(
         ?.firstOrNull { it.native == native }
         ?: RuntimeFlagRef(flag).value(native)
 
+/** Stable id for authored text catalog entries. */
 data class TextId(
     val id: String,
 )
 
+/** Pattern token used by authored text substitutions and matching helpers. */
 data class TextPattern(
     val pattern: String,
 )
 
+/** Part of a structured text line, including literals and runtime-bound placeholders. */
 sealed interface TextPart {
     data class Literal(
         val text: String,
@@ -173,6 +172,7 @@ sealed interface TextPart {
     object CreationCharisma : TextPart
 }
 
+/** Returns a deterministic placeholder used when no runtime renderer is available. */
 fun TextPart.fallbackText(): String =
     when (this) {
         is TextPart.Literal -> text
@@ -207,10 +207,12 @@ fun TextPart.fallbackText(): String =
         TextPart.CreationCharisma -> "{charisma}"
     }
 
+/** Structured text line made of literal and dynamic parts. */
 data class TextLine(
     val parts: List<TextPart>,
 )
 
+/** Authored text block, either by catalog ref, inline lines, or structured parts. */
 sealed interface TextBlock {
     data class Ref(
         val id: TextId,
@@ -225,30 +227,39 @@ sealed interface TextBlock {
     ) : TextBlock
 }
 
+/** Creates an inline literal text block. */
 fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(lines.toList())
 
+/** Creates a structured text block with dynamic parts. */
 fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = StructuredTextBlockBuilder().apply(body).build()
 
+/** Creates a structured text block from literal lines. */
 fun textLines(vararg lines: String): TextBlock = structuredText { lines(*lines) }
 
+/** Builder sink for collecting structured text lines. */
 interface TextLineSink {
     fun addTextLine(line: TextLine)
 }
 
+/** Adds one structured text line, coercing strings and expression wrappers into [TextPart] values. */
 fun TextLineSink.line(vararg parts: Any) {
     addTextLine(TextLine(parts.map(::textPart)))
 }
 
+/** Adds multiple literal lines to a text-line sink. */
 fun TextLineSink.lines(vararg lines: String) {
     lines.forEach { line(it) }
 }
 
+/** Executes a nested structured-text builder block against this sink. */
 fun <T : TextLineSink> T.lines(body: T.() -> Unit) {
     body()
 }
 
+/** Concatenates text blocks into one structured block. */
 fun combineTextBlocks(vararg blocks: TextBlock): TextBlock = combineTextBlocks(blocks.toList())
 
+/** Concatenates text blocks into one structured block. */
 fun combineTextBlocks(blocks: List<TextBlock>): TextBlock =
     TextBlock.Structured(
         blocks.flatMap { block -> block.asStructuredLines() },
@@ -270,6 +281,7 @@ private fun textPart(part: Any): TextPart =
         else -> TextPart.Literal(part.toString())
     }
 
+/** Text-placeholder helper for NPC role name and location. */
 class CharacterTextRef(
     private val role: NpcRole,
 ) {
@@ -277,8 +289,10 @@ class CharacterTextRef(
     val location: TextPart = TextPart.RoleLocation(role)
 }
 
+/** Creates text placeholders for an NPC [role]. */
 fun character(role: NpcRole): CharacterTextRef = CharacterTextRef(role)
 
+/** Text-placeholder helper for town name and nearby-location text. */
 class TownTextRef(
     private val town: TownId,
 ) {
@@ -287,20 +301,25 @@ class TownTextRef(
     fun near(radius: Int = 5): TextPart = TextPart.FuzzyTownLocation(town, radius)
 }
 
+/** Minimal interface implemented by generated town handles. */
 interface TownHandle {
     val id: TownId
 }
 
+/** Creates text placeholders for a generated [town] handle. */
 fun town(town: TownHandle): TownTextRef = TownTextRef(town.id)
 
+/** Text-placeholder helper for location coordinates. */
 class LocationTextRef(
     private val location: LocationId,
 ) {
     val coordinates: TextPart = TextPart.LocationCoordinate(location)
 }
 
+/** Creates text placeholders for a [location]. */
 fun location(location: LocationId): LocationTextRef = LocationTextRef(location)
 
+/** Typed item handle used by catalogs, runtime state, and scripts. */
 class ItemId private constructor(
     val slug: String,
 ) {
@@ -311,10 +330,12 @@ class ItemId private constructor(
     override fun toString(): String = "ItemId(slug=$slug)"
 
     companion object {
+        /** Creates an authored item handle from a stable slug. */
         fun authored(slug: String): ItemId = ItemId(slug)
     }
 }
 
+/** Typed item-pool handle used by loot, rewards, and inventory-count expressions. */
 class ItemPoolId private constructor(
     val slug: String,
     val items: List<ItemId> = emptyList(),
@@ -326,6 +347,7 @@ class ItemPoolId private constructor(
     override fun toString(): String = "ItemPoolId(slug=$slug)"
 
     companion object {
+        /** Creates an authored item-pool handle from a stable slug and optional fixed members. */
         fun authored(
             slug: String,
             items: List<ItemId> = emptyList(),
@@ -333,16 +355,22 @@ class ItemPoolId private constructor(
     }
 }
 
+/** Item categories understood by inventory, equipment, shops, rewards, and saves. */
 enum class ItemKind { Empty, Weapon, Armor, Gear, Potion, Treasure, Special, MagicItem }
 
+/** Equipment mutation requested by reusable runtime sessions. */
 enum class EquipmentCommand { ReadyWeapon, ReadyArmor, RemoveWeapon, RemoveArmor }
 
+/** Runtime storage policy for an item record. */
 enum class ItemStorageKind { EmptySentinel, SlottedInventory, SpecialMilestone }
 
+/** Party resource tracked by wilderness and shop systems. */
 enum class Resource { Food, Torches }
 
+/** Temperature damage band used by camp/rest rules. */
 enum class TemperatureBand { Low, VeryLow }
 
+/** Authored item metadata consumed by inventory, shops, combat, camp, and rewards. */
 data class ItemRecordModel(
     val id: ItemId,
     val kind: ItemKind,
@@ -357,6 +385,7 @@ data class ItemRecordModel(
     val resourceCapacityBonus: Map<Resource, Int> = emptyMap(),
 )
 
+/** Realm-level runtime systems shared by wilderness, camp, and hunt sessions. */
 data class RealmContentModel(
     val baseResourceCapacity: Map<Resource, Int> = emptyMap(),
     val upkeep: WildernessUpkeepRules = WildernessUpkeepRules(),
@@ -364,8 +393,10 @@ data class RealmContentModel(
     val hunt: HuntRulesModel? = null,
 )
 
+/** Match mode for a wilderness fatigue rule threshold. */
 enum class WildernessFatigueMatch { Equal, LessThan }
 
+/** One authored fatigue threshold and message/drain effect. */
 data class WildernessFatigueRule(
     val threshold: Int,
     val text: TextBlock,
@@ -428,6 +459,7 @@ data class CampRulesModel(
     val noShelterMessage: Map<TemperatureBand, TextBlock> = emptyMap(),
 )
 
+/** Inclusive temperature range belonging to one camp damage band. */
 data class TemperatureBandRange(
     val band: TemperatureBand,
     val range: IntRange,

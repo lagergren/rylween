@@ -1,3 +1,10 @@
+/**
+ * Backend-neutral runtime state machine for Ydarg castle.
+ *
+ * The session advances castle-room events, handles nested battle/party flows,
+ * and serializes through `RuntimeSnapshotModel.kt`; terminal rendering is kept
+ * in `frontend/terminal/YdargSessionTerminalAdapter.kt`.
+ */
 package rylween.runtime.ydarg
 
 import rylween.dsl.EquipmentCommand
@@ -54,6 +61,7 @@ import rylween.runtime.toParentStatus
 import rylween.runtime.withMilestone
 import rylween.runtime.withoutMilestone
 
+/** Stable result tokens describing the last Ydarg transition. */
 enum class YdargSessionStatus {
     Entered,
     MissingKey,
@@ -94,6 +102,7 @@ enum class YdargSessionStatus {
     Finished,
 }
 
+/** Result metadata exposed after a Ydarg session transition. */
 data class YdargSessionResult(
     val status: YdargSessionStatus,
     val floor: Int? = null,
@@ -103,6 +112,7 @@ data class YdargSessionResult(
     val monster: MonsterId? = null,
 )
 
+/** Menu-like commands available while navigating Ydarg. */
 enum class YdargCommand {
     Save,
     Help,
@@ -116,6 +126,7 @@ enum class YdargCommand {
     CastSpell,
 }
 
+/** Inputs accepted by [YdargSession.apply]. */
 sealed interface YdargSessionInput {
     object Continue : YdargSessionInput
 
@@ -142,6 +153,7 @@ sealed interface YdargSessionInput {
     ) : YdargSessionInput
 }
 
+/** Battle continuation point used when Ydarg temporarily delegates to combat. */
 sealed interface YdargBattleContinuation {
     object RoomMonster : YdargBattleContinuation
 
@@ -152,6 +164,7 @@ sealed interface YdargBattleContinuation {
     object Baron : YdargBattleContinuation
 }
 
+/** Current prompt, child session, or completion state requested by [YdargSession]. */
 sealed interface YdargSessionStep {
     data class Messages(
         val blocks: List<TextBlock>,
@@ -205,6 +218,7 @@ sealed interface YdargSessionStep {
     ) : YdargSessionStep
 }
 
+/** Pure Ydarg castle session state plus transition functions. */
 data class YdargSession(
     val runtime: RuntimeSessionState,
     val content: RuntimeContent,

@@ -1,3 +1,10 @@
+/**
+ * Wilderness input-command builders.
+ *
+ * [WildernessSession] owns semantic transitions; this file maps authored
+ * [rylween.dsl.WildernessKeysModel] bindings into command lists and generated
+ * help pages for terminal and future host adapters.
+ */
 package rylween.runtime.wilderness
 
 import rylween.dsl.TextBlock
@@ -6,6 +13,7 @@ import rylween.runtime.InputCommand
 import rylween.runtime.cardinalDirectionCommands
 import rylween.runtime.generatedHelpPages
 
+/** Commands accepted while the wilderness session is in its main explore step. */
 fun WildernessKeysModel.exploreCommands(): List<InputCommand<WildernessSessionInput>> =
     cardinalDirectionCommands(
         moveNorth = moveNorth,
@@ -34,23 +42,27 @@ fun WildernessKeysModel.exploreCommands(): List<InputCommand<WildernessSessionIn
             InputCommand(WildernessSessionInput.Quit, quit, "Quit Game"),
         )
 
+/** Commands accepted by cave entry prompts. */
 fun WildernessKeysModel.caveCommands(): List<InputCommand<WildernessSessionInput>> =
     listOf(
         InputCommand(WildernessSessionInput.CaveAnswer(true), caveEnter, "Enter"),
         InputCommand(WildernessSessionInput.CaveAnswer(false), caveLeave, "Leave"),
     )
 
+/** Commands accepted by the out-of-moves prompt. */
 fun WildernessKeysModel.outOfMovesCommands(): List<InputCommand<WildernessSessionInput>> =
     listOf(
         InputCommand(WildernessSessionInput.OutOfMovesAnswer(true), outOfMovesSave, "Save"),
         InputCommand(WildernessSessionInput.OutOfMovesAnswer(false), outOfMovesQuit, "Quit"),
     )
 
+/** Commands accepted by the quit-confirmation prompt. */
 fun WildernessKeysModel.quitConfirmCommands(): List<InputCommand<WildernessSessionInput>> =
     listOf(
         InputCommand(WildernessSessionInput.QuitAnswer(true), quitYes, "Yes"),
         InputCommand(WildernessSessionInput.QuitAnswer(false), quitNo, "No"),
     )
 
+/** Returns authored wilderness help pages, or generated command help when absent. */
 fun WildernessKeysModel.effectiveHelpPages(maxLinesPerPage: Int = 7): List<TextBlock> =
     helpPages.ifEmpty { exploreCommands().generatedHelpPages(maxLinesPerPage) }

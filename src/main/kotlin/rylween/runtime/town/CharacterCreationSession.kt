@@ -1,3 +1,10 @@
+/**
+ * Backend-neutral character creation state machine.
+ *
+ * `engine/Startup.kt` builds the pending runtime snapshot, this session gathers
+ * party/member choices from a frontend, and `frontend/terminal/TerminalAdapters.kt`
+ * renders the prompts for the terminal host.
+ */
 package rylween.runtime.town
 
 import rylween.dsl.CharacterClassOptionModel
@@ -32,6 +39,7 @@ import rylween.runtime.RylweenRandomPort
 import rylween.runtime.facing
 import rylween.runtime.party
 
+/** Rolled starting stats for one member candidate. */
 data class CharacterCreationStats(
     val weaponSkill: Int,
     val health: Int,
@@ -47,6 +55,7 @@ data class CharacterCreationStats(
         }
 }
 
+/** Stable result tokens emitted by [CharacterCreationSession]. */
 enum class CharacterCreationStatus {
     Aborted,
     ClassRejected,
@@ -54,6 +63,7 @@ enum class CharacterCreationStatus {
     Finished,
 }
 
+/** Last transition result for character creation. */
 data class CharacterCreationResult(
     val status: CharacterCreationStatus,
     val memberNumber: Int? = null,
@@ -61,6 +71,7 @@ data class CharacterCreationResult(
     val runtime: RuntimeSessionState? = null,
 )
 
+/** Current prompt or terminal state requested by [CharacterCreationSession]. */
 sealed interface CharacterCreationStep {
     object PartyName : CharacterCreationStep
 
@@ -109,6 +120,7 @@ sealed interface CharacterCreationStep {
     object Aborted : CharacterCreationStep
 }
 
+/** Pure state machine that builds the initial party from authored creation rules. */
 data class CharacterCreationSession(
     val partyId: PartyId,
     val playerName: String,

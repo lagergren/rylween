@@ -1,3 +1,9 @@
+/**
+ * Command-line entry points for writing, checking, and inspecting compiled
+ * bundle artifacts. These tools bridge `game/RylweenCompiledGame` to the
+ * compiled artifact readers in `compiled/ExternalBundleArtifact.kt` and the
+ * smoke artifact in `compiled/NativeSmokeArtifact.kt`.
+ */
 @file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
 
 package rylween.app

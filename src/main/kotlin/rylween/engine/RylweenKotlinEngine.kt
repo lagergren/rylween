@@ -1,4 +1,10 @@
-// Boot facade for compiled game content into runtime sessions.
+/**
+ * Boot facade from authored game content into backend-neutral runtime sessions.
+ *
+ * App launchers and tests use [RylweenKotlinEngine] to create wilderness, town,
+ * dungeon, Ydarg, battle, and character-creation sessions from validated
+ * [rylween.dsl.GameModel] content.
+ */
 
 package rylween.engine
 
@@ -34,6 +40,7 @@ import rylween.runtime.wilderness.WorldMapGrid
 import rylween.runtime.wilderness.toMissionPostDungeonContinuation
 import rylween.runtime.ydarg.toYdargSession
 
+/** Factory and resume helper for the current pure-Kotlin runtime session graph. */
 class RylweenKotlinEngine(
     private val content: GameModel,
     private val npcPlacementConfig: NpcPlacementRealizerConfig = NpcPlacementRealizerConfig(),
@@ -72,6 +79,7 @@ class RylweenKotlinEngine(
         }
     }
 
+    /** Starts a town session for a party at a given town and hour. */
     fun townSession(
         party: PartyState,
         town: TownId,
@@ -85,6 +93,7 @@ class RylweenKotlinEngine(
             content = content.runtimeContent(),
         )
 
+    /** Starts character creation from a pending runtime/start state. */
     fun characterCreationSession(
         state: StateModel,
         partyId: PartyId = state.realm.activeParty,
@@ -100,6 +109,7 @@ class RylweenKotlinEngine(
             random = random,
         )
 
+    /** Starts wilderness from existing live runtime state and a world-map grid. */
     fun wildernessSession(
         runtime: RuntimeSessionState,
         worldMap: WorldMapGrid,
@@ -118,6 +128,7 @@ class RylweenKotlinEngine(
         )
     }
 
+    /** Starts wilderness from an authored or loaded state and a world-map grid. */
     fun wildernessSession(
         state: StateModel,
         worldMap: WorldMapGrid,
@@ -132,6 +143,7 @@ class RylweenKotlinEngine(
         )
     }
 
+    /** Resumes wilderness, dungeon, or Ydarg mode from a full runtime snapshot. */
     fun wildernessSession(
         snapshot: RuntimeSnapshotModel,
         worldMap: WorldMapGrid,
@@ -176,6 +188,7 @@ class RylweenKotlinEngine(
         }
     }
 
+    /** Builds the subset of authored content required by conversation sessions. */
     fun speakContent(): SpeakRuntimeContent =
         SpeakRuntimeContent(
             speak = content.speak,

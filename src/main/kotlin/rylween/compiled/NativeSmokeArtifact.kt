@@ -1,3 +1,11 @@
+/**
+ * Narrow binary smoke artifact for native compiled-boundary checks.
+ *
+ * This is not the product J1 bundle; `ExternalBundleArtifact.kt` owns that JSON
+ * format. The smoke artifact gives the small C reader enough typed strings,
+ * handles, opcodes, operands, and states to catch boundary/schema drift during
+ * `checkNativeSmokeBundle`.
+ */
 package rylween.compiled
 
 import rylween.dsl.BoolExpr
@@ -26,17 +34,22 @@ private const val NATIVE_SMOKE_VERSION = 1
 private const val NATIVE_SMOKE_FALSE = 0
 private const val NATIVE_SMOKE_TRUE = 1
 
+/** Serializes a compiled bundle into the narrow native smoke-test artifact. */
 fun CompiledGameBundle.toNativeSmokeArtifact(): ByteArray = NativeSmokeArtifactWriter().write(this)
 
+/** Writes a compiled bundle as the native smoke-test artifact. */
 fun CompiledGameBundle.writeNativeSmokeArtifact(file: File) {
     file.parentFile?.mkdirs()
     file.writeBytes(toNativeSmokeArtifact())
 }
 
+/** Reads the summary from native smoke-test artifact bytes. */
 fun ByteArray.readNativeSmokeArtifact(): NativeSmokeArtifactSummary = NativeSmokeArtifactReader(this).read()
 
+/** Reads the summary from a native smoke-test artifact file. */
 fun File.readNativeSmokeArtifact(): NativeSmokeArtifactSummary = readBytes().readNativeSmokeArtifact()
 
+/** Summary counts extracted by the native smoke-test artifact reader. */
 data class NativeSmokeArtifactSummary(
     val version: Int,
     val stringCount: Int,

@@ -1,3 +1,10 @@
+/**
+ * Backend-neutral dungeon runtime state machine.
+ *
+ * [DungeonSession] advances semantic dungeon steps, delegates child flows to
+ * party/battle/script sessions, and converts its state to `RuntimeModeSnapshot`
+ * in `RuntimeSnapshotModel.kt` for save/load.
+ */
 package rylween.runtime.dungeon
 
 import rylween.dsl.DungeonEventDisposition
@@ -52,6 +59,7 @@ import rylween.runtime.wilderness.WorldMapGrid
 import rylween.runtime.wilderness.effectiveHelpPages
 import rylween.runtime.wilderness.toSnapshot
 
+/** Inputs accepted by [DungeonSession.apply]. */
 sealed interface DungeonSessionInput {
     object Descend : DungeonSessionInput
 
@@ -80,6 +88,7 @@ sealed interface DungeonSessionInput {
     object Continue : DungeonSessionInput
 }
 
+/** Stable result tokens describing the last dungeon transition. */
 enum class DungeonSessionResultStatus {
     Started,
     Descended,
@@ -107,6 +116,7 @@ enum class DungeonSessionResultStatus {
     SaveFailed,
 }
 
+/** Result metadata exposed after a dungeon session transition. */
 data class DungeonSessionResult(
     val status: DungeonSessionResultStatus,
     val dungeon: DungeonId,
@@ -114,6 +124,7 @@ data class DungeonSessionResult(
     val maxDepth: Int,
 )
 
+/** Current prompt, child session, or completion state requested by [DungeonSession]. */
 sealed interface DungeonSessionStep {
     object Explore : DungeonSessionStep
 
@@ -171,6 +182,7 @@ private data class DungeonLevelEventPlan(
     val levelEvents: Map<Int, DungeonEventId>,
 )
 
+/** Pure dungeon session state plus transition functions. */
 data class DungeonSession(
     val runtime: RuntimeSessionState,
     val worldMap: WorldMapGrid,
