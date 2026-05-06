@@ -49,6 +49,7 @@ internal object DslDefaultBuildings {
     val church = building("church")
     val smith = building("smith")
     val merchant = building("merchant")
+    val guild = building("guild")
     val hut = building("hut")
 }
 
@@ -59,6 +60,7 @@ internal object DslDefaultKeyActions {
     val enterInn = keyAction("enter_inn")
     val enterMerchant = keyAction("enter_merchant")
     val enterTavern = keyAction("enter_tavern")
+    val enterGuild = keyAction("enter_guild")
     val leaveTown = keyAction("leave_town")
     val useItem = keyAction("use_item")
     val defend = keyAction("defend")
@@ -130,6 +132,7 @@ internal object DslDefaultScenes {
         val inn = sceneId("towne.inn")
         val merchant = sceneId("towne.merchant")
         val tavern = sceneId("towne.tavern")
+        val guild = sceneId("towne.guild")
         val hut = sceneId("towne.hut")
     }
 

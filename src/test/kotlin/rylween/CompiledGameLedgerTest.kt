@@ -263,9 +263,10 @@ class RylweenCompiledGameLedgerTest {
                     Buildings.tavern,
                     Buildings.smith,
                     Buildings.church,
+                    Buildings.guild,
                 ),
         )
-        check(townServices(Towns.ollk) == listOf(Buildings.merchant, Buildings.inn, Buildings.tavern, Buildings.smith))
+        check(townServices(Towns.ollk) == listOf(Buildings.merchant, Buildings.inn, Buildings.tavern, Buildings.smith, Buildings.guild))
         check(
             townServices(Towns.wilor) ==
                 listOf(
@@ -274,12 +275,13 @@ class RylweenCompiledGameLedgerTest {
                     Buildings.tavern,
                     Buildings.smith,
                     Buildings.church,
+                    Buildings.guild,
                 ),
         )
-        check(townServices(Towns.murn) == listOf(Buildings.merchant, Buildings.inn, Buildings.tavern, Buildings.smith))
+        check(townServices(Towns.murn) == listOf(Buildings.merchant, Buildings.inn, Buildings.tavern, Buildings.smith, Buildings.guild))
         check(nextDsl.towns.single { it.id == Towns.murn.id }.position == xy(55, 29))
         check(nextDsl.towns.single { it.id == Towns.wilor.id }.kind == TownKind.City)
-        check(townSystem.menu.map { it.key } == listOf('C', 'S', 'I', 'M', 'T', 'L'))
+        check(townSystem.menu.map { it.key } == listOf('C', 'S', 'I', 'M', 'T', 'G', 'L'))
         check(townSystem.menu.single { it.key == 'C' }.building == Buildings.church)
         check(townSystem.menu.single { it.action == keyAction("leave_town") }.endsMenu)
         check(townSystem.leavePrompts == listOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor))
@@ -295,6 +297,7 @@ class RylweenCompiledGameLedgerTest {
                     Buildings.inn,
                     Buildings.merchant,
                     Buildings.tavern,
+                    Buildings.guild,
                 ),
         )
         check(
@@ -305,6 +308,7 @@ class RylweenCompiledGameLedgerTest {
                     Buildings.inn to Scenes.Towne.inn,
                     Buildings.merchant to Scenes.Towne.merchant,
                     Buildings.tavern to Scenes.Towne.tavern,
+                    Buildings.guild to Scenes.Towne.guild,
                 ),
         )
         check(
@@ -315,6 +319,7 @@ class RylweenCompiledGameLedgerTest {
                     Buildings.inn to (null to null),
                     Buildings.merchant to (6 to 18),
                     Buildings.tavern to (6 to 1),
+                    Buildings.guild to (null to null),
                 ),
         )
         check(
@@ -409,7 +414,7 @@ class RylweenCompiledGameLedgerTest {
         check(ydarg.entry == xy(14, 30))
         check(ydarg.requiredKey == Milestones.silverKey)
         check(ydarg.confrontation.sequence == listOf(Monsters.cryptHorror, Monsters.nightGaunt, Monsters.thyraga, Monsters.liche))
-        check(nextDsl.scenes.size == 23)
+        check(nextDsl.scenes.size == 24)
 
         fun List<Op>.anyNested(predicate: (Op) -> Boolean): Boolean =
             any { op ->
@@ -879,7 +884,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             nextDsl.visuals.images
                 .single { it.id == Images.Scene.tavern }
-                .resource == "tiles/02.ans",
+                .resource == "tiles/towne-tavern.ans",
         )
         check(nextDsl.visuals.staticScreens.size == 7)
         check(

@@ -2633,6 +2633,7 @@ val nextRylween: RylweenModel = rylween {
                 tavern()
                 smith()
                 church()
+                guild()
             }
         }
 
@@ -2646,6 +2647,7 @@ val nextRylween: RylweenModel = rylween {
                 inn()
                 tavern()
                 smith()
+                guild()
             }
         }
 
@@ -2660,6 +2662,7 @@ val nextRylween: RylweenModel = rylween {
                 tavern()
                 smith()
                 church()
+                guild()
             }
         }
 
@@ -2673,6 +2676,7 @@ val nextRylween: RylweenModel = rylween {
                 inn()
                 tavern()
                 smith()
+                guild()
             }
         }
     }
@@ -2690,6 +2694,7 @@ val nextRylween: RylweenModel = rylween {
             inn()
             merchant()
             tavern()
+            guild()
             leave()
         }
 
@@ -2713,6 +2718,10 @@ val nextRylween: RylweenModel = rylween {
             tavern {
                 scene = Scenes.Towne.tavern
                 hours = 6..1
+            }
+            guild {
+                scene = Scenes.Towne.guild
+                alwaysOpen()
             }
         }
     }
@@ -4424,6 +4433,36 @@ val nextRylween: RylweenModel = rylween {
                         }
                         option('E') {}
                     }
+                }
+            }
+        }
+    }
+
+    scene(Scenes.Towne.guild) {
+        clearMapWindow()
+        showBackdrop(Images.Scene.towneGuild)
+
+        loop {
+            clearText()
+            statusLine()
+            screen(
+                "Sorry. The Adventurers'",
+                "Guild is permanently",
+                "closed for renovation.",
+                "",
+                "Come back when Rylween",
+                "v3 ships in 1994. Or",
+                "thereabouts.",
+                "",
+            )
+
+            menu(
+                "(L)eave",
+            ) {
+                option('L') {
+                    clearText()
+                    clearMapWindow()
+                    breakLoop("leave guild")
                 }
             }
         }
