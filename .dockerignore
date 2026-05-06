@@ -1,0 +1,27 @@
+# Build artefacts — regenerated inside the image.
+*.o
+*.d
+rylween
+rylween-asan
+*.dSYM/
+
+# Runtime-generated state (regenerated on boot).
+data/entry.dat
+data/npc.dat
+data/realm.dat
+data/rylween.log
+data/score.txt
+data/vscore.txt
+data/current-world.json5
+
+# Editor / local tool state.
+.DS_Store
+.vscode
+.idea/
+.claude/
+*~
+
+# Git tree itself; the image only needs source + data.
+.git
+.gitignore
+.git-blame-ignore-revs

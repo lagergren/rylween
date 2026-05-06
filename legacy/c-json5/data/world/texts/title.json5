@@ -1,0 +1,12 @@
+// Title-screen text. Rendered by driv.c's title() in sequence; each id
+// is one tx call. Leading spaces and blank-string array elements are
+// load-bearing for the 40-column layout.
+{
+  header:         [' ADVENTURERS of RYLWEEN', ''],
+  prog_by:        ['Programming & Design by:'],
+  prog_name:      ['    Marcus Lagergren', ''],
+  created_by:     ['      Created by:'],
+  creator_name:   ['    Niklas Blomqvist', ''],
+  graphics_by:    ['      Graphics by:'],
+  graphics_name:  ['     Matias Larsson   v3'],
+}

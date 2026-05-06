@@ -1,0 +1,397 @@
+// NPC dialogue scripts (§16.4). Each entry is an array of one-op
+// objects the script interpreter in src/script.c walks in order.
+// Screen names resolve against the matching path in data/world/texts/
+// speak.json5 — e.g. `{ screen: 'rumour' }` inside `erethor.first_visit`
+// becomes `speak.erethor.rumour`.
+//
+// Ops:
+//   { screen:   '<name>' }    tx_fmt(<parent>.<name>, bindings)
+//                             + ryl_pause() + clw()
+//   { journal:  '<text>' }    prepended with "<cpl> ", trailing "\n",
+//                             {placeholders} expand via bindings
+//   { set_flag: '<tag>',      state.p[cpl].flag[slot] = value.
+//     value: '<state>' }       slot resolves via res_flag_slot(tag);
+//                             value resolves via the flag's values[]
+//                             array in data/world.json5. Legacy int
+//                             forms are still accepted for mixed
+//                             migrations but the data is all-string.
+//   { reward: {               gold += N; for each items[] entry, drop
+//     gold: <int>,              into first-empty inventory slot (1..16).
+//     items: [<int|str>...],    On no-free-slot, emit cant_carry_screen
+//     cant_carry_screen:        (delay 800ms, drop_option, optional
+//       '<name>',               picked_up_screen on success, delay
+//     picked_up_screen:         800ms, ryl_pause). All fields optional
+//       '<name>' } }            except the `reward` key itself. Item
+//                               entries are literal ids OR symbolic
+//                               shard keys resolved via res_item_id.
+//
+// Ordering matters: keep set_flag ops in the same position relative to
+// screens as the original speak.c sequencing. Bindings are passed in
+// from the C caller (res_enum lookups, snprintf location strings, etc.).
+//
+// §16.5 reward-bearing scripts (merchant.grateful, fighter.grateful,
+// brother.give_sword, husband.rescued, minstrel.gives_cloak) are ALL
+// fixture-unreachable — per the §16.3 slice C commit the three
+// fixtures (title-menu-exit, title-create-party-{exit,combat}) never
+// complete any mission. No byte-parity risk.
+{
+  // case 1, flag[1]==0 — robbed merchant pitches the bandits mission.
+  // Caller pre-clws (matches original: leading clw() before tx0).
+  merchant: {
+    first_visit: [
+      { screen: 'offer' },
+      { screen: 'bandits' },
+      { set_flag: 'garth.bandits', value: 'accepted' },
+    ],
+    // case 1, flag[1]==2 — merchant hands over the ruby. Reward is
+    // 2000 gold + item 39 (red_gem); if the inventory's full the
+    // player picks one slot to drop via drop_option, then gets the
+    // 'You pick up the gem.' line from picked_up.
+    grateful: [
+      { screen: 'grateful' },
+      { reward: { gold: 2000, items: ['red_gem'],
+                  cant_carry_screen: 'cant_carry',
+                  picked_up_screen: 'picked_up' } },
+      { set_flag: 'garth.bandits', value: 'closed' },
+    ],
+  },
+
+  // case 3, flag[3]==3 — old fighter hands over the Dancing Blade
+  // after the priest returned his book. Original set flag BEFORE the
+  // reward flow (and before the inventory drop_option prompt), so the
+  // set_flag op precedes the reward here to mirror that ordering.
+  fighter: {
+    grateful: [
+      { screen: 'blade' },
+      { set_flag: 'fighter.priest_book', value: 'fighter_grateful' },
+      { reward: { items: ['dancing_sword'],
+                  cant_carry_screen: 'cant_carry',
+                  picked_up_screen: 'take_blade' } },
+    ],
+  },
+
+  // case 4, flag[3]==2 — wizard hands over the priest's book.
+  // Caller pre-clws. Original sequenced flag-set between tx0 and
+  // ryl_pause; no observable difference from setting it after the
+  // screen (key-read doesn't touch flag[3]).
+  wizard: {
+    robbed_flow: [
+      { screen: 'robbed' },
+      { set_flag: 'fighter.priest_book', value: 'wizard_robbed' },
+    ],
+  },
+
+  // case 8 — Erethor. `first_visit` (flag[8]==0, foreground): rumour +
+  // cloak lead + map note. `delivered_lute` (flag[8]==2, §16.5): hands
+  // over the note pointing at the minstrel. Caller does NOT pre-clw
+  // before first_visit (matches original: no leading clw before the
+  // first tx0). delivered_lute bindings: minstrel_name = res_enum(
+  // "name", 20), minstrel_loc = snprintf "<name> lives in <town>." OR
+  // "<name> lives at <x>x<y>.". Journal body interpolates
+  // {minstrel_loc}.
+  erethor: {
+    first_visit: [
+      { screen: 'rumour' },
+      { screen: 'demon' },
+      { screen: 'poor_man' },
+      { screen: 'trade' },
+      { screen: 'dangerous' },
+      { journal: "Erethor's temple is situated at 6x20." },
+      { set_flag: 'erethor.lute', value: 'rumour_told' },
+    ],
+    delivered_lute: [
+      { screen: 'hand_lute' },
+      { screen: 'note' },
+      { screen: 'note_deliver' },
+      { journal: "{minstrel_name} lives {minstrel_loc}." },
+      { screen: 'together' },
+      { screen: 'paper' },
+      { set_flag: 'erethor.lute', value: 'note_received' },
+    ],
+  },
+
+  // case 18, flag[6]==2 — thief2 squeezed for smith's name.
+  // Caller pre-clws and passes {smith_name} binding for the inline
+  // tx_fmt record. Original set the flag BEFORE the first tx0; mirror
+  // that by placing set_flag first.
+  thief2: {
+    squeezed: [
+      { set_flag: 'silver_key', value: 'thief2_squeezed' },
+      { screen: 'push' },
+      { screen: 'smith' },
+      { screen: 'let_go' },
+    ],
+  },
+
+  // case 19, flag[19]==0 — husband's depressed pitch, Tammy abduction.
+  // Caller pre-clws. Original sequenced journal_add between tx0(cave) and
+  // ryl_pause; moving journal after the screen is observably identical.
+  husband: {
+    first_visit: [
+      { screen: 'depressed' },
+      { screen: 'fortune' },
+      { screen: 'cave' },
+      { journal: "The orc cavern is at 42x23." },
+      { set_flag: 'peasant_wife', value: 'accepted' },
+    ],
+    // case 19, flag[19]==2 — Tammy safe; husband pays out. 3000 gold
+    // plus five items: admt_mail, holy_handgrenade, amber_potion,
+    // fire_wand, crystal_bowl (port-plan §16.5's worked example; the
+    // ints are 26, 110, 38, 101, 45). Original emitted one final
+    // cant_carry line if any item failed to fit; the reward op now
+    // prompts drop_option per-item, which is the port-plan shape.
+    // Unreachable from fixtures, so the behaviour change is fine.
+    rescued: [
+      { screen: 'reunion' },
+      { screen: 'gives' },
+      { set_flag: 'peasant_wife', value: 'paid' },
+      { reward: { gold: 3000,
+                  items: ['admt_mail', 'holy_handgrenade', 'amber_potion',
+                          'fire_wand', 'crystal_bowl'],
+                  cant_carry_screen: 'cant_carry' } },
+    ],
+  },
+
+  // case 14, flag[2]==1 — ranger's brother receives the letter, hands
+  // over the Magic Sword. Caller passes no bindings; flag[2] advances
+  // after the reward flow (original placed flag set after ryl_pause).
+  brother: {
+    give_sword: [
+      { screen: 'give_sword' },
+      { screen: 'produces' },
+      { reward: { items: ['magic_sword'],
+                  cant_carry_screen: 'cant_carry',
+                  picked_up_screen: 'take_sword' } },
+      { set_flag: 'ranger.letter', value: 'delivered' },
+    ],
+  },
+
+  // case 20, flag[8]==3 — minstrel reads the note, hands over Cloak
+  // of Gods, bids farewell pointing at the next town. Bindings flow
+  // through both screens: {minstrel_name} on `reads`, {next_town} on
+  // `travel`. Reward sits between them — matches the original tx_fmt
+  // -> inventory -> tx_fmt sequencing.
+  minstrel: {
+    gives_cloak: [
+      { screen: 'reads' },
+      { reward: { items: ['cloak_of_gods'],
+                  cant_carry_screen: 'cant_carry',
+                  picked_up_screen: 'take_cloak' } },
+      { screen: 'travel' },
+      { set_flag: 'erethor.lute', value: 'cloak_received' },
+    ],
+  },
+
+  // case 24, flag[6]==3 — smith confesses the hobgoblin ambush.
+  // Caller pre-clws.
+  smith: {
+    after_thief2: [
+      { screen: 'ask' },
+      { screen: 'sorry' },
+      { screen: 'pursued' },
+      { screen: 'clubbed' },
+      { set_flag: 'silver_key', value: 'smith_confessed' },
+    ],
+  },
+
+  // case 33 — hermit. `welcome_visit` = flag[33]==0 opener (foreground,
+  // no troll-tooth yet); `tooth_trade` = flag[33]==2 reveal (§16.5
+  // mission-dispatcher target). {cave_x}/{cave_y} are snprintf'd from
+  // state.dx[1]/state.dy[1] at call time.
+  hermit: {
+    welcome_visit: [
+      { screen: 'welcome' },
+      { set_flag: 'hermit.troll_tooth', value: 'accepted' },
+    ],
+    tooth_trade: [
+      { screen: 'tooth' },
+      { journal: "The Fire Shield Dungeon is at {cave_x}x{cave_y}." },
+      { set_flag: 'hermit.troll_tooth', value: 'delivered' },
+    ],
+  },
+
+  // §16.5 mission-dispatcher scripts — migrations of the remaining
+  // `npc_mission_hint` case bodies. Each maps to a stage entry in the
+  // static mission_spec[] table in src/speak.c; bindings flow through
+  // from small per-NPC compute functions in the same file.
+
+  // case 2, flag[2]==0 — ranger hands out the letter for his brother.
+  // Bindings: ranger_name = res_enum("name", 14), ranger_loc = snprintf
+  // "in <town>" OR "at <x>x<y>" based on npc[14].towne. Journal body
+  // uses {ranger_loc} rather than rebuilding the string in C.
+  ranger: {
+    first_visit: [
+      { screen: 'intro' },
+      { screen: 'deliver' },
+      { journal: "{ranger_name}, the Ranger lives {ranger_loc}" },
+      { set_flag: 'ranger.letter', value: 'accepted' },
+    ],
+  },
+
+  // case 5, flag[3]==1 — priest explains the stolen book.
+  // Bindings: wizard_name = res_enum("name", 4), giver_name = res_enum(
+  // "name", 3).
+  priest: {
+    intro_flow: [
+      { screen: 'intro' },
+      { screen: 'fled' },
+      { screen: 'please' },
+      { set_flag: 'fighter.priest_book', value: 'priest_visited' },
+    ],
+  },
+
+  // case 15, flag[15]==0 — nymph directs the party to the seeker.
+  // Bindings: seeker_name = res_enum("name", 23), seeker_loc = snprintf
+  // "in <town>" OR "at <x>x<y>". `location` is a new screen id (see
+  // texts/speak.json5) that folds the two inline tx() calls that
+  // followed `know` in the original into one tx_fmt record.
+  nymph: {
+    know_flow: [
+      { screen: 'know' },
+      { screen: 'location' },
+      { journal: "{seeker_name} lives {seeker_loc}." },
+      { set_flag: 'nymph.seeker', value: 'told' },
+    ],
+  },
+
+  // case 23 — wizard-of-three-tasks. Four sub-branches sharing the
+  // same NPC. `task1` fires when (flag[15]==1 && flag[23]==0); the
+  // stage spec in src/speak.c encodes the AND. All four use dungeon-
+  // coord bindings resolved from state.dx[]/state.dy[]. The task1 stage
+  // advances BOTH flag[15] (1->2) and flag[23] (0->1), so the script
+  // carries two set_flag ops — the interpreter handles them in order.
+  wizard3t: {
+    task1_flow: [
+      { screen: 'intro' },
+      { screen: 'agree' },
+      { screen: 'task1' },
+      { journal: "The kobold lair is at {kobold_x}x{kobold_y}." },
+      { set_flag: 'nymph.seeker', value: 'wizard3t_active' },
+      { set_flag: 'mastercrown', value: 'task1_assigned' },
+    ],
+    task2_flow: [
+      { screen: 'pendant' },
+      { screen: 'task2' },
+      { set_flag: 'mastercrown', value: 'task2_assigned' },
+    ],
+    task3_flow: [
+      { screen: 'task3_intro' },
+      { screen: 'task3' },
+      { journal: "The dwarf village is at {dwarf_x}x{dwarf_y}." },
+      { set_flag: 'mastercrown', value: 'task3_assigned' },
+    ],
+    grateful_flow: [
+      { screen: 'grateful' },
+      { journal: "The Master Crown dungeon is at {crown_x}x{crown_y}." },
+      { set_flag: 'mastercrown', value: 'crown_told' },
+    ],
+  },
+
+  // §20 S9 + follow-up: Leander the jazzy_ogre trader. The whole
+  // trade — intro screens, inventory-letter input, accept/refuse
+  // branch, journal entry, slot clear — runs as a single script
+  // thanks to the `input_item` DSL op. A non-A..P key skips the
+  // `then:` body so the script ends naturally without a refuse/
+  // accept screen, matching the original C wrapper's `return`.
+  // cave_x / cave_y resolve via engine_int wld_location_x/y('beast_cave').
+  jazzy_ogre: {
+    trade: [
+      { screen: 'hear' },
+      { screen: 'trade' },
+      { engine_call: 'inv_list' },
+      { input_item: {
+          slot_var: 'slot',
+          item_var: 'item_id',
+          then: [
+            { if: {
+                cond: { lt: [{ var: 'item_id' }, 35] },
+                then: [
+                  { engine_call: 'clw' },
+                  { emit: 'refuse' },
+                  { pause: 1000 },
+                ],
+                else: [
+                  { engine_call: 'clw' },
+                  { emit: 'accept' },
+                  { let: 'cave_x', value: { engine_int: 'wld_location_x', args: ['beast_cave'] } },
+                  { let: 'cave_y', value: { engine_int: 'wld_location_y', args: ['beast_cave'] } },
+                  { journal: "The 'Beast Cave' is at {cave_x}x{cave_y}." },
+                  { set_flag: 'jazzy_ogre', value: 'accepted' },
+                  { wait_input: true },
+                  { engine_call: 'clw' },
+                  { mutate: { target: { inventory: { var: 'slot' } }, op: 'set', value: 0 } },
+                ],
+            } },
+          ],
+      } },
+    ],
+  },
+
+  // §B4: speak.c::speak C-key chitchat 3-way switch lifted to DSL.
+  // Caller passes { female, job_sym }. `subj` is rolled here (was
+  // ryl_random(0, 2) in C); the gendered well/health arms branch on
+  // the female binding via if/else; the reply hands off to chit_reply
+  // which already knows how to fan out on (subj, job_sym) via
+  // emit_indexed. The two `speak.chit.added_blank` emits replace the
+  // inline tx("\r\n") pair the C body used between prompt → reply →
+  // pause. emits use fully-qualified text ids because resolve_text_id
+  // treats any '.'-containing name as absolute (so a relative `chit.X`
+  // can't fall back to `speak.chit.X`).
+  chitchat: [
+    { let: 'subj', value: { random: [0, 2] } },
+    { engine_call: 'clw' },
+    { switch: {
+        expr: { var: 'subj' },
+        cases: [
+          { match: 0, then: [
+            { if: { cond: { var: 'female' },
+                    then: [{ emit: 'speak.chit.well_f' }],
+                    else: [{ emit: 'speak.chit.well_m' }] } },
+          ] },
+          { match: 1, then: [{ emit: 'speak.chit.weather' }] },
+          { match: 2, then: [
+            { if: { cond: { var: 'female' },
+                    then: [{ emit: 'speak.chit.health_f' }],
+                    else: [{ emit: 'speak.chit.health_m' }] } },
+          ] },
+        ],
+    } },
+    { pause: 1000 },
+    { emit: 'speak.chit.added_blank' },
+    { play_script: 'speak.chit_reply' },
+    { emit: 'speak.chit.added_blank' },
+    { wait_input: true },
+  ],
+
+  // §20.20 #2 follow-up: per-job dispatchers for the speak() Q→P /
+  // Q→M / chitchat-reply arms. Each is a one-line wrapper around
+  // emit_indexed — the C wrapper computes nothing, just passes the
+  // npc_job_sym() (and for chitchat the subject 0/1/2) as bindings.
+  // See lodge.nonbargirl above for the matching pattern; the txi()
+  // helper in src/speak.c goes away once these three callsites are
+  // routed through play_script(). The slug-spliced text keys
+  // (jmerchant, jranger, ...) replace the legacy positional j1..j16
+  // shape so reordering the npc-job enum cannot silently shift
+  // every reply.
+  people: [
+    { emit_indexed: { fmt: 'speak.people.j{}', value: { var: 'job_sym' } } },
+  ],
+  magic: [
+    { emit_indexed: { fmt: 'speak.magic.j{}', value: { var: 'job_sym' } } },
+  ],
+  // Chitchat reply has two axes (subject, job). Subject is a small
+  // closed set (well/weather/health) ryl_random'd by the C caller;
+  // dispatch on it here so the fmt for emit_indexed can name the
+  // subject literally and keep the speak.chit.reply.<subj>.j<slug>
+  // text keys readable. Adding a 4th subject = one more arm.
+  chit_reply: [
+    { switch: {
+        expr: { var: 'subj' },
+        cases: [
+          { match: 0, then: [{ emit_indexed: { fmt: 'speak.chit.reply.well.j{}',    value: { var: 'job_sym' } } }] },
+          { match: 1, then: [{ emit_indexed: { fmt: 'speak.chit.reply.weather.j{}', value: { var: 'job_sym' } } }] },
+          { match: 2, then: [{ emit_indexed: { fmt: 'speak.chit.reply.health.j{}',  value: { var: 'job_sym' } } }] },
+        ],
+    } },
+  ],
+}

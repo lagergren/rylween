@@ -1,0 +1,257 @@
+// §22.F: per-NPC quest-stage dispatch scripts. Keyed by quest-role
+// symbol (matches the npc_roles: subtree in world.json5); each role's
+// body is a chain of `if` blocks tried in order. The first block whose
+// flag conditions match resolves any NPC-name / NPC-loc / dungeon-XY
+// bindings, optionally clws, and `play_script`s the matching speak.<x>
+// .<y> body. Stages are mutually exclusive by construction (each gates
+// on a different flag value), so plain sequential `if` blocks suffice
+// — no early-exit needed.
+//
+// Replaces the historical speak.c per-NPC stages_*[] tables + the
+// `speak_missions` micro-DSL in res.c (fold_speak_missions /
+// mission_spec types). speak.c::npc_mission_hint now resolves the
+// role for the talker's slot via res_role_for_slot and play_scripts
+// the matching role body.
+//
+// Bindings used by the called speak.<x>.<y> bodies:
+//   {<role>_name}  — engine_bind 'npc_name_at_role' over the role
+//   {<role>_loc}   — engine_bind 'npc_loc_at_role' over the role
+//   {<idx>_x|y}    — let-bind from engine_int 'wld_location_x|y' on
+//                    a world_locations symbol
+{
+  bandits_quest_giver: [
+    { if: { cond: { eq: [{ flag: 'garth.bandits' },
+                         { flag_value: ['garth.bandits', 'none'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.merchant.first_visit' },
+            ] } },
+    { if: { cond: { eq: [{ flag: 'garth.bandits' },
+                         { flag_value: ['garth.bandits', 'recovered'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.merchant.grateful' },
+            ] } },
+  ],
+
+  rangers_quest_giver: [
+    { if: { cond: { eq: [{ flag: 'ranger.letter' },
+                         { flag_value: ['ranger.letter', 'none'] }] },
+            then: [
+              { engine_bind: { fn: 'npc_name_at_role',
+                               args: ['ranger_brother'],
+                               var: 'ranger_name' } },
+              { engine_bind: { fn: 'npc_loc_at_role',
+                               args: ['ranger_brother'],
+                               var: 'ranger_loc' } },
+              { play_script: 'speak.ranger.first_visit' },
+            ] } },
+  ],
+
+  // flag[3] == 'none' (fighter intro) stays inline in speak.c — no
+  // script yet for the location-split intro screen.
+  fighter_intro: [
+    { if: { cond: { eq: [{ flag: 'fighter.priest_book' },
+                         { flag_value: ['fighter.priest_book',
+                                        'wizard_robbed'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.fighter.grateful' },
+            ] } },
+  ],
+
+  // Wizard reads the priest-chain flag.
+  wizard_robbed: [
+    { if: { cond: { eq: [{ flag: 'fighter.priest_book' },
+                         { flag_value: ['fighter.priest_book',
+                                        'priest_visited'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.wizard.robbed_flow' },
+            ] } },
+  ],
+
+  priest_with_book: [
+    { if: { cond: { eq: [{ flag: 'fighter.priest_book' },
+                         { flag_value: ['fighter.priest_book',
+                                        'priest_told'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'npc_name_at_role',
+                               args: ['wizard_robbed'],
+                               var: 'wizard_name' } },
+              { engine_bind: { fn: 'npc_name_at_role',
+                               args: ['fighter_intro'],
+                               var: 'giver_name' } },
+              { play_script: 'speak.priest.intro_flow' },
+            ] } },
+  ],
+
+  erethor_lute_bard: [
+    { if: { cond: { eq: [{ flag: 'erethor.lute' },
+                         { flag_value: ['erethor.lute', 'none'] }] },
+            then: [
+              { play_script: 'speak.erethor.first_visit' },
+            ] } },
+    { if: { cond: { eq: [{ flag: 'erethor.lute' },
+                         { flag_value: ['erethor.lute', 'lute_taken'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'npc_name_at_role',
+                               args: ['minstrel_cloak'],
+                               var: 'minstrel_name' } },
+              { engine_bind: { fn: 'npc_loc_at_role',
+                               args: ['minstrel_cloak'],
+                               var: 'minstrel_loc' } },
+              { play_script: 'speak.erethor.delivered_lute' },
+            ] } },
+  ],
+
+  // Brother reads the ranger's flag.
+  ranger_brother: [
+    { if: { cond: { eq: [{ flag: 'ranger.letter' },
+                         { flag_value: ['ranger.letter', 'accepted'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.brother.give_sword' },
+            ] } },
+  ],
+
+  crown_seer: [
+    { if: { cond: { eq: [{ flag: 'nymph.seeker' },
+                         { flag_value: ['nymph.seeker', 'none'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'npc_name_at_role',
+                               args: ['wizard_three_tasks'],
+                               var: 'seeker_name' } },
+              { engine_bind: { fn: 'npc_loc_at_role',
+                               args: ['wizard_three_tasks'],
+                               var: 'seeker_loc' } },
+              { play_script: 'speak.nymph.know_flow' },
+            ] } },
+  ],
+
+  // Master thief reads the silver-key chain flag.
+  master_thief: [
+    { if: { cond: { eq: [{ flag: 'silver_key' },
+                         { flag_value: ['silver_key', 'note_found'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'npc_name_at_role',
+                               args: ['silver_key_smith'],
+                               var: 'smith_name' } },
+              { play_script: 'speak.thief2.squeezed' },
+            ] } },
+  ],
+
+  peasant_husband: [
+    { if: { cond: { eq: [{ flag: 'peasant_wife' },
+                         { flag_value: ['peasant_wife', 'none'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.husband.first_visit' },
+            ] } },
+    { if: { cond: { eq: [{ flag: 'peasant_wife' },
+                         { flag_value: ['peasant_wife', 'rescued'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.husband.rescued' },
+            ] } },
+  ],
+
+  // Minstrel reads the Erethor-chain flag.
+  minstrel_cloak: [
+    { if: { cond: { eq: [{ flag: 'erethor.lute' },
+                         { flag_value: ['erethor.lute', 'note_received'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'npc_name_at_role',
+                               args: ['minstrel_cloak'],
+                               var: 'minstrel_name' } },
+              { engine_bind: { fn: 'npc_name_at_role',
+                               args: ['erethor_lute_bard'],
+                               var: 'next_town' } },
+              { play_script: 'speak.minstrel.gives_cloak' },
+            ] } },
+  ],
+
+  wizard_three_tasks: [
+    // task1 is a two-condition stage (nymph seen AND crown-chain idle).
+    { if: { cond: { and: [{ eq: [{ flag: 'nymph.seeker' },
+                                  { flag_value: ['nymph.seeker', 'told'] }] },
+                          { eq: [{ flag: 'mastercrown' },
+                                 { flag_value: ['mastercrown', 'none'] }] }] },
+            then: [
+              { engine_call: 'clw' },
+              { let: 'kobold_x',
+                value: { engine_int: 'wld_location_x',
+                         args: ['kobold_village'] } },
+              { let: 'kobold_y',
+                value: { engine_int: 'wld_location_y',
+                         args: ['kobold_village'] } },
+              { play_script: 'speak.wizard3t.task1_flow' },
+            ] } },
+    { if: { cond: { eq: [{ flag: 'mastercrown' },
+                         { flag_value: ['mastercrown', 'task1_done'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.wizard3t.task2_flow' },
+            ] } },
+    { if: { cond: { eq: [{ flag: 'mastercrown' },
+                         { flag_value: ['mastercrown', 'task2_done'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { let: 'dwarf_x',
+                value: { engine_int: 'wld_location_x',
+                         args: ['borin_camp'] } },
+              { let: 'dwarf_y',
+                value: { engine_int: 'wld_location_y',
+                         args: ['borin_camp'] } },
+              { play_script: 'speak.wizard3t.task3_flow' },
+            ] } },
+    { if: { cond: { eq: [{ flag: 'mastercrown' },
+                         { flag_value: ['mastercrown', 'borin_paid'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { let: 'crown_x',
+                value: { engine_int: 'wld_location_x',
+                         args: ['master_crown_dungeon'] } },
+              { let: 'crown_y',
+                value: { engine_int: 'wld_location_y',
+                         args: ['master_crown_dungeon'] } },
+              { play_script: 'speak.wizard3t.grateful_flow' },
+            ] } },
+  ],
+
+  silver_key_smith: [
+    { if: { cond: { eq: [{ flag: 'silver_key' },
+                         { flag_value: ['silver_key',
+                                        'thief2_squeezed'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.smith.after_thief2' },
+            ] } },
+  ],
+
+  hermit_troll_tooth: [
+    { if: { cond: { eq: [{ flag: 'hermit.troll_tooth' },
+                         { flag_value: ['hermit.troll_tooth', 'none'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { play_script: 'speak.hermit.welcome_visit' },
+            ] } },
+    { if: { cond: { eq: [{ flag: 'hermit.troll_tooth' },
+                         { flag_value: ['hermit.troll_tooth', 'extracted'] }] },
+            then: [
+              { engine_call: 'clw' },
+              { let: 'cave_x',
+                value: { engine_int: 'wld_location_x',
+                         args: ['hermit_dungeon'] } },
+              { let: 'cave_y',
+                value: { engine_int: 'wld_location_y',
+                         args: ['hermit_dungeon'] } },
+              { play_script: 'speak.hermit.tooth_trade' },
+            ] } },
+  ],
+}

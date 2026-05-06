@@ -1,0 +1,1663 @@
+// §17-F town-service scripts. C wrappers in src/towne.c handle the
+// static entry scene (blitgfx / entry text / initial delay) and
+// dispatch into the interactive loop here via play_script, passing
+// per-flow runtime bindings (NPC idx, NPC job, etc.).
+//
+// Text placeholders ({job}, {name}, ...) are populated two ways:
+//   1. Caller ryl_bind — from C. Passed through as-is; atoi-parseable
+//      ints can also be read via {var:'name'} in expressions.
+//   2. engine_bind op — resolves a string from the res layer
+//      (res_enum, res_town_name, object, pronoun) and stashes it
+//      in rt_env so {placeholder} expansion picks it up. Only
+//      valid as text; expr_var fails on RT_STR.
+{
+  // hut() — §17-F smoke test. Caller pre-resolves which NPC occupies
+  // the party's map square (`who`, 1..39) and that NPC's job slug
+  // (`npc_job_sym`, e.g. `merchant` / `ranger`). We pull the NPC name
+  // (via res_enum on the int slot) and the job display name (via
+  // res_enum_name_by_sym on the slug) each iteration, emit the
+  // greeter screen, offer a (T)alk / (L)eave menu.
+  hut: [
+    { loop: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'res_enum_name_by_sym', args: ['job', { var: 'npc_job_sym' }], var: 'job' } },
+      { engine_bind: { fn: 'res_enum', args: ['name', { var: 'who' }], var: 'name' } },
+      { emit: 'greeter' },
+      { menu_branch: {
+          prompt: 'menu',
+          options: [
+            { key: 'T', then: [
+              { speak: { building: 'none', town: 0 } },
+            ] },
+            { key: 'L', then: [
+              { engine_call: 'clw' },
+              { engine_call: 'clr_map_window' },
+              { engine_call: 'update_map' },
+              { break: true },
+            ] },
+          ],
+      } },
+    ] },
+  ],
+
+  // rumour() — picks one of 33 rumour lines (r0..r32) and emits it.
+  // The roll is `engine_int rumour_roll`, which wraps ryl_random(0, 32)
+  // with the RYL_REPLAY_RUMOUR=<N> override so fixtures
+  // (towne-thord-tavern-rumour-r{12,13,25,27}) can pin the arm. Four
+  // ids fold an NPC name (and optionally a "in <town>" / "at NxN" loc
+  // string) into the body via tx_fmt bindings; the remaining 29 are
+  // static text records, dispatched as the default arm via
+  // emit_indexed.
+  //
+  // Role -> NPC mapping lives in world.json5's npc_roles: subtree;
+  // npc_name_at_role / npc_loc_at_role resolve through that table so
+  // a rename in npcs: doesn't ripple into this script. The trailing
+  // `tx("\r\n")` separator the legacy emitted after each branch lives
+  // in the C trampoline (towne.c::rumour) — DSL flows that splice
+  // rumour into a screen (smith beer-accept, tavern (R)umours) keep
+  // calling `engine_call: 'rumour'`, which carries the separator.
+  rumour: [
+    { let: 'pick', value: { engine_int: 'rumour_roll' } },
+    { switch: {
+        expr: { var: 'pick' },
+        cases: [
+          { match: 12, then: [
+            { engine_bind: { fn: 'npc_name_at_role',
+                             args: ['bandits_quest_giver'],
+                             var: 'name1' } },
+            { emit: 'r12' },
+          ] },
+          { match: 13, then: [
+            { engine_bind: { fn: 'npc_name_at_role',
+                             args: ['rangers_quest_giver'],
+                             var: 'name2' } },
+            { emit: 'r13' },
+          ] },
+          { match: 25, then: [
+            { engine_bind: { fn: 'npc_name_at_role',
+                             args: ['crown_seer'],
+                             var: 'name15' } },
+            { engine_bind: { fn: 'npc_loc_at_role',
+                             args: ['crown_seer'],
+                             var: 'loc15' } },
+            { emit: 'r25' },
+          ] },
+          { match: 27, then: [
+            { engine_bind: { fn: 'npc_name_at_role',
+                             args: ['temple_of_thun_seer'],
+                             var: 'name13' } },
+            { engine_bind: { fn: 'npc_loc_at_role',
+                             args: ['temple_of_thun_seer'],
+                             var: 'loc13' } },
+            { emit: 'r27' },
+          ] },
+          { default: true, then: [
+            { emit_indexed: { fmt: 'r{}', value: { var: 'pick' } } },
+          ] },
+        ],
+    } },
+  ],
+
+  // church() — service menu inside a town. C wrapper is a pure
+  // play_script call; this script owns clr_map_window + blitgfx
+  // (churchpic=4), the main H/R/E/L loop, and the sub-menu "Who?
+  // (1-4)" for each action. Break paths: L leaves cleanly (clw +
+  // clr_map_window); H-on-corpse exits abruptly (clw + corpse +
+  // 1200ms, no clr_map_window — matches the original's `return;`).
+  //
+  // The "Who? (1-N)" sub-menus use digit_range, the dynamic-bound
+  // shape added alongside res_party_member_max(): hi is the
+  // engine_int 'pa_party_member_max', so the prompt automatically
+  // tracks whatever the engine reports (default 4, overridable via
+  // the limits.party_member_max knob and the RYL_PARTY_MEMBER_MAX
+  // smoke-fixture env override).
+  church: [
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'church' }] },
+    { loop: [
+      { engine_call: 'clw' },
+      { engine_call: 'status_line' },
+      { emit: 'intro' },
+      { menu_branch: {
+          prompt: 'menu',
+          options: [
+            { key: 'L', then: [
+              { engine_call: 'clw' },
+              { engine_call: 'clr_map_window' },
+              { break: true },
+            ] },
+            // --- (E)nergize: restore spellcaster's ma to wi for a fee.
+            { key: 'E', then: [
+              { engine_call: 'clw' },
+              { emit: 'who' },
+              { menu_branch: {
+                  options: [
+                    { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, index_var: 'who', then: [
+                      { if: {
+                          cond: { not: { engine_int: 'pa_is_spellcaster', args: [{ var: 'who' }] } },
+                          then: [
+                            { engine_call: 'clw' },
+                            { emit: 'not_spellcaster' },
+                            { pause: 1000 },
+                          ],
+                          else: [
+                            { if: {
+                                cond: { eq: [
+                                  { member: { var: 'who' }, field: 'magic' },
+                                  { member: { var: 'who' }, field: 'wisdom' },
+                                ] },
+                                then: [
+                                  { engine_call: 'clw' },
+                                  { emit: 'no_need_sp' },
+                                  { pause: 2000 },
+                                ],
+                                else: [
+                                  { engine_call: 'clw' },
+                                  // cost = lv * (wi - ma) * 2. The original's
+                                  // "if (!cost) cost = lv*2" fallback is
+                                  // unreachable when wi > ma and lv >= 1
+                                  // (always the case past create_party).
+                                  { let: 'cost', value: {
+                                      mul: [
+                                        { member: { var: 'who' }, field: 'level' },
+                                        { mul: [
+                                          { sub: [
+                                            { member: { var: 'who' }, field: 'wisdom' },
+                                            { member: { var: 'who' }, field: 'magic' },
+                                          ] },
+                                          2,
+                                        ] },
+                                      ],
+                                  } },
+                                  { emit: 'cost2' },
+                                  { menu_branch: {
+                                      prompt: 'pn_menu',
+                                      options: [
+                                        { key: 'P', then: [
+                                          { engine_call: 'clw' },
+                                          { if: {
+                                              cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                                              then: [
+                                                { emit: 'no_gold' },
+                                                { pause: 1000 },
+                                              ],
+                                              else: [
+                                                { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                                                { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'magic' } },
+                                                            op: 'set',
+                                                            value: { member: { var: 'who' }, field: 'wisdom' } } },
+                                                { engine_call: 'clw' },
+                                                { emit: 'restored' },
+                                                { pause: 1000 },
+                                              ],
+                                          } },
+                                        ] },
+                                      ],
+                                  } },
+                                ],
+                            } },
+                          ],
+                      } },
+                    ] },
+                  ],
+              } },
+            ] },
+            // --- (R)aise dead: cost = 650 * lv[who]. On pay, hp=1,
+            //     dead=0, pl++. Alive target just emits alive + 1200ms.
+            { key: 'R', then: [
+              { engine_call: 'clw' },
+              { emit: 'who' },
+              { menu_branch: {
+                  options: [
+                    { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, index_var: 'who', then: [
+                      { if: {
+                          cond: { engine_int: 'pa_is_alive', args: [{ var: 'who' }] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'subject'], var: 'pro_sub' } },
+                            { emit: 'alive' },
+                            { pause: 1200 },
+                          ],
+                          else: [
+                            { engine_call: 'clw' },
+                            { let: 'cost', value: { mul: [650, { member: { var: 'who' }, field: 'level' }] } },
+                            { emit: 'cost2' },
+                            { menu_branch: {
+                                prompt: 'pn_menu',
+                                options: [
+                                  { key: 'P', then: [
+                                    { engine_call: 'clw' },
+                                    { if: {
+                                        cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                                        then: [
+                                          { emit: 'no_gold' },
+                                          { pause: 1000 },
+                                        ],
+                                        else: [
+                                          { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'hit_points' } }, op: 'set', value: 1 } },
+                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'dead' } }, op: 'set', value: 0 } },
+                                          { mutate: { target: { pl: 0 }, op: 'add', value: 1 } },
+                                          { engine_call: 'clw' },
+                                          { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'object'], var: 'pro_obj' } },
+                                          { emit: 'raised' },
+                                          { pause: 1000 },
+                                        ],
+                                    } },
+                                  ] },
+                                ],
+                            } },
+                          ],
+                      } },
+                    ] },
+                  ],
+              } },
+            ] },
+            // --- (H)eal: cost = (h - hp) * 7. On dead target: show
+            //     corpse + 1200ms and BREAK out of church (original
+            //     used `return;`). Uses cost/no_gold2 text variants.
+            { key: 'H', then: [
+              { engine_call: 'clw' },
+              { emit: 'who' },
+              { menu_branch: {
+                  options: [
+                    { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, index_var: 'who', then: [
+                      { if: {
+                          cond: { engine_int: 'pa_is_dead', args: [{ var: 'who' }] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { emit: 'corpse' },
+                            { pause: 1200 },
+                            { break: true },
+                          ],
+                      } },
+                      { if: {
+                          cond: { eq: [
+                            { member: { var: 'who' }, field: 'hit_points' },
+                            { member: { var: 'who' }, field: 'health' },
+                          ] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'subject'], var: 'pro_sub' } },
+                            { emit: 'no_healing' },
+                            { pause: 1000 },
+                          ],
+                          else: [
+                            { let: 'cost', value: { mul: [
+                                { sub: [
+                                  { member: { var: 'who' }, field: 'health' },
+                                  { member: { var: 'who' }, field: 'hit_points' },
+                                ] },
+                                7,
+                            ] } },
+                            { engine_call: 'clw' },
+                            { emit: 'cost' },
+                            { menu_branch: {
+                                prompt: 'pn_menu',
+                                options: [
+                                  { key: 'P', then: [
+                                    // NB: no clw here — the original's heal
+                                    // pay branch omits the clw that energize/
+                                    // raise use, so no_gold2 stacks on top of
+                                    // the pn_menu text.
+                                    { if: {
+                                        cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                                        then: [
+                                          { emit: 'no_gold2' },
+                                          { pause: 1000 },
+                                        ],
+                                        else: [
+                                          { engine_call: 'clw' },
+                                          { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                                          { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'object'], var: 'pro_obj' } },
+                                          { emit: 'healed' },
+                                          { pause: 1000 },
+                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'hit_points' } },
+                                                      op: 'set',
+                                                      value: { member: { var: 'who' }, field: 'health' } } },
+                                        ],
+                                    } },
+                                  ] },
+                                ],
+                            } },
+                          ],
+                      } },
+                    ] },
+                  ],
+              } },
+            ] },
+          ],
+      } },
+    ] },
+  ],
+
+  // smith() — weapon / armor shop. C wrapper advances state.hour_of_day and
+  // resolves opening hours from world.json5's buildings.smith
+  // (opens_at / closes_at), passing them in as `open_lo` / `open_hi`
+  // bindings so the closed-screen check lives here and not in C.
+  //
+  // When open: clr_map_window + blitgfx(3) then the shop loop.
+  //   * ryl_chance(9) into beer_offer: A -> three accept_N screens +
+  //     rumour + ryl_pause; anything else -> decline + ryl_pause.
+  //   * Otherwise: B/S/L menu.
+  //       L — bye + clr_map_window + break.
+  //       B — A/W/N buy menu.
+  //           A — armor (ids 20..25, keys 1..6). oc = ch - 29 maps
+  //               '1'=49 -> 20, '6'=54 -> 25.
+  //           W — weapon pagination loop. N/P flip the page; any
+  //               other key exits. key_var holds the last keypress,
+  //               a switch maps it onto weapon ids 1 / 2 / 3 / 4 / 9
+  //               / 11 / 7 / 14 / 10 / 8 / 15 / 16; default is oc=0
+  //               (no purchase). The original's "inv_add(0) fills a
+  //               slot with zero and prints Deal!" bug is fixed by
+  //               that oc=0 gate — a pre-existing divergence between
+  //               the armor and weapon paths that replay fixtures
+  //               don't exercise today.
+  //       S — sell any item in slots 1..16 (keys A..P). Filters
+  //           `oc == 0 || oc > 30` (non-weapon/armor items) and
+  //           falls into the bargain loop: Y sells at pr, B rolls
+  //           0..99 with the 76/90 thresholds, N walks. Any other
+  //           key re-prompts with the same pr.
+  //
+  // References `common.yes` / `common.no` as absolute text ids
+  // (resolve_text_id treats dotted names as absolute). Uses emit,
+  // not screen, so the three tx0 lines emit separately and each
+  // carries its own cursor-right prefix — matches the four tx0
+  // calls the C code makes per bargain iteration.
+  smith: [
+    { if: {
+        cond: { or: [
+          { lt: [{ hour_of_day: 0 }, { var: 'open_lo' }] },
+          { gt: [{ hour_of_day: 0 }, { var: 'open_hi' }] },
+        ] },
+        then: [
+          { engine_call: 'clw' },
+          { emit: 'closed' },
+          { pause: 1000 },
+        ],
+        else: [
+          { engine_call: 'clr_map_window' },
+          { engine_call: 'blitgfx', args: [{ pic: 'smith' }] },
+          { loop: [
+            { engine_call: 'clw' },
+            { engine_call: 'status_line' },
+            { emit: 'intro' },
+            { if: {
+                cond: { chance: 9 },
+                then: [
+                  { emit: 'beer_offer' },
+                  { menu_branch: {
+                      prompt: 'beer_menu',
+                      options: [
+                        { key: 'A', then: [
+                            { engine_call: 'clw' },
+                            { emit: 'accept_1' },
+                            { pause: 2000 },
+                            { emit: 'accept_2' },
+                            { pause: 2000 },
+                            { emit: 'accept_3' },
+                            { pause: 2000 },
+                            { engine_call: 'clw' },
+                            { engine_call: 'rumour' },
+                            { wait_input: true },
+                        ] },
+                      ],
+                      // ryl_menu's (A)ccept/(D)ecline sentinel
+                      // defaults to D — anything not 'A' takes the
+                      // decline path. Folded into the default arm.
+                      default: [
+                        { engine_call: 'clw' },
+                        { emit: 'decline' },
+                        { wait_input: true },
+                      ],
+                  } },
+                ],
+                else: [
+                  { menu_branch: {
+                      prompt: 'shop_menu',
+                      options: [
+                        { key: 'L', then: [
+                            { engine_call: 'clw' },
+                            { emit: 'bye' },
+                            { pause: 1000 },
+                            { engine_call: 'clr_map_window' },
+                            { break: true },
+                        ] },
+                        { key: 'B', then: [
+                            { engine_call: 'clw' },
+                            { menu_branch: {
+                                prompt: 'buy_menu',
+                                options: [
+                                  // --- Armor buy
+                                  { key: 'A', then: [
+                                      // armor_menu pulls prices via
+                                      // {cost:<itemkey>} from
+                                      // data/world/items/armor.json5
+                                      // — no per-item let prelude.
+                                      { engine_call: 'clw' },
+                                      { emit: 'we_have' },
+                                      { emit: 'armor_menu' },
+                                      { menu_branch: {
+                                          key_var: 'armor_key',
+                                          options: [
+                                            { key_range: ['1', '6'], then: [
+                                              { switch: {
+                                                  expr: { var: 'armor_key' },
+                                                  cases: [
+                                                    { match: '1', then: [{ let: 'item_id', value: { item: 'leather'      } }] },
+                                                    { match: '2', then: [{ let: 'item_id', value: { item: 'chain_mail'   } }] },
+                                                    { match: '3', then: [{ let: 'item_id', value: { item: 'plate_mail'   } }] },
+                                                    { match: '4', then: [{ let: 'item_id', value: { item: 'ring_mail'    } }] },
+                                                    { match: '5', then: [{ let: 'item_id', value: { item: 'elvin_cloak'  } }] },
+                                                    { match: '6', then: [{ let: 'item_id', value: { item: 'mithril_mail' } }] },
+                                                  ],
+                                              } },
+                                              { let: 'price', value: { obcost: { var: 'item_id' } } },
+                                              { if: {
+                                                  cond: { lt: [{ gold: 0 }, { var: 'price' }] },
+                                                  then: [
+                                                    { engine_call: 'clw' },
+                                                    { emit: 'too_expensive' },
+                                                    { pause: 1000 },
+                                                  ],
+                                                  else: [
+                                                    { engine_call: 'clw' },
+                                                    { let: 'slot', value: { engine_int: 'inv_find_empty', args: [] } },
+                                                    { if: {
+                                                        cond: { eq: [{ var: 'slot' }, 0] },
+                                                        then: [
+                                                          { emit: 'cant_carry' },
+                                                          { pause: 1000 },
+                                                        ],
+                                                        else: [
+                                                          { mutate: { target: { inventory: { var: 'slot' } },
+                                                                      op: 'set',
+                                                                      value: { var: 'item_id' } } },
+                                                          { mutate: { target: { gold: 0 },
+                                                                      op: 'sub',
+                                                                      value: { var: 'price' } } },
+                                                          { emit: 'deal' },
+                                                          { pause: 1000 },
+                                                        ],
+                                                    } },
+                                                  ],
+                                              } },
+                                            ] },
+                                          ],
+                                      } },
+                                  ] },
+                                  // --- Weapon buy with N/P pagination.
+                                  // Prices come straight from
+                                  // data/world/items/weapons.json5 via
+                                  // the {cost:<itemkey>} placeholder in
+                                  // weapon_page1/weapon_page2 — no
+                                  // per-item bindings needed.
+                                  { key: 'W', then: [
+                                      { let: 'page', value: 1 },
+                                      { loop: [
+                                        { engine_call: 'clw' },
+                                        { emit: 'we_have' },
+                                        { if: { cond: { eq: [{ var: 'page' }, 1] },
+                                                then: [{ emit: 'weapon_page1' }] } },
+                                        { if: { cond: { eq: [{ var: 'page' }, 2] },
+                                                then: [{ emit: 'weapon_page2' }] } },
+                                        { menu_branch: {
+                                            key_var: 'weapon_key',
+                                            options: [
+                                              { key: 'N', then: [
+                                                  { if: { cond: { eq: [{ var: 'page' }, 1] },
+                                                          then: [{ let: 'page', value: 2 }] } },
+                                              ] },
+                                              { key: 'P', then: [
+                                                  { if: { cond: { eq: [{ var: 'page' }, 2] },
+                                                          then: [{ let: 'page', value: 1 }] } },
+                                              ] },
+                                            ],
+                                            // key_var fires on default
+                                            // too (see do_menu_branch),
+                                            // so `weapon_ch` is always
+                                            // the last key pressed.
+                                            default: [{ break: true }],
+                                        } },
+                                      ] },
+                                      { switch: {
+                                          expr: { var: 'weapon_key' },
+                                          cases: [
+                                            { match: '1', then: [{ let: 'item_id', value: { item: 'sword'          } }] },
+                                            { match: '2', then: [{ let: 'item_id', value: { item: 'axe'            } }] },
+                                            { match: '3', then: [{ let: 'item_id', value: { item: 'bow'            } }] },
+                                            { match: '4', then: [{ let: 'item_id', value: { item: 'club'           } }] },
+                                            { match: '5', then: [{ let: 'item_id', value: { item: 'halbard'        } }] },
+                                            { match: '6', then: [{ let: 'item_id', value: { item: 'crossbow'       } }] },
+                                            { match: '7', then: [{ let: 'item_id', value: { item: 'longsword'      } }] },
+                                            { match: '8', then: [{ let: 'item_id', value: { item: 'two_hand_sword' } }] },
+                                            { match: '9', then: [{ let: 'item_id', value: { item: 'pole_arm'       } }] },
+                                            { match: 'A', then: [{ let: 'item_id', value: { item: 'trident'        } }] },
+                                            { match: 'B', then: [{ let: 'item_id', value: { item: 'magic_dagger'   } }] },
+                                            { match: 'C', then: [{ let: 'item_id', value: { item: 'magic_sword'    } }] },
+                                            { default: true, then: [{ let: 'item_id', value: { item: 'blank'      } }] },
+                                          ],
+                                      } },
+                                      { if: {
+                                          cond: { ne: [{ var: 'item_id' }, { item: 'blank' }] },
+                                          then: [
+                                            { let: 'price', value: { obcost: { var: 'item_id' } } },
+                                            { if: {
+                                                cond: { lt: [{ gold: 0 }, { var: 'price' }] },
+                                                then: [
+                                                  { engine_call: 'clw' },
+                                                  { emit: 'too_expensive' },
+                                                  { pause: 1000 },
+                                                ],
+                                                else: [
+                                                  { engine_call: 'clw' },
+                                                  { let: 'slot', value: { engine_int: 'inv_find_empty', args: [] } },
+                                                  { if: {
+                                                      cond: { eq: [{ var: 'slot' }, 0] },
+                                                      then: [
+                                                        { emit: 'cant_carry' },
+                                                        { pause: 1000 },
+                                                      ],
+                                                      else: [
+                                                        { mutate: { target: { inventory: { var: 'slot' } },
+                                                                    op: 'set',
+                                                                    value: { var: 'item_id' } } },
+                                                        { mutate: { target: { gold: 0 },
+                                                                    op: 'sub',
+                                                                    value: { var: 'price' } } },
+                                                        { emit: 'deal' },
+                                                        { pause: 1000 },
+                                                      ],
+                                                  } },
+                                                ],
+                                            } },
+                                          ],
+                                      } },
+                                  ] },
+                                  // N or any other key: fall through
+                                  // (back to outer shop loop), no
+                                  // purchase.
+                                ],
+                            } },
+                        ] },
+                        { key: 'S', then: [
+                            { engine_call: 'clw' },
+                            { emit: 'sell_prompt' },
+                            { engine_call: 'inv_list' },
+                            { menu_branch: {
+                                key_var: 'sell_key',
+                                options: [
+                                  { letter_range: { lo: 'A', count: { engine_int: 'inv_slot_max' } },
+                                    index_var: 'slot',
+                                    then: [
+                                    { let: 'item_id', value: { inventory: { var: 'slot' } } },
+                                    { let: 'price', value: { div: [{ obcost: { var: 'item_id' } }, 2] } },
+                                    { if: {
+                                        cond: { or: [
+                                          { eq: [{ var: 'item_id' }, 0] },
+                                          { gt: [{ var: 'item_id' }, 30] },
+                                        ] },
+                                        then: [
+                                          { engine_call: 'clw' },
+                                          { emit: 'not_w_or_a' },
+                                          { pause: 1000 },
+                                        ],
+                                        else: [
+                                          { loop: [
+                                            { engine_call: 'clw' },
+                                            { emit: 'offer' },
+                                            { emit: 'common.yes' },
+                                            { emit: 'common.no' },
+                                            { emit: 'bargain_opt' },
+                                            { menu_branch: {
+                                                options: [
+                                                  { key: 'Y', then: [
+                                                      { mutate: { target: { inventory: { var: 'slot' } },
+                                                                  op: 'set',
+                                                                  value: 0 } },
+                                                      { mutate: { target: { gold: 0 },
+                                                                  op: 'add',
+                                                                  value: { var: 'price' } } },
+                                                      { break: true },
+                                                  ] },
+                                                  { key: 'B', then: [
+                                                      { let: 'haggle_roll', value: { random: [0, 99] } },
+                                                      { if: {
+                                                          cond: { gt: [{ var: 'haggle_roll' }, 90] },
+                                                          then: [
+                                                            { let: 'price', value: {
+                                                                add: [
+                                                                  { var: 'price' },
+                                                                  { div: [{ var: 'price' }, 4] },
+                                                                ],
+                                                            } },
+                                                          ],
+                                                      } },
+                                                      { if: {
+                                                          cond: { gt: [{ var: 'haggle_roll' }, 75] },
+                                                          then: [
+                                                            { let: 'price', value: {
+                                                                add: [
+                                                                  { var: 'price' },
+                                                                  { div: [{ var: 'price' }, 6] },
+                                                                ],
+                                                            } },
+                                                          ],
+                                                      } },
+                                                      { if: {
+                                                          cond: { lt: [{ var: 'haggle_roll' }, 76] },
+                                                          then: [
+                                                            { engine_call: 'clw' },
+                                                            { emit: 'no_thanks' },
+                                                            { pause: 1000 },
+                                                            { break: true },
+                                                          ],
+                                                      } },
+                                                  ] },
+                                                  { key: 'N', then: [{ break: true }] },
+                                                  // Any other key:
+                                                  // re-prompt with
+                                                  // the same pr
+                                                  // (matches the
+                                                  // original's
+                                                  // while(1) fall-
+                                                  // through).
+                                                ],
+                                            } },
+                                          ] },
+                                        ],
+                                    } },
+                                  ] },
+                                ],
+                            } },
+                        ] },
+                      ],
+                  } },
+                ],
+            } },
+          ] },
+        ],
+    } },
+  ],
+
+  // tavern() — drinking hall, rumour hub, and the scruffy-dealer
+  // chance encounter. C wrapper advances state.hour_of_day and looks up
+  // buildings.tavern (opens_at:6, closes_at:1 — wrap), handing the
+  // script `open_lo`/`open_hi` to drive the closed screen.
+  //
+  // Closed check uses the WRAP form
+  // `hour_of_day < open_lo && hour_of_day > open_hi`
+  // (closed only in the pre-dawn window 2..5). Smith-style buildings
+  // use the non-wrap form; both shapes share the same bindings.
+  //
+  // Scruffy offer — one-shot, gated by ryl_chance(5 + x) where x is
+  // the sum of charisma/10 across priest (cl==5) members. Item id
+  // draws on `random(0, 16) + 1` mapped through a 17-case switch to
+  // ids 15 / 17 / 26 / 38 / 41 / 100..111. The original used
+  // `random(0, 15) + 1`, leaving case 17 (id 111, Jazzyfoot)
+  // unreachable — fixed in migration so every listed special can
+  // actually appear. Buy path uses inv_find_empty + inventory
+  // mutate; the original called inv_add which is functionally
+  // identical for non-special item storage.
+  //
+  // Main menu loop: L leaves, S hands to speak(1, twn), T runs the
+  // tell-story flow (1..4 select member, dead -> dead_story, else
+  // T/B story type -> st score thresholds, liar path breaks the
+  // tavern outright like the original `return`). R consumes a
+  // rumour token (caps at 5 before the bar goes quiet); O drinks
+  // A..D at 2/3/4/1 gold, per-member heal of pr/2+1 clamped to h.
+  //
+  // `who` is engine_bound (RT_STR, pa_name) so `{who}` in stands_up
+  // reads as the member's display name. The int form of the member
+  // index is kept under `mi` — once engine_bind flips `who` to
+  // RT_STR it is no longer readable as an int (expr_var refuses).
+  tavern: [
+    { if: {
+        cond: { and: [
+          { lt: [{ hour_of_day: 0 }, { var: 'open_lo' }] },
+          { gt: [{ hour_of_day: 0 }, { var: 'open_hi' }] },
+        ] },
+        then: [
+          { engine_call: 'clw' },
+          { emit: 'closed' },
+          { pause: 1000 },
+        ],
+        else: [
+          { engine_call: 'clr_map_window' },
+          { engine_call: 'blitgfx', args: [{ pic: 'tavern' }] },
+
+          // Scruffy-boost: sum of ch[m]/10 across priest members
+          // (cl==5). Priest in a party raises the chance that the
+          // scruffy dealer approaches.
+          { let: 'priest_bonus', value: 0 },
+          { for_member: { var: 'member', then: [
+            { if: {
+                cond: { eq: [{ member: { var: 'member' }, field: 'class' },
+                              { enum: ['pc_class', 'priest'] }] }, // not engine_int — bare expr in eq:
+                then: [
+                  { let: 'priest_bonus', value: { add: [
+                    { var: 'priest_bonus' },
+                    { div: [{ member: { var: 'member' }, field: 'charisma' }, 10] },
+                  ] } },
+                ],
+            } },
+          ] } },
+
+          // One-shot offer gate. Fails -> straight to main loop.
+          { if: {
+              cond: { chance: { add: [5, { var: 'priest_bonus' }] } },
+              then: [
+                { engine_call: 'clw' },
+                { emit: 'scruffy_1' },
+                { pause: 3000 },
+                { emit: 'scruffy_2' },
+                { pause: 3000 },
+                { engine_call: 'clw' },
+                { let: 'item_id', value: { add: [{ random: [0, 16] }, 1] } },
+                { switch: {
+                    expr: { var: 'item_id' },
+                    cases: [
+                      { match: 1,  then: [{ let: 'item_id', value: { item: 'magic_dagger'        } }] },
+                      { match: 2,  then: [{ let: 'item_id', value: { item: 'magic_axe'           } }] },
+                      { match: 3,  then: [{ let: 'item_id', value: { item: 'admt_mail'           } }] },
+                      { match: 4,  then: [{ let: 'item_id', value: { item: 'amber_potion'        } }] },
+                      { match: 5,  then: [{ let: 'item_id', value: { item: 'green_gem'           } }] },
+                      { match: 6,  then: [{ let: 'item_id', value: { item: 'frost_wand'          } }] },
+                      { match: 7,  then: [{ let: 'item_id', value: { item: 'fire_wand'           } }] },
+                      { match: 8,  then: [{ let: 'item_id', value: { item: 'gem_of_confusion'    } }] },
+                      { match: 9,  then: [{ let: 'item_id', value: { item: 'gem_of_blindness'    } }] },
+                      { match: 10, then: [{ let: 'item_id', value: { item: 'drums_of_death'      } }] },
+                      { match: 11, then: [{ let: 'item_id', value: { item: 'staff_of_healing'    } }] },
+                      { match: 12, then: [{ let: 'item_id', value: { item: 'blessing_scroll'     } }] },
+                      { match: 13, then: [{ let: 'item_id', value: { item: 'staff_of_curing'     } }] },
+                      { match: 14, then: [{ let: 'item_id', value: { item: 'gem_of_resurrection' } }] },
+                      { match: 15, then: [{ let: 'item_id', value: { item: 'kaels_axe'           } }] },
+                      { match: 16, then: [{ let: 'item_id', value: { item: 'holy_handgrenade'    } }] },
+                      { match: 17, then: [{ let: 'item_id', value: { item: 'flute_of_madness'    } }] },
+                    ],
+                } },
+                { engine_bind: { fn: 'object', args: [{ var: 'item_id' }], var: 'item' } },
+                { let: 'price', value: { obcost: { var: 'item_id' } } },
+                { emit: 'scruffy_offer' },
+                { emit: 'buy_nothanks' },
+                // Original `while (1) { ... if (c=='N'||c=='B') break; }`
+                // spins on the key read until a mapped key lands. The
+                // DSL menu_branch takes a single keypress, so wrap it
+                // in a loop and break from each handler to match.
+                { loop: [
+                  { menu_branch: {
+                      options: [
+                        { key: 'B', then: [
+                          { engine_call: 'clw' },
+                          { if: {
+                              cond: { lt: [{ gold: 0 }, { var: 'price' }] },
+                              then: [
+                                { emit: 'scruffy_broke' },
+                                { pause: 800 },
+                              ],
+                              else: [
+                                { let: 'slot', value: { engine_int: 'inv_find_empty', args: [] } },
+                                { if: {
+                                    cond: { eq: [{ var: 'slot' }, 0] },
+                                    then: [
+                                      { emit: 'scruffy_full' },
+                                      { pause: 1000 },
+                                    ],
+                                    else: [
+                                      { mutate: { target: { inventory: { var: 'slot' } },
+                                                  op: 'set', value: { var: 'i' } } },
+                                      { emit: 'scruffy_deal' },
+                                      { mutate: { target: { gold: 0 },
+                                                  op: 'sub', value: { var: 'price' } } },
+                                      { pause: 800 },
+                                    ],
+                                } },
+                              ],
+                          } },
+                          { break: true },
+                        ] },
+                        { key: 'N', then: [
+                          { engine_call: 'clw' },
+                          { emit: 'scruffy_no' },
+                          { pause: 1000 },
+                          { break: true },
+                        ] },
+                      ],
+                  } },
+                ] },
+              ],
+          } },
+
+          // Main menu loop.
+          { let: 'rumours', value: 0 },
+          { loop: [
+            { engine_call: 'clw' },
+            { engine_bind: { fn: 'npc_in_town',
+                             args: ['tavernkeeper', { twn: 0 }],
+                             var: 'name' } },
+            { emit: 'greeter' },
+            { menu_branch: {
+                prompt: 'main_menu',
+                options: [
+                  { key: 'L', then: [
+                    { engine_call: 'clw' },
+                    { engine_call: 'clr_map_window' },
+                    { break: true },
+                  ] },
+                  { key: 'S', then: [
+                    { speak: { building: 'inn' } },
+                  ] },
+                  // --- (T)ell story: pick a member (1..4). Dead
+                  //     members produce the dead_story vignette.
+                  //     Alive members get the T/B story-type pick,
+                  //     an `st` score threshold ladder with ch
+                  //     nudges per outcome, and the liar path that
+                  //     breaks the tavern outright on a failed
+                  //     boast charisma roll.
+                  { key: 'T', then: [
+                    { engine_call: 'clw' },
+                    { emit: 'story_who' },
+                    { menu_branch: {
+                        options: [
+                          { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, index_var: 'member_idx', then: [
+                            { if: {
+                                cond: { engine_int: 'pa_is_dead', args: [{ var: 'member_idx' }] },
+                                then: [
+                                  { engine_call: 'clw' },
+                                  { emit: 'dead_story' },
+                                  { pause: 2000 },
+                                ],
+                                else: [
+                                  { engine_call: 'clw' },
+                                  { engine_bind: { fn: 'pa_name', args: [{ var: 'member_idx' }], var: 'who' } },
+                                  { emit: 'stands_up' },
+                                  { pause: 2000 },
+                                  { emit: 'yeah' },
+                                  { pause: 2000 },
+                                  // ryl_menu's story_menu has no
+                                  // fallback letter (default result
+                                  // 0 in C); unmapped keys leave
+                                  // is_boast == 0 (T behaviour).
+                                  { let: 'is_boast', value: 0 },
+                                  { menu_branch: {
+                                      prompt: 'story_menu',
+                                      options: [
+                                        { key: 'T', then: [{ let: 'is_boast', value: 0 }] },
+                                        { key: 'B', then: [{ let: 'is_boast', value: 1 }] },
+                                      ],
+                                  } },
+                                  { let: 'score', value: 0 },
+                                  { if: { cond: { eq: [{ var: 'is_boast' }, 1] },
+                                          then: [{ let: 'score', value: { add: [{ var: 'score' }, 100] } }] } },
+                                  { if: { cond: { eq: [
+                                            { member: { var: 'member_idx' }, field: 'class' },
+                                            5,
+                                          ] },
+                                          then: [{ let: 'score', value: { add: [{ var: 'score' }, 100] } }] } },
+                                  { if: { cond: { gt: [
+                                            { member: { var: 'member_idx' }, field: 'charisma' },
+                                            90,
+                                          ] },
+                                          then: [{ let: 'score', value: { add: [{ var: 'score' }, 50] } }] } },
+                                  { if: { cond: { gt: [
+                                            { member: { var: 'member_idx' }, field: 'charisma' },
+                                            70,
+                                          ] },
+                                          then: [{ let: 'score', value: { add: [{ var: 'score' }, 50] } }] } },
+                                  { let: 'score', value: { add: [{ var: 'score' }, { random: [1, 150] }] } },
+
+                                  // Boast + failed charisma roll:
+                                  // thrown out, ch -= 10 (floor 0),
+                                  // BREAK the main loop so the
+                                  // script returns to towne.enter.
+                                  // Original used `return`.
+                                  { if: {
+                                      cond: { eq: [{ var: 'is_boast' }, 1] },
+                                      then: [
+                                        { if: {
+                                            cond: { gt: [
+                                              { random: [0, 99] },
+                                              { member: { var: 'member_idx' }, field: 'charisma' },
+                                            ] },
+                                            then: [
+                                              { engine_call: 'clw' },
+                                              { emit: 'liar_kicked' },
+                                              { pause: 2000 },
+                                              { emit: 'thrown_out' },
+                                              { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
+                                                          op: 'sub', value: 10,
+                                                          clamp: { min: 0 } } },
+                                              { engine_call: 'clr_map_window' },
+                                              { break: true },
+                                            ],
+                                        } },
+                                      ],
+                                  } },
+
+                                  { engine_call: 'clw' },
+                                  { if: { cond: { gt: [{ var: 'score' }, 400] },
+                                          then: [
+                                            { emit: 'st_superb' },
+                                            { wait_input: true },
+                                            { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
+                                                        op: 'add', value: 3 } },
+                                          ] } },
+                                  { if: { cond: { and: [
+                                            { gt: [{ var: 'score' }, 300] },
+                                            { lt: [{ var: 'score' }, 401] },
+                                          ] },
+                                          then: [
+                                            { emit: 'st_vgood' },
+                                            { wait_input: true },
+                                            { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
+                                                        op: 'add', value: 1 } },
+                                          ] } },
+                                  { if: { cond: { and: [
+                                            { gt: [{ var: 'score' }, 150] },
+                                            { lt: [{ var: 'score' }, 301] },
+                                          ] },
+                                          then: [
+                                            { emit: 'st_nice' },
+                                            { wait_input: true },
+                                          ] } },
+                                  { if: { cond: { and: [
+                                            { gt: [{ var: 'score' }, 100] },
+                                            { lt: [{ var: 'score' }, 151] },
+                                          ] },
+                                          then: [
+                                            { emit: 'st_bored' },
+                                            { wait_input: true },
+                                            { if: { cond: { gt: [
+                                                      { member: { var: 'member_idx' }, field: 'charisma' },
+                                                      0,
+                                                    ] },
+                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
+                                                                       op: 'sub', value: 1 } }] } },
+                                          ] } },
+                                  { if: { cond: { lt: [{ var: 'score' }, 101] },
+                                          then: [
+                                            { emit: 'st_asleep' },
+                                            { wait_input: true },
+                                            { if: { cond: { gte: [
+                                                      { member: { var: 'member_idx' }, field: 'charisma' },
+                                                      3,
+                                                    ] },
+                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
+                                                                       op: 'sub', value: 3 } }] } },
+                                          ] } },
+                                ],
+                            } },
+                          ] },
+                        ],
+                    } },
+                  ] },
+                  // --- (R)umours: up to 5 per visit, then the bar
+                  //     goes quiet. Switch on random(0,4) picks an
+                  //     intro (old man / bard / halfling / keeper /
+                  //     bargirl), then engine_call rumour runs the
+                  //     body. rum_* texts carry a trailing blank
+                  //     line that replaces the original tx("\r\n")
+                  //     separator.
+                  { key: 'R', then: [
+                    { engine_call: 'clw' },
+                    { if: { cond: { lt: [{ var: 'rumours' }, 5] },
+                            then: [{ let: 'rumours', value: { add: [{ var: 'rumours' }, 1] } }] } },
+                    { if: {
+                        cond: { gt: [{ var: 'rumours' }, 4] },
+                        then: [
+                          { emit: 'quiet' },
+                          { wait_input: true },
+                        ],
+                        else: [
+                          { switch: {
+                              expr: { random: [0, 4] },
+                              cases: [
+                                { match: 0, then: [{ emit: 'rum_old' }] },
+                                { match: 1, then: [{ emit: 'rum_bard' }] },
+                                { match: 2, then: [{ emit: 'rum_halfling' }] },
+                                { match: 3, then: [{ emit: 'rum_keeper' }] },
+                                { match: 4, then: [{ emit: 'rum_bargirl' }] },
+                              ],
+                          } },
+                          { engine_call: 'rumour' },
+                          { wait_input: true },
+                        ],
+                    } },
+                  ] },
+                  // --- (O)rder drink: A..D at 2/3/4/1 gold. A..C
+                  //     emit aah, D emits laughed_at (Fanta mocker).
+                  //     Payment deducts pr, then every member (dead
+                  //     included — matches the original loop) gets
+                  //     pr/2+1 hp clamped to h.
+                  { key: 'O', then: [
+                    { engine_call: 'clw' },
+                    { emit: 'order_header' },
+                    { emit: 'order_menu' },
+                    { menu_branch: {
+                        key_var: 'drink_key',
+                        options: [
+                          { key_range: ['A', 'D'], then: [
+                            { let: 'price', value: 0 },
+                            { switch: {
+                                expr: { var: 'drink_key' },
+                                cases: [
+                                  { match: 'A', then: [{ let: 'price', value: 2 }] },
+                                  { match: 'B', then: [{ let: 'price', value: 3 }] },
+                                  { match: 'C', then: [{ let: 'price', value: 4 }] },
+                                  { match: 'D', then: [{ let: 'price', value: 1 }] },
+                                ],
+                            } },
+                            { if: {
+                                cond: { lt: [{ gold: 0 }, { var: 'price' }] },
+                                then: [
+                                  { engine_call: 'clw' },
+                                  { emit: 'no_drink' },
+                                  { pause: 1000 },
+                                ],
+                                else: [
+                                  { engine_call: 'clw' },
+                                  { if: { cond: { ne: [{ var: 'drink_key' }, 'D'] },
+                                          then: [
+                                            { emit: 'aah' },
+                                            { pause: 1000 },
+                                          ],
+                                          else: [
+                                            { emit: 'laughed_at' },
+                                            { pause: 2000 },
+                                          ] } },
+                                  { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'price' } } },
+                                  { for_member: { var: 'member', then: [
+                                    { mutate: {
+                                        target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
+                                        op: 'add',
+                                        value: { add: [{ div: [{ var: 'price' }, 2] }, 1] },
+                                        clamp: { max: { member: { var: 'member' }, field: 'health' } },
+                                    } },
+                                  ] } },
+                                ],
+                            } },
+                          ] },
+                        ],
+                    } },
+                  ] },
+                ],
+            } },
+          ] },
+        ],
+    } },
+  ],
+
+  // inn() — innkeeper: supper, drink, lodging, and letter-sending.
+  // C wrapper advances state.hour_of_day; the inn is always open
+  // (no closed-hour check, no buildings.inn entry needed).
+  //
+  // Outer loop cycles through three Y/N prompts — supper, drink,
+  // lodging. Declining lodging drops into a terminal chitchat
+  // sub-menu that wraps speak(2, twn) so the party can send
+  // letters; only L exits. Any other lodging-path exit (room-pay
+  // success, kicked out for lack of gold, or L-leave) also ends
+  // the inn by breaking the outer loop.
+  //
+  // Costs: supper and lodging share the same `15 * lv[1]^2`
+  // formula (computed once at the loop top); drinks are flat
+  // A/B/C/D/E = 2/3/5/7/1 gold. Healing: supper +6 hp, drink
+  // +pr/2+1, morning-rise +h/4 — all clamped to h via mutate
+  // clamp, and skipped for dead members. The no_drink text is
+  // shared with the tavern (towne.tavern.no_drink).
+  //
+  // First DSL use of the hour_of_day mutate target (set to 5 on
+  // wake) and LV_HOURS_RESTED (set to 14 at bedtime); both land
+  // via §17-F's expanded lvalue registry.
+  inn: [
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'inn' }] },
+    { loop: [
+      // Shared cost for supper and lodging: 15 * lv[1] * lv[1].
+      { let: 'cost', value: { mul: [
+        { mul: [15, { member: 1, field: 'level' }] },
+        { member: 1, field: 'level' },
+      ] } },
+
+      // --- Supper
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'npc_in_town',
+                       args: ['innkeeper', { twn: 0 }],
+                       var: 'name' } },
+      { emit: 'greeter' },
+      { emit: 'common.yes' },
+      { emit: 'common.no' },
+      { menu_branch: {
+          options: [
+            { key: 'Y', then: [
+              { if: {
+                  cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                  then: [
+                    { engine_call: 'clw' },
+                    { emit: 'supper_cost' },
+                    { pause: 1000 },
+                  ],
+                  else: [
+                    { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                    { engine_call: 'clw' },
+                    { emit: 'supper_served' },
+                    { for_member: { var: 'member', then: [
+                      { if: {
+                          cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
+                          then: [
+                            { mutate: {
+                                target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
+                                op: 'add', value: 6,
+                                clamp: { max: { member: { var: 'member' }, field: 'health' } },
+                            } },
+                          ],
+                      } },
+                    ] } },
+                    { wait_input: true },
+                  ],
+              } },
+            ] },
+          ],
+      } },
+
+      // --- Drink
+      { engine_call: 'clw' },
+      { emit: 'drink_q' },
+      { emit: 'common.yes' },
+      { emit: 'common.no' },
+      { menu_branch: {
+          options: [
+            { key: 'Y', then: [
+              { engine_call: 'clw' },
+              { emit: 'drink_menu' },
+              { menu_branch: {
+                  key_var: 'drink_key',
+                  options: [
+                    { key_range: ['A', 'E'], then: [
+                      { let: 'price', value: 0 },
+                      { switch: {
+                          expr: { var: 'drink_key' },
+                          cases: [
+                            { match: 'A', then: [{ let: 'price', value: 2 }] }, // Ale
+                            { match: 'B', then: [{ let: 'price', value: 3 }] }, // Mead
+                            { match: 'C', then: [{ let: 'price', value: 5 }] }, // Wine
+                            { match: 'D', then: [{ let: 'price', value: 7 }] }, // Whiskey
+                            { match: 'E', then: [{ let: 'price', value: 1 }] }, // Fanta
+                          ],
+                      } },
+                      { if: {
+                          cond: { lt: [{ gold: 0 }, { var: 'price' }] },
+                          then: [
+                            { engine_call: 'clw' },
+                            // Shared with tavern; absolute reference.
+                            { emit: 'towne.tavern.no_drink' },
+                            { pause: 1000 },
+                          ],
+                          else: [
+                            { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'price' } } },
+                            { engine_call: 'clw' },
+                            { if: {
+                                cond: { ne: [{ var: 'drink_key' }, 69] },
+                                then: [{ emit: 'ahh' }],
+                                else: [{ emit: 'giggle' }],
+                            } },
+                            { pause: 1000 },
+                            { for_member: { var: 'member', then: [
+                              { if: {
+                                  cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
+                                  then: [
+                                    { mutate: {
+                                        target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
+                                        op: 'add',
+                                        value: { add: [{ div: [{ var: 'price' }, 2] }, 1] },
+                                        clamp: { max: { member: { var: 'member' }, field: 'health' } },
+                                    } },
+                                  ],
+                              } },
+                            ] } },
+                          ],
+                      } },
+                    ] },
+                  ],
+              } },
+            ] },
+          ],
+      } },
+
+      // --- Lodging. Y-path branches on T (take) / L or default
+      //     (leave); N-path drops into the chitchat loop. Every
+      //     terminating branch below must `break: true` so the
+      //     outer loop exits and the wrapper returns.
+      { engine_call: 'clw' },
+      { emit: 'lodging_q' },
+      { emit: 'common.yes' },
+      { emit: 'common.no' },
+      { menu_branch: {
+          options: [
+            { key: 'Y', then: [
+              { engine_call: 'clw' },
+              { emit: 'room_cost' },
+              { menu_branch: {
+                  prompt: 'room_menu',
+                  options: [
+                    { key: 'T', then: [
+                      { if: {
+                          cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { emit: 'no_gold_kick' },
+                            { pause: 2000 },
+                            { engine_call: 'clr_map_window' },
+                            { break: true },
+                          ],
+                          else: [
+                            { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                            { engine_call: 'clw' },
+                            { emit: 'bedtime' },
+                            { pause: 1000 },
+                            { emit: 'zzz' },
+                            { mutate: { target: { hours_rested: 0 }, op: 'set', value: 14 } },
+                            { pause: 1500 },
+                            { emit: 'morning' },
+                            { wait_input: true },
+                            { mutate: { target: { hour_of_day: 0 }, op: 'set', value: 5 } },
+                            { for_member: { var: 'member', then: [
+                              { if: {
+                                  cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
+                                  then: [
+                                    { mutate: {
+                                        target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
+                                        op: 'add',
+                                        value: { div: [{ member: { var: 'member' }, field: 'health' }, 4] },
+                                        clamp: { max: { member: { var: 'member' }, field: 'health' } },
+                                    } },
+                                  ],
+                              } },
+                            ] } },
+                            { engine_call: 'clr_map_window' },
+                            { break: true },
+                          ],
+                      } },
+                    ] },
+                  ],
+                  // ryl_menu default-L: any non-T key leaves.
+                  default: [
+                    { engine_call: 'clw' },
+                    { engine_call: 'clr_map_window' },
+                    { break: true },
+                  ],
+              } },
+            ] },
+          ],
+          // Declined lodging: terminal chitchat loop. C sends a
+          // letter via speak(2, twn); L (or any non-C key) exits.
+          default: [
+            { loop: [
+              { engine_call: 'clw' },
+              { emit: 'leaves' },
+              { menu_branch: {
+                  prompt: 'chit_menu',
+                  options: [
+                    { key: 'C', then: [
+                      { speak: { building: 'tavern' } },
+                    ] },
+                  ],
+                  default: [
+                    { engine_call: 'clw' },
+                    { engine_call: 'clr_map_window' },
+                    { break: true },
+                  ],
+              } },
+            ] },
+            { break: true },
+          ],
+      } },
+    ] },
+  ],
+
+  // merchant() — general goods shop. C wrapper advances
+  // state.hour_of_day and looks up buildings.merchant (opens_at:6,
+  // closes_at:18 — non-wrap), handing the script `open_lo` /
+  // `open_hi` for the closed-hour screen (same bindings shape
+  // smith / tavern use; see world.json5 buildings).
+  //
+  // Main menu loop: L leaves, S sells a single inventory slot,
+  // B enters the inner buy loop.
+  //
+  // Sell (S): inv_list + single keypress A..P picks a slot. Slots
+  // holding items `oc < 32 || oc == 47` (weapons/armor and the
+  // donkey) are rejected as wrong_kind. Otherwise offer
+  // `obcost(oc)/2`; on Y, add gold, zero the slot, redraw
+  // status_line.
+  //
+  // Buy (B): inner loop re-shows buy_menu each iteration. A..F
+  // map to item ids 31..36; G remaps to 47 (donkey); H or any
+  // other key breaks the inner loop. Per-item price is
+  // `obcost(oc)` with a `+ lv[1]*3` bump for the healing potion
+  // (oc=36). Torch / food (oc 31 / 32) take the multi-buy how-
+  // many path with its own cap-and-clamp. Everything else
+  // (blanket / tent / rope / potion / donkey) takes the single-
+  // purchase P/N path through inv_find_empty + mutate inventory.
+  //
+  // {food_price} ({lv[1]+1}) and {potion_price} ({obcost(36)+lv[1]*3})
+  // are computed each loop iteration and substituted into
+  // buy_menu. Runtime int formats emit without the original
+  // '%2d' width pad — low-level parties see `B) Food Ration 1 au`
+  // instead of the padded `...  1 au`; cosmetic only.
+  //
+  // Two pre-existing quirks preserved literally:
+  //   - Buying 0 torches prints "Deal!" (the `oc == 31 || (oc == 32 && x)`
+  //     condition only guards x==0 for food). Harmless since gold=0
+  //     and torches=0 net.
+  //   - The C had a dead `if (oc != 31 && oc != 32)` arm inside the
+  //     torch/food branch that's unreachable by construction; dropped
+  //     here.
+  //
+  // Item descriptions (desc.torch / desc.food / .../ desc.donkey)
+  // emit without the original trailing `tx("\r\n")` — one fewer
+  // blank line before the price / quantity prompt.
+  merchant: [
+    { if: {
+        cond: { or: [
+          { lt: [{ hour_of_day: 0 }, { var: 'open_lo' }] },
+          { gt: [{ hour_of_day: 0 }, { var: 'open_hi' }] },
+        ] },
+        then: [
+          { engine_call: 'clw' },
+          { emit: 'closed' },
+          { pause: 1000 },
+        ],
+        else: [
+          { engine_call: 'clr_map_window' },
+          { engine_call: 'blitgfx', args: [{ pic: 'merchant' }] },
+          { loop: [
+            { engine_call: 'clw' },
+            { emit: 'intro' },
+            { menu_branch: {
+                prompt: 'menu',
+                options: [
+                  { key: 'L', then: [
+                    { engine_call: 'clw' },
+                    { emit: 'bye' },
+                    { pause: 1000 },
+                    { engine_call: 'clr_map_window' },
+                    { break: true },
+                  ] },
+
+                  // --- (S)ell one slot
+                  { key: 'S', then: [
+                    { engine_call: 'clw' },
+                    { engine_call: 'inv_list' },
+                    { menu_branch: {
+                        key_var: 'sell_key',
+                        options: [
+                          { letter_range: { lo: 'A', count: { engine_int: 'inv_slot_max' } },
+                            index_var: 'slot',
+                            then: [
+                            { let: 'item_id', value: { inventory: { var: 'slot' } } },
+                            { if: {
+                                // Reject anything below `torch` (id 31 — that's
+                                // the weapons / armor range) and the donkey
+                                // (the merchant won't take it back).
+                                cond: { or: [
+                                  { lt: [{ var: 'item_id' }, { item: 'torch' }] },
+                                  { eq: [{ var: 'item_id' }, { item: 'donkey' }] },
+                                ] },
+                                then: [
+                                  { engine_call: 'clw' },
+                                  { emit: 'wrong_kind' },
+                                  { pause: 1000 },
+                                ],
+                                else: [
+                                  { let: 'price', value: { div: [{ obcost: { var: 'item_id' } }, 2] } },
+                                  { engine_call: 'clw' },
+                                  { emit: 'sell_offer' },
+                                  { emit: 'common.yes' },
+                                  { emit: 'common.no' },
+                                  { menu_branch: {
+                                      options: [
+                                        { key: 'Y', then: [
+                                          { emit: 'sold' },
+                                          { pause: 1000 },
+                                          { mutate: { target: { gold: 0 },
+                                                      op: 'add', value: { var: 'price' } } },
+                                          { mutate: { target: { inventory: { var: 'slot' } },
+                                                      op: 'set', value: 0 } },
+                                          { engine_call: 'status_line' },
+                                        ] },
+                                      ],
+                                  } },
+                                ],
+                            } },
+                          ] },
+                        ],
+                    } },
+                  ] },
+
+                  // --- (B)uy inner loop
+                  { key: 'B', then: [
+                    { loop: [
+                      { engine_call: 'clw' },
+                      { engine_call: 'status_line' },
+                      { let: 'food_price',
+                        value: { add: [{ member: 1, field: 'level' }, 1] } },
+                      { let: 'potion_price',
+                        value: { add: [
+                          { obcost: 36 },
+                          { mul: [{ member: 1, field: 'level' }, 3] },
+                        ] } },
+                      { emit: 'buy_menu' },
+                      { menu_branch: {
+                          key_var: 'buy_key',
+                          options: [
+                            { key_range: ['A', 'G'], then: [
+                              // A(65)..G(71) → oc = buy_ch - 34 → 31..37 —
+                              // landing on item ids torch..blue_potion, with
+                              // blue_potion's slot 37 remapped to `donkey`
+                              // (id 47) because that's how the menu layout
+                              // reads (G = Donkey). 37 here is the sentinel
+                              // from the ASCII math, not a real item probe.
+                              { let: 'item_id', value: { sub: [{ var: 'buy_key' }, 34] } },
+                              { if: {
+                                  cond: { eq: [{ var: 'item_id' }, 37] },
+                                  then: [{ let: 'item_id', value: { item: 'donkey' } }],
+                              } },
+
+                              // Base pr, with potion override.
+                              { let: 'price', value: { obcost: { var: 'item_id' } } },
+                              { if: {
+                                  cond: { eq: [{ var: 'item_id' }, { item: 'red_potion' }] },
+                                  then: [
+                                    { let: 'price', value: { add: [
+                                      { var: 'price' },
+                                      { mul: [{ member: 1, field: 'level' }, 3] },
+                                    ] } },
+                                  ],
+                              } },
+
+                              { engine_call: 'clw' },
+                              { switch: {
+                                  expr: { var: 'item_id' },
+                                  cases: [
+                                    { match: { item: 'torch'      }, then: [{ emit: 'desc.torch'   }] },
+                                    { match: { item: 'ration'     }, then: [{ emit: 'desc.food'    }] },
+                                    { match: { item: 'blanket'    }, then: [{ emit: 'desc.blanket' }] },
+                                    { match: { item: 'tent'       }, then: [{ emit: 'desc.tent'    }] },
+                                    { match: { item: 'rope'       }, then: [{ emit: 'desc.rope'    }] },
+                                    { match: { item: 'red_potion' }, then: [{ emit: 'desc.potion'  }] },
+                                    { match: { item: 'donkey'     }, then: [{ emit: 'desc.donkey'  }] },
+                                  ],
+                              } },
+
+                              { if: {
+                                  cond: { or: [
+                                    { eq: [{ var: 'item_id' }, { item: 'torch'  }] },
+                                    { eq: [{ var: 'item_id' }, { item: 'ration' }] },
+                                  ] },
+                                  then: [
+                                    // --- Torch / ration multi-buy
+                                    { if: {
+                                        cond: { eq: [{ var: 'item_id' }, { item: 'ration' }] },
+                                        then: [{ let: 'price', value: { var: 'food_price' } }],
+                                    } },
+                                    { emit: 'each' },
+                                    { input_number: { prompt_screen: 'how_many',
+                                                      lg: 5, var: 'x',
+                                                      min: 0, max: 99999 } },
+
+                                    // Torch cap: total torches ≤ 80.
+                                    { if: {
+                                        cond: { eq: [{ var: 'item_id' }, { item: 'torch' }] },
+                                        then: [
+                                          { if: {
+                                              cond: { gt: [
+                                                { add: [{ var: 'x' }, { torches: 0 }] },
+                                                80,
+                                              ] },
+                                              then: [
+                                                { engine_call: 'clw' },
+                                                { emit: 'too_many_torches' },
+                                                { pause: 1000 },
+                                                { let: 'x', value: { sub: [80, { torches: 0 }] } },
+                                              ],
+                                          } },
+                                        ],
+                                    } },
+
+                                    // Food cap: total food ≤ 150 * (donkeys+1).
+                                    { if: {
+                                        cond: { eq: [{ var: 'item_id' }, { item: 'ration' }] },
+                                        then: [
+                                          { let: 'cap', value: { add: [
+                                            150,
+                                            { mul: [{ engine_int: 'inv_count_in_range',
+                                                      args: [{ item: 'donkey' }, { item: 'donkey' }] }, 150] },
+                                          ] } },
+                                          { if: {
+                                              cond: { gt: [
+                                                { add: [{ var: 'x' }, { food: 0 }] },
+                                                { var: 'cap' },
+                                              ] },
+                                              then: [
+                                                { engine_call: 'clw' },
+                                                { emit: 'too_many_food' },
+                                                { pause: 1000 },
+                                                { let: 'x', value: { sub: [{ var: 'cap' }, { food: 0 }] } },
+                                              ],
+                                          } },
+                                        ],
+                                    } },
+
+                                    // Negative clamp (input_number's min:0
+                                    // already does this; mirrors the
+                                    // C `if (x < 0) x = 0;` anyway).
+                                    { if: {
+                                        cond: { lt: [{ var: 'x' }, 0] },
+                                        then: [{ let: 'x', value: 0 }],
+                                    } },
+
+                                    { if: {
+                                        cond: { lt: [
+                                          { gold: 0 },
+                                          { mul: [{ var: 'price' }, { var: 'x' }] },
+                                        ] },
+                                        then: [
+                                          { engine_call: 'clw' },
+                                          { emit: 'too_expensive' },
+                                          { pause: 1000 },
+                                        ],
+                                        else: [
+                                          { mutate: { target: { gold: 0 },
+                                                      op: 'sub',
+                                                      value: { mul: [{ var: 'price' }, { var: 'x' }] } } },
+                                          { if: {
+                                              cond: { eq: [{ var: 'item_id' }, { item: 'torch' }] },
+                                              then: [
+                                                { mutate: { target: { torches: 0 },
+                                                            op: 'add', value: { var: 'x' } } },
+                                              ],
+                                          } },
+                                          { if: {
+                                              cond: { eq: [{ var: 'item_id' }, { item: 'ration' }] },
+                                              then: [
+                                                { mutate: { target: { food: 0 },
+                                                            op: 'add', value: { var: 'x' } } },
+                                              ],
+                                          } },
+                                          { engine_call: 'clw' },
+                                          // Quirk: torch always emits Deal;
+                                          // ration only when x != 0.
+                                          { if: {
+                                              cond: { or: [
+                                                { eq: [{ var: 'item_id' }, { item: 'torch' }] },
+                                                { and: [
+                                                  { eq: [{ var: 'item_id' }, { item: 'ration' }] },
+                                                  { ne: [{ var: 'x' }, 0] },
+                                                ] },
+                                              ] },
+                                              then: [{ emit: 'deal' }],
+                                          } },
+                                          { pause: 1000 },
+                                        ],
+                                    } },
+                                  ],
+                                  else: [
+                                    // --- Single-purchase items (33/34/35/36/47)
+                                    { emit: 'price' },
+                                    { menu_branch: {
+                                        prompt: 'pn_menu',
+                                        options: [
+                                          { key: 'P', then: [
+                                            { if: {
+                                                cond: { lt: [{ gold: 0 }, { var: 'price' }] },
+                                                then: [
+                                                  { engine_call: 'clw' },
+                                                  { emit: 'too_expensive' },
+                                                  { pause: 1000 },
+                                                ],
+                                                else: [
+                                                  { let: 'slot',
+                                                    value: { engine_int: 'inv_find_empty',
+                                                             args: [] } },
+                                                  { if: {
+                                                      cond: { eq: [{ var: 'slot' }, 0] },
+                                                      then: [
+                                                        { emit: 'cant_carry' },
+                                                        { pause: 1000 },
+                                                      ],
+                                                      else: [
+                                                        { mutate: { target: { inventory: { var: 'slot' } },
+                                                                    op: 'set', value: { var: 'item_id' } } },
+                                                        { mutate: { target: { gold: 0 },
+                                                                    op: 'sub', value: { var: 'price' } } },
+                                                        { engine_call: 'clw' },
+                                                        { emit: 'deal' },
+                                                        { pause: 1000 },
+                                                      ],
+                                                  } },
+                                                ],
+                                            } },
+                                          ] },
+                                        ],
+                                        default: [
+                                          { engine_call: 'clw' },
+                                          { break: true },
+                                        ],
+                                    } },
+                                  ],
+                              } },
+                            ] },
+                          ],
+                          default: [
+                            // H or any non-A..G key exits the buy loop.
+                            { break: true },
+                          ],
+                      } },
+                    ] },
+                  ] },
+                ],
+            } },
+          ] },
+        ],
+    } },
+  ],
+}

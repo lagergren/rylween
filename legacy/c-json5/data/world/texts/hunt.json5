@@ -1,0 +1,29 @@
+// L7 step 2: hunt() narration. Lifted verbatim from subs.c:645-698
+// (the strings the C printed via tx() before the migration).
+//
+// {who_name} = pa_name(who) for the chosen ranger, {pro_sub} =
+// pronoun(who, 'subject') (he/she). {fdplus} = food rations gained.
+// {party_max} = res_party_member_max() bound by the digit_range
+// prompt — kept here so the prompt scales with the limits knob.
+//
+// Imported as texts.hunt (top-level object), so the script's
+// `emit: 'who'` resolves against `hunt.who` directly.
+{
+  // {party_max} resolved by the engine via the digit_range
+  // option (ryl_menu's hi=engine_int 'pa_party_member_max').
+  who:  ['Who? (1-{party_max})'],
+  dead: ['Dead.'],
+  // {pro_sub} = pronoun(who, 'subject')
+  not_ranger: ['{pro_sub} is not a ranger.'],
+  too_few_moves: ['Too few moves for that.'],
+  // {who_name} = pa_name(who)
+  tries: ['{who_name} tries',
+          'to trap a rabbit...'],
+  // {fdplus} = ryl_random(food_min, food_max) + pa_first_level()
+  succeeds: ['...and succeeds.',
+             'The party gains',
+             '{fdplus} food rations.',
+             ''],
+  fails: ['...but fails.',
+          ''],
+}

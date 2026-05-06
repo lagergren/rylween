@@ -1,0 +1,46 @@
+# Temporary files
+.DS_Store
+.vscode
+*~
+~$*
+
+# Build artefacts
+*.o
+*.d
+/rylween
+legacy/c-json5/rylween
+rylween-asan
+*.dSYM/
+
+# Runtime-generated state (regenerated on boot)
+data/entry.dat
+data/npc.dat
+data/realm.dat
+data/rylween.log
+data/score.txt
+data/vscore.txt
+data/current-world.json5
+legacy/c-json5/data/entry.dat
+legacy/c-json5/data/npc.dat
+legacy/c-json5/data/realm.dat
+legacy/c-json5/data/rylween.log
+legacy/c-json5/data/score.txt
+legacy/c-json5/data/vscore.txt
+legacy/c-json5/data/current-world.json5
+
+# `make sample-save` output (regenerated; not checked in).
+tmp-sample-save/
+legacy/c-json5/tmp-sample-save/
+
+# Editor / local tool state
+.claude/
+.idea/
+
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build
+
+# Ignore Kotlin plugin data
+.kotlin

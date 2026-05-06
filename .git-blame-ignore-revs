@@ -1,0 +1,7 @@
+# Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` to use this.
+
+# style: adopt .clang-format (no-cast-space) + run clang-format -i
+33ffc526e30816c5c680acd07fc3a6c3d386b0e1
+
+# style: run clang-format -i + .clang-format compat for clang-format 19
+d35f6631f34862dbe87eea9125890b9a8526f3e1

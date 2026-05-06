@@ -1,8 +1,0 @@
-FROM LIB:c.o "FileInfo.o"
-TO "FileInfo"
-LIB LIB:sc.lib LIB:amiga.lib
-SMALLCODE
-SMALLDATA
-NODEBUG
-NOICONS
-

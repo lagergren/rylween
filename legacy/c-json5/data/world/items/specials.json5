@@ -1,0 +1,17 @@
+// Specials shard — ids 48..52. Flag-backed quest items. These never
+// occupy an inventory slot; picking one up sets the matching flag on
+// struct party (state.h: fireshield / bracelets / mastercrown /
+// jazzyfoot / silverkey). The DSL `reward` op routes them via
+// inventory.c:item_is_special(id, *which) -> party_award_special,
+// bypassing inv_add and the cant_carry_screen fallback.
+//
+// `cost: 0` because these items never appear in a shop. `special:`
+// is a loader-side tag for the inventory.c lazy init — res.c fold
+// preserves it on the node tree.
+{
+  fireshield:  { id: 48, name: 'Fire Shield',       cost: 0, special: 'fireshield'  },
+  bracelets:   { id: 49, name: 'Bracelets of Thun', cost: 0, special: 'bracelets'   },
+  mastercrown: { id: 50, name: 'Master Crown',      cost: 0, special: 'mastercrown' },
+  jazzyfoot:   { id: 51, name: 'Jazzyfoot',         cost: 0, special: 'jazzyfoot'   },
+  silverkey:   { id: 52, name: 'Silver Key',        cost: 0, special: 'silverkey'   },
+}
