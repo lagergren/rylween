@@ -375,21 +375,12 @@ class RylweenCompiledVmTest {
         val model =
             rylween {
                 content {
-                    scene(VmAskTextScene) {
-                        choice.textAnswer(
-                            prompt = inlineText("answer"),
-                            accepting = listOf("YES"),
-                            match = {
-                                party.gold += 1
-                            },
-                            miss = {
-                                party.gold -= 1
-                            },
-                        )
+                    scene(VmAskMonsterScene) {
+                        ask.monsterAlive(inlineText("monster"))
                     }
                 }
             }
-        val (compiled, program) = compiledScene(model, VmAskTextScene)
+        val (compiled, program) = compiledScene(model, VmAskMonsterScene)
 
         val result =
             CompiledVm(compiled.content)
@@ -397,7 +388,7 @@ class RylweenCompiledVmTest {
 
         val failed = assertIs<CompiledVmResult.Failed>(result)
         val diagnostic = assertIs<VmDiagnostic.UnsupportedHostService>(failed.diagnostic)
-        assertEquals("AskText", diagnostic.service)
+        assertEquals("AskMonster", diagnostic.service)
     }
 
     @Test
@@ -574,6 +565,100 @@ class RylweenCompiledVmTest {
         val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
         assertEquals(blocked.pending, stillBlocked.pending)
         assertEquals(blocked.continuation, stillBlocked.continuation)
+        assertEquals(1, host.events.size)
+    }
+
+    @Test
+    fun compiledVmBlocksAndResumesAskTextMatchBranchWithoutReplayingPriorEffects() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskTextScene) {
+                        screen("before")
+                        choice.textAnswer(
+                            prompt = inlineText("answer"),
+                            accepting = listOf("YES"),
+                            maxLength = 3,
+                            match = {
+                                party.gold += 10
+                            },
+                            miss = {
+                                party.gold += 20
+                            },
+                        )
+                        screen("after")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskTextScene)
+        val runtime = RuntimeSessionState.singleParty(testParty(), 12, null)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+
+        val result = vm.run(program, CompiledVmStart(runtime))
+
+        val blocked = assertIs<CompiledVmResult.Blocked>(result)
+        val pending = assertIs<CompiledVmPendingInput.AskText>(blocked.pending)
+        assertEquals(1, pending.instructionIndex)
+        assertEquals(listOf(1), pending.operandPath)
+        assertEquals(listOf("YES"), pending.accepted)
+        assertEquals(false, pending.caseSensitive)
+        assertEquals(true, pending.trim)
+        assertEquals(3, pending.maxLength)
+        assertEquals(listOf(CompiledVmFrameForTest(emptyList(), 2, false)), blocked.continuation.frames.map(::CompiledVmFrameForTest))
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.AskText(pending.prompt, listOf("YES"), 3),
+            ),
+            host.events,
+        )
+
+        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskText("yes please"))
+
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals(12, completed.runtime.activeParty.resources.gold)
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.AskText(pending.prompt, listOf("YES"), 3),
+                EngineTraceEvent.Screen(inlineText("after")),
+            ),
+            host.events,
+        )
+    }
+
+    @Test
+    fun compiledVmAskTextMissBranchResumesWithoutReplayingPriorEffects() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskTextScene) {
+                        choice.textAnswer(
+                            prompt = inlineText("answer"),
+                            accepting = listOf("YES"),
+                            match = {
+                                party.gold += 10
+                            },
+                            miss = {
+                                party.gold += 20
+                            },
+                        )
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskTextScene)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+        val blocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+
+        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskText("NO"))
+
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals(22, completed.runtime.activeParty.resources.gold)
         assertEquals(1, host.events.size)
     }
 
@@ -972,6 +1057,7 @@ class RylweenCompiledVmTest {
         val VmAskMemberScene = sceneId("vm.ask_member")
         val VmAskInventorySlotScene = sceneId("vm.ask_inventory_slot")
         val VmAskTextScene = sceneId("vm.ask_text")
+        val VmAskMonsterScene = sceneId("vm.ask_monster")
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
         val VmNestedExpressionScene = sceneId("vm.nested_expr")
