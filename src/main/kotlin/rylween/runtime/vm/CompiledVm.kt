@@ -318,11 +318,25 @@ data class CompiledVmInventorySlotChoice(
     val slot: Int,
 )
 
+/** Execution shape for a resumable [CompiledVmFrame]. */
+enum class CompiledVmFrameKind {
+    /** Plain instruction block, such as a root, branch, menu option, or text-answer body. */
+    Block,
+
+    /** Direct body block for one `Loop` iteration. */
+    LoopBody,
+
+    /** Direct body block for one `ForEachMember` member index. */
+    ForEachMemberBody,
+}
+
 /** One resumable compiled VM instruction-block frame. */
 data class CompiledVmFrame(
     val blockPath: List<Int>,
     val nextIndex: Int,
     val insideLoop: Boolean = false,
+    val kind: CompiledVmFrameKind = CompiledVmFrameKind.Block,
+    val enclosingInsideLoop: Boolean = insideLoop,
 )
 
 /** Saveable VM-local state needed to resume after [CompiledVmResult.Blocked]. */
@@ -391,6 +405,8 @@ class CompiledVm(
                 instructions = program.instructions,
                 path = emptyList(),
                 insideLoop = false,
+                blockKind = CompiledVmFrameKind.Block,
+                enclosingInsideLoop = false,
                 startIndex = 0,
                 parentFrames = emptyList(),
             ),
@@ -621,13 +637,15 @@ class CompiledVm(
         instructions: List<CompiledInstruction>,
         path: List<Int>,
         insideLoop: Boolean,
+        blockKind: CompiledVmFrameKind,
+        enclosingInsideLoop: Boolean,
         startIndex: Int,
         parentFrames: List<CompiledVmFrame>,
     ): ControlSignal {
         for (instructionIndex in startIndex until instructions.size) {
             val instruction = instructions[instructionIndex]
             val location = VmLocation(state.root, instructionIndex, path, path + instructionIndex, instruction.opcode)
-            when (val signal = executeInstruction(state, instruction, location, insideLoop, parentFrames)) {
+            when (val signal = executeInstruction(state, instruction, location, insideLoop, blockKind, enclosingInsideLoop, parentFrames)) {
                 ControlSignal.Continue -> Unit
                 ControlSignal.BreakNearestLoop,
                 ControlSignal.StopScript,
@@ -647,44 +665,59 @@ class CompiledVm(
         var remaining = frames
         while (remaining.isNotEmpty()) {
             val frame = remaining.first()
-            val instructions =
-                instructionsFor(rootInstructions, frame.blockPath)
-                    ?: return ControlSignal.Failed(
-                        VmDiagnostic.BadContinuationFrame(
-                            root = state.root,
-                            instructionIndex = frame.nextIndex,
-                            operandPath = frame.blockPath,
-                            frame = frame.toString(),
-                            reason = "UnknownInstructionBlock",
-                        ),
-                    )
-            when (
-                val signal =
+            when (val signal = executeFrame(state, rootInstructions, frame, remaining.drop(1))) {
+                ControlSignal.Continue -> remaining = remaining.drop(1)
+                ControlSignal.BreakNearestLoop,
+                ControlSignal.StopScript,
+                -> {
+                    val afterLoop = remaining.drop(1).afterConsumedLoopSignal()
+                    if (afterLoop == null) {
+                        return signal
+                    }
+                    remaining = afterLoop
+                }
+                is ControlSignal.Failed -> return signal
+                is ControlSignal.Blocked -> return signal
+            }
+        }
+        return ControlSignal.Continue
+    }
+
+    private fun executeFrame(
+        state: ExecutionState,
+        rootInstructions: List<CompiledInstruction>,
+        frame: CompiledVmFrame,
+        parentFrames: List<CompiledVmFrame>,
+    ): ControlSignal =
+        when (frame.kind) {
+            CompiledVmFrameKind.Block -> {
+                val instructions = instructionsFor(rootInstructions, frame.blockPath)
+                if (instructions == null) {
+                    ControlSignal.Failed(frame.badContinuation(state, "UnknownInstructionBlock"))
+                } else {
                     executeBlock(
                         state = state,
                         instructions = instructions,
                         path = frame.blockPath,
                         insideLoop = frame.insideLoop,
+                        blockKind = CompiledVmFrameKind.Block,
+                        enclosingInsideLoop = frame.enclosingInsideLoop,
                         startIndex = frame.nextIndex,
-                        parentFrames = remaining.drop(1),
+                        parentFrames = parentFrames,
                     )
-            ) {
-                ControlSignal.Continue -> remaining = remaining.drop(1)
-                ControlSignal.BreakNearestLoop,
-                ControlSignal.StopScript,
-                is ControlSignal.Failed,
-                is ControlSignal.Blocked,
-                -> return signal
+                }
             }
+            CompiledVmFrameKind.LoopBody -> executeLoopBodyFrame(state, rootInstructions, frame, parentFrames)
+            CompiledVmFrameKind.ForEachMemberBody -> executeForEachMemberBodyFrame(state, rootInstructions, frame, parentFrames)
         }
-        return ControlSignal.Continue
-    }
 
     private fun executeInstruction(
         state: ExecutionState,
         instruction: CompiledInstruction,
         location: VmLocation,
         insideLoop: Boolean,
+        blockKind: CompiledVmFrameKind,
+        enclosingInsideLoop: Boolean,
         parentFrames: List<CompiledVmFrame>,
     ): ControlSignal =
         when (instruction.opcode) {
@@ -729,10 +762,12 @@ class CompiledVm(
                     pending = pending,
                     frames =
                         listOf(
-                            CompiledVmFrame(
+                            continuationFrame(
                                 blockPath = location.blockPath,
                                 nextIndex = location.instructionIndex + 1,
                                 insideLoop = insideLoop,
+                                kind = blockKind,
+                                enclosingInsideLoop = enclosingInsideLoop,
                             ),
                         ) + parentFrames,
                 )
@@ -759,10 +794,12 @@ class CompiledVm(
                             pending = pending,
                             frames =
                                 listOf(
-                                    CompiledVmFrame(
+                                    continuationFrame(
                                         blockPath = location.blockPath,
                                         nextIndex = location.instructionIndex + 1,
                                         insideLoop = insideLoop,
+                                        kind = blockKind,
+                                        enclosingInsideLoop = enclosingInsideLoop,
                                     ),
                                 ) + parentFrames,
                         )
@@ -794,10 +831,12 @@ class CompiledVm(
                             pending = pending,
                             frames =
                                 listOf(
-                                    CompiledVmFrame(
+                                    continuationFrame(
                                         blockPath = location.blockPath,
                                         nextIndex = location.instructionIndex + 1,
                                         insideLoop = insideLoop,
+                                        kind = blockKind,
+                                        enclosingInsideLoop = enclosingInsideLoop,
                                     ),
                                 ) + parentFrames,
                         )
@@ -827,10 +866,12 @@ class CompiledVm(
                             pending = pending,
                             frames =
                                 listOf(
-                                    CompiledVmFrame(
+                                    continuationFrame(
                                         blockPath = location.blockPath,
                                         nextIndex = location.instructionIndex + 1,
                                         insideLoop = insideLoop,
+                                        kind = blockKind,
+                                        enclosingInsideLoop = enclosingInsideLoop,
                                     ),
                                 ) + parentFrames,
                         )
@@ -862,10 +903,12 @@ class CompiledVm(
                             pending = pending,
                             frames =
                                 listOf(
-                                    CompiledVmFrame(
+                                    continuationFrame(
                                         blockPath = location.blockPath,
                                         nextIndex = location.instructionIndex + 1,
                                         insideLoop = insideLoop,
+                                        kind = blockKind,
+                                        enclosingInsideLoop = enclosingInsideLoop,
                                     ),
                                 ) + parentFrames,
                         )
@@ -890,10 +933,12 @@ class CompiledVm(
                             pending = pending,
                             frames =
                                 listOf(
-                                    CompiledVmFrame(
+                                    continuationFrame(
                                         blockPath = location.blockPath,
                                         nextIndex = location.instructionIndex + 1,
                                         insideLoop = insideLoop,
+                                        kind = blockKind,
+                                        enclosingInsideLoop = enclosingInsideLoop,
                                     ),
                                 ) + parentFrames,
                         )
@@ -923,10 +968,12 @@ class CompiledVm(
                             pending = pending,
                             frames =
                                 listOf(
-                                    CompiledVmFrame(
+                                    continuationFrame(
                                         blockPath = location.blockPath,
                                         nextIndex = location.instructionIndex + 1,
                                         insideLoop = insideLoop,
+                                        kind = blockKind,
+                                        enclosingInsideLoop = enclosingInsideLoop,
                                     ),
                                 ) + parentFrames,
                         )
@@ -1024,13 +1071,17 @@ class CompiledVm(
                             instructions = branch,
                             path = location.operandBranch(if (value) 1 else 2),
                             insideLoop = insideLoop,
+                            blockKind = CompiledVmFrameKind.Block,
+                            enclosingInsideLoop = insideLoop,
                             startIndex = 0,
                             parentFrames =
                                 listOf(
-                                    CompiledVmFrame(
+                                    continuationFrame(
                                         blockPath = location.blockPath,
                                         nextIndex = location.instructionIndex + 1,
                                         insideLoop = insideLoop,
+                                        kind = blockKind,
+                                        enclosingInsideLoop = enclosingInsideLoop,
                                     ),
                                 ) + parentFrames,
                         )
@@ -1038,7 +1089,16 @@ class CompiledVm(
                     failed = { ControlSignal.Failed(it) },
                 )
             }
-            CompiledOpcode.Loop -> executeLoop(state, instruction.instructions(0), location, insideLoop, parentFrames)
+            CompiledOpcode.Loop ->
+                executeLoop(
+                    state = state,
+                    body = instruction.instructions(0),
+                    location = location,
+                    insideLoop = insideLoop,
+                    blockKind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                    parentFrames = parentFrames,
+                )
             CompiledOpcode.Break -> {
                 val reason = instruction.optionalString(0)
                 val signal = instruction.optionalSignal(1) ?: ScriptControlSignal.BreakNearestLoop
@@ -1065,13 +1125,17 @@ class CompiledVm(
                                 instructions = cases[caseIndex].body,
                                 path = location.operandBranch(1, caseIndex),
                                 insideLoop = insideLoop,
+                                blockKind = CompiledVmFrameKind.Block,
+                                enclosingInsideLoop = insideLoop,
                                 startIndex = 0,
                                 parentFrames =
                                     listOf(
-                                        CompiledVmFrame(
+                                        continuationFrame(
                                             blockPath = location.blockPath,
                                             nextIndex = location.instructionIndex + 1,
                                             insideLoop = insideLoop,
+                                            kind = blockKind,
+                                            enclosingInsideLoop = enclosingInsideLoop,
                                         ),
                                     ) + parentFrames,
                             )
@@ -1080,38 +1144,16 @@ class CompiledVm(
                     failed = { ControlSignal.Failed(it) },
                 )
             }
-            CompiledOpcode.ForEachMember -> {
-                val name = index.string(instruction.stringId(0))
-                val includeDead = instruction.boolean(1)
-                val body = instruction.instructions(2)
-                state.party.members.forEachIndexed { index, member ->
-                    if (includeDead || !member.dead) {
-                        state.locals[name] = index + 1
-                        when (
-                            val signal =
-                                executeBlock(
-                                    state = state,
-                                    instructions = body,
-                                    path = location.operandBranch(2, index),
-                                    insideLoop = insideLoop,
-                                    startIndex = 0,
-                                    parentFrames =
-                                        listOf(
-                                            CompiledVmFrame(
-                                                blockPath = location.blockPath,
-                                                nextIndex = location.instructionIndex + 1,
-                                                insideLoop = insideLoop,
-                                            ),
-                                        ) + parentFrames,
-                                )
-                        ) {
-                            ControlSignal.Continue -> Unit
-                            else -> return signal
-                        }
-                    }
-                }
-                ControlSignal.Continue
-            }
+            CompiledOpcode.ForEachMember ->
+                executeForEachMember(
+                    state = state,
+                    instruction = instruction,
+                    location = location,
+                    insideLoop = insideLoop,
+                    blockKind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                    parentFrames = parentFrames,
+                )
             CompiledOpcode.AchieveMilestone -> {
                 val milestone = GameMilestoneId(index.slug(instruction.handle(0)))
                 state.party = state.party.withMilestone(milestone)
@@ -1135,25 +1177,50 @@ class CompiledVm(
         body: List<CompiledInstruction>,
         location: VmLocation,
         insideLoop: Boolean,
+        blockKind: CompiledVmFrameKind,
+        enclosingInsideLoop: Boolean,
         parentFrames: List<CompiledVmFrame>,
     ): ControlSignal {
-        repeat(MAX_LOOP_ITERATIONS) {
+        val afterLoopFrames =
+            listOf(
+                continuationFrame(
+                    blockPath = location.blockPath,
+                    nextIndex = location.instructionIndex + 1,
+                    insideLoop = insideLoop,
+                    kind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                ),
+            ) + parentFrames
+        return executeLoopIterations(
+            state = state,
+            body = body,
+            location = location,
+            enclosingInsideLoop = insideLoop,
+            afterLoopFrames = afterLoopFrames,
+            startIteration = 0,
+        )
+    }
+
+    private fun executeLoopIterations(
+        state: ExecutionState,
+        body: List<CompiledInstruction>,
+        location: VmLocation,
+        enclosingInsideLoop: Boolean,
+        afterLoopFrames: List<CompiledVmFrame>,
+        startIteration: Int,
+    ): ControlSignal {
+        for (iteration in startIteration until MAX_LOOP_ITERATIONS) {
             when (
                 val signal =
                     executeBlock(
                         state = state,
                         instructions = body,
-                        path = location.operandBranch(0, it),
+                        path = location.operandBranch(0, iteration),
                         insideLoop = true,
+                        blockKind = CompiledVmFrameKind.LoopBody,
+                        enclosingInsideLoop = enclosingInsideLoop,
                         startIndex = 0,
-                        parentFrames =
-                            listOf(
-                                CompiledVmFrame(
-                                    blockPath = location.blockPath,
-                                    nextIndex = location.instructionIndex + 1,
-                                    insideLoop = insideLoop,
-                                ),
-                            ) + parentFrames,
+                        parentFrames = afterLoopFrames,
                     )
             ) {
                 ControlSignal.Continue -> Unit
@@ -1166,6 +1233,175 @@ class CompiledVm(
             }
         }
         return ControlSignal.Continue
+    }
+
+    private fun executeLoopBodyFrame(
+        state: ExecutionState,
+        rootInstructions: List<CompiledInstruction>,
+        frame: CompiledVmFrame,
+        parentFrames: List<CompiledVmFrame>,
+    ): ControlSignal {
+        val context =
+            iterationFrameContext(
+                state = state,
+                rootInstructions = rootInstructions,
+                frame = frame,
+                expectedOpcode = CompiledOpcode.Loop,
+                expectedOperand = 0,
+            ) ?: return ControlSignal.Failed(frame.badContinuation(state, "UnknownLoopFrame"))
+        val body = context.instruction.instructions(0)
+        return when (
+            val signal =
+                executeBlock(
+                    state = state,
+                    instructions = body,
+                    path = frame.blockPath,
+                    insideLoop = true,
+                    blockKind = CompiledVmFrameKind.LoopBody,
+                    enclosingInsideLoop = frame.enclosingInsideLoop,
+                    startIndex = frame.nextIndex,
+                    parentFrames = parentFrames,
+                )
+        ) {
+            ControlSignal.Continue ->
+                executeLoopIterations(
+                    state = state,
+                    body = body,
+                    location = context.location,
+                    enclosingInsideLoop = frame.enclosingInsideLoop,
+                    afterLoopFrames = parentFrames,
+                    startIteration = context.cursor + 1,
+                )
+            ControlSignal.BreakNearestLoop,
+            ControlSignal.StopScript,
+            -> ControlSignal.Continue
+            is ControlSignal.Failed,
+            is ControlSignal.Blocked,
+            -> signal
+        }
+    }
+
+    private fun executeForEachMember(
+        state: ExecutionState,
+        instruction: CompiledInstruction,
+        location: VmLocation,
+        insideLoop: Boolean,
+        blockKind: CompiledVmFrameKind,
+        enclosingInsideLoop: Boolean,
+        parentFrames: List<CompiledVmFrame>,
+    ): ControlSignal {
+        val afterForEachFrames =
+            listOf(
+                continuationFrame(
+                    blockPath = location.blockPath,
+                    nextIndex = location.instructionIndex + 1,
+                    insideLoop = insideLoop,
+                    kind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                ),
+            ) + parentFrames
+        return executeForEachMemberIterations(
+            state = state,
+            instruction = instruction,
+            location = location,
+            insideLoop = insideLoop,
+            afterForEachFrames = afterForEachFrames,
+            startMemberIndex = 0,
+        )
+    }
+
+    private fun executeForEachMemberBodyFrame(
+        state: ExecutionState,
+        rootInstructions: List<CompiledInstruction>,
+        frame: CompiledVmFrame,
+        parentFrames: List<CompiledVmFrame>,
+    ): ControlSignal {
+        val context =
+            iterationFrameContext(
+                state = state,
+                rootInstructions = rootInstructions,
+                frame = frame,
+                expectedOpcode = CompiledOpcode.ForEachMember,
+                expectedOperand = 2,
+            ) ?: return ControlSignal.Failed(frame.badContinuation(state, "UnknownForEachMemberFrame"))
+        return when (
+            val signal =
+                executeForEachMemberBody(
+                    state = state,
+                    instruction = context.instruction,
+                    location = context.location,
+                    memberIndex = context.cursor,
+                    insideLoop = frame.insideLoop,
+                    startIndex = frame.nextIndex,
+                    afterForEachFrames = parentFrames,
+                )
+        ) {
+            ControlSignal.Continue ->
+                executeForEachMemberIterations(
+                    state = state,
+                    instruction = context.instruction,
+                    location = context.location,
+                    insideLoop = frame.insideLoop,
+                    afterForEachFrames = parentFrames,
+                    startMemberIndex = context.cursor + 1,
+                )
+            else -> signal
+        }
+    }
+
+    private fun executeForEachMemberIterations(
+        state: ExecutionState,
+        instruction: CompiledInstruction,
+        location: VmLocation,
+        insideLoop: Boolean,
+        afterForEachFrames: List<CompiledVmFrame>,
+        startMemberIndex: Int,
+    ): ControlSignal {
+        for (memberIndex in startMemberIndex until state.party.members.size) {
+            val signal =
+                executeForEachMemberBody(
+                    state = state,
+                    instruction = instruction,
+                    location = location,
+                    memberIndex = memberIndex,
+                    insideLoop = insideLoop,
+                    startIndex = 0,
+                    afterForEachFrames = afterForEachFrames,
+                )
+            when (signal) {
+                ControlSignal.Continue -> Unit
+                else -> return signal
+            }
+        }
+        return ControlSignal.Continue
+    }
+
+    private fun executeForEachMemberBody(
+        state: ExecutionState,
+        instruction: CompiledInstruction,
+        location: VmLocation,
+        memberIndex: Int,
+        insideLoop: Boolean,
+        startIndex: Int,
+        afterForEachFrames: List<CompiledVmFrame>,
+    ): ControlSignal {
+        val includeDead = instruction.boolean(1)
+        val member = state.party.members.getOrNull(memberIndex) ?: return ControlSignal.Continue
+        if (!includeDead && member.dead) {
+            return ControlSignal.Continue
+        }
+        val name = index.string(instruction.stringId(0))
+        state.locals[name] = memberIndex + 1
+        return executeBlock(
+            state = state,
+            instructions = instruction.instructions(2),
+            path = location.operandBranch(2, memberIndex),
+            insideLoop = insideLoop,
+            blockKind = CompiledVmFrameKind.ForEachMemberBody,
+            enclosingInsideLoop = insideLoop,
+            startIndex = startIndex,
+            parentFrames = afterForEachFrames,
+        )
     }
 
     private fun controlSignal(
@@ -1702,6 +1938,48 @@ class CompiledVm(
         return EvalResult.Ok(options)
     }
 
+    private data class IterationFrameContext(
+        val instruction: CompiledInstruction,
+        val location: VmLocation,
+        val cursor: Int,
+    )
+
+    private fun iterationFrameContext(
+        state: ExecutionState,
+        rootInstructions: List<CompiledInstruction>,
+        frame: CompiledVmFrame,
+        expectedOpcode: CompiledOpcode,
+        expectedOperand: Int,
+    ): IterationFrameContext? {
+        if (frame.blockPath.size < ITERATION_FRAME_SEGMENTS) {
+            return null
+        }
+        val parentBlockPath = frame.blockPath.dropLast(ITERATION_FRAME_SEGMENTS)
+        val instructionIndex = frame.blockPath[frame.blockPath.size - 3]
+        val operandIndex = frame.blockPath[frame.blockPath.size - 2]
+        val cursor = frame.blockPath[frame.blockPath.size - 1]
+        if (operandIndex != expectedOperand || cursor < 0) {
+            return null
+        }
+        val parentInstructions = instructionsFor(rootInstructions, parentBlockPath) ?: return null
+        val instruction = parentInstructions.getOrNull(instructionIndex) ?: return null
+        if (instruction.opcode != expectedOpcode) {
+            return null
+        }
+        return IterationFrameContext(
+            instruction = instruction,
+            location =
+                VmLocation(
+                    root = state.root,
+                    instructionIndex = instructionIndex,
+                    blockPath = parentBlockPath,
+                    operandPath = parentBlockPath + instructionIndex,
+                    opcode = instruction.opcode,
+                ),
+            cursor = cursor,
+        )
+    }
+
     private fun instructionsFor(
         rootInstructions: List<CompiledInstruction>,
         blockPath: List<Int>,
@@ -1747,8 +2025,60 @@ class CompiledVm(
         const val MAX_LOOP_ITERATIONS: Int = 128
         const val TEXT_ANSWER_MATCH_BRANCH: Int = 0
         const val TEXT_ANSWER_MISS_BRANCH: Int = 1
+        const val ITERATION_FRAME_SEGMENTS: Int = 3
     }
 }
+
+private fun continuationFrame(
+    blockPath: List<Int>,
+    nextIndex: Int,
+    insideLoop: Boolean,
+    kind: CompiledVmFrameKind,
+    enclosingInsideLoop: Boolean,
+): CompiledVmFrame =
+    when (kind) {
+        CompiledVmFrameKind.Block ->
+            CompiledVmFrame(
+                blockPath = blockPath,
+                nextIndex = nextIndex,
+                insideLoop = insideLoop,
+                kind = kind,
+                enclosingInsideLoop = enclosingInsideLoop,
+            )
+        CompiledVmFrameKind.LoopBody ->
+            CompiledVmFrame(
+                blockPath = blockPath,
+                nextIndex = nextIndex,
+                insideLoop = true,
+                kind = kind,
+                enclosingInsideLoop = enclosingInsideLoop,
+            )
+        CompiledVmFrameKind.ForEachMemberBody ->
+            CompiledVmFrame(
+                blockPath = blockPath,
+                nextIndex = nextIndex,
+                insideLoop = insideLoop,
+                kind = kind,
+                enclosingInsideLoop = enclosingInsideLoop,
+            )
+    }
+
+private fun List<CompiledVmFrame>.afterConsumedLoopSignal(): List<CompiledVmFrame>? {
+    val loopFrame = indexOfFirst { frame -> frame.kind == CompiledVmFrameKind.LoopBody }
+    return if (loopFrame < 0) null else drop(loopFrame + 1)
+}
+
+private fun CompiledVmFrame.badContinuation(
+    state: ExecutionState,
+    reason: String,
+): VmDiagnostic =
+    VmDiagnostic.BadContinuationFrame(
+        root = state.root,
+        instructionIndex = nextIndex,
+        operandPath = blockPath,
+        frame = toString(),
+        reason = reason,
+    )
 
 private data class ExecutionState(
     val root: rylween.runtime.ScriptRootRef,
