@@ -438,7 +438,7 @@ Total for a fully playable native runtime: likely 2-3 months beyond the probe.
 
 ## Closeout Checklist
 
-- [ ] opcode arity/type contract is tested
+- [x] opcode arity/type contract is tested
 - [ ] compiled expression and lvalue evaluators cover every emitted shape
 - [ ] pure VM roots execute without authored `Op` fallback
 - [ ] prompts and menus resume without replaying side effects
@@ -448,4 +448,4 @@ Total for a fully playable native runtime: likely 2-3 months beyond the probe.
 - [ ] Kotlin ANSI can opt into `CompiledVm`
 - [ ] full acceptance playthrough passes in compiled-VM mode
 - [ ] C/native probe executes a narrow compiled scenario from the J1 bundle
-- [ ] ledger distinguishes completed J2 pieces from optional native product work
+- [x] ledger distinguishes completed J2 pieces from optional native product work

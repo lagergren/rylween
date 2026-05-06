@@ -1,5 +1,7 @@
 package rylween.compiled
 
+import rylween.runtime.ScriptRootRef
+
 data class LoadedCompiledGame(
     val content: LoadedCompiledContent,
     val states: Map<CompiledHandleRef, CompiledStateImage>,
@@ -240,16 +242,56 @@ private class CompiledBundleValidator(
         require(script.rootHandle.kind == CompiledHandleKind.ScriptRoot) {
             "script program root handle must be ScriptRoot"
         }
-        instructions(script.instructions)
+        instructions(script.root, script.instructions, emptyList())
     }
 
-    private fun instructions(instructions: List<CompiledInstruction>) {
-        instructions.forEach { instruction ->
-            instruction.operands.forEach(::operand)
+    private fun instructions(
+        root: ScriptRootRef,
+        instructions: List<CompiledInstruction>,
+        operandPath: List<Int>,
+    ) {
+        instructions.forEachIndexed { instructionIndex, instruction ->
+            validateInstruction(root, instructionIndex, operandPath, instruction)
+            instruction.operands.forEachIndexed { operandIndex, operand ->
+                operand(root, operandPath + listOf(instructionIndex, operandIndex), operand)
+            }
         }
     }
 
-    private fun operand(operand: CompiledOperand) {
+    private fun validateInstruction(
+        root: ScriptRootRef,
+        instructionIndex: Int,
+        operandPath: List<Int>,
+        instruction: CompiledInstruction,
+    ) {
+        val diagnostic =
+            when (val result = CompiledOpcodeContract.validateInstruction(instruction)) {
+                CompiledOpcodeContract.Validation.Ok -> return
+                is CompiledOpcodeContract.Validation.UnknownOpcode ->
+                    CompiledInstructionContractDiagnostic.UnknownOpcode(
+                        root = root,
+                        instructionIndex = instructionIndex,
+                        operandPath = operandPath,
+                        opcode = result.opcode,
+                    )
+                is CompiledOpcodeContract.Validation.WrongShape ->
+                    CompiledInstructionContractDiagnostic.WrongShape(
+                        root = root,
+                        instructionIndex = instructionIndex,
+                        operandPath = operandPath,
+                        opcode = result.opcode,
+                        expected = result.expected,
+                        actual = result.actual,
+                    )
+            }
+        throw IllegalArgumentException(diagnostic.message())
+    }
+
+    private fun operand(
+        root: ScriptRootRef,
+        operandPath: List<Int>,
+        operand: CompiledOperand,
+    ) {
         when (operand) {
             is CompiledOperand.StringId -> string(operand.id, "script string")
             is CompiledOperand.StringIdList -> operand.ids.forEach { string(it, "script string list") }
@@ -261,15 +303,18 @@ private class CompiledBundleValidator(
             is CompiledOperand.StringExprValue -> stringExpr(operand.value)
             is CompiledOperand.LValueValue -> lvalue(operand.value)
             is CompiledOperand.ViewCommandValue -> view(operand.value)
-            is CompiledOperand.Instructions -> instructions(operand.instructions)
-            is CompiledOperand.SwitchCases -> operand.cases.forEach { instructions(it.body) }
+            is CompiledOperand.Instructions -> instructions(root, operand.instructions, operandPath)
+            is CompiledOperand.SwitchCases ->
+                operand.cases.forEachIndexed { caseIndex, case ->
+                    instructions(root, case.body, operandPath + caseIndex)
+                }
             is CompiledOperand.MenuOptions ->
-                operand.options.forEach { option ->
+                operand.options.forEachIndexed { optionIndex, option ->
                     binding(option.binding)
-                    instructions(option.body)
+                    instructions(root, option.body, operandPath + optionIndex)
                 }
             is CompiledOperand.InputBindings -> operand.bindings.forEach(::binding)
-            is CompiledOperand.TextAnswer -> textAnswer(operand.answer)
+            is CompiledOperand.TextAnswer -> textAnswer(root, operandPath, operand.answer)
             is CompiledOperand.Reward -> scriptReward(operand.reward)
             is CompiledOperand.RandomItemOffer -> randomItemOffer(operand.offer)
             is CompiledOperand.ShopService -> shopService(operand.service)
@@ -281,10 +326,14 @@ private class CompiledBundleValidator(
         }
     }
 
-    private fun textAnswer(answer: CompiledTextAnswer) {
+    private fun textAnswer(
+        root: ScriptRootRef,
+        operandPath: List<Int>,
+        answer: CompiledTextAnswer,
+    ) {
         answer.acceptedStrings.forEach { string(it, "text answer") }
-        instructions(answer.matchOps)
-        instructions(answer.missOps)
+        instructions(root, answer.matchOps, operandPath + 0)
+        instructions(root, answer.missOps, operandPath + 1)
     }
 
     private fun binding(binding: CompiledInputBinding) {
@@ -593,3 +642,49 @@ private class CompiledBundleValidator(
         }
     }
 }
+
+private sealed interface CompiledInstructionContractDiagnostic {
+    val root: ScriptRootRef
+    val instructionIndex: Int
+    val operandPath: List<Int>
+    val opcode: CompiledOpcode
+
+    fun message(): String
+
+    fun location(): String =
+        "root=${root.diagnosticName()} " +
+            "instructionIndex=$instructionIndex " +
+            "operandPath=${operandPath.diagnosticPath()} " +
+            "opcode=$opcode"
+
+    data class UnknownOpcode(
+        override val root: ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        override val opcode: CompiledOpcode,
+    ) : CompiledInstructionContractDiagnostic {
+        override fun message(): String = "compiled script contract violation: UnknownOpcode ${location()}"
+    }
+
+    data class WrongShape(
+        override val root: ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        override val opcode: CompiledOpcode,
+        val expected: List<List<CompiledOpcodeContract.Slot>>,
+        val actual: List<CompiledOpcodeContract.Slot>,
+    ) : CompiledInstructionContractDiagnostic {
+        override fun message(): String =
+            "compiled script contract violation: WrongShape " +
+                "${location()} expected=$expected actual=$actual"
+    }
+}
+
+private fun ScriptRootRef.diagnosticName(): String =
+    if (denseId == null) {
+        "${kind.name}:$slug"
+    } else {
+        "${kind.name}#$denseId:$slug"
+    }
+
+private fun List<Int>.diagnosticPath(): String = joinToString(prefix = "[", postfix = "]")
