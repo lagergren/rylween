@@ -37,8 +37,7 @@ abstract class FlagRef(
     private val declaredStates = mutableListOf<FlagState>()
     val states: List<FlagState> get() = declaredStates
 
-    protected fun state(native: String): FlagState =
-        FlagState(this, native).also { declaredStates += it }
+    protected fun state(native: String): FlagState = FlagState(this, native).also { declaredStates += it }
 }
 
 open class FlagState internal constructor(
@@ -190,7 +189,8 @@ class HermitFlags {
     val trollTooth = HermitTrollToothFlag().declareFlag()
 }
 
-class EncounterImmuneFlag : FlagRef(
+class EncounterImmuneFlag :
+    FlagRef(
         "encounter.immune",
         scope = FlagScope.Encounter,
         legacySlot = 0,
@@ -220,36 +220,94 @@ class StoryFlags {
 }
 val Story = StoryFlags()
 
-data class TextId(val id: String)
-data class TextPattern(val pattern: String)
-data class ItemId(val slug: String)
-data class MonsterId(val slug: String)
-data class EncounterTier(val slug: String)
-data class SceneId(val slug: String)
-data class SpellId(val slug: String)
-data class MissionId(val slug: String)
-data class NpcRole(val slug: String)
-data class StateId(val slug: String)
-data class PartyId(val slug: String)
-data class NpcId(val slug: String)
-data class LocationId(val slug: String)
-data class TownId(val slug: String)
-data class BuildingId(val slug: String)
+data class TextId(
+    val id: String,
+)
+
+data class TextPattern(
+    val pattern: String,
+)
+
+data class ItemId(
+    val slug: String,
+)
+
+data class MonsterId(
+    val slug: String,
+)
+
+data class EncounterTier(
+    val slug: String,
+)
+
+data class SceneId(
+    val slug: String,
+)
+
+data class SpellId(
+    val slug: String,
+)
+
+data class MissionId(
+    val slug: String,
+)
+
+data class NpcRole(
+    val slug: String,
+)
+
+data class StateId(
+    val slug: String,
+)
+
+data class PartyId(
+    val slug: String,
+)
+
+data class NpcId(
+    val slug: String,
+)
+
+data class LocationId(
+    val slug: String,
+)
+
+data class TownId(
+    val slug: String,
+)
+
+data class BuildingId(
+    val slug: String,
+)
 
 fun text(id: String) = TextId(id)
+
 fun textPattern(pattern: String) = TextPattern(pattern)
+
 fun item(slug: String) = ItemId(slug)
+
 fun monster(slug: String) = MonsterId(slug)
+
 fun encounterTier(slug: String) = EncounterTier(slug)
+
 fun sceneId(slug: String) = SceneId(slug)
+
 fun spellId(slug: String) = SpellId(slug)
+
 fun missionId(slug: String) = MissionId(slug)
+
 fun npcRole(slug: String) = NpcRole(slug)
+
 fun stateId(slug: String) = StateId(slug)
+
 fun partyId(slug: String) = PartyId(slug)
+
 fun npc(slug: String) = NpcId(slug)
+
 fun location(slug: String) = LocationId(slug)
+
 fun town(slug: String) = TownId(slug)
+
 fun building(slug: String) = BuildingId(slug)
 
 class ItemRefs {
@@ -337,7 +395,9 @@ class BuildingRefs {
 }
 val Buildings = BuildingRefs()
 
-class TownRef(val id: TownId) {
+class TownRef(
+    val id: TownId,
+) {
     val inn: WorldPosition get() = WorldPosition.Town(id, Buildings.inn)
     val tavern: WorldPosition get() = WorldPosition.Town(id, Buildings.tavern)
 }
@@ -362,20 +422,20 @@ class TowneRefs {
 }
 
 class ChurchRefs {
-            val who = text("towne.church.who")
-            val corpse = text("towne.church.corpse")
-            val noHealing = text("towne.church.no_healing")
-            val cost = text("towne.church.cost")
-            val noGold = text("towne.church.no_gold2")
-            val healed = text("towne.church.healed")
+    val who = text("towne.church.who")
+    val corpse = text("towne.church.corpse")
+    val noHealing = text("towne.church.no_healing")
+    val cost = text("towne.church.cost")
+    val noGold = text("towne.church.no_gold2")
+    val healed = text("towne.church.healed")
 }
 
 class RumourRefs {
-            val r12 = text("towne.rumour.r12")
-            val r13 = text("towne.rumour.r13")
-            val r25 = text("towne.rumour.r25")
-            val r27 = text("towne.rumour.r27")
-            val indexed = textPattern("towne.rumour.r{}")
+    val r12 = text("towne.rumour.r12")
+    val r13 = text("towne.rumour.r13")
+    val r25 = text("towne.rumour.r25")
+    val r27 = text("towne.rumour.r27")
+    val indexed = textPattern("towne.rumour.r{}")
 }
 
 class BattleRefs {
@@ -386,18 +446,18 @@ class BattleRefs {
 }
 
 class BattlePromptRefs {
-            val monster = text("battle.prompt.who")
+    val monster = text("battle.prompt.who")
 }
 
 class FrostRefs {
-            val chills = text("battle.spell.frost.chills")
-            val damage = text("battle.spell.frost.damage")
-            val damagePts = text("battle.spell.frost.damage_pts")
+    val chills = text("battle.spell.frost.chills")
+    val damage = text("battle.spell.frost.damage")
+    val damagePts = text("battle.spell.frost.damage_pts")
 }
 
 class FireWandRefs {
-            val burns = text("battle.item.fire_wand.burns")
-            val points = text("battle.item.fire_wand.points")
+    val burns = text("battle.item.fire_wand.burns")
+    val points = text("battle.item.fire_wand.points")
 }
 
 class MissionTextRefs {
@@ -405,9 +465,9 @@ class MissionTextRefs {
 }
 
 class BanditsTextRefs {
-            val spotted = text("missions.bandits.spotted")
-            val warned = text("missions.bandits.warned")
-            val recovered = text("missions.bandits.recovered")
+    val spotted = text("missions.bandits.spotted")
+    val warned = text("missions.bandits.warned")
+    val recovered = text("missions.bandits.recovered")
 }
 val T = TextRefs()
 
@@ -416,68 +476,247 @@ val T = TextRefs()
 // -----------------------------------------------------------------------------
 
 sealed interface IntAst {
-    data class Lit(val value: Int) : IntAst
-    data class Var(val name: String) : IntAst
-    data class Binary(val left: IntAst, val op: String, val right: IntAst) : IntAst
-    data class Random(val lo: IntAst, val hi: IntAst) : IntAst
-    data class MemberField(val member: IntAst, val field: String) : IntAst
-    data class MonsterField(val monster: IntAst, val field: String) : IntAst
-    data class PartyScalar(val name: String) : IntAst
-    data class NativeInt(val path: String, val args: List<String>) : IntAst
+    data class Lit(
+        val value: Int,
+    ) : IntAst
+
+    data class Var(
+        val name: String,
+    ) : IntAst
+
+    data class Binary(
+        val left: IntAst,
+        val op: String,
+        val right: IntAst,
+    ) : IntAst
+
+    data class Random(
+        val lo: IntAst,
+        val hi: IntAst,
+    ) : IntAst
+
+    data class MemberField(
+        val member: IntAst,
+        val field: String,
+    ) : IntAst
+
+    data class MonsterField(
+        val monster: IntAst,
+        val field: String,
+    ) : IntAst
+
+    data class PartyScalar(
+        val name: String,
+    ) : IntAst
+
+    data class NativeInt(
+        val path: String,
+        val args: List<String>,
+    ) : IntAst
 }
 
 sealed interface BoolAst {
-    data class Cmp(val left: IntAst, val op: String, val right: IntAst) : BoolAst
-    data class Not(val expr: BoolAst) : BoolAst
-    data class And(val left: BoolAst, val right: BoolAst) : BoolAst
-    data class Or(val left: BoolAst, val right: BoolAst) : BoolAst
-    data class FlagIs(val slug: String, val nativeValue: String) : BoolAst
-    data class MemberFlag(val member: IntAst, val name: String) : BoolAst
-    data class MonsterFlag(val monster: IntAst, val name: String) : BoolAst
+    data class Cmp(
+        val left: IntAst,
+        val op: String,
+        val right: IntAst,
+    ) : BoolAst
+
+    data class Not(
+        val expr: BoolAst,
+    ) : BoolAst
+
+    data class And(
+        val left: BoolAst,
+        val right: BoolAst,
+    ) : BoolAst
+
+    data class Or(
+        val left: BoolAst,
+        val right: BoolAst,
+    ) : BoolAst
+
+    data class FlagIs(
+        val slug: String,
+        val nativeValue: String,
+    ) : BoolAst
+
+    data class MemberFlag(
+        val member: IntAst,
+        val name: String,
+    ) : BoolAst
+
+    data class MonsterFlag(
+        val monster: IntAst,
+        val name: String,
+    ) : BoolAst
 }
 
 sealed interface StrAst {
-    data class NativeString(val path: String, val args: List<String>) : StrAst
+    data class NativeString(
+        val path: String,
+        val args: List<String>,
+    ) : StrAst
 }
 
 sealed interface LValueAst {
-    data class PartyScalar(val name: String) : LValueAst
-    data class MemberField(val member: IntAst, val field: String) : LValueAst
-    data class MonsterField(val monster: IntAst, val field: String) : LValueAst
+    data class PartyScalar(
+        val name: String,
+    ) : LValueAst
+
+    data class MemberField(
+        val member: IntAst,
+        val field: String,
+    ) : LValueAst
+
+    data class MonsterField(
+        val monster: IntAst,
+        val field: String,
+    ) : LValueAst
 }
 
 sealed interface Op {
-    data class Screen(val text: TextId) : Op
-    data class Emit(val text: TextId) : Op
-    data class EmitIndexed(val pattern: TextPattern, val value: IntAst) : Op
-    data class WaitInput(val reason: String? = null) : Op
-    data class Pause(val millis: Int) : Op
-    data class LetInt(val name: String, val value: IntAst) : Op
-    data class BindText(val name: String, val value: StrAst) : Op
-    data class Set(val target: LValueAst, val value: IntAst) : Op
-    data class Add(val target: LValueAst, val value: IntAst) : Op
-    data class Sub(val target: LValueAst, val value: IntAst) : Op
-    data class SetFlag(val slug: String, val nativeValue: String) : Op
-    data class If(val cond: BoolAst, val thenOps: List<Op>, val elseOps: List<Op>) : Op
-    data class Loop(val body: List<Op>) : Op
-    data class Break(val reason: String? = null) : Op
-    data class Stop(val reason: String? = null) : Op
-    data class Switch(val expr: IntAst, val cases: List<SwitchCase>) : Op
-    data class AskMember(val prompt: TextId, val varName: String) : Op
-    data class AskMonster(val prompt: TextId, val varName: String) : Op
-    data class ForEachMonster(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
-    data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : Op
-    data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
-    data class TakeItem(val item: ItemId) : Op
-    data class NativeCall(val path: String, val args: List<String>) : Op
+    data class Screen(
+        val text: TextId,
+    ) : Op
+
+    data class Emit(
+        val text: TextId,
+    ) : Op
+
+    data class EmitIndexed(
+        val pattern: TextPattern,
+        val value: IntAst,
+    ) : Op
+
+    data class WaitInput(
+        val reason: String? = null,
+    ) : Op
+
+    data class Pause(
+        val millis: Int,
+    ) : Op
+
+    data class LetInt(
+        val name: String,
+        val value: IntAst,
+    ) : Op
+
+    data class BindText(
+        val name: String,
+        val value: StrAst,
+    ) : Op
+
+    data class Set(
+        val target: LValueAst,
+        val value: IntAst,
+    ) : Op
+
+    data class Add(
+        val target: LValueAst,
+        val value: IntAst,
+    ) : Op
+
+    data class Sub(
+        val target: LValueAst,
+        val value: IntAst,
+    ) : Op
+
+    data class SetFlag(
+        val slug: String,
+        val nativeValue: String,
+    ) : Op
+
+    data class If(
+        val cond: BoolAst,
+        val thenOps: List<Op>,
+        val elseOps: List<Op>,
+    ) : Op
+
+    data class Loop(
+        val body: List<Op>,
+    ) : Op
+
+    data class Break(
+        val reason: String? = null,
+    ) : Op
+
+    data class Stop(
+        val reason: String? = null,
+    ) : Op
+
+    data class Switch(
+        val expr: IntAst,
+        val cases: List<SwitchCase>,
+    ) : Op
+
+    data class AskMember(
+        val prompt: TextId,
+        val varName: String,
+    ) : Op
+
+    data class AskMonster(
+        val prompt: TextId,
+        val varName: String,
+    ) : Op
+
+    data class ForEachMonster(
+        val varName: String,
+        val includeDead: Boolean,
+        val body: List<Op>,
+    ) : Op
+
+    data class RunScene(
+        val scene: SceneId,
+        val bindings: Map<String, String>,
+    ) : Op
+
+    data class Encounter(
+        val foe: MonsterId,
+        val mandatory: Boolean,
+        val tier: EncounterTier? = null,
+    ) : Op
+
+    data class TakeItem(
+        val item: ItemId,
+    ) : Op
+
+    data class NativeCall(
+        val path: String,
+        val args: List<String>,
+    ) : Op
 }
 
-data class SwitchCase(val match: Int?, val body: List<Op>)
+data class SwitchCase(
+    val match: Int?,
+    val body: List<Op>,
+)
 
-data class SceneModel(val id: SceneId, val ops: List<Op>)
-data class SpellModel(val id: SpellId, val slot: Int, val baseCost: Int, val name: String, val ops: List<Op>)
-data class MagicItemModel(val id: ItemId, val ops: List<Op>)
-data class MissionModel(val id: MissionId, val trigger: Trigger, val requires: BoolAst?, val ops: List<Op>)
+data class SceneModel(
+    val id: SceneId,
+    val ops: List<Op>,
+)
+
+data class SpellModel(
+    val id: SpellId,
+    val slot: Int,
+    val baseCost: Int,
+    val name: String,
+    val ops: List<Op>,
+)
+
+data class MagicItemModel(
+    val id: ItemId,
+    val ops: List<Op>,
+)
+
+data class MissionModel(
+    val id: MissionId,
+    val trigger: Trigger,
+    val requires: BoolAst?,
+    val ops: List<Op>,
+)
+
 data class GameModel(
     val flags: List<FlagRef>,
     val scenes: List<SceneModel>,
@@ -487,7 +726,9 @@ data class GameModel(
 )
 
 sealed interface Trigger {
-    data class RandomStep(val percent: Int) : Trigger
+    data class RandomStep(
+        val percent: Int,
+    ) : Trigger
 }
 
 // -----------------------------------------------------------------------------
@@ -495,24 +736,46 @@ sealed interface Trigger {
 // -----------------------------------------------------------------------------
 
 enum class Gender { Male, Female }
+
 enum class Race { Human, HalfElf, HalfOrc }
+
 enum class PcClass { Thief, Fighter, Wizard, Priest, Ranger, Bard }
 
-data class StatPool(val current: Int, val max: Int)
+data class StatPool(
+    val current: Int,
+    val max: Int,
+)
 typealias HitPoints = StatPool
 typealias Mana = StatPool
+
 infix fun Int.of(max: Int): StatPool = StatPool(this, max)
 
-data class GridPoint(val x: Int, val y: Int)
-fun xy(x: Int, y: Int): GridPoint = GridPoint(x, y)
+data class GridPoint(
+    val x: Int,
+    val y: Int,
+)
+
+fun xy(
+    x: Int,
+    y: Int,
+): GridPoint = GridPoint(x, y)
 
 sealed interface WorldPosition {
-    data class Wilderness(val point: GridPoint) : WorldPosition
-    data class Town(val town: TownId, val building: BuildingId) : WorldPosition
+    data class Wilderness(
+        val point: GridPoint,
+    ) : WorldPosition
+
+    data class Town(
+        val town: TownId,
+        val building: BuildingId,
+    ) : WorldPosition
 }
 
 object Wilderness {
-    fun xy(x: Int, y: Int): WorldPosition = WorldPosition.Wilderness(GridPoint(x, y))
+    fun xy(
+        x: Int,
+        y: Int,
+    ): WorldPosition = WorldPosition.Wilderness(GridPoint(x, y))
 }
 
 data class RealmState(
@@ -521,8 +784,15 @@ data class RealmState(
     val activeParty: PartyId,
 )
 
-data class LocationPlacement(val location: LocationId, val point: GridPoint)
-data class NpcPlacement(val npc: NpcId, val position: WorldPosition)
+data class LocationPlacement(
+    val location: LocationId,
+    val point: GridPoint,
+)
+
+data class NpcPlacement(
+    val npc: NpcId,
+    val position: WorldPosition,
+)
 
 data class PartyResources(
     val gold: Int,
@@ -532,7 +802,10 @@ data class PartyResources(
     val restedHours: Int,
 )
 
-data class InventorySlotState(val slot: Int, val item: ItemId?)
+data class InventorySlotState(
+    val slot: Int,
+    val item: ItemId?,
+)
 
 data class PartyMemberState(
     val name: String,
@@ -586,39 +859,61 @@ abstract class IntExpr {
     abstract val ast: IntAst
 
     operator fun plus(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "add", other.ast))
+
     operator fun plus(other: Int): IntExpr = this + lit(other)
+
     operator fun minus(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "sub", other.ast))
+
     operator fun minus(other: Int): IntExpr = this - lit(other)
+
     operator fun times(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "mul", other.ast))
+
     operator fun times(other: Int): IntExpr = this * lit(other)
+
     operator fun div(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "div", other.ast))
+
     operator fun div(other: Int): IntExpr = this / lit(other)
 }
 
-data class Expr(override val ast: IntAst) : IntExpr()
+data class Expr(
+    override val ast: IntAst,
+) : IntExpr()
 
 fun lit(value: Int): IntExpr = Expr(IntAst.Lit(value))
+
 fun v(name: String): IntExpr = Expr(IntAst.Var(name))
+
 fun random(range: IntRange): IntExpr = Expr(IntAst.Random(IntAst.Lit(range.first), IntAst.Lit(range.last)))
 
 infix fun IntExpr.eq(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "eq", other.ast))
+
 infix fun IntExpr.eq(other: Int): BoolExpr = this eq lit(other)
+
 infix fun IntExpr.ne(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "ne", other.ast))
+
 infix fun IntExpr.lt(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "lt", other.ast))
+
 infix fun IntExpr.lt(other: Int): BoolExpr = this lt lit(other)
+
 infix fun IntExpr.lte(other: Int): BoolExpr = Bool(BoolAst.Cmp(ast, "lte", IntAst.Lit(other)))
+
 infix fun IntExpr.gt(other: Int): BoolExpr = Bool(BoolAst.Cmp(ast, "gt", IntAst.Lit(other)))
+
 infix fun IntExpr.gte(other: Int): BoolExpr = Bool(BoolAst.Cmp(ast, "gte", IntAst.Lit(other)))
 
 abstract class BoolExpr {
     abstract val ast: BoolAst
 
     infix fun and(other: BoolExpr): BoolExpr = Bool(BoolAst.And(ast, other.ast))
+
     infix fun or(other: BoolExpr): BoolExpr = Bool(BoolAst.Or(ast, other.ast))
+
     operator fun not(): BoolExpr = Bool(BoolAst.Not(ast))
 }
 
-data class Bool(override val ast: BoolAst) : BoolExpr()
+data class Bool(
+    override val ast: BoolAst,
+) : BoolExpr()
 
 class IntSlot(
     private val script: ScriptScope,
@@ -626,10 +921,15 @@ class IntSlot(
     override val ast: IntAst,
 ) : IntExpr() {
     infix fun set(value: IntExpr) = script.record(Op.Set(lvalue, value.ast))
+
     infix fun set(value: Int) = set(lit(value))
+
     operator fun plusAssign(value: IntExpr) = script.record(Op.Add(lvalue, value.ast))
+
     operator fun plusAssign(value: Int) = plusAssign(lit(value))
+
     operator fun minusAssign(value: IntExpr) = script.record(Op.Sub(lvalue, value.ast))
+
     operator fun minusAssign(value: Int) = minusAssign(lit(value))
 }
 
@@ -639,51 +939,80 @@ class BoolSlot(
     private val read: BoolAst,
 ) : BoolExpr() {
     override val ast: BoolAst = read
+
     infix fun set(value: Boolean) = script.record(Op.Set(lvalue, IntAst.Lit(if (value) 1 else 0)))
 }
 
-class PartyRef(private val script: ScriptScope) {
+class PartyRef(
+    private val script: ScriptScope,
+) {
     val gold = IntSlot(script, LValueAst.PartyScalar("gold"), IntAst.PartyScalar("gold"))
+
     fun member(index: IntExpr): MemberRef = MemberRef(script, index)
 }
 
-class MemberRef(private val script: ScriptScope, val index: IntExpr) {
+class MemberRef(
+    private val script: ScriptScope,
+    val index: IntExpr,
+) {
     val hp = intField("hit_points")
     val maxHp = intField("health")
     val mp = intField("magic")
     val level = intField("level")
     val wisdom = intField("wisdom")
-    val dead = BoolSlot(
-        script,
-        LValueAst.MemberField(index.ast, "dead"),
-        BoolAst.MemberFlag(index.ast, "dead"),
-    )
+    val dead =
+        BoolSlot(
+            script,
+            LValueAst.MemberField(index.ast, "dead"),
+            BoolAst.MemberFlag(index.ast, "dead"),
+        )
 
     private fun intField(field: String): IntSlot =
         IntSlot(script, LValueAst.MemberField(index.ast, field), IntAst.MemberField(index.ast, field))
 }
 
-class MonsterRef(private val script: ScriptScope, val index: IntExpr) {
+class MonsterRef(
+    private val script: ScriptScope,
+    val index: IntExpr,
+) {
     val hp = IntSlot(script, LValueAst.MonsterField(index.ast, "hit_points"), IntAst.MonsterField(index.ast, "hit_points"))
-    val dead = BoolSlot(
-        script,
-        LValueAst.MonsterField(index.ast, "dead"),
-        BoolAst.MonsterFlag(index.ast, "dead"),
-    )
+    val dead =
+        BoolSlot(
+            script,
+            LValueAst.MonsterField(index.ast, "dead"),
+            BoolAst.MonsterFlag(index.ast, "dead"),
+        )
 }
 
 sealed interface StrExpr {
     val ast: StrAst
 }
 
-data class Str(override val ast: StrAst) : StrExpr
+data class Str(
+    override val ast: StrAst,
+) : StrExpr
 
 enum class PronounCase { Subject, Object, Possessive }
 
-sealed class NativeSpec(val path: String, val reason: String)
-class NativeEffectSpec(path: String, reason: String) : NativeSpec(path, reason)
-class NativeIntSpec(path: String, reason: String) : NativeSpec(path, reason)
-class NativeStringSpec(path: String, reason: String) : NativeSpec(path, reason)
+sealed class NativeSpec(
+    val path: String,
+    val reason: String,
+)
+
+class NativeEffectSpec(
+    path: String,
+    reason: String,
+) : NativeSpec(path, reason)
+
+class NativeIntSpec(
+    path: String,
+    reason: String,
+) : NativeSpec(path, reason)
+
+class NativeStringSpec(
+    path: String,
+    reason: String,
+) : NativeSpec(path, reason)
 
 object NativeAllowlist {
     val screenClearText = effect("screen.clear_text", "text-window rendering primitive")
@@ -706,25 +1035,26 @@ object NativeAllowlist {
     val npcRoleName = string("npc.role.name", "role-resolved NPC name binding")
     val npcRoleLocation = string("npc.role.location", "role-resolved NPC location binding")
 
-    val all: List<NativeSpec> = listOf(
-        screenClearText,
-        screenRedrawMap,
-        inventoryAdd,
-        ydargInit,
-        ydargClearRoomAtCurrent,
-        ydargTryMove,
-        rumourRoll,
-        ydargRoomAtCurrent,
-        ydargExitRequested,
-        inputKeyUpper,
-        partyMemberName,
-        combatMonsterName,
-        partyPronounSubject,
-        partyPronounObject,
-        partyPronounPossessive,
-        npcRoleName,
-        npcRoleLocation,
-    )
+    val all: List<NativeSpec> =
+        listOf(
+            screenClearText,
+            screenRedrawMap,
+            inventoryAdd,
+            ydargInit,
+            ydargClearRoomAtCurrent,
+            ydargTryMove,
+            rumourRoll,
+            ydargRoomAtCurrent,
+            ydargExitRequested,
+            inputKeyUpper,
+            partyMemberName,
+            combatMonsterName,
+            partyPronounSubject,
+            partyPronounObject,
+            partyPronounPossessive,
+            npcRoleName,
+            npcRoleLocation,
+        )
 
     val byPath: Map<String, NativeSpec> = all.associateBy { it.path }
 
@@ -732,44 +1062,58 @@ object NativeAllowlist {
         check(byPath.size == all.size) { "duplicate native allowlist path" }
     }
 
-    private fun effect(path: String, reason: String) = NativeEffectSpec(path, reason)
-    private fun int(path: String, reason: String) = NativeIntSpec(path, reason)
-    private fun string(path: String, reason: String) = NativeStringSpec(path, reason)
+    private fun effect(
+        path: String,
+        reason: String,
+    ) = NativeEffectSpec(path, reason)
+
+    private fun int(
+        path: String,
+        reason: String,
+    ) = NativeIntSpec(path, reason)
+
+    private fun string(
+        path: String,
+        reason: String,
+    ) = NativeStringSpec(path, reason)
 }
 
-fun partyName(member: MemberRef): StrExpr =
-    Str(StrAst.NativeString(NativeAllowlist.partyMemberName.path, listOf(render(member.index.ast))))
+fun partyName(member: MemberRef): StrExpr = Str(StrAst.NativeString(NativeAllowlist.partyMemberName.path, listOf(render(member.index.ast))))
 
 fun monsterName(monster: MonsterRef): StrExpr =
     Str(StrAst.NativeString(NativeAllowlist.combatMonsterName.path, listOf(render(monster.index.ast))))
 
-fun pronoun(member: MemberRef, case: PronounCase): StrExpr {
-    val native = when (case) {
-        PronounCase.Subject -> NativeAllowlist.partyPronounSubject
-        PronounCase.Object -> NativeAllowlist.partyPronounObject
-        PronounCase.Possessive -> NativeAllowlist.partyPronounPossessive
-    }
+fun pronoun(
+    member: MemberRef,
+    case: PronounCase,
+): StrExpr {
+    val native =
+        when (case) {
+            PronounCase.Subject -> NativeAllowlist.partyPronounSubject
+            PronounCase.Object -> NativeAllowlist.partyPronounObject
+            PronounCase.Possessive -> NativeAllowlist.partyPronounPossessive
+        }
     return Str(StrAst.NativeString(native.path, listOf(render(member.index.ast))))
 }
 
-fun npcName(role: NpcRole): StrExpr =
-    Str(StrAst.NativeString(NativeAllowlist.npcRoleName.path, listOf(role.slug)))
+fun npcName(role: NpcRole): StrExpr = Str(StrAst.NativeString(NativeAllowlist.npcRoleName.path, listOf(role.slug)))
 
-fun npcLocation(role: NpcRole): StrExpr =
-    Str(StrAst.NativeString(NativeAllowlist.npcRoleLocation.path, listOf(role.slug)))
+fun npcLocation(role: NpcRole): StrExpr = Str(StrAst.NativeString(NativeAllowlist.npcRoleLocation.path, listOf(role.slug)))
 
 fun render(ast: IntAst): String = ast.toString()
-fun render(arg: Any): String = when (arg) {
-    is IntExpr -> render(arg.ast)
-    is IntAst -> render(arg)
-    is TextId -> arg.id
-    is ItemId -> arg.slug
-    is MonsterId -> arg.slug
-    is EncounterTier -> arg.slug
-    is SceneId -> arg.slug
-    is FlagState -> "${arg.flag.slug}.${arg.native}"
-    else -> arg.toString()
-}
+
+fun render(arg: Any): String =
+    when (arg) {
+        is IntExpr -> render(arg.ast)
+        is IntAst -> render(arg)
+        is TextId -> arg.id
+        is ItemId -> arg.slug
+        is MonsterId -> arg.slug
+        is EncounterTier -> arg.slug
+        is SceneId -> arg.slug
+        is FlagState -> "${arg.flag.slug}.${arg.native}"
+        else -> arg.toString()
+    }
 
 // -----------------------------------------------------------------------------
 // DSL builders.
@@ -801,17 +1145,30 @@ class ScriptScope(
     }
 
     fun screen(id: TextId) = record(Op.Screen(id))
+
     fun emit(id: TextId) = record(Op.Emit(id))
-    fun emitIndexed(pattern: TextPattern, value: IntExpr) = record(Op.EmitIndexed(pattern, value.ast))
+
+    fun emitIndexed(
+        pattern: TextPattern,
+        value: IntExpr,
+    ) = record(Op.EmitIndexed(pattern, value.ast))
+
     fun waitInput(reason: String? = null) = record(Op.WaitInput(reason))
+
     fun pause(ms: Int) = record(Op.Pause(ms))
 
-    fun let(name: String, value: IntExpr): IntExpr {
+    fun let(
+        name: String,
+        value: IntExpr,
+    ): IntExpr {
         record(Op.LetInt(name, value.ast))
         return v(name)
     }
 
-    fun bind(name: String, value: StrExpr) {
+    fun bind(
+        name: String,
+        value: StrExpr,
+    ) {
         record(Op.BindText(name, value.ast))
     }
 
@@ -819,7 +1176,10 @@ class ScriptScope(
         record(Op.SetFlag(state.flag.slug, state.native))
     }
 
-    fun when_(cond: BoolExpr, then: ScriptScope.() -> Unit): ElseBranch {
+    fun when_(
+        cond: BoolExpr,
+        then: ScriptScope.() -> Unit,
+    ): ElseBranch {
         val thenOps = capture(then)
         val index = ops.size
         ops += Op.If(cond.ast, thenOps, emptyList())
@@ -827,37 +1187,56 @@ class ScriptScope(
     }
 
     fun stop(reason: String? = null) = record(Op.Stop(reason))
+
     fun breakLoop(reason: String? = null) = record(Op.Break(reason))
 
     fun loop(body: ScriptScope.() -> Unit) {
         record(Op.Loop(capture(body)))
     }
 
-    fun choose(expr: IntExpr, body: SwitchBuilder.() -> Unit) {
+    fun choose(
+        expr: IntExpr,
+        body: SwitchBuilder.() -> Unit,
+    ) {
         val builder = SwitchBuilder(this)
         builder.body()
         record(Op.Switch(expr.ast, builder.cases))
     }
 
-    fun forEachMonster(includeDead: Boolean = false, body: ScriptScope.(MonsterRef) -> Unit) {
+    fun forEachMonster(
+        includeDead: Boolean = false,
+        body: ScriptScope.(MonsterRef) -> Unit,
+    ) {
         val name = ctx.fresh("monster")
-        val childOps = capture {
-            body(MonsterRef(this, v(name)))
-        }
+        val childOps =
+            capture {
+                body(MonsterRef(this, v(name)))
+            }
         record(Op.ForEachMonster(name, includeDead, childOps))
     }
 
-    fun run(scene: SceneId, vararg bindings: Pair<String, Any>) {
+    fun run(
+        scene: SceneId,
+        vararg bindings: Pair<String, Any>,
+    ) {
         record(Op.RunScene(scene, bindings.associate { it.first to render(it.second) }))
     }
 
-    fun encounter(monster: MonsterId, mandatory: Boolean = false, tier: EncounterTier? = null) {
+    fun encounter(
+        monster: MonsterId,
+        mandatory: Boolean = false,
+        tier: EncounterTier? = null,
+    ) {
         record(Op.Encounter(monster, mandatory, tier))
     }
 
     fun take(item: ItemId) = record(Op.TakeItem(item))
 
-    fun pay(amount: IntExpr, broke: ScriptScope.() -> Unit, ok: ScriptScope.() -> Unit) {
+    fun pay(
+        amount: IntExpr,
+        broke: ScriptScope.() -> Unit,
+        ok: ScriptScope.() -> Unit,
+    ) {
         when_(party.gold lt amount) {
             broke()
         } otherwise {
@@ -873,7 +1252,9 @@ class ScriptScope(
     }
 }
 
-class ElseBranch(private val finish: (List<Op>) -> Unit) {
+class ElseBranch(
+    private val finish: (List<Op>) -> Unit,
+) {
     infix fun otherwise(body: ScriptScope.() -> Unit) {
         val ops = mutableListOf<Op>()
         ScriptScope(ScriptContext(), ops).body()
@@ -882,10 +1263,15 @@ class ElseBranch(private val finish: (List<Op>) -> Unit) {
 }
 
 @RylNextDsl
-class SwitchBuilder(private val parent: ScriptScope) {
+class SwitchBuilder(
+    private val parent: ScriptScope,
+) {
     val cases = mutableListOf<SwitchCase>()
 
-    fun case(value: Int, body: ScriptScope.() -> Unit) {
+    fun case(
+        value: Int,
+        body: ScriptScope.() -> Unit,
+    ) {
         val ops = mutableListOf<Op>()
         ScriptScope(ScriptContext(), ops).body()
         cases += SwitchCase(value, ops)
@@ -898,7 +1284,9 @@ class SwitchBuilder(private val parent: ScriptScope) {
     }
 }
 
-class AskScope(private val script: ScriptScope) {
+class AskScope(
+    private val script: ScriptScope,
+) {
     fun member(prompt: TextId): MemberRef {
         val name = "member_pick"
         script.record(Op.AskMember(prompt, name))
@@ -912,7 +1300,9 @@ class AskScope(private val script: ScriptScope) {
     }
 }
 
-class NativeScope(private val script: ScriptScope) {
+class NativeScope(
+    private val script: ScriptScope,
+) {
     // Native is deliberately narrow: rendering, keyboard input, inventory slot
     // plumbing, legacy Ydarg state, and helper calls whose implementation is
     // genuinely engine-owned. Game rules should become typed DSL verbs before
@@ -924,34 +1314,44 @@ class NativeScope(private val script: ScriptScope) {
     val input = NativeInput(script)
 }
 
-class NativeScreen(private val script: ScriptScope) {
+class NativeScreen(
+    private val script: ScriptScope,
+) {
     fun clearText() = script.record(Op.NativeCall(NativeAllowlist.screenClearText.path, emptyList()))
+
     fun redrawMap() = script.record(Op.NativeCall(NativeAllowlist.screenRedrawMap.path, emptyList()))
 }
 
-class NativeRumour(private val script: ScriptScope) {
+class NativeRumour(
+    private val script: ScriptScope,
+) {
     fun roll(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.rumourRoll.path, emptyList()))
 }
 
-class NativeInventory(private val script: ScriptScope) {
-    fun add(itemId: IntExpr) =
-        script.record(Op.NativeCall(NativeAllowlist.inventoryAdd.path, listOf(render(itemId))))
+class NativeInventory(
+    private val script: ScriptScope,
+) {
+    fun add(itemId: IntExpr) = script.record(Op.NativeCall(NativeAllowlist.inventoryAdd.path, listOf(render(itemId))))
 }
 
-class NativeYdarg(private val script: ScriptScope) {
+class NativeYdarg(
+    private val script: ScriptScope,
+) {
     fun init() = script.record(Op.NativeCall(NativeAllowlist.ydargInit.path, emptyList()))
+
     fun roomAtCurrent(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.ydargRoomAtCurrent.path, emptyList()))
-    fun clearRoomAtCurrent() =
-        script.record(Op.NativeCall(NativeAllowlist.ydargClearRoomAtCurrent.path, emptyList()))
+
+    fun clearRoomAtCurrent() = script.record(Op.NativeCall(NativeAllowlist.ydargClearRoomAtCurrent.path, emptyList()))
 
     fun exitRequested(): BoolExpr =
         Bool(BoolAst.Cmp(IntAst.NativeInt(NativeAllowlist.ydargExitRequested.path, emptyList()), "ne", IntAst.Lit(0)))
 
-    fun tryMove(key: IntExpr) =
-        script.record(Op.NativeCall(NativeAllowlist.ydargTryMove.path, listOf(render(key))))
+    fun tryMove(key: IntExpr) = script.record(Op.NativeCall(NativeAllowlist.ydargTryMove.path, listOf(render(key))))
 }
 
-class NativeInput(private val script: ScriptScope) {
+class NativeInput(
+    private val script: ScriptScope,
+) {
     fun keyUpper(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.inputKeyUpper.path, emptyList()))
 }
 
@@ -962,19 +1362,36 @@ class GameBuilder {
     private val magicItems = mutableListOf<MagicItemModel>()
     private val missions = mutableListOf<MissionModel>()
 
-    fun scene(id: SceneId, body: ScriptScope.() -> Unit) {
+    fun scene(
+        id: SceneId,
+        body: ScriptScope.() -> Unit,
+    ) {
         scenes += SceneModel(id, recordScript(body))
     }
 
-    fun spell(id: SpellId, slot: Int, baseCost: Int, name: String, body: ScriptScope.() -> Unit) {
+    fun spell(
+        id: SpellId,
+        slot: Int,
+        baseCost: Int,
+        name: String,
+        body: ScriptScope.() -> Unit,
+    ) {
         spells += SpellModel(id, slot, baseCost, name, recordScript(body))
     }
 
-    fun magicItem(id: ItemId, body: ScriptScope.() -> Unit) {
+    fun magicItem(
+        id: ItemId,
+        body: ScriptScope.() -> Unit,
+    ) {
         magicItems += MagicItemModel(id, recordScript(body))
     }
 
-    fun mission(id: MissionId, trigger: Trigger, requires: BoolExpr? = null, body: ScriptScope.() -> Unit) {
+    fun mission(
+        id: MissionId,
+        trigger: Trigger,
+        requires: BoolExpr? = null,
+        body: ScriptScope.() -> Unit,
+    ) {
         missions += MissionModel(id, trigger, requires?.ast, recordScript(body))
     }
 
@@ -1004,7 +1421,10 @@ class RylweenBuilder {
         contentModel = builder.build()
     }
 
-    fun state(id: StateId, body: StateBuilder.() -> Unit) {
+    fun state(
+        id: StateId,
+        body: StateBuilder.() -> Unit,
+    ) {
         val builder = StateBuilder(id)
         builder.body()
         states += builder.build()
@@ -1024,7 +1444,9 @@ fun rylween(body: RylweenBuilder.() -> Unit): RylweenModel {
 }
 
 @RylNextDsl
-class StateBuilder(private val id: StateId) {
+class StateBuilder(
+    private val id: StateId,
+) {
     private var realmState: RealmState? = null
     private val locationPlacements = mutableListOf<LocationPlacement>()
     private val npcPlacements = mutableListOf<NpcPlacement>()
@@ -1048,7 +1470,10 @@ class StateBuilder(private val id: StateId) {
         npcPlacements += builder.build()
     }
 
-    fun party(id: PartyId, body: PartyStateBuilder.() -> Unit) {
+    fun party(
+        id: PartyId,
+        body: PartyStateBuilder.() -> Unit,
+    ) {
         val builder = PartyStateBuilder(id)
         builder.body()
         parties += builder.build()
@@ -1101,7 +1526,9 @@ class NpcStateBuilder {
 }
 
 @RylNextDsl
-class PartyStateBuilder(private val id: PartyId) {
+class PartyStateBuilder(
+    private val id: PartyId,
+) {
     var player: String = ""
     var name: String = ""
     var position: WorldPosition = Wilderness.xy(0, 0)
@@ -1185,8 +1612,7 @@ class StateFlagBuilder {
 class InventoryStateBuilder {
     private val slots = mutableMapOf<Int, InventorySlotState>()
 
-    fun slot(index: Int): InventorySlotBuilder =
-        InventorySlotBuilder(index) { slot -> slots[index] = slot }
+    fun slot(index: Int): InventorySlotBuilder = InventorySlotBuilder(index) { slot -> slots[index] = slot }
 
     fun build(): List<InventorySlotState> = slots.values.sortedBy { it.slot }
 }
@@ -1209,7 +1635,10 @@ class InventorySlotBuilder(
 class PartyMembersBuilder {
     private val members = mutableListOf<PartyMemberState>()
 
-    fun member(name: String, body: PartyMemberBuilder.() -> Unit) {
+    fun member(
+        name: String,
+        body: PartyMemberBuilder.() -> Unit,
+    ) {
         val builder = PartyMemberBuilder(name)
         builder.body()
         members += builder.build()
@@ -1219,7 +1648,9 @@ class PartyMembersBuilder {
 }
 
 @RylNextDsl
-class PartyMemberBuilder(private val name: String) {
+class PartyMemberBuilder(
+    private val name: String,
+) {
     var gender: Gender = Gender.Male
     var race: Race = Race.Human
     var klass: PcClass = PcClass.Thief
@@ -1395,258 +1826,260 @@ fun validateStates(states: List<StateModel>) {
 // Six hard-case readability probe.
 // -----------------------------------------------------------------------------
 
-val nextRylween = rylween {
-    content {
-    // 1. Church heal: typed member fields, typed flagless flow, no engine names.
-    scene(Scenes.churchHeal) {
-        native.screen.clearText()
-        val m = ask.member(T.Towne.Church.who)
+val nextRylween =
+    rylween {
+        content {
+            // 1. Church heal: typed member fields, typed flagless flow, no engine names.
+            scene(Scenes.churchHeal) {
+                native.screen.clearText()
+                val m = ask.member(T.Towne.Church.who)
 
-        when_(m.dead) {
-            screen(T.Towne.Church.corpse)
-            pause(1200)
-            stop("corpse exits the heal service")
-        }
+                when_(m.dead) {
+                    screen(T.Towne.Church.corpse)
+                    pause(1200)
+                    stop("corpse exits the heal service")
+                }
 
-        when_(m.hp eq m.maxHp) {
-            bind("pro_sub", pronoun(m, PronounCase.Subject))
-            screen(T.Towne.Church.noHealing)
-            pause(1000)
-            stop("already fully healed")
-        }
+                when_(m.hp eq m.maxHp) {
+                    bind("pro_sub", pronoun(m, PronounCase.Subject))
+                    screen(T.Towne.Church.noHealing)
+                    pause(1000)
+                    stop("already fully healed")
+                }
 
-        val price = let("cost", (m.maxHp - m.hp) * 7)
-        screen(T.Towne.Church.cost)
+                val price = let("cost", (m.maxHp - m.hp) * 7)
+                screen(T.Towne.Church.cost)
 
-        pay(price,
-            broke = {
-                screen(T.Towne.Church.noGold)
-                pause(1000)
-            },
-            ok = {
-                m.hp set m.maxHp
-                bind("pro_obj", pronoun(m, PronounCase.Object))
-                screen(T.Towne.Church.healed)
-                pause(1000)
-            },
-        )
-    }
+                pay(
+                    price,
+                    broke = {
+                        screen(T.Towne.Church.noGold)
+                        pause(1000)
+                    },
+                    ok = {
+                        m.hp set m.maxHp
+                        bind("pro_obj", pronoun(m, PronounCase.Object))
+                        screen(T.Towne.Church.healed)
+                        pause(1000)
+                    },
+                )
+            }
 
-    // 2. Mage frost: spell body is normal script, combat target is typed.
-    spell(Spells.mageFrost, slot = 1, baseCost = 8, name = "Frost Finger") {
-        val caster = currentCaster
-        val target = ask.monsterAlive(T.Battle.Prompt.monster)
-        val damage = let("dmg", caster.level * random(2..8))
+            // 2. Mage frost: spell body is normal script, combat target is typed.
+            spell(Spells.mageFrost, slot = 1, baseCost = 8, name = "Frost Finger") {
+                val caster = currentCaster
+                val target = ask.monsterAlive(T.Battle.Prompt.monster)
+                val damage = let("dmg", caster.level * random(2..8))
 
-        native.screen.clearText()
-        bind("caster", partyName(caster))
-        emit(T.Battle.Frost.chills)
-        emit(T.Battle.Frost.damage)
-        emit(T.Battle.Frost.damagePts)
-        pause(1000)
-
-        target.hp -= damage
-
-        when_(target.hp lte 0) {
-            target.hp set 0
-            target.dead set true
-            emit(T.Battle.killed)
-            pause(600)
-        }
-    }
-
-    // 3. Fire wand: body owns item consumption and preserves per-slot RNG.
-    magicItem(Items.fireWand) {
-        val caster = currentCaster
-        take(Items.fireWand)
-        native.screen.clearText()
-        bind("caster", partyName(caster))
-
-        forEachMonster(includeDead = true) { foe ->
-            val damage = let("dmg", caster.level * random(3..8))
-
-            when_(!foe.dead) {
-                bind("monster_name", monsterName(foe))
-                emit(T.Battle.FireWand.burns)
-                emit(T.Battle.FireWand.points)
+                native.screen.clearText()
+                bind("caster", partyName(caster))
+                emit(T.Battle.Frost.chills)
+                emit(T.Battle.Frost.damage)
+                emit(T.Battle.Frost.damagePts)
                 pause(1000)
 
-                foe.hp -= damage
+                target.hp -= damage
 
-                when_(foe.hp lte 0) {
-                    foe.hp set 0
+                when_(target.hp lte 0) {
+                    target.hp set 0
+                    target.dead set true
                     emit(T.Battle.killed)
                     pause(600)
-                    foe.dead set true
                 }
             }
-        }
-    }
 
-    // 4. Rumour: switch is readable, role bindings are typed handles.
-    scene(Scenes.rumour) {
-        val pick = let("pick", native.rumour.roll())
+            // 3. Fire wand: body owns item consumption and preserves per-slot RNG.
+            magicItem(Items.fireWand) {
+                val caster = currentCaster
+                take(Items.fireWand)
+                native.screen.clearText()
+                bind("caster", partyName(caster))
 
-        choose(pick) {
-            case(12) {
-                bind("name1", npcName(Roles.banditsQuestGiver))
-                emit(T.Towne.Rumour.r12)
-            }
-            case(13) {
-                bind("name2", npcName(Roles.rangersQuestGiver))
-                emit(T.Towne.Rumour.r13)
-            }
-            case(25) {
-                bind("name15", npcName(Roles.crownSeer))
-                bind("loc15", npcLocation(Roles.crownSeer))
-                emit(T.Towne.Rumour.r25)
-            }
-            case(27) {
-                bind("name13", npcName(Roles.templeOfThunSeer))
-                bind("loc13", npcLocation(Roles.templeOfThunSeer))
-                emit(T.Towne.Rumour.r27)
-            }
-            default {
-                emitIndexed(T.Towne.Rumour.indexed, pick)
-            }
-        }
-    }
+                forEachMonster(includeDead = true) { foe ->
+                    val damage = let("dmg", caster.level * random(3..8))
 
-    // 5. Ydarg main: the native island is explicit and narrow.
-    scene(Scenes.ydargMain) {
-        native.ydarg.init()
-        waitInput("after castle intro")
+                    when_(!foe.dead) {
+                        bind("monster_name", monsterName(foe))
+                        emit(T.Battle.FireWand.burns)
+                        emit(T.Battle.FireWand.points)
+                        pause(1000)
 
-        loop {
-            native.screen.clearText()
+                        foe.hp -= damage
 
-            val room = let("room", native.ydarg.roomAtCurrent())
-            choose(room) {
-                case(1) {
-                    native.ydarg.clearRoomAtCurrent()
-                    run(Scenes.ydargRoomMonster)
-                }
-                case(2) {
-                    run(Scenes.ydargPitfall)
-                }
-                case(3) {
-                    run(Scenes.ydargTreasure)
-                }
-                case(50) {
-                    run(Scenes.ydargStairs)
-                    when_(native.ydarg.exitRequested()) {
-                        breakLoop("stairs requested exit")
+                        when_(foe.hp lte 0) {
+                            foe.hp set 0
+                            emit(T.Battle.killed)
+                            pause(600)
+                            foe.dead set true
+                        }
                     }
                 }
             }
 
-            run(Scenes.ydargNavRender)
-            val key = let("key", native.input.keyUpper())
-            native.ydarg.tryMove(key)
-            run(Scenes.ydargCommandDispatch, "key" to key)
-        }
-    }
+            // 4. Rumour: switch is readable, role bindings are typed handles.
+            scene(Scenes.rumour) {
+                val pick = let("pick", native.rumour.roll())
 
-    // 6. Mission trigger: flag states are fluent typed markers, not strings.
-    mission(
-        Missions.bandits,
-        trigger = Trigger.RandomStep(percent = 9),
-        requires = Story.garth.bandits.accepted,
-    ) {
-        native.screen.clearText()
-        screen(T.MissionsText.Bandits.spotted)
-        screen(T.MissionsText.Bandits.warned)
-        encounter(Monsters.bandit, mandatory = true)
-        native.screen.redrawMap()
-        native.screen.clearText()
-        screen(T.MissionsText.Bandits.recovered)
-        mark(Story.garth.bandits.recovered)
-    }
-    }
-
-    state(States.freshReplay) {
-        realm {
-            day = 14
-            hour = 9
-            activeParty = Parties.replay
-        }
-
-        locations {
-            Locations.silverKeyPit at xy(45, 13)
-            Locations.beastCave at xy(11, 23)
-        }
-
-        npcs {
-            Npcs.garth at Towns.thord.inn
-            Npcs.bernak at Towns.wilor.inn
-            Npcs.azaaza at Towns.ollk.inn
-        }
-
-        party(Parties.replay) {
-            player = "Replay"
-            name = "Replay"
-            position = Wilderness.xy(12, 9)
-
-            resources {
-                gold = 1000
-                torches = 5
-                food = 100
-                timeLeft = 200
-                restedHours = 14
+                choose(pick) {
+                    case(12) {
+                        bind("name1", npcName(Roles.banditsQuestGiver))
+                        emit(T.Towne.Rumour.r12)
+                    }
+                    case(13) {
+                        bind("name2", npcName(Roles.rangersQuestGiver))
+                        emit(T.Towne.Rumour.r13)
+                    }
+                    case(25) {
+                        bind("name15", npcName(Roles.crownSeer))
+                        bind("loc15", npcLocation(Roles.crownSeer))
+                        emit(T.Towne.Rumour.r25)
+                    }
+                    case(27) {
+                        bind("name13", npcName(Roles.templeOfThunSeer))
+                        bind("loc13", npcLocation(Roles.templeOfThunSeer))
+                        emit(T.Towne.Rumour.r27)
+                    }
+                    default {
+                        emitIndexed(T.Towne.Rumour.indexed, pick)
+                    }
+                }
             }
 
-            flags {
+            // 5. Ydarg main: the native island is explicit and narrow.
+            scene(Scenes.ydargMain) {
+                native.ydarg.init()
+                waitInput("after castle intro")
+
+                loop {
+                    native.screen.clearText()
+
+                    val room = let("room", native.ydarg.roomAtCurrent())
+                    choose(room) {
+                        case(1) {
+                            native.ydarg.clearRoomAtCurrent()
+                            run(Scenes.ydargRoomMonster)
+                        }
+                        case(2) {
+                            run(Scenes.ydargPitfall)
+                        }
+                        case(3) {
+                            run(Scenes.ydargTreasure)
+                        }
+                        case(50) {
+                            run(Scenes.ydargStairs)
+                            when_(native.ydarg.exitRequested()) {
+                                breakLoop("stairs requested exit")
+                            }
+                        }
+                    }
+
+                    run(Scenes.ydargNavRender)
+                    val key = let("key", native.input.keyUpper())
+                    native.ydarg.tryMove(key)
+                    run(Scenes.ydargCommandDispatch, "key" to key)
+                }
+            }
+
+            // 6. Mission trigger: flag states are fluent typed markers, not strings.
+            mission(
+                Missions.bandits,
+                trigger = Trigger.RandomStep(percent = 9),
+                requires = Story.garth.bandits.accepted,
+            ) {
+                native.screen.clearText()
+                screen(T.MissionsText.Bandits.spotted)
+                screen(T.MissionsText.Bandits.warned)
+                encounter(Monsters.bandit, mandatory = true)
+                native.screen.redrawMap()
+                native.screen.clearText()
+                screen(T.MissionsText.Bandits.recovered)
                 mark(Story.garth.bandits.recovered)
-                mark(Story.silverKey.noteFound)
+            }
+        }
+
+        state(States.freshReplay) {
+            realm {
+                day = 14
+                hour = 9
+                activeParty = Parties.replay
             }
 
-            inventory {
-                slot(1).empty()
-                slot(2).item(Items.fireWand)
-                slot(3).item(Items.garthCargo)
+            locations {
+                Locations.silverKeyPit at xy(45, 13)
+                Locations.beastCave at xy(11, 23)
             }
 
-            members {
-                member("A") {
-                    gender = Gender.Male
-                    race = Race.Human
-                    klass = PcClass.Thief
-                    level = 1
-                    health = 68
-                    hitPoints = 68 of 68
-                    weaponSkill = 27
-                    wisdom = 27
-                    mana = 0 of 27
-                    charisma = 49
-                    armor = Items.none
-                    weapon = Items.none
-                    experience = 0
-                    alive()
+            npcs {
+                Npcs.garth at Towns.thord.inn
+                Npcs.bernak at Towns.wilor.inn
+                Npcs.azaaza at Towns.ollk.inn
+            }
+
+            party(Parties.replay) {
+                player = "Replay"
+                name = "Replay"
+                position = Wilderness.xy(12, 9)
+
+                resources {
+                    gold = 1000
+                    torches = 5
+                    food = 100
+                    timeLeft = 200
+                    restedHours = 14
                 }
 
-                member("B") {
-                    gender = Gender.Male
-                    race = Race.Human
-                    klass = PcClass.Thief
-                    level = 1
-                    health = 46
-                    hitPoints = 46 of 46
-                    weaponSkill = 42
-                    wisdom = 48
-                    mana = 0 of 48
-                    charisma = 64
-                    armor = Items.none
-                    weapon = Items.none
-                    experience = 0
-                    alive()
+                flags {
+                    mark(Story.garth.bandits.recovered)
+                    mark(Story.silverKey.noteFound)
                 }
-            }
 
-            visited(Npcs.garth, Npcs.bernak)
-            journal(T.MissionsText.Bandits.recovered)
+                inventory {
+                    slot(1).empty()
+                    slot(2).item(Items.fireWand)
+                    slot(3).item(Items.garthCargo)
+                }
+
+                members {
+                    member("A") {
+                        gender = Gender.Male
+                        race = Race.Human
+                        klass = PcClass.Thief
+                        level = 1
+                        health = 68
+                        hitPoints = 68 of 68
+                        weaponSkill = 27
+                        wisdom = 27
+                        mana = 0 of 27
+                        charisma = 49
+                        armor = Items.none
+                        weapon = Items.none
+                        experience = 0
+                        alive()
+                    }
+
+                    member("B") {
+                        gender = Gender.Male
+                        race = Race.Human
+                        klass = PcClass.Thief
+                        level = 1
+                        health = 46
+                        hitPoints = 46 of 46
+                        weaponSkill = 42
+                        wisdom = 48
+                        mana = 0 of 48
+                        charisma = 64
+                        armor = Items.none
+                        weapon = Items.none
+                        experience = 0
+                        alive()
+                    }
+                }
+
+                visited(Npcs.garth, Npcs.bernak)
+                journal(T.MissionsText.Bandits.recovered)
+            }
         }
     }
-}
 
 val nextDsl = nextRylween.content
 
@@ -1656,7 +2089,13 @@ check(nextDsl.spells.size == 1)
 check(nextDsl.magicItems.size == 1)
 check(nextDsl.missions.size == 1)
 check(nextRylween.states.size == 1)
-check(nextRylween.states.single().parties.single().members.size == 2)
+check(
+    nextRylween.states
+        .single()
+        .parties
+        .single()
+        .members.size == 2,
+)
 validateFlagCatalog(nextDsl.flags)
 validateStates(nextRylween.states)
 check((nativePathsIn(nextDsl) - NativeAllowlist.byPath.keys).isEmpty())
