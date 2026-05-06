@@ -1,11 +1,18 @@
 # Kotlin DSL/runtime gate plus self-contained ANSI Docker image.
+#
+# CURRENTLY DISABLED. The workflow only runs on manual dispatch
+# (Actions tab → Run workflow). Re-enable auto-runs by restoring the
+# `push` and `pull_request` triggers below — they were:
+#
+#   on:
+#     push:
+#       branches: ['**']
+#     pull_request:
 
 name: ci
 
 on:
-  push:
-    branches: ['**']
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   kotlin:
