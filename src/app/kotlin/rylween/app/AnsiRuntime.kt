@@ -1474,7 +1474,15 @@ private class ClassicAnsiScreen(
         RylweenAppAssets
             .readText(resource)
             .lineSequence()
-            .map { it.trimEnd('\r') }
+            // Strip trailing CR (Windows line-endings) and any tab characters
+            // anywhere in the line. Tabs were carried over from the original
+            // Amiga gfx.c, where each row was preceded by an explicit absolute
+            // cursor-positioning call, so the tabs never advanced the cursor
+            // visibly. With our line-by-line dump the terminal processes the
+            // tabs *before* the next CUP, jumping the cursor across columns
+            // while the active background colour fills the moved-over cells —
+            // the symptom is a coloured bleed past the right edge of the tile.
+            .map { it.trimEnd('\r').replace("\t", "") }
             .forEachIndexed { row, line ->
                 terminal.writeRaw("${CSI}${y + row};${x}H")
                 terminal.writeRaw(line)
