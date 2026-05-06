@@ -25,14 +25,14 @@ ktlint {
     }
 }
 
-val cpdClasspath: Configuration = configurations.create("cpdClasspath")
+val cpdClasspath: Configuration by configurations.creating
 
 dependencies {
-    "cpdClasspath"("net.sourceforge.pmd:pmd-cli:$pmdVersion")
-    "cpdClasspath"("net.sourceforge.pmd:pmd-kotlin:$pmdVersion")
+    cpdClasspath("net.sourceforge.pmd:pmd-cli:$pmdVersion")
+    cpdClasspath("net.sourceforge.pmd:pmd-kotlin:$pmdVersion")
 }
 
-val cpdCheck = tasks.register<JavaExec>("cpdCheck") {
+val cpdCheck: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Runs PMD CPD duplicate-detection over all Kotlin source sets."
     classpath = cpdClasspath
@@ -44,14 +44,24 @@ val cpdCheck = tasks.register<JavaExec>("cpdCheck") {
     inputs.files(sources).withPropertyName("sources")
     outputs.file(reportFile).withPropertyName("report")
     doFirst { reportFile.parentFile.mkdirs() }
-    args("cpd", "--language", "kotlin", "--minimum-tokens", "80",
-        "--format", "text", "--no-fail-on-violation", "--report-file", reportFile.path)
+    args(
+        "cpd",
+        "--language",
+        "kotlin",
+        "--minimum-tokens",
+        "80",
+        "--format",
+        "text",
+        "--no-fail-on-violation",
+        "--report-file",
+        reportFile.path,
+    )
     sources.forEach { args("--dir", it.path) }
     isIgnoreExitValue = true
 }
 
-tasks.register("qaCheck") {
+val qaCheck: TaskProvider<Task> by tasks.registering {
     group = "verification"
     description = "Runs all code-quality checks (ktlint + cpd)."
-    dependsOn("ktlintCheck", cpdCheck)
+    dependsOn(tasks.named("ktlintCheck"), cpdCheck)
 }
