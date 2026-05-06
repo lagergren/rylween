@@ -83,44 +83,6 @@ bug reports and suggestions.
 
 ---
 
-I want to thank the following people for beta testing/suggestions/ideas
-support/help/beer etc.
-
-Zak Ashraf       - For calling my board from the UK just to play AOR!
-Magnus Andersson - For being the laziest cosysop in the world.
-Mattias Bergvall - Well... er... hmm.... oops, fergot.
-Anders Blixt     - The first one to get hooked on AOR.
-Niklas Blomqvist - Creator of the original Rylween realm.
-David Borin      - Have fun in Luleå, man.
-Martin Darsenius - For being the almost-perfect user!
-Per Eklund       - For being the perfect user!
-Niklas Eriksson  - For constantly complaining.
-Jonathan Forbes  - For keeping my adrenalin level high. :-)
-Tommy Green      - For receiving all the complaints.
-Magnus Gustafson - For answering Marcus Hirt's letters.
-Holger Hellebro  - My first beta tester.
-Marcus Hirt      - For cluttering up my msg bases with strange discussions.
-Bob Hurst        - For Hack&Slash. (It inspired me to create AOR).
-Patrik Jarnefelt - Beta tester. Solna-dweller.
-Marcus Lagergren - For egocentricity :) - Otherwise I wouldn't have made it.
-Joakim Larsson   - Another Rylween-o-phile. (But he grew tired of it).
-Matias Larsson   - Graphics Wizard. The best of them all!
-Magnus Lilja     - For keeping my adrenalin level high. ;->
-H.P. Lovecraft   - For contributing to the atmosphere.
-Alex May         - Splooty! (And I believe you did some beta testing too?)
-Lars Siden       - Thanks for everything.
-Michael Sinz     - The creator of Enforcer.
-Karl Skagerberg  - Beta tester.
-Stefan Stark     - Another Rylween enthusiast.
-Oskar Sundberg   - For staying out of the way.
-Oskar Sodergren  - For hints and transportation.
-Dalina Steneros  - For cheering me up.
-Ron Teague       - For great support, encouragement and beta testing.
-Peter Tidestrom  - For the beer.
-Nicolaus Wirth   - For designing the Pascal language... (JUST KIDDING!!!)
-
----
-
 Optdata: Run this every midnight or whenever you feel for it. It will
          optimize the user data for Rylween, remove bad records, 
          remove inactive players (with 0 experience points), these
