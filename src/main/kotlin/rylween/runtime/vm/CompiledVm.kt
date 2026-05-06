@@ -13,6 +13,7 @@ import rylween.compiled.CompiledBinaryOp
 import rylween.compiled.CompiledBoolExpr
 import rylween.compiled.CompiledComparisonOp
 import rylween.compiled.CompiledHandleRef
+import rylween.compiled.CompiledInputBinding
 import rylween.compiled.CompiledInstruction
 import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledLValue
@@ -31,6 +32,7 @@ import rylween.compiled.LoadedCompiledContent
 import rylween.dsl.GameMilestoneId
 import rylween.dsl.Gender
 import rylween.dsl.ImageId
+import rylween.dsl.InputBindingModel
 import rylween.dsl.ItemId
 import rylween.dsl.ItemPoolId
 import rylween.dsl.LocationId
@@ -44,6 +46,7 @@ import rylween.dsl.TextPart
 import rylween.dsl.TextPattern
 import rylween.dsl.ViewCommand
 import rylween.dsl.fallbackText
+import rylween.dsl.matches
 import rylween.dsl.pronoun
 import rylween.engine.EngineRequest
 import rylween.engine.EngineTraceEvent
@@ -163,6 +166,11 @@ sealed interface CompiledVmInput {
     data class MenuKey(
         val key: Char,
     ) : CompiledVmInput
+
+    /** Supplies a raw token for an `AskKey` prompt, matched against authored bindings and aliases. */
+    data class AskKey(
+        val raw: String,
+    ) : CompiledVmInput
 }
 
 /** Typed input request that stopped a compiled VM run. */
@@ -197,6 +205,16 @@ sealed interface CompiledVmPendingInput {
         /** Primary menu keys accepted by this prompt. */
         val keys: List<Char> get() = options.map { option -> option.key }
     }
+
+    /** Pending authored key prompt that stores the chosen binding value in [localName]. */
+    data class AskKey(
+        override val root: rylween.runtime.ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        val prompt: TextBlock,
+        val localName: String,
+        val bindings: List<InputBindingModel>,
+    ) : CompiledVmPendingInput
 }
 
 /** One selectable menu option in a blocked compiled VM menu prompt. */
@@ -248,8 +266,9 @@ sealed interface CompiledVmResult {
  *
  * [content] must come from [rylween.compiled.CompiledBundleLoader] so handle,
  * string, opcode-shape, and native-service checks have already run. This kernel
- * intentionally rejects interactive and child-session opcodes until later J2.1
- * continuation work gives them precise suspension semantics.
+ * intentionally rejects opcodes whose host or continuation contract has not
+ * landed yet, while implemented prompts return typed [CompiledVmPendingInput]
+ * continuations instead of talking to terminal IO directly.
  */
 class CompiledVm(
     private val content: LoadedCompiledContent,
@@ -314,6 +333,9 @@ class CompiledVm(
         if (continuation.pending is CompiledVmPendingInput.Menu && input is CompiledVmInput.MenuKey) {
             return resumeMenu(program, continuation, input)
         }
+        if (continuation.pending is CompiledVmPendingInput.AskKey && input is CompiledVmInput.AskKey) {
+            return resumeAskKey(program, continuation, input)
+        }
         val state =
             ExecutionState(
                 root = continuation.root,
@@ -354,6 +376,27 @@ class CompiledVm(
                 insideLoop = menuFrame?.insideLoop ?: false,
             )
         return result(state, executeFrames(state, program.instructions, listOf(branchFrame) + continuation.frames))
+    }
+
+    private fun resumeAskKey(
+        program: CompiledScriptProgram,
+        continuation: CompiledVmContinuation,
+        input: CompiledVmInput.AskKey,
+    ): CompiledVmResult {
+        val pending = continuation.pending as CompiledVmPendingInput.AskKey
+        val binding = pending.bindings.firstOrNull { binding -> binding.matches(input.raw) }
+        if (binding == null) {
+            return CompiledVmResult.Blocked(pending, continuation)
+        }
+        val state =
+            ExecutionState(
+                root = continuation.root,
+                runtime = continuation.runtime,
+                locals = continuation.locals.toMutableMap(),
+                textBindings = continuation.textBindings.toMutableMap(),
+            )
+        state.locals[pending.localName] = binding.compiledVmPromptValue()
+        return result(state, executeFrames(state, program.instructions, continuation.frames))
     }
 
     private fun result(
@@ -538,6 +581,37 @@ class CompiledVm(
             CompiledOpcode.View -> {
                 host.trace(EngineTraceEvent.View(viewCommand(instruction.view(0))))
                 ControlSignal.Continue
+            }
+            CompiledOpcode.AskKey -> {
+                val promptAndBindings =
+                    renderText(state, instruction.textBlock(0), location.child(0))
+                        .map { prompt -> prompt to instruction.inputBindings(2) }
+                promptAndBindings.fold(
+                    ok = { (prompt, bindings) ->
+                        val pending =
+                            CompiledVmPendingInput.AskKey(
+                                root = location.root,
+                                instructionIndex = location.instructionIndex,
+                                operandPath = location.operandPath,
+                                prompt = prompt,
+                                localName = index.string(instruction.stringId(1)),
+                                bindings = bindings,
+                            )
+                        host.trace(EngineTraceEvent.AskKey(prompt, bindings))
+                        ControlSignal.Blocked(
+                            pending = pending,
+                            frames =
+                                listOf(
+                                    CompiledVmFrame(
+                                        blockPath = location.blockPath,
+                                        nextIndex = location.instructionIndex + 1,
+                                        insideLoop = insideLoop,
+                                    ),
+                                ) + parentFrames,
+                        )
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
             }
             CompiledOpcode.LetInt -> {
                 val name = index.string(instruction.stringId(0))
@@ -1265,6 +1339,16 @@ class CompiledVm(
     private fun CompiledInstruction.menuOptions(index: Int): List<CompiledMenuOption> =
         (operands[index] as CompiledOperand.MenuOptions).options
 
+    private fun CompiledInstruction.inputBindings(index: Int): List<InputBindingModel> =
+        (operands[index] as CompiledOperand.InputBindings).bindings.map(::inputBinding)
+
+    private fun inputBinding(binding: CompiledInputBinding): InputBindingModel =
+        InputBindingModel(
+            primary = index.string(binding.primaryString),
+            aliases = binding.aliasStrings.map(index::string),
+            label = index.string(binding.labelString),
+        )
+
     private fun menuOptions(
         instruction: CompiledInstruction,
         location: VmLocation,
@@ -1451,6 +1535,7 @@ private fun CompiledVmContinuation.accepts(input: CompiledVmInput): Boolean =
     when (pending) {
         is CompiledVmPendingInput.WaitInput -> input is CompiledVmInput.Continue
         is CompiledVmPendingInput.Menu -> input is CompiledVmInput.MenuKey
+        is CompiledVmPendingInput.AskKey -> input is CompiledVmInput.AskKey
     }
 
 private sealed interface EvalResult<out T> {
@@ -1484,6 +1569,11 @@ private fun <A, B> EvalResult<A>.zip(other: EvalResult<B>): EvalResult<Pair<A, B
                 is EvalResult.Ok -> EvalResult.Ok(value to other.value)
             }
     }
+
+private fun InputBindingModel.compiledVmPromptValue(): Int =
+    primary.singleOrNull()?.let { char ->
+        char.digitToIntOrNull() ?: char.uppercaseChar().code
+    } ?: primary.uppercase().hashCode()
 
 private inline fun <T, R> EvalResult<T>.fold(
     ok: (T) -> R,

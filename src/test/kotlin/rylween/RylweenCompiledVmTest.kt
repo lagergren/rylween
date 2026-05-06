@@ -33,6 +33,7 @@ import rylween.dsl.Wilderness
 import rylween.dsl.declareFlag
 import rylween.dsl.eq
 import rylween.dsl.inlineText
+import rylween.dsl.inputKey
 import rylween.dsl.item
 import rylween.dsl.itemPool
 import rylween.dsl.line
@@ -291,7 +292,57 @@ class RylweenCompiledVmTest {
     }
 
     @Test
-    fun compiledVmStillRejectsUnimplementedInteractiveOpcodeFamilies() {
+    fun compiledVmBlocksAndResumesAskKeyWithoutReplayingPriorEffects() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskKeyScene) {
+                        screen("before")
+                        val key = ask.key(inlineText("key"), inputKey('A'), inputKey('B', "bee"))
+                        party.gold set key
+                        screen("after")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskKeyScene)
+        val runtime = RuntimeSessionState.singleParty(testParty(), 12, null)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+
+        val result = vm.run(program, CompiledVmStart(runtime))
+
+        val blocked = assertIs<CompiledVmResult.Blocked>(result)
+        val pending = assertIs<CompiledVmPendingInput.AskKey>(blocked.pending)
+        assertEquals(1, pending.instructionIndex)
+        assertEquals(listOf(1), pending.operandPath)
+        assertEquals(listOf("A", "B"), pending.bindings.map { binding -> binding.primary })
+        assertEquals(listOf(emptyList(), listOf("bee")), pending.bindings.map { binding -> binding.aliases })
+        assertEquals(listOf(CompiledVmFrameForTest(emptyList(), 2, false)), blocked.continuation.frames.map(::CompiledVmFrameForTest))
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.AskKey(pending.prompt, pending.bindings),
+            ),
+            host.events,
+        )
+
+        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskKey("bee"))
+
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals('B'.code, completed.locals[pending.localName])
+        assertEquals('B'.code, completed.runtime.activeParty.resources.gold)
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.AskKey(pending.prompt, pending.bindings),
+                EngineTraceEvent.Screen(inlineText("after")),
+            ),
+            host.events,
+        )
+    }
+
+    @Test
+    fun compiledVmAskKeyInvalidInputStaysBlockedWithoutAdvancing() {
         val model =
             rylween {
                 content {
@@ -302,6 +353,32 @@ class RylweenCompiledVmTest {
                 }
             }
         val (compiled, program) = compiledScene(model, VmAskKeyScene)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+        val blocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+
+        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.AskKey("Z"))
+
+        val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
+        assertEquals(blocked.pending, stillBlocked.pending)
+        assertEquals(blocked.continuation, stillBlocked.continuation)
+        assertEquals(1, host.events.size)
+    }
+
+    @Test
+    fun compiledVmStillRejectsUnimplementedInteractiveOpcodeFamilies() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskMemberScene) {
+                        ask.member(inlineText("who"))
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskMemberScene)
 
         val result =
             CompiledVm(compiled.content)
@@ -309,7 +386,7 @@ class RylweenCompiledVmTest {
 
         val failed = assertIs<CompiledVmResult.Failed>(result)
         val diagnostic = assertIs<VmDiagnostic.UnsupportedHostService>(failed.diagnostic)
-        assertEquals("AskKey", diagnostic.service)
+        assertEquals("AskMember", diagnostic.service)
     }
 
     @Test
@@ -697,6 +774,7 @@ class RylweenCompiledVmTest {
         val VmMenuScene = sceneId("vm.menu")
         val VmMenuDefaultScene = sceneId("vm.menu_default")
         val VmAskKeyScene = sceneId("vm.ask_key")
+        val VmAskMemberScene = sceneId("vm.ask_member")
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
         val VmNestedExpressionScene = sceneId("vm.nested_expr")
