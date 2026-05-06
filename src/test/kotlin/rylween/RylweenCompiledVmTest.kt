@@ -59,6 +59,8 @@ import rylween.runtime.ScriptRootRef
 import rylween.runtime.hasFlagState
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.vm.CompiledVm
+import rylween.runtime.vm.CompiledVmInput
+import rylween.runtime.vm.CompiledVmPendingInput
 import rylween.runtime.vm.CompiledVmResult
 import rylween.runtime.vm.CompiledVmStart
 import rylween.runtime.vm.NativeServiceArgSlot
@@ -127,16 +129,68 @@ class RylweenCompiledVmTest {
     }
 
     @Test
-    fun compiledVmRejectsInteractiveOpcodeInInitialKernelSlice() {
+    fun compiledVmBlocksAndResumesWaitInputWithoutReplayingPriorEffects() {
         val model =
             rylween {
                 content {
                     scene(VmWaitScene) {
+                        screen("before")
                         waitInput("interactive")
+                        party.gold += 4
+                        screen("after")
                     }
                 }
             }
         val (compiled, program) = compiledScene(model, VmWaitScene)
+        val runtime = RuntimeSessionState.singleParty(testParty(), 12, null)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+
+        val result = vm.run(program, CompiledVmStart(runtime))
+
+        val blocked = assertIs<CompiledVmResult.Blocked>(result)
+        val pending = assertIs<CompiledVmPendingInput.WaitInput>(blocked.pending)
+        assertEquals("interactive", pending.reason)
+        assertEquals(1, pending.instructionIndex)
+        assertEquals(listOf(1), pending.operandPath)
+        assertEquals(listOf(CompiledVmFrameForTest(emptyList(), 2, false)), blocked.continuation.frames.map(::CompiledVmFrameForTest))
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.WaitInput("interactive"),
+            ),
+            host.events,
+        )
+
+        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.Continue)
+
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals(6, completed.runtime.activeParty.resources.gold)
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.WaitInput("interactive"),
+                EngineTraceEvent.Screen(inlineText("after")),
+            ),
+            host.events,
+        )
+    }
+
+    @Test
+    fun compiledVmStillRejectsUnimplementedInteractiveOpcodeFamilies() {
+        val model =
+            rylween {
+                content {
+                    scene(VmMenuScene) {
+                        menu("pick") {
+                            option('A') {
+                                screen("a")
+                            }
+                        }
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmMenuScene)
 
         val result =
             CompiledVm(compiled.content)
@@ -144,7 +198,7 @@ class RylweenCompiledVmTest {
 
         val failed = assertIs<CompiledVmResult.Failed>(result)
         val diagnostic = assertIs<VmDiagnostic.UnsupportedHostService>(failed.diagnostic)
-        assertEquals("WaitInput", diagnostic.service)
+        assertEquals("Menu", diagnostic.service)
     }
 
     @Test
@@ -510,6 +564,14 @@ class RylweenCompiledVmTest {
 
     private fun PartyState.flagTokens(): List<Pair<String, String>> = flags.map { state -> state.flag.slug to state.native }
 
+    private data class CompiledVmFrameForTest(
+        val blockPath: List<Int>,
+        val nextIndex: Int,
+        val insideLoop: Boolean,
+    ) {
+        constructor(frame: rylween.runtime.vm.CompiledVmFrame) : this(frame.blockPath, frame.nextIndex, frame.insideLoop)
+    }
+
     private object NoopTerminalPort : TerminalPort {
         override fun write(lines: List<String>) = Unit
 
@@ -521,6 +583,7 @@ class RylweenCompiledVmTest {
         val VmMilestone = milestone("vm.won")
         val VmPureScene = sceneId("vm.pure")
         val VmWaitScene = sceneId("vm.wait")
+        val VmMenuScene = sceneId("vm.menu")
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
         val VmNestedExpressionScene = sceneId("vm.nested_expr")

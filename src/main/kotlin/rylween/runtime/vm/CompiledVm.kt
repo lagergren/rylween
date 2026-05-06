@@ -153,6 +153,50 @@ data class CompiledVmStart(
     val textBindings: Map<String, String> = emptyMap(),
 )
 
+/** Input delivered to a blocked compiled VM continuation. */
+sealed interface CompiledVmInput {
+    /** Acknowledges a `WaitInput` prompt and resumes at the next instruction. */
+    data object Continue : CompiledVmInput
+}
+
+/** Typed input request that stopped a compiled VM run. */
+sealed interface CompiledVmPendingInput {
+    /** Script root that owns the pending input. */
+    val root: rylween.runtime.ScriptRootRef
+
+    /** Instruction index of the blocking opcode in its current instruction block. */
+    val instructionIndex: Int
+
+    /** Operand path to the blocking opcode or nested prompt. */
+    val operandPath: List<Int>
+
+    /** Pending `WaitInput` acknowledgment. */
+    data class WaitInput(
+        override val root: rylween.runtime.ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        val reason: String?,
+        val prompt: TextBlock? = null,
+    ) : CompiledVmPendingInput
+}
+
+/** One resumable compiled VM instruction-block frame. */
+data class CompiledVmFrame(
+    val blockPath: List<Int>,
+    val nextIndex: Int,
+    val insideLoop: Boolean = false,
+)
+
+/** Saveable VM-local state needed to resume after [CompiledVmResult.Blocked]. */
+data class CompiledVmContinuation(
+    val root: rylween.runtime.ScriptRootRef,
+    val runtime: RuntimeSessionState,
+    val locals: Map<String, Int>,
+    val textBindings: Map<String, String>,
+    val frames: List<CompiledVmFrame>,
+    val pending: CompiledVmPendingInput,
+)
+
 /** Completed or failed result from [CompiledVm.run]. */
 sealed interface CompiledVmResult {
     /** Script ran to completion or hit a terminating `Stop`/outer `Break`. */
@@ -165,6 +209,12 @@ sealed interface CompiledVmResult {
     /** Script could not execute because the VM hit a typed diagnostic. */
     data class Failed(
         val diagnostic: VmDiagnostic,
+    ) : CompiledVmResult
+
+    /** Script reached a blocking prompt and can continue through [CompiledVm.resume]. */
+    data class Blocked(
+        val pending: CompiledVmPendingInput,
+        val continuation: CompiledVmContinuation,
     ) : CompiledVmResult
 }
 
@@ -183,7 +233,7 @@ class CompiledVm(
 ) {
     private val index = CompiledVmContentIndex(content)
 
-    /** Runs [program] from [start] and returns either final VM state or a diagnostic. */
+    /** Runs [program] from [start] and returns final state, blocked input, or a diagnostic. */
     fun run(
         program: CompiledScriptProgram,
         start: CompiledVmStart,
@@ -195,28 +245,140 @@ class CompiledVm(
                 locals = start.locals.toMutableMap(),
                 textBindings = start.textBindings.toMutableMap(),
             )
-        return when (val signal = executeBlock(state, program.instructions, emptyList(), insideLoop = false)) {
+        return result(
+            state,
+            executeBlock(
+                state = state,
+                instructions = program.instructions,
+                path = emptyList(),
+                insideLoop = false,
+                startIndex = 0,
+                parentFrames = emptyList(),
+            ),
+        )
+    }
+
+    /** Resumes a blocked [continuation] after receiving [input]. */
+    fun resume(
+        program: CompiledScriptProgram,
+        continuation: CompiledVmContinuation,
+        input: CompiledVmInput,
+    ): CompiledVmResult {
+        if (!continuation.root.sameRoot(program.root)) {
+            return CompiledVmResult.Failed(
+                VmDiagnostic.BadContinuationFrame(
+                    root = program.root,
+                    instructionIndex = 0,
+                    operandPath = emptyList(),
+                    frame = continuation.root.toString(),
+                    reason = "ContinuationRootMismatch",
+                ),
+            )
+        }
+        if (!continuation.accepts(input)) {
+            return CompiledVmResult.Failed(
+                VmDiagnostic.BadContinuationFrame(
+                    root = continuation.root,
+                    instructionIndex = continuation.pending.instructionIndex,
+                    operandPath = continuation.pending.operandPath,
+                    frame = continuation.pending::class.simpleName.orEmpty(),
+                    reason = "InputDoesNotMatchPendingPrompt",
+                ),
+            )
+        }
+        val state =
+            ExecutionState(
+                root = continuation.root,
+                runtime = continuation.runtime,
+                locals = continuation.locals.toMutableMap(),
+                textBindings = continuation.textBindings.toMutableMap(),
+            )
+        return result(state, executeFrames(state, program.instructions, continuation.frames))
+    }
+
+    private fun result(
+        state: ExecutionState,
+        signal: ControlSignal,
+    ): CompiledVmResult =
+        when (signal) {
             ControlSignal.Continue,
             ControlSignal.BreakNearestLoop,
             ControlSignal.StopScript,
             -> CompiledVmResult.Completed(state.runtime, state.locals.toMap(), state.textBindings.toMap())
             is ControlSignal.Failed -> CompiledVmResult.Failed(signal.diagnostic)
+            is ControlSignal.Blocked ->
+                CompiledVmResult.Blocked(
+                    pending = signal.pending,
+                    continuation =
+                        CompiledVmContinuation(
+                            root = state.root,
+                            runtime = state.runtime,
+                            locals = state.locals.toMap(),
+                            textBindings = state.textBindings.toMap(),
+                            frames = signal.frames,
+                            pending = signal.pending,
+                        ),
+                )
         }
-    }
 
     private fun executeBlock(
         state: ExecutionState,
         instructions: List<CompiledInstruction>,
         path: List<Int>,
         insideLoop: Boolean,
+        startIndex: Int,
+        parentFrames: List<CompiledVmFrame>,
     ): ControlSignal {
-        instructions.forEachIndexed { instructionIndex, instruction ->
-            val location = VmLocation(state.root, instructionIndex, path + instructionIndex, instruction.opcode)
-            when (val signal = executeInstruction(state, instruction, location, insideLoop)) {
+        for (instructionIndex in startIndex until instructions.size) {
+            val instruction = instructions[instructionIndex]
+            val location = VmLocation(state.root, instructionIndex, path, path + instructionIndex, instruction.opcode)
+            when (val signal = executeInstruction(state, instruction, location, insideLoop, parentFrames)) {
                 ControlSignal.Continue -> Unit
                 ControlSignal.BreakNearestLoop,
                 ControlSignal.StopScript,
                 is ControlSignal.Failed,
+                is ControlSignal.Blocked,
+                -> return signal
+            }
+        }
+        return ControlSignal.Continue
+    }
+
+    private fun executeFrames(
+        state: ExecutionState,
+        rootInstructions: List<CompiledInstruction>,
+        frames: List<CompiledVmFrame>,
+    ): ControlSignal {
+        var remaining = frames
+        while (remaining.isNotEmpty()) {
+            val frame = remaining.first()
+            val instructions =
+                instructionsFor(rootInstructions, frame.blockPath)
+                    ?: return ControlSignal.Failed(
+                        VmDiagnostic.BadContinuationFrame(
+                            root = state.root,
+                            instructionIndex = frame.nextIndex,
+                            operandPath = frame.blockPath,
+                            frame = frame.toString(),
+                            reason = "UnknownInstructionBlock",
+                        ),
+                    )
+            when (
+                val signal =
+                    executeBlock(
+                        state = state,
+                        instructions = instructions,
+                        path = frame.blockPath,
+                        insideLoop = frame.insideLoop,
+                        startIndex = frame.nextIndex,
+                        parentFrames = remaining.drop(1),
+                    )
+            ) {
+                ControlSignal.Continue -> remaining = remaining.drop(1)
+                ControlSignal.BreakNearestLoop,
+                ControlSignal.StopScript,
+                is ControlSignal.Failed,
+                is ControlSignal.Blocked,
                 -> return signal
             }
         }
@@ -228,6 +390,7 @@ class CompiledVm(
         instruction: CompiledInstruction,
         location: VmLocation,
         insideLoop: Boolean,
+        parentFrames: List<CompiledVmFrame>,
     ): ControlSignal =
         when (instruction.opcode) {
             CompiledOpcode.Screen -> {
@@ -257,6 +420,27 @@ class CompiledVm(
             CompiledOpcode.Pause -> {
                 host.trace(EngineTraceEvent.Pause(instruction.integer(0)))
                 ControlSignal.Continue
+            }
+            CompiledOpcode.WaitInput -> {
+                val pending =
+                    CompiledVmPendingInput.WaitInput(
+                        root = location.root,
+                        instructionIndex = location.instructionIndex,
+                        operandPath = location.operandPath,
+                        reason = instruction.optionalString(0),
+                    )
+                host.trace(EngineTraceEvent.WaitInput(pending.reason, pending.prompt))
+                ControlSignal.Blocked(
+                    pending = pending,
+                    frames =
+                        listOf(
+                            CompiledVmFrame(
+                                blockPath = location.blockPath,
+                                nextIndex = location.instructionIndex + 1,
+                                insideLoop = insideLoop,
+                            ),
+                        ) + parentFrames,
+                )
             }
             CompiledOpcode.View -> {
                 host.trace(EngineTraceEvent.View(viewCommand(instruction.view(0))))
@@ -347,12 +531,26 @@ class CompiledVm(
                 cond.fold(
                     ok = { value ->
                         val branch = if (value) instruction.instructions(1) else instruction.instructions(2)
-                        executeBlock(state, branch, location.operandBranch(if (value) 1 else 2), insideLoop)
+                        executeBlock(
+                            state = state,
+                            instructions = branch,
+                            path = location.operandBranch(if (value) 1 else 2),
+                            insideLoop = insideLoop,
+                            startIndex = 0,
+                            parentFrames =
+                                listOf(
+                                    CompiledVmFrame(
+                                        blockPath = location.blockPath,
+                                        nextIndex = location.instructionIndex + 1,
+                                        insideLoop = insideLoop,
+                                    ),
+                                ) + parentFrames,
+                        )
                     },
                     failed = { ControlSignal.Failed(it) },
                 )
             }
-            CompiledOpcode.Loop -> executeLoop(state, instruction.instructions(0), location, insideLoop)
+            CompiledOpcode.Loop -> executeLoop(state, instruction.instructions(0), location, insideLoop, parentFrames)
             CompiledOpcode.Break -> {
                 val reason = instruction.optionalString(0)
                 val signal = instruction.optionalSignal(1) ?: ScriptControlSignal.BreakNearestLoop
@@ -374,7 +572,21 @@ class CompiledVm(
                         if (caseIndex < 0) {
                             ControlSignal.Continue
                         } else {
-                            executeBlock(state, cases[caseIndex].body, location.operandBranch(1, caseIndex), insideLoop)
+                            executeBlock(
+                                state = state,
+                                instructions = cases[caseIndex].body,
+                                path = location.operandBranch(1, caseIndex),
+                                insideLoop = insideLoop,
+                                startIndex = 0,
+                                parentFrames =
+                                    listOf(
+                                        CompiledVmFrame(
+                                            blockPath = location.blockPath,
+                                            nextIndex = location.instructionIndex + 1,
+                                            insideLoop = insideLoop,
+                                        ),
+                                    ) + parentFrames,
+                            )
                         }
                     },
                     failed = { ControlSignal.Failed(it) },
@@ -387,7 +599,24 @@ class CompiledVm(
                 state.party.members.forEachIndexed { index, member ->
                     if (includeDead || !member.dead) {
                         state.locals[name] = index + 1
-                        when (val signal = executeBlock(state, body, location.operandBranch(2, index), insideLoop)) {
+                        when (
+                            val signal =
+                                executeBlock(
+                                    state = state,
+                                    instructions = body,
+                                    path = location.operandBranch(2, index),
+                                    insideLoop = insideLoop,
+                                    startIndex = 0,
+                                    parentFrames =
+                                        listOf(
+                                            CompiledVmFrame(
+                                                blockPath = location.blockPath,
+                                                nextIndex = location.instructionIndex + 1,
+                                                insideLoop = insideLoop,
+                                            ),
+                                        ) + parentFrames,
+                                )
+                        ) {
                             ControlSignal.Continue -> Unit
                             else -> return signal
                         }
@@ -418,14 +647,34 @@ class CompiledVm(
         body: List<CompiledInstruction>,
         location: VmLocation,
         insideLoop: Boolean,
+        parentFrames: List<CompiledVmFrame>,
     ): ControlSignal {
         repeat(MAX_LOOP_ITERATIONS) {
-            when (val signal = executeBlock(state, body, location.operandBranch(0, it), insideLoop = true)) {
+            when (
+                val signal =
+                    executeBlock(
+                        state = state,
+                        instructions = body,
+                        path = location.operandBranch(0, it),
+                        insideLoop = true,
+                        startIndex = 0,
+                        parentFrames =
+                            listOf(
+                                CompiledVmFrame(
+                                    blockPath = location.blockPath,
+                                    nextIndex = location.instructionIndex + 1,
+                                    insideLoop = insideLoop,
+                                ),
+                            ) + parentFrames,
+                    )
+            ) {
                 ControlSignal.Continue -> Unit
                 ControlSignal.BreakNearestLoop,
                 ControlSignal.StopScript,
                 -> return ControlSignal.Continue
-                is ControlSignal.Failed -> return signal
+                is ControlSignal.Failed,
+                is ControlSignal.Blocked,
+                -> return signal
             }
         }
         return ControlSignal.Continue
@@ -920,6 +1169,47 @@ class CompiledVm(
     private fun CompiledInstruction.switchCases(index: Int): List<CompiledSwitchCase> =
         (operands[index] as CompiledOperand.SwitchCases).cases
 
+    private fun instructionsFor(
+        rootInstructions: List<CompiledInstruction>,
+        blockPath: List<Int>,
+    ): List<CompiledInstruction>? {
+        var instructions = rootInstructions
+        var cursor = 0
+        while (cursor < blockPath.size) {
+            val instructionIndex = blockPath.getOrNull(cursor++) ?: return null
+            val instruction = instructions.getOrNull(instructionIndex) ?: return null
+            val operandIndex = blockPath.getOrNull(cursor++) ?: return null
+            val operand = instruction.operands.getOrNull(operandIndex) ?: return null
+            instructions =
+                when (operand) {
+                    is CompiledOperand.Instructions -> {
+                        if (instruction.opcode == CompiledOpcode.Loop || instruction.opcode == CompiledOpcode.ForEachMember) {
+                            cursor += 1
+                        }
+                        operand.instructions
+                    }
+                    is CompiledOperand.SwitchCases -> {
+                        val caseIndex = blockPath.getOrNull(cursor++) ?: return null
+                        operand.cases.getOrNull(caseIndex)?.body ?: return null
+                    }
+                    is CompiledOperand.MenuOptions -> {
+                        val optionIndex = blockPath.getOrNull(cursor++) ?: return null
+                        operand.options.getOrNull(optionIndex)?.body ?: return null
+                    }
+                    is CompiledOperand.TextAnswer -> {
+                        val answerBranch = blockPath.getOrNull(cursor++) ?: return null
+                        when (answerBranch) {
+                            0 -> operand.answer.matchOps
+                            1 -> operand.answer.missOps
+                            else -> return null
+                        }
+                    }
+                    else -> return null
+                }
+        }
+        return instructions
+    }
+
     private companion object {
         const val MAX_LOOP_ITERATIONS: Int = 128
     }
@@ -971,6 +1261,7 @@ private class CompiledVmContentIndex(
 private data class VmLocation(
     val root: rylween.runtime.ScriptRootRef,
     val instructionIndex: Int,
+    val blockPath: List<Int>,
     val operandPath: List<Int>,
     val opcode: CompiledOpcode,
 ) {
@@ -1031,7 +1322,17 @@ private sealed interface ControlSignal {
     data class Failed(
         val diagnostic: VmDiagnostic,
     ) : ControlSignal
+
+    data class Blocked(
+        val pending: CompiledVmPendingInput,
+        val frames: List<CompiledVmFrame>,
+    ) : ControlSignal
 }
+
+private fun CompiledVmContinuation.accepts(input: CompiledVmInput): Boolean =
+    when (pending) {
+        is CompiledVmPendingInput.WaitInput -> input is CompiledVmInput.Continue
+    }
 
 private sealed interface EvalResult<out T> {
     data class Ok<T>(
