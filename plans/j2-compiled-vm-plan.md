@@ -418,17 +418,17 @@ them, and keep old schema validation strict.
 
 ## Size Summary
 
-| Slice | Estimate |
-| --- | --- |
-| Contract freeze | 2-3 days |
-| Pure VM kernel | 4-6 days |
-| Expressions/lvalues | 4-7 days |
-| Input continuations | 5-8 days |
-| Child sessions | 7-12 days |
-| Headless compiled-VM host | 4-7 days |
-| ANSI compiled-VM host | 3-5 days |
-| Save/load closeout | 5-8 days |
-| Native VM probe | 1-2 weeks |
+| Slice                     | Estimate  |
+|---------------------------|-----------|
+| Contract freeze           | 2-3 days  |
+| Pure VM kernel            | 4-6 days  |
+| Expressions/lvalues       | 4-7 days  |
+| Input continuations       | 5-8 days  |
+| Child sessions            | 7-12 days |
+| Headless compiled-VM host | 4-7 days  |
+| ANSI compiled-VM host     | 3-5 days  |
+| Save/load closeout        | 5-8 days  |
+| Native VM probe           | 1-2 weeks |
 
 Total for Kotlin J2/J2a parity: roughly 3-5 weeks.
 
