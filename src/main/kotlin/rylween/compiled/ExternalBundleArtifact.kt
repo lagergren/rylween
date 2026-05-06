@@ -57,8 +57,8 @@ import kotlin.reflect.full.primaryConstructor
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.typeOf
 
-private const val ExternalBundleFormat = "rylween.compiled.bundle"
-private const val ExternalBundleVersion = 3
+private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
+private const val EXTERNAL_BUNDLE_VERSION = 3
 
 fun RylweenModel.toExternalBundleArtifact(): ByteArray = ExternalBundleArtifactWriter().write(this)
 
@@ -219,8 +219,8 @@ private class ExternalBundleArtifactWriter {
         val sections = game.toCompiledGameBundle().sectionsJson(game)
         val root =
             jsonObject(
-                "format" to JsonString(ExternalBundleFormat),
-                "schemaVersion" to JsonNumber(ExternalBundleVersion.toString()),
+                "format" to JsonString(EXTERNAL_BUNDLE_FORMAT),
+                "schemaVersion" to JsonNumber(EXTERNAL_BUNDLE_VERSION.toString()),
                 "bundleContentHash" to JsonString(sections.compactBytes().sha256()),
                 "sectionOrder" to JsonArray(ExternalBundleSectionId.entries.map { JsonString(it.jsonName) }),
                 "sections" to sections,
@@ -1300,9 +1300,9 @@ private data class ExternalBundleEnvelope(
 private fun readExternalBundleEnvelope(source: String): ExternalBundleEnvelope {
     val root = JsonParser(source).parse().asObject("compiled bundle root")
     val format = root.requiredString("format")
-    if (format != ExternalBundleFormat) externalBundleFail("unsupported bundle format $format")
+    if (format != EXTERNAL_BUNDLE_FORMAT) externalBundleFail("unsupported bundle format $format")
     val version = root.requiredInt("schemaVersion")
-    if (version != ExternalBundleVersion) externalBundleFail("unsupported bundle schema version $version")
+    if (version != EXTERNAL_BUNDLE_VERSION) externalBundleFail("unsupported bundle schema version $version")
 
     val order = root.requiredArray("sectionOrder").values.map { it.asString("sectionOrder entry") }
     val expectedOrder = ExternalBundleSectionId.entries.map { it.jsonName }

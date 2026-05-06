@@ -30,8 +30,10 @@ import rylween.frontend.terminal.WildernessSessionTerminalAdapter
 import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.frontend.terminal.staticScreenRequiresRuntimeState
 import rylween.frontend.terminal.terminalTextRenderer
-import rylween.game.*
+import rylween.game.Maps
 import rylween.game.RylweenCompiledGame
+import rylween.game.States
+import rylween.game.Towns
 import rylween.runtime.NpcPlacementRealizerConfig
 import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.WildernessNpcPlacementPolicy

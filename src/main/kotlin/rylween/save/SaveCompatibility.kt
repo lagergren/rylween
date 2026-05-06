@@ -7,11 +7,11 @@ import java.lang.reflect.Modifier
 import java.security.MessageDigest
 import java.util.IdentityHashMap
 
-const val RuntimeSnapshotFormatVersion: Int = 1
+const val RUNTIME_SNAPSHOT_FORMAT_VERSION: Int = 1
 
 fun GameModel.runtimeSnapshotMetadata(): RuntimeSnapshotMetadata =
     RuntimeSnapshotMetadata(
-        formatVersion = RuntimeSnapshotFormatVersion,
+        formatVersion = RUNTIME_SNAPSHOT_FORMAT_VERSION,
         contentHash = runtimeContentHash(),
         universeId = metadata.universe.compatibilityId,
         universeVersion = metadata.universe.version,

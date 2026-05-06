@@ -21,10 +21,10 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.enums.enumEntries
 
-private const val NativeSmokeMagic = "RYLSMOKE"
-private const val NativeSmokeVersion = 1
-private const val NativeSmokeFalse = 0
-private const val NativeSmokeTrue = 1
+private const val NATIVE_SMOKE_MAGIC = "RYLSMOKE"
+private const val NATIVE_SMOKE_VERSION = 1
+private const val NATIVE_SMOKE_FALSE = 0
+private const val NATIVE_SMOKE_TRUE = 1
 
 fun CompiledGameBundle.toNativeSmokeArtifact(): ByteArray = NativeSmokeArtifactWriter().write(this)
 
@@ -196,8 +196,8 @@ private class NativeSmokeArtifactWriter {
 
     fun write(bundle: CompiledGameBundle): ByteArray {
         val content = bundle.content
-        bytes(NativeSmokeMagic.toByteArray(Charsets.US_ASCII))
-        u32(NativeSmokeVersion)
+        bytes(NATIVE_SMOKE_MAGIC.toByteArray(Charsets.US_ASCII))
+        u32(NATIVE_SMOKE_VERSION)
         u32(CompiledHandleKind.entries.size)
         u32(CompiledOpcode.entries.size)
         u32(CompiledRuntimeTextPart.entries.size)
@@ -704,7 +704,7 @@ private class NativeSmokeArtifactWriter {
     }
 
     private fun bool(value: Boolean) {
-        u32(if (value) NativeSmokeTrue else NativeSmokeFalse)
+        u32(if (value) NATIVE_SMOKE_TRUE else NATIVE_SMOKE_FALSE)
     }
 
     private fun i32(value: Int) {
@@ -743,7 +743,7 @@ private class NativeSmokeArtifactReader(
     fun read(): NativeSmokeArtifactSummary {
         magic()
         val version = u32("artifact version")
-        if (version != NativeSmokeVersion) fail("unsupported artifact version")
+        if (version != NATIVE_SMOKE_VERSION) fail("unsupported artifact version")
 
         handleKindCount = u32("handle kind count")
         opcodeCount = u32("opcode count")
@@ -788,7 +788,7 @@ private class NativeSmokeArtifactReader(
     }
 
     private fun magic() {
-        val expected = NativeSmokeMagic.toByteArray(Charsets.US_ASCII)
+        val expected = NATIVE_SMOKE_MAGIC.toByteArray(Charsets.US_ASCII)
         requireAvailable(expected.size)
         if (!data.copyOfRange(pos, pos + expected.size).contentEquals(expected)) fail("bad magic")
         pos += expected.size
@@ -1199,16 +1199,16 @@ private class NativeSmokeArtifactReader(
 
     private fun optional(body: () -> Unit) {
         when (u32("optional marker")) {
-            NativeSmokeFalse -> Unit
-            NativeSmokeTrue -> body()
+            NATIVE_SMOKE_FALSE -> Unit
+            NATIVE_SMOKE_TRUE -> body()
             else -> fail("optional marker is not 0/1")
         }
     }
 
     private fun bool() {
         when (u32("boolean")) {
-            NativeSmokeFalse,
-            NativeSmokeTrue,
+            NATIVE_SMOKE_FALSE,
+            NATIVE_SMOKE_TRUE,
             -> Unit
             else -> fail("boolean value is not 0/1")
         }

@@ -319,7 +319,7 @@ import rylween.save.FileRuntimeSavePort
 import rylween.save.RuntimeSaveOutcome
 import rylween.save.RuntimeSavePort
 import rylween.save.RuntimeSaveRequest
-import rylween.save.RuntimeSnapshotFormatVersion
+import rylween.save.RUNTIME_SNAPSHOT_FORMAT_VERSION
 import rylween.save.loadRuntimeSnapshot
 import rylween.save.loadRuntimeStateSnapshot
 import rylween.save.parseRuntimeSnapshot
@@ -935,7 +935,7 @@ class RylweenDslValidationTest {
                     ),
                 metadata =
                     RuntimeSnapshotMetadata(
-                        formatVersion = RuntimeSnapshotFormatVersion + 1,
+                        formatVersion = RUNTIME_SNAPSHOT_FORMAT_VERSION + 1,
                         contentHash = content.runtimeContentHash(),
                     ),
             )
