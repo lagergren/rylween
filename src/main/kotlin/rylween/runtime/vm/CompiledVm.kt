@@ -16,6 +16,7 @@ import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInstruction
 import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledLValue
+import rylween.compiled.CompiledMenuOption
 import rylween.compiled.CompiledNativeStringArg
 import rylween.compiled.CompiledOpcode
 import rylween.compiled.CompiledOperand
@@ -157,6 +158,11 @@ data class CompiledVmStart(
 sealed interface CompiledVmInput {
     /** Acknowledges a `WaitInput` prompt and resumes at the next instruction. */
     data object Continue : CompiledVmInput
+
+    /** Selects one menu key. */
+    data class MenuKey(
+        val key: Char,
+    ) : CompiledVmInput
 }
 
 /** Typed input request that stopped a compiled VM run. */
@@ -178,7 +184,26 @@ sealed interface CompiledVmPendingInput {
         val reason: String?,
         val prompt: TextBlock? = null,
     ) : CompiledVmPendingInput
+
+    /** Pending menu choice. */
+    data class Menu(
+        override val root: rylween.runtime.ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        val prompt: TextBlock,
+        val options: List<CompiledVmMenuOption>,
+        val hasDefault: Boolean,
+    ) : CompiledVmPendingInput {
+        /** Primary menu keys accepted by this prompt. */
+        val keys: List<Char> get() = options.map { option -> option.key }
+    }
 }
+
+/** One selectable menu option in a blocked compiled VM menu prompt. */
+data class CompiledVmMenuOption(
+    val key: Char,
+    val optionIndex: Int,
+)
 
 /** One resumable compiled VM instruction-block frame. */
 data class CompiledVmFrame(
@@ -286,6 +311,9 @@ class CompiledVm(
                 ),
             )
         }
+        if (continuation.pending is CompiledVmPendingInput.Menu && input is CompiledVmInput.MenuKey) {
+            return resumeMenu(program, continuation, input)
+        }
         val state =
             ExecutionState(
                 root = continuation.root,
@@ -294,6 +322,38 @@ class CompiledVm(
                 textBindings = continuation.textBindings.toMutableMap(),
             )
         return result(state, executeFrames(state, program.instructions, continuation.frames))
+    }
+
+    private fun resumeMenu(
+        program: CompiledScriptProgram,
+        continuation: CompiledVmContinuation,
+        input: CompiledVmInput.MenuKey,
+    ): CompiledVmResult {
+        val pending = continuation.pending as CompiledVmPendingInput.Menu
+        val option = pending.options.firstOrNull { option -> option.key == input.key.uppercaseChar() }
+        if (option == null && !pending.hasDefault) {
+            return CompiledVmResult.Blocked(pending, continuation)
+        }
+        val state =
+            ExecutionState(
+                root = continuation.root,
+                runtime = continuation.runtime,
+                locals = continuation.locals.toMutableMap(),
+                textBindings = continuation.textBindings.toMutableMap(),
+            )
+        val menuFrame = continuation.frames.firstOrNull()
+        val branchFrame =
+            CompiledVmFrame(
+                blockPath =
+                    if (option != null) {
+                        pending.operandPath + listOf(1, option.optionIndex)
+                    } else {
+                        pending.operandPath + 2
+                    },
+                nextIndex = 0,
+                insideLoop = menuFrame?.insideLoop ?: false,
+            )
+        return result(state, executeFrames(state, program.instructions, listOf(branchFrame) + continuation.frames))
     }
 
     private fun result(
@@ -440,6 +500,39 @@ class CompiledVm(
                                 insideLoop = insideLoop,
                             ),
                         ) + parentFrames,
+                )
+            }
+            CompiledOpcode.Menu -> {
+                val promptAndOptions =
+                    renderText(state, instruction.textBlock(0), location.child(0))
+                        .flatMap { prompt ->
+                            menuOptions(instruction, location.child(1)).map { options -> prompt to options }
+                        }
+                promptAndOptions.fold(
+                    ok = { (prompt, options) ->
+                        val pending =
+                            CompiledVmPendingInput.Menu(
+                                root = location.root,
+                                instructionIndex = location.instructionIndex,
+                                operandPath = location.operandPath,
+                                prompt = prompt,
+                                options = options,
+                                hasDefault = instruction.instructions(2).isNotEmpty(),
+                            )
+                        host.trace(EngineTraceEvent.Menu(prompt, pending.keys))
+                        ControlSignal.Blocked(
+                            pending = pending,
+                            frames =
+                                listOf(
+                                    CompiledVmFrame(
+                                        blockPath = location.blockPath,
+                                        nextIndex = location.instructionIndex + 1,
+                                        insideLoop = insideLoop,
+                                    ),
+                                ) + parentFrames,
+                        )
+                    },
+                    failed = { ControlSignal.Failed(it) },
                 )
             }
             CompiledOpcode.View -> {
@@ -1169,6 +1262,31 @@ class CompiledVm(
     private fun CompiledInstruction.switchCases(index: Int): List<CompiledSwitchCase> =
         (operands[index] as CompiledOperand.SwitchCases).cases
 
+    private fun CompiledInstruction.menuOptions(index: Int): List<CompiledMenuOption> =
+        (operands[index] as CompiledOperand.MenuOptions).options
+
+    private fun menuOptions(
+        instruction: CompiledInstruction,
+        location: VmLocation,
+    ): EvalResult<List<CompiledVmMenuOption>> {
+        val options = mutableListOf<CompiledVmMenuOption>()
+        instruction.menuOptions(1).forEachIndexed { optionIndex, option ->
+            val optionLocation = location.child(optionIndex)
+            val primary = index.string(option.binding.primaryString)
+            val key =
+                primary.singleOrNull()?.uppercaseChar()
+                    ?: return EvalResult.Failed(
+                        optionLocation.badOperand(
+                            reason = "InputBindingPrimary",
+                            expected = "single character",
+                            actual = primary,
+                        ),
+                    )
+            options += CompiledVmMenuOption(key, optionIndex)
+        }
+        return EvalResult.Ok(options)
+    }
+
     private fun instructionsFor(
         rootInstructions: List<CompiledInstruction>,
         blockPath: List<Int>,
@@ -1332,6 +1450,7 @@ private sealed interface ControlSignal {
 private fun CompiledVmContinuation.accepts(input: CompiledVmInput): Boolean =
     when (pending) {
         is CompiledVmPendingInput.WaitInput -> input is CompiledVmInput.Continue
+        is CompiledVmPendingInput.Menu -> input is CompiledVmInput.MenuKey
     }
 
 private sealed interface EvalResult<out T> {

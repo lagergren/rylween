@@ -177,20 +177,131 @@ class RylweenCompiledVmTest {
     }
 
     @Test
-    fun compiledVmStillRejectsUnimplementedInteractiveOpcodeFamilies() {
+    fun compiledVmBlocksAndResumesMenuOptionWithoutReplayingPriorEffects() {
+        val model =
+            rylween {
+                content {
+                    scene(VmMenuScene) {
+                        screen("before")
+                        menu("pick") {
+                            option('A') {
+                                party.gold += 10
+                            }
+                            option('B') {
+                                party.gold += 20
+                            }
+                        }
+                        screen("after")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmMenuScene)
+        val runtime = RuntimeSessionState.singleParty(testParty(), 12, null)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+
+        val result = vm.run(program, CompiledVmStart(runtime))
+
+        val blocked = assertIs<CompiledVmResult.Blocked>(result)
+        val pending = assertIs<CompiledVmPendingInput.Menu>(blocked.pending)
+        assertEquals(listOf('A', 'B'), pending.keys)
+        assertEquals(1, pending.instructionIndex)
+        assertEquals(listOf(1), pending.operandPath)
+        assertEquals(listOf(CompiledVmFrameForTest(emptyList(), 2, false)), blocked.continuation.frames.map(::CompiledVmFrameForTest))
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.Menu(pending.prompt, listOf('A', 'B')),
+            ),
+            host.events,
+        )
+
+        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.MenuKey('b'))
+
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals(22, completed.runtime.activeParty.resources.gold)
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.Menu(pending.prompt, listOf('A', 'B')),
+                EngineTraceEvent.Screen(inlineText("after")),
+            ),
+            host.events,
+        )
+    }
+
+    @Test
+    fun compiledVmMenuInvalidInputStaysBlockedWithoutAdvancing() {
         val model =
             rylween {
                 content {
                     scene(VmMenuScene) {
                         menu("pick") {
                             option('A') {
-                                screen("a")
+                                party.gold += 10
                             }
                         }
                     }
                 }
             }
         val (compiled, program) = compiledScene(model, VmMenuScene)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+        val blocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+
+        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.MenuKey('Z'))
+
+        val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
+        assertEquals(blocked.pending, stillBlocked.pending)
+        assertEquals(blocked.continuation, stillBlocked.continuation)
+        assertEquals(1, host.events.size)
+    }
+
+    @Test
+    fun compiledVmMenuInvalidInputUsesDefaultBranchWhenPresent() {
+        val model =
+            rylween {
+                content {
+                    scene(VmMenuDefaultScene) {
+                        menu("pick") {
+                            option('A') {
+                                party.gold += 10
+                            }
+                            default {
+                                party.gold += 5
+                            }
+                        }
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmMenuDefaultScene)
+        val vm = CompiledVm(compiled.content)
+        val blocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+
+        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.MenuKey('Z'))
+
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals(7, completed.runtime.activeParty.resources.gold)
+    }
+
+    @Test
+    fun compiledVmStillRejectsUnimplementedInteractiveOpcodeFamilies() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskKeyScene) {
+                        val key = ask.key(inlineText("key"), 'A')
+                        party.gold set key
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskKeyScene)
 
         val result =
             CompiledVm(compiled.content)
@@ -198,7 +309,7 @@ class RylweenCompiledVmTest {
 
         val failed = assertIs<CompiledVmResult.Failed>(result)
         val diagnostic = assertIs<VmDiagnostic.UnsupportedHostService>(failed.diagnostic)
-        assertEquals("Menu", diagnostic.service)
+        assertEquals("AskKey", diagnostic.service)
     }
 
     @Test
@@ -584,6 +695,8 @@ class RylweenCompiledVmTest {
         val VmPureScene = sceneId("vm.pure")
         val VmWaitScene = sceneId("vm.wait")
         val VmMenuScene = sceneId("vm.menu")
+        val VmMenuDefaultScene = sceneId("vm.menu_default")
+        val VmAskKeyScene = sceneId("vm.ask_key")
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
         val VmNestedExpressionScene = sceneId("vm.nested_expr")
