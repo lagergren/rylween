@@ -316,10 +316,10 @@ import rylween.runtime.ydarg.YdargSessionStatus
 import rylween.runtime.ydarg.YdargSessionStep
 import rylween.runtime.ydarg.navigationHelpPages
 import rylween.save.FileRuntimeSavePort
+import rylween.save.RUNTIME_SNAPSHOT_FORMAT_VERSION
 import rylween.save.RuntimeSaveOutcome
 import rylween.save.RuntimeSavePort
 import rylween.save.RuntimeSaveRequest
-import rylween.save.RUNTIME_SNAPSHOT_FORMAT_VERSION
 import rylween.save.loadRuntimeSnapshot
 import rylween.save.loadRuntimeStateSnapshot
 import rylween.save.parseRuntimeSnapshot
@@ -7816,7 +7816,8 @@ class RylweenDslValidationTest {
             }
 
             override fun readLine(): String? =
-                queue.removeFirstOrNull()
+                queue
+                    .removeFirstOrNull()
                     ?.also { pendingLines = 0 }
 
             override fun finishOutputFrame() {
