@@ -35,6 +35,7 @@ data class LoadedCompiledGame(
  * loading a J1 artifact.
  */
 data class LoadedCompiledContent(
+    val raw: CompiledContentBundle,
     val strings: CompiledStringTable,
     val handles: CompiledHandleTable,
     val stringHashBuckets: Map<Int, List<Int>>,
@@ -91,6 +92,7 @@ object CompiledBundleLoader {
         return LoadedCompiledGame(
             content =
                 LoadedCompiledContent(
+                    raw = content,
                     strings = content.strings,
                     handles = content.handles,
                     stringHashBuckets = content.strings.hashEntries.groupBy({ it.hash }, { it.stringId }),
