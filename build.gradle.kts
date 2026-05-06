@@ -3,6 +3,7 @@ import org.gradle.jvm.application.tasks.CreateStartScripts
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService
 import org.gradle.process.ExecOperations
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketTimeoutException
@@ -1781,27 +1782,31 @@ val kotlinRuntimeJavaLauncher =
         languageVersion.set(JavaLanguageVersion.of(25))
     }
 
-val gameSourceSet: SourceSet =
-    sourceSets.create("game") {
-        java.srcDir("src/game/kotlin")
-        java.srcDir(generatedGameHarnessDir)
-        java.srcDir(generatedGameCatalogDir)
-        compileClasspath += sourceSets.named("main").get().output
-        runtimeClasspath += output + compileClasspath
-    }
+val main: SourceSet by sourceSets.getting
 
-val appSourceSet: SourceSet =
-    sourceSets.create("app") {
-        java.srcDir("src/app/kotlin")
-        resources.srcDir("data")
-        resources.include("ansi/**", "tiles/**", "rylween-doc.txt", "ALTAIR.displayme")
-        compileClasspath += sourceSets.named("main").get().output + gameSourceSet.output
-        runtimeClasspath += output + compileClasspath
-    }
+val game: SourceSet by sourceSets.creating {
+    java.srcDir("src/game/kotlin")
+    java.srcDir(generatedGameHarnessDir)
+    java.srcDir(generatedGameCatalogDir)
+    compileClasspath += main.output
+    runtimeClasspath += output + compileClasspath
+}
 
-sourceSets.named("test") {
-    compileClasspath += gameSourceSet.output
-    runtimeClasspath += gameSourceSet.output
+val app: SourceSet by sourceSets.creating {
+    java.srcDir("src/app/kotlin")
+    resources.srcDir("data")
+    resources.include("ansi/**", "tiles/**", "rylween-doc.txt", "ALTAIR.displayme")
+    compileClasspath += main.output + game.output
+    runtimeClasspath += output + compileClasspath
+}
+
+val gameSourceSet: SourceSet = game
+val appSourceSet: SourceSet = app
+
+val test: SourceSet by sourceSets.getting
+test.apply {
+    compileClasspath += game.output
+    runtimeClasspath += game.output
 }
 
 configurations.named(gameSourceSet.implementationConfigurationName) {
@@ -1860,17 +1865,17 @@ dependencies {
 tasks.jar {
     archiveBaseName = "rylween-dsl"
 }
-tasks.named("compileTestKotlin") {
+tasks.compileTestKotlin.configure {
     dependsOn(generateCompiledGameHarness)
     dependsOn(tasks.named(gameSourceSet.classesTaskName))
 }
 
-tasks.named("compileGameKotlin") {
+tasks.named<KotlinCompile>(gameSourceSet.getCompileTaskName("kotlin")) {
     dependsOn(generateGameCatalogHandles)
     dependsOn(generateCompiledGameHarness)
 }
 
-tasks.named("compileAppKotlin") {
+tasks.named<KotlinCompile>(appSourceSet.getCompileTaskName("kotlin")) {
     dependsOn(tasks.named(gameSourceSet.classesTaskName))
 }
 
@@ -2035,7 +2040,7 @@ val kotlinAnsiJar: TaskProvider<Jar> by tasks.registering(Jar::class) {
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     archiveBaseName.set("rylween-kotlin")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    from(sourceSets.named("main").get().output)
+    from(main.output)
     from(gameSourceSet.output)
     from(appSourceSet.output)
     manifest {
