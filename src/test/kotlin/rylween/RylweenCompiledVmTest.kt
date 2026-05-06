@@ -10,6 +10,7 @@ import rylween.dsl.Facing
 import rylween.dsl.FlagRef
 import rylween.dsl.Gender
 import rylween.dsl.InventorySaveSlotMax
+import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.InventorySlotRef
 import rylween.dsl.InventorySlotState
 import rylween.dsl.ItemId
@@ -374,12 +375,21 @@ class RylweenCompiledVmTest {
         val model =
             rylween {
                 content {
-                    scene(VmAskInventorySlotScene) {
-                        ask.inventorySlot(inlineText("slot"))
+                    scene(VmAskTextScene) {
+                        choice.textAnswer(
+                            prompt = inlineText("answer"),
+                            accepting = listOf("YES"),
+                            match = {
+                                party.gold += 1
+                            },
+                            miss = {
+                                party.gold -= 1
+                            },
+                        )
                     }
                 }
             }
-        val (compiled, program) = compiledScene(model, VmAskInventorySlotScene)
+        val (compiled, program) = compiledScene(model, VmAskTextScene)
 
         val result =
             CompiledVm(compiled.content)
@@ -387,7 +397,7 @@ class RylweenCompiledVmTest {
 
         val failed = assertIs<CompiledVmResult.Failed>(result)
         val diagnostic = assertIs<VmDiagnostic.UnsupportedHostService>(failed.diagnostic)
-        assertEquals("AskInventorySlot", diagnostic.service)
+        assertEquals("AskText", diagnostic.service)
     }
 
     @Test
@@ -466,6 +476,100 @@ class RylweenCompiledVmTest {
             )
 
         val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.AskMember(1))
+
+        val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
+        assertEquals(blocked.pending, stillBlocked.pending)
+        assertEquals(blocked.continuation, stillBlocked.continuation)
+        assertEquals(1, host.events.size)
+    }
+
+    @Test
+    fun compiledVmBlocksAndResumesAskInventorySlotWithoutReplayingPriorEffects() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskInventorySlotScene) {
+                        screen("before")
+                        val slot =
+                            ask.inventorySlot(
+                                inlineText("slot"),
+                                firstKey = 'C',
+                                slots = 2..3,
+                                filter = InventorySlotChoiceFilter.NonEmpty,
+                            )
+                        party.gold set slot.index
+                        screen("after")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskInventorySlotScene)
+        val runtime = RuntimeSessionState.singleParty(testParty(inventoryItems = mapOf(3 to VmGem)), 12, null)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+
+        val result = vm.run(program, CompiledVmStart(runtime))
+
+        val blocked = assertIs<CompiledVmResult.Blocked>(result)
+        val pending = assertIs<CompiledVmPendingInput.AskInventorySlot>(blocked.pending)
+        assertEquals(1, pending.instructionIndex)
+        assertEquals(listOf(1), pending.operandPath)
+        assertEquals('C', pending.firstKey)
+        assertEquals(2..3, pending.slots)
+        assertEquals(InventorySlotChoiceFilter.NonEmpty, pending.filter)
+        assertEquals(listOf(CompiledVmInventorySlotChoiceForTest('D', 3)), pending.choices.map(::CompiledVmInventorySlotChoiceForTest))
+        assertEquals(listOf(CompiledVmFrameForTest(emptyList(), 2, false)), blocked.continuation.frames.map(::CompiledVmFrameForTest))
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.AskInventorySlot(pending.prompt, 'C', 2..3, InventorySlotChoiceFilter.NonEmpty),
+            ),
+            host.events,
+        )
+
+        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskInventorySlot("d"))
+
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals(3, completed.locals[pending.localName])
+        assertEquals(3, completed.runtime.activeParty.resources.gold)
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.AskInventorySlot(pending.prompt, 'C', 2..3, InventorySlotChoiceFilter.NonEmpty),
+                EngineTraceEvent.Screen(inlineText("after")),
+            ),
+            host.events,
+        )
+    }
+
+    @Test
+    fun compiledVmAskInventorySlotInvalidInputStaysBlockedWithoutAdvancing() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskInventorySlotScene) {
+                        val slot =
+                            ask.inventorySlot(
+                                inlineText("slot"),
+                                firstKey = 'C',
+                                slots = 2..3,
+                                filter = InventorySlotChoiceFilter.NonEmpty,
+                            )
+                        party.gold set slot.index
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskInventorySlotScene)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+        val blocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(
+                    program,
+                    CompiledVmStart(RuntimeSessionState.singleParty(testParty(inventoryItems = mapOf(3 to VmGem)), 12, null)),
+                ),
+            )
+
+        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.AskInventorySlot("C"))
 
         val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
         assertEquals(blocked.pending, stillBlocked.pending)
@@ -844,6 +948,13 @@ class RylweenCompiledVmTest {
         constructor(frame: rylween.runtime.vm.CompiledVmFrame) : this(frame.blockPath, frame.nextIndex, frame.insideLoop)
     }
 
+    private data class CompiledVmInventorySlotChoiceForTest(
+        val key: Char,
+        val slot: Int,
+    ) {
+        constructor(choice: rylween.runtime.vm.CompiledVmInventorySlotChoice) : this(choice.key, choice.slot)
+    }
+
     private object NoopTerminalPort : TerminalPort {
         override fun write(lines: List<String>) = Unit
 
@@ -860,6 +971,7 @@ class RylweenCompiledVmTest {
         val VmAskKeyScene = sceneId("vm.ask_key")
         val VmAskMemberScene = sceneId("vm.ask_member")
         val VmAskInventorySlotScene = sceneId("vm.ask_inventory_slot")
+        val VmAskTextScene = sceneId("vm.ask_text")
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
         val VmNestedExpressionScene = sceneId("vm.nested_expr")
