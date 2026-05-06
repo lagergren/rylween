@@ -7335,7 +7335,8 @@ class RylweenDslValidationTest {
                 ?.encounter
                 ?.monster
                 ?.id,
-            Monsters.bandit, "expected bandit battle continuation, got ${mission.continuation}"
+            Monsters.bandit,
+            "expected bandit battle continuation, got ${mission.continuation}",
         )
         assertFalse(result.session.party.hasFlagState(Story.garth.bandits.recovered))
         assertTrue(battleTerminal.output.any { "ENCOUNTER!" in it })

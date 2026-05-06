@@ -62,6 +62,7 @@ import rylween.runtime.ScriptRootRef
 import rylween.runtime.hasFlagState
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.vm.CompiledVm
+import rylween.runtime.vm.CompiledVmFrameKind
 import rylween.runtime.vm.CompiledVmInput
 import rylween.runtime.vm.CompiledVmPendingInput
 import rylween.runtime.vm.CompiledVmResult
@@ -735,6 +736,100 @@ class RylweenCompiledVmTest {
     }
 
     @Test
+    fun compiledVmResumesLoopIterationFrameWithoutReplayingOrSkipping() {
+        val model =
+            rylween {
+                content {
+                    scene(VmLoopContinuationScene) {
+                        val count = localInt(0, "loop_count")
+                        loop {
+                            count += 1
+                            party.gold += 1
+                            waitInput("loop")
+                            whenever(count eq 2) {
+                                breakLoop("done")
+                            }
+                        }
+                        party.torches += 1
+                        screen("after")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmLoopContinuationScene)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+
+        val firstBlocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+        assertEquals(3, firstBlocked.continuation.runtime.activeParty.resources.gold)
+        val firstLoopFrame = firstBlocked.continuation.frames.first()
+        assertEquals(CompiledVmFrameKind.LoopBody, firstLoopFrame.kind)
+
+        val secondResult = vm.resume(program, firstBlocked.continuation, CompiledVmInput.Continue)
+
+        val secondBlocked = assertIs<CompiledVmResult.Blocked>(secondResult)
+        assertEquals(4, secondBlocked.continuation.runtime.activeParty.resources.gold)
+        assertEquals(0, secondBlocked.continuation.runtime.activeParty.resources.torches)
+        val secondLoopFrame = secondBlocked.continuation.frames.first()
+        assertEquals(CompiledVmFrameKind.LoopBody, secondLoopFrame.kind)
+        assertEquals(2, host.events.count { event -> event is EngineTraceEvent.WaitInput })
+
+        val completed =
+            assertIs<CompiledVmResult.Completed>(
+                vm.resume(program, secondBlocked.continuation, CompiledVmInput.Continue),
+            )
+
+        assertEquals(4, completed.runtime.activeParty.resources.gold)
+        assertEquals(1, completed.runtime.activeParty.resources.torches)
+        assertEquals(EngineTraceEvent.Screen(inlineText("after")), host.events.last())
+    }
+
+    @Test
+    fun compiledVmResumesForEachMemberFrameAtNextMemberWithoutReplaying() {
+        val model =
+            rylween {
+                content {
+                    scene(VmMemberIterationContinuationScene) {
+                        forEachMember(includeDead = true) { member ->
+                            party.gold += member.level
+                            waitInput("member")
+                        }
+                        screen("after")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmMemberIterationContinuationScene)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+
+        val firstBlocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+        assertEquals(5, firstBlocked.continuation.runtime.activeParty.resources.gold)
+        val firstMemberFrame = firstBlocked.continuation.frames.first()
+        assertEquals(CompiledVmFrameKind.ForEachMemberBody, firstMemberFrame.kind)
+
+        val secondResult = vm.resume(program, firstBlocked.continuation, CompiledVmInput.Continue)
+
+        val secondBlocked = assertIs<CompiledVmResult.Blocked>(secondResult)
+        assertEquals(14, secondBlocked.continuation.runtime.activeParty.resources.gold)
+        val secondMemberFrame = secondBlocked.continuation.frames.first()
+        assertEquals(CompiledVmFrameKind.ForEachMemberBody, secondMemberFrame.kind)
+        assertEquals(2, host.events.count { event -> event is EngineTraceEvent.WaitInput })
+
+        val completed =
+            assertIs<CompiledVmResult.Completed>(
+                vm.resume(program, secondBlocked.continuation, CompiledVmInput.Continue),
+            )
+
+        assertEquals(14, completed.runtime.activeParty.resources.gold)
+        assertEquals(EngineTraceEvent.Screen(inlineText("after")), host.events.last())
+    }
+
+    @Test
     fun compiledVmRejectsUnknownNativeExpressionPathWithDiagnostic() {
         val model = expressionSceneModel()
         val (compiled, program) = compiledScene(model, VmExpressionScene)
@@ -1146,6 +1241,8 @@ class RylweenCompiledVmTest {
         val VmAskInventorySlotScene = sceneId("vm.ask_inventory_slot")
         val VmAskTextScene = sceneId("vm.ask_text")
         val VmAskMonsterScene = sceneId("vm.ask_monster")
+        val VmLoopContinuationScene = sceneId("vm.loop_continuation")
+        val VmMemberIterationContinuationScene = sceneId("vm.member_iteration_continuation")
         val VmUnsupportedScene = sceneId("vm.unsupported")
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
