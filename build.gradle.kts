@@ -1688,7 +1688,7 @@ val gameSourceSet: SourceSet = sourceSets.create("game") {
 val appSourceSet: SourceSet = sourceSets.create("app") {
     java.srcDir("src/app/kotlin")
     resources.srcDir("data")
-    resources.include("ansi/**", "tiles/**", "rylween-doc.txt", "score.txt", "vscore.txt", "ALTAIR.displayme")
+    resources.include("ansi/**", "tiles/**", "rylween-doc.txt", "ALTAIR.displayme")
     compileClasspath += sourceSets.named("main").get().output + gameSourceSet.output
     runtimeClasspath += output + compileClasspath
 }

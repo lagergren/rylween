@@ -187,9 +187,60 @@ Every step away from it (a separate world coordinator daemon, a database, a
 web frontend) is justifiable later but multiplies the operational surface.
 Keep the door open; don't walk through it yet.
 
-## 5. What this means for the port plan today
+## 5. Persistent scoreboard / hall of heroes
 
-None of §1-§4 is on the §22-§24 critical path. The port-plan work in flight is
+The current Kotlin runtime computes the score and Hall-of-Heroes screens
+dynamically from runtime state on every render — `scoreReport()` /
+`verboseScoreReport()` / `hallOfHeroesReport()` are DSL screen builders,
+not file readers. That's correct for the *active* party view. The piece
+that's missing is a *persistent* end-of-game record: when a party wins
+(or all members die), an entry should be appended to a hall-of-heroes
+file the title menu can read back.
+
+The 1993 Amiga distribution did this with `Doors:Rylween/Score.TXT` —
+plaintext, append-only, one line per finished party (per
+`legacy/distro-amiga/Files.TXT`). The Kotlin port quietly inherited
+two empty stubs (`data/score.txt`, `data/vscore.txt`, gitignored) but
+nothing wrote or read them, so they were dropped.
+
+The right shape:
+
+  - The hall-of-heroes file lives next to save files, not in `data/`.
+    `data/` is jar-bundled read-only source; the scoreboard is mutable
+    runtime output. Concrete path: `<saves-dir>/heroes.json5`, where
+    `<saves-dir>` is the same `--saves-dir` / `RYL_SAVES_DIR` directory
+    the launcher already understands. Default `build/saves/heroes.json5`.
+
+  - Append on session-end: when a party is terminated (won, wiped, or
+    user-terminated via the title-menu T command), the launcher writes
+    one structured entry — party name, member roster + classes + final
+    levels, days elapsed, end cause (won/dead/terminated), realm seed.
+    Use JSON5 like the save format so it stays readable and lock-free
+    appendable.
+
+  - Read on title-menu Scores / Heroes: the existing
+    `StaticScreens.score` / `StaticScreens.heroes` runtime-content screens
+    take a list-of-entries argument from the launcher and render it.
+    The DSL builders stay pure (no I/O); the launcher is the boundary
+    that reads `heroes.json5` and passes the parsed list in.
+
+  - `--reset-all` already wipes the saves directory, which would catch
+    the heroes file too. `--reset` should leave the heroes file alone
+    (it's not party-specific). One-line tweak in the existing reset
+    paths.
+
+  - Multi-realm story: when §1 lands, each realm gets its own heroes
+    file under `<saves-dir>/<realm-id>/heroes.json5`. Until then, one
+    file is fine.
+
+Cost: small. ~150 lines for the writer + reader + serialization, plus
+wiring into the three end-of-game paths and the title menu. Not
+on the §22-§24 critical path; queue after the J2 compiled-VM work
+unless a registered user asks.
+
+## 6. What this means for the port plan today
+
+None of §1-§5 is on the §22-§24 critical path. The port-plan work in flight is
 about getting today's single-party, single-binary game fully data-driven,
 testable, and modern-Unix-clean. Multi-party is what becomes *possible* when
 that work finishes; it's not what unblocks it.
@@ -214,9 +265,9 @@ prefer the multi-party-friendly fork only when the cost is small. Don't bend
 current designs out of shape for hypothetical futures — but when the shapes
 are equal-cost, pick the one that doesn't paint us into a corner.
 
-## 6. Open questions
+## 7. Open questions
 
-A short list of things to resolve before any of §1-§4 lands. These are not
+A short list of things to resolve before any of §1-§5 lands. These are not
 blockers for current work; they're questions to bring into the design
 conversation when (if) the multi-party path opens.
 
