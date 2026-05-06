@@ -33,6 +33,8 @@ import rylween.dsl.GameMilestoneId
 import rylween.dsl.Gender
 import rylween.dsl.ImageId
 import rylween.dsl.InputBindingModel
+import rylween.dsl.InventorySaveSlotMax
+import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.ItemId
 import rylween.dsl.ItemPoolId
 import rylween.dsl.LocationId
@@ -49,6 +51,7 @@ import rylween.dsl.TextPart
 import rylween.dsl.TextPattern
 import rylween.dsl.ViewCommand
 import rylween.dsl.fallbackText
+import rylween.dsl.inputKey
 import rylween.dsl.matches
 import rylween.dsl.pronoun
 import rylween.engine.EngineRequest
@@ -179,6 +182,11 @@ sealed interface CompiledVmInput {
     data class AskMember(
         val memberNumber: Int,
     ) : CompiledVmInput
+
+    /** Supplies a raw key token for an `AskInventorySlot` prompt. */
+    data class AskInventorySlot(
+        val raw: String,
+    ) : CompiledVmInput
 }
 
 /** Typed input request that stopped a compiled VM run. */
@@ -235,12 +243,34 @@ sealed interface CompiledVmPendingInput {
         val accepting: MemberChoiceFilter,
         val choices: List<Int>,
     ) : CompiledVmPendingInput
+
+    /** Pending inventory-slot prompt that stores the chosen slot number in [localName]. */
+    data class AskInventorySlot(
+        override val root: rylween.runtime.ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        val prompt: TextBlock,
+        val localName: String,
+        val firstKey: Char,
+        val slots: IntRange,
+        val filter: InventorySlotChoiceFilter,
+        val choices: List<CompiledVmInventorySlotChoice>,
+    ) : CompiledVmPendingInput {
+        /** Primary inventory keys accepted by this prompt. */
+        val keys: List<Char> get() = choices.map { choice -> choice.key }
+    }
 }
 
 /** One selectable menu option in a blocked compiled VM menu prompt. */
 data class CompiledVmMenuOption(
     val key: Char,
     val optionIndex: Int,
+)
+
+/** One selectable inventory slot in a blocked compiled VM inventory prompt. */
+data class CompiledVmInventorySlotChoice(
+    val key: Char,
+    val slot: Int,
 )
 
 /** One resumable compiled VM instruction-block frame. */
@@ -359,6 +389,9 @@ class CompiledVm(
         if (continuation.pending is CompiledVmPendingInput.AskMember && input is CompiledVmInput.AskMember) {
             return resumeAskMember(program, continuation, input)
         }
+        if (continuation.pending is CompiledVmPendingInput.AskInventorySlot && input is CompiledVmInput.AskInventorySlot) {
+            return resumeAskInventorySlot(program, continuation, input)
+        }
         val state =
             ExecutionState(
                 root = continuation.root,
@@ -439,6 +472,27 @@ class CompiledVm(
                 textBindings = continuation.textBindings.toMutableMap(),
             )
         state.locals[pending.localName] = input.memberNumber
+        return result(state, executeFrames(state, program.instructions, continuation.frames))
+    }
+
+    private fun resumeAskInventorySlot(
+        program: CompiledScriptProgram,
+        continuation: CompiledVmContinuation,
+        input: CompiledVmInput.AskInventorySlot,
+    ): CompiledVmResult {
+        val pending = continuation.pending as CompiledVmPendingInput.AskInventorySlot
+        val choice = pending.choices.firstOrNull { choice -> inputKey(choice.key).matches(input.raw) }
+        if (choice == null) {
+            return CompiledVmResult.Blocked(pending, continuation)
+        }
+        val state =
+            ExecutionState(
+                root = continuation.root,
+                runtime = continuation.runtime,
+                locals = continuation.locals.toMutableMap(),
+                textBindings = continuation.textBindings.toMutableMap(),
+            )
+        state.locals[pending.localName] = choice.slot
         return result(state, executeFrames(state, program.instructions, continuation.frames))
     }
 
@@ -674,6 +728,41 @@ class CompiledVm(
                                 choices = state.party.memberChoices(accepting),
                             )
                         host.trace(EngineTraceEvent.AskMember(text, filter))
+                        ControlSignal.Blocked(
+                            pending = pending,
+                            frames =
+                                listOf(
+                                    CompiledVmFrame(
+                                        blockPath = location.blockPath,
+                                        nextIndex = location.instructionIndex + 1,
+                                        insideLoop = insideLoop,
+                                    ),
+                                ) + parentFrames,
+                        )
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
+            }
+            CompiledOpcode.AskInventorySlot -> {
+                val prompt = renderText(state, instruction.textBlock(0), location.child(0))
+                val firstKey = instruction.character(2)
+                val slots = instruction.integer(3)..instruction.integer(4)
+                val filter = instruction.inventorySlotChoiceFilter(5)
+                prompt.fold(
+                    ok = { text ->
+                        val pending =
+                            CompiledVmPendingInput.AskInventorySlot(
+                                root = location.root,
+                                instructionIndex = location.instructionIndex,
+                                operandPath = location.operandPath,
+                                prompt = text,
+                                localName = index.string(instruction.stringId(1)),
+                                firstKey = firstKey,
+                                slots = slots,
+                                filter = filter,
+                                choices = state.party.inventorySlotChoices(filter, slots, firstKey),
+                            )
+                        host.trace(EngineTraceEvent.AskInventorySlot(text, firstKey, slots, filter))
                         ControlSignal.Blocked(
                             pending = pending,
                             frames =
@@ -1384,6 +1473,8 @@ class CompiledVm(
 
     private fun CompiledInstruction.boolean(index: Int): Boolean = (operands[index] as CompiledOperand.BooleanValue).value
 
+    private fun CompiledInstruction.character(index: Int): Char = (operands[index] as CompiledOperand.Character).value
+
     private fun CompiledInstruction.stringId(index: Int): Int = (operands[index] as CompiledOperand.StringId).id
 
     private fun CompiledInstruction.optionalString(index: Int): String? =
@@ -1394,6 +1485,9 @@ class CompiledVm(
 
     private fun CompiledInstruction.memberChoiceFilter(index: Int): MemberChoiceFilter =
         MemberChoiceFilter.valueOf((operands[index] as CompiledOperand.EnumName).name)
+
+    private fun CompiledInstruction.inventorySlotChoiceFilter(index: Int): InventorySlotChoiceFilter =
+        InventorySlotChoiceFilter.valueOf((operands[index] as CompiledOperand.EnumName).name)
 
     private fun CompiledInstruction.handle(index: Int): CompiledHandleRef = (operands[index] as CompiledOperand.Handle).ref
 
@@ -1616,6 +1710,7 @@ private fun CompiledVmContinuation.accepts(input: CompiledVmInput): Boolean =
         is CompiledVmPendingInput.Menu -> input is CompiledVmInput.MenuKey
         is CompiledVmPendingInput.AskKey -> input is CompiledVmInput.AskKey
         is CompiledVmPendingInput.AskMember -> input is CompiledVmInput.AskMember
+        is CompiledVmPendingInput.AskInventorySlot -> input is CompiledVmInput.AskInventorySlot
     }
 
 private sealed interface EvalResult<out T> {
@@ -1668,6 +1763,23 @@ private fun PartyMemberState.matches(filter: MemberChoiceFilter): Boolean =
         MemberChoiceFilter.DeadOnly -> dead
         MemberChoiceFilter.SpellcasterOnly -> !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest)
     }
+
+private fun PartyState.inventorySlotChoices(
+    filter: InventorySlotChoiceFilter,
+    slots: IntRange,
+    firstKey: Char,
+): List<CompiledVmInventorySlotChoice> {
+    val itemsBySlot = inventory.associate { slot -> slot.slot to slot.item }
+    return slots
+        .filter { slot ->
+            slot in 1..InventorySaveSlotMax &&
+                when (filter) {
+                    InventorySlotChoiceFilter.Any -> true
+                    InventorySlotChoiceFilter.NonEmpty -> itemsBySlot[slot] != null
+                    InventorySlotChoiceFilter.Empty -> itemsBySlot[slot] == null
+                }
+        }.map { slot -> CompiledVmInventorySlotChoice(firstKey + (slot - slots.first), slot) }
+}
 
 private inline fun <T, R> EvalResult<T>.fold(
     ok: (T) -> R,
