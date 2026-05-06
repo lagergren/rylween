@@ -79,11 +79,11 @@ private fun validateSnapshotMetadata(
     sourceName: String,
 ) {
     val metadata = snapshot.metadata ?: return
-    if (metadata.formatVersion != RuntimeSnapshotFormatVersion) {
+    if (metadata.formatVersion != RUNTIME_SNAPSHOT_FORMAT_VERSION) {
         throw runtimeLoadFailure(
             sourceName,
             "runtime snapshot format version ${metadata.formatVersion} is not supported; " +
-                "expected $RuntimeSnapshotFormatVersion",
+                "expected $RUNTIME_SNAPSHOT_FORMAT_VERSION",
         )
     }
     val universe = content.metadata.universe

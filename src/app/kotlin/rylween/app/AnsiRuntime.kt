@@ -2,6 +2,20 @@
 
 package rylween.app
 
+import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.Context
+import com.github.ajalt.clikt.core.ProgramResult
+import com.github.ajalt.clikt.core.main
+import com.github.ajalt.clikt.parameters.arguments.argument
+import com.github.ajalt.clikt.parameters.arguments.optional
+import com.github.ajalt.clikt.parameters.options.convert
+import com.github.ajalt.clikt.parameters.options.default
+import com.github.ajalt.clikt.parameters.options.eagerOption
+import com.github.ajalt.clikt.parameters.options.flag
+import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.types.file
+import com.github.ajalt.clikt.parameters.types.int
+import com.github.ajalt.clikt.parameters.types.long
 import org.jline.terminal.Attributes
 import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
@@ -9,6 +23,7 @@ import org.jline.utils.NonBlockingReader
 import rylween.compiled.ExternalBundleArtifactSummary
 import rylween.compiled.readExternalRuntimeGame
 import rylween.compiled.readVerifiedExternalBundleArtifact
+import rylween.compiled.toExternalBundleArtifact
 import rylween.dsl.BuildingServiceModel
 import rylween.dsl.GameModel
 import rylween.dsl.GridPoint
@@ -40,6 +55,7 @@ import rylween.dsl.line
 import rylween.dsl.lines
 import rylween.dsl.matches
 import rylween.dsl.runtimeContent
+import rylween.dsl.stateId
 import rylween.dsl.staticScreen
 import rylween.dsl.terrain
 import rylween.dsl.text
@@ -82,7 +98,13 @@ import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.frontend.terminal.staticScreenRequiresRuntimeState
 import rylween.frontend.terminal.terminalTextRenderer
 import rylween.frontend.terminal.writeScriptEvents
-import rylween.game.*
+import rylween.game.Buildings
+import rylween.game.Maps
+import rylween.game.PaletteColors
+import rylween.game.RylweenCompiledGame
+import rylween.game.ScreenRegions
+import rylween.game.States
+import rylween.game.StaticScreens
 import rylween.runtime.NpcPlacementRealizerConfig
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.RuntimeSnapshotModel
@@ -120,7 +142,6 @@ import java.nio.ByteBuffer
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
 import java.nio.charset.StandardCharsets
-import kotlin.system.exitProcess
 
 private const val ESC = "\u001B"
 private const val CSI = "$ESC["
@@ -145,103 +166,108 @@ private data class AnsiRuntimeConfig(
     val newGame: Boolean = false,
     val playerSlot: String? = null,
     val serve: String? = null,
+    val logSpec: String = "",
+    val logLevel: String = "",
+    val dumpBundle: Boolean = false,
 )
 
 object RylweenAnsiMain {
     @JvmStatic
-    fun main(args: Array<String>): Unit =
-        runRylweenCli {
-            val parsedConfig = parseAnsiConfig(args.toList())
-            val bundleFile = parsedConfig.bundleFile
-            val game = bundleFile?.readExternalRuntimeGame() ?: RylweenCompiledGame.nextRylween
-            val config = resolveAnsiPlayerSlot(parsedConfig, game)
-            val content = game.content
-            val bundleSummary = bundleFile?.readVerifiedExternalBundleArtifact(game)
-            val renderer = content.terminalTextRenderer()
-            val worldMap =
-                content.worldMapGrid(Maps.wilderness)
-                    ?: error("missing authored wilderness map")
-            val engine =
-                RylweenKotlinEngine(
-                    content = content,
-                    npcPlacementConfig =
-                        NpcPlacementRealizerConfig(
-                            wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
-                        ),
-                )
-            config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
-                withConfiguredAnsiSession(config, bundleFile, bundleSummary) { _, terminal ->
-                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
-                        .showStaticScreen(content, screenId, renderer)
-                }
-                return@runRylweenCli
-            }
-            config.staticScreen?.let { screenId ->
-                val bootSnapshot =
-                    applyConfiguredHour(
-                        config,
-                        loadConfiguredOrSavedSnapshot(game, content, config, RuntimeStartupTarget.StaticScreen),
-                    )
-                withConfiguredAnsiSession(config, bundleFile, bundleSummary) { _, terminal ->
-                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
-                        .showStaticScreen(
-                            content = content,
-                            screenId = screenId,
-                            renderer = renderer,
-                            context = TerminalTextContext(runtime = bootSnapshot.state.toRuntimeSessionState()),
-                        )
-                }
-                return@runRylweenCli
-            }
-
-            withConfiguredAnsiSession(config, bundleFile, bundleSummary) { log, terminal ->
-                if (config.newGame || config.loadFile != null || config.state != null) {
-                    val snapshot =
-                        if (config.newGame && config.loadFile == null && config.state == null) {
-                            createInitialWorldSnapshot(game, content, States.freshReplay, config.seed)
-                        } else {
-                            loadConfiguredSnapshot(game, content, config)
-                        }
-                    val session =
-                        bootAnsiWildernessSession(
-                            config = config,
-                            content = content,
-                            renderer = renderer,
-                            engine = engine,
-                            terminal = terminal,
-                            log = log,
-                            snapshot = applyConfiguredHour(config, snapshot),
-                            worldMap = worldMap,
-                            newGame = config.newGame,
-                        )
-                    val savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content)
-                    if (config.newGame) saveInitialRuntime(savePort, session.runtime, log)
-                    runAnsiWilderness(
-                        terminal = terminal,
-                        content = content,
-                        renderer = renderer,
-                        engine = engine,
-                        savePort = savePort,
-                        log = log,
-                        session = session,
-                    )
-                } else {
-                    runAnsiTitleMenu(
-                        config = config,
-                        game = game,
-                        content = content,
-                        renderer = renderer,
-                        engine = engine,
-                        terminal = terminal,
-                        log = log,
-                        worldMap = worldMap,
-                    )
-                }
-            }
-        }
+    fun main(args: Array<String>) {
+        RylweenAnsiCommand().main(args)
+    }
 }
 
-private fun AnsiRuntimeConfig.defaultLogSpec(): String = if (serve == null) "" else "stderr"
+private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
+    runRylweenCli {
+        val bundleFile = parsedConfig.bundleFile
+        val game = bundleFile?.readExternalRuntimeGame() ?: RylweenCompiledGame.nextRylween
+        val config = resolveAnsiPlayerSlot(parsedConfig, game)
+        val content = game.content
+        val bundleSummary = bundleFile?.readVerifiedExternalBundleArtifact(game)
+        val dumpBundle = config.dumpBundle
+        val renderer = content.terminalTextRenderer()
+        val worldMap =
+            content.worldMapGrid(Maps.wilderness)
+                ?: error("missing authored wilderness map")
+        val engine =
+            RylweenKotlinEngine(
+                content = content,
+                npcPlacementConfig =
+                    NpcPlacementRealizerConfig(
+                        wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
+                    ),
+            )
+        config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
+            withConfiguredAnsiSession(config, bundleFile, bundleSummary, game.takeIf { dumpBundle }) { _, terminal ->
+                ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
+                    .showStaticScreen(content, screenId, renderer)
+            }
+            return@runRylweenCli
+        }
+        config.staticScreen?.let { screenId ->
+            val bootSnapshot =
+                applyConfiguredHour(
+                    config,
+                    loadConfiguredOrSavedSnapshot(game, content, config),
+                )
+            withConfiguredAnsiSession(config, bundleFile, bundleSummary, game.takeIf { dumpBundle }) { _, terminal ->
+                ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
+                    .showStaticScreen(
+                        content = content,
+                        screenId = screenId,
+                        renderer = renderer,
+                        context = TerminalTextContext(runtime = bootSnapshot.state.toRuntimeSessionState()),
+                    )
+            }
+            return@runRylweenCli
+        }
+
+        withConfiguredAnsiSession(config, bundleFile, bundleSummary, game.takeIf { dumpBundle }) { log, terminal ->
+            if (config.newGame || config.loadFile != null || config.state != null) {
+                val snapshot =
+                    if (config.newGame && config.loadFile == null && config.state == null) {
+                        createInitialWorldSnapshot(game, content, States.freshReplay, config.seed)
+                    } else {
+                        loadConfiguredSnapshot(game, content, config)
+                    }
+                val session =
+                    bootAnsiWildernessSession(
+                        config = config,
+                        content = content,
+                        renderer = renderer,
+                        engine = engine,
+                        terminal = terminal,
+                        log = log,
+                        snapshot = applyConfiguredHour(config, snapshot),
+                        worldMap = worldMap,
+                        newGame = config.newGame,
+                    )
+                val savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content)
+                if (config.newGame) saveInitialRuntime(savePort, session.runtime, log)
+                runAnsiWilderness(
+                    terminal = terminal,
+                    content = content,
+                    renderer = renderer,
+                    engine = engine,
+                    savePort = savePort,
+                    log = log,
+                    session = session,
+                )
+            } else {
+                runAnsiTitleMenu(
+                    config = config,
+                    game = game,
+                    content = content,
+                    renderer = renderer,
+                    engine = engine,
+                    terminal = terminal,
+                    log = log,
+                    worldMap = worldMap,
+                )
+            }
+        }
+    }
 
 private fun openConfiguredAnsiTerminal(
     config: AnsiRuntimeConfig,
@@ -255,12 +281,18 @@ private inline fun withConfiguredAnsiSession(
     config: AnsiRuntimeConfig,
     bundleFile: File?,
     bundleSummary: ExternalBundleArtifactSummary?,
+    dumpGame: RylweenModel?,
     crossinline block: (RylweenLog, AnsiTerminal) -> Unit,
 ) {
-    RylweenLog.open(defaultSpec = config.defaultLogSpec()).use { log ->
+    val effectiveSpec = config.logSpec.ifBlank { if (config.serve != null) "stderr" else "" }
+    RylweenLog.open(spec = effectiveSpec, level = config.logLevel).use { log ->
         RuntimeEventScope.withSink(log) {
             if (bundleFile != null && bundleSummary != null) {
                 log.audit("bundle", "verified ${bundleFile.path} ${bundleSummary.bundleContentHash}")
+            }
+            if (dumpGame != null) {
+                val pretty = dumpGame.toExternalBundleArtifact().decodeToString().trimEnd('\n')
+                log.emit(RuntimeEventLevel.Debug, "bundle", pretty)
             }
             openConfiguredAnsiTerminal(config, log).use { terminal ->
                 block(log, terminal)
@@ -544,12 +576,11 @@ private fun loadConfiguredOrSavedSnapshot(
     game: RylweenModel,
     content: GameModel,
     config: AnsiRuntimeConfig,
-    target: RuntimeStartupTarget = RuntimeStartupTarget.Wilderness,
 ): RuntimeSnapshotModel =
     if (config.loadFile != null || config.state != null) {
-        loadConfiguredSnapshot(game, content, config, target)
+        loadConfiguredSnapshot(game, content, config, RuntimeStartupTarget.StaticScreen)
     } else {
-        loadSavedOrInitialSnapshot(game, content, config, target)
+        loadSavedOrInitialSnapshot(game, content, config, RuntimeStartupTarget.StaticScreen)
     }
 
 private fun loadSavedOrInitialSnapshot(
@@ -1717,7 +1748,7 @@ private class SocketAnsiTerminal private constructor(
         while (true) {
             val value = input.read()
             if (value == -1) return -1
-            if (value == TelnetIac) {
+            if (value == TELNET_IAC) {
                 skipTelnetCommand()
             } else {
                 return value
@@ -1728,12 +1759,12 @@ private class SocketAnsiTerminal private constructor(
     private fun skipTelnetCommand() {
         when (input.read()) {
             -1 -> return
-            TelnetIac -> return
-            TelnetSb -> skipTelnetSubnegotiation()
-            TelnetWill,
-            TelnetWont,
-            TelnetDo,
-            TelnetDont,
+            TELNET_IAC -> return
+            TELNET_SB -> skipTelnetSubnegotiation()
+            TELNET_WILL,
+            TELNET_WONT,
+            TELNET_DO,
+            TELNET_DONT,
             -> input.read()
         }
     }
@@ -1742,7 +1773,7 @@ private class SocketAnsiTerminal private constructor(
         var previous = 0
         while (true) {
             val value = input.read()
-            if (value == -1 || previous == TelnetIac && value == TelnetSe) {
+            if (value == -1 || previous == TELNET_IAC && value == TELNET_SE) {
                 return
             }
             previous = value
@@ -1759,13 +1790,13 @@ private class SocketAnsiTerminal private constructor(
     }
 
     companion object {
-        private const val TelnetSe = 240
-        private const val TelnetSb = 250
-        private const val TelnetWill = 251
-        private const val TelnetWont = 252
-        private const val TelnetDo = 253
-        private const val TelnetDont = 254
-        private const val TelnetIac = 255
+        private const val TELNET_SE = 240
+        private const val TELNET_SB = 250
+        private const val TELNET_WILL = 251
+        private const val TELNET_WONT = 252
+        private const val TELNET_DO = 253
+        private const val TELNET_DONT = 254
+        private const val TELNET_IAC = 255
 
         fun accept(
             spec: String,
@@ -1789,11 +1820,6 @@ private class RylweenLog private constructor(
     private val minLevel: RuntimeEventLevel,
 ) : RuntimeEventSink,
     Closeable {
-    fun debug(
-        module: String,
-        message: String,
-    ) = emit(RuntimeEventLevel.Debug, module, message)
-
     fun info(
         module: String,
         message: String,
@@ -1803,11 +1829,6 @@ private class RylweenLog private constructor(
         module: String,
         message: String,
     ) = emit(RuntimeEventLevel.Warn, module, message)
-
-    fun error(
-        module: String,
-        message: String,
-    ) = emit(RuntimeEventLevel.Error, module, message)
 
     fun audit(
         module: String,
@@ -1848,10 +1869,13 @@ private class RylweenLog private constructor(
     }
 
     companion object {
-        fun open(defaultSpec: String = ""): RylweenLog =
+        fun open(
+            spec: String,
+            level: String,
+        ): RylweenLog =
             RylweenLog(
-                sinks = parseLogSinks(System.getenv("RYL_LOG").orEmpty().ifBlank { defaultSpec }),
-                minLevel = parseRuntimeEventLevel(System.getenv("RYL_LOG_LEVEL").orEmpty()),
+                sinks = parseLogSinks(spec),
+                minLevel = parseRuntimeEventLevel(level),
             )
     }
 }
@@ -1969,62 +1993,6 @@ private fun tcpAddress(spec: String): InetSocketAddress {
     return InetSocketAddress(host, port)
 }
 
-private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
-    if ("--help-verbose" in args || "--verbose-help" in args) {
-        printAnsiUsage(verbose = true)
-        exitProcess(0)
-    }
-    var config = AnsiRuntimeConfig()
-    // CPD-OFF
-    val handler =
-        commonCliFlagHandler(
-            setHour = { config = config.copy(hour = it) },
-            setSeed = { config = config.copy(seed = it) },
-            setState = { config = config.copy(state = it) },
-            setLoadFile = { config = config.copy(loadFile = it) },
-            setSaveFile = { file, state ->
-                config =
-                    if (state == null) {
-                        config.copy(saveFile = file)
-                    } else {
-                        config.copy(saveFile = file, saveState = state)
-                    }
-            },
-            setStaticScreen = { config = config.copy(staticScreen = it) },
-            setNewGame = { config = config.copy(newGame = true) },
-        )
-    // CPD-ON
-    var index = 0
-    while (index < args.size) {
-        val advance = args.consumeCommonCliFlag(index, handler)
-        if (advance != null) {
-            index = advance
-            continue
-        }
-        when (val arg = args[index]) {
-            "--bundle" -> {
-                config = config.copy(bundleFile = File(args.valueAfter(index, arg)))
-                index += 2
-            }
-            "--serve", "--server" -> {
-                config = config.copy(serve = args.valueAfter(index, arg))
-                index += 2
-            }
-            "--help", "-h" -> {
-                printAnsiUsage(verbose = "--verbose" in args || "-v" in args)
-                exitProcess(0)
-            }
-            else -> {
-                require(!arg.startsWith("-")) { "unknown argument $arg" }
-                require(config.playerSlot == null) { "only one player/save-slot argument is supported" }
-                config = config.withPlayerSlot(arg)
-                index += 1
-            }
-        }
-    }
-    return config
-}
-
 private fun AnsiRuntimeConfig.withPlayerSlot(slot: String): AnsiRuntimeConfig =
     copy(
         playerSlot = slot,
@@ -2050,69 +2018,169 @@ private fun resolveAnsiPlayerSlot(
     return fixture?.let { config.copy(state = it.id) } ?: config
 }
 
-private fun printAnsiUsage(verbose: Boolean = false) {
-    println(
-        """
-        |Usage: build/install/rylween-kotlin/bin/rylween
-        |
-        |Options:
-        |  --state  state slug; skips the title menu and boots a fixture/runtime state
-        |  --seed   runtime RNG state, defaults to the selected state seed
-        |  --hour   0..23, overrides the selected state hour
-        |  --bundle compiled JSON bundle to verify before booting
-        |  --load   runtime snapshot file to boot instead of --state
-        |  --load-slot named runtime snapshot under build/saves
-        |  --save   runtime snapshot target, defaults to build/saves/main.kts
-        |  --save-slot named runtime snapshot target under build/saves
-        |  --new    create a fresh party through the authored character-creation flow
-        |  --screen title, help, manual, score, vscore, or heroes; displays the authored static screen and exits
-        |  --serve  [host:]port; wait for one socket/telnet client and render ANSI there
-        |
-        |Shortcut:
-        |  rylween <player-slot>
-        |    Loads build/saves/<player-slot>.kts if present. Otherwise, boots an authored
-        |    fixture whose active party player equals <player-slot>, if one exists.
-        |
-        |Logging:
-        |  RYL_LOG=stderr
-        |  RYL_LOG=file:build/rylween.log
-        |  RYL_LOG=tcp:9999,file:build/rylween.log
-        |  RYL_LOG_LEVEL=debug|info|warn|error|audit
-        """.trimMargin() +
-            if (verbose) {
-                """
+private const val ANSI_VERBOSE_HELP =
+    """
+Examples:
+  rylween                          # Title menu, loads build/saves/main.kts if present
+  rylween Player                   # Player-slot shortcut: loads build/saves/Player.kts or
+                                   # boots a fixture whose active party player matches.
+  rylween --new                    # Runs authored character creation, then plays new party.
+  rylween --state strong-replay    # Boots the strong-party test fixture (skips title menu).
+  rylween --state fresh-replay --seed 1
+                                   # Deterministic boot from authored fixture.
+  rylween --bundle build/compiled/rylween-bundle.json
+                                   # Boots from compiled J1 bundle (hash-verified at startup).
+  rylween --screen title           # Renders the authored title screen and exits.
 
-                |
-                |Verbose Help:
-                |  Startup:
-                |    With no state/load/new/screen argument the launcher shows the authored title menu,
-                |    then loads build/saves/main.kts if it exists or creates the initial world state.
-                |    --state <slug> is for authored fixtures such as fresh-replay or strong-replay.
-                |    --new runs the authored character-creation session and saves the new world before play.
-                |
-                |  Save slots:
-                |    --save-slot <name> writes build/saves/<name>.kts and sets the snapshot state id to
-                |    runtime.<name>. --load-slot <name> reads that same file. A bare player-slot argument
-                |    is shorthand for that slot and can also select an authored fixture by party player name.
-                |
-                |  Bundle boot:
-                |    --bundle <file> reads a J1 compiled JSON bundle, verifies its hash and runtime facade,
-                |    then boots the same Kotlin runtime/session stack from that artifact.
-                |
-                |  Socket mode:
-                |    --serve <port> listens on 127.0.0.1. --serve <host:port> binds the requested host.
-                |    The first client gets the ANSI render stream and drives the game with normal keys.
-                |    Server diagnostics stay on RYL_LOG, not on the player socket.
-                |
-                |  Logging:
-                |    RYL_LOG is a comma-separated sink list. stderr writes to standard error, file:<path>
-                |    appends to a file, tcp:[host:]port broadcasts log lines to connected TCP clients, and
-                |    null disables output. RYL_LOG_LEVEL defaults to info. debug includes formula evaluation,
-                |    authored script op execution, input dispatch, and step transitions. audit events bypass
-                |    lower thresholds for major state changes such as saves, story flags, and session finish.
-                """.trimMargin()
-            } else {
-                "\n\nUse --help --verbose or --help-verbose for runtime details."
-            },
+Telnet/socket server mode:
+  rylween --serve 9999             # Listens on 127.0.0.1:9999 for one client; play over telnet/nc.
+  rylween --serve 0.0.0.0:9999     # Binds all interfaces (use with care).
+  Then from another shell:
+    nc 127.0.0.1 9999              # Or `telnet 127.0.0.1 9999`. ANSI renders to the client;
+                                   # server diagnostics stay on the launcher's log sinks.
+
+Logging:
+  --log stderr                     # Or set RYL_LOG=stderr. Default in --serve mode.
+  --log file:build/rylween.log     # Append to a file.
+  --log stderr,file:build/rylween.log
+                                   # Tee to stderr and a file (comma-separated sinks).
+  --log tcp:9999                   # Broadcast log lines to TCP clients on 127.0.0.1:9999.
+  --log null                       # Disable logging entirely.
+  --log-level debug                # Or RYL_LOG_LEVEL=debug. Levels: debug, info, warn, error, audit.
+                                   # debug includes formula evaluation, script ops, input dispatch.
+                                   # audit always emits regardless of threshold (saves, flags, etc.).
+
+Compiled-bundle dump:
+  --dump-bundle                    # Or RYL_DUMP_BUNDLE=1. Emits the loaded compiled JSON bundle
+                                   # as one Debug-level log event at startup. Combine with
+                                   # --log-level debug --log stderr to see it.
+
+Save slots:
+  --save-slot dev                  # Writes build/saves/dev.kts; snapshot state id = runtime.dev.
+  --load-slot dev                  # Reads that same file. Bare positional `<slot>` shortcut works too.
+
+Verbose-help section:
+  Startup:
+    With no --state/--load/--new/--screen argument the launcher shows the authored title menu,
+    then loads build/saves/main.kts if it exists or creates the initial world state.
+    --state <slug> selects an authored fixture (fresh-replay, strong-replay, etc).
+    --new runs character creation and saves the new world before play.
+
+  Bundle boot:
+    --bundle <file> reads a J1 compiled JSON bundle, verifies its hash and runtime facade,
+    then boots the same Kotlin runtime/session stack from that artifact.
+
+  Logging detail:
+    RYL_LOG is a comma-separated sink list. stderr writes to standard error,
+    file:<path> appends, tcp:[host:]port broadcasts to TCP clients, null disables output.
+    RYL_LOG_LEVEL defaults to info. Audit events bypass lower thresholds.
+"""
+
+private class RylweenAnsiCommand : CliktCommand(name = "rylween") {
+    override fun help(context: Context): String = "Rylween Kotlin ANSI runtime."
+
+    init {
+        eagerOption(
+            "--help-verbose",
+            "--verbose-help",
+            help = "Show extended help with command-line examples and runtime details.",
+        ) {
+            echo(ANSI_VERBOSE_HELP.trim())
+            throw ProgramResult(0)
+        }
+    }
+
+    private val state by option("--state", help = "State slug; skips the title menu and boots a fixture/runtime state.")
+        .convert { stateId(it) }
+    private val seed by option("--seed", help = "Runtime RNG state; defaults to the selected state seed.").long()
+    private val hour by option("--hour", help = "0..23, overrides the selected state hour.")
+        .int()
+        .convert { it.mod(24) }
+    private val bundleFileOpt by option(
+        "--bundle",
+        envvar = "RYL_BUNDLE",
+        help = "Compiled JSON bundle to verify before booting.",
+    ).file(mustExist = true, canBeDir = false, mustBeReadable = true)
+    private val loadFileOpt by option(
+        "--load",
+        help = "Runtime snapshot file to boot instead of --state.",
+    ).file(mustExist = true, canBeDir = false)
+    private val loadSlot by option("--load-slot", help = "Named runtime snapshot under build/saves.")
+    private val saveFileOpt by option(
+        "--save",
+        help = "Runtime snapshot target; defaults to build/saves/main.kts.",
+    ).file()
+    private val saveSlot by option("--save-slot", help = "Named runtime snapshot target under build/saves.")
+    private val staticScreen by option(
+        "--screen",
+        help = "title|help|manual|score|vscore|heroes; renders the static screen and exits.",
+    ).convert { staticScreenArg(it) }
+    private val newGame by option(
+        "--new",
+        "--new-game",
+        help = "Create a fresh party through the authored character-creation flow.",
+    ).flag()
+    private val serve by option(
+        "--serve",
+        "--server",
+        envvar = "RYL_SERVE",
+        help = "[host:]port; wait for one socket/telnet client and render ANSI there.",
     )
+    private val logSpec by option(
+        "--log",
+        envvar = "RYL_LOG",
+        help = "Comma-separated log sinks: stderr, file:<path>, tcp:[host:]port, null. Default in --serve mode is stderr.",
+    ).default("")
+    private val logLevel by option(
+        "--log-level",
+        envvar = "RYL_LOG_LEVEL",
+        help = "debug|info|warn|error|audit (default: info).",
+    ).default("")
+    private val dumpBundle by option(
+        "--dump-bundle",
+        envvar = "RYL_DUMP_BUNDLE",
+        help = "Pretty-print the loaded compiled JSON bundle as one Debug log event at startup.",
+    ).flag()
+    private val playerSlot by argument(
+        "PLAYER",
+        help = "Optional save-slot/player shortcut; loads build/saves/<name>.kts or matches a fixture party.",
+    ).optional()
+
+    override fun run() {
+        val effectiveLoadFile = loadFileOpt ?: loadSlot?.let(::runtimeSaveSlotFile)
+        val resolvedSaveFile: File
+        val resolvedSaveState: StateId
+        when {
+            saveFileOpt != null -> {
+                resolvedSaveFile = saveFileOpt!!
+                resolvedSaveState = runtimeSaveSlotStateId("main")
+            }
+            saveSlot != null -> {
+                resolvedSaveFile = runtimeSaveSlotFile(saveSlot!!)
+                resolvedSaveState = runtimeSaveSlotStateId(saveSlot!!)
+            }
+            else -> {
+                resolvedSaveFile = runtimeSaveSlotFile("main")
+                resolvedSaveState = runtimeSaveSlotStateId("main")
+            }
+        }
+        var config =
+            AnsiRuntimeConfig(
+                state = state,
+                seed = seed,
+                hour = hour,
+                bundleFile = bundleFileOpt,
+                loadFile = effectiveLoadFile,
+                saveFile = resolvedSaveFile,
+                saveState = resolvedSaveState,
+                staticScreen = staticScreen,
+                newGame = newGame,
+                serve = serve,
+                logSpec = logSpec,
+                logLevel = logLevel,
+                dumpBundle = dumpBundle,
+            )
+        playerSlot?.let { config = config.withPlayerSlot(it) }
+        runConfiguredAnsi(config)
+    }
 }

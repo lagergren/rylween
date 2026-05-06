@@ -10,9 +10,9 @@ import rylween.runtime.score.ScoreReport
 import rylween.runtime.score.hallOfHeroesReport
 import rylween.runtime.score.scoreReport
 
-private const val ScoreHeader: String = "ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES"
-private const val HallOfHeroesHeader: String = "ADVENTURERS OF RYLWEEN - HALL OF NATIONAL HEROES"
-private const val ScoreWidth: Int = 76
+private const val SCORE_HEADER: String = "ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES"
+private const val HALL_OF_HEROES_HEADER: String = "ADVENTURERS OF RYLWEEN - HALL OF NATIONAL HEROES"
+private const val SCORE_WIDTH: Int = 76
 
 fun GameModel.staticScreenRequiresRuntimeState(id: StaticScreenId): Boolean =
     visuals.staticScreens.singleOrNull { screen -> screen.id == id }?.runtimeReport != null
@@ -55,7 +55,7 @@ private fun ScoreReport.verboseScoreLines(): List<String> =
         add("")
         entries.forEach { entry ->
             add("${entry.rank.toString().padStart(2)}. ${entry.partyName.padEnd(30)}")
-            add(" +${"-".repeat(ScoreWidth - 2)}+")
+            add(" +${"-".repeat(SCORE_WIDTH - 2)}+")
             add("  Leader             : ${entry.leaderName}")
             add("  Classes            : ${entry.classes.joinToString(", ") { it.scoreName() }}")
             add("  Confirmed Kills    : ${entry.kills.toString().padEnd(4)}")
@@ -68,14 +68,14 @@ private fun ScoreReport.verboseScoreLines(): List<String> =
             } else {
                 entry.powerItems.forEach { item -> add("  ${item.name}") }
             }
-            add(" +${"-".repeat(ScoreWidth - 2)}+")
+            add(" +${"-".repeat(SCORE_WIDTH - 2)}+")
             add("")
         }
     }
 
 private fun HallOfHeroesReport.hallOfHeroesLines(): List<String> =
     buildList {
-        addAll(framedHeaderLines(HallOfHeroesHeader))
+        addAll(framedHeaderLines(HALL_OF_HEROES_HEADER))
         add("")
         if (entries.isEmpty()) {
             add("  No party has defeated Baron Ydarg yet.")
@@ -87,13 +87,13 @@ private fun HallOfHeroesReport.hallOfHeroesLines(): List<String> =
         add("")
     }
 
-private fun scoreHeaderLines(): List<String> = framedHeaderLines(ScoreHeader)
+private fun scoreHeaderLines(): List<String> = framedHeaderLines(SCORE_HEADER)
 
 private fun framedHeaderLines(title: String): List<String> =
     listOf(
-        " +${"=".repeat(ScoreWidth - 2)}+",
-        " I${title.centered(ScoreWidth - 2)}I",
-        " +${"=".repeat(ScoreWidth - 2)}+",
+        " +${"=".repeat(SCORE_WIDTH - 2)}+",
+        " I${title.centered(SCORE_WIDTH - 2)}I",
+        " +${"=".repeat(SCORE_WIDTH - 2)}+",
     )
 
 private fun String.centered(width: Int): String {

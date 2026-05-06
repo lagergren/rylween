@@ -142,7 +142,7 @@ private class RuntimeStateSnapshotParser(
 
     private fun parseMetadataBody(): RuntimeSnapshotMetadata {
         expectSymbol('{')
-        var formatVersion = RuntimeSnapshotFormatVersion
+        var formatVersion = RUNTIME_SNAPSHOT_FORMAT_VERSION
         var contentHash: String? = null
         var universeId: String? = null
         var universeVersion: String? = null

@@ -1711,6 +1711,7 @@ dependencies {
     testImplementation(kotlin("test"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     add(appSourceSet.implementationConfigurationName, libs.jline)
+    add(appSourceSet.implementationConfigurationName, libs.clikt)
 }
 
 tasks.test {
