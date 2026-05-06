@@ -14,6 +14,7 @@ import rylween.dsl.InventorySlotRef
 import rylween.dsl.InventorySlotState
 import rylween.dsl.ItemId
 import rylween.dsl.JournalEntryState
+import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.NativeAllowlist
 import rylween.dsl.PartyCounters
 import rylween.dsl.PartyMemberState
@@ -373,12 +374,12 @@ class RylweenCompiledVmTest {
         val model =
             rylween {
                 content {
-                    scene(VmAskMemberScene) {
-                        ask.member(inlineText("who"))
+                    scene(VmAskInventorySlotScene) {
+                        ask.inventorySlot(inlineText("slot"))
                     }
                 }
             }
-        val (compiled, program) = compiledScene(model, VmAskMemberScene)
+        val (compiled, program) = compiledScene(model, VmAskInventorySlotScene)
 
         val result =
             CompiledVm(compiled.content)
@@ -386,7 +387,90 @@ class RylweenCompiledVmTest {
 
         val failed = assertIs<CompiledVmResult.Failed>(result)
         val diagnostic = assertIs<VmDiagnostic.UnsupportedHostService>(failed.diagnostic)
-        assertEquals("AskMember", diagnostic.service)
+        assertEquals("AskInventorySlot", diagnostic.service)
+    }
+
+    @Test
+    fun compiledVmBlocksAndResumesAskMemberWithoutReplayingPriorEffects() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskMemberScene) {
+                        screen("before")
+                        val member =
+                            ask.member(
+                                inlineText("who"),
+                                filter = MemberChoiceFilter.Any,
+                                accepting = MemberChoiceFilter.DeadOnly,
+                            )
+                        party.gold set member.level
+                        screen("after")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskMemberScene)
+        val runtime = RuntimeSessionState.singleParty(testParty(), 12, null)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+
+        val result = vm.run(program, CompiledVmStart(runtime))
+
+        val blocked = assertIs<CompiledVmResult.Blocked>(result)
+        val pending = assertIs<CompiledVmPendingInput.AskMember>(blocked.pending)
+        assertEquals(1, pending.instructionIndex)
+        assertEquals(listOf(1), pending.operandPath)
+        assertEquals(MemberChoiceFilter.Any, pending.filter)
+        assertEquals(MemberChoiceFilter.DeadOnly, pending.accepting)
+        assertEquals(listOf(2), pending.choices)
+        assertEquals(listOf(CompiledVmFrameForTest(emptyList(), 2, false)), blocked.continuation.frames.map(::CompiledVmFrameForTest))
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.AskMember(pending.prompt, MemberChoiceFilter.Any),
+            ),
+            host.events,
+        )
+
+        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskMember(2))
+
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals(2, completed.locals[pending.localName])
+        assertEquals(9, completed.runtime.activeParty.resources.gold)
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.AskMember(pending.prompt, MemberChoiceFilter.Any),
+                EngineTraceEvent.Screen(inlineText("after")),
+            ),
+            host.events,
+        )
+    }
+
+    @Test
+    fun compiledVmAskMemberInvalidInputStaysBlockedWithoutAdvancing() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskMemberScene) {
+                        val member = ask.member(inlineText("who"), accepting = MemberChoiceFilter.DeadOnly)
+                        party.gold set member.level
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskMemberScene)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+        val blocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+
+        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.AskMember(1))
+
+        val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
+        assertEquals(blocked.pending, stillBlocked.pending)
+        assertEquals(blocked.continuation, stillBlocked.continuation)
+        assertEquals(1, host.events.size)
     }
 
     @Test
@@ -775,6 +859,7 @@ class RylweenCompiledVmTest {
         val VmMenuDefaultScene = sceneId("vm.menu_default")
         val VmAskKeyScene = sceneId("vm.ask_key")
         val VmAskMemberScene = sceneId("vm.ask_member")
+        val VmAskInventorySlotScene = sceneId("vm.ask_inventory_slot")
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
         val VmNestedExpressionScene = sceneId("vm.nested_expr")

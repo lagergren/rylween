@@ -36,8 +36,11 @@ import rylween.dsl.InputBindingModel
 import rylween.dsl.ItemId
 import rylween.dsl.ItemPoolId
 import rylween.dsl.LocationId
+import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.NativeAllowlist
+import rylween.dsl.PartyMemberState
 import rylween.dsl.PartyState
+import rylween.dsl.PcClass
 import rylween.dsl.PronounCase
 import rylween.dsl.ScriptControlSignal
 import rylween.dsl.TextBlock
@@ -171,6 +174,11 @@ sealed interface CompiledVmInput {
     data class AskKey(
         val raw: String,
     ) : CompiledVmInput
+
+    /** Selects a one-based party member number for an `AskMember` prompt. */
+    data class AskMember(
+        val memberNumber: Int,
+    ) : CompiledVmInput
 }
 
 /** Typed input request that stopped a compiled VM run. */
@@ -214,6 +222,18 @@ sealed interface CompiledVmPendingInput {
         val prompt: TextBlock,
         val localName: String,
         val bindings: List<InputBindingModel>,
+    ) : CompiledVmPendingInput
+
+    /** Pending party-member prompt that stores the chosen one-based member number in [localName]. */
+    data class AskMember(
+        override val root: rylween.runtime.ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        val prompt: TextBlock,
+        val localName: String,
+        val filter: MemberChoiceFilter,
+        val accepting: MemberChoiceFilter,
+        val choices: List<Int>,
     ) : CompiledVmPendingInput
 }
 
@@ -336,6 +356,9 @@ class CompiledVm(
         if (continuation.pending is CompiledVmPendingInput.AskKey && input is CompiledVmInput.AskKey) {
             return resumeAskKey(program, continuation, input)
         }
+        if (continuation.pending is CompiledVmPendingInput.AskMember && input is CompiledVmInput.AskMember) {
+            return resumeAskMember(program, continuation, input)
+        }
         val state =
             ExecutionState(
                 root = continuation.root,
@@ -396,6 +419,26 @@ class CompiledVm(
                 textBindings = continuation.textBindings.toMutableMap(),
             )
         state.locals[pending.localName] = binding.compiledVmPromptValue()
+        return result(state, executeFrames(state, program.instructions, continuation.frames))
+    }
+
+    private fun resumeAskMember(
+        program: CompiledScriptProgram,
+        continuation: CompiledVmContinuation,
+        input: CompiledVmInput.AskMember,
+    ): CompiledVmResult {
+        val pending = continuation.pending as CompiledVmPendingInput.AskMember
+        if (input.memberNumber !in pending.choices) {
+            return CompiledVmResult.Blocked(pending, continuation)
+        }
+        val state =
+            ExecutionState(
+                root = continuation.root,
+                runtime = continuation.runtime,
+                locals = continuation.locals.toMutableMap(),
+                textBindings = continuation.textBindings.toMutableMap(),
+            )
+        state.locals[pending.localName] = input.memberNumber
         return result(state, executeFrames(state, program.instructions, continuation.frames))
     }
 
@@ -598,6 +641,39 @@ class CompiledVm(
                                 bindings = bindings,
                             )
                         host.trace(EngineTraceEvent.AskKey(prompt, bindings))
+                        ControlSignal.Blocked(
+                            pending = pending,
+                            frames =
+                                listOf(
+                                    CompiledVmFrame(
+                                        blockPath = location.blockPath,
+                                        nextIndex = location.instructionIndex + 1,
+                                        insideLoop = insideLoop,
+                                    ),
+                                ) + parentFrames,
+                        )
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
+            }
+            CompiledOpcode.AskMember -> {
+                val prompt = renderText(state, instruction.textBlock(0), location.child(0))
+                val filter = instruction.memberChoiceFilter(2)
+                val accepting = instruction.memberChoiceFilter(3)
+                prompt.fold(
+                    ok = { text ->
+                        val pending =
+                            CompiledVmPendingInput.AskMember(
+                                root = location.root,
+                                instructionIndex = location.instructionIndex,
+                                operandPath = location.operandPath,
+                                prompt = text,
+                                localName = index.string(instruction.stringId(1)),
+                                filter = filter,
+                                accepting = accepting,
+                                choices = state.party.memberChoices(accepting),
+                            )
+                        host.trace(EngineTraceEvent.AskMember(text, filter))
                         ControlSignal.Blocked(
                             pending = pending,
                             frames =
@@ -1316,6 +1392,9 @@ class CompiledVm(
     private fun CompiledInstruction.optionalSignal(index: Int): ScriptControlSignal? =
         (operands.getOrNull(index) as? CompiledOperand.EnumName)?.name?.let(ScriptControlSignal::valueOf)
 
+    private fun CompiledInstruction.memberChoiceFilter(index: Int): MemberChoiceFilter =
+        MemberChoiceFilter.valueOf((operands[index] as CompiledOperand.EnumName).name)
+
     private fun CompiledInstruction.handle(index: Int): CompiledHandleRef = (operands[index] as CompiledOperand.Handle).ref
 
     private fun CompiledInstruction.textBlock(index: Int): CompiledTextBlock = (operands[index] as CompiledOperand.TextBlockValue).value
@@ -1536,6 +1615,7 @@ private fun CompiledVmContinuation.accepts(input: CompiledVmInput): Boolean =
         is CompiledVmPendingInput.WaitInput -> input is CompiledVmInput.Continue
         is CompiledVmPendingInput.Menu -> input is CompiledVmInput.MenuKey
         is CompiledVmPendingInput.AskKey -> input is CompiledVmInput.AskKey
+        is CompiledVmPendingInput.AskMember -> input is CompiledVmInput.AskMember
     }
 
 private sealed interface EvalResult<out T> {
@@ -1574,6 +1654,20 @@ private fun InputBindingModel.compiledVmPromptValue(): Int =
     primary.singleOrNull()?.let { char ->
         char.digitToIntOrNull() ?: char.uppercaseChar().code
     } ?: primary.uppercase().hashCode()
+
+private fun PartyState.memberChoices(filter: MemberChoiceFilter): List<Int> =
+    members
+        .mapIndexedNotNull { index, member ->
+            (index + 1).takeIf { member.matches(filter) }
+        }
+
+private fun PartyMemberState.matches(filter: MemberChoiceFilter): Boolean =
+    when (filter) {
+        MemberChoiceFilter.Any -> true
+        MemberChoiceFilter.AliveOnly -> !dead
+        MemberChoiceFilter.DeadOnly -> dead
+        MemberChoiceFilter.SpellcasterOnly -> !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest)
+    }
 
 private inline fun <T, R> EvalResult<T>.fold(
     ok: (T) -> R,
