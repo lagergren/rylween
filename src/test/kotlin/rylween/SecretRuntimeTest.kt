@@ -11,7 +11,11 @@ import rylween.dsl.monster
 import rylween.dsl.runtimeContent
 import rylween.dsl.worldMap
 import rylween.dsl.xy
-import rylween.game.*
+import rylween.game.Items
+import rylween.game.Maps
+import rylween.game.Monsters
+import rylween.game.RylweenCompiledGame
+import rylween.game.States
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.WildernessDirection
 import rylween.runtime.inputForToken
