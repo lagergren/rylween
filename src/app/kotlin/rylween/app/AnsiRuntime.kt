@@ -1091,12 +1091,14 @@ private class AnsiTerminalPort(
             }
         }
 
-    override fun readTextLine(maxLength: Int?): String? =
-        terminal.readTextLine(maxLength).also { line ->
+    override fun readTextLine(maxLength: Int?): String? {
+        screen.beginTextInput()
+        return terminal.readTextLine(maxLength).also { line ->
             if (line != null) {
                 screen.completeTerminalInput()
             }
         }
+    }
 
     override fun readReturn(): Boolean? =
         terminal.readReturn().also { accepted ->
@@ -1309,6 +1311,22 @@ private class ClassicAnsiScreen(
 
     fun completeTerminalInput() {
         terminalPendingLines = emptyList()
+        // Hide the cursor and reset shape back to the emulator default.
+        terminal.writeRaw("$CSI?25l${CSI}0 q")
+        terminal.flush()
+    }
+
+    fun beginTextInput() {
+        if (terminalModalActive) return
+        val height = textWindow.height ?: Int.MAX_VALUE
+        val nextRow = (terminalPendingLines.size).coerceAtMost(height - 1)
+        gotoTextRow(nextRow)
+        // Show a steady block cursor (DECSCUSR 2) so the input position is
+        // unmistakable; falls back to the terminal's default shape if the
+        // emulator doesn't speak DECSCUSR. ?25h re-enables visibility after
+        // bootFrame's ?25l hide.
+        terminal.writeRaw("$CSI?25h${CSI}2 q")
+        terminal.flush()
     }
 
     fun writeText(lines: List<String>) {
