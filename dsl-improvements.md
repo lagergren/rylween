@@ -174,7 +174,7 @@ content {
 Use this as the task board for turning the inventory below into reviewed DSL
 changes. A task is only done when the current C/JSON5 owner has been audited,
 the DSL shape is represented in `src/game/dsl/RylweenGame.dsl.kts`
-or the smaller `dsl-next.kts` prototype lab where appropriate, mutable data
+or the smaller `legacy/scratch/dsl-next.kts` prototype lab where appropriate, mutable data
 has save-state coverage, native calls are named and typed, and at least one
 parity check or replay fixture is planned.
 
@@ -324,7 +324,7 @@ move, say that explicitly.
 
 Decisions from the first `RylweenGame.dsl.kts` pass:
 
-- `src/game/dsl/RylweenGame.dsl.kts` is the successor game source copied from `dsl-next.kts`; `dsl-next.kts` remains the small language/prototype lab.
+- `src/game/dsl/RylweenGame.dsl.kts` is the successor game source copied from `legacy/scratch/dsl-next.kts`; `legacy/scratch/dsl-next.kts` remains the small language/prototype lab.
 - The Gradle project root is named `rylween` and uses the Gradle 9.5.0 wrapper with Kotlin JVM 2.3.21. Source packages now mark responsibility boundaries: `rylween.dsl` (`src/main/kotlin/rylween/dsl`) is the reusable DSL kernel/validation layer; `rylween.runtime` (`src/main/kotlin/rylween/runtime`) contains shared live state, RNG/NPC placement, reusable sessions, and pure state ops; `rylween.engine` (`src/main/kotlin/rylween/engine`) contains the backend-neutral engine port, trace runners, and Kotlin boot facade; `rylween.frontend.terminal` (`src/main/kotlin/rylween/frontend/terminal`) contains terminal prompt rendering and line-terminal adapters; `rylween.save` (`src/main/kotlin/rylween/save`) contains save-shaped state emission/parsing. `src/game/kotlin/rylween/game/GameScripts.kt` contains reusable current-game script helpers, `src/game/dsl/RylweenGame.dsl.kts` is the game-specific declaration source, and generated current-game handles live under `build/generated/gameCatalog/kotlin`.
 - Keep a hard boundary between DSL implementation and game authoring. Kotlin classes, builders, validators, and generated handles are implementation/compiler scaffolding; the game designer should add game-specific content through declaration blocks such as `flags { ... }`, `monsters { ... }`, `missions { ... }`, `gameProgress { ... }`, and `state { ... }`.
 - Adding a new monster, flag, mission, special milestone, text, or similar game-specific concept should not require writing a Kotlin class. The authoring source declares the concept in game terms; the content compiler can generate typed handles from those declarations.
@@ -1358,7 +1358,7 @@ The Kotlin DSL compiler or loader should validate:
 ## Migration phases
 
 1. Keep current JSON5/C data as reference.
-2. Grow `src/game/dsl/RylweenGame.dsl.kts` into a representative typed content/state source while keeping `dsl-next.kts` as the small prototype lab.
+2. Grow `src/game/dsl/RylweenGame.dsl.kts` into a representative typed content/state source while keeping `legacy/scratch/dsl-next.kts` as the small prototype lab.
 3. Keep reusable script bodies as Kotlin game-script helpers while they inline
    into authored script roots; continuations/debug metadata now name those
    roots through `ScriptRootRef`.
