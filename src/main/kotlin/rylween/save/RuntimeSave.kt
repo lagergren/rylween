@@ -1,3 +1,10 @@
+/**
+ * Runtime save-port contracts and file-backed snapshot writing.
+ *
+ * Runtime sessions call [RuntimeSavePort] with live [RuntimeSessionState];
+ * `StateSnapshot.kt` renders the textual save DSL, and `RuntimeLoad.kt`
+ * validates the same snapshot shape when loading.
+ */
 package rylween.save
 
 import rylween.dsl.GameModel
@@ -18,23 +25,27 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
+/** Result of attempting to persist a runtime snapshot. */
 data class RuntimeSaveOutcome(
     val saved: Boolean,
     val target: String? = null,
     val error: String? = null,
 )
 
+/** Save request carrying live state and any nested mode-specific session snapshot. */
 data class RuntimeSaveRequest(
     val runtime: RuntimeSessionState,
     val mode: RuntimeModeSnapshot? = null,
 )
 
+/** Host-provided persistence boundary for runtime sessions. */
 fun interface RuntimeSavePort {
     fun save(runtime: RuntimeSessionState): RuntimeSaveOutcome
 
     fun save(request: RuntimeSaveRequest): RuntimeSaveOutcome = save(request.runtime)
 }
 
+/** Converts live runtime state into the exact state-model shape serialized by saves. */
 fun RuntimeSessionState.toRuntimeStateSnapshot(id: StateId): StateModel =
     StateModel(
         id = id,
@@ -71,6 +82,7 @@ private fun PartyState.toRuntimeSnapshotParty(runtime: RuntimeSessionState): Par
     )
 }
 
+/** File-backed [RuntimeSavePort] that writes atomic textual snapshot files. */
 class FileRuntimeSavePort(
     private val file: File,
     private val snapshotId: StateId,

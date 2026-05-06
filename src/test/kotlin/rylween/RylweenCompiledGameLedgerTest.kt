@@ -35,27 +35,17 @@ import rylween.dsl.TownHandle
 import rylween.dsl.TownKind
 import rylween.dsl.Trigger
 import rylween.dsl.Wilderness
-import rylween.dsl.building
 import rylween.dsl.cells
-import rylween.dsl.dungeon
-import rylween.dsl.image
 import rylween.dsl.inlineText
 import rylween.dsl.isWinningConfiguration
-import rylween.dsl.item
 import rylween.dsl.itemPool
 import rylween.dsl.keyAction
 import rylween.dsl.line
 import rylween.dsl.lines
 import rylween.dsl.matches
-import rylween.dsl.monster
 import rylween.dsl.nativePathsIn
-import rylween.dsl.npc
-import rylween.dsl.rumour
 import rylween.dsl.specialInventoryItems
 import rylween.dsl.structuredText
-import rylween.dsl.terrain
-import rylween.dsl.text
-import rylween.dsl.town
 import rylween.dsl.validateAuthoredContent
 import rylween.dsl.validateFlagCatalog
 import rylween.dsl.validateGameProgress
@@ -958,9 +948,9 @@ class RylweenCompiledGameLedgerTest {
                 .length == 78,
         )
         check(
-            nextDsl.terrain.terrain
+            !nextDsl.terrain.terrain
                 .single { it.id == Terrain.mountain }
-                .passable == false,
+                .passable,
         )
         check(
             nextDsl.terrain.terrain

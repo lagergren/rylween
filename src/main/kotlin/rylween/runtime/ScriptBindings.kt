@@ -1,4 +1,10 @@
-// Shared scalar/member bindings used by authored script expression evaluators.
+/**
+ * Shared scalar, flag, member, and inventory bindings for script expressions.
+ *
+ * The authored Op interpreter and future compiled VM use these helpers to keep
+ * lvalue and query semantics consistent across wilderness, town, battle, and
+ * script-continuation contexts.
+ */
 
 package rylween.runtime
 

@@ -1,5 +1,9 @@
-// Line-oriented terminal frontend API and rendering helpers.
-// Runtime sessions expose semantic steps and bindings; this layer decides how a text terminal displays them.
+/**
+ * Line-oriented terminal frontend API and rendering helpers.
+ *
+ * Runtime sessions expose semantic steps and input bindings; this layer decides
+ * how a text terminal displays them, reads input, and renders view commands.
+ */
 
 package rylween.frontend.terminal
 
@@ -57,6 +61,7 @@ import rylween.runtime.prompt
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 import rylween.runtime.wilderness.WorldMapViewport
 
+/** Minimal line-oriented terminal I/O and rendering port used by adapters. */
 interface TerminalPort {
     fun write(lines: List<String>)
 
@@ -96,6 +101,7 @@ interface TerminalPort {
         }
 }
 
+/** Writes a text prompt followed by an allowed-character key prompt. */
 fun TerminalPort.writeKeyPrompt(
     renderer: TerminalTextRenderer,
     block: TextBlock,
@@ -105,6 +111,7 @@ fun TerminalPort.writeKeyPrompt(
     write(renderer.keyPromptLines(block, keys, context))
 }
 
+/** Writes a text prompt followed by labeled input bindings. */
 fun TerminalPort.writeBindingPrompt(
     renderer: TerminalTextRenderer,
     block: TextBlock,
@@ -114,6 +121,7 @@ fun TerminalPort.writeBindingPrompt(
     write(renderer.bindingPromptLines(block, bindings, context))
 }
 
+/** Runtime values available while rendering dynamic [TextBlock] parts. */
 data class TerminalTextContext(
     val shopPrice: Int? = null,
     val shopCarryCap: Int? = null,
@@ -125,11 +133,13 @@ data class TerminalTextContext(
     val huntFoodGained: Int? = null,
 )
 
+/** Details of a rejected terminal input for resumable/blocking adapters. */
 data class TerminalInputRejection(
     val input: String,
     val expected: List<String>,
 )
 
+/** Completion or waiting status returned by a terminal adapter. */
 sealed interface TerminalRunStatus {
     object Finished : TerminalRunStatus
 
@@ -140,6 +150,7 @@ sealed interface TerminalRunStatus {
     object StepLimitReached : TerminalRunStatus
 }
 
+/** Session plus status returned when an adapter finishes or blocks for input. */
 data class TerminalAdapterResult<S>(
     val session: S,
     val status: TerminalRunStatus,
@@ -183,6 +194,7 @@ internal fun bindingMenuLine(
     return "($marker)$suffix"
 }
 
+/** Creates a terminal renderer with game text references and optional overrides. */
 fun GameModel.terminalTextRenderer(references: Map<String, List<String>> = emptyMap()): TerminalTextRenderer =
     TerminalTextRenderer(
         references = references,
@@ -192,6 +204,7 @@ fun GameModel.terminalTextRenderer(references: Map<String, List<String>> = empty
         prompts = prompts,
     )
 
+/** Renders authored [TextBlock] and view-command text into terminal lines. */
 class TerminalTextRenderer(
     private val references: Map<String, List<String>> = emptyMap(),
     towns: List<TownModel> = emptyList(),
@@ -508,6 +521,7 @@ internal class TerminalWorldTextResolver(
     }
 }
 
+/** Writes engine trace events using terminal rendering rules. */
 fun TerminalPort.writeScriptEvents(
     events: List<EngineTraceEvent>,
     renderer: TerminalTextRenderer,
@@ -572,6 +586,7 @@ fun TerminalPort.writeScriptEvents(
     }
 }
 
+/** Writes or performs a pause event according to terminal policy. */
 fun TerminalPort.writePauseEvent(
     event: EngineTraceEvent,
     renderer: TerminalTextRenderer,
@@ -589,6 +604,7 @@ fun TerminalPort.writePauseEvent(
         else -> false
     }
 
+/** Parsed terminal input value or waiting/rejection state. */
 sealed interface TerminalInput<out T> {
     data class Value<T>(
         val value: T,
@@ -601,13 +617,16 @@ sealed interface TerminalInput<out T> {
     object Unavailable : TerminalInput<Nothing>
 }
 
+/** One parsed choice option bound to a terminal key. */
 data class TerminalChoice<out T>(
     val value: T,
     val binding: InputBindingModel,
 )
 
+/** Converts semantic input commands into terminal choice options. */
 fun <T> List<InputCommand<T>>.terminalChoices(): List<TerminalChoice<T>> = map { command -> TerminalChoice(command.input, command.binding) }
 
+/** Numeric prompt value for input bindings that are displayed as menu digits. */
 fun InputBindingModel.promptValue(): Int =
     primary.singleOrNull()?.let { char ->
         char.digitToIntOrNull() ?: char.uppercaseChar().code
@@ -631,21 +650,26 @@ internal inline fun <S, T> TerminalInput<T>.sessionOrWait(
         TerminalInput.Unavailable -> stop(waiting(current))
     }
 
+/** Reads one key and validates it against [allowed]. */
 fun TerminalPort.readKey(allowed: List<Char>): TerminalInput<Char> {
     val choices = allowed.map { key -> TerminalChoice(key, inputKey(key, label = key.toString())) }
     return readChoice(choices)
 }
 
+/** Choice list for a yes/no prompt. */
 fun yesNoChoices(keys: YesNoKeysModel = StandardYesNoKeys): List<TerminalChoice<Boolean>> =
     listOf(
         TerminalChoice(true, keys.yes),
         TerminalChoice(false, keys.no),
     )
 
+/** Allowed key list for a yes/no prompt. */
 fun yesNoKeys(keys: YesNoKeysModel = StandardYesNoKeys): List<Char> = yesNoChoices(keys).map { it.binding.primaryChar }
 
+/** Reads and parses a yes/no prompt. */
 fun TerminalPort.readYesNo(keys: YesNoKeysModel = StandardYesNoKeys): TerminalInput<Boolean> = readChoice(yesNoChoices(keys))
 
+/** Reads and parses one choice from [choices]. */
 fun <T> TerminalPort.readChoice(choices: List<TerminalChoice<T>>): TerminalInput<T> {
     val raw = readLine() ?: return TerminalInput.Unavailable
     val choice = choices.firstOrNull { it.binding.matches(raw) }
@@ -656,6 +680,7 @@ fun <T> TerminalPort.readChoice(choices: List<TerminalChoice<T>>): TerminalInput
     }
 }
 
+/** Reads one integer from the terminal. */
 fun TerminalPort.readInt(): TerminalInput<Int> {
     val raw = readLine() ?: return TerminalInput.Unavailable
     return raw
@@ -665,6 +690,7 @@ fun TerminalPort.readInt(): TerminalInput<Int> {
         ?: TerminalInput.Rejected(TerminalInputRejection(raw, listOf("integer")))
 }
 
+/** Reads one member number constrained to [allowed]. */
 fun TerminalPort.readMemberNumber(allowed: List<Int>): TerminalInput<Int> {
     val raw = readLine() ?: return TerminalInput.Unavailable
     val memberNumber = raw.trim().toIntOrNull()
@@ -675,16 +701,20 @@ fun TerminalPort.readMemberNumber(allowed: List<Int>): TerminalInput<Int> {
     }
 }
 
+/** Builds a finished adapter result for [session]. */
 fun <S> finished(session: S): TerminalAdapterResult<S> = TerminalAdapterResult(session, TerminalRunStatus.Finished)
 
+/** Builds a waiting adapter result for [session]. */
 fun <S> waiting(
     session: S,
     rejection: TerminalInputRejection? = null,
 ): TerminalAdapterResult<S> = TerminalAdapterResult(session, TerminalRunStatus.Waiting(rejection))
 
+/** Terminal keys corresponding to inventory slots accepted by [filter]. */
 fun PartyState.inventoryKeys(filter: InventorySlotChoiceFilter): List<Char> =
     inventorySlotChoices(filter, 1..InventorySaveSlotMax, 'A').map { it.first }
 
+/** Terminal inventory-slot choices accepted by [filter]. */
 fun PartyState.inventorySlotChoices(
     filter: InventorySlotChoiceFilter,
     slots: IntRange,
@@ -702,12 +732,14 @@ fun PartyState.inventorySlotChoices(
         }.map { slot -> firstKey + (slot - slots.first) to slot }
 }
 
+/** Party member numbers accepted by [filter]. */
 fun PartyState.memberChoices(filter: MemberChoiceFilter): List<Int> =
     members
         .mapIndexedNotNull { index, member ->
             (index + 1).takeIf { member.matches(filter) }
         }
 
+/** Returns true when this party member satisfies [filter]. */
 fun PartyMemberState.matches(filter: MemberChoiceFilter): Boolean =
     when (filter) {
         MemberChoiceFilter.Any -> true

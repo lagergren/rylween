@@ -1,3 +1,10 @@
+/**
+ * Headless Kotlin host facade for exercising runtime sessions without a terminal.
+ *
+ * This reads the same external J1 bundle as `app/TerminalMain.kt`, constructs
+ * semantic sessions from `runtime/`, and reports its surface through
+ * `RuntimeHostContract.kt` for host-conformance checks.
+ */
 package rylween.engine
 
 import rylween.compiled.readExternalRuntimeGame
@@ -49,25 +56,33 @@ import rylween.runtime.ydarg.YdargSession
  * while still replacing presentation and persistence.
  */
 class KotlinHeadlessHost private constructor(
+    /** Runtime game model materialized from the external bundle facade. */
     val game: RylweenModel,
 ) {
+    /** Host capability declaration used by runtime host conformance checks. */
     val surface: RuntimeHostSurface
         get() = RylweenRuntimeHostContract.kotlinHeadless
 
+    /** Authored runtime content carried by [game]. */
     val content: GameModel
         get() = game.content
 
     private val runtimeContent: RuntimeContent
         get() = content.runtimeContent()
 
+    /** Resolves a named authored or saved state. */
     fun state(id: StateId): StateModel = game.states.single { state -> state.id == id }
 
+    /** Builds the world-map grid for [id]. */
     fun worldMap(id: WorldMapId): WorldMapGrid = checkNotNull(content.worldMapGrid(id)) { "world map ${id.slug} is not declared" }
 
+    /** Resolves an authored static screen by id. */
     fun staticScreen(id: StaticScreenId): StaticScreenModel? = content.visuals.staticScreens.singleOrNull { screen -> screen.id == id }
 
+    /** Resolves an authored image asset by id. */
     fun image(id: ImageId): ImageAssetModel? = content.visuals.images.singleOrNull { image -> image.id == id }
 
+    /** Converts a state id into live runtime state for headless session creation. */
     fun runtime(
         stateId: StateId,
         rngState: Long? = null,
@@ -82,6 +97,7 @@ class KotlinHeadlessHost private constructor(
         }
     }
 
+    /** Starts a wilderness session from a state and map id. */
     fun wildernessSession(
         stateId: StateId,
         mapId: WorldMapId,
@@ -103,6 +119,7 @@ class KotlinHeadlessHost private constructor(
             worldMap = worldMap.withNpcHuts(runtime.npcs),
         )
 
+    /** Starts a town session from existing live runtime state. */
     fun townSession(
         runtime: RuntimeSessionState,
         town: TownId,
@@ -121,6 +138,7 @@ class KotlinHeadlessHost private constructor(
         )
     }
 
+    /** Starts a dungeon session from existing live runtime state. */
     fun dungeonSession(
         runtime: RuntimeSessionState,
         worldMap: WorldMapGrid,
@@ -137,8 +155,10 @@ class KotlinHeadlessHost private constructor(
             dungeons = dungeons,
         )
 
+    /** Starts a Ydarg castle session from existing live runtime state. */
     fun castleSession(runtime: RuntimeSessionState): YdargSession = YdargSession.start(runtime, runtimeContent)
 
+    /** Starts a battle session from existing live runtime state. */
     fun battleSession(
         runtime: RuntimeSessionState,
         tier: EncounterTier,
@@ -151,6 +171,7 @@ class KotlinHeadlessHost private constructor(
             mandatory = mandatory,
         )
 
+    /** Starts a shop session for the service bound to [building]. */
     fun shopSession(
         runtime: RuntimeSessionState,
         building: BuildingId,
@@ -162,6 +183,7 @@ class KotlinHeadlessHost private constructor(
         return ShopServiceSession.start(shop, runtime.activeParty, runtimeContent)
     }
 
+    /** Starts a conversation session for the NPC/service bound to [building]. */
     fun speakSession(
         runtime: RuntimeSessionState,
         building: BuildingId,
@@ -170,6 +192,7 @@ class KotlinHeadlessHost private constructor(
     companion object {
         private fun fromGame(game: RylweenModel): KotlinHeadlessHost = KotlinHeadlessHost(game)
 
+        /** Creates a headless host by reading an external J1 bundle artifact. */
         fun fromExternalBundle(bytes: ByteArray): KotlinHeadlessHost = fromGame(bytes.readExternalRuntimeGame())
     }
 }

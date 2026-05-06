@@ -1,3 +1,11 @@
+/**
+ * Shared command-line flag contracts for app launchers.
+ *
+ * The line-terminal and ANSI frontends both need state, save-slot, seed, hour,
+ * and static-screen selection. This file keeps those parse/apply rules aligned
+ * with startup validation in `engine/Startup.kt` and save slot handling in
+ * `save/SaveSlots.kt`.
+ */
 package rylween.app
 
 import rylween.dsl.StateId

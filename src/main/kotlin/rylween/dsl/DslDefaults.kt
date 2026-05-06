@@ -1,8 +1,11 @@
+/**
+ * Internal default handles shared by DSL builders and runtime adapters.
+ *
+ * These values preserve the current authored slugs while avoiding direct
+ * coupling from runtime code to generated game-specific handle catalogs in
+ * `game/RylweenGame.dsl.kts`.
+ */
 package rylween.dsl
-
-// Internal preset handles used by reusable builders and runtimes. They preserve
-// the current default slugs without making the DSL/runtime packages depend on
-// the current game's transitional handle catalog.
 
 internal object DslDefaultItems {
     val none = item("blank")

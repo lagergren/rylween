@@ -1,3 +1,10 @@
+/**
+ * Terminal adapter for the Ydarg castle runtime session.
+ *
+ * [rylween.runtime.ydarg.YdargSession] owns pure state transitions; this file
+ * renders prompts through `TerminalFrontend.kt`, dispatches child-session
+ * adapters, and writes saves through `save/RuntimeSave.kt`.
+ */
 package rylween.frontend.terminal
 
 import rylween.dsl.ViewCommand
@@ -18,6 +25,7 @@ import rylween.save.RuntimeSaveOutcome
 import rylween.save.RuntimeSavePort
 import rylween.save.RuntimeSaveRequest
 
+/** Drives a [YdargSession] against a line-oriented [TerminalPort]. */
 class YdargSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),

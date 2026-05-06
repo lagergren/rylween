@@ -1,3 +1,10 @@
+/**
+ * Runtime score and hall-of-heroes report generation.
+ *
+ * `frontend/terminal/ScoreTerminal.kt` renders these reports for static
+ * screens, while future persistent scoreboards can reuse the report model
+ * without depending on terminal formatting.
+ */
 package rylween.runtime.score
 
 import rylween.dsl.GameMilestoneId
@@ -11,11 +18,13 @@ import rylween.dsl.SourceSpecialField
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.party
 
+/** Special milestone item shown in a party score report. */
 data class ScorePowerItem(
     val milestone: GameMilestoneId,
     val name: String,
 )
 
+/** One ranked party row in the score report. */
 data class ScoreReportEntry(
     val rank: Int,
     val partyName: String,
@@ -27,18 +36,22 @@ data class ScoreReportEntry(
     val powerItems: List<ScorePowerItem>,
 )
 
+/** Ranked score report for every runtime party. */
 data class ScoreReport(
     val entries: List<ScoreReportEntry>,
 )
 
+/** One party entry eligible for the hall-of-heroes static screen. */
 data class HallOfHeroesEntry(
     val partyName: String,
 )
 
+/** Hall-of-heroes report derived from parties that completed the win milestone. */
 data class HallOfHeroesReport(
     val entries: List<HallOfHeroesEntry>,
 )
 
+/** Builds the score report for the current runtime state and authored content. */
 fun RuntimeSessionState.scoreReport(content: GameModel): ScoreReport {
     val itemRecords = content.itemCatalog.associateBy(ItemRecordModel::id)
     val powerItems = content.scorePowerItems(itemRecords)
@@ -68,6 +81,7 @@ fun RuntimeSessionState.scoreReport(content: GameModel): ScoreReport {
     )
 }
 
+/** Builds the hall-of-heroes report for parties that satisfy the win condition. */
 fun RuntimeSessionState.hallOfHeroesReport(content: GameModel): HallOfHeroesReport {
     val completion = content.progress.win?.completedBy ?: return HallOfHeroesReport(emptyList())
     val entries =

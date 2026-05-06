@@ -1,27 +1,66 @@
+/**
+ * Native-service allowlist and signature catalog for compiled script execution.
+ *
+ * `compiled/CompiledLoader.kt` uses these descriptors to reject unknown or
+ * malformed native calls, and the upcoming `CompiledVm.kt` host boundary should
+ * bind callbacks against the same catalog.
+ */
 package rylween.runtime.vm
 
 import rylween.dsl.NativeAllowlist
 
+/**
+ * Execution family for a native service path.
+ *
+ * The catalog is consumed by `compiled/CompiledLoader.kt` for `NativeCall`
+ * validation and will be consumed by `CompiledVm.kt` when native int/string
+ * expression evaluation lands. The source of truth for currently authored
+ * paths remains [NativeAllowlist].
+ */
 enum class NativeServiceKind {
     Effect,
     IntValue,
     StringValue,
 }
 
+/**
+ * Operand shape accepted by a native service argument position.
+ *
+ * `StringValue` is used by `NativeCall` string args and literal string
+ * arguments. `IntExprValue` is used by compiled native string arguments that
+ * evaluate integer expressions before host formatting.
+ */
 enum class NativeServiceArgSlot {
     StringValue,
     IntExprValue,
 }
 
+/**
+ * Allowlisted native service signature.
+ *
+ * [path] is the stable service id emitted in compiled bundles, [kind] decides
+ * which VM/native call site may use it, [argSlots] pins arity and argument
+ * kinds, and [reason] is a short authoring/runtime explanation copied from
+ * [NativeAllowlist].
+ */
 data class NativeServiceDescriptor(
     val path: String,
     val kind: NativeServiceKind,
     val argSlots: List<NativeServiceArgSlot>,
     val reason: String,
 ) {
+    /** Number of arguments required by this service. */
     val arity: Int get() = argSlots.size
 }
 
+/**
+ * Native-service allowlist used by the compiled loader and future VM host.
+ *
+ * The loader uses [descriptor] to reject unknown `NativeCall` paths before a
+ * runtime sees the bundle. The future VM host should use the same catalog when
+ * binding host callbacks so Kotlin, native, server, and bitmap frontends agree
+ * on path, arity, and argument-slot semantics.
+ */
 data class NativeServiceCatalog(
     val entries: Map<String, NativeServiceDescriptor>,
 ) {
@@ -32,9 +71,16 @@ data class NativeServiceCatalog(
         }
     }
 
+    /** Returns the descriptor for [path], or `null` when the path is not allowlisted. */
     fun descriptor(path: String): NativeServiceDescriptor? = entries[path]
 
     companion object {
+        /**
+         * Catalog for the current authored runtime boundary.
+         *
+         * Entries are derived from [NativeAllowlist] so the DSL helper surface
+         * and compiled-bundle loader cannot drift into separate path lists.
+         */
         val default: NativeServiceCatalog =
             NativeServiceCatalog(
                 listOf(

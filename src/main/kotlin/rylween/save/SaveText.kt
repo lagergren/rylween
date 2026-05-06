@@ -1,3 +1,10 @@
+/**
+ * Shared string escaping for save DSL rendering.
+ *
+ * `StateSnapshot.kt` and `SaveCompatibility.kt` both need the same quoted text
+ * rules so persisted saves and content fingerprints serialize strings
+ * consistently.
+ */
 package rylween.save
 
 internal fun dslQuotedString(value: String): String =

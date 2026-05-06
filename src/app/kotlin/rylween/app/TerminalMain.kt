@@ -1,3 +1,10 @@
+/**
+ * Line-terminal launcher and manual shell entry points.
+ *
+ * This app layer wires command-line flags into `engine/RylweenKotlinEngine`,
+ * terminal adapters from `frontend/terminal`, and save/load helpers from
+ * `save`. It intentionally contains frontend orchestration, not gameplay rules.
+ */
 @file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
 
 package rylween.app

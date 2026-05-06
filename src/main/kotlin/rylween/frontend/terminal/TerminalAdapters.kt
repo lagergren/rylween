@@ -1,5 +1,9 @@
-// Line-oriented terminal frontend adapters over backend-neutral runtime sessions.
-// Keep display/input policy here so core engine code can be shared by ANSI, bitmap, server, and tests.
+/**
+ * Line-oriented terminal adapters over backend-neutral runtime sessions.
+ *
+ * Display and input policy belongs here so core runtime sessions can be shared
+ * by ANSI, bitmap, server, tests, and future compiled-VM hosts.
+ */
 
 package rylween.frontend.terminal
 
@@ -138,6 +142,7 @@ private fun TerminalPort.writeBindingMenu(
     writeBindingPrompt(renderer, block, bindings, context)
 }
 
+/** Terminal adapter for [rylween.runtime.wilderness.CampSession]. */
 class CampSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -186,6 +191,7 @@ class CampSessionTerminalAdapter(
     }
 }
 
+/** Terminal adapter for [rylween.runtime.wilderness.HuntSession]. */
 class HuntSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -221,6 +227,7 @@ class HuntSessionTerminalAdapter(
     }
 }
 
+/** Terminal adapter for [rylween.runtime.town.CharacterCreationSession]. */
 class CharacterCreationTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -354,6 +361,7 @@ class CharacterCreationTerminalAdapter(
     ): InputBindingModel = inputKey(number.digitToChar(), label = "$number. $label")
 }
 
+/** Terminal adapter for reusable equipment prompt sessions. */
 class EquipmentPromptTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -400,6 +408,7 @@ class EquipmentPromptTerminalAdapter(
     }
 }
 
+/** Terminal adapter for [rylween.runtime.party.InventoryItemUseSession]. */
 class InventoryItemUseTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -477,6 +486,7 @@ class InventoryItemUseTerminalAdapter(
     }
 }
 
+/** Terminal adapter for [rylween.runtime.party.PartyViewSession]. */
 class PartyViewTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -507,6 +517,7 @@ class PartyViewTerminalAdapter(
     }
 }
 
+/** Terminal adapter for [rylween.runtime.party.PartyJournalSession]. */
 class PartyJournalTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -532,6 +543,7 @@ class PartyJournalTerminalAdapter(
     }
 }
 
+/** Terminal adapter for [rylween.runtime.party.InventoryDropSession]. */
 class InventoryDropTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -638,6 +650,7 @@ private fun journalEntryLines(
             }
     }
 
+/** Terminal adapter for non-combat priest spell selection. */
 class PriestSpellTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -708,6 +721,7 @@ class PriestSpellTerminalAdapter(
     }
 }
 
+/** Terminal adapter for equipment prompts shown while leaving town. */
 class TownLeaveEquipmentTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -754,6 +768,7 @@ class TownLeaveEquipmentTerminalAdapter(
         }
 }
 
+/** Terminal adapter for [rylween.runtime.town.ShopServiceSession]. */
 class ShopServiceTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -933,6 +948,7 @@ class ShopServiceTerminalAdapter(
     }
 }
 
+/** Terminal adapter for [rylween.runtime.town.TownSession]. */
 class TownSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -1056,6 +1072,7 @@ private fun TownSessionStep.EntryTax.taxPrompt(): TextBlock =
         ),
     )
 
+/** Terminal adapter for [rylween.runtime.dungeon.DungeonSession]. */
 class DungeonSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -1251,6 +1268,7 @@ class DungeonSessionTerminalAdapter(
     }
 }
 
+/** Terminal adapter for [rylween.runtime.wilderness.WildernessSession]. */
 class WildernessSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -1577,6 +1595,7 @@ class WildernessSessionTerminalAdapter(
     }
 }
 
+/** Terminal adapter for [rylween.runtime.battle.BattleSession]. */
 class BattleSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),

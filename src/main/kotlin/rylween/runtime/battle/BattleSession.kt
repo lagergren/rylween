@@ -1,7 +1,10 @@
-// Reusable battle session, combat scripting, rewards, and battle prompt helpers.
-//
-// This file is backend-neutral. Battle rules come from CombatSystemModel,
-// spell/item-use scripts, formulas, rewards, monsters, and item records supplied by the game model.
+/**
+ * Backend-neutral battle session, combat scripting, rewards, and prompt helpers.
+ *
+ * Battle rules come from [rylween.dsl.CombatSystemModel], spell/item-use
+ * scripts, formulas, rewards, monsters, and item records supplied by the game
+ * model. Terminal rendering lives in `frontend/terminal/TerminalAdapters.kt`.
+ */
 
 package rylween.runtime.battle
 

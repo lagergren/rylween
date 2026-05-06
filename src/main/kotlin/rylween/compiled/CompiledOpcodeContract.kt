@@ -1,3 +1,10 @@
+/**
+ * Declarative operand-schema contract for compiled script opcodes.
+ *
+ * The compiler in [CompiledBundle.kt] emits [CompiledInstruction] values,
+ * `CompiledLoader.kt` enforces this contract when loading J1 artifacts, and
+ * `runtime/vm/VmDiagnostic.kt` supplies typed diagnostics for future VM use.
+ */
 package rylween.compiled
 
 /**
@@ -67,10 +74,13 @@ object CompiledOpcodeContract {
         }
 
         companion object {
+            /** Creates a schema with exactly one allowed operand shape. */
             fun of(vararg slots: Slot): Schema = Schema(listOf(slots.toList()))
 
+            /** Creates a schema with multiple allowed operand shapes. */
             fun ofAny(vararg arities: List<Slot>): Schema = Schema(arities.toList())
 
+            /** Creates a schema for opcodes that take no operands. */
             fun empty(): Schema = Schema(listOf(emptyList()))
         }
     }
@@ -94,6 +104,7 @@ object CompiledOpcodeContract {
         ) : Validation
     }
 
+    /** Operand schemas for every opcode emitted by the compiled bundle writer. */
     val schemas: Map<CompiledOpcode, Schema> =
         mapOf(
             CompiledOpcode.Screen to Schema.of(Slot.TextBlockValue),
@@ -158,6 +169,7 @@ object CompiledOpcodeContract {
             CompiledOpcode.NativeCall to Schema.of(Slot.StringId, Slot.StringIdList),
         )
 
+    /** Maps an actual compiled operand instance to its schema slot kind. */
     fun slotOf(operand: CompiledOperand): Slot =
         when (operand) {
             is CompiledOperand.Integer -> Slot.Integer
@@ -184,6 +196,7 @@ object CompiledOpcodeContract {
             is CompiledOperand.EnumName -> Slot.EnumName
         }
 
+    /** Validates a single [instruction] against the schema for its opcode. */
     fun validateInstruction(instruction: CompiledInstruction): Validation {
         val schema = schemas[instruction.opcode] ?: return Validation.UnknownOpcode(instruction.opcode)
         val actual = instruction.operands.map(::slotOf)
@@ -194,5 +207,6 @@ object CompiledOpcodeContract {
         }
     }
 
+    /** Returns opcodes that do not yet have a declared schema entry. */
     fun validateAll(): List<CompiledOpcode> = CompiledOpcode.entries.filter { it !in schemas }
 }

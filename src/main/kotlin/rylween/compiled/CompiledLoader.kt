@@ -1,3 +1,10 @@
+/**
+ * Loader and validation boundary for compiled J1 game bundles.
+ *
+ * [CompiledBundleLoader] indexes `CompiledBundle.kt` data, enforces
+ * [CompiledOpcodeContract], and checks `NativeCall` paths against
+ * `runtime/vm/NativeServiceCatalog.kt` before runtime hosts see a bundle.
+ */
 package rylween.compiled
 
 import rylween.runtime.ScriptRootRef
@@ -6,11 +13,27 @@ import rylween.runtime.vm.NativeServiceCatalog
 import rylween.runtime.vm.NativeServiceKind
 import rylween.runtime.vm.VmDiagnostic
 
+/**
+ * Runtime-facing view of a validated [CompiledGameBundle].
+ *
+ * `CompiledLoader.kt` is the J1/J2 boundary between compiled data and runtime
+ * consumers. It validates cross-table references, script opcode shapes from
+ * [CompiledOpcodeContract], and `NativeCall` paths from [NativeServiceCatalog],
+ * then exposes lookup maps used by Kotlin hosts and future compiled VM code in
+ * `runtime/vm`.
+ */
 data class LoadedCompiledGame(
     val content: LoadedCompiledContent,
     val states: Map<CompiledHandleRef, CompiledStateImage>,
 )
 
+/**
+ * Materialized compiled content with lookup helpers.
+ *
+ * This keeps the raw tables from `CompiledBundle.kt` but adds hash buckets and
+ * direct script lookup maps so callers do not need to rebuild indexes after
+ * loading a J1 artifact.
+ */
 data class LoadedCompiledContent(
     val strings: CompiledStringTable,
     val handles: CompiledHandleTable,
@@ -18,22 +41,47 @@ data class LoadedCompiledContent(
     val handleHashBuckets: Map<Int, List<CompiledHandleRef>>,
     val scripts: Map<CompiledHandleRef, CompiledScriptProgram>,
 ) {
+    /** Resolves a compiled string id through the loaded string table. */
     fun string(id: Int): String = strings.value(id)
 
+    /** Resolves a compiled handle ref through the loaded handle table. */
     fun handle(ref: CompiledHandleRef): CompiledHandle = handles.handle(ref)
 
+    /**
+     * Finds a handle by [kind] and slug text.
+     *
+     * This is the runtime counterpart to the compiler-side handle interning in
+     * `CompiledBundle.kt`; it returns `null` instead of throwing so hosts can
+     * report diagnostics for optional lookups.
+     */
     fun resolveHandle(
         kind: CompiledHandleKind,
         slug: String,
     ): CompiledHandleRef? = strings.idOf(slug)?.let { slugString -> handles.refOrNull(kind, slugString) }
 
+    /** Returns a compiled script program by root handle, or `null` if absent. */
     fun script(root: CompiledHandleRef): CompiledScriptProgram? = scripts[root]
 }
 
+/**
+ * Validates and materializes this compiled bundle with the default VM native catalog.
+ *
+ * Pass a custom [nativeServices] catalog when testing host-specific service
+ * binding. Production callers should normally use [NativeServiceCatalog.default]
+ * so `NativeCall` loader checks match the DSL [rylween.dsl.NativeAllowlist].
+ */
 fun CompiledGameBundle.loadCompiledGame(nativeServices: NativeServiceCatalog = NativeServiceCatalog.default): LoadedCompiledGame =
     CompiledBundleLoader.load(this, nativeServices)
 
+/** Loader entry point for validating and indexing compiled game bundles. */
 object CompiledBundleLoader {
+    /**
+     * Validates [bundle] and returns indexed runtime-facing compiled content.
+     *
+     * Validation rejects malformed handle/string references, opcode operand
+     * shapes, and unallowlisted `NativeCall` paths before the existing authored
+     * interpreter or future compiled VM can execute the script stream.
+     */
     fun load(
         bundle: CompiledGameBundle,
         nativeServices: NativeServiceCatalog = NativeServiceCatalog.default,

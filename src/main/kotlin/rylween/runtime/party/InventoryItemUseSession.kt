@@ -1,6 +1,10 @@
-// Reusable runtime session for using one item out of inventory.
-// Routes weapon/armor selections into the equipment ready flow; routes
-// authored inventory item-use scripts into the shared script continuation.
+/**
+ * Reusable runtime session for using one item out of inventory.
+ *
+ * Weapon and armor selections route into the shared equipment flow; authored
+ * item-use scripts route into the shared script-continuation model in
+ * `runtime/ScriptContinuation.kt`.
+ */
 
 package rylween.runtime.party
 

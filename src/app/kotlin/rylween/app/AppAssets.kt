@@ -1,3 +1,10 @@
+/**
+ * Packaged app-resource helpers for terminal and ANSI frontends.
+ *
+ * Visual asset declarations come from the DSL model; this file handles the
+ * runtime resource reads that belong to app packaging rather than core runtime
+ * sessions.
+ */
 package rylween.app
 
 import rylween.dsl.ImageAssetKind

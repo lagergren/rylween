@@ -1,6 +1,10 @@
-// Top-level town session: filters the C/S/I/M/T/L menu to currently-available
-// services, applies opening hours, routes shops/native services, and runs
-// the town-leave equipment prompts.
+/**
+ * Backend-neutral top-level town runtime session.
+ *
+ * [TownSession] filters currently available services, applies opening hours,
+ * routes shops and native services, and runs town-leave equipment prompts.
+ * Terminal rendering lives in `frontend/terminal/TerminalAdapters.kt`.
+ */
 
 package rylween.runtime.town
 

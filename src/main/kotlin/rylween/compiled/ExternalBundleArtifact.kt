@@ -1,3 +1,10 @@
+/**
+ * Deterministic external J1 bundle artifact writer, reader, and inspector.
+ *
+ * The canonical artifact is strict JSON emitted from `CompiledBundle.kt`.
+ * Kotlin and C/native readers validate the same section order, schema version,
+ * hashes, runtime-system direct schemas, and runtime facade compatibility.
+ */
 package rylween.compiled
 
 import rylween.dsl.BoolAst
@@ -60,15 +67,19 @@ import kotlin.reflect.typeOf
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
 
+/** Serializes this game into the canonical strict JSON J1 artifact bytes. */
 fun RylweenModel.toExternalBundleArtifact(): ByteArray = ExternalBundleArtifactWriter().write(this)
 
+/** Writes this game as the canonical strict JSON J1 artifact. */
 fun RylweenModel.writeExternalBundleArtifact(file: File) {
     file.parentFile?.mkdirs()
     file.writeBytes(toExternalBundleArtifact())
 }
 
+/** Reads only the artifact summary and section metadata from strict JSON bytes. */
 fun ByteArray.readExternalBundleArtifact(): ExternalBundleArtifactSummary = ExternalBundleArtifactReader(decodeToString()).read()
 
+/** Reads only the artifact summary and section metadata from a strict JSON file. */
 fun File.readExternalBundleArtifact(): ExternalBundleArtifactSummary = readBytes().readExternalBundleArtifact()
 
 /**
@@ -104,6 +115,7 @@ fun File.readVerifiedExternalBundleArtifact(expected: RylweenModel): ExternalBun
 fun ByteArray.readExternalCompiledGameBundle(): CompiledGameBundle =
     ExternalBundleArtifactMaterializer(decodeToString()).readCompiledBundle()
 
+/** Reads the J1 strict JSON artifact file back into the typed compiled bundle model. */
 fun File.readExternalCompiledGameBundle(): CompiledGameBundle = readBytes().readExternalCompiledGameBundle()
 
 /**
@@ -120,6 +132,7 @@ fun File.readExternalCompiledGameBundle(): CompiledGameBundle = readBytes().read
  */
 fun ByteArray.readExternalRuntimeGame(): RylweenModel = ExternalBundleArtifactMaterializer(decodeToString()).readRuntimeGame()
 
+/** Reads the J1 strict JSON artifact file into the runtime-facing Kotlin game model. */
 fun File.readExternalRuntimeGame(): RylweenModel = readBytes().readExternalRuntimeGame()
 
 /**
@@ -131,12 +144,16 @@ fun File.readExternalRuntimeGame(): RylweenModel = readBytes().readExternalRunti
  */
 fun ByteArray.readExternalRuntimeSystemsSummary(): ExternalRuntimeSystemsSummary = ExternalRuntimeSystemsReader(decodeToString()).read()
 
+/** Reads the stable runtime-system summary from a strict JSON artifact file. */
 fun File.readExternalRuntimeSystemsSummary(): ExternalRuntimeSystemsSummary = readBytes().readExternalRuntimeSystemsSummary()
 
+/** Renders a human-readable inspection report from strict JSON artifact bytes. */
 fun ByteArray.inspectExternalBundleArtifact(): String = readExternalBundleArtifact().renderExternalBundleInspection()
 
+/** Renders a human-readable inspection report from a strict JSON artifact file. */
 fun File.inspectExternalBundleArtifact(): String = readBytes().inspectExternalBundleArtifact()
 
+/** Summary and drift-check metadata for one external bundle artifact. */
 data class ExternalBundleArtifactSummary(
     val format: String,
     val version: Int,
@@ -146,8 +163,10 @@ data class ExternalBundleArtifactSummary(
     val universeCompatibilityId: String,
     val sections: List<ExternalBundleSectionSummary>,
 ) {
+    /** Returns the summary for a required artifact section. */
     fun section(id: ExternalBundleSectionId): ExternalBundleSectionSummary = sections.single { it.id == id }
 
+    /** Renders this summary as the CLI inspection text. */
     fun renderExternalBundleInspection(): String =
         buildString {
             appendLine("Rylween compiled bundle")
@@ -165,6 +184,7 @@ data class ExternalBundleArtifactSummary(
         }
 }
 
+/** Summary row for one external bundle section. */
 data class ExternalBundleSectionSummary(
     val id: ExternalBundleSectionId,
     val rowCount: Int,
@@ -175,6 +195,7 @@ data class ExternalBundleSectionSummary(
         checksum.toUInt().toString(radix = 16).padStart(length = 8, padChar = '0')
 }
 
+/** Stable non-reflective runtime-system summary from the external artifact. */
 data class ExternalRuntimeSystemsSummary(
     val schemaVersion: Int,
     val commandGroups: List<String>,
@@ -182,6 +203,7 @@ data class ExternalRuntimeSystemsSummary(
     val castles: List<String>,
 )
 
+/** Ordered section ids emitted by the strict JSON artifact. */
 enum class ExternalBundleSectionId(
     val jsonName: String,
 ) {

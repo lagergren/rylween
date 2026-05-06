@@ -1,6 +1,10 @@
-// Reusable session state machines for granting rewards (mission/quest/script
-// rewards) and offering a single random item for sale (e.g. tavern scruffy
-// dealer, free dungeon finds via priceOverride).
+/**
+ * Reusable reward-grant and random-item-offer state machines.
+ *
+ * Mission, quest, script, tavern, and dungeon flows delegate reward placement
+ * here so inventory overflow and drop-slot prompts remain consistent across
+ * runtime parents and terminal adapters.
+ */
 
 package rylween.runtime.reward
 

@@ -1,5 +1,10 @@
-// Resumable script-execution shape shared by town services and any other
-// stateful authored-script runner. Pure data; no rendering, no I/O.
+/**
+ * Resumable script-execution data shared by stateful authored-script runners.
+ *
+ * Town services, dungeon events, item use, rewards, and future compiled-VM
+ * frames all need a backend-neutral continuation shape. Rendering and input are
+ * handled by adapters such as `frontend/terminal/TerminalScriptBridge.kt`.
+ */
 
 package rylween.runtime
 
@@ -21,6 +26,7 @@ import rylween.runtime.reward.RewardGrantSession
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.SpeakSession
 
+/** Authored script-root categories used by compiled bundles and save diagnostics. */
 enum class ScriptRootKind {
     Unspecified,
     Scene,
@@ -31,6 +37,7 @@ enum class ScriptRootKind {
     QuestionAction,
 }
 
+/** Stable reference to one authored script root. */
 data class ScriptRootRef(
     val kind: ScriptRootKind,
     val denseId: Int? = null,
@@ -46,33 +53,41 @@ data class ScriptRootRef(
         }
     }
 
+    /** True when this ref identifies a real authored root. */
     val isSpecified: Boolean get() = kind != ScriptRootKind.Unspecified
 
+    /** Compares root identity while ignoring optional dense ids. */
     fun sameRoot(other: ScriptRootRef): Boolean = kind == other.kind && slug == other.slug
 
     companion object {
+        /** Placeholder used before a continuation is bound to an authored root. */
         val Unspecified: ScriptRootRef = ScriptRootRef(ScriptRootKind.Unspecified)
 
+        /** Builds a script-root ref for a scene script. */
         fun scene(
             id: SceneId,
             denseId: Int? = null,
         ): ScriptRootRef = ScriptRootRef(ScriptRootKind.Scene, denseId, id.slug)
 
+        /** Builds a script-root ref for a dungeon event script. */
         fun dungeonEvent(
             id: DungeonEventId,
             denseId: Int? = null,
         ): ScriptRootRef = ScriptRootRef(ScriptRootKind.DungeonEvent, denseId, id.slug)
 
+        /** Builds a script-root ref for a spell script. */
         fun spell(
             id: SpellId,
             denseId: Int? = null,
         ): ScriptRootRef = ScriptRootRef(ScriptRootKind.Spell, denseId, id.slug)
 
+        /** Builds a script-root ref for an item-use script. */
         fun itemUse(
             id: ItemId,
             denseId: Int? = null,
         ): ScriptRootRef = ScriptRootRef(ScriptRootKind.ItemUse, denseId, id.slug)
 
+        /** Builds a script-root ref for one dialogue branch body. */
         fun dialogueBranch(
             npc: NpcId,
             branch: DialogueBranchModel,
@@ -88,6 +103,7 @@ data class ScriptRootRef(
                 ).joinToString("."),
             )
 
+        /** Builds a script-root ref for one scripted question action. */
         fun questionAction(
             action: QuestionActionScriptModel,
             denseId: Int? = null,
@@ -100,6 +116,7 @@ data class ScriptRootRef(
     }
 }
 
+/** Dense-id catalog for all authored script roots in runtime content. */
 data class ScriptRootCatalog(
     val roots: List<ScriptRootRef>,
 ) {
@@ -112,9 +129,11 @@ data class ScriptRootCatalog(
         }
     }
 
+    /** Returns the dense catalog root matching [fallback], or [fallback] if absent. */
     fun rootFor(fallback: ScriptRootRef): ScriptRootRef = roots.firstOrNull { root -> root.sameRoot(fallback) } ?: fallback
 }
 
+/** Builds the dense script-root catalog for this runtime content. */
 fun RuntimeContent.scriptRootCatalog(): ScriptRootCatalog =
     ScriptRootCatalog(
         buildList {
@@ -135,20 +154,26 @@ fun RuntimeContent.scriptRootCatalog(): ScriptRootCatalog =
         },
     )
 
+/** Returns the catalogued script root for a scene. */
 fun RuntimeContent.scriptRootForScene(id: SceneId): ScriptRootRef = scriptRootCatalog().rootFor(ScriptRootRef.scene(id))
 
+/** Returns the catalogued script root for a dungeon event. */
 fun RuntimeContent.scriptRootForDungeonEvent(id: DungeonEventId): ScriptRootRef =
     scriptRootCatalog().rootFor(ScriptRootRef.dungeonEvent(id))
 
+/** Returns the catalogued script root for a spell. */
 fun RuntimeContent.scriptRootForSpell(id: SpellId): ScriptRootRef = scriptRootCatalog().rootFor(ScriptRootRef.spell(id))
 
+/** Returns the script root for a conversation dialogue branch. */
 fun SpeakRuntimeContent.scriptRootForDialogueBranch(
     npc: NpcId,
     branch: DialogueBranchModel,
 ): ScriptRootRef = ScriptRootRef.dialogueBranch(npc, branch)
 
+/** Returns the script root for a conversation question action. */
 fun SpeakRuntimeContent.scriptRootForQuestionAction(action: QuestionActionScriptModel): ScriptRootRef = ScriptRootRef.questionAction(action)
 
+/** Nested branch identifiers for resumable script execution. */
 enum class ScriptBranch {
     IfThen,
     IfElse,
@@ -162,6 +187,7 @@ enum class ScriptBranch {
     TextAnswerMiss,
 }
 
+/** One nested script-block segment in a continuation path. */
 data class ScriptSegment(
     val opIndex: Int,
     val branch: ScriptBranch,
@@ -169,9 +195,11 @@ data class ScriptSegment(
     val key: Char? = null,
 )
 
+/** Path to a nested instruction block relative to a script root. */
 data class ScriptBlockRef(
     val segments: List<ScriptSegment> = emptyList(),
 ) {
+    /** Returns a child block path under this block. */
     fun child(
         opIndex: Int,
         branch: ScriptBranch,
@@ -184,6 +212,7 @@ data class ScriptBlockRef(
     }
 }
 
+/** One resumable frame on a script continuation stack. */
 data class ScriptFrame(
     val block: ScriptBlockRef,
     val nextIndex: Int,
@@ -193,6 +222,7 @@ data class ScriptFrame(
     val localValue: Int? = null,
 )
 
+/** Runtime continuation for an authored script, including nested child sessions. */
 data class ScriptContinuation(
     val runtime: RuntimeSessionState,
     val root: ScriptRootRef = ScriptRootRef.Unspecified,
@@ -205,9 +235,13 @@ data class ScriptContinuation(
     val rewardGrantSession: RewardGrantSession? = null,
     val activeInventorySlot: Int? = null,
 ) {
+    /** Active party in the continuation runtime state. */
     val party: PartyState get() = runtime.activeParty
+
+    /** Realm state in the continuation runtime state. */
     val realm: RealmState get() = runtime.realm
 
+    /** Binds this continuation to [root] or verifies it is already bound to the same root. */
     fun withRoot(root: ScriptRootRef): ScriptContinuation {
         if (!root.isSpecified) return this
         if (!this.root.isSpecified) return copy(root = root)
@@ -222,6 +256,7 @@ data class ScriptContinuation(
     }
 
     companion object {
+        /** Starts a script continuation from live runtime state. */
         fun start(
             runtime: RuntimeSessionState,
             root: ScriptRootRef = ScriptRootRef.Unspecified,
@@ -232,6 +267,7 @@ data class ScriptContinuation(
                 stack = listOf(ScriptFrame(ScriptBlockRef.Root, nextIndex = 0)),
             )
 
+        /** Starts a script continuation from a single-party runtime shell. */
         fun start(
             party: PartyState,
             root: ScriptRootRef = ScriptRootRef.Unspecified,
@@ -239,6 +275,7 @@ data class ScriptContinuation(
     }
 }
 
+/** Saveable subset of [ScriptContinuation]. */
 data class ScriptContinuationSnapshot(
     val root: ScriptRootRef = ScriptRootRef.Unspecified,
     val locals: Map<String, Int> = emptyMap(),
@@ -247,6 +284,7 @@ data class ScriptContinuationSnapshot(
     val activeInventorySlot: Int? = null,
 )
 
+/** Converts a continuation into a saveable snapshot when no child session is active. */
 fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot {
     require(speakSession == null) { "script continuation with active speak session cannot be saved yet" }
     require(battleSession == null) { "script continuation with active battle session cannot be saved yet" }
@@ -263,6 +301,7 @@ fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot {
     )
 }
 
+/** Restores a runtime continuation from this snapshot and live [runtime]. */
 fun ScriptContinuationSnapshot.toContinuation(runtime: RuntimeSessionState): ScriptContinuation =
     ScriptContinuation(
         runtime = runtime,

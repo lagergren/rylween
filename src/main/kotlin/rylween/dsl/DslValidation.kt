@@ -1,5 +1,14 @@
+/**
+ * Author-facing validation for the Kotlin DSL model.
+ *
+ * `Dsl.kt` defines the content and script model; this file checks cross-table
+ * references, startup states, script handles, save/load compatibility, and
+ * game-specific invariants before compiled loaders or runtime sessions see the
+ * data.
+ */
 package rylween.dsl
 
+/** One author-facing validation failure with a stable dotted content path. */
 data class ValidationDiagnostic(
     val path: String,
     val message: String,
@@ -7,12 +16,14 @@ data class ValidationDiagnostic(
     override fun toString(): String = if (path.isBlank()) message else "$path: $message"
 }
 
+/** Exception carrying one or more structured authoring diagnostics. */
 class RylweenValidationException(
     val diagnostics: List<ValidationDiagnostic>,
 ) : IllegalStateException(
         diagnostics.joinToString(separator = "\n") { it.toString() },
     )
 
+/** Adds [prefix] to each diagnostic path while preserving all messages. */
 fun RylweenValidationException.withDiagnosticPathPrefix(prefix: String): RylweenValidationException =
     RylweenValidationException(
         diagnostics.map { diagnostic ->
@@ -187,6 +198,7 @@ private fun FlagStateIndex.requireKnown(
     }
 }
 
+/** Validates flag declarations and their native state lists. */
 fun validateFlagCatalog(flags: List<FlagRef>) {
     check(flags.map { it.slug }.toSet().size == flags.size) { "duplicate flag slug" }
 
@@ -197,6 +209,7 @@ fun validateFlagCatalog(flags: List<FlagRef>) {
     }
 }
 
+/** Validates item metadata, storage policy, and equipment-specific fields. */
 fun validateItemCatalog(records: List<ItemRecordModel>) {
     check(records.isNotEmpty()) { "item catalog is empty" }
     check(records.map { it.id }.toSet().size == records.size) { "duplicate item handle" }
@@ -247,6 +260,7 @@ fun validateItemCatalog(records: List<ItemRecordModel>) {
     }
 }
 
+/** Validates milestone uniqueness, special-item projections, and win conditions. */
 fun validateGameProgress(
     progress: GameProgressModel,
     itemRecords: List<ItemRecordModel>,
@@ -277,10 +291,12 @@ fun validateGameProgress(
     }
 }
 
+/** Validates authored formula catalog uniqueness. */
 fun validateFormulas(formulas: List<FormulaModel>) {
     check(formulas.map { it.id }.toSet().size == formulas.size) { "duplicate formula" }
 }
 
+/** Validates optional leveling rules and formula references. */
 fun validateLeveling(
     leveling: LevelingModel?,
     formulas: List<FormulaModel>,
@@ -304,6 +320,7 @@ fun validateLeveling(
     }
 }
 
+/** Validates reward bundles, loot references, and item placement metadata. */
 fun validateRewardBundles(
     rewards: List<RewardBundleModel>,
     formulas: List<FormulaModel>,
@@ -333,6 +350,7 @@ fun validateRewardBundles(
     }
 }
 
+/** Validates combat rules, action scripts, and battle reward references. */
 fun validateCombatSystem(
     combat: CombatSystemModel,
     rewards: List<RewardBundleModel>,
@@ -477,6 +495,7 @@ private fun validateWildernessSystem(
     }
 }
 
+/** Validates dungeon events, scenarios, random draws, and monster references. */
 fun validateDungeonSystem(
     dungeons: DungeonSystemModel,
     monsters: List<MonsterModel>? = null,
@@ -551,6 +570,7 @@ fun validateDungeonSystem(
     }
 }
 
+/** Validates Ydarg castle content, room events, rewards, and references. */
 fun validateYdargSystem(
     ydarg: YdargContentModel?,
     itemCatalog: List<ItemRecordModel>,
@@ -641,6 +661,7 @@ private fun validateYdargEntryTile(
     }
 }
 
+/** Validates per-player secret actions and their referenced content. */
 fun validateSecretSystem(
     secrets: SecretSystemModel,
     itemCatalog: List<ItemRecordModel>,
@@ -837,6 +858,7 @@ private fun checkUniqueBindings(
     }
 }
 
+/** Validates town declarations and service/building consistency. */
 fun validateTowns(towns: List<TownModel>) {
     check(towns.isNotEmpty()) { "content must declare towns" }
     check(towns.map { it.id }.toSet().size == towns.size) { "duplicate town id" }
@@ -865,6 +887,7 @@ fun validateTowns(towns: List<TownModel>) {
     }
 }
 
+/** Validates town-system menus, entry tax, building services, and scene references. */
 fun validateTownSystem(
     townSystem: TownSystemModel?,
     towns: List<TownModel>,
@@ -958,6 +981,7 @@ fun validateTownSystem(
     }
 }
 
+/** Validates NPC declarations, placements, and town/building references. */
 fun validateCharacters(
     characters: List<CharacterModel>,
     towns: List<TownModel> = emptyList(),
@@ -1096,6 +1120,7 @@ private fun validateTextBlock(
     }
 }
 
+/** Validates conversation menus, rumour tables, prompts, and NPC dialogue references. */
 fun validateSpeakSystem(
     speak: SpeakSystemModel,
     characters: List<CharacterModel> = emptyList(),
@@ -1364,6 +1389,7 @@ private fun checkUniqueQuestionActions(actions: List<QuestionMenuActionModel>) {
     }
 }
 
+/** Validates authored item-use scripts against the item catalog. */
 fun validateItemUses(
     itemUses: List<ItemUseModel>,
     itemRecords: List<ItemRecordModel>,
@@ -1397,6 +1423,7 @@ fun validateItemUses(
     }
 }
 
+/** Validates dialogue branches and their flag/NPC references. */
 fun validateDialogue(
     dialogue: List<DialogueModel>,
     characters: List<CharacterModel> = emptyList(),
@@ -1453,6 +1480,7 @@ private fun List<Op>.containsConsumeActiveItem(): Boolean =
         }
     }
 
+/** Validates reward and native-service use inside authored script bodies. */
 fun validateScriptRewards(
     content: GameModel,
     itemRecords: List<ItemRecordModel>,
@@ -2540,6 +2568,7 @@ private fun validateFlagTransitions(
     }
 }
 
+/** Runs all authored-content validators and returns diagnostics without throwing. */
 fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagnostic> {
     val flagStates = FlagStateIndex(content.flags)
     val terrainBindings = TerrainBindingIndex(content.terrain, content.terminal, content.worldMaps)
@@ -2630,6 +2659,7 @@ private fun validateGameLimits(
     }
 }
 
+/** Runs all authored-content validators and throws when any diagnostic is produced. */
 fun validateAuthoredContent(content: GameModel) {
     val diagnostics = collectAuthoredContentDiagnostics(content)
     if (diagnostics.isNotEmpty()) {
@@ -2819,6 +2849,7 @@ private fun validateMissions(
     }
 }
 
+/** Returns milestone-projected special inventory items currently owned by [party]. */
 fun specialInventoryItems(
     content: GameModel,
     party: PartyState,
@@ -2829,6 +2860,7 @@ fun specialInventoryItems(
             .mapNotNull { it.specialInventoryItem }
     }
 
+/** Returns true when [party] satisfies the authored win condition. */
 fun isWinningConfiguration(
     content: GameModel,
     party: PartyState,
@@ -2840,6 +2872,7 @@ fun isWinningConfiguration(
         }
     } ?: false
 
+/** Validates authored or saved runtime states against optional current [content]. */
 fun validateStates(
     states: List<StateModel>,
     content: GameModel? = null,

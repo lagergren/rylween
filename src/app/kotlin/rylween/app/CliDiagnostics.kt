@@ -1,3 +1,10 @@
+/**
+ * Shared CLI error handling for Rylween app entry points.
+ *
+ * `TerminalMain.kt`, `RylweenAnsiMain.kt`, and artifact tools use this wrapper
+ * to turn validation/startup failures from `dsl/DslValidation.kt` and
+ * `engine/Startup.kt` into concise process errors.
+ */
 @file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
 
 package rylween.app

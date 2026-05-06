@@ -1,6 +1,10 @@
-// Reusable runtime session for the standard NPC conversation. Drives NPC
-// selection, visited bits, dialogue branches, the C/Q/R/B menu, the L/M/P/N
-// question submenu, chitchat/rumour selection, and rumour quiet-limit behavior.
+/**
+ * Backend-neutral runtime session for standard NPC conversations.
+ *
+ * The session drives NPC selection, visited bits, dialogue branches, menu
+ * choices, question topics, chitchat, rumour selection, and rumour quiet-limit
+ * behavior. Terminal rendering lives in `frontend/terminal/TerminalAdapters.kt`.
+ */
 
 package rylween.runtime.town
 

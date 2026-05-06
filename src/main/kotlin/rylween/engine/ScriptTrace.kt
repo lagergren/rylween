@@ -1,4 +1,10 @@
-// Pure trace runners for scripts and reusable runtime sessions.
+/**
+ * Pure trace runners for authored scripts and reusable runtime sessions.
+ *
+ * The runners exercise [RylweenEnginePort] without terminal I/O and provide the
+ * comparison surface used by script tests, terminal bridge tests, and future
+ * compiled-VM parity checks.
+ */
 
 package rylween.engine
 
@@ -34,6 +40,7 @@ import rylween.runtime.town.TownLeaveEquipmentSession
 import rylween.runtime.town.TownLeaveEquipmentStep
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 
+/** Executes authored [rylween.dsl.Op] lists against an engine port and records semantic events. */
 class ScriptTraceRunner(
     private val engine: RylweenEnginePort,
 ) {
@@ -251,6 +258,7 @@ class ScriptTraceRunner(
     }
 }
 
+/** Trace runner for shop-service sessions used from authored scripts. */
 class ShopServiceTraceRunner(
     private val engine: TraceEnginePort,
 ) {
@@ -365,6 +373,7 @@ class ShopServiceTraceRunner(
     }
 }
 
+/** Trace runner for reusable equipment prompts used by parent sessions. */
 class EquipmentPromptTraceRunner(
     private val engine: TraceEnginePort,
 ) {
@@ -385,6 +394,7 @@ class EquipmentPromptTraceRunner(
     }
 }
 
+/** Trace runner for equipment prompts shown while leaving town. */
 class TownLeaveEquipmentTraceRunner(
     private val engine: TraceEnginePort,
 ) {

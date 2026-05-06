@@ -123,7 +123,6 @@ import rylween.dsl.WildernessFatigueRule
 import rylween.dsl.WildernessUpkeepRules
 import rylween.dsl.WorldPosition
 import rylween.dsl.YdargRoomEvent
-import rylween.dsl.building
 import rylween.dsl.cells
 import rylween.dsl.collectAuthoredContentDiagnostics
 import rylween.dsl.declareFlag
@@ -131,7 +130,6 @@ import rylween.dsl.dungeon
 import rylween.dsl.dungeonEvent
 import rylween.dsl.encounterTier
 import rylween.dsl.eq
-import rylween.dsl.formula
 import rylween.dsl.image
 import rylween.dsl.inlineText
 import rylween.dsl.inputKey
@@ -143,16 +141,12 @@ import rylween.dsl.lines
 import rylween.dsl.lit
 import rylween.dsl.location
 import rylween.dsl.lt
-import rylween.dsl.milestone
 import rylween.dsl.missionId
 import rylween.dsl.monster
 import rylween.dsl.nativePathsIn
-import rylween.dsl.npc
 import rylween.dsl.of
 import rylween.dsl.partyId
 import rylween.dsl.pronoun
-import rylween.dsl.rumour
-import rylween.dsl.rumourTable
 import rylween.dsl.runtimeContent
 import rylween.dsl.runtimeFlagState
 import rylween.dsl.sceneId
@@ -160,7 +154,6 @@ import rylween.dsl.shopText
 import rylween.dsl.stateId
 import rylween.dsl.structuredText
 import rylween.dsl.terrain
-import rylween.dsl.text
 import rylween.dsl.textLines
 import rylween.dsl.town
 import rylween.dsl.townNpcName
@@ -204,11 +197,8 @@ import rylween.frontend.terminal.TownLeaveEquipmentTerminalAdapter
 import rylween.frontend.terminal.TownSessionTerminalAdapter
 import rylween.frontend.terminal.WildernessSessionTerminalAdapter
 import rylween.frontend.terminal.YdargSessionTerminalAdapter
-import rylween.frontend.terminal.finished
-import rylween.frontend.terminal.map
 import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.frontend.terminal.terminalTextRenderer
-import rylween.frontend.terminal.waiting
 import rylween.frontend.terminal.writeScriptEvents
 import rylween.game.Buildings
 import rylween.game.DungeonEvents
@@ -283,11 +273,9 @@ import rylween.runtime.dungeon.DungeonSessionResultStatus
 import rylween.runtime.dungeon.DungeonSessionStep
 import rylween.runtime.dungeon.effectiveHelpPages
 import rylween.runtime.equipFromInventory
-import rylween.runtime.facing
 import rylween.runtime.firstFreeInventorySlot
 import rylween.runtime.hasFlagState
 import rylween.runtime.inventoryItem
-import rylween.runtime.party
 import rylween.runtime.party.InventoryItemUseSession
 import rylween.runtime.party.InventoryItemUseStatus
 import rylween.runtime.prompt
@@ -7341,13 +7329,13 @@ class RylweenDslValidationTest {
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertTrue(result.session.step is WildernessSessionStep.Mission)
         val mission = result.session.step
-        assertTrue(
+        assertEquals(
             mission.continuation
                 ?.battleSession
                 ?.encounter
                 ?.monster
-                ?.id == Monsters.bandit,
-            "expected bandit battle continuation, got ${mission.continuation}",
+                ?.id,
+            Monsters.bandit, "expected bandit battle continuation, got ${mission.continuation}"
         )
         assertFalse(result.session.party.hasFlagState(Story.garth.bandits.recovered))
         assertTrue(battleTerminal.output.any { "ENCOUNTER!" in it })

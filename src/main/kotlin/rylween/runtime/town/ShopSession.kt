@@ -1,5 +1,10 @@
-// Reusable shop runtime: pure transaction interpreter on PartyState plus a
-// backend-neutral prompt-state-machine session for intro/main/buy/sell flows.
+/**
+ * Reusable shop transaction runtime and prompt state machine.
+ *
+ * Shop flows use pure [rylween.dsl.PartyState] transformations for buy/sell
+ * transactions while frontends drive intro, main, buy, and sell prompts through
+ * the session steps declared here.
+ */
 
 package rylween.runtime.town
 

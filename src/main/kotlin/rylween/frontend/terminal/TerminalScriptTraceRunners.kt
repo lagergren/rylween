@@ -1,4 +1,10 @@
-// Trace-producing terminal runners for child sessions used by authored scripts.
+/**
+ * Trace-producing terminal runners for child sessions used by authored scripts.
+ *
+ * `TerminalScriptBridge.kt` delegates nested reward, offer, and conversation
+ * flows here so script execution can keep emitting [rylween.engine.EngineTraceEvent]
+ * values without embedding terminal UI policy into the engine port.
+ */
 
 package rylween.frontend.terminal
 

@@ -1,3 +1,11 @@
+/**
+ * Runtime save loading, parsing diagnostics, and compatibility checks.
+ *
+ * This is the read-side counterpart to `RuntimeSave.kt`; it uses
+ * `StateSnapshot.kt` to parse saves, [validateRuntimeStateSnapshotForLoad] to
+ * check authored-content references, and `SaveCompatibility.kt` metadata to
+ * reject stale snapshots.
+ */
 package rylween.save
 
 import rylween.dsl.GameModel
@@ -11,24 +19,28 @@ import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSnapshotModel
 import java.io.File
 
+/** Loads a save file and returns its validated runtime state. */
 fun loadRuntimeStateSnapshot(
     file: File,
     content: GameModel,
     sourceName: String = "save file ${file.path}",
 ): StateModel = parseRuntimeStateSnapshotForLoad(file.readText(), content, sourceName)
 
+/** Loads a save file and returns its validated full runtime snapshot. */
 fun loadRuntimeSnapshot(
     file: File,
     content: GameModel,
     sourceName: String = "save file ${file.path}",
 ): RuntimeSnapshotModel = parseRuntimeSnapshotForLoad(file.readText(), content, sourceName)
 
+/** Parses snapshot text for loading and returns only the validated state. */
 fun parseRuntimeStateSnapshotForLoad(
     source: String,
     content: GameModel,
     sourceName: String = "runtime snapshot",
 ): StateModel = parseRuntimeSnapshotForLoad(source, content, sourceName).state
 
+/** Parses snapshot text for loading and returns the validated full snapshot. */
 fun parseRuntimeSnapshotForLoad(
     source: String,
     content: GameModel,
@@ -40,12 +52,14 @@ fun parseRuntimeSnapshotForLoad(
         sourceName = sourceName,
     )
 
+/** Validates a parsed runtime state against current authored [content]. */
 fun validateRuntimeStateSnapshotForLoad(
     state: StateModel,
     content: GameModel,
     sourceName: String = "runtime snapshot",
 ): StateModel = validateRuntimeStateSnapshotForLoad(RuntimeSnapshotModel(state), content, sourceName).state
 
+/** Validates a full runtime snapshot, including metadata and nested mode state. */
 fun validateRuntimeStateSnapshotForLoad(
     snapshot: RuntimeSnapshotModel,
     content: GameModel,

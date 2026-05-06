@@ -1,3 +1,10 @@
+/**
+ * Textual runtime snapshot renderer and parser.
+ *
+ * [RuntimeSave.kt] writes this format, [RuntimeLoad.kt] validates it before
+ * resuming play, and [SaveCompatibility.kt] adds metadata used to reject stale
+ * save files across content or format changes.
+ */
 package rylween.save
 
 import rylween.dsl.BuildingId
@@ -77,6 +84,7 @@ import rylween.runtime.ScriptSegment
 import rylween.runtime.YdargSavedStep
 import rylween.runtime.YdargSessionSnapshot
 
+/** Renders one runtime [state] as exact save DSL text. */
 fun renderRuntimeStateSnapshot(state: StateModel): String {
     check(state.kind == StateKind.RuntimeSnapshot) {
         "only runtime snapshots can be emitted as exact save DSL"
@@ -84,6 +92,7 @@ fun renderRuntimeStateSnapshot(state: StateModel): String {
     return renderRuntimeStateSnapshot(RuntimeSnapshotModel(state))
 }
 
+/** Renders a runtime [snapshot], including optional metadata and session snapshots. */
 fun renderRuntimeStateSnapshot(snapshot: RuntimeSnapshotModel): String {
     check(snapshot.state.kind == StateKind.RuntimeSnapshot) {
         "only runtime snapshots can be emitted as exact save DSL"
@@ -91,8 +100,10 @@ fun renderRuntimeStateSnapshot(snapshot: RuntimeSnapshotModel): String {
     return RuntimeStateSnapshotWriter().render(snapshot)
 }
 
+/** Parses save DSL text and returns only the stored state model. */
 fun parseRuntimeStateSnapshot(source: String): StateModel = parseRuntimeSnapshot(source).state
 
+/** Parses save DSL text into the full runtime snapshot, including nested sessions. */
 fun parseRuntimeSnapshot(source: String): RuntimeSnapshotModel = RuntimeStateSnapshotParser(source).parseSingle()
 
 private class RuntimeStateSnapshotParser(

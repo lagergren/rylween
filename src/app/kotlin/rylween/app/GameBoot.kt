@@ -1,3 +1,10 @@
+/**
+ * Bootstraps runtime sessions from loaded game content and snapshots.
+ *
+ * App launchers call this after `engine/Startup.kt` has selected or parsed a
+ * state. It connects `RylweenKotlinEngine` to terminal adapters without moving
+ * frontend policy into the backend-neutral runtime packages.
+ */
 package rylween.app
 
 import rylween.engine.RylweenKotlinEngine

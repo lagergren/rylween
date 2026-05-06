@@ -1,3 +1,10 @@
+/**
+ * Startup validation and initial runtime snapshot construction.
+ *
+ * App launchers in `app/` call these helpers before creating runtime sessions,
+ * while save/load validation in `save/RuntimeLoad.kt` uses the same state
+ * invariants for resumed games.
+ */
 package rylween.engine
 
 import rylween.dsl.GameModel
@@ -15,12 +22,14 @@ import rylween.dsl.validateStates
 import rylween.dsl.withDiagnosticPathPrefix
 import rylween.runtime.RuntimeSnapshotModel
 
+/** Runtime surface a requested startup state must be valid for. */
 enum class RuntimeStartupTarget {
     Wilderness,
     Town,
     StaticScreen,
 }
 
+/** Selects and validates an authored or saved state for the requested startup [target]. */
 fun selectStartupState(
     game: RylweenModel,
     content: GameModel,
@@ -43,6 +52,7 @@ fun selectStartupState(
     return validateStartupState(selected, content, target, "startup.state.${state.slug}")
 }
 
+/** Builds the pending-party runtime snapshot used before character creation completes. */
 fun createInitialWorldSnapshot(
     game: RylweenModel,
     content: GameModel,
@@ -72,6 +82,7 @@ fun createInitialWorldSnapshot(
     )
 }
 
+/** Validates a startup [state] and rewrites validation failures under [sourceName]. */
 fun validateStartupState(
     state: StateModel,
     content: GameModel,
@@ -100,6 +111,7 @@ fun validateStartupState(
     return state
 }
 
+/** Resolves a startup town handle and reports available towns when it is missing. */
 fun requireStartupTown(
     content: GameModel,
     town: TownId,

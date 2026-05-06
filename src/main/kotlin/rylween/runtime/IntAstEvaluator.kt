@@ -1,3 +1,10 @@
+/**
+ * Base evaluator for authored integer and boolean expression ASTs.
+ *
+ * Runtime sessions subclass [IntAstEvaluator] to supply context-specific reads
+ * from members, monsters, flags, random sources, and native int services while
+ * sharing the core expression semantics from `dsl/Dsl.kt`.
+ */
 package rylween.runtime
 
 import rylween.dsl.BoolAst
@@ -8,7 +15,9 @@ import rylween.dsl.milestone
 import rylween.dsl.monster
 import rylween.dsl.random
 
+/** Context hook surface for evaluating [IntAst] and [BoolAst] values. */
 abstract class IntAstEvaluator {
+    /** Evaluates an authored integer expression in this evaluator context. */
     fun int(ast: IntAst): Int =
         when (ast) {
             is IntAst.Lit -> ast.value
@@ -27,6 +36,7 @@ abstract class IntAstEvaluator {
             is IntAst.NativeInt -> nativeInt(ast.path, ast.args)
         }
 
+    /** Evaluates an authored boolean expression in this evaluator context. */
     fun bool(ast: BoolAst): Boolean =
         when (ast) {
             is BoolAst.Cmp -> compare(int(ast.left), ast.op, int(ast.right))
@@ -122,5 +132,6 @@ abstract class IntAstEvaluator {
             else -> unsupported("comparison op $op")
         }
 
+    /** Throws the standard failure for expression features unsupported by this context. */
     protected fun unsupported(what: String): Nothing = error("expression cannot read $what in this runtime context")
 }

@@ -1,3 +1,11 @@
+/**
+ * ANSI terminal launcher for the playable Kotlin host.
+ *
+ * This is the user-facing app entry point for local terminal play. It shares
+ * startup/save logic with `TerminalMain.kt`, boots from either generated content
+ * or a J1 bundle artifact, and delegates gameplay to `engine/RylweenKotlinEngine`
+ * plus terminal adapters.
+ */
 @file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
 
 package rylween.app

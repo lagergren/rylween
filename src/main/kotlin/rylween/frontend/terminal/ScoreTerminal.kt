@@ -1,3 +1,9 @@
+/**
+ * Terminal formatting for runtime score and hall-of-heroes reports.
+ *
+ * Report data comes from `runtime/score/ScoreRuntime.kt`; this file only
+ * handles static-screen detection and fixed-width terminal page rendering.
+ */
 package rylween.frontend.terminal
 
 import rylween.dsl.GameModel
@@ -14,6 +20,7 @@ private const val SCORE_HEADER: String = "ADVENTURERS OF RYLWEEN - PARTY STATUS 
 private const val HALL_OF_HEROES_HEADER: String = "ADVENTURERS OF RYLWEEN - HALL OF NATIONAL HEROES"
 private const val SCORE_WIDTH: Int = 76
 
+/** Returns true when an authored static screen needs runtime state to render. */
 fun GameModel.staticScreenRequiresRuntimeState(id: StaticScreenId): Boolean =
     visuals.staticScreens.singleOrNull { screen -> screen.id == id }?.runtimeReport != null
 

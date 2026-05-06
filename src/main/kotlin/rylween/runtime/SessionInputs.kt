@@ -1,5 +1,10 @@
-// Shared session input types and small text/key helpers used by every reusable
-// runtime session. Kept backend-neutral: no terminal, ANSI, server, or C glue.
+/**
+ * Shared session input types and small text/key helpers.
+ *
+ * Runtime sessions use these backend-neutral inputs so terminal, ANSI, server,
+ * test, and future VM hosts can drive the same state machines without frontend
+ * dependencies.
+ */
 
 package rylween.runtime
 
@@ -10,12 +15,16 @@ import rylween.dsl.PcClass
 import rylween.dsl.QuestionTopic
 import rylween.dsl.Race
 
+/** Equipment category selected by inventory/equipment sessions. */
 enum class EquipmentKind { Weapon, Armor }
 
+/** Main menu choice for a shop service. */
 enum class ShopMainChoice { Buy, Sell, Leave }
 
+/** Main menu choice for an NPC conversation. */
 enum class SpeakMainChoice { Chitchat, Question, Rumour, Bye }
 
+/** Typed inputs accepted by random-item-offer sessions. */
 sealed interface RandomItemOfferInput {
     data class Buy(
         val accept: Boolean,
@@ -28,6 +37,7 @@ sealed interface RandomItemOfferInput {
     object Continue : RandomItemOfferInput
 }
 
+/** Typed inputs accepted by reward-grant sessions. */
 sealed interface RewardGrantInput {
     data class DropSlot(
         val slot: Int,
@@ -36,6 +46,7 @@ sealed interface RewardGrantInput {
     object Continue : RewardGrantInput
 }
 
+/** Typed inputs accepted by inventory item-use sessions. */
 sealed interface InventoryItemUseInput {
     data class InventorySlot(
         val slot: Int,
@@ -48,6 +59,7 @@ sealed interface InventoryItemUseInput {
     object Continue : InventoryItemUseInput
 }
 
+/** Typed inputs accepted by priest-spell sessions. */
 sealed interface PriestSpellInput {
     data class Caster(
         val memberNumber: Int,
@@ -60,6 +72,7 @@ sealed interface PriestSpellInput {
     object Continue : PriestSpellInput
 }
 
+/** Typed inputs accepted by reusable equipment prompts. */
 sealed interface EquipmentPromptInput {
     data class InventorySlot(
         val slot: Int,
@@ -70,6 +83,7 @@ sealed interface EquipmentPromptInput {
     ) : EquipmentPromptInput
 }
 
+/** Typed inputs accepted by conversation sessions. */
 sealed interface SpeakInput {
     data class Npc(
         val npc: NpcId,
@@ -86,6 +100,7 @@ sealed interface SpeakInput {
     object Continue : SpeakInput
 }
 
+/** Typed inputs accepted by the town-leave equipment flow. */
 sealed interface TownLeaveEquipmentInput {
     data class ReadyAnswer(
         val yes: Boolean,
@@ -96,6 +111,7 @@ sealed interface TownLeaveEquipmentInput {
     ) : TownLeaveEquipmentInput
 }
 
+/** Typed inputs accepted by shop-service sessions. */
 sealed interface ShopServiceInput {
     object ContinueIntro : ShopServiceInput
 
@@ -133,6 +149,7 @@ sealed interface ShopServiceInput {
     ) : ShopServiceInput
 }
 
+/** Typed inputs accepted by top-level town sessions. */
 sealed interface TownSessionInput {
     data class EntryTax(
         val pay: Boolean,
@@ -155,6 +172,7 @@ sealed interface TownSessionInput {
     ) : TownSessionInput
 }
 
+/** Typed inputs accepted by character-creation sessions. */
 sealed interface CharacterCreationInput {
     data class PartyName(
         val name: String,

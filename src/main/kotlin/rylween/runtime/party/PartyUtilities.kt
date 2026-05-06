@@ -1,3 +1,10 @@
+/**
+ * Reusable party-view and journal sessions plus derived view models.
+ *
+ * Runtime parents such as wilderness, dungeon, and Ydarg sessions delegate
+ * party inspection to these backend-neutral state machines; terminal adapters
+ * in `frontend/terminal/TerminalAdapters.kt` render the returned models.
+ */
 package rylween.runtime.party
 
 import rylween.dsl.GameMilestoneId
@@ -19,6 +26,7 @@ import rylween.runtime.inventoryItem
 import rylween.runtime.party
 import rylween.runtime.withInventoryItem
 
+/** Display-ready inventory row for one numbered save slot. */
 data class InventorySlotView(
     val slot: Int,
     val key: Char,
@@ -26,12 +34,14 @@ data class InventorySlotView(
     val itemName: String,
 )
 
+/** Display-ready special item projected from achieved milestones. */
 data class SpecialItemView(
     val milestone: GameMilestoneId,
     val item: ItemId,
     val itemName: String,
 )
 
+/** Display-ready party-member row with resolved equipment names. */
 data class PartyMemberView(
     val number: Int,
     val member: PartyMemberState,
@@ -39,6 +49,7 @@ data class PartyMemberView(
     val armorName: String,
 )
 
+/** Complete party overview model consumed by frontends. */
 data class PartyViewModel(
     val resources: PartyResources,
     val specials: List<SpecialItemView>,
@@ -46,6 +57,7 @@ data class PartyViewModel(
     val members: List<PartyMemberView>,
 )
 
+/** Typed inputs accepted by [PartyViewSession]. */
 sealed interface PartyViewInput {
     data class Member(
         val memberNumber: Int,
@@ -58,6 +70,7 @@ sealed interface PartyViewInput {
     object Continue : PartyViewInput
 }
 
+/** Result status emitted by [PartyViewSession]. */
 enum class PartyViewStatus {
     Started,
     MemberSelected,
@@ -66,11 +79,13 @@ enum class PartyViewStatus {
     Finished,
 }
 
+/** Last action/result metadata for a party-view step. */
 data class PartyViewResult(
     val status: PartyViewStatus,
     val memberNumbers: List<Int> = emptyList(),
 )
 
+/** Current screen or terminal prompt requested by [PartyViewSession]. */
 sealed interface PartyViewStep {
     object ChooseMember : PartyViewStep
 
@@ -83,6 +98,7 @@ sealed interface PartyViewStep {
     ) : PartyViewStep
 }
 
+/** Backend-neutral state machine for inspecting party summary and member details. */
 data class PartyViewSession(
     val party: PartyState,
     val itemRecords: List<ItemRecordModel> = emptyList(),

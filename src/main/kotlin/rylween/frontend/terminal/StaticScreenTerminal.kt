@@ -1,3 +1,10 @@
+/**
+ * Terminal static-screen rendering from authored visual resources.
+ *
+ * `ScoreTerminal.kt` supplies runtime-backed score pages, wilderness command
+ * helpers supply generated help pages, and app launchers use the returned
+ * [TerminalStaticScreen] to display resource-backed static screens.
+ */
 package rylween.frontend.terminal
 
 import rylween.dsl.GameModel
@@ -5,12 +12,14 @@ import rylween.dsl.ImageId
 import rylween.dsl.StaticScreenId
 import rylween.runtime.wilderness.effectiveHelpPages
 
+/** Rendered terminal static screen with optional image and paged text. */
 data class TerminalStaticScreen(
     val id: StaticScreenId,
     val image: ImageId?,
     val pages: List<List<String>>,
 )
 
+/** Renders one authored static screen for terminal presentation. */
 fun GameModel.renderTerminalStaticScreen(
     id: StaticScreenId,
     renderer: TerminalTextRenderer = terminalTextRenderer(),

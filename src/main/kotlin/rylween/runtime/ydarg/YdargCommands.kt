@@ -1,3 +1,10 @@
+/**
+ * Ydarg castle input-command builders.
+ *
+ * [YdargSession] owns semantic transitions; this file maps authored
+ * [rylween.dsl.YdargKeysModel] bindings into command lists and generated help
+ * pages for terminal and future host adapters.
+ */
 package rylween.runtime.ydarg
 
 import rylween.dsl.TextBlock
@@ -6,6 +13,7 @@ import rylween.runtime.InputCommand
 import rylween.runtime.cardinalDirectionCommands
 import rylween.runtime.generatedHelpPages
 
+/** Commands accepted while navigating castle rooms. */
 fun YdargKeysModel.navigationCommands(): List<InputCommand<YdargSessionInput>> =
     cardinalDirectionCommands(
         moveNorth = moveNorth,
@@ -27,12 +35,14 @@ fun YdargKeysModel.navigationCommands(): List<InputCommand<YdargSessionInput>> =
             InputCommand(YdargSessionInput.Command(YdargCommand.CastSpell), castSpell, "Cast Spell"),
         )
 
+/** Commands accepted by treasure-offer prompts. */
 fun YdargKeysModel.treasureCommands(): List<InputCommand<YdargSessionInput>> =
     listOf(
         InputCommand(YdargSessionInput.TakeTreasure, treasureTake, "Take it"),
         InputCommand(YdargSessionInput.LeaveTreasure, treasureLeave, "Leave it"),
     )
 
+/** Commands accepted by stair prompts. */
 fun YdargKeysModel.stairsCommands(): List<InputCommand<YdargSessionInput>> =
     listOf(
         InputCommand(YdargSessionInput.TeleportOut, stairsTeleport, "Teleport Out"),
@@ -40,4 +50,5 @@ fun YdargKeysModel.stairsCommands(): List<InputCommand<YdargSessionInput>> =
         InputCommand(YdargSessionInput.LeaveStairs, stairsLeave, "Leave"),
     )
 
+/** Generated help pages for castle navigation commands. */
 fun YdargKeysModel.navigationHelpPages(maxLinesPerPage: Int = 7): List<TextBlock> = navigationCommands().generatedHelpPages(maxLinesPerPage)
