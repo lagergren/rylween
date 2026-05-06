@@ -70,10 +70,49 @@ class RylweenOpcodeContractTest {
             }
         val message = failure.message.orEmpty()
 
+        assertTrue("BadOperand" in message, message)
         assertTrue("WrongShape" in message, message)
         assertTrue(original.opcode.name in message, message)
         assertTrue(originalFirstSlot.name in message, message)
         assertTrue("HandleList" in message, message)
+        assertTrue(root.root.slug in message, message)
+    }
+
+    @Test
+    fun loaderRejectsRealBundleNativeCallOutsideCatalog() {
+        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
+        val rootIndex =
+            bundle.content.scripts
+                .roots
+                .indexOfFirst { root -> root.instructions.isNotEmpty() }
+        check(rootIndex >= 0) { "expected a script root with instructions" }
+        val root = bundle.content.scripts.roots[rootIndex]
+        val pathString = bundle.content.universe.nameString
+        val path = bundle.content.strings.value(pathString)
+        val mutatedBundle =
+            bundle.withScriptInstruction(
+                rootIndex = rootIndex,
+                instructionIndex = 0,
+                instruction =
+                    CompiledInstruction(
+                        opcode = CompiledOpcode.NativeCall,
+                        operands =
+                            listOf(
+                                CompiledOperand.StringId(pathString),
+                                CompiledOperand.StringIdList(emptyList()),
+                            ),
+                    ),
+            )
+
+        val failure =
+            assertFailsWith<IllegalArgumentException> {
+                mutatedBundle.loadCompiledGame()
+            }
+        val message = failure.message.orEmpty()
+
+        assertTrue("MissingNativeOp" in message, message)
+        assertTrue("UnknownNativeService" in message, message)
+        assertTrue(path in message, message)
         assertTrue(root.root.slug in message, message)
     }
 

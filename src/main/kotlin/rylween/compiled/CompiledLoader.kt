@@ -1,6 +1,10 @@
 package rylween.compiled
 
 import rylween.runtime.ScriptRootRef
+import rylween.runtime.vm.NativeServiceArgSlot
+import rylween.runtime.vm.NativeServiceCatalog
+import rylween.runtime.vm.NativeServiceKind
+import rylween.runtime.vm.VmDiagnostic
 
 data class LoadedCompiledGame(
     val content: LoadedCompiledContent,
@@ -26,11 +30,15 @@ data class LoadedCompiledContent(
     fun script(root: CompiledHandleRef): CompiledScriptProgram? = scripts[root]
 }
 
-fun CompiledGameBundle.loadCompiledGame(): LoadedCompiledGame = CompiledBundleLoader.load(this)
+fun CompiledGameBundle.loadCompiledGame(nativeServices: NativeServiceCatalog = NativeServiceCatalog.default): LoadedCompiledGame =
+    CompiledBundleLoader.load(this, nativeServices)
 
 object CompiledBundleLoader {
-    fun load(bundle: CompiledGameBundle): LoadedCompiledGame {
-        CompiledBundleValidator(bundle).validate()
+    fun load(
+        bundle: CompiledGameBundle,
+        nativeServices: NativeServiceCatalog = NativeServiceCatalog.default,
+    ): LoadedCompiledGame {
+        CompiledBundleValidator(bundle, nativeServices).validate()
         val content = bundle.content
         return LoadedCompiledGame(
             content =
@@ -48,6 +56,7 @@ object CompiledBundleLoader {
 
 private class CompiledBundleValidator(
     private val bundle: CompiledGameBundle,
+    private val nativeServices: NativeServiceCatalog,
 ) {
     private val content = bundle.content
     private val handleRefs =
@@ -264,28 +273,88 @@ private class CompiledBundleValidator(
         operandPath: List<Int>,
         instruction: CompiledInstruction,
     ) {
-        val diagnostic =
-            when (val result = CompiledOpcodeContract.validateInstruction(instruction)) {
-                CompiledOpcodeContract.Validation.Ok -> return
-                is CompiledOpcodeContract.Validation.UnknownOpcode ->
-                    CompiledInstructionContractDiagnostic.UnknownOpcode(
+        when (val result = CompiledOpcodeContract.validateInstruction(instruction)) {
+            CompiledOpcodeContract.Validation.Ok -> Unit
+            is CompiledOpcodeContract.Validation.UnknownOpcode ->
+                fail(
+                    VmDiagnostic.BadOpcode(
                         root = root,
                         instructionIndex = instructionIndex,
                         operandPath = operandPath,
                         opcode = result.opcode,
-                    )
-                is CompiledOpcodeContract.Validation.WrongShape ->
-                    CompiledInstructionContractDiagnostic.WrongShape(
+                        reason = "UnknownOpcode",
+                    ),
+                )
+            is CompiledOpcodeContract.Validation.WrongShape ->
+                fail(
+                    VmDiagnostic.BadOperand(
                         root = root,
                         instructionIndex = instructionIndex,
                         operandPath = operandPath,
                         opcode = result.opcode,
-                        expected = result.expected,
-                        actual = result.actual,
-                    )
-            }
-        throw IllegalArgumentException(diagnostic.message())
+                        reason = "WrongShape",
+                        expected = result.expected.toString(),
+                        actual = result.actual.toString(),
+                    ),
+                )
+        }
+        validateNativeCall(root, instructionIndex, operandPath, instruction)
     }
+
+    private fun validateNativeCall(
+        root: ScriptRootRef,
+        instructionIndex: Int,
+        operandPath: List<Int>,
+        instruction: CompiledInstruction,
+    ) {
+        if (instruction.opcode != CompiledOpcode.NativeCall) {
+            return
+        }
+        val pathOperand = instruction.operands.getOrNull(0) as? CompiledOperand.StringId ?: return
+        val argsOperand = instruction.operands.getOrNull(1) as? CompiledOperand.StringIdList ?: return
+        if (pathOperand.id !in 1..content.strings.entries.size) {
+            return
+        }
+        val path = content.strings.value(pathOperand.id)
+        val descriptor =
+            nativeServices.descriptor(path)
+                ?: fail(
+                    VmDiagnostic.MissingNativeOp(
+                        root = root,
+                        instructionIndex = instructionIndex,
+                        operandPath = operandPath + listOf(0),
+                        path = path,
+                        reason = "UnknownNativeService",
+                    ),
+                )
+        if (descriptor.kind != NativeServiceKind.Effect) {
+            fail(
+                VmDiagnostic.UnsupportedHostService(
+                    root = root,
+                    instructionIndex = instructionIndex,
+                    operandPath = operandPath + listOf(0),
+                    service = path,
+                    reason = "NativeCall requires ${NativeServiceKind.Effect}, got ${descriptor.kind}",
+                ),
+            )
+        }
+        val actualSlots = List(argsOperand.ids.size) { NativeServiceArgSlot.StringValue }
+        if (actualSlots != descriptor.argSlots) {
+            fail(
+                VmDiagnostic.BadOperand(
+                    root = root,
+                    instructionIndex = instructionIndex,
+                    operandPath = operandPath + listOf(1),
+                    opcode = instruction.opcode,
+                    reason = "NativeServiceWrongShape",
+                    expected = descriptor.argSlots.toString(),
+                    actual = actualSlots.toString(),
+                ),
+            )
+        }
+    }
+
+    private fun fail(diagnostic: VmDiagnostic): Nothing = throw IllegalArgumentException(diagnostic.message())
 
     private fun operand(
         root: ScriptRootRef,
@@ -642,49 +711,3 @@ private class CompiledBundleValidator(
         }
     }
 }
-
-private sealed interface CompiledInstructionContractDiagnostic {
-    val root: ScriptRootRef
-    val instructionIndex: Int
-    val operandPath: List<Int>
-    val opcode: CompiledOpcode
-
-    fun message(): String
-
-    fun location(): String =
-        "root=${root.diagnosticName()} " +
-            "instructionIndex=$instructionIndex " +
-            "operandPath=${operandPath.diagnosticPath()} " +
-            "opcode=$opcode"
-
-    data class UnknownOpcode(
-        override val root: ScriptRootRef,
-        override val instructionIndex: Int,
-        override val operandPath: List<Int>,
-        override val opcode: CompiledOpcode,
-    ) : CompiledInstructionContractDiagnostic {
-        override fun message(): String = "compiled script contract violation: UnknownOpcode ${location()}"
-    }
-
-    data class WrongShape(
-        override val root: ScriptRootRef,
-        override val instructionIndex: Int,
-        override val operandPath: List<Int>,
-        override val opcode: CompiledOpcode,
-        val expected: List<List<CompiledOpcodeContract.Slot>>,
-        val actual: List<CompiledOpcodeContract.Slot>,
-    ) : CompiledInstructionContractDiagnostic {
-        override fun message(): String =
-            "compiled script contract violation: WrongShape " +
-                "${location()} expected=$expected actual=$actual"
-    }
-}
-
-private fun ScriptRootRef.diagnosticName(): String =
-    if (denseId == null) {
-        "${kind.name}:$slug"
-    } else {
-        "${kind.name}#$denseId:$slug"
-    }
-
-private fun List<Int>.diagnosticPath(): String = joinToString(prefix = "[", postfix = "]")
