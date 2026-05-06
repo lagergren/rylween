@@ -25,6 +25,7 @@ import rylween.compiled.CompiledRuntimeTextPart
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.CompiledStringExpr
 import rylween.compiled.CompiledSwitchCase
+import rylween.compiled.CompiledTextAnswer
 import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledTextPart
 import rylween.compiled.CompiledViewCommand
@@ -187,6 +188,11 @@ sealed interface CompiledVmInput {
     data class AskInventorySlot(
         val raw: String,
     ) : CompiledVmInput
+
+    /** Supplies raw line input for an `AskText` prompt. */
+    data class AskText(
+        val raw: String,
+    ) : CompiledVmInput
 }
 
 /** Typed input request that stopped a compiled VM run. */
@@ -259,6 +265,18 @@ sealed interface CompiledVmPendingInput {
         /** Primary inventory keys accepted by this prompt. */
         val keys: List<Char> get() = choices.map { choice -> choice.key }
     }
+
+    /** Pending free-text prompt that resumes into either the match or miss branch. */
+    data class AskText(
+        override val root: rylween.runtime.ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        val prompt: TextBlock,
+        val accepted: List<String>,
+        val caseSensitive: Boolean,
+        val trim: Boolean,
+        val maxLength: Int?,
+    ) : CompiledVmPendingInput
 }
 
 /** One selectable menu option in a blocked compiled VM menu prompt. */
@@ -392,6 +410,9 @@ class CompiledVm(
         if (continuation.pending is CompiledVmPendingInput.AskInventorySlot && input is CompiledVmInput.AskInventorySlot) {
             return resumeAskInventorySlot(program, continuation, input)
         }
+        if (continuation.pending is CompiledVmPendingInput.AskText && input is CompiledVmInput.AskText) {
+            return resumeAskText(program, continuation, input)
+        }
         val state =
             ExecutionState(
                 root = continuation.root,
@@ -494,6 +515,30 @@ class CompiledVm(
             )
         state.locals[pending.localName] = choice.slot
         return result(state, executeFrames(state, program.instructions, continuation.frames))
+    }
+
+    private fun resumeAskText(
+        program: CompiledScriptProgram,
+        continuation: CompiledVmContinuation,
+        input: CompiledVmInput.AskText,
+    ): CompiledVmResult {
+        val pending = continuation.pending as CompiledVmPendingInput.AskText
+        val branchIndex = if (pending.accepts(input.raw)) TEXT_ANSWER_MATCH_BRANCH else TEXT_ANSWER_MISS_BRANCH
+        val state =
+            ExecutionState(
+                root = continuation.root,
+                runtime = continuation.runtime,
+                locals = continuation.locals.toMutableMap(),
+                textBindings = continuation.textBindings.toMutableMap(),
+            )
+        val promptFrame = continuation.frames.firstOrNull()
+        val branchFrame =
+            CompiledVmFrame(
+                blockPath = pending.operandPath + listOf(1, branchIndex),
+                nextIndex = 0,
+                insideLoop = promptFrame?.insideLoop ?: false,
+            )
+        return result(state, executeFrames(state, program.instructions, listOf(branchFrame) + continuation.frames))
     }
 
     private fun result(
@@ -763,6 +808,39 @@ class CompiledVm(
                                 choices = state.party.inventorySlotChoices(filter, slots, firstKey),
                             )
                         host.trace(EngineTraceEvent.AskInventorySlot(text, firstKey, slots, filter))
+                        ControlSignal.Blocked(
+                            pending = pending,
+                            frames =
+                                listOf(
+                                    CompiledVmFrame(
+                                        blockPath = location.blockPath,
+                                        nextIndex = location.instructionIndex + 1,
+                                        insideLoop = insideLoop,
+                                    ),
+                                ) + parentFrames,
+                        )
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
+            }
+            CompiledOpcode.AskText -> {
+                val prompt = renderText(state, instruction.textBlock(0), location.child(0))
+                val answer = instruction.textAnswer(1)
+                val accepted = answer.acceptedStrings.map(index::string)
+                prompt.fold(
+                    ok = { text ->
+                        val pending =
+                            CompiledVmPendingInput.AskText(
+                                root = location.root,
+                                instructionIndex = location.instructionIndex,
+                                operandPath = location.operandPath,
+                                prompt = text,
+                                accepted = accepted,
+                                caseSensitive = answer.caseSensitive,
+                                trim = answer.trim,
+                                maxLength = answer.maxLength,
+                            )
+                        host.trace(EngineTraceEvent.AskText(text, accepted, answer.maxLength))
                         ControlSignal.Blocked(
                             pending = pending,
                             frames =
@@ -1515,6 +1593,8 @@ class CompiledVm(
     private fun CompiledInstruction.inputBindings(index: Int): List<InputBindingModel> =
         (operands[index] as CompiledOperand.InputBindings).bindings.map(::inputBinding)
 
+    private fun CompiledInstruction.textAnswer(index: Int): CompiledTextAnswer = (operands[index] as CompiledOperand.TextAnswer).answer
+
     private fun inputBinding(binding: CompiledInputBinding): InputBindingModel =
         InputBindingModel(
             primary = index.string(binding.primaryString),
@@ -1587,6 +1667,8 @@ class CompiledVm(
 
     private companion object {
         const val MAX_LOOP_ITERATIONS: Int = 128
+        const val TEXT_ANSWER_MATCH_BRANCH: Int = 0
+        const val TEXT_ANSWER_MISS_BRANCH: Int = 1
     }
 }
 
@@ -1711,6 +1793,7 @@ private fun CompiledVmContinuation.accepts(input: CompiledVmInput): Boolean =
         is CompiledVmPendingInput.AskKey -> input is CompiledVmInput.AskKey
         is CompiledVmPendingInput.AskMember -> input is CompiledVmInput.AskMember
         is CompiledVmPendingInput.AskInventorySlot -> input is CompiledVmInput.AskInventorySlot
+        is CompiledVmPendingInput.AskText -> input is CompiledVmInput.AskText
     }
 
 private sealed interface EvalResult<out T> {
@@ -1779,6 +1862,21 @@ private fun PartyState.inventorySlotChoices(
                     InventorySlotChoiceFilter.Empty -> itemsBySlot[slot] == null
                 }
         }.map { slot -> CompiledVmInventorySlotChoice(firstKey + (slot - slots.first), slot) }
+}
+
+private fun CompiledVmPendingInput.AskText.accepts(raw: String): Boolean {
+    val input = raw.normalizedTextAnswer(trim, caseSensitive, maxLength)
+    return accepted.any { value -> value.normalizedTextAnswer(trim, caseSensitive, maxLength = null) == input }
+}
+
+private fun String.normalizedTextAnswer(
+    trim: Boolean,
+    caseSensitive: Boolean,
+    maxLength: Int?,
+): String {
+    val limited = maxLength?.let { take(it) } ?: this
+    val spaced = if (trim) limited.trim() else limited
+    return if (caseSensitive) spaced else spaced.lowercase()
 }
 
 private inline fun <T, R> EvalResult<T>.fold(
