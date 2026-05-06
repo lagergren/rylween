@@ -2,7 +2,7 @@
   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
    ######             #######
-  ###  ### DVENTURERS ###   ##                 (C) 1992-1993 
+  ###  ### DVENTURERS ###   ##                 (C) 1992-1994, 2026
   ###  ###            ###   ##                     Marcus Lagergren
   ########     of     ########                     ML-SOFT
   ###  ###            ###  ##
@@ -16,20 +16,20 @@
                'Time stands still in these ancient halls
                 only the castle itself can tell what it keeps.
                 Dark are the secrets between these walls,
-                hidden in shadows of death while the sorceror sleeps.'
+                hidden in shadows of death while the sorcerer sleeps.'
                                             - Candlemass...
 
 ----
 
-    There is a realm very far away, not necessarily on our world, called
+There is a realm very far away, not necessarily on our world, called
 Rylween.  Rylween is one of the seven kingdoms of this world.  It lies in
 the northwestern part of this world's only known continent, surrounded by
 impenetratable mountains in all the directions.  Rumor has it, that there
-is a canyon somewhere in the mountains to the south, but no one has ever 
-found it.  Rylween is an isolated kingdom, whose good and justful monarch
-went by the name Zalkin Ammol. 
+is a canyon somewhere in the mountains to the south, but no one has ever
+found it.  Rylween is an isolated kingdom, whose good and just monarch went
+by the name Zalkin Ammol.
 
-    One day, a lone knight rode into the capital of Rylween, Wilor.  He 
+One day, a lone knight rode into the capital of Rylween, Wilor.  He
 approached from the south and was dressed in purple rags.  He demanded
 to see Ammol, and when they met in Ammol's palace, the knight pulled
 a trident and pierced Ammol with it before anyone had time to react.
@@ -45,7 +45,7 @@ Before he was gone the royal guard heard him yell:
    He built a stronghold somewhere to the southwest, the evil castle Zadraz,
 in one night.  The following weeks where chaotic.  Strange and evil creatures
 started to appear in the realm, and many good merchant was slain on his trips
-through the forests.  All citizens of Rylween where panicstricken.  The 
+through the forests.  All citizens of Rylween where panicstricken.  The
 warrior guilds, in the four cities of Rylween, started to search for veteran
 fighters, fit for protecting the realm.  They failed.
 
@@ -53,36 +53,36 @@ This is where you come in.
 
 ----
 
-   Rylween is a role playing online game with no player interaction.  There
+Rylween is a role playing online game with no player interaction.  There
 is, however, a top list where you can see how well the different players
-succeed. Your final goal is to hunt down Baron Ydarg and destroy him (but 
+succeed. Your final goal is to hunt down Baron Ydarg and destroy him (but
 he's immune to magic and quite nasty) - this is where the game will end.
-Rylween will also create a hall of fame file with all the winners. 
+Rylween will also create a hall of fame file with all the winners.
 
-  All positions of the different dungeons/people/huts etc. are randomized 
+All positions of the different dungeons/people/huts etc. are randomized
 each time a new campaign begins.  Thus it isn't the same game each time.
 The missions are the same, but the positions of all the important locations
-always vary.  Good, eh? I thought quite a lot about how to make an 
+always vary.  Good, eh? I thought quite a lot about how to make an
 adventure/RPG online interesting more than once, and this is what I found
-to be the best method. 
+to be the best method.
 
 ----
 
-  When the game starts you will be at the warrior guild menu. This is where
-you create adventurer parties, continue previously saved games, delete 
-parties you aren't satisfied with and so on.  If you are a new player - 
+When the game starts you will be at the warrior guild menu. This is where
+you create adventurer parties, continue previously saved games, delete
+parties you aren't satisfied with and so on.  If you are a new player -
 create a new party here.
 
-  You will direct a party of four heroes through Rylween.  This is where you
+You will direct a party of four heroes through Rylween.  This is where you
 create them.  First, enter a name for your party.  This name will be used on
 the top list, and should be something fantasy-ish.
 
-  Now it's time to create the first character.  You will see his four basic
+Now it's time to create the first character.  You will see his four basic
 attributes, and can choose between rerolling them or keeping them.  You can
 reroll them an infinite number of times, but the initial values can never be
 greater than 75 for any skill.
 
-  Weapon Skill:     
+  Weapon Skill:
   =-=-=-=-=-=-=
   This is how good the player is in combat.  Fighters need a weapon skill
   greater than 50.
@@ -104,12 +104,12 @@ greater than 75 for any skill.
   Charisma:
   =-=-=-=-=
   This measures the characters general personality and leadership skills.
-  The party will gain more friends and less enemies if they have many 
+  The party will gain more friends and less enemies if they have many
   characters with high charisma. Bards need a charisma value greater
   than 50.
 
 Now, when you have decided you want to keep some good values, enter a name
-for this character. Once again, names with fantasy touch will create a 
+for this character. Once again, names with fantasy touch will create a
 better atmosphere during the game.
 
 Select a race for this character:
@@ -147,7 +147,7 @@ your party when exploring dungeons and caves.  Thieves have no magic skill.
 
 Mage
 -=-=
-Wizards.  Mages are often physically weak but they are experts in 
+Wizards.  Mages are often physically weak but they are experts in
 spellcasting.  Mage spells are offensive and can only be used in battle.
 
 Priest
@@ -195,8 +195,8 @@ explanation:
 
 C = Camp
 
-You can be awake for about 12 hours without loss of health, but even the 
-most experienced adventurer needs to sleep.  You'll see how it works.  A 
+You can be awake for about 12 hours without loss of health, but even the
+most experienced adventurer needs to sleep.  You'll see how it works.  A
 rule of thumb is to always post a guard.  There is always a risk of being
 ambushed in your sleep.  If you DESPERATELY need the sleep, don't post a
 guard.  The nights of Rylween can be very cold.  Buy some suitable equipment
@@ -236,8 +236,8 @@ that.
 
 R = Ready Armor
 
-If you have an armor in the party inventory and want one of your 
-characters to wear it, select the armor and he will put it on.  If he 
+If you have an armor in the party inventory and want one of your
+characters to wear it, select the armor and he will put it on.  If he
 already was wearing an armor, he will take that one off and it will replace
 the new armor's position in the inventory.
 
@@ -415,7 +415,7 @@ It works best on yellow creatures like kobolds, goblins etc.
 Cast Spell
 
 Only for mages. The mage can cast one of the six battle spells:
-  
+
   Frost Finger - Strike an enemy with a bolt of pure cold.
   Fire Cloud   - Engulf all the enemies in a cloud of burning air.
   Confusion    - Will make the party start to waver and blur in front
@@ -424,9 +424,9 @@ Only for mages. The mage can cast one of the six battle spells:
   Hold Enemy   - Hold the enemy party so that you get an extra battle
                  round.
   Anti Magic   - Create a magic shield around your foes so that they
-                 can't use magic during the next attack round. 
+                 can't use magic during the next attack round.
                  (Good against wizards and foes of magical origin).
-  
+
 The battle is over when all the enemies are dead, or you are dead, or
 when you have fled.
 
