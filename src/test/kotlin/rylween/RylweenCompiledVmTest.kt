@@ -62,6 +62,7 @@ import rylween.runtime.ScriptRootRef
 import rylween.runtime.hasFlagState
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.vm.CompiledVm
+import rylween.runtime.vm.CompiledVmContinuation
 import rylween.runtime.vm.CompiledVmFrameKind
 import rylween.runtime.vm.CompiledVmInput
 import rylween.runtime.vm.CompiledVmPendingInput
@@ -73,6 +74,8 @@ import rylween.runtime.vm.NativeServiceDescriptor
 import rylween.runtime.vm.NativeServiceKind
 import rylween.runtime.vm.RecordingCompiledVmHost
 import rylween.runtime.vm.VmDiagnostic
+import rylween.runtime.vm.toContinuation
+import rylween.runtime.vm.toSnapshot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -166,7 +169,7 @@ class RylweenCompiledVmTest {
             host.events,
         )
 
-        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.Continue)
+        val resumed = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.Continue)
 
         val completed = assertIs<CompiledVmResult.Completed>(resumed)
         assertEquals(6, completed.runtime.activeParty.resources.gold)
@@ -220,7 +223,7 @@ class RylweenCompiledVmTest {
             host.events,
         )
 
-        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.MenuKey('b'))
+        val resumed = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.MenuKey('b'))
 
         val completed = assertIs<CompiledVmResult.Completed>(resumed)
         assertEquals(22, completed.runtime.activeParty.resources.gold)
@@ -256,7 +259,7 @@ class RylweenCompiledVmTest {
                 vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
             )
 
-        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.MenuKey('Z'))
+        val rejected = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.MenuKey('Z'))
 
         val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
         assertEquals(blocked.pending, stillBlocked.pending)
@@ -288,7 +291,7 @@ class RylweenCompiledVmTest {
                 vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
             )
 
-        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.MenuKey('Z'))
+        val resumed = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.MenuKey('Z'))
 
         val completed = assertIs<CompiledVmResult.Completed>(resumed)
         assertEquals(7, completed.runtime.activeParty.resources.gold)
@@ -329,7 +332,7 @@ class RylweenCompiledVmTest {
             host.events,
         )
 
-        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskKey("bee"))
+        val resumed = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskKey("bee"))
 
         val completed = assertIs<CompiledVmResult.Completed>(resumed)
         assertEquals('B'.code, completed.locals[pending.localName])
@@ -363,7 +366,7 @@ class RylweenCompiledVmTest {
                 vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
             )
 
-        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.AskKey("Z"))
+        val rejected = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskKey("Z"))
 
         val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
         assertEquals(blocked.pending, stillBlocked.pending)
@@ -435,7 +438,7 @@ class RylweenCompiledVmTest {
             host.events,
         )
 
-        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskMember(2))
+        val resumed = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskMember(2))
 
         val completed = assertIs<CompiledVmResult.Completed>(resumed)
         assertEquals(2, completed.locals[pending.localName])
@@ -469,7 +472,7 @@ class RylweenCompiledVmTest {
                 vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
             )
 
-        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.AskMember(1))
+        val rejected = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskMember(1))
 
         val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
         assertEquals(blocked.pending, stillBlocked.pending)
@@ -506,7 +509,7 @@ class RylweenCompiledVmTest {
         assertEquals(listOf(CompiledVmFrameForTest(emptyList(), 2, false)), blocked.continuation.frames.map(::CompiledVmFrameForTest))
         assertEquals(listOf(EngineTraceEvent.Screen(inlineText("before"))), host.events)
 
-        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskMonster(1))
+        val resumed = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskMonster(1))
 
         val completed = assertIs<CompiledVmResult.Completed>(resumed)
         assertEquals(1, completed.locals[pending.localName])
@@ -539,7 +542,7 @@ class RylweenCompiledVmTest {
                 vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
             )
 
-        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.AskMonster(0))
+        val rejected = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskMonster(0))
 
         val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
         assertEquals(blocked.pending, stillBlocked.pending)
@@ -590,7 +593,7 @@ class RylweenCompiledVmTest {
             host.events,
         )
 
-        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskInventorySlot("d"))
+        val resumed = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskInventorySlot("d"))
 
         val completed = assertIs<CompiledVmResult.Completed>(resumed)
         assertEquals(3, completed.locals[pending.localName])
@@ -633,7 +636,7 @@ class RylweenCompiledVmTest {
                 ),
             )
 
-        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.AskInventorySlot("C"))
+        val rejected = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskInventorySlot("C"))
 
         val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
         assertEquals(blocked.pending, stillBlocked.pending)
@@ -687,7 +690,7 @@ class RylweenCompiledVmTest {
             host.events,
         )
 
-        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskText("yes please"))
+        val resumed = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskText("yes please"))
 
         val completed = assertIs<CompiledVmResult.Completed>(resumed)
         assertEquals(12, completed.runtime.activeParty.resources.gold)
@@ -728,7 +731,7 @@ class RylweenCompiledVmTest {
                 vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
             )
 
-        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskText("NO"))
+        val resumed = resumeAfterSnapshot(vm, program, blocked.continuation, CompiledVmInput.AskText("NO"))
 
         val completed = assertIs<CompiledVmResult.Completed>(resumed)
         assertEquals(22, completed.runtime.activeParty.resources.gold)
@@ -767,7 +770,7 @@ class RylweenCompiledVmTest {
         val firstLoopFrame = firstBlocked.continuation.frames.first()
         assertEquals(CompiledVmFrameKind.LoopBody, firstLoopFrame.kind)
 
-        val secondResult = vm.resume(program, firstBlocked.continuation, CompiledVmInput.Continue)
+        val secondResult = resumeAfterSnapshot(vm, program, firstBlocked.continuation, CompiledVmInput.Continue)
 
         val secondBlocked = assertIs<CompiledVmResult.Blocked>(secondResult)
         assertEquals(4, secondBlocked.continuation.runtime.activeParty.resources.gold)
@@ -778,7 +781,7 @@ class RylweenCompiledVmTest {
 
         val completed =
             assertIs<CompiledVmResult.Completed>(
-                vm.resume(program, secondBlocked.continuation, CompiledVmInput.Continue),
+                resumeAfterSnapshot(vm, program, secondBlocked.continuation, CompiledVmInput.Continue),
             )
 
         assertEquals(4, completed.runtime.activeParty.resources.gold)
@@ -812,7 +815,7 @@ class RylweenCompiledVmTest {
         val firstMemberFrame = firstBlocked.continuation.frames.first()
         assertEquals(CompiledVmFrameKind.ForEachMemberBody, firstMemberFrame.kind)
 
-        val secondResult = vm.resume(program, firstBlocked.continuation, CompiledVmInput.Continue)
+        val secondResult = resumeAfterSnapshot(vm, program, firstBlocked.continuation, CompiledVmInput.Continue)
 
         val secondBlocked = assertIs<CompiledVmResult.Blocked>(secondResult)
         assertEquals(14, secondBlocked.continuation.runtime.activeParty.resources.gold)
@@ -822,7 +825,7 @@ class RylweenCompiledVmTest {
 
         val completed =
             assertIs<CompiledVmResult.Completed>(
-                vm.resume(program, secondBlocked.continuation, CompiledVmInput.Continue),
+                resumeAfterSnapshot(vm, program, secondBlocked.continuation, CompiledVmInput.Continue),
             )
 
         assertEquals(14, completed.runtime.activeParty.resources.gold)
@@ -1207,6 +1210,21 @@ class RylweenCompiledVmTest {
         )
 
     private fun PartyState.flagTokens(): List<Pair<String, String>> = flags.map { state -> state.flag.slug to state.native }
+
+    private fun assertContinuationSnapshotRoundTrip(continuation: CompiledVmContinuation): CompiledVmContinuation {
+        val snapshot = continuation.toSnapshot()
+        val restored = snapshot.toContinuation(continuation.runtime)
+        assertEquals(continuation, restored)
+        assertEquals(snapshot, restored.toSnapshot())
+        return restored
+    }
+
+    private fun resumeAfterSnapshot(
+        vm: CompiledVm,
+        program: CompiledScriptProgram,
+        continuation: CompiledVmContinuation,
+        input: CompiledVmInput,
+    ): CompiledVmResult = vm.resume(program, assertContinuationSnapshotRoundTrip(continuation), input)
 
     private data class CompiledVmFrameForTest(
         val blockPath: List<Int>,
