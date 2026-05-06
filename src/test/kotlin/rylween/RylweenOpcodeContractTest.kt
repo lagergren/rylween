@@ -1,13 +1,16 @@
 package rylween
 
+import rylween.compiled.CompiledGameBundle
 import rylween.compiled.CompiledInstruction
 import rylween.compiled.CompiledOpcode
 import rylween.compiled.CompiledOpcodeContract
 import rylween.compiled.CompiledOperand
+import rylween.compiled.loadCompiledGame
 import rylween.compiled.toCompiledGameBundle
 import rylween.game.RylweenCompiledGame
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -38,6 +41,40 @@ class RylweenOpcodeContractTest {
             violations.isEmpty(),
             "compiled bundle has ${violations.size} contract violation(s):\n" + violations.joinToString("\n"),
         )
+    }
+
+    @Test
+    fun loaderRejectsRealBundleInstructionWithWrongOperandShape() {
+        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
+        val rootIndex =
+            bundle.content.scripts.roots.indexOfFirst { root ->
+                root.instructions.any(::hasFirstOperandOtherThanHandleList)
+            }
+        check(rootIndex >= 0) { "expected a script root with a non-HandleList operand" }
+        val root = bundle.content.scripts.roots[rootIndex]
+        val instructionIndex = root.instructions.indexOfFirst(::hasFirstOperandOtherThanHandleList)
+        val original = root.instructions[instructionIndex]
+        val originalFirstSlot = CompiledOpcodeContract.slotOf(original.operands.first())
+        val mutatedOperands = original.operands.toMutableList()
+        mutatedOperands[0] = CompiledOperand.HandleList(emptyList())
+        val mutatedBundle =
+            bundle.withScriptInstruction(
+                rootIndex = rootIndex,
+                instructionIndex = instructionIndex,
+                instruction = original.copy(operands = mutatedOperands),
+            )
+
+        val failure =
+            assertFailsWith<IllegalArgumentException> {
+                mutatedBundle.loadCompiledGame()
+            }
+        val message = failure.message.orEmpty()
+
+        assertTrue("WrongShape" in message, message)
+        assertTrue(original.opcode.name in message, message)
+        assertTrue(originalFirstSlot.name in message, message)
+        assertTrue("HandleList" in message, message)
+        assertTrue(root.root.slug in message, message)
     }
 
     @Test
@@ -101,5 +138,25 @@ class RylweenOpcodeContractTest {
     @Test
     fun opcodeEnumIsNonEmpty() {
         assertTrue(CompiledOpcode.entries.isNotEmpty())
+    }
+
+    private fun hasFirstOperandOtherThanHandleList(instruction: CompiledInstruction): Boolean =
+        instruction.operands
+            .firstOrNull()
+            ?.let { operand ->
+                CompiledOpcodeContract.slotOf(operand) != CompiledOpcodeContract.Slot.HandleList
+            } == true
+
+    private fun CompiledGameBundle.withScriptInstruction(
+        rootIndex: Int,
+        instructionIndex: Int,
+        instruction: CompiledInstruction,
+    ): CompiledGameBundle {
+        val root = content.scripts.roots[rootIndex]
+        val instructions = root.instructions.toMutableList()
+        instructions[instructionIndex] = instruction
+        val roots = content.scripts.roots.toMutableList()
+        roots[rootIndex] = root.copy(instructions = instructions)
+        return copy(content = content.copy(scripts = content.scripts.copy(roots = roots)))
     }
 }
