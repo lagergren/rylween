@@ -160,6 +160,7 @@ private data class AnsiRuntimeConfig(
     val hour: Int? = null,
     val bundleFile: File? = null,
     val loadFile: File? = null,
+    val savesDir: File = File("build/saves"),
     val saveFile: File = runtimeSaveSlotFile("main"),
     val saveState: StateId = runtimeSaveSlotStateId("main"),
     val staticScreen: StaticScreenId? = null,
@@ -1996,7 +1997,7 @@ private fun tcpAddress(spec: String): InetSocketAddress {
 private fun AnsiRuntimeConfig.withPlayerSlot(slot: String): AnsiRuntimeConfig =
     copy(
         playerSlot = slot,
-        saveFile = runtimeSaveSlotFile(slot),
+        saveFile = runtimeSaveSlotFile(slot, savesDir),
         saveState = runtimeSaveSlotStateId(slot),
     )
 
@@ -2056,8 +2057,24 @@ Compiled-bundle dump:
                                    # --log-level debug --log stderr to see it.
 
 Save slots:
-  --save-slot dev                  # Writes build/saves/dev.kts; snapshot state id = runtime.dev.
+  --save-slot dev                  # Writes <saves-dir>/dev.kts (default build/saves/dev.kts);
+                                   # snapshot state id = save-dev.
   --load-slot dev                  # Reads that same file. Bare positional `<slot>` shortcut works too.
+  --saves-dir /var/rylween         # Or RYL_SAVES_DIR=/var/rylween. Overrides the build/saves default
+                                   # so the launcher (and --reset / --reset-all) act on a sysop-chosen
+                                   # directory.
+
+Reset:
+  --reset                          # Deletes the resolved save file and exits. Picks the same slot the
+                                   # other flags would have used: --save <path>, --save-slot <name>,
+                                   # bare <player> positional, or default main.kts.
+  --reset-all                      # Wipes every .kts save under --saves-dir and exits (sysop reset).
+  Examples:
+    rylween Alice --reset          # Deletes <saves-dir>/Alice.kts.
+    rylween --save-slot dev --reset
+                                   # Deletes <saves-dir>/dev.kts.
+    rylween --saves-dir /tmp/r --reset-all
+                                   # Wipes every save under /tmp/r.
 
 Verbose-help section:
   Startup:
@@ -2141,13 +2158,26 @@ private class RylweenAnsiCommand : CliktCommand(name = "rylween") {
         envvar = "RYL_DUMP_BUNDLE",
         help = "Pretty-print the loaded compiled JSON bundle as one Debug log event at startup.",
     ).flag()
+    private val savesDirOpt by option(
+        "--saves-dir",
+        envvar = "RYL_SAVES_DIR",
+        help = "Directory holding named save slots. Defaults to build/saves.",
+    ).file().default(File("build/saves"))
+    private val reset by option(
+        "--reset",
+        help = "Delete the resolved save file and exit (uses --save / --save-slot / <player> / main).",
+    ).flag()
+    private val resetAll by option(
+        "--reset-all",
+        help = "Delete every .kts save under --saves-dir and exit (sysop reset).",
+    ).flag()
     private val playerSlot by argument(
         "PLAYER",
-        help = "Optional save-slot/player shortcut; loads build/saves/<name>.kts or matches a fixture party.",
+        help = "Optional save-slot/player shortcut; loads <saves-dir>/<name>.kts or matches a fixture party.",
     ).optional()
 
     override fun run() {
-        val effectiveLoadFile = loadFileOpt ?: loadSlot?.let(::runtimeSaveSlotFile)
+        val effectiveLoadFile = loadFileOpt ?: loadSlot?.let { runtimeSaveSlotFile(it, savesDirOpt) }
         val resolvedSaveFile: File
         val resolvedSaveState: StateId
         when {
@@ -2156,13 +2186,25 @@ private class RylweenAnsiCommand : CliktCommand(name = "rylween") {
                 resolvedSaveState = runtimeSaveSlotStateId("main")
             }
             saveSlot != null -> {
-                resolvedSaveFile = runtimeSaveSlotFile(saveSlot!!)
+                resolvedSaveFile = runtimeSaveSlotFile(saveSlot!!, savesDirOpt)
                 resolvedSaveState = runtimeSaveSlotStateId(saveSlot!!)
             }
+            playerSlot != null -> {
+                resolvedSaveFile = runtimeSaveSlotFile(playerSlot!!, savesDirOpt)
+                resolvedSaveState = runtimeSaveSlotStateId(playerSlot!!)
+            }
             else -> {
-                resolvedSaveFile = runtimeSaveSlotFile("main")
+                resolvedSaveFile = runtimeSaveSlotFile("main", savesDirOpt)
                 resolvedSaveState = runtimeSaveSlotStateId("main")
             }
+        }
+        if (resetAll) {
+            performResetAll(savesDirOpt)
+            return
+        }
+        if (reset) {
+            performReset(resolvedSaveFile)
+            return
         }
         var config =
             AnsiRuntimeConfig(
@@ -2171,6 +2213,7 @@ private class RylweenAnsiCommand : CliktCommand(name = "rylween") {
                 hour = hour,
                 bundleFile = bundleFileOpt,
                 loadFile = effectiveLoadFile,
+                savesDir = savesDirOpt,
                 saveFile = resolvedSaveFile,
                 saveState = resolvedSaveState,
                 staticScreen = staticScreen,
@@ -2182,5 +2225,42 @@ private class RylweenAnsiCommand : CliktCommand(name = "rylween") {
             )
         playerSlot?.let { config = config.withPlayerSlot(it) }
         runConfiguredAnsi(config)
+    }
+
+    private fun performReset(target: File) {
+        if (!target.exists()) {
+            echo("no save file at ${target.path}")
+            return
+        }
+        if (target.delete()) {
+            echo("deleted ${target.path}")
+        } else {
+            echo("failed to delete ${target.path}", err = true)
+            throw ProgramResult(1)
+        }
+    }
+
+    private fun performResetAll(directory: File) {
+        if (!directory.exists()) {
+            echo("no saves directory at ${directory.path}")
+            return
+        }
+        val files = directory.listFiles { _, name -> name.endsWith(".kts") }?.toList().orEmpty()
+        if (files.isEmpty()) {
+            echo("no save files in ${directory.path}")
+            return
+        }
+        var failed = 0
+        files.forEach { file ->
+            if (file.delete()) {
+                echo("deleted ${file.path}")
+            } else {
+                echo("failed to delete ${file.path}", err = true)
+                failed++
+            }
+        }
+        if (failed > 0) {
+            throw ProgramResult(1)
+        }
     }
 }
