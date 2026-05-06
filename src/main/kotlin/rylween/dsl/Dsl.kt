@@ -6901,6 +6901,10 @@ class TownServicesBuilder {
         service(DslDefaultBuildings.church)
     }
 
+    fun guild() {
+        service(DslDefaultBuildings.guild)
+    }
+
     fun service(building: BuildingId) {
         services += TownServiceModel(building)
     }
@@ -7015,6 +7019,14 @@ class TownMenuBuilder {
         service(binding, DslDefaultBuildings.tavern, DslDefaultKeyActions.enterTavern)
     }
 
+    fun guild(key: Char = 'G') {
+        service(inputKey(key), DslDefaultBuildings.guild, DslDefaultKeyActions.enterGuild)
+    }
+
+    fun guild(binding: InputBindingModel) {
+        service(binding, DslDefaultBuildings.guild, DslDefaultKeyActions.enterGuild)
+    }
+
     fun leave(
         key: Char = 'L',
         action: KeyActionId = DslDefaultKeyActions.leaveTown,
@@ -7070,6 +7082,10 @@ class BuildingServiceCatalogBuilder {
 
     fun tavern(body: BuildingServiceBuilder.() -> Unit = {}) {
         building(DslDefaultBuildings.tavern, DslDefaultKeyActions.enterTavern, DslDefaultScenes.Towne.tavern, body)
+    }
+
+    fun guild(body: BuildingServiceBuilder.() -> Unit = {}) {
+        building(DslDefaultBuildings.guild, DslDefaultKeyActions.enterGuild, DslDefaultScenes.Towne.guild, body)
     }
 
     fun building(

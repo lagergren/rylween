@@ -1267,12 +1267,12 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
             }
             .toList()
         validateNoCatalogIdCollisions(source, "town building", townPositionHandles)
-        val defaultServiceNames = listOf("merchant", "inn", "tavern", "smith", "church").filter { service ->
+        val defaultServiceNames = listOf("merchant", "inn", "tavern", "smith", "church", "guild").filter { service ->
             Regex("""\b${Regex.escape(service)}\s*(?:\(|\{)""").containsMatchIn(townAndSystemBlocks)
         }
         return orderedNames(
             (explicitNames + townPositionHandles.distinctNamesInOrder() + defaultServiceNames).distinctInOrder(),
-            listOf("none", "inn", "tavern", "church", "smith", "merchant", "hut", "lodge"),
+            listOf("none", "inn", "tavern", "church", "smith", "merchant", "guild", "hut", "lodge"),
         )
     }
 

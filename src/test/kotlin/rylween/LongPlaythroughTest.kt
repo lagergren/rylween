@@ -100,6 +100,11 @@ class LongPlaythroughTest {
             inputs = listOf("C", "L", "L"),
             expectedText = "church",
         )
+        playthrough.visitTownService(
+            building = Buildings.guild,
+            inputs = listOf("G", "L", "L"),
+            expectedText = "Guild",
+        )
 
         playthrough.runAllMissionLegs()
         playthrough.finishYdarg()
