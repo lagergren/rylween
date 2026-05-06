@@ -900,7 +900,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             nextDsl.visuals.staticScreens
                 .single { it.id == StaticScreens.manual }
-                .resource == "rylween.doc",
+                .resource == "rylween-doc.txt",
         )
         check(
             nextDsl.visuals.staticScreens

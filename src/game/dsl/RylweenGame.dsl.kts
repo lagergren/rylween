@@ -180,7 +180,7 @@ val nextRylween: RylweenModel = rylween {
             image(StaticScreens.frame, Images.Static.screen)
             image(StaticScreens.title, Images.Static.title)
             commandHelp(StaticScreens.help)
-            resource(StaticScreens.manual, "rylween.doc")
+            resource(StaticScreens.manual, "rylween-doc.txt")
             screen(StaticScreens.score) { scoreReport() }
             screen(StaticScreens.verboseScore) { verboseScoreReport() }
             screen(StaticScreens.heroes) { hallOfHeroesReport() }
