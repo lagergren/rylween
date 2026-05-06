@@ -375,12 +375,14 @@ class RylweenCompiledVmTest {
         val model =
             rylween {
                 content {
-                    scene(VmAskMonsterScene) {
-                        ask.monsterAlive(inlineText("monster"))
+                    scene(VmUnsupportedScene) {
+                        forEachMonster {
+                            party.gold += 1
+                        }
                     }
                 }
             }
-        val (compiled, program) = compiledScene(model, VmAskMonsterScene)
+        val (compiled, program) = compiledScene(model, VmUnsupportedScene)
 
         val result =
             CompiledVm(compiled.content)
@@ -388,7 +390,7 @@ class RylweenCompiledVmTest {
 
         val failed = assertIs<CompiledVmResult.Failed>(result)
         val diagnostic = assertIs<VmDiagnostic.UnsupportedHostService>(failed.diagnostic)
-        assertEquals("AskMonster", diagnostic.service)
+        assertEquals("ForEachMonster", diagnostic.service)
     }
 
     @Test
@@ -472,6 +474,76 @@ class RylweenCompiledVmTest {
         assertEquals(blocked.pending, stillBlocked.pending)
         assertEquals(blocked.continuation, stillBlocked.continuation)
         assertEquals(1, host.events.size)
+    }
+
+    @Test
+    fun compiledVmBlocksAndResumesAskMonsterWithoutReplayingPriorEffects() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskMonsterScene) {
+                        screen("before")
+                        val monster = ask.monsterAlive(inlineText("monster"))
+                        party.gold set monster.hp
+                        screen("after")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskMonsterScene)
+        val runtime = RuntimeSessionState.singleParty(testParty(), 12, null)
+        val host = MonsterPromptHost(targetKeys = listOf('B'), monsterHp = 17)
+        val vm = CompiledVm(compiled.content, host)
+
+        val result = vm.run(program, CompiledVmStart(runtime))
+
+        val blocked = assertIs<CompiledVmResult.Blocked>(result)
+        val pending = assertIs<CompiledVmPendingInput.AskMonster>(blocked.pending)
+        assertEquals(1, pending.instructionIndex)
+        assertEquals(listOf(1), pending.operandPath)
+        assertEquals(listOf('B'), pending.targetKeys)
+        assertEquals(listOf(1), pending.targetIndices)
+        assertEquals(listOf(CompiledVmFrameForTest(emptyList(), 2, false)), blocked.continuation.frames.map(::CompiledVmFrameForTest))
+        assertEquals(listOf(EngineTraceEvent.Screen(inlineText("before"))), host.events)
+
+        val resumed = vm.resume(program, blocked.continuation, CompiledVmInput.AskMonster(1))
+
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals(1, completed.locals[pending.localName])
+        assertEquals(17, completed.runtime.activeParty.resources.gold)
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("before")),
+                EngineTraceEvent.Screen(inlineText("after")),
+            ),
+            host.events,
+        )
+    }
+
+    @Test
+    fun compiledVmAskMonsterInvalidInputStaysBlockedWithoutAdvancing() {
+        val model =
+            rylween {
+                content {
+                    scene(VmAskMonsterScene) {
+                        val monster = ask.monsterAlive(inlineText("monster"))
+                        party.gold set monster.hp
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmAskMonsterScene)
+        val host = MonsterPromptHost(targetKeys = listOf('B'))
+        val vm = CompiledVm(compiled.content, host)
+        val blocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+
+        val rejected = vm.resume(program, blocked.continuation, CompiledVmInput.AskMonster(0))
+
+        val stillBlocked = assertIs<CompiledVmResult.Blocked>(rejected)
+        assertEquals(blocked.pending, stillBlocked.pending)
+        assertEquals(blocked.continuation, stillBlocked.continuation)
+        assertEquals(emptyList(), host.events)
     }
 
     @Test
@@ -1001,6 +1073,22 @@ class RylweenCompiledVmTest {
             }
     }
 
+    private class MonsterPromptHost(
+        private val targetKeys: List<Char>,
+        private val monsterHp: Int = 17,
+    ) : RecordingCompiledVmHost() {
+        override fun monsterTargetKeys(): List<Char> = targetKeys
+
+        override fun readMonsterInt(
+            monster: Int,
+            field: String,
+        ): Int? =
+            when {
+                monster == 1 && field == "hit_points" -> monsterHp
+                else -> null
+            }
+    }
+
     private fun testMember(
         name: String,
         level: Int,
@@ -1058,6 +1146,7 @@ class RylweenCompiledVmTest {
         val VmAskInventorySlotScene = sceneId("vm.ask_inventory_slot")
         val VmAskTextScene = sceneId("vm.ask_text")
         val VmAskMonsterScene = sceneId("vm.ask_monster")
+        val VmUnsupportedScene = sceneId("vm.unsupported")
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
         val VmNestedExpressionScene = sceneId("vm.nested_expr")
