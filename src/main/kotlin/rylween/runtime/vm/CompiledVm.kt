@@ -117,6 +117,15 @@ interface CompiledVmHost {
     /** Resolves a battle query such as `first_alive_monster`. */
     fun readBattleQuery(name: String): Int? = null
 
+    /**
+     * Returns currently selectable monster target keys for an `AskMonster` prompt.
+     *
+     * Battle hosts can derive this from live encounter hit points; non-battle
+     * hosts leave the default empty list so the prompt remains blocked until a
+     * host with target context resumes it.
+     */
+    fun monsterTargetKeys(): List<Char> = emptyList()
+
     /** Reads a battle monster boolean flag for hosts that execute combat predicates. */
     fun readMonsterFlag(
         monster: Int,
@@ -184,6 +193,11 @@ sealed interface CompiledVmInput {
         val memberNumber: Int,
     ) : CompiledVmInput
 
+    /** Selects a zero-based monster target index for an `AskMonster` prompt. */
+    data class AskMonster(
+        val monsterIndex: Int,
+    ) : CompiledVmInput
+
     /** Supplies a raw key token for an `AskInventorySlot` prompt. */
     data class AskInventorySlot(
         val raw: String,
@@ -249,6 +263,19 @@ sealed interface CompiledVmPendingInput {
         val accepting: MemberChoiceFilter,
         val choices: List<Int>,
     ) : CompiledVmPendingInput
+
+    /** Pending monster prompt that stores the chosen zero-based monster target index in [localName]. */
+    data class AskMonster(
+        override val root: rylween.runtime.ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        val prompt: TextBlock,
+        val localName: String,
+        val targetKeys: List<Char>,
+    ) : CompiledVmPendingInput {
+        /** Zero-based monster target indices accepted by this prompt. */
+        val targetIndices: List<Int> get() = targetKeys.map { key -> key.uppercaseChar().code - 'A'.code }
+    }
 
     /** Pending inventory-slot prompt that stores the chosen slot number in [localName]. */
     data class AskInventorySlot(
@@ -407,6 +434,9 @@ class CompiledVm(
         if (continuation.pending is CompiledVmPendingInput.AskMember && input is CompiledVmInput.AskMember) {
             return resumeAskMember(program, continuation, input)
         }
+        if (continuation.pending is CompiledVmPendingInput.AskMonster && input is CompiledVmInput.AskMonster) {
+            return resumeAskMonster(program, continuation, input)
+        }
         if (continuation.pending is CompiledVmPendingInput.AskInventorySlot && input is CompiledVmInput.AskInventorySlot) {
             return resumeAskInventorySlot(program, continuation, input)
         }
@@ -493,6 +523,26 @@ class CompiledVm(
                 textBindings = continuation.textBindings.toMutableMap(),
             )
         state.locals[pending.localName] = input.memberNumber
+        return result(state, executeFrames(state, program.instructions, continuation.frames))
+    }
+
+    private fun resumeAskMonster(
+        program: CompiledScriptProgram,
+        continuation: CompiledVmContinuation,
+        input: CompiledVmInput.AskMonster,
+    ): CompiledVmResult {
+        val pending = continuation.pending as CompiledVmPendingInput.AskMonster
+        if (input.monsterIndex !in pending.targetIndices) {
+            return CompiledVmResult.Blocked(pending, continuation)
+        }
+        val state =
+            ExecutionState(
+                root = continuation.root,
+                runtime = continuation.runtime,
+                locals = continuation.locals.toMutableMap(),
+                textBindings = continuation.textBindings.toMutableMap(),
+            )
+        state.locals[pending.localName] = input.monsterIndex
         return result(state, executeFrames(state, program.instructions, continuation.frames))
     }
 
@@ -808,6 +858,34 @@ class CompiledVm(
                                 choices = state.party.inventorySlotChoices(filter, slots, firstKey),
                             )
                         host.trace(EngineTraceEvent.AskInventorySlot(text, firstKey, slots, filter))
+                        ControlSignal.Blocked(
+                            pending = pending,
+                            frames =
+                                listOf(
+                                    CompiledVmFrame(
+                                        blockPath = location.blockPath,
+                                        nextIndex = location.instructionIndex + 1,
+                                        insideLoop = insideLoop,
+                                    ),
+                                ) + parentFrames,
+                        )
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
+            }
+            CompiledOpcode.AskMonster -> {
+                val prompt = renderText(state, instruction.textBlock(0), location.child(0))
+                prompt.fold(
+                    ok = { text ->
+                        val pending =
+                            CompiledVmPendingInput.AskMonster(
+                                root = location.root,
+                                instructionIndex = location.instructionIndex,
+                                operandPath = location.operandPath,
+                                prompt = text,
+                                localName = index.string(instruction.stringId(1)),
+                                targetKeys = host.monsterTargetKeys().map { key -> key.uppercaseChar() },
+                            )
                         ControlSignal.Blocked(
                             pending = pending,
                             frames =
@@ -1792,6 +1870,7 @@ private fun CompiledVmContinuation.accepts(input: CompiledVmInput): Boolean =
         is CompiledVmPendingInput.Menu -> input is CompiledVmInput.MenuKey
         is CompiledVmPendingInput.AskKey -> input is CompiledVmInput.AskKey
         is CompiledVmPendingInput.AskMember -> input is CompiledVmInput.AskMember
+        is CompiledVmPendingInput.AskMonster -> input is CompiledVmInput.AskMonster
         is CompiledVmPendingInput.AskInventorySlot -> input is CompiledVmInput.AskInventorySlot
         is CompiledVmPendingInput.AskText -> input is CompiledVmInput.AskText
     }
