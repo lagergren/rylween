@@ -459,9 +459,380 @@ static void validate_runtime_systems(const node *sections) {
     validate_castles(castles);
 }
 
+typedef enum {
+    VM_EXEC_UNSUPPORTED,
+    VM_EXEC_COMPLETED,
+    VM_EXEC_BLOCKED
+} vm_exec_status;
+
+typedef struct {
+    vm_exec_status status;
+    size_t events;
+    size_t state_mutations;
+    size_t instruction_index;
+    size_t continuation_index;
+    const char *opcode;
+} vm_exec_result;
+
+static const node *arr_item(const node *arr, size_t index, const char *label) {
+    expect_kind(arr, N_ARR, label);
+    if (index >= arr->u.arr.n) {
+        fprintf(stderr, "native VM probe failed: %s index %zu is out of range\n", label, index);
+        exit(1);
+    }
+    return arr->u.arr.items[index];
+}
+
+static const char *string_by_id(const node *strings, int32_t id) {
+    expect_kind(strings, N_ARR, "strings");
+    if (id <= 0) {
+        return "<empty>";
+    }
+    for (size_t i = 0; i < strings->u.arr.n; i++) {
+        const node *row = expect_kind(strings->u.arr.items[i], N_OBJ, "string row");
+        if (req_int(row, "id") == id) {
+            return req_str(row, "value");
+        }
+    }
+    fprintf(stderr, "native VM probe failed: string id %d is out of range\n", id);
+    exit(1);
+}
+
+static const node *operand_at(const node *instruction, size_t index, const char *expected_type) {
+    const node *operands = req_arr(instruction, "operands");
+    const node *operand = expect_kind(arr_item(operands, index, "operands"), N_OBJ, "operand");
+    const char *actual_type = req_str(operand, "_type");
+    if (!str_eq(actual_type, expected_type)) {
+        fprintf(stderr, "native VM probe failed: expected operand %zu to be %s, found %s\n",
+                index, expected_type, actual_type);
+        exit(1);
+    }
+    return operand;
+}
+
+static void print_handle_ref(const node *handle) {
+    expect_kind(handle, N_OBJ, "compiled handle ref");
+    printf("%s#%d", req_str(handle, "kind"), req_int(handle, "id"));
+}
+
+static void print_text_part(const node *strings, const node *part) {
+    const char *type = req_str(part, "_type");
+    if (str_eq(type, "Literal")) {
+        printf("%s", string_by_id(strings, req_int(part, "string")));
+    } else if (str_eq(type, "IntValue")) {
+        printf("<int>");
+    } else if (str_eq(type, "StringValue")) {
+        printf("<string>");
+    } else if (str_eq(type, "RoleName")) {
+        printf("<role-name>");
+    } else if (str_eq(type, "RoleLocation")) {
+        printf("<role-location>");
+    } else if (str_eq(type, "TownName")) {
+        printf("<town-name>");
+    } else if (str_eq(type, "FuzzyTownLocation")) {
+        printf("<fuzzy-town-location>");
+    } else if (str_eq(type, "LocationCoordinate")) {
+        printf("<location-coordinate>");
+    } else if (str_eq(type, "Runtime")) {
+        printf("<runtime>");
+    } else if (str_eq(type, "OfferedItemName")) {
+        printf("<offered-item-name>");
+    } else if (str_eq(type, "OfferedItemPrice")) {
+        printf("<offered-item-price>");
+    } else if (str_eq(type, "ShopPrice")) {
+        printf("<shop-price>");
+    } else if (str_eq(type, "ShopCarryCap")) {
+        printf("<shop-carry-cap>");
+    } else {
+        printf("<%s>", type);
+    }
+}
+
+static void print_text_line(const node *strings, const node *line) {
+    const node *parts = req_arr(line, "parts");
+    for (size_t i = 0; i < parts->u.arr.n; i++) {
+        print_text_part(strings, expect_kind(parts->u.arr.items[i], N_OBJ, "text part"));
+    }
+}
+
+static void print_text_block(const node *strings, const node *block) {
+    const char *type = req_str(block, "_type");
+    if (str_eq(type, "Inline")) {
+        const node *lines = req_arr(block, "lineStrings");
+        for (size_t i = 0; i < lines->u.arr.n; i++) {
+            if (i > 0) {
+                printf(" | ");
+            }
+            printf("%s", string_by_id(strings, expect_kind(lines->u.arr.items[i], N_INT, "inline string id")->u.iv));
+        }
+    } else if (str_eq(type, "Structured")) {
+        const node *lines = req_arr(block, "lines");
+        for (size_t i = 0; i < lines->u.arr.n; i++) {
+            if (i > 0) {
+                printf(" | ");
+            }
+            print_text_line(strings, expect_kind(lines->u.arr.items[i], N_OBJ, "text line"));
+        }
+    } else if (str_eq(type, "Ref")) {
+        printf("<text-ref:");
+        print_handle_ref(req_obj(block, "text"));
+        printf(">");
+    } else {
+        printf("<text-block:%s>", type);
+    }
+}
+
+static void print_text_operand(const node *strings, const node *instruction, size_t index) {
+    print_text_block(strings, req_obj(operand_at(instruction, index, "TextBlockValue"), "value"));
+}
+
+static void print_view_command(const node *instruction) {
+    const node *command = req_obj(operand_at(instruction, 0, "ViewCommandValue"), "value");
+    const char *type = req_str(command, "_type");
+    printf("%s", type);
+    if (str_eq(type, "ShowImage")) {
+        printf("(");
+        print_handle_ref(req_obj(command, "image"));
+        printf(")");
+    }
+}
+
+static void print_menu_options(const node *strings, const node *instruction) {
+    const node *options = req_arr(operand_at(instruction, 1, "MenuOptions"), "options");
+    printf("[");
+    for (size_t i = 0; i < options->u.arr.n; i++) {
+        const node *option = expect_kind(options->u.arr.items[i], N_OBJ, "menu option");
+        const node *binding = req_obj(option, "binding");
+        if (i > 0) {
+            printf(",");
+        }
+        printf("%s", string_by_id(strings, req_int(binding, "primaryString")));
+    }
+    printf("]");
+}
+
+static int is_blocking_opcode(const char *opcode) {
+    return str_eq(opcode, "WaitInput") ||
+           str_eq(opcode, "Menu") ||
+           str_eq(opcode, "AskKey") ||
+           str_eq(opcode, "AskMember") ||
+           str_eq(opcode, "AskMonster") ||
+           str_eq(opcode, "AskInventorySlot") ||
+           str_eq(opcode, "AskText") ||
+           str_eq(opcode, "Speak") ||
+           str_eq(opcode, "TellRumour") ||
+           str_eq(opcode, "Encounter") ||
+           str_eq(opcode, "EnterDungeon") ||
+           str_eq(opcode, "GrantReward") ||
+           str_eq(opcode, "RandomItemOffer") ||
+           str_eq(opcode, "ShopService");
+}
+
+static int is_prompt_opcode(const char *opcode) {
+    return str_eq(opcode, "WaitInput") ||
+           str_eq(opcode, "Menu") ||
+           strncmp(opcode, "Ask", 3) == 0;
+}
+
+static vm_exec_result execute_program(
+    const node *strings,
+    const node *program,
+    int emit
+) {
+    const node *root = req_obj(program, "root");
+    const char *root_kind = req_str(root, "kind");
+    const char *root_slug = req_str(root, "slug");
+    const node *instructions = req_arr(program, "instructions");
+    vm_exec_result result = {VM_EXEC_COMPLETED, 0, 0, instructions->u.arr.n, instructions->u.arr.n, NULL};
+
+    for (size_t i = 0; i < instructions->u.arr.n; i++) {
+        const node *instruction = expect_kind(instructions->u.arr.items[i], N_OBJ, "instruction");
+        const char *opcode = req_str(instruction, "opcode");
+        result.instruction_index = i;
+        result.continuation_index = i + 1;
+        result.opcode = opcode;
+
+        if (str_eq(opcode, "View")) {
+            if (emit) {
+                printf("native vm event: root=%s.%s instruction=%zu opcode=View view=", root_kind, root_slug, i);
+                print_view_command(instruction);
+                printf("\n");
+            }
+            result.events++;
+        } else if (str_eq(opcode, "Screen")) {
+            if (emit) {
+                printf("native vm event: root=%s.%s instruction=%zu opcode=Screen text=\"", root_kind, root_slug, i);
+                print_text_operand(strings, instruction, 0);
+                printf("\"\n");
+            }
+            result.events++;
+        } else if (str_eq(opcode, "Emit")) {
+            if (emit) {
+                printf("native vm event: root=%s.%s instruction=%zu opcode=Emit text=", root_kind, root_slug, i);
+                print_handle_ref(req_obj(operand_at(instruction, 0, "Handle"), "ref"));
+                printf("\n");
+            }
+            result.events++;
+        } else if (str_eq(opcode, "Pause")) {
+            if (emit) {
+                printf("native vm event: root=%s.%s instruction=%zu opcode=Pause millis=%d\n",
+                       root_kind, root_slug, i, req_int(operand_at(instruction, 0, "Integer"), "value"));
+            }
+            result.events++;
+        } else if (str_eq(opcode, "AppendJournal")) {
+            if (emit) {
+                printf("native vm state: root=%s.%s instruction=%zu opcode=AppendJournal text=\"",
+                       root_kind, root_slug, i);
+                print_text_operand(strings, instruction, 0);
+                printf("\"\n");
+            }
+            result.state_mutations++;
+        } else if (str_eq(opcode, "SetFlag")) {
+            if (emit) {
+                printf("native vm state: root=%s.%s instruction=%zu opcode=SetFlag flag=",
+                       root_kind, root_slug, i);
+                print_handle_ref(req_obj(operand_at(instruction, 0, "Handle"), "ref"));
+                printf(" state=");
+                print_handle_ref(req_obj(operand_at(instruction, 1, "Handle"), "ref"));
+                printf("\n");
+            }
+            result.state_mutations++;
+        } else if (str_eq(opcode, "AchieveMilestone")) {
+            if (emit) {
+                printf("native vm state: root=%s.%s instruction=%zu opcode=AchieveMilestone milestone=",
+                       root_kind, root_slug, i);
+                print_handle_ref(req_obj(operand_at(instruction, 0, "Handle"), "ref"));
+                printf("\n");
+            }
+            result.state_mutations++;
+        } else if (str_eq(opcode, "Stop")) {
+            result.status = VM_EXEC_COMPLETED;
+            result.continuation_index = instructions->u.arr.n;
+            return result;
+        } else if (is_blocking_opcode(opcode)) {
+            result.status = VM_EXEC_BLOCKED;
+            if (emit) {
+                printf("native vm block: root=%s.%s instruction=%zu opcode=%s operandPath=[] continuation=%zu",
+                       root_kind, root_slug, i, opcode, result.continuation_index);
+                if (str_eq(opcode, "WaitInput")) {
+                    const node *operands = req_arr(instruction, "operands");
+                    if (operands->u.arr.n > 0) {
+                        printf(" reason=\"%s\"", string_by_id(strings, req_int(operand_at(instruction, 0, "StringId"), "id")));
+                    }
+                } else if (str_eq(opcode, "Menu")) {
+                    printf(" prompt=\"");
+                    print_text_operand(strings, instruction, 0);
+                    printf("\" keys=");
+                    print_menu_options(strings, instruction);
+                } else if (strncmp(opcode, "Ask", 3) == 0) {
+                    printf(" prompt=\"");
+                    print_text_operand(strings, instruction, 0);
+                    printf("\"");
+                }
+                printf("\n");
+            }
+            return result;
+        } else {
+            result.status = VM_EXEC_UNSUPPORTED;
+            return result;
+        }
+    }
+    result.status = VM_EXEC_COMPLETED;
+    return result;
+}
+
+static int root_kind_is(const node *program, const char *kind) {
+    return str_eq(req_str(req_obj(program, "root"), "kind"), kind);
+}
+
+static void print_no_probe_candidate(
+    const char *label,
+    const vm_exec_result *last_result,
+    const node *last_program
+) {
+    if (last_result->opcode && last_program) {
+        const node *root = req_obj(last_program, "root");
+        fprintf(stderr,
+                "native VM probe failed: no %s candidate; last unsupported root=%s.%s "
+                "instruction=%zu opcode=%s operand=-1 continuation=%zu\n",
+                label,
+                req_str(root, "kind"),
+                req_str(root, "slug"),
+                last_result->instruction_index,
+                last_result->opcode,
+                last_result->continuation_index);
+    } else {
+        fprintf(stderr, "native VM probe failed: no %s candidate in compiled bundle\n", label);
+    }
+    exit(1);
+}
+
+static void run_probe_case(
+    const node *sections,
+    const char *label,
+    const char *root_kind,
+    vm_exec_status expected_status,
+    int require_state_mutation,
+    int require_prompt_block
+) {
+    const node *strings = req_arr(sections, "strings");
+    const node *scripts = req_arr(sections, "scripts");
+    vm_exec_result last_result = {VM_EXEC_UNSUPPORTED, 0, 0, 0, 0, NULL};
+    const node *last_program = NULL;
+
+    for (size_t i = 0; i < scripts->u.arr.n; i++) {
+        const node *program = expect_kind(scripts->u.arr.items[i], N_OBJ, "compiled script program");
+        if (!root_kind_is(program, root_kind)) {
+            continue;
+        }
+        vm_exec_result result = execute_program(strings, program, 0);
+        if (result.status == VM_EXEC_UNSUPPORTED) {
+            last_result = result;
+            last_program = program;
+            continue;
+        }
+        if (result.status == expected_status &&
+            (!require_state_mutation || result.state_mutations > 0) &&
+            (!require_prompt_block || is_prompt_opcode(result.opcode))) {
+            const node *root = req_obj(program, "root");
+            printf("native vm probe case: %s root=%s.%s\n", label, req_str(root, "kind"), req_str(root, "slug"));
+            result = execute_program(strings, program, 1);
+            if (result.status != expected_status ||
+                (require_state_mutation && result.state_mutations == 0) ||
+                (require_prompt_block && !is_prompt_opcode(result.opcode))) {
+                fprintf(stderr,
+                        "native VM probe failed: root=%s.%s instruction=%zu opcode=%s operand=-1 continuation=%zu "
+                        "changed result while executing %s\n",
+                        req_str(root, "kind"),
+                        req_str(root, "slug"),
+                        result.instruction_index,
+                        result.opcode ? result.opcode : "<none>",
+                        result.continuation_index,
+                        label);
+                exit(1);
+            }
+            return;
+        }
+    }
+
+    print_no_probe_candidate(label, &last_result, last_program);
+}
+
+static void run_native_vm_probe(const node *sections) {
+    run_probe_case(sections, "pure scene", "Scene", VM_EXEC_COMPLETED, 0, 0);
+    run_probe_case(sections, "prompt-shaped scene", "Scene", VM_EXEC_BLOCKED, 0, 1);
+    run_probe_case(sections, "state mutation", "DialogueBranch", VM_EXEC_COMPLETED, 1, 0);
+    printf("native vm probe ok: pureScene=1 promptRoot=1 stateMutation=1\n");
+}
+
 int main(int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s <rylween-bundle.json>\n", argv[0]);
+    if (argc != 2 && argc != 3) {
+        fprintf(stderr, "usage: %s <rylween-bundle.json> [--vm-probe]\n", argv[0]);
+        return 2;
+    }
+    int vm_probe = argc == 3 && str_eq(argv[2], "--vm-probe");
+    if (argc == 3 && !vm_probe) {
+        fprintf(stderr, "usage: %s <rylween-bundle.json> [--vm-probe]\n", argv[0]);
         return 2;
     }
 
@@ -484,6 +855,10 @@ int main(int argc, char **argv) {
     size_t states = array_count(sections, "states");
     if (strings == 0 || handles == 0 || scripts == 0 || states == 0) {
         fail("core table sections must not be empty");
+    }
+
+    if (vm_probe) {
+        run_native_vm_probe(sections);
     }
 
     printf("native json ok: strings=%zu handles=%zu scripts=%zu states=%zu runtimeSystems=%d castles=%zu\n",
