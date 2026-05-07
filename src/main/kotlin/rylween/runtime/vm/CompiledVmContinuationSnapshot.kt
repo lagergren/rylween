@@ -15,14 +15,20 @@
  */
 package rylween.runtime.vm
 
+import rylween.compiled.CompiledRandomItemOffer
+import rylween.compiled.CompiledScriptReward
+import rylween.compiled.CompiledShopService
+import rylween.dsl.BuildingId
 import rylween.dsl.EncounterTier
 import rylween.dsl.InputBindingModel
 import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.MonsterId
+import rylween.dsl.RumourTableId
 import rylween.dsl.TextBlock
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptRootRef
+import rylween.runtime.wilderness.WildernessDungeonHandoff
 
 /**
  * Saveable subset of [CompiledVmContinuation] for one blocked VM prompt or child request.
@@ -221,6 +227,24 @@ sealed interface CompiledVmPendingInputSnapshot {
  * classes so other languages can persist and replay the same child handoff.
  */
 sealed interface CompiledVmChildRequestSnapshot {
+    /** Saveable conversation request emitted by a compiled `Speak` opcode. */
+    data class Speak(
+        val building: BuildingId,
+    ) : CompiledVmChildRequestSnapshot {
+        init {
+            require(building.slug.isNotBlank()) { "compiled VM speak snapshot requires a building slug" }
+        }
+    }
+
+    /** Saveable rumour request emitted by a compiled `TellRumour` opcode. */
+    data class TellRumour(
+        val table: RumourTableId,
+    ) : CompiledVmChildRequestSnapshot {
+        init {
+            require(table.slug.isNotBlank()) { "compiled VM rumour snapshot requires a table slug" }
+        }
+    }
+
     /** Saveable encounter request emitted by a compiled `Encounter` opcode. */
     data class Encounter(
         val monster: MonsterId,
@@ -232,6 +256,37 @@ sealed interface CompiledVmChildRequestSnapshot {
             require(tier == null || tier.isNotBlank()) { "compiled VM encounter snapshot tier cannot be blank" }
         }
     }
+
+    /** Saveable dungeon handoff request emitted by a compiled `EnterDungeon` opcode. */
+    data class EnterDungeon(
+        val handoff: WildernessDungeonHandoff,
+    ) : CompiledVmChildRequestSnapshot {
+        init {
+            require(handoff.dungeon.slug.isNotBlank()) { "compiled VM dungeon snapshot requires a dungeon slug" }
+            require(handoff.levels > 0) { "compiled VM dungeon snapshot levels must be positive" }
+        }
+    }
+
+    /** Saveable reward child request emitted by a compiled `GrantReward` opcode. */
+    data class GrantReward(
+        val reward: CompiledScriptReward,
+        val gold: Int,
+    ) : CompiledVmChildRequestSnapshot
+
+    /** Saveable random-offer child request emitted by a compiled `RandomItemOffer` opcode. */
+    data class RandomItemOffer(
+        val offer: CompiledRandomItemOffer,
+        val selectedIndex: Int,
+    ) : CompiledVmChildRequestSnapshot {
+        init {
+            require(selectedIndex >= 0) { "compiled VM random offer selectedIndex cannot be negative" }
+        }
+    }
+
+    /** Saveable shop child request emitted by a compiled `ShopService` opcode. */
+    data class ShopService(
+        val shop: CompiledShopService,
+    ) : CompiledVmChildRequestSnapshot
 }
 
 /** Saveable menu option inside [CompiledVmPendingInputSnapshot.Menu]. */
@@ -384,15 +439,27 @@ private fun CompiledVmPendingInputSnapshot.validatePendingShape() {
 
 private fun CompiledVmChildRequest.toSnapshot(): CompiledVmChildRequestSnapshot =
     when (this) {
+        is CompiledVmChildRequest.Speak -> CompiledVmChildRequestSnapshot.Speak(building)
+        is CompiledVmChildRequest.TellRumour -> CompiledVmChildRequestSnapshot.TellRumour(table)
         is CompiledVmChildRequest.Encounter -> CompiledVmChildRequestSnapshot.Encounter(monster, mandatory, tier?.slug)
+        is CompiledVmChildRequest.EnterDungeon -> CompiledVmChildRequestSnapshot.EnterDungeon(handoff)
+        is CompiledVmChildRequest.GrantReward -> CompiledVmChildRequestSnapshot.GrantReward(reward, gold)
+        is CompiledVmChildRequest.RandomItemOffer -> CompiledVmChildRequestSnapshot.RandomItemOffer(offer, selectedIndex)
+        is CompiledVmChildRequest.ShopService -> CompiledVmChildRequestSnapshot.ShopService(shop)
     }
 
 private fun CompiledVmChildRequestSnapshot.toRequest(): CompiledVmChildRequest =
     when (this) {
+        is CompiledVmChildRequestSnapshot.Speak -> CompiledVmChildRequest.Speak(building)
+        is CompiledVmChildRequestSnapshot.TellRumour -> CompiledVmChildRequest.TellRumour(table)
         is CompiledVmChildRequestSnapshot.Encounter ->
             CompiledVmChildRequest.Encounter(
                 monster = monster,
                 mandatory = mandatory,
                 tier = tier?.let(::EncounterTier),
             )
+        is CompiledVmChildRequestSnapshot.EnterDungeon -> CompiledVmChildRequest.EnterDungeon(handoff)
+        is CompiledVmChildRequestSnapshot.GrantReward -> CompiledVmChildRequest.GrantReward(reward, gold)
+        is CompiledVmChildRequestSnapshot.RandomItemOffer -> CompiledVmChildRequest.RandomItemOffer(offer, selectedIndex)
+        is CompiledVmChildRequestSnapshot.ShopService -> CompiledVmChildRequest.ShopService(shop)
     }

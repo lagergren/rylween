@@ -398,6 +398,74 @@ class RylweenCompiledVmTest {
     }
 
     @Test
+    fun compiledVmResumesForEachMonsterBodyWithoutSkippingRemainingMonsters() {
+        val model =
+            rylween {
+                content {
+                    scene(VmForEachMonsterScene) {
+                        forEachMonster(includeDead = true) { monster ->
+                            screen("monster")
+                            waitInput()
+                            party.gold += monster.hp
+                        }
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmForEachMonsterScene)
+        val host = MonsterIterationHost(mapOf(0 to 5, 1 to 8))
+        val vm = CompiledVm(compiled.content, host)
+
+        val firstBlocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+
+        assertIs<CompiledVmPendingInput.WaitInput>(firstBlocked.pending)
+        assertEquals(
+            CompiledVmFrameKind.ForEachMonsterBody,
+            firstBlocked.continuation.frames
+                .first()
+                .kind,
+        )
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("monster")),
+                EngineTraceEvent.WaitInput(null),
+            ),
+            host.events,
+        )
+
+        val secondBlocked =
+            assertIs<CompiledVmResult.Blocked>(
+                resumeAfterSnapshot(vm, program, firstBlocked.continuation, CompiledVmInput.Continue),
+            )
+
+        assertIs<CompiledVmPendingInput.WaitInput>(secondBlocked.pending)
+        assertEquals(
+            CompiledVmFrameKind.ForEachMonsterBody,
+            secondBlocked.continuation.frames
+                .first()
+                .kind,
+        )
+        assertEquals(
+            listOf(
+                EngineTraceEvent.Screen(inlineText("monster")),
+                EngineTraceEvent.WaitInput(null),
+                EngineTraceEvent.Screen(inlineText("monster")),
+                EngineTraceEvent.WaitInput(null),
+            ),
+            host.events,
+        )
+
+        val completed =
+            assertIs<CompiledVmResult.Completed>(
+                resumeAfterSnapshot(vm, program, secondBlocked.continuation, CompiledVmInput.Continue),
+            )
+
+        assertEquals(15, completed.runtime.activeParty.resources.gold)
+    }
+
+    @Test
     fun compiledVmBlocksAndResumesAskMemberWithoutReplayingPriorEffects() {
         val model =
             rylween {
@@ -1187,6 +1255,25 @@ class RylweenCompiledVmTest {
             }
     }
 
+    private class MonsterIterationHost(
+        private val hitPoints: Map<Int, Int>,
+    ) : RecordingCompiledVmHost() {
+        override fun monsterIterationIndices(includeDead: Boolean): List<Int>? =
+            hitPoints
+                .filterValues { hp -> includeDead || hp > 0 }
+                .keys
+                .sorted()
+
+        override fun readMonsterInt(
+            monster: Int,
+            field: String,
+        ): Int? =
+            when (field) {
+                "hit_points" -> hitPoints[monster]
+                else -> null
+            }
+    }
+
     private fun testMember(
         name: String,
         level: Int,
@@ -1261,6 +1348,7 @@ class RylweenCompiledVmTest {
         val VmAskMonsterScene = sceneId("vm.ask_monster")
         val VmLoopContinuationScene = sceneId("vm.loop_continuation")
         val VmMemberIterationContinuationScene = sceneId("vm.member_iteration_continuation")
+        val VmForEachMonsterScene = sceneId("vm.foreach_monster")
         val VmUnsupportedScene = sceneId("vm.unsupported")
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
