@@ -14,7 +14,7 @@ import java.security.MessageDigest
 import java.util.IdentityHashMap
 
 /** Current textual runtime snapshot schema version. */
-const val RUNTIME_SNAPSHOT_FORMAT_VERSION: Int = 2
+const val RUNTIME_SNAPSHOT_FORMAT_VERSION: Int = 3
 
 /** Builds the metadata block persisted beside runtime state snapshots. */
 fun GameModel.runtimeSnapshotMetadata(): RuntimeSnapshotMetadata =

@@ -20,6 +20,7 @@ import rylween.dsl.BattleOpeningKeysModel
 import rylween.dsl.BuildingId
 import rylween.dsl.BuildingServiceModel
 import rylween.dsl.CastleRoomEvent
+import rylween.dsl.CastleScriptsModel
 import rylween.dsl.CharacterModel
 import rylween.dsl.CharacterPlacementModel
 import rylween.dsl.ChitchatSubject
@@ -123,6 +124,7 @@ import rylween.dsl.WildernessFatigueMatch
 import rylween.dsl.WildernessFatigueRule
 import rylween.dsl.WildernessUpkeepRules
 import rylween.dsl.WorldPosition
+import rylween.dsl.castle
 import rylween.dsl.cells
 import rylween.dsl.collectAuthoredContentDiagnostics
 import rylween.dsl.declareFlag
@@ -149,6 +151,7 @@ import rylween.dsl.partyId
 import rylween.dsl.pronoun
 import rylween.dsl.runtimeContent
 import rylween.dsl.runtimeFlagState
+import rylween.dsl.rylween
 import rylween.dsl.sceneId
 import rylween.dsl.shopText
 import rylween.dsl.stateId
@@ -267,11 +270,13 @@ import rylween.runtime.battle.BattleSession
 import rylween.runtime.battle.BattleSessionResultStatus
 import rylween.runtime.battle.BattleSessionStep
 import rylween.runtime.campGearEffect
+import rylween.runtime.castle.CastleScriptContinuation
 import rylween.runtime.castle.CastleSession
 import rylween.runtime.castle.CastleSessionInput
 import rylween.runtime.castle.CastleSessionStatus
 import rylween.runtime.castle.CastleSessionStep
 import rylween.runtime.castle.navigationHelpPages
+import rylween.runtime.castle.toCastleSnapshot
 import rylween.runtime.consumeInventoryItems
 import rylween.runtime.consumeTorch
 import rylween.runtime.countInventoryItems
@@ -1128,14 +1133,14 @@ class RylweenDslValidationTest {
         val snapshot =
             RuntimeSnapshotModel(
                 state =
-                    base.copy(
-                        kind = StateKind.RuntimeSnapshot,
-                        realm =
+                    base
+                        .toRuntimeSessionState(1234L)
+                        .withRealm(
                             base.realm.copy(
                                 currentMode = RuntimeMode.Castle,
                                 rngState = 1234L,
                             ),
-                    ),
+                        ).toRuntimeStateSnapshot(base.id),
                 mode =
                     RuntimeModeSnapshot.Castle(
                         CastleSessionSnapshot(
@@ -1161,6 +1166,73 @@ class RylweenDslValidationTest {
         assertTrue("step = CastleSavedStep.TreasureOffer" in rendered)
         assertTrue("""treasureItem = item("red_gem")""" in rendered)
         assertEquals(snapshot.state.realm, parsed.state.realm)
+        assertEquals(snapshot.mode, parsed.mode)
+        assertEquals(rendered, renderRuntimeStateSnapshot(parsed))
+    }
+
+    @Test
+    fun runtimeSnapshotEmitterRoundTripsCastleScriptSessionBlock() {
+        val content = RylweenCompiledGame.nextDsl
+        val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val scene = sceneId("castle.ydarg.entered")
+        val root = content.runtimeContent().scriptRootForScene(scene)
+        val snapshot =
+            RuntimeSnapshotModel(
+                state =
+                    base
+                        .toRuntimeSessionState(1234L)
+                        .withRealm(
+                            base.realm.copy(
+                                currentMode = RuntimeMode.Castle,
+                                rngState = 1234L,
+                            ),
+                        ).toRuntimeStateSnapshot(base.id),
+                metadata = content.runtimeSnapshotMetadata().copy(compiledBundleHash = compiledBundleHash()),
+                mode =
+                    RuntimeModeSnapshot.Castle(
+                        CastleSessionSnapshot(
+                            castle = Castles.ydarg,
+                            floor = 1,
+                            point = GridPoint(1, 1),
+                            rooms = mapOf(GridPoint(1, 1) to CastleRoomEvent.Empty),
+                            step = CastleSavedStep.Script,
+                            scriptScene = scene,
+                            scriptNext = CastleScriptContinuation.RoomEntry,
+                            scriptContinuation =
+                                ScriptContinuationSnapshot(
+                                    root = root,
+                                    stack = listOf(ScriptFrame(ScriptBlockRef.Root, nextIndex = 0)),
+                                    compiledVmContinuation =
+                                        CompiledVmContinuationSnapshot(
+                                            root = root,
+                                            frames =
+                                                listOf(
+                                                    CompiledVmFrameSnapshot(
+                                                        blockPath = emptyList(),
+                                                        nextIndex = 1,
+                                                    ),
+                                                ),
+                                            pending =
+                                                CompiledVmPendingInputSnapshot.WaitInput(
+                                                    root = root,
+                                                    instructionIndex = 0,
+                                                    operandPath = emptyList(),
+                                                    reason = "castle hook",
+                                                    prompt = inlineText("Enter the castle?"),
+                                                ),
+                                        ),
+                                ),
+                        ),
+                    ),
+            )
+
+        val rendered = renderRuntimeStateSnapshot(snapshot)
+        val parsed = parseRuntimeSnapshotForLoad(rendered, content, compiledBundleHash = compiledBundleHash())
+
+        assertTrue("step = CastleSavedStep.Script" in rendered)
+        assertTrue("""scriptScene = scene("castle.ydarg.entered")""" in rendered)
+        assertTrue("scriptNext = CastleScriptContinuation.RoomEntry" in rendered)
+        assertTrue("compiledVm {" in rendered)
         assertEquals(snapshot.mode, parsed.mode)
         assertEquals(rendered, renderRuntimeStateSnapshot(parsed))
     }
@@ -6684,6 +6756,116 @@ class RylweenDslValidationTest {
                     },
                 ),
         )
+    }
+
+    @Test
+    fun secondAuthoredCastleStartsWithoutYdargSpecificHooks() {
+        val baseContent = RylweenCompiledGame.nextDsl
+        val secondCastleId = castle("test_keep")
+        val sourceCastle = baseContent.castles.single { castle -> castle.id == Castles.ydarg }
+        val secondCastle =
+            sourceCastle.copy(
+                id = secondCastleId,
+                entryRequirement = null,
+                completionMilestone = null,
+                roomEvents = (1..sourceCastle.roomTypeMax).associateWith { CastleRoomEvent.Empty },
+                scripts = CastleScriptsModel(),
+            )
+        val gameContent = baseContent.copy(castles = baseContent.castles + secondCastle)
+        val runtimeContent = gameContent.runtimeContent()
+        val started =
+            CastleSession.start(
+                runtime = RuntimeSessionState.singleParty(castleParty(), hour = 12, currentTown = null, rngState = 1L),
+                content = runtimeContent,
+                castle = runtimeContent.castles.single { castle -> castle.id == secondCastleId },
+            )
+        val entered = started.enterRoom()
+
+        validateAuthoredContent(gameContent)
+        assertEquals(secondCastleId, started.castleContent.id)
+        assertEquals(CastleSessionStatus.Entered, started.lastResult?.status)
+        assertTrue(entered.step is CastleSessionStep.Navigate)
+        assertEquals(RuntimeMode.Castle, entered.runtime.realm.currentMode)
+    }
+
+    @Test
+    fun castleHookScriptSaveLoadResumesCompiledVmContinuation() {
+        val baseContent = RylweenCompiledGame.nextDsl
+        val hookSceneId = sceneId("test.keep.entered")
+        val hookScene =
+            rylween {
+                content {
+                    scene(hookSceneId) {
+                        screen("Compiled castle hook.")
+                        waitInput("castle hook")
+                        party.gold += 5
+                        stop("done")
+                    }
+                }
+            }.content.scenes.single()
+        val sourceCastle = baseContent.castles.single { castle -> castle.id == Castles.ydarg }
+        val testCastleId = castle("compiled_keep")
+        val testCastle =
+            sourceCastle.copy(
+                id = testCastleId,
+                entryRequirement = null,
+                completionMilestone = null,
+                roomEvents = (1..sourceCastle.roomTypeMax).associateWith { CastleRoomEvent.Empty },
+                scripts = CastleScriptsModel(entered = hookSceneId),
+            )
+        val gameContent =
+            baseContent.copy(
+                scenes = baseContent.scenes + hookScene,
+                castles = baseContent.castles + testCastle,
+            )
+        val runtimeContent = gameContent.runtimeContent()
+        val bundle = RylweenCompiledGame.nextRylween.copy(content = gameContent).toExternalBundleArtifact()
+        val bundleHash = bundle.readExternalBundleArtifact().bundleContentHash
+        val compiledHost = KotlinHeadlessHost.fromExternalBundleCompiledVm(bundle)
+        val initial =
+            CastleSession.start(
+                runtime = RuntimeSessionState.singleParty(castleParty(), hour = 12, currentTown = null, rngState = 1L),
+                content = runtimeContent,
+                castle = runtimeContent.castles.single { castle -> castle.id == testCastleId },
+            )
+        val saveTerminal = FakeTerminalPort()
+        val blocked =
+            CastleSessionTerminalAdapter(
+                terminal = saveTerminal,
+                renderer = compiledTextRenderer(),
+                scriptBridge = compiledHost.compiledVmTerminalScriptBridge(saveTerminal, compiledTextRenderer()),
+            ).runUntilBlocked(initial)
+        val blockedScript = blocked.session.step as? CastleSessionStep.Script ?: error("expected blocked castle script")
+        val snapshot =
+            RuntimeSnapshotModel(
+                state = blocked.session.runtime.toRuntimeStateSnapshot(stateId("compiled-castle-hook-save")),
+                mode = blocked.session.toCastleSnapshot(),
+                metadata = gameContent.runtimeSnapshotMetadata().copy(compiledBundleHash = bundleHash),
+            )
+        val rendered = renderRuntimeStateSnapshot(snapshot)
+        val parsed = parseRuntimeSnapshotForLoad(rendered, gameContent, compiledBundleHash = bundleHash)
+        val resumed =
+            RylweenKotlinEngine(gameContent).wildernessSession(
+                snapshot = parsed,
+                worldMap = checkNotNull(gameContent.worldMapGrid(Maps.wilderness)),
+                realizeNpcs = false,
+            )
+        val resumedCastle = (resumed.step as WildernessSessionStep.Castle).session
+        val resumeTerminal = FakeTerminalPort("")
+        val finished =
+            CastleSessionTerminalAdapter(
+                terminal = resumeTerminal,
+                renderer = compiledTextRenderer(),
+                scriptBridge = compiledHost.compiledVmTerminalScriptBridge(resumeTerminal, compiledTextRenderer()),
+            ).runUntilBlocked(resumedCastle)
+
+        assertTrue(blocked.status is TerminalRunStatus.Waiting)
+        assertTrue(blockedScript.continuation.compiledVmContinuation != null)
+        assertTrue("step = CastleSavedStep.Script" in rendered)
+        assertEquals(RuntimeMode.Castle, parsed.state.realm.currentMode)
+        assertEquals(testCastleId, resumedCastle.castleContent.id)
+        assertEquals(5, finished.session.party.resources.gold)
+        assertTrue(finished.session.step is CastleSessionStep.Navigate)
     }
 
     @Test

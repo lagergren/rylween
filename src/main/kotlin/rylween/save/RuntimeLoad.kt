@@ -15,6 +15,8 @@ import rylween.dsl.StateModel
 import rylween.dsl.ValidationDiagnostic
 import rylween.dsl.validateStates
 import rylween.dsl.withDiagnosticPathPrefix
+import rylween.runtime.CastleSavedStep
+import rylween.runtime.CastleSessionSnapshot
 import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSnapshotModel
 import java.io.File
@@ -151,9 +153,8 @@ private fun validateCompiledContinuationBundle(
 private fun RuntimeSnapshotModel.hasCompiledVmContinuation(): Boolean =
     when (val activeMode = mode) {
         is RuntimeModeSnapshot.Dungeon -> activeMode.postDungeon?.continuation?.compiledVmContinuation != null
-        is RuntimeModeSnapshot.Castle,
-        null,
-        -> false
+        is RuntimeModeSnapshot.Castle -> activeMode.session.scriptContinuation?.compiledVmContinuation != null
+        null -> false
     }
 
 private fun validateModeSnapshot(
@@ -163,9 +164,10 @@ private fun validateModeSnapshot(
 ) {
     when (snapshot.state.realm.currentMode) {
         RuntimeMode.Castle -> {
-            if (snapshot.mode !is RuntimeModeSnapshot.Castle) {
-                throw runtimeLoadFailure(sourceName, "Castle runtime snapshot requires sessions { castle { ... } }")
-            }
+            val castle =
+                snapshot.mode as? RuntimeModeSnapshot.Castle
+                    ?: throw runtimeLoadFailure(sourceName, "Castle runtime snapshot requires sessions { castle { ... } }")
+            validateCastleSnapshot(castle, content, sourceName)
         }
         RuntimeMode.Dungeon -> {
             val dungeon =
@@ -182,6 +184,54 @@ private fun validateModeSnapshot(
                 )
             }
         }
+    }
+}
+
+private fun validateCastleSnapshot(
+    castle: RuntimeModeSnapshot.Castle,
+    content: GameModel,
+    sourceName: String,
+) {
+    val session = castle.session
+    val castleContent =
+        content.castles.singleOrNull { candidate -> candidate.id == session.castle }
+            ?: throw runtimeLoadFailure(sourceName, "Castle session references unknown castle ${session.castle.slug}")
+    if (session.floor !in 1..castleContent.stairs.floorCount) {
+        throw runtimeLoadFailure(sourceName, "Castle session floor must be between 1 and ${castleContent.stairs.floorCount}")
+    }
+    if (session.point.x !in 1..castleContent.mapSize || session.point.y !in 1..castleContent.mapSize) {
+        throw runtimeLoadFailure(sourceName, "Castle session point is outside the ${castleContent.mapSize}x${castleContent.mapSize} map")
+    }
+    session.rooms.keys.forEach { point ->
+        if (point.x !in 1..castleContent.mapSize || point.y !in 1..castleContent.mapSize) {
+            throw runtimeLoadFailure(sourceName, "Castle session room ${point.x}x${point.y} is outside the castle map")
+        }
+    }
+    if (session.step == CastleSavedStep.TreasureOffer && session.treasureItem == null) {
+        throw runtimeLoadFailure(sourceName, "Castle treasure-offer session requires treasureItem")
+    }
+    if (session.step == CastleSavedStep.Script) {
+        validateCastleScriptSnapshot(session, content, sourceName)
+    }
+}
+
+private fun validateCastleScriptSnapshot(
+    session: CastleSessionSnapshot,
+    content: GameModel,
+    sourceName: String,
+) {
+    val scene = session.scriptScene ?: throw runtimeLoadFailure(sourceName, "Castle script session requires scriptScene")
+    if (content.scenes.none { candidate -> candidate.id == scene }) {
+        throw runtimeLoadFailure(sourceName, "Castle script session references unknown scene ${scene.slug}")
+    }
+    val continuation =
+        session.scriptContinuation
+            ?: throw runtimeLoadFailure(sourceName, "Castle script session requires scriptContinuation")
+    if (continuation.stack.isEmpty()) {
+        throw runtimeLoadFailure(sourceName, "Castle script continuation stack must not be empty")
+    }
+    if (session.scriptNext == null) {
+        throw runtimeLoadFailure(sourceName, "Castle script session requires scriptNext")
     }
 }
 

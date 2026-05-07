@@ -216,10 +216,11 @@ class StatefulScriptBridge(
  * [ScriptContinuation.compiledVmContinuation], and returns the same
  * [ScriptBridgeResult] shape to callers.
  *
- * The bridge also owns the first host-side child-session completions. Lightweight
- * host services such as `TellRumour` complete in place; larger sessions still
- * surface as waiting continuations until their existing adapters are wired to
- * [CompiledVmInput.ChildSessionCompleted].
+ * The bridge also owns terminal host-side child completions for conversation,
+ * rumour, reward, random-offer, shop, battle, and dungeon handoff requests.
+ * Those child sessions stay outside the VM, while the parent compiled frame
+ * resumes through [CompiledVmInput.ChildSessionCompleted] after the host
+ * reports the updated runtime.
  */
 class CompiledVmTerminalScriptBridge(
     private val terminal: TerminalPort,
@@ -612,14 +613,10 @@ class CompiledVmTerminalScriptBridge(
     }
 
     private fun RuntimeSessionState.afterCompiledScriptBattle(resumeModeAfterBattle: RuntimeMode?): RuntimeSessionState {
-        val mode = resumeModeAfterBattle
-        if (mode == null) {
-            return this
-        }
-        if (realm.currentMode == RuntimeMode.GameOver) {
-            return this
-        }
-        return withRealm(realm.copy(currentMode = mode, currentTown = null))
+        val mode = resumeModeAfterBattle ?: return this
+        return takeUnless { realm.currentMode == RuntimeMode.GameOver }
+            ?.withRealm(realm.copy(currentMode = mode, currentTown = null))
+            ?: this
     }
 
     private fun runEnterDungeon(

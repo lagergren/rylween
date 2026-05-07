@@ -236,9 +236,9 @@ data class ScriptFrame(
  * The legacy fields describe the authored `Op` interpreter stack and
  * host-owned child sessions such as speak, rewards, random offers, shops, and
  * battles. [compiledVmContinuation] carries the parallel J2 VM frame when a
- * compiled script blocks at a prompt or child-session request; strict save
- * serialization rejects it until the J2.7 save/load slice defines the durable
- * compiled continuation format.
+ * compiled script blocks at a prompt or child-session request; strict runtime
+ * snapshots persist that frame through [ScriptContinuationSnapshot] when no
+ * host-owned child session is still active.
  */
 data class ScriptContinuation(
     val runtime: RuntimeSessionState,

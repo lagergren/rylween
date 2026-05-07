@@ -16,6 +16,7 @@ import rylween.dsl.ItemId
 import rylween.dsl.MissionId
 import rylween.dsl.SceneId
 import rylween.dsl.StateModel
+import rylween.runtime.castle.CastleScriptContinuation
 
 /** Full saveable runtime image: world state plus optional mode/session state. */
 data class RuntimeSnapshotModel(
@@ -53,6 +54,9 @@ data class CastleSessionSnapshot(
     val rooms: Map<GridPoint, CastleRoomEvent>,
     val step: CastleSavedStep = CastleSavedStep.Navigate,
     val treasureItem: ItemId? = null,
+    val scriptScene: SceneId? = null,
+    val scriptContinuation: ScriptContinuationSnapshot? = null,
+    val scriptNext: CastleScriptContinuation? = null,
 )
 
 /** Persisted castle step tokens that are stable across runtime implementation details. */
@@ -62,6 +66,7 @@ enum class CastleSavedStep {
     TreasureOffer,
     StairsMenu,
     StairGive,
+    Script,
 }
 
 /** Saveable state for a dungeon traversal. */
