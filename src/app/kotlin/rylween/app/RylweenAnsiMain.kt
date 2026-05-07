@@ -40,6 +40,7 @@ import rylween.dsl.InputBindingModel
 import rylween.dsl.LayoutModel
 import rylween.dsl.MissionModel
 import rylween.dsl.PaletteColorId
+import rylween.dsl.RuntimeContent
 import rylween.dsl.RylweenModel
 import rylween.dsl.ScreenRegionModel
 import rylween.dsl.StateId
@@ -69,6 +70,7 @@ import rylween.dsl.terrain
 import rylween.dsl.text
 import rylween.dsl.town
 import rylween.dsl.worldMap
+import rylween.engine.KotlinHeadlessHost
 import rylween.engine.RuntimeEvent
 import rylween.engine.RuntimeEventLevel
 import rylween.engine.RuntimeEventScope
@@ -90,6 +92,7 @@ import rylween.frontend.terminal.InventoryItemUseTerminalAdapter
 import rylween.frontend.terminal.PartyJournalTerminalAdapter
 import rylween.frontend.terminal.PartyViewTerminalAdapter
 import rylween.frontend.terminal.PriestSpellTerminalAdapter
+import rylween.frontend.terminal.ScriptBridge
 import rylween.frontend.terminal.ScriptBridgeStatus
 import rylween.frontend.terminal.StatefulScriptBridge
 import rylween.frontend.terminal.TerminalInputRejection
@@ -99,6 +102,7 @@ import rylween.frontend.terminal.TerminalTextContext
 import rylween.frontend.terminal.TerminalTextRenderer
 import rylween.frontend.terminal.TownSessionTerminalAdapter
 import rylween.frontend.terminal.YdargSessionTerminalAdapter
+import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.frontend.terminal.map
 import rylween.frontend.terminal.matches
 import rylween.frontend.terminal.readChoice
@@ -178,7 +182,28 @@ private data class AnsiRuntimeConfig(
     val logSpec: String = "",
     val logLevel: String = "",
     val dumpBundle: Boolean = false,
+    val scriptVmMode: ScriptVmMode = ScriptVmMode.Authored,
 )
+
+private enum class ScriptVmMode(
+    val cliName: String,
+) {
+    Authored("authored"),
+    Compiled("compiled"),
+}
+
+private fun scriptVmModeArg(value: String): ScriptVmMode =
+    when (val normalized = value.lowercase()) {
+        ScriptVmMode.Authored.cliName,
+        "interpreter",
+        "op",
+        -> ScriptVmMode.Authored
+        ScriptVmMode.Compiled.cliName,
+        "compiled-vm",
+        "vm",
+        -> ScriptVmMode.Compiled
+        else -> error("unknown script VM mode '$normalized'; expected authored or compiled")
+    }
 
 object RylweenAnsiMain {
     @JvmStatic
@@ -233,6 +258,15 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
         }
 
         withConfiguredAnsiSession(config, bundleFile, bundleSummary, game.takeIf { dumpBundle }) { log, terminal ->
+            val scriptBridgeFactory =
+                buildAnsiScriptBridgeFactory(
+                    mode = config.scriptVmMode,
+                    bundleFile = bundleFile,
+                    game = game,
+                    renderer = renderer,
+                    speakContent = engine.speakContent(),
+                    log = log,
+                )
             if (config.newGame || config.loadFile != null || config.state != null) {
                 val snapshot =
                     if (config.newGame && config.loadFile == null && config.state == null) {
@@ -258,10 +292,10 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
                     terminal = terminal,
                     content = content,
                     renderer = renderer,
-                    engine = engine,
                     savePort = savePort,
                     log = log,
                     session = session,
+                    scriptBridgeFactory = scriptBridgeFactory,
                 )
             } else {
                 runAnsiTitleMenu(
@@ -273,6 +307,7 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
                     terminal = terminal,
                     log = log,
                     worldMap = worldMap,
+                    scriptBridgeFactory = scriptBridgeFactory,
                 )
             }
         }
@@ -329,6 +364,7 @@ private fun runAnsiTitleMenu(
     terminal: AnsiTerminal,
     log: RylweenLog,
     worldMap: WorldMapGrid,
+    scriptBridgeFactory: AnsiScriptBridgeFactory,
 ) {
     val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
     screen.showStaticScreen(content, StaticScreens.title, renderer)
@@ -361,7 +397,7 @@ private fun runAnsiTitleMenu(
                         newGame = true,
                     )
                 saveInitialRuntime(savePort, session.runtime, log)
-                runAnsiWilderness(terminal, content, renderer, engine, savePort, log, session)
+                runAnsiWilderness(terminal, content, renderer, savePort, log, session, scriptBridgeFactory)
                 return
             }
             TitleMenuAction.Continue -> {
@@ -377,7 +413,7 @@ private fun runAnsiTitleMenu(
                         worldMap = worldMap,
                         newGame = false,
                     )
-                runAnsiWilderness(terminal, content, renderer, engine, savePort, log, session)
+                runAnsiWilderness(terminal, content, renderer, savePort, log, session, scriptBridgeFactory)
                 return
             }
             TitleMenuAction.Terminate -> {
@@ -526,22 +562,70 @@ private fun bootAnsiWildernessSession(
     )
 }
 
+/**
+ * Creates the script bridge used by ANSI child sessions for service roots.
+ *
+ * The factory is the J2.6 handoff point: authored mode returns the legacy
+ * `Op` interpreter bridge, while compiled mode returns a bridge over the
+ * loaded J1 bundle VM without changing terminal session adapters.
+ */
+private fun interface AnsiScriptBridgeFactory {
+    fun create(
+        terminal: TerminalPort,
+        battleContent: RuntimeContent,
+        worldMap: WorldMapGrid?,
+    ): ScriptBridge
+}
+
+private fun buildAnsiScriptBridgeFactory(
+    mode: ScriptVmMode,
+    bundleFile: File?,
+    game: RylweenModel,
+    renderer: TerminalTextRenderer,
+    speakContent: SpeakRuntimeContent,
+    log: RylweenLog,
+): AnsiScriptBridgeFactory {
+    log.audit("scriptVm", "mode=${mode.cliName}")
+    return when (mode) {
+        ScriptVmMode.Authored ->
+            AnsiScriptBridgeFactory { terminal, battleContent, worldMap ->
+                StatefulScriptBridge(
+                    terminal,
+                    engine = TraceEnginePort(eventSink = log),
+                    speakContent = speakContent,
+                    battleContent = battleContent,
+                    worldMap = worldMap,
+                    renderer = renderer,
+                )
+            }
+        ScriptVmMode.Compiled -> {
+            val host =
+                KotlinHeadlessHost.fromExternalBundleCompiledVm(
+                    bundleFile?.readBytes() ?: game.toExternalBundleArtifact(),
+                )
+            AnsiScriptBridgeFactory { terminal, _, _ ->
+                host.compiledVmTerminalScriptBridge(terminal, renderer)
+            }
+        }
+    }
+}
+
 private fun runAnsiWilderness(
     terminal: AnsiTerminal,
     content: GameModel,
     renderer: TerminalTextRenderer,
-    engine: RylweenKotlinEngine,
     savePort: RuntimeSavePort,
     log: RylweenLog,
     session: WildernessSession,
+    scriptBridgeFactory: AnsiScriptBridgeFactory,
 ) {
     RylweenAnsiGame(
         terminal = terminal,
         content = content,
         renderer = renderer,
-        speakContent = engine.speakContent(),
         savePort = savePort,
         log = log,
+        scriptBridgeFactory = scriptBridgeFactory,
     ).run(session)
 }
 
@@ -623,20 +707,13 @@ private class RylweenAnsiGame(
     private val terminal: AnsiTerminal,
     private val content: GameModel,
     private val renderer: TerminalTextRenderer,
-    private val speakContent: SpeakRuntimeContent,
     private val savePort: RuntimeSavePort,
     private val log: RylweenLog,
+    private val scriptBridgeFactory: AnsiScriptBridgeFactory,
 ) {
     private val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
     private val port = AnsiTerminalPort(terminal, screen)
-    private val serviceBridge =
-        StatefulScriptBridge(
-            port,
-            engine = TraceEnginePort(eventSink = log),
-            speakContent = speakContent,
-            battleContent = content.runtimeContent(),
-            renderer = renderer,
-        )
+    private val serviceBridge = scriptBridgeFactory.create(port, content.runtimeContent(), worldMap = null)
 
     fun run(initial: WildernessSession) {
         var session = initial
@@ -821,15 +898,7 @@ private class RylweenAnsiGame(
                     }
                     is WildernessSessionStep.Mission -> {
                         val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
-                        val missionBridge =
-                            StatefulScriptBridge(
-                                port,
-                                engine = TraceEnginePort(eventSink = log),
-                                speakContent = speakContent,
-                                battleContent = session.content,
-                                worldMap = session.worldMap,
-                                renderer = renderer,
-                            )
+                        val missionBridge = scriptBridgeFactory.create(port, session.content, session.worldMap)
                         val result = missionBridge.run(step.mission.service(), step.scene, continuation)
                         when (result.status) {
                             ScriptBridgeStatus.Finished ->
@@ -2065,6 +2134,8 @@ Examples:
                                    # Deterministic boot from authored fixture.
   rylween --bundle build/compiled/rylween-bundle.json
                                    # Boots from compiled J1 bundle (hash-verified at startup).
+  rylween --script-vm compiled --state strong-replay
+                                   # Runs ANSI service scripts through the J2 compiled VM path.
   rylween --screen title           # Renders the authored title screen and exits.
 
 Telnet/socket server mode:
@@ -2120,6 +2191,8 @@ Verbose-help section:
   Bundle boot:
     --bundle <file> reads a J1 compiled JSON bundle, verifies its hash and runtime facade,
     then boots the same Kotlin runtime/session stack from that artifact.
+    --script-vm compiled runs service roots through the J2 compiled VM contract. The default
+    --script-vm authored keeps the authored Op interpreter as the compiler/test oracle.
 
   Logging detail:
     RYL_LOG is a comma-separated sink list. stderr writes to standard error,
@@ -2152,6 +2225,11 @@ private class RylweenAnsiCommand : CliktCommand(name = "rylween") {
         envvar = "RYL_BUNDLE",
         help = "Compiled JSON bundle to verify before booting.",
     ).file(mustExist = true, canBeDir = false, mustBeReadable = true)
+    private val scriptVmMode by option(
+        "--script-vm",
+        envvar = "RYL_SCRIPT_VM",
+        help = "authored|compiled; selects the script VM used by ANSI service roots.",
+    ).convert { scriptVmModeArg(it) }.default(ScriptVmMode.Authored)
     private val loadFileOpt by option(
         "--load",
         help = "Runtime snapshot file to boot instead of --state.",
@@ -2256,6 +2334,7 @@ private class RylweenAnsiCommand : CliktCommand(name = "rylween") {
                 logSpec = logSpec,
                 logLevel = logLevel,
                 dumpBundle = dumpBundle,
+                scriptVmMode = scriptVmMode,
             )
         playerSlot?.let { config = config.withPlayerSlot(it) }
         runConfiguredAnsi(config)
