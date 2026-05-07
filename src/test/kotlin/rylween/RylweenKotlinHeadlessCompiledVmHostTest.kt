@@ -29,6 +29,8 @@ import rylween.dsl.dungeonEvent
 import rylween.dsl.item
 import rylween.dsl.keyAction
 import rylween.dsl.line
+import rylween.dsl.npc
+import rylween.dsl.npcJob
 import rylween.dsl.of
 import rylween.dsl.partyId
 import rylween.dsl.rumourTable
@@ -37,6 +39,7 @@ import rylween.dsl.rylween
 import rylween.dsl.sceneId
 import rylween.dsl.spellId
 import rylween.dsl.town
+import rylween.dsl.townPosition
 import rylween.engine.EngineTraceEvent
 import rylween.engine.KotlinHeadlessHost
 import rylween.engine.RuntimeScriptExecutionStrategy
@@ -179,6 +182,41 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         assertIs<TownSessionStep.Menu>(result.session.step)
     }
 
+    @Test
+    fun compiledVmTerminalBridgeResumesSpeakChildSession() {
+        val host = KotlinHeadlessHost.fromExternalBundleCompiledVm(hostModel().toExternalBundleArtifact())
+        val firstTerminal = ScenarioTerminalPort("S", "1")
+
+        val first =
+            TownSessionTerminalAdapter(
+                terminal = firstTerminal,
+                serviceBridge = host.compiledVmTerminalScriptBridge(firstTerminal),
+            ).runUntilBlocked(host.townSession(testRuntime(), hostTown))
+
+        assertIs<TerminalRunStatus.Waiting>(first.status)
+        assertTrue(firstTerminal.output.any { line -> "Chatting with" in line })
+        val blockedStep = assertIs<TownSessionStep.NativeService>(first.session.step)
+        val blockedContinuation = assertNotNull(blockedStep.continuation)
+        assertNotNull(blockedContinuation.compiledVmContinuation)
+        assertNotNull(blockedContinuation.speakSession)
+        assertTrue(
+            first.session.runtime.activeParty.visitedNpcs.any { visit ->
+                visit.npc == hostNpc && visit.visited
+            },
+        )
+
+        val secondTerminal = ScenarioTerminalPort("B")
+        val second =
+            TownSessionTerminalAdapter(
+                terminal = secondTerminal,
+                serviceBridge = host.compiledVmTerminalScriptBridge(secondTerminal),
+            ).runUntilBlocked(first.session)
+
+        assertIs<TerminalRunStatus.Waiting>(second.status)
+        assertEquals(25, second.session.runtime.activeParty.resources.gold)
+        assertIs<TownSessionStep.Menu>(second.session.step)
+    }
+
     private fun assertCompiledRootMatchesAuthored(
         model: RylweenModel,
         host: KotlinHeadlessHost,
@@ -219,7 +257,13 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                     party.gold += 17
                     stop("rumour done")
                 }
+                scene(hostSpeakScene) {
+                    speak(hostSpeakBuilding)
+                    party.gold += 23
+                    stop("speak done")
+                }
                 speak {
+                    standardConversation {}
                     textTables {
                         rumourTable(hostRumourTable) {
                             rumour {
@@ -257,13 +301,20 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                         services {
                             service(hostBuilding)
                             service(hostRumourBuilding)
+                            service(hostSpeakBuilding)
                         }
+                    }
+                }
+                characters {
+                    character(hostNpc, "Edda", hostNpcJob) {
+                        fixed(townPosition(hostTown, hostSpeakBuilding))
                     }
                 }
                 townSystem {
                     menu {
                         service('H', hostBuilding, hostAction)
                         service('R', hostRumourBuilding, hostRumourAction)
+                        service('S', hostSpeakBuilding, hostSpeakAction)
                         leave('L')
                     }
                     buildingServices {
@@ -271,6 +322,9 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                             alwaysOpen()
                         }
                         building(hostRumourBuilding, hostRumourAction, hostRumourScene) {
+                            alwaysOpen()
+                        }
+                        building(hostSpeakBuilding, hostSpeakAction, hostSpeakScene) {
                             alwaysOpen()
                         }
                     }
@@ -341,6 +395,7 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         val hostScene = sceneId("vm.host.scene")
         val hostTownScene = sceneId("vm.host.town-service")
         val hostRumourScene = sceneId("vm.host.rumour-service")
+        val hostSpeakScene = sceneId("vm.host.speak-service")
         val hostRumourTable = rumourTable("vm.host.rumours")
         val hostEvent = dungeonEvent("vm.host.event")
         val hostSpell = spellId("vm.host.spell")
@@ -350,5 +405,9 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         val hostAction = keyAction("vm.host.action")
         val hostRumourBuilding = building("vm.host.rumour-building")
         val hostRumourAction = keyAction("vm.host.rumour-action")
+        val hostSpeakBuilding = building("vm.host.speak-building")
+        val hostSpeakAction = keyAction("vm.host.speak-action")
+        val hostNpc = npc("vm.host.edda")
+        val hostNpcJob = npcJob("vm.host.guide")
     }
 }
