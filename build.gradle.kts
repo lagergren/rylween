@@ -16,6 +16,13 @@ plugins {
     id("rylween.qa-conventions")
 }
 
+enum class AnsiScriptVmMode(
+    val cliArgument: String,
+) {
+    Authored("authored"),
+    Compiled("compiled"),
+}
+
 abstract class CompileNativeCExecutableTask
     @Inject
     constructor(
@@ -109,6 +116,9 @@ abstract class CheckAnsiServerLauncherTask : DefaultTask() {
     abstract val stateSlug: Property<String>
 
     @get:Input
+    abstract val scriptVmMode: Property<AnsiScriptVmMode>
+
+    @get:Input
     abstract val workingDirectoryPath: Property<String>
 
     @get:OutputFile
@@ -126,6 +136,8 @@ abstract class CheckAnsiServerLauncherTask : DefaultTask() {
                 "127.0.0.1:$port",
                 "--state",
                 stateSlug.get(),
+                "--script-vm",
+                scriptVmMode.get().cliArgument,
             ).directory(File(workingDirectoryPath.get()))
                 .redirectErrorStream(true)
                 .apply {
@@ -170,6 +182,9 @@ abstract class CheckAnsiServerLauncherTask : DefaultTask() {
             }
             require("status=EnteredTown" in log.readText() && "town=thord" in log.readText()) {
                 "ANSI server log did not record the Thord handoff"
+            }
+            require("mode=${scriptVmMode.get().cliArgument}" in log.readText()) {
+                "ANSI server log did not record the ${scriptVmMode.get().cliArgument} script VM mode"
             }
         } finally {
             if (process.isAlive) process.destroyForcibly()
@@ -2132,8 +2147,29 @@ val checkKotlinAnsiServerBoot: TaskProvider<CheckAnsiServerLauncherTask> by task
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
     stateSlug.set("strong-replay")
+    scriptVmMode.set(AnsiScriptVmMode.Authored)
     workingDirectoryPath.set(layout.projectDirectory.asFile.absolutePath)
     logFile.set(layout.buildDirectory.file("logs/check-kotlin-ansi-server.log"))
+}
+
+val checkKotlinAnsiCompiledVmServerBoot: TaskProvider<CheckAnsiServerLauncherTask> by tasks.registering(
+    CheckAnsiServerLauncherTask::class,
+) {
+    group = "verification"
+    description = "Boots the ANSI socket launcher with --script-vm compiled and verifies a town/shop route."
+
+    dependsOn(installKotlinAnsi)
+    executableFile.set(kotlinAnsiExecutable)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    stateSlug.set("strong-replay")
+    scriptVmMode.set(AnsiScriptVmMode.Compiled)
+    workingDirectoryPath.set(layout.projectDirectory.asFile.absolutePath)
+    logFile.set(layout.buildDirectory.file("logs/check-kotlin-ansi-compiled-vm-server.log"))
 }
 
 val validateGameDsl: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
@@ -2165,4 +2201,5 @@ tasks.check {
     dependsOn(inspectExternalCompiledBundle)
     dependsOn(checkKotlinAnsiBundleBoot)
     dependsOn(checkKotlinAnsiServerBoot)
+    dependsOn(checkKotlinAnsiCompiledVmServerBoot)
 }
