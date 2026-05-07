@@ -2014,6 +2014,20 @@ val checkNativeJsonBundle: TaskProvider<Exec> by tasks.registering(Exec::class) 
     )
 }
 
+val checkNativeCompiledVmProbe: TaskProvider<Exec> by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs the narrow C compiled-VM probe over the emitted J1 bundle artifact."
+
+    dependsOn(checkNativeJsonBundle)
+    inputs.file(externalBundleArtifact)
+    inputs.file(nativeJsonExecutable)
+    commandLine(
+        nativeJsonExecutablePath,
+        externalBundleArtifactPath,
+        "--vm-probe",
+    )
+}
+
 val emitExternalCompiledBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Emits the deterministic JSON compiled bundle artifact."
@@ -2197,6 +2211,7 @@ tasks.check {
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     dependsOn(checkNativeSmokeBundle)
     dependsOn(checkNativeJsonBundle)
+    dependsOn(checkNativeCompiledVmProbe)
     dependsOn(checkExternalCompiledBundle)
     dependsOn(inspectExternalCompiledBundle)
     dependsOn(checkKotlinAnsiBundleBoot)
