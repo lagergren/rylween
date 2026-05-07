@@ -23,7 +23,6 @@ import rylween.runtime.castle.toCastleSnapshot
 import rylween.runtime.castle.treasureCommands
 import rylween.runtime.commandBindings
 import rylween.runtime.scriptRootForScene
-import rylween.runtime.town.speakRuntimeContent
 import rylween.save.RuntimeSaveOutcome
 import rylween.save.RuntimeSavePort
 import rylween.save.RuntimeSaveRequest
@@ -33,7 +32,7 @@ class CastleSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
     private val savePort: RuntimeSavePort? = null,
-    private val scriptBridge: ScriptBridge? = null,
+    private val scriptBridge: ScriptBridge = MissingScriptBridge("CastleSessionTerminalAdapter"),
 ) {
     fun run(initial: CastleSession): CastleSession = runUntilBlocked(initial).session
 
@@ -188,7 +187,6 @@ class CastleSessionTerminalAdapter(
                                 PriestSpellTerminalAdapter(
                                     terminal = terminal,
                                     renderer = renderer,
-                                    content = session.content,
                                     scriptBridge = scriptBridge,
                                 ).runUntilBlocked(it)
                             },
@@ -213,13 +211,7 @@ class CastleSessionTerminalAdapter(
                 continuation = step.continuation,
                 resumeModeAfterBattle = RuntimeMode.Castle,
             )
-        scriptBridge?.let { bridge -> return bridge.run(invocation) }
-        return StatefulScriptBridge(
-            terminal = terminal,
-            speakContent = session.content.speakRuntimeContent(),
-            battleContent = session.content,
-            renderer = renderer,
-        ).run(invocation)
+        return scriptBridge.run(invocation)
     }
 
     private fun saveRuntime(session: CastleSession): RuntimeSaveOutcome {

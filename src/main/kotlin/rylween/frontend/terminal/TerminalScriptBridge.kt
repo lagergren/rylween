@@ -57,6 +57,7 @@ import rylween.engine.KotlinHeadlessHost
 import rylween.engine.RuntimeEventLevel
 import rylween.engine.TraceEnginePort
 import rylween.engine.runtimeEvent
+import rylween.runtime.AuthoredScriptOracleApi
 import rylween.runtime.IntAstEvaluator
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptBlockRef
@@ -130,8 +131,8 @@ data class ScriptBridgeResult(
  * Root-level script invocation shared by authored and compiled bridge backends.
  *
  * [root] identifies the compiled-bundle program and save/diagnostic identity.
- * [rootOps] lets the authored interpreter remain the fallback implementation
- * for the same root without requiring callers to know which backend is active.
+ * [rootOps] carries the authored source body for explicit authored-oracle
+ * bridges; compiled bridges use [root] to find the loaded VM program.
  * [traceEvent] is emitted before execution when the script root also represents
  * a visible host transition, such as entering a town service.
  */
@@ -154,7 +155,50 @@ interface ScriptBridge {
     ): ScriptBridgeResult
 }
 
-/** Stateful terminal implementation of [ScriptBridge]. */
+/**
+ * Error raised when a terminal adapter reaches a script root without a bridge.
+ *
+ * This is the adapter-level guard for the J2 compiled-runtime path: app
+ * composition must choose [CompiledVmTerminalScriptBridge] for production
+ * execution, or an explicit [StatefulScriptBridge] in a test/oracle harness,
+ * before a script root can run.
+ */
+class MissingScriptBridgeException(
+    owner: String,
+    root: ScriptRootRef,
+) : IllegalStateException(
+        "$owner reached script root $root without an explicit ScriptBridge; " +
+            "pass CompiledVmTerminalScriptBridge for production or StatefulScriptBridge for an oracle test.",
+    )
+
+/**
+ * Sentinel bridge used by reusable terminal adapters when composition omitted a
+ * real script bridge. Non-script adapter paths can still run, but reaching a
+ * script root fails immediately instead of silently selecting the authored
+ * interpreter.
+ */
+class MissingScriptBridge(
+    private val owner: String,
+) : ScriptBridge {
+    override fun run(invocation: ScriptBridgeInvocation): ScriptBridgeResult = missing(invocation.root)
+
+    override fun run(
+        service: BuildingServiceModel,
+        scene: SceneModel,
+        continuation: ScriptContinuation,
+    ): ScriptBridgeResult = missing(ScriptRootRef.scene(scene.id))
+
+    private fun missing(root: ScriptRootRef): Nothing = throw MissingScriptBridgeException(owner, root)
+}
+
+/**
+ * Stateful terminal implementation of [ScriptBridge] for explicit authored-oracle tests.
+ *
+ * This bridge runs the legacy authored `Op` interpreter. It remains available
+ * for migration debugging and parity tests; production launchers compose
+ * [CompiledVmTerminalScriptBridge] instead.
+ */
+@AuthoredScriptOracleApi
 class StatefulScriptBridge(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort = TraceEnginePort(),
@@ -799,7 +843,8 @@ private class TerminalCompiledVmHost(
     }
 }
 
-/** Full result of running a script continuation through terminal adapters. */
+/** Full result of running an authored script continuation through terminal adapters. */
+@AuthoredScriptOracleApi
 data class StatefulScriptResult(
     val runtime: RuntimeSessionState,
     val status: ScriptBridgeStatus,
@@ -811,7 +856,15 @@ data class StatefulScriptResult(
     val party: PartyState get() = runtime.activeParty
 }
 
-/** Runner that drives service scripts while preserving resumable continuation state. */
+/**
+ * Low-level authored `Op` interpreter used by [StatefulScriptBridge].
+ *
+ * This class is the old Kotlin runtime for authored script bodies. It is kept
+ * as an explicit test-oracle implementation while J2 retirement work moves
+ * production hosts to the compiled VM. New runtime integrations should not
+ * instantiate it directly.
+ */
+@AuthoredScriptOracleApi
 class StatefulScriptServiceRunner(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort,
@@ -846,6 +899,7 @@ class StatefulScriptServiceRunner(
     private var opBudget = 4096
     private var writtenEventCount = engine.events.size
 
+    /** Runs until the authored script finishes, blocks for input, or hands off to a child session. */
     fun run(): StatefulScriptResult {
         runUntilBlockedOrFinished()
         val nextRuntime = currentRuntime()

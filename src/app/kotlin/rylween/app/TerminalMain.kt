@@ -9,31 +9,35 @@
 
 package rylween.app
 
+import rylween.compiled.toExternalBundleArtifact
 import rylween.dsl.GameModel
+import rylween.dsl.RylweenModel
 import rylween.dsl.StateId
 import rylween.dsl.StaticScreenId
 import rylween.dsl.TownId
 import rylween.dsl.Wilderness
 import rylween.dsl.image
 import rylween.dsl.lines
-import rylween.dsl.runtimeContent
 import rylween.dsl.stateId
 import rylween.dsl.staticScreen
 import rylween.dsl.town
 import rylween.dsl.worldMap
+import rylween.engine.KotlinHeadlessHost
 import rylween.engine.RuntimeStartupTarget
 import rylween.engine.RylweenKotlinEngine
 import rylween.engine.requireStartupTown
 import rylween.engine.selectStartupState
 import rylween.engine.validateStartupState
-import rylween.frontend.terminal.StatefulScriptBridge
+import rylween.frontend.terminal.ScriptBridge
 import rylween.frontend.terminal.TerminalAdapterResult
 import rylween.frontend.terminal.TerminalInputRejection
 import rylween.frontend.terminal.TerminalPort
 import rylween.frontend.terminal.TerminalRunStatus
 import rylween.frontend.terminal.TerminalTextContext
+import rylween.frontend.terminal.TerminalTextRenderer
 import rylween.frontend.terminal.TownSessionTerminalAdapter
 import rylween.frontend.terminal.WildernessSessionTerminalAdapter
+import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.frontend.terminal.staticScreenRequiresRuntimeState
 import rylween.frontend.terminal.terminalTextRenderer
@@ -65,6 +69,20 @@ private data class TerminalConfig(
     val newGame: Boolean = false,
 )
 
+private fun requireCompiledScriptVmMode(value: String) {
+    when (val normalized = value.lowercase()) {
+        "compiled",
+        "compiled-vm",
+        "vm",
+        -> Unit
+        "authored",
+        "interpreter",
+        "op",
+        -> error("authored Op execution is a test-only oracle; production launchers run the compiled VM")
+        else -> error("unknown script VM mode '$normalized'; expected compiled")
+    }
+}
+
 private class StdioTerminalPort : TerminalPort {
     override fun write(lines: List<String>) {
         lines.forEach(::println)
@@ -83,6 +101,7 @@ fun main(args: Array<String>): Unit =
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
         val terminal = StdioTerminalPort()
+        val renderer = content.terminalTextRenderer()
         config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
             terminal.writeStaticScreen(content, screenId)
             return@runRylweenCli
@@ -129,12 +148,12 @@ fun main(args: Array<String>): Unit =
         val adapter =
             TownSessionTerminalAdapter(
                 terminal = terminal,
-                renderer = content.terminalTextRenderer(),
+                renderer = renderer,
                 serviceBridge =
-                    StatefulScriptBridge(
-                        terminal,
-                        speakContent = engine.speakContent(),
-                        battleContent = content.runtimeContent(),
+                    buildTerminalScriptBridge(
+                        terminal = terminal,
+                        game = game,
+                        renderer = renderer,
                     ),
             )
 
@@ -159,6 +178,7 @@ object RylweenGameTerminalMain {
             val game = RylweenCompiledGame.nextRylween
             val content = RylweenCompiledGame.nextDsl
             val terminal = StdioTerminalPort()
+            val renderer = content.terminalTextRenderer()
             config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
                 terminal.writeStaticScreen(content, screenId)
                 return@runRylweenCli
@@ -208,7 +228,7 @@ object RylweenGameTerminalMain {
                 bootWildernessSession(
                     engine = engine,
                     terminal = terminal,
-                    renderer = content.terminalTextRenderer(),
+                    renderer = renderer,
                     snapshot = bootSnapshot,
                     worldMap = worldMap,
                     rngState = config.seed ?: bootSnapshot.state.realm.rngState,
@@ -217,12 +237,12 @@ object RylweenGameTerminalMain {
             val adapter =
                 WildernessSessionTerminalAdapter(
                     terminal = terminal,
-                    renderer = content.terminalTextRenderer(),
+                    renderer = renderer,
                     serviceBridge =
-                        StatefulScriptBridge(
-                            terminal,
-                            speakContent = engine.speakContent(),
-                            battleContent = content.runtimeContent(),
+                        buildTerminalScriptBridge(
+                            terminal = terminal,
+                            game = game,
+                            renderer = renderer,
                         ),
                     savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content),
                 )
@@ -238,6 +258,15 @@ object RylweenGameTerminalMain {
             terminal.runAdapterLoop(session, "Wilderness session finished.", adapter::runUntilBlocked)
         }
 }
+
+private fun buildTerminalScriptBridge(
+    terminal: TerminalPort,
+    game: RylweenModel,
+    renderer: TerminalTextRenderer,
+): ScriptBridge =
+    KotlinHeadlessHost
+        .fromExternalBundleCompiledVm(game.toExternalBundleArtifact())
+        .compiledVmTerminalScriptBridge(terminal, renderer)
 
 private fun <S> TerminalPort.runAdapterLoop(
     initial: S,
@@ -341,6 +370,10 @@ private fun parseTerminalConfig(
                 config = config.copy(town = townArg(args.valueAfter(index, arg)))
                 index += 2
             }
+            "--script-vm" -> {
+                requireCompiledScriptVmMode(args.valueAfter(index, arg))
+                index += 2
+            }
             "--help", "-h" -> {
                 printUsage()
                 exitProcess(0)
@@ -382,6 +415,7 @@ private fun printTownUsage() {
         |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
         |  --save-slot named runtime snapshot target under build/saves
+        |  --script-vm compiled, compiled-vm, or vm; production launchers only run the compiled VM
         |  --screen title, help, manual, score, vscore, or heroes; displays the authored static screen and exits
         """.trimMargin(),
     )
@@ -400,6 +434,7 @@ private fun printGameUsage() {
         |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
         |  --save-slot named runtime snapshot target under build/saves
+        |  --script-vm compiled, compiled-vm, or vm; production launchers only run the compiled VM
         |  --new    create a fresh party through the authored character-creation flow
         |  --screen title, help, manual, score, vscore, or heroes; displays the authored static screen and exits
         """.trimMargin(),

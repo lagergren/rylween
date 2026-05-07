@@ -30,6 +30,7 @@ import rylween.dsl.runtimeContent
 import rylween.engine.KotlinHeadlessHost
 import rylween.frontend.terminal.CastleSessionTerminalAdapter
 import rylween.frontend.terminal.ScriptBridge
+import rylween.frontend.terminal.StatefulScriptBridge
 import rylween.frontend.terminal.TerminalAdapterResult
 import rylween.frontend.terminal.TerminalPort
 import rylween.frontend.terminal.TerminalRunStatus
@@ -63,6 +64,7 @@ import rylween.runtime.delta
 import rylween.runtime.hasFlagState
 import rylween.runtime.toRuntimeSessionState
 import rylween.runtime.town.TownSession
+import rylween.runtime.town.speakRuntimeContent
 import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WildernessSessionResultStatus
 import rylween.runtime.wilderness.WildernessSessionStep
@@ -316,9 +318,16 @@ private class CheatedLongPlaythrough(
                 .filter { leg -> leg.expectedEnd is MissionEnd.DungeonHandoff }
                 .mapTo(linkedSetOf()) { leg -> leg.id }
 
-    private fun serviceBridge(terminal: TerminalPort): ScriptBridge? =
+    private fun serviceBridge(terminal: TerminalPort): ScriptBridge =
         when (scriptMode) {
-            PlaythroughScriptMode.Authored -> null
+            PlaythroughScriptMode.Authored ->
+                StatefulScriptBridge(
+                    terminal = terminal,
+                    speakContent = runtimeContent.speakRuntimeContent(),
+                    battleContent = runtimeContent,
+                    worldMap = worldMap,
+                    renderer = renderer,
+                )
             PlaythroughScriptMode.CompiledVm -> compiledHost.compiledVmTerminalScriptBridge(terminal, renderer)
         }
 
@@ -740,7 +749,12 @@ private class CheatedLongPlaythrough(
                 "A",
                 "A",
             )
-        val result = CastleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(session)
+        val result =
+            CastleSessionTerminalAdapter(
+                terminal = terminal,
+                renderer = renderer,
+                scriptBridge = serviceBridge(terminal),
+            ).runUntilBlocked(session)
 
         assertTrue(result.status is TerminalRunStatus.Finished)
         assertEquals(CastleSessionStatus.Completed, result.session.lastResult?.status)

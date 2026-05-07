@@ -27,6 +27,7 @@ import rylween.dsl.item
 import rylween.dsl.milestone
 import rylween.dsl.render
 import rylween.dsl.text
+import rylween.runtime.AuthoredScriptOracleApi
 import rylween.runtime.EquipmentPromptInput
 import rylween.runtime.EquipmentPromptSession
 import rylween.runtime.EquipmentPromptStep
@@ -40,13 +41,21 @@ import rylween.runtime.town.TownLeaveEquipmentSession
 import rylween.runtime.town.TownLeaveEquipmentStep
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 
-/** Executes authored [rylween.dsl.Op] lists against an engine port and records semantic events. */
+/**
+ * Executes authored [rylween.dsl.Op] lists against an engine port and records semantic events.
+ *
+ * This is a migration/parity oracle for tests and compiler diagnostics. It is
+ * deliberately not the portable runtime contract; production hosts should load
+ * the J1 bundle and execute scripts through `rylween.runtime.vm.CompiledVm`.
+ */
+@AuthoredScriptOracleApi
 class ScriptTraceRunner(
     private val engine: RylweenEnginePort,
 ) {
     private val intVars = mutableMapOf<String, Int>()
     private val stringVars = mutableMapOf<String, String>()
 
+    /** Runs [ops] through the authored trace interpreter and returns collected semantic events. */
     fun run(ops: List<Op>): List<EngineTraceEvent> {
         runAll(ops)
         return (engine as? TraceEnginePort)?.events.orEmpty()

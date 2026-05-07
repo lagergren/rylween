@@ -160,7 +160,10 @@ object RylweenRuntimeHostContract {
         )
 
     val kotlinAnsi: RuntimeHostSurface =
-        playableKotlinHost("kotlin-ansi")
+        playableKotlinHost(
+            id = "kotlin-ansi",
+            scriptExecution = RuntimeScriptExecutionStrategy.CompiledVm,
+        )
 
     val kotlinHeadless: RuntimeHostSurface =
         playableKotlinHost("kotlin-headless")

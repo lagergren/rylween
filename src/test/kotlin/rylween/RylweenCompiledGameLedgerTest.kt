@@ -35,6 +35,7 @@ import rylween.dsl.TownHandle
 import rylween.dsl.TownKind
 import rylween.dsl.Trigger
 import rylween.dsl.Wilderness
+import rylween.dsl.analyzeScriptSources
 import rylween.dsl.cells
 import rylween.dsl.inlineText
 import rylween.dsl.isWinningConfiguration
@@ -43,7 +44,6 @@ import rylween.dsl.keyAction
 import rylween.dsl.line
 import rylween.dsl.lines
 import rylween.dsl.matches
-import rylween.dsl.nativePathsIn
 import rylween.dsl.specialInventoryItems
 import rylween.dsl.structuredText
 import rylween.dsl.validateAuthoredContent
@@ -1088,7 +1088,7 @@ class RylweenCompiledGameLedgerTest {
         validateAuthoredContent(nextDsl)
         validateGameProgress(nextDsl.progress, nextDsl.itemCatalog)
         validateStates(nextRylween.states, nextDsl)
-        check((nativePathsIn(nextDsl) - NativeAllowlist.byPath.keys).isEmpty())
+        check((analyzeScriptSources(nextDsl).nativePaths - NativeAllowlist.byPath.keys).isEmpty())
     }
 
     @Test
@@ -1131,6 +1131,170 @@ class RylweenCompiledGameLedgerTest {
         check(offenders.isEmpty()) {
             "legacy replay env knobs must stay in the C replay harness or Kotlin tests, not Kotlin game/runtime code: " +
                 offenders.joinToString()
+        }
+    }
+
+    @Test
+    fun ansiRuntimeDoesNotDropScriptBridgeForScriptBearingChildAdapters() {
+        val source = File("src/app/kotlin/rylween/app/RylweenAnsiMain.kt").readText()
+        val forbiddenAdapterCalls =
+            mapOf(
+                "dungeon child adapter" to
+                    Regex(
+                        """DungeonSessionTerminalAdapter\([\s\S]*?postDungeon = step\.postDungeon,\s*\)""",
+                    ),
+                "castle child adapter" to
+                    Regex("""CastleSessionTerminalAdapter\(port,\s*renderer,\s*savePort\)"""),
+                "inventory item-use child adapter" to
+                    Regex("""InventoryItemUseTerminalAdapter\(port,\s*renderer\)\.runUntilBlocked"""),
+                "priest-spell child adapter" to
+                    Regex(
+                        """PriestSpellTerminalAdapter\(\s*port,\s*renderer,\s*content = session\.content,\s*worldMap = session\.worldMap,\s*\)""",
+                        setOf(RegexOption.DOT_MATCHES_ALL),
+                    ),
+            )
+        val offenders =
+            forbiddenAdapterCalls
+                .filterValues { pattern -> pattern.containsMatchIn(source) }
+                .keys
+
+        check(offenders.isEmpty()) {
+            "ANSI compiled-VM mode must pass the selected ScriptBridge into script-bearing child adapters: " +
+                offenders.joinToString()
+        }
+    }
+
+    @Test
+    fun reusableTerminalAdaptersDoNotConstructAuthoredScriptFallbacks() {
+        val forbidden = listOf("StatefulScriptBridge(", "StatefulScriptServiceRunner(", "serviceBridge ?:", "scriptBridge?.let")
+        val offenders =
+            listOf(
+                "src/main/kotlin/rylween/frontend/terminal/TerminalAdapters.kt",
+                "src/main/kotlin/rylween/frontend/terminal/CastleSessionTerminalAdapter.kt",
+            ).flatMap { path ->
+                val source = File(path).readText()
+                forbidden
+                    .filter { token -> token in source }
+                    .map { token -> "$path: $token" }
+            }
+
+        check(offenders.isEmpty()) {
+            "reusable terminal adapters must require explicit ScriptBridge composition instead of authored fallback: " +
+                offenders.joinToString()
+        }
+    }
+
+    @Test
+    fun lineTerminalRuntimeUsesCompiledVmOnly() {
+        val source = File("src/app/kotlin/rylween/app/TerminalMain.kt").readText()
+        val requiredTokens =
+            listOf(
+                "--script-vm",
+                "requireCompiledScriptVmMode",
+                "compiledVmTerminalScriptBridge",
+                "buildTerminalScriptBridge",
+                "authored Op execution is a test-only oracle",
+            )
+        val forbidden = listOf("StatefulScriptBridge", "TerminalScriptVmMode", "expected authored or compiled")
+        val missing = requiredTokens.filterNot { token -> token in source }
+        val offenders = forbidden.filter { token -> token in source }
+
+        check(missing.isEmpty()) {
+            "line-terminal runtime must keep the production script path on CompiledVm; missing: " +
+                missing.joinToString()
+        }
+        check(offenders.isEmpty()) {
+            "line-terminal runtime must not expose the authored interpreter as a production mode: " +
+                offenders.joinToString()
+        }
+    }
+
+    @Test
+    fun productionLaunchersDoNotComposeAuthoredInterpreter() {
+        val forbidden =
+            listOf(
+                "StatefulScriptBridge",
+                "StatefulScriptServiceRunner",
+                "ScriptVmMode.Authored",
+                "AnsiScriptVmMode.Authored",
+                "defaults to authored",
+                "authored|compiled",
+            )
+        val offenders =
+            listOf(
+                "src/app/kotlin/rylween/app/RylweenAnsiMain.kt",
+                "src/app/kotlin/rylween/app/TerminalMain.kt",
+                "build.gradle.kts",
+            ).flatMap { path ->
+                val source = File(path).readText()
+                forbidden
+                    .filter { token -> token in source }
+                    .map { token -> "$path: $token" }
+            }
+
+        check(offenders.isEmpty()) {
+            "production launchers and CI checks must run compiled VM scripts, not authored-op fallbacks: " +
+                offenders.joinToString()
+        }
+    }
+
+    @Test
+    fun authoredInterpreterApisAreMarkedAsOracleOnly() {
+        val requiredMarkers =
+            mapOf(
+                "src/main/kotlin/rylween/runtime/AuthoredScriptOracleApi.kt" to
+                    listOf("annotation class AuthoredScriptOracleApi", "CompiledVm", "parity/oracle test suite"),
+                "src/main/kotlin/rylween/engine/ScriptTrace.kt" to
+                    listOf("@AuthoredScriptOracleApi\nclass ScriptTraceRunner"),
+                "src/main/kotlin/rylween/frontend/terminal/TerminalScriptBridge.kt" to
+                    listOf(
+                        "@AuthoredScriptOracleApi\nclass StatefulScriptBridge",
+                        "@AuthoredScriptOracleApi\ndata class StatefulScriptResult",
+                        "@AuthoredScriptOracleApi\nclass StatefulScriptServiceRunner",
+                        "production launchers compose",
+                    ),
+                "src/main/kotlin/rylween/frontend/terminal/TerminalScriptTraceRunners.kt" to
+                    listOf("@file:rylween.runtime.AuthoredScriptOracleApi", "CompiledVmChildRequest"),
+            )
+        val missing =
+            requiredMarkers.flatMap { (path, tokens) ->
+                val source = File(path).readText()
+                tokens
+                    .filterNot { token -> token in source }
+                    .map { token -> "$path: $token" }
+            }
+
+        check(missing.isEmpty()) {
+            "authored interpreter/oracle APIs must stay visibly marked outside the production VM contract: " +
+                missing.joinToString()
+        }
+    }
+
+    @Test
+    fun scriptSourceAnalysisOwnsNativePathWalking() {
+        val dslSource = File("src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val validationSource = File("src/main/kotlin/rylween/dsl/DslValidation.kt").readText()
+        val analysisSource = File("src/main/kotlin/rylween/dsl/ScriptSourceAnalysis.kt").readText()
+        val requiredTokens =
+            listOf(
+                "remaining authoring/compiler boundary",
+                "enum class ScriptSourceRootKind",
+                "data class ScriptSourceOp",
+                "fun ScriptSourceRoot.visitScriptOps",
+                "fun analyzeScriptSources(model: GameModel)",
+                "fun nativePathsIn(model: GameModel)",
+            )
+        val missing = requiredTokens.filterNot { token -> token in analysisSource }
+
+        check("fun nativePathsIn(model: GameModel)" !in dslSource) {
+            "native path walking must stay out of Dsl.kt and under the source-analysis boundary"
+        }
+        check("fun visitOps(" !in validationSource) {
+            "DslValidation.kt must use ScriptSourceAnalysis traversal instead of owning recursive op walkers"
+        }
+        check(missing.isEmpty()) {
+            "script source analysis must keep native-path/source-map migration hooks visible; missing: " +
+                missing.joinToString()
         }
     }
 }

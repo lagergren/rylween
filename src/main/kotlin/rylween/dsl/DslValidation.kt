@@ -1420,7 +1420,7 @@ fun validateItemUses(
         check(itemUse.contexts.isNotEmpty()) { "item use ${itemUse.id.slug} has no contexts" }
         check(itemUse.ops.isNotEmpty()) { "item use ${itemUse.id.slug} has no effect body" }
 
-        val consumesInBody = itemUse.ops.containsConsumeActiveItem()
+        val consumesInBody = itemUse.containsConsumeActiveItem()
         when (itemUse.consume) {
             ItemConsumePolicy.BeforeUse ->
                 check(!consumesInBody) {
@@ -1479,21 +1479,12 @@ fun validateDialogue(
     }
 }
 
-private fun List<Op>.containsConsumeActiveItem(): Boolean =
-    any { op ->
-        when (op) {
-            Op.ConsumeActiveItem -> true
-            is Op.If -> op.thenOps.containsConsumeActiveItem() || op.elseOps.containsConsumeActiveItem()
-            is Op.Loop -> op.body.containsConsumeActiveItem()
-            is Op.Switch -> op.cases.any { it.body.containsConsumeActiveItem() }
-            is Op.Menu ->
-                op.options.any { it.body.containsConsumeActiveItem() } ||
-                    op.defaultOps.containsConsumeActiveItem()
-            is Op.ForEachMember -> op.body.containsConsumeActiveItem()
-            is Op.ForEachMonster -> op.body.containsConsumeActiveItem()
-            else -> false
-        }
-    }
+private fun ItemUseModel.containsConsumeActiveItem(): Boolean =
+    ScriptSourceRoot(
+        id = ScriptSourceRootId(ScriptSourceRootKind.ItemUse, id.slug),
+        ops = ops,
+        label = "item use ${id.slug}",
+    ).anyScriptOp { op -> op == Op.ConsumeActiveItem }
 
 /** Validates reward and native-service use inside authored script bodies. */
 fun validateScriptRewards(
@@ -1865,133 +1856,103 @@ fun validateScriptRewards(
         }
     }
 
-    fun visit(ops: List<Op>) {
-        fun visitOps(
-            items: List<Op>,
-            loopDepth: Int,
-        ) {
-            items.forEach { op ->
-                when (op) {
-                    is Op.Screen -> validateTextBlock(op.text, "screen", knownRoles, knownTowns)
-                    is Op.EmitIndexed -> validateIntExpression(op.value, "indexed text emit")
-                    is Op.LetInt -> validateIntExpression(op.value, "local int")
-                    is Op.Set -> validateIntExpression(op.value, "state assignment")
-                    is Op.Add -> validateIntExpression(op.value, "state add")
-                    is Op.Sub -> validateIntExpression(op.value, "state subtract")
-                    is Op.AddClamped -> {
-                        validateIntExpression(op.value, "state clamped add")
-                        validateIntExpression(op.max, "state clamped add max")
-                    }
-                    is Op.AppendJournal -> validateTextBlock(op.text, "journal append", knownRoles, knownTowns)
-                    is Op.Menu -> {
-                        validateTextBlock(op.prompt, "menu prompt")
-                        op.options.forEach { option ->
-                            validateInputChoiceBinding(option.binding, "script menu option ${option.key}")
-                        }
-                        checkUniqueBindings(op.options.map { it.binding }, "script menu")
-                        op.options.forEach { visitOps(it.body, loopDepth) }
-                        visitOps(op.defaultOps, loopDepth)
-                    }
-                    is Op.AskKey -> {
-                        validateTextBlock(op.prompt, "key choice prompt")
-                        check(op.bindings.isNotEmpty()) { "key choice prompt must accept at least one key" }
-                        op.bindings.forEach { binding ->
-                            validateInputChoiceBinding(binding, "key choice ${binding.label}")
-                        }
-                        checkUniqueBindings(op.bindings, "key choice prompt")
-                    }
-                    is Op.AskMember -> validateTextBlock(op.prompt, "member choice prompt")
-                    is Op.AskInventorySlot -> {
-                        validateTextBlock(op.prompt, "inventory-slot choice prompt")
-                        check(op.firstKey.isLetter()) { "inventory-slot choice first key must be a letter" }
-                        check(op.slots.first >= 0) { "inventory-slot choice starts before slot 0" }
-                        check(op.slots.last <= InventorySaveSlotMax) {
-                            "inventory-slot choice ends after slot $InventorySaveSlotMax"
-                        }
-                    }
-                    is Op.AskText -> {
-                        validateTextBlock(op.prompt, "text answer prompt")
-                        check(op.accepted.isNotEmpty()) { "text answer prompt must accept at least one value" }
-                        check(op.accepted.none { it.isEmpty() }) { "text answer prompt cannot accept an empty value" }
-                        op.maxLength?.let { max ->
-                            check(max > 0) { "text answer max length must be positive" }
-                        }
-                        visitOps(op.matchOps, loopDepth)
-                        visitOps(op.missOps, loopDepth)
-                    }
-                    is Op.GrantReward -> validateReward(op.reward)
-                    is Op.RandomItemOffer -> validateRandomItemOffer(op.offer)
-                    is Op.ShopService -> validateShop(op.shop)
-                    is Op.SetFlag -> flagStates?.requireKnown(op.slug, op.nativeValue, "script state change")
-                    is Op.ConsumeInventoryPool -> {
-                        validateSlottedItemPool(op.pool, "consume inventory")
-                        validateIntExpression(op.quantity, "consume inventory quantity")
-                        (op.quantity as? IntAst.Lit)?.let { quantity ->
-                            check(quantity.value > 0) { "consume inventory quantity must be positive" }
-                        }
-                    }
-                    is Op.ClearInventorySlot -> validateIntExpression(op.slot, "clear inventory slot")
-                    is Op.EnterDungeon -> {
-                        check(op.levels > 0) { "script dungeon handoff must use positive level count" }
-                        requireDungeonScenario(op.dungeon, "script dungeon handoff", op.levels)
-                    }
-                    is Op.TeleportParty -> {
-                        validateIntExpression(op.directionKey, "teleport direction key")
-                        validateIntExpression(op.distance, "teleport distance")
-                    }
-                    is Op.DiscoverCave -> {
-                        validateIntExpression(op.levels, "discover cave level count")
-                        validateIntExpression(op.moveCost, "discover cave move cost")
-                        val literalLevels = (op.levels as? IntAst.Lit)?.value
-                        literalLevels?.let { check(it > 0) { "discover cave level count must be positive" } }
-                        requireDungeonScenario(op.dungeon, "discover cave", literalLevels)
-                    }
-                    is Op.If -> {
-                        validateBoolExpression(op.cond, "script condition")
-                        visitOps(op.thenOps, loopDepth)
-                        visitOps(op.elseOps, loopDepth)
-                    }
-                    is Op.Loop -> visitOps(op.body, loopDepth + 1)
-                    is Op.Break ->
-                        check(loopDepth > 0) {
-                            "breakLoop(${op.reason ?: ""}) must be inside loop { ... }"
-                        }
-                    is Op.Switch -> {
-                        validateIntExpression(op.expr, "script switch")
-                        op.cases.forEach { visitOps(it.body, loopDepth) }
-                    }
-                    is Op.RunScene ->
-                        check(op.scene in knownScenes) {
-                            "script run references missing scene ${op.scene.slug}"
-                        }
-                    is Op.Encounter -> {
-                        check(op.foe in knownMonsters) {
-                            "script encounter references unknown monster ${op.foe.slug}"
-                        }
-                        op.tier?.let { tier -> requireEncounterTier(tier, "script encounter ${op.foe.slug}") }
-                    }
-                    is Op.AchieveMilestone ->
-                        check(op.milestone in knownMilestones) {
-                            "script achieve references unknown milestone ${op.milestone.slug}"
-                        }
-                    is Op.ForEachMember -> visitOps(op.body, loopDepth)
-                    is Op.ForEachMonster -> visitOps(op.body, loopDepth)
-                    else -> Unit
+    content.scriptSourceRoots().forEach { root ->
+        root.visitScriptOps { sourceOp ->
+            when (val op = sourceOp.op) {
+                is Op.Screen -> validateTextBlock(op.text, "screen", knownRoles, knownTowns)
+                is Op.EmitIndexed -> validateIntExpression(op.value, "indexed text emit")
+                is Op.LetInt -> validateIntExpression(op.value, "local int")
+                is Op.Set -> validateIntExpression(op.value, "state assignment")
+                is Op.Add -> validateIntExpression(op.value, "state add")
+                is Op.Sub -> validateIntExpression(op.value, "state subtract")
+                is Op.AddClamped -> {
+                    validateIntExpression(op.value, "state clamped add")
+                    validateIntExpression(op.max, "state clamped add max")
                 }
+                is Op.AppendJournal -> validateTextBlock(op.text, "journal append", knownRoles, knownTowns)
+                is Op.Menu -> {
+                    validateTextBlock(op.prompt, "menu prompt")
+                    op.options.forEach { option ->
+                        validateInputChoiceBinding(option.binding, "script menu option ${option.key}")
+                    }
+                    checkUniqueBindings(op.options.map { it.binding }, "script menu")
+                }
+                is Op.AskKey -> {
+                    validateTextBlock(op.prompt, "key choice prompt")
+                    check(op.bindings.isNotEmpty()) { "key choice prompt must accept at least one key" }
+                    op.bindings.forEach { binding ->
+                        validateInputChoiceBinding(binding, "key choice ${binding.label}")
+                    }
+                    checkUniqueBindings(op.bindings, "key choice prompt")
+                }
+                is Op.AskMember -> validateTextBlock(op.prompt, "member choice prompt")
+                is Op.AskInventorySlot -> {
+                    validateTextBlock(op.prompt, "inventory-slot choice prompt")
+                    check(op.firstKey.isLetter()) { "inventory-slot choice first key must be a letter" }
+                    check(op.slots.first >= 0) { "inventory-slot choice starts before slot 0" }
+                    check(op.slots.last <= InventorySaveSlotMax) {
+                        "inventory-slot choice ends after slot $InventorySaveSlotMax"
+                    }
+                }
+                is Op.AskText -> {
+                    validateTextBlock(op.prompt, "text answer prompt")
+                    check(op.accepted.isNotEmpty()) { "text answer prompt must accept at least one value" }
+                    check(op.accepted.none { it.isEmpty() }) { "text answer prompt cannot accept an empty value" }
+                    op.maxLength?.let { max ->
+                        check(max > 0) { "text answer max length must be positive" }
+                    }
+                }
+                is Op.GrantReward -> validateReward(op.reward)
+                is Op.RandomItemOffer -> validateRandomItemOffer(op.offer)
+                is Op.ShopService -> validateShop(op.shop)
+                is Op.SetFlag -> flagStates?.requireKnown(op.slug, op.nativeValue, "script state change")
+                is Op.ConsumeInventoryPool -> {
+                    validateSlottedItemPool(op.pool, "consume inventory")
+                    validateIntExpression(op.quantity, "consume inventory quantity")
+                    (op.quantity as? IntAst.Lit)?.let { quantity ->
+                        check(quantity.value > 0) { "consume inventory quantity must be positive" }
+                    }
+                }
+                is Op.ClearInventorySlot -> validateIntExpression(op.slot, "clear inventory slot")
+                is Op.EnterDungeon -> {
+                    check(op.levels > 0) { "script dungeon handoff must use positive level count" }
+                    requireDungeonScenario(op.dungeon, "script dungeon handoff", op.levels)
+                }
+                is Op.TeleportParty -> {
+                    validateIntExpression(op.directionKey, "teleport direction key")
+                    validateIntExpression(op.distance, "teleport distance")
+                }
+                is Op.DiscoverCave -> {
+                    validateIntExpression(op.levels, "discover cave level count")
+                    validateIntExpression(op.moveCost, "discover cave move cost")
+                    val literalLevels = (op.levels as? IntAst.Lit)?.value
+                    literalLevels?.let { check(it > 0) { "discover cave level count must be positive" } }
+                    requireDungeonScenario(op.dungeon, "discover cave", literalLevels)
+                }
+                is Op.If -> validateBoolExpression(op.cond, "script condition")
+                is Op.Break ->
+                    check(sourceOp.loopDepth > 0) {
+                        "breakLoop(${op.reason ?: ""}) must be inside loop { ... }"
+                    }
+                is Op.Switch -> validateIntExpression(op.expr, "script switch")
+                is Op.RunScene ->
+                    check(op.scene in knownScenes) {
+                        "script run references missing scene ${op.scene.slug}"
+                    }
+                is Op.Encounter -> {
+                    check(op.foe in knownMonsters) {
+                        "script encounter references unknown monster ${op.foe.slug}"
+                    }
+                    op.tier?.let { tier -> requireEncounterTier(tier, "script encounter ${op.foe.slug}") }
+                }
+                is Op.AchieveMilestone ->
+                    check(op.milestone in knownMilestones) {
+                        "script achieve references unknown milestone ${op.milestone.slug}"
+                    }
+                else -> Unit
             }
         }
-
-        visitOps(ops, loopDepth = 0)
     }
-
-    content.scenes.forEach { visit(it.ops) }
-    content.dungeons.events.forEach { visit(it.ops) }
-    content.dialogue.forEach { dialogue ->
-        dialogue.branches.forEach { visit(it.ops) }
-    }
-    content.speak.questionActions.forEach { visit(it.ops) }
-    content.spells.forEach { visit(it.ops) }
-    content.itemUses.forEach { visit(it.ops) }
 }
 
 private fun validateItemPool(
@@ -2264,89 +2225,25 @@ private fun validateImageReferences(content: GameModel) {
                 battle.opening.banners.forEach { add(it to "battle opening banner") }
                 battle.victoryImage?.let { add(it to "battle victory image") }
             }
-            content.scenes.forEach { scene -> addAll(scene.ops.imageReferences("scene ${scene.id.slug}")) }
-            content.dungeons.events.forEach { event -> addAll(event.ops.imageReferences("dungeon event ${event.id.slug}")) }
-            content.dialogue.forEach { dialogue ->
-                dialogue.branches.forEach { branch ->
-                    addAll(branch.ops.imageReferences("dialogue ${dialogue.npc.slug}"))
-                }
-            }
-            content.spells.forEach { spell -> addAll(spell.ops.imageReferences("spell ${spell.id.slug}")) }
-            content.itemUses.forEach { itemUse -> addAll(itemUse.ops.imageReferences("item use ${itemUse.id.slug}")) }
+            content.scriptSourceRoots().forEach { root -> addAll(root.imageReferences()) }
         }
     references.forEach { (image, label) ->
         check(image in declared) { "$label references undeclared image ${image.slug}" }
     }
 }
 
-private fun List<Op>.imageReferences(label: String): List<Pair<ImageId, String>> =
+private fun ScriptSourceRoot.imageReferences(): List<Pair<ImageId, String>> =
     buildList {
-        fun visit(
-            ops: List<Op>,
-            nestedLabel: String,
-        ) {
-            ops.forEach { op ->
-                when (op) {
-                    is Op.View -> {
-                        val image = (op.command as? ViewCommand.ShowImage)?.image
-                        if (image != null) add(image to nestedLabel)
-                    }
-                    is Op.If -> {
-                        visit(op.thenOps, nestedLabel)
-                        visit(op.elseOps, nestedLabel)
-                    }
-                    is Op.Loop -> visit(op.body, nestedLabel)
-                    is Op.Switch -> op.cases.forEach { visit(it.body, nestedLabel) }
-                    is Op.Menu -> {
-                        op.options.forEach { option -> visit(option.body, nestedLabel) }
-                        visit(op.defaultOps, nestedLabel)
-                    }
-                    is Op.AskText -> {
-                        visit(op.matchOps, nestedLabel)
-                        visit(op.missOps, nestedLabel)
-                    }
-                    is Op.ForEachMember -> visit(op.body, nestedLabel)
-                    is Op.ForEachMonster -> visit(op.body, nestedLabel)
-                    is Op.ShopService -> add(op.shop.image to "$nestedLabel shop")
-                    is Op.Screen,
-                    is Op.Emit,
-                    is Op.EmitIndexed,
-                    is Op.WaitInput,
-                    is Op.Pause,
-                    is Op.LetInt,
-                    is Op.BindText,
-                    is Op.Set,
-                    is Op.Add,
-                    is Op.Sub,
-                    is Op.AddClamped,
-                    is Op.SetFlag,
-                    is Op.AppendJournal,
-                    is Op.Break,
-                    is Op.Stop,
-                    is Op.AskKey,
-                    is Op.AskMember,
-                    is Op.AskInventorySlot,
-                    is Op.AskMonster,
-                    is Op.Speak,
-                    is Op.TellRumour,
-                    is Op.RunScene,
-                    is Op.Encounter,
-                    is Op.EnterDungeon,
-                    Op.ConsumeActiveItem,
-                    is Op.ClearInventorySlot,
-                    is Op.ConsumeInventoryPool,
-                    Op.ConsumeTorch,
-                    is Op.TeleportParty,
-                    is Op.DiscoverCave,
-                    is Op.GrantReward,
-                    is Op.RandomItemOffer,
-                    is Op.AchieveMilestone,
-                    is Op.NativeCall,
-                    -> Unit
+        visitScriptOps { sourceOp ->
+            when (val op = sourceOp.op) {
+                is Op.View -> {
+                    val image = (op.command as? ViewCommand.ShowImage)?.image
+                    if (image != null) add(image to sourceOp.label)
                 }
+                is Op.ShopService -> add(op.shop.image to "${sourceOp.label} shop")
+                else -> Unit
             }
         }
-        visit(this@imageReferences, label)
     }
 
 private fun validateWorldMaps(
@@ -2497,6 +2394,11 @@ private fun validateFlagTransitions(
         }
     }
 
+    fun statesRequiredBy(conditions: List<BoolAst>): Map<String, FlagState> =
+        conditions.fold(emptyMap()) { context, condition ->
+            combineStates(context, statesRequiredBy(condition))
+        }
+
     fun validateTransition(
         slug: String,
         native: String,
@@ -2520,68 +2422,35 @@ private fun validateFlagTransitions(
         }
     }
 
-    fun visitOps(
-        ops: List<Op>,
-        context: Map<String, FlagState>,
-        label: String,
+    fun validateMissionTransitions(
+        mission: MissionModel,
+        scene: SceneModel,
     ) {
-        ops.forEach { op ->
-            when (op) {
-                is Op.SetFlag -> validateTransition(op.slug, op.nativeValue, context, label)
-                is Op.If -> {
-                    visitOps(op.thenOps, combineStates(context, statesRequiredBy(op.cond)), "$label if-then")
-                    visitOps(op.elseOps, context, "$label if-else")
-                }
-                is Op.Loop -> visitOps(op.body, context, "$label loop")
-                is Op.Switch ->
-                    op.cases.forEachIndexed { index, case ->
-                        visitOps(case.body, context, "$label switch case ${index + 1}")
-                    }
-                is Op.Menu -> {
-                    op.options.forEach { option ->
-                        visitOps(option.body, context, "$label menu ${option.key}")
-                    }
-                    visitOps(op.defaultOps, context, "$label menu default")
-                }
-                is Op.AskText -> {
-                    visitOps(op.matchOps, context, "$label text-answer match")
-                    visitOps(op.missOps, context, "$label text-answer miss")
-                }
-                is Op.ForEachMember -> visitOps(op.body, context, "$label member loop")
-                is Op.ForEachMonster -> visitOps(op.body, context, "$label monster loop")
-                else -> Unit
-            }
+        visitScriptOps(scene.ops, "mission ${mission.id.slug}", listOfNotNull(mission.requires)) { sourceOp ->
+            val op = sourceOp.op as? Op.SetFlag ?: return@visitScriptOps
+            validateTransition(
+                slug = op.slug,
+                native = op.nativeValue,
+                context = statesRequiredBy(sourceOp.branchConditions),
+                label = sourceOp.label,
+            )
         }
     }
 
-    content.scenes.forEach { scene ->
-        visitOps(scene.ops, emptyMap(), "scene ${scene.id.slug}")
-    }
-    content.dungeons.events.forEach { event ->
-        visitOps(event.ops, emptyMap(), "dungeon event ${event.id.slug}")
-    }
-    content.dialogue.forEach { dialogue ->
-        dialogue.branches.forEach { branch ->
-            val context = branch.whenState?.let { mapOf(it.flag.slug to it) }.orEmpty()
-            val label =
-                branch.whenState
-                    ?.let { "dialogue ${dialogue.npc.slug} when ${it.flag.slug}.${it.native}" }
-                    ?: "dialogue ${dialogue.npc.slug} default"
-            visitOps(branch.ops, context, label)
+    content.scriptSourceRoots().forEach { root ->
+        root.visitScriptOps { sourceOp ->
+            val op = sourceOp.op as? Op.SetFlag ?: return@visitScriptOps
+            validateTransition(
+                slug = op.slug,
+                native = op.nativeValue,
+                context = statesRequiredBy(sourceOp.branchConditions),
+                label = sourceOp.label,
+            )
         }
-    }
-    content.speak.questionActions.forEach { action ->
-        visitOps(action.ops, emptyMap(), "speak ${action.topic} ${action.job.slug}")
-    }
-    content.spells.forEach { spell ->
-        visitOps(spell.ops, emptyMap(), "spell ${spell.id.slug}")
-    }
-    content.itemUses.forEach { itemUse ->
-        visitOps(itemUse.ops, emptyMap(), "item use ${itemUse.id.slug}")
     }
     content.missions.forEach { mission ->
         val scene = scenesById[mission.action] ?: return@forEach
-        visitOps(scene.ops, statesRequiredBy(mission.requires), "mission ${mission.id.slug}")
+        validateMissionTransitions(mission, scene)
     }
 }
 
