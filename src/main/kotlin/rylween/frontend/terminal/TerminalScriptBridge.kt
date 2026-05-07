@@ -222,21 +222,25 @@ class CompiledVmTerminalScriptBridge(
         fun waitingResult(
             blocked: CompiledVmResult.Blocked,
             rejection: TerminalInputRejection? = null,
-        ): ScriptBridgeResult =
-            ScriptBridgeResult(
-                runtime = blocked.continuation.runtime,
+            speakSession: SpeakSession? = null,
+        ): ScriptBridgeResult {
+            val resultRuntime = speakSession?.runtime ?: blocked.continuation.runtime
+            return ScriptBridgeResult(
+                runtime = resultRuntime,
                 status = ScriptBridgeStatus.Waiting,
                 events = unwrittenEvents(),
                 continuation =
                     continuation
                         .withRoot(root)
                         .copy(
-                            runtime = blocked.continuation.runtime,
+                            runtime = resultRuntime,
                             locals = blocked.continuation.locals,
+                            speakSession = speakSession,
                             compiledVmContinuation = blocked.continuation,
                         ),
                 rejection = rejection,
             )
+        }
 
         var result: CompiledVmResult =
             continuation.compiledVmContinuation
@@ -260,9 +264,18 @@ class CompiledVmTerminalScriptBridge(
                     error("compiled VM script ${root.kind}.${root.slug} failed: ${current.diagnostic}")
                 is CompiledVmResult.Blocked -> {
                     val promptRendered = flushEvents(current.continuation.runtime)
-                    runChildSession(current)?.let { childResult ->
-                        result = childResult
-                        return@repeat
+                    when (val childResult = runChildSession(current, continuation)) {
+                        is ChildSessionResult.Resumed -> {
+                            result = childResult.result
+                            return@repeat
+                        }
+                        is ChildSessionResult.Waiting ->
+                            return waitingResult(
+                                current,
+                                rejection = childResult.rejection,
+                                speakSession = childResult.speakSession,
+                            )
+                        null -> Unit
                     }
                     if (!promptRendered) {
                         writePendingPrompt(current.pending, current.continuation.runtime)
@@ -280,17 +293,54 @@ class CompiledVmTerminalScriptBridge(
         error("compiled VM script ${root.kind}.${root.slug} exceeded terminal bridge step budget")
     }
 
-    private fun runChildSession(blocked: CompiledVmResult.Blocked): CompiledVmResult? {
+    private sealed interface ChildSessionResult {
+        data class Resumed(
+            val result: CompiledVmResult,
+        ) : ChildSessionResult
+
+        data class Waiting(
+            val speakSession: SpeakSession,
+            val rejection: TerminalInputRejection?,
+        ) : ChildSessionResult
+    }
+
+    private fun runChildSession(
+        blocked: CompiledVmResult.Blocked,
+        continuation: ScriptContinuation,
+    ): ChildSessionResult? {
         val pending = blocked.pending as? CompiledVmPendingInput.ChildSession ?: return null
         return when (val request = pending.request) {
-            is CompiledVmChildRequest.TellRumour -> completeTellRumour(request, blocked)
-            is CompiledVmChildRequest.Speak,
+            is CompiledVmChildRequest.Speak -> runSpeak(request, blocked, continuation.speakSession)
+            is CompiledVmChildRequest.TellRumour -> ChildSessionResult.Resumed(completeTellRumour(request, blocked))
             is CompiledVmChildRequest.Encounter,
             is CompiledVmChildRequest.EnterDungeon,
             is CompiledVmChildRequest.GrantReward,
             is CompiledVmChildRequest.RandomItemOffer,
             is CompiledVmChildRequest.ShopService,
             -> null
+        }
+    }
+
+    private fun runSpeak(
+        request: CompiledVmChildRequest.Speak,
+        blocked: CompiledVmResult.Blocked,
+        activeSession: SpeakSession?,
+    ): ChildSessionResult {
+        val childEngine = TraceEnginePort()
+        val initial = activeSession ?: SpeakSession.start(content.speakRuntimeContent(), blocked.continuation.runtime, request.building)
+        val result = SpeakSessionTraceRunner(terminal, childEngine, content).runUntilBlocked(initial)
+        childEngine.events.forEach(vmHost::trace)
+        return when (val status = result.status) {
+            TerminalRunStatus.Finished ->
+                ChildSessionResult.Resumed(
+                    runner.resume(
+                        blocked.continuation,
+                        CompiledVmInput.ChildSessionCompleted(CompiledVmChildCompletion(result.session.runtime)),
+                    ),
+                )
+            is TerminalRunStatus.Waiting -> ChildSessionResult.Waiting(result.session, status.rejection)
+            TerminalRunStatus.StepLimitReached ->
+                error("compiled VM speak child for ${request.building.slug} exceeded terminal bridge step budget")
         }
     }
 
