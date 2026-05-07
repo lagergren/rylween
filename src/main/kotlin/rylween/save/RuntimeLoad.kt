@@ -1,14 +1,19 @@
 /**
- * Runtime save loading, parsing diagnostics, and compatibility checks.
+ * Runtime snapshot loading, parsing diagnostics, and compatibility checks.
  *
  * This is the read-side counterpart to `RuntimeSave.kt`; it uses
  * `StateSnapshot.kt` to parse saves, [validateRuntimeStateSnapshotForLoad] to
  * check authored-content references, and `SaveCompatibility.kt` metadata to
- * reject stale snapshots.
+ * reject stale snapshots. Some snapshot records exist for engine
+ * execution-boundary round trips and tests; the frontend/session layer still
+ * decides which runtime modes expose player-visible saves.
  */
 package rylween.save
 
 import rylween.dsl.GameModel
+import rylween.dsl.ItemId
+import rylween.dsl.ItemUseContext
+import rylween.dsl.NpcId
 import rylween.dsl.RuntimeMode
 import rylween.dsl.RylweenValidationException
 import rylween.dsl.StateModel
@@ -19,6 +24,22 @@ import rylween.runtime.CastleSavedStep
 import rylween.runtime.CastleSessionSnapshot
 import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSnapshotModel
+import rylween.runtime.ScriptContinuationSnapshot
+import rylween.runtime.ScriptRootKind
+import rylween.runtime.ScriptRootRef
+import rylween.runtime.battle.BattleSavedStep
+import rylween.runtime.battle.BattleSessionSnapshot
+import rylween.runtime.battle.CombatScriptSnapshot
+import rylween.runtime.battle.CombatScriptSourceKind
+import rylween.runtime.reward.RandomItemOfferSavedStep
+import rylween.runtime.reward.RandomItemOfferSessionSnapshot
+import rylween.runtime.reward.RewardGrantSavedStep
+import rylween.runtime.reward.RewardGrantSessionSnapshot
+import rylween.runtime.town.ShopServiceSavedStep
+import rylween.runtime.town.ShopServiceSessionSnapshot
+import rylween.runtime.town.SpeakSavedStep
+import rylween.runtime.town.SpeakSessionSnapshot
+import rylween.runtime.town.shopServicesByBuilding
 import java.io.File
 
 /** Loads a save file and returns its validated runtime state. */
@@ -175,6 +196,7 @@ private fun validateModeSnapshot(
                     ?: throw runtimeLoadFailure(sourceName, "Dungeon runtime snapshot requires sessions { dungeon { ... } }")
             validateDungeonSnapshot(dungeon, content, sourceName)
         }
+        RuntimeMode.Battle -> validateBattleModeSnapshot(snapshot.mode, content, sourceName)
         else -> {
             if (snapshot.mode != null) {
                 throw runtimeLoadFailure(
@@ -184,6 +206,28 @@ private fun validateModeSnapshot(
                 )
             }
         }
+    }
+}
+
+private fun validateBattleModeSnapshot(
+    mode: RuntimeModeSnapshot?,
+    content: GameModel,
+    sourceName: String,
+) {
+    when (mode) {
+        is RuntimeModeSnapshot.Castle -> {
+            if (mode.session.scriptContinuation?.battleSession == null) {
+                throw runtimeLoadFailure(sourceName, "Battle runtime snapshot requires an active castle battle continuation")
+            }
+            validateCastleSnapshot(mode, content, sourceName)
+        }
+        is RuntimeModeSnapshot.Dungeon -> {
+            if (mode.postDungeon?.continuation?.battleSession == null) {
+                throw runtimeLoadFailure(sourceName, "Battle runtime snapshot requires an active dungeon battle continuation")
+            }
+            validateDungeonSnapshot(mode, content, sourceName)
+        }
+        null -> throw runtimeLoadFailure(sourceName, "Battle runtime snapshot requires a parent session snapshot")
     }
 }
 
@@ -227,9 +271,7 @@ private fun validateCastleScriptSnapshot(
     val continuation =
         session.scriptContinuation
             ?: throw runtimeLoadFailure(sourceName, "Castle script session requires scriptContinuation")
-    if (continuation.stack.isEmpty()) {
-        throw runtimeLoadFailure(sourceName, "Castle script continuation stack must not be empty")
-    }
+    validateScriptContinuationSnapshot(continuation, content, sourceName, "Castle script continuation")
     if (session.scriptNext == null) {
         throw runtimeLoadFailure(sourceName, "Castle script session requires scriptNext")
     }
@@ -269,9 +311,278 @@ private fun validateDungeonSnapshot(
         if (content.scenes.none { it.id == postDungeon.scene }) {
             throw runtimeLoadFailure(sourceName, "post-dungeon continuation references unknown scene ${postDungeon.scene.slug}")
         }
-        if (postDungeon.continuation.stack.isEmpty()) {
-            throw runtimeLoadFailure(sourceName, "post-dungeon continuation stack must not be empty")
+        validateScriptContinuationSnapshot(postDungeon.continuation, content, sourceName, "post-dungeon continuation")
+    }
+}
+
+private fun validateScriptContinuationSnapshot(
+    continuation: ScriptContinuationSnapshot,
+    content: GameModel,
+    sourceName: String,
+    label: String,
+) {
+    if (continuation.stack.isEmpty()) {
+        throw runtimeLoadFailure(sourceName, "$label stack must not be empty")
+    }
+    continuation.speakSession?.let { speak ->
+        validateSpeakSessionSnapshot(speak, content, sourceName)
+    }
+    continuation.battleSession?.let { battle ->
+        validateBattleSessionSnapshot(battle, content, sourceName)
+    }
+    continuation.randomItemOfferSession?.let { offer ->
+        validateRandomItemOfferSessionSnapshot(offer, content, sourceName)
+    }
+    continuation.rewardGrantSession?.let { reward ->
+        validateRewardGrantSessionSnapshot(reward, content, sourceName)
+    }
+    continuation.shopServiceSession?.let { shop ->
+        validateShopServiceSessionSnapshot(shop, content, sourceName)
+    }
+}
+
+private fun validateSpeakSessionSnapshot(
+    speak: SpeakSessionSnapshot,
+    content: GameModel,
+    sourceName: String,
+) {
+    val npcIds = content.characters.map { character -> character.id }.toSet()
+    speak.selectedNpc?.let { npc ->
+        if (npc !in npcIds) {
+            throw runtimeLoadFailure(sourceName, "speak session references unknown selected NPC ${npc.slug}")
         }
+    }
+    validateSpeakStepSnapshot(speak.step, npcIds, content, sourceName)
+}
+
+private fun validateSpeakStepSnapshot(
+    step: SpeakSavedStep,
+    npcIds: Set<NpcId>,
+    content: GameModel,
+    sourceName: String,
+) {
+    when (step) {
+        SpeakSavedStep.ChooseNpc,
+        SpeakSavedStep.Finished,
+        -> Unit
+        is SpeakSavedStep.ScriptBranch -> {
+            validateKnownNpc(step.npc, npcIds, "speak script branch", sourceName)
+            val rootExists =
+                when (step.root.kind) {
+                    ScriptRootKind.DialogueBranch ->
+                        content.dialogue.any { dialogue ->
+                            dialogue.npc == step.npc &&
+                                dialogue.branches.any { branch ->
+                                    ScriptRootRef.dialogueBranch(step.npc, branch).sameRoot(step.root)
+                                }
+                        }
+                    ScriptRootKind.QuestionAction ->
+                        content.speak.questionActions.any { action ->
+                            ScriptRootRef.questionAction(action).sameRoot(step.root)
+                        }
+                    else -> false
+                }
+            if (!rootExists) {
+                throw runtimeLoadFailure(sourceName, "speak session references unknown script root ${step.root.kind}.${step.root.slug}")
+            }
+            step.continuation?.let { continuation ->
+                validateScriptContinuationSnapshot(continuation, content, sourceName, "nested speak script continuation")
+            }
+            validateSpeakStepSnapshot(step.next, npcIds, content, sourceName)
+        }
+        is SpeakSavedStep.MainMenu -> validateKnownNpc(step.npc, npcIds, "speak main menu", sourceName)
+        is SpeakSavedStep.QuestionMenu -> validateKnownNpc(step.npc, npcIds, "speak question menu", sourceName)
+        is SpeakSavedStep.Message -> validateSpeakStepSnapshot(step.next, npcIds, content, sourceName)
+    }
+}
+
+private fun validateKnownNpc(
+    npc: NpcId,
+    npcIds: Set<NpcId>,
+    label: String,
+    sourceName: String,
+) {
+    if (npc !in npcIds) {
+        throw runtimeLoadFailure(sourceName, "$label references unknown NPC ${npc.slug}")
+    }
+}
+
+private fun validateRandomItemOfferSessionSnapshot(
+    offer: RandomItemOfferSessionSnapshot,
+    content: GameModel,
+    sourceName: String,
+) {
+    val itemIds = content.itemCatalog.map { item -> item.id }.toSet()
+    val referencedItems =
+        buildList {
+            add(offer.item)
+            addAll(offer.offer.pool.items)
+            offer.lastResult?.item?.let(::add)
+            addAll(randomItemOfferStepItems(offer.step))
+        }
+    referencedItems.forEach { item ->
+        if (item !in itemIds) {
+            throw runtimeLoadFailure(sourceName, "random item offer session references unknown item ${item.slug}")
+        }
+    }
+}
+
+private fun randomItemOfferStepItems(step: RandomItemOfferSavedStep): List<ItemId> =
+    when (step) {
+        is RandomItemOfferSavedStep.Choice -> listOf(step.item)
+        is RandomItemOfferSavedStep.DropSlot -> listOf(step.item, step.result.item)
+        is RandomItemOfferSavedStep.Message -> listOf(step.result.item) + randomItemOfferStepItems(step.next)
+        is RandomItemOfferSavedStep.Finished -> listOf(step.result.item)
+    }
+
+private fun validateShopServiceSessionSnapshot(
+    shop: ShopServiceSessionSnapshot,
+    content: GameModel,
+    sourceName: String,
+) {
+    val model =
+        content.scenes.shopServicesByBuilding()[shop.building]
+            ?: throw runtimeLoadFailure(sourceName, "shop service session references unknown shop ${shop.building.slug}")
+    val itemIds = content.itemCatalog.map { item -> item.id }.toSet()
+    shopStepItems(shop.step).forEach { item ->
+        if (item !in itemIds) {
+            throw runtimeLoadFailure(sourceName, "shop service step references unknown item ${item.slug}")
+        }
+    }
+    val resultItems =
+        buildList {
+            shop.lastTransaction?.item?.let(::add)
+            shop.lastSellQuote?.item?.let(::add)
+        }
+    resultItems.forEach { item ->
+        if (item !in itemIds) {
+            throw runtimeLoadFailure(sourceName, "shop service result references unknown item ${item.slug}")
+        }
+    }
+    if (model.building != shop.building) {
+        throw runtimeLoadFailure(sourceName, "shop service session building mismatch for ${shop.building.slug}")
+    }
+}
+
+private fun shopStepItems(step: ShopServiceSavedStep): List<ItemId> =
+    when (step) {
+        ShopServiceSavedStep.Intro,
+        ShopServiceSavedStep.MainMenu,
+        ShopServiceSavedStep.SelectCatalog,
+        ShopServiceSavedStep.SellSlot,
+        ShopServiceSavedStep.Finished,
+        -> emptyList()
+        is ShopServiceSavedStep.BuyItem -> emptyList()
+        is ShopServiceSavedStep.Quantity -> listOf(step.item)
+        is ShopServiceSavedStep.ConfirmPurchase -> listOf(step.item)
+        is ShopServiceSavedStep.DropSlot -> listOfNotNull(step.item, step.result.item)
+        is ShopServiceSavedStep.ConfirmSale -> listOfNotNull(step.quote.item)
+    }
+
+private fun validateRewardGrantSessionSnapshot(
+    reward: RewardGrantSessionSnapshot,
+    content: GameModel,
+    sourceName: String,
+) {
+    val itemIds = content.itemCatalog.map { item -> item.id }.toSet()
+    (reward.reward.items + reward.pendingItems).forEach { item ->
+        if (item !in itemIds) {
+            throw runtimeLoadFailure(sourceName, "reward grant session references unknown item ${item.slug}")
+        }
+    }
+    validateRewardGrantStepSnapshot(reward.step, itemIds, sourceName)
+}
+
+private fun validateRewardGrantStepSnapshot(
+    step: RewardGrantSavedStep,
+    itemIds: Set<ItemId>,
+    sourceName: String,
+) {
+    val item =
+        when (step) {
+            is RewardGrantSavedStep.DropSlot -> step.item
+            is RewardGrantSavedStep.Message -> step.result.item
+            is RewardGrantSavedStep.Finished -> step.result.item
+        }
+    if (item != null && item !in itemIds) {
+        throw runtimeLoadFailure(sourceName, "reward grant step references unknown item ${item.slug}")
+    }
+}
+
+private fun validateBattleSessionSnapshot(
+    battle: BattleSessionSnapshot,
+    content: GameModel,
+    sourceName: String,
+) {
+    if (content.combat.standardBattle == null) {
+        throw runtimeLoadFailure(sourceName, "battle session requires configured standard battle rules")
+    }
+    if (content.monsters.none { monster -> monster.id == battle.monster }) {
+        throw runtimeLoadFailure(sourceName, "battle session references unknown monster ${battle.monster.slug}")
+    }
+    if (battle.hitPoints.any { hitPoints -> hitPoints !in 0..battle.hitPointMax }) {
+        throw runtimeLoadFailure(sourceName, "battle session hit points must be between zero and hitPointMax")
+    }
+    battle.lastResult.monster?.let { monster ->
+        if (content.monsters.none { candidate -> candidate.id == monster }) {
+            throw runtimeLoadFailure(sourceName, "battle result references unknown monster ${monster.slug}")
+        }
+    }
+    validateBattleStepSnapshot(battle.step, content, sourceName)
+}
+
+private fun validateBattleStepSnapshot(
+    step: BattleSavedStep,
+    content: GameModel,
+    sourceName: String,
+) {
+    when (step) {
+        is BattleSavedStep.Message -> validateBattleStepSnapshot(step.next, content, sourceName)
+        is BattleSavedStep.ScriptMonsterTarget -> validateCombatScriptSnapshot(step.script, content, sourceName)
+        is BattleSavedStep.MemberTarget -> validateCombatScriptSnapshot(step.script, content, sourceName)
+        is BattleSavedStep.PlayerAction -> validateNonNegative(step.memberIndex, "battle player member index", sourceName)
+        is BattleSavedStep.MonsterTarget -> validateNonNegative(step.memberIndex, "battle target member index", sourceName)
+        is BattleSavedStep.MagicItemSlot -> validateNonNegative(step.memberIndex, "battle magic item member index", sourceName)
+        is BattleSavedStep.SpellChoice -> validateNonNegative(step.memberIndex, "battle spell member index", sourceName)
+        is BattleSavedStep.Opening,
+        is BattleSavedStep.RoundOpening,
+        BattleSavedStep.MonsterRound,
+        BattleSavedStep.Finished,
+        -> Unit
+    }
+}
+
+private fun validateCombatScriptSnapshot(
+    script: CombatScriptSnapshot,
+    content: GameModel,
+    sourceName: String,
+) {
+    val found =
+        when (script.sourceKind) {
+            CombatScriptSourceKind.Spell,
+            CombatScriptSourceKind.MonsterSpell,
+            -> content.spells.any { spell -> spell.id.slug == script.sourceSlug }
+            CombatScriptSourceKind.MagicItem ->
+                content.itemUses.any { use ->
+                    use.id.slug == script.sourceSlug && ItemUseContext.Combat in use.contexts
+                }
+        }
+    if (!found) {
+        throw runtimeLoadFailure(
+            sourceName,
+            "battle script references unknown ${script.sourceKind.name} script ${script.sourceSlug}",
+        )
+    }
+    validateNonNegative(script.nextIndex, "battle script nextIndex", sourceName)
+}
+
+private fun validateNonNegative(
+    value: Int,
+    label: String,
+    sourceName: String,
+) {
+    if (value < 0) {
+        throw runtimeLoadFailure(sourceName, "$label must be non-negative")
     }
 }
 

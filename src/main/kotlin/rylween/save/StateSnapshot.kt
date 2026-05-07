@@ -1,12 +1,28 @@
 /**
- * Textual runtime snapshot renderer and parser.
+ * Textual strict runtime snapshot renderer and parser.
  *
- * [RuntimeSave.kt] writes this format, [RuntimeLoad.kt] validates it before
- * resuming play, and [SaveCompatibility.kt] adds metadata used to reject stale
- * save files across content or format changes.
+ * [RuntimeSave.kt] writes this format for user-visible saves where the active
+ * frontend/session permits them. J2 compiled-VM tests and backend handoffs also
+ * use the same data-only format for execution-boundary round trips. The ability
+ * to represent a blocked battle, reward, or VM continuation here does not by
+ * itself make that point a legal player save point.
+ *
+ * [RuntimeLoad.kt] validates snapshots before resuming play, and
+ * [SaveCompatibility.kt] adds metadata used to reject stale files across
+ * content or format changes.
  */
 package rylween.save
 
+import rylween.compiled.CompiledHandleKind
+import rylween.compiled.CompiledHandleRef
+import rylween.compiled.CompiledInputBinding
+import rylween.compiled.CompiledOfferPauses
+import rylween.compiled.CompiledRandomItemOffer
+import rylween.compiled.CompiledRewardMessages
+import rylween.compiled.CompiledScriptReward
+import rylween.compiled.CompiledShopMenuKeys
+import rylween.compiled.CompiledShopService
+import rylween.compiled.CompiledTextBlock
 import rylween.dsl.BuildingId
 import rylween.dsl.CastleId
 import rylween.dsl.CastleRoomEvent
@@ -14,16 +30,19 @@ import rylween.dsl.DslDefaultItems
 import rylween.dsl.DslDefaultMaps
 import rylween.dsl.DungeonEventId
 import rylween.dsl.DungeonId
+import rylween.dsl.EncounterTier
 import rylween.dsl.EquipmentState
 import rylween.dsl.Facing
 import rylween.dsl.FlagState
 import rylween.dsl.GameMilestoneId
 import rylween.dsl.Gender
 import rylween.dsl.GridPoint
+import rylween.dsl.ImageId
 import rylween.dsl.InputBindingModel
 import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.InventorySlotState
 import rylween.dsl.ItemId
+import rylween.dsl.ItemPoolId
 import rylween.dsl.JournalEntryState
 import rylween.dsl.LocationId
 import rylween.dsl.LocationPlacement
@@ -42,10 +61,17 @@ import rylween.dsl.PartyResources
 import rylween.dsl.PartyState
 import rylween.dsl.PcClass
 import rylween.dsl.Race
+import rylween.dsl.RandomItemOfferModel
 import rylween.dsl.RealmState
+import rylween.dsl.RewardApplicationModel
+import rylween.dsl.RewardItemPlacement
+import rylween.dsl.RewardMessageModel
+import rylween.dsl.RewardOverflowPolicy
+import rylween.dsl.RewardSpecialItemPolicy
 import rylween.dsl.RumourTableId
 import rylween.dsl.RuntimeMode
 import rylween.dsl.SceneId
+import rylween.dsl.ScriptRewardModel
 import rylween.dsl.StateId
 import rylween.dsl.StateKind
 import rylween.dsl.StateModel
@@ -55,6 +81,7 @@ import rylween.dsl.TextId
 import rylween.dsl.TextLine
 import rylween.dsl.TextPart
 import rylween.dsl.TownId
+import rylween.dsl.ViewCommand
 import rylween.dsl.Wilderness
 import rylween.dsl.WorldMapId
 import rylween.dsl.WorldPosition
@@ -62,7 +89,10 @@ import rylween.dsl.building
 import rylween.dsl.castle
 import rylween.dsl.dungeon
 import rylween.dsl.dungeonEvent
+import rylween.dsl.encounterTier
+import rylween.dsl.image
 import rylween.dsl.item
+import rylween.dsl.itemPool
 import rylween.dsl.line
 import rylween.dsl.location
 import rylween.dsl.milestone
@@ -97,7 +127,30 @@ import rylween.runtime.ScriptFrame
 import rylween.runtime.ScriptRootKind
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.ScriptSegment
+import rylween.runtime.battle.BattleRoundState
+import rylween.runtime.battle.BattleSavedStep
+import rylween.runtime.battle.BattleSessionResultSnapshot
+import rylween.runtime.battle.BattleSessionResultStatus
+import rylween.runtime.battle.BattleSessionSnapshot
+import rylween.runtime.battle.CombatScriptSnapshot
+import rylween.runtime.battle.CombatScriptSourceKind
 import rylween.runtime.castle.CastleScriptContinuation
+import rylween.runtime.reward.RandomItemOfferResultSnapshot
+import rylween.runtime.reward.RandomItemOfferSavedStep
+import rylween.runtime.reward.RandomItemOfferSessionSnapshot
+import rylween.runtime.reward.RandomItemOfferStatus
+import rylween.runtime.reward.RewardGrantResultSnapshot
+import rylween.runtime.reward.RewardGrantSavedStep
+import rylween.runtime.reward.RewardGrantSessionSnapshot
+import rylween.runtime.reward.RewardGrantStatus
+import rylween.runtime.town.ShopSellQuoteResultSnapshot
+import rylween.runtime.town.ShopSellQuoteStatus
+import rylween.runtime.town.ShopServiceSavedStep
+import rylween.runtime.town.ShopServiceSessionSnapshot
+import rylween.runtime.town.ShopTransactionResultSnapshot
+import rylween.runtime.town.ShopTransactionStatus
+import rylween.runtime.town.SpeakSavedStep
+import rylween.runtime.town.SpeakSessionSnapshot
 import rylween.runtime.vm.CompiledVmChildRequestSnapshot
 import rylween.runtime.vm.CompiledVmContinuationSnapshot
 import rylween.runtime.vm.CompiledVmFrameKind
@@ -128,6 +181,9 @@ fun parseRuntimeStateSnapshot(source: String): StateModel = parseRuntimeSnapshot
 
 /** Parses save DSL text into the full runtime snapshot, including nested sessions. */
 fun parseRuntimeSnapshot(source: String): RuntimeSnapshotModel = RuntimeStateSnapshotParser(source).parseSingle()
+
+private val EmptyCompiledTextBlock = CompiledTextBlock.Inline(emptyList())
+private val EmptyCompiledInputBinding = CompiledInputBinding(primaryString = 0, aliasStrings = emptyList(), labelString = 0)
 
 private class RuntimeStateSnapshotParser(
     source: String,
@@ -475,6 +531,11 @@ private class RuntimeStateSnapshotParser(
         var realmScalars = emptyMap<String, Int>()
         var stack = emptyList<ScriptFrame>()
         var activeInventorySlot: Int? = null
+        var speakSession: SpeakSessionSnapshot? = null
+        var battleSession: BattleSessionSnapshot? = null
+        var randomItemOfferSession: RandomItemOfferSessionSnapshot? = null
+        var rewardGrantSession: RewardGrantSessionSnapshot? = null
+        var shopServiceSession: ShopServiceSessionSnapshot? = null
         var compiledVmContinuation: CompiledVmContinuationSnapshot? = null
         while (!matchSymbol('}')) {
             when (val field = expectIdentifier()) {
@@ -486,6 +547,11 @@ private class RuntimeStateSnapshotParser(
                 "realmScalars" -> realmScalars = parseNamedIntMapBody()
                 "root" -> root = parseScriptRootBody()
                 "stack" -> stack = parseScriptStackBody()
+                "speakSession" -> speakSession = parseSpeakSessionBody()
+                "battleSession" -> battleSession = parseBattleSessionBody()
+                "randomItemOfferSession" -> randomItemOfferSession = parseRandomItemOfferSessionBody()
+                "rewardGrantSession" -> rewardGrantSession = parseRewardGrantSessionBody()
+                "shopServiceSession" -> shopServiceSession = parseShopServiceSessionBody()
                 "compiledVm" -> compiledVmContinuation = parseCompiledVmContinuationBody()
                 else -> unexpected("script continuation field $field")
             }
@@ -496,8 +562,1132 @@ private class RuntimeStateSnapshotParser(
             realmScalars = realmScalars,
             stack = stack,
             activeInventorySlot = activeInventorySlot,
+            speakSession = speakSession,
+            battleSession = battleSession,
+            randomItemOfferSession = randomItemOfferSession,
+            rewardGrantSession = rewardGrantSession,
+            shopServiceSession = shopServiceSession,
             compiledVmContinuation = compiledVmContinuation,
         )
+    }
+
+    private fun parseSpeakSessionBody(): SpeakSessionSnapshot {
+        expectSymbol('{')
+        var building: BuildingId? = null
+        var selectedNpc: NpcId? = null
+        var rumourTold = false
+        var step: SpeakSavedStep? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "building" -> {
+                    expectSymbol('=')
+                    building = parseBuildingId()
+                }
+                "selectedNpc" -> {
+                    expectSymbol('=')
+                    selectedNpc = parseNullable(::parseNpcId)
+                }
+                "rumourTold" -> rumourTold = parseAssignedBoolean()
+                "step" -> step = parseSpeakStepBody()
+                else -> unexpected("speak session field $field")
+            }
+        }
+        return SpeakSessionSnapshot(
+            building = checkNotNull(building) { "speak session requires building" },
+            selectedNpc = selectedNpc,
+            rumourTold = rumourTold,
+            step = checkNotNull(step) { "speak session requires step" },
+        )
+    }
+
+    private fun parseSpeakStepBody(): SpeakSavedStep {
+        expectSymbol('{')
+        val step =
+            when (val kind = expectIdentifier()) {
+                "chooseNpc" -> parseEmptySpeakStep(SpeakSavedStep.ChooseNpc)
+                "scriptBranch" -> parseSpeakScriptBranchStepBody()
+                "mainMenu" -> parseSpeakMainMenuStepBody()
+                "questionMenu" -> parseSpeakQuestionMenuStepBody()
+                "message" -> parseSpeakMessageStepBody()
+                "finished" -> parseEmptySpeakStep(SpeakSavedStep.Finished)
+                else -> unexpected("speak step kind $kind")
+            }
+        expectSymbol('}')
+        return step
+    }
+
+    private fun parseSpeakScriptBranchStepBody(): SpeakSavedStep.ScriptBranch {
+        expectSymbol('{')
+        var npc: NpcId? = null
+        var root: ScriptRootRef? = null
+        var next: SpeakSavedStep? = null
+        var continuation: ScriptContinuationSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "npc" -> {
+                    expectSymbol('=')
+                    npc = parseNpcId()
+                }
+                "root" -> root = parseScriptRootBody()
+                "next" -> next = parseSpeakStepBody()
+                "continuation" -> continuation = parseNullableScriptContinuation()
+                else -> unexpected("speak script branch step field $field")
+            }
+        }
+        return SpeakSavedStep.ScriptBranch(
+            npc = checkNotNull(npc) { "speak script branch requires npc" },
+            root = checkNotNull(root) { "speak script branch requires root" },
+            next = checkNotNull(next) { "speak script branch requires next step" },
+            continuation = continuation,
+        )
+    }
+
+    private fun parseSpeakMainMenuStepBody(): SpeakSavedStep.MainMenu {
+        expectSymbol('{')
+        var npc: NpcId? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "npc" -> {
+                    expectSymbol('=')
+                    npc = parseNpcId()
+                }
+                else -> unexpected("speak main menu step field $field")
+            }
+        }
+        return SpeakSavedStep.MainMenu(checkNotNull(npc) { "speak main menu requires npc" })
+    }
+
+    private fun parseSpeakQuestionMenuStepBody(): SpeakSavedStep.QuestionMenu {
+        expectSymbol('{')
+        var npc: NpcId? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "npc" -> {
+                    expectSymbol('=')
+                    npc = parseNpcId()
+                }
+                else -> unexpected("speak question menu step field $field")
+            }
+        }
+        return SpeakSavedStep.QuestionMenu(checkNotNull(npc) { "speak question menu requires npc" })
+    }
+
+    private fun parseSpeakMessageStepBody(): SpeakSavedStep.Message {
+        expectSymbol('{')
+        var blocks = emptyList<TextBlock>()
+        var next: SpeakSavedStep? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "blocks" -> blocks = parseTextBlocksBody()
+                "next" -> next = parseSpeakStepBody()
+                else -> unexpected("speak message step field $field")
+            }
+        }
+        return SpeakSavedStep.Message(blocks, checkNotNull(next) { "speak message requires next step" })
+    }
+
+    private fun parseEmptySpeakStep(step: SpeakSavedStep): SpeakSavedStep {
+        expectSymbol('{')
+        expectSymbol('}')
+        return step
+    }
+
+    private fun parseNullableScriptContinuation(): ScriptContinuationSnapshot? {
+        if (matchSymbol('=')) {
+            return parseNullable(::parseScriptContinuationExpression)
+        }
+        return parseScriptContinuationBody()
+    }
+
+    private fun parseScriptContinuationExpression(): ScriptContinuationSnapshot {
+        expectIdent("continuation")
+        return parseScriptContinuationBody()
+    }
+
+    private fun parseRandomItemOfferSessionBody(): RandomItemOfferSessionSnapshot {
+        expectSymbol('{')
+        var offer: RandomItemOfferModel? = null
+        var item: ItemId? = null
+        var itemName = ""
+        var price = 0
+        var step: RandomItemOfferSavedStep? = null
+        var lastResult: RandomItemOfferResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "offer" -> offer = parseRandomItemOfferBody()
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseItemId()
+                }
+                "itemName" -> itemName = parseAssignedString()
+                "price" -> price = parseAssignedInt()
+                "step" -> step = parseRandomItemOfferStepBody()
+                "lastResult" -> lastResult = parseNullableRandomItemOfferResult()
+                else -> unexpected("random item offer session field $field")
+            }
+        }
+        return RandomItemOfferSessionSnapshot(
+            offer = checkNotNull(offer) { "random item offer session requires offer" },
+            item = checkNotNull(item) { "random item offer session requires item" },
+            itemName = itemName,
+            price = price,
+            step = checkNotNull(step) { "random item offer session requires step" },
+            lastResult = lastResult,
+        )
+    }
+
+    private fun parseRandomItemOfferBody(): RandomItemOfferModel {
+        expectSymbol('{')
+        var pool: ItemPoolId? = null
+        var offer: TextBlock? = null
+        var choicePrompt: TextBlock? = null
+        var broke: TextBlock? = null
+        var deal: TextBlock? = null
+        var declined: TextBlock? = null
+        var application =
+            RewardApplicationModel(
+                RewardItemPlacement.FirstFreeInventorySlot,
+                RewardOverflowPolicy.SkipIfInventoryFull,
+                RewardSpecialItemPolicy.ProjectMilestoneState,
+            )
+        var messages = RewardMessageModel()
+        var buy: InputBindingModel? = null
+        var decline: InputBindingModel? = null
+        var priceOverride: Int? = null
+        var brokePauseMillis = 0
+        var fullPauseMillis = 0
+        var dealPauseMillis = 0
+        var declinedPauseMillis = 0
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "pool" -> {
+                    expectSymbol('=')
+                    pool = parseItemPoolId()
+                }
+                "offerText" -> offer = parseRequiredTextBlock()
+                "choicePrompt" -> choicePrompt = parseRequiredTextBlock()
+                "broke" -> broke = parseRequiredTextBlock()
+                "deal" -> deal = parseRequiredTextBlock()
+                "declined" -> declined = parseNullableTextBlock()
+                "application" -> application = parseRewardApplicationBody()
+                "messages" -> messages = parseRewardMessagesBody()
+                "buy" -> buy = parseInputBindingBody()
+                "decline" -> decline = parseInputBindingBody()
+                "priceOverride" -> {
+                    expectSymbol('=')
+                    priceOverride = parseNullable(::parseInt)
+                }
+                "brokePauseMillis" -> brokePauseMillis = parseAssignedInt()
+                "fullPauseMillis" -> fullPauseMillis = parseAssignedInt()
+                "dealPauseMillis" -> dealPauseMillis = parseAssignedInt()
+                "declinedPauseMillis" -> declinedPauseMillis = parseAssignedInt()
+                else -> unexpected("random item offer field $field")
+            }
+        }
+        return RandomItemOfferModel(
+            pool = checkNotNull(pool) { "random item offer requires pool" },
+            offer = checkNotNull(offer) { "random item offer requires offer text" },
+            choicePrompt = checkNotNull(choicePrompt) { "random item offer requires choice prompt" },
+            broke = checkNotNull(broke) { "random item offer requires broke text" },
+            deal = checkNotNull(deal) { "random item offer requires deal text" },
+            declined = declined,
+            application = application,
+            messages = messages,
+            buy = checkNotNull(buy) { "random item offer requires buy binding" },
+            decline = checkNotNull(decline) { "random item offer requires decline binding" },
+            priceOverride = priceOverride,
+            brokePauseMillis = brokePauseMillis,
+            fullPauseMillis = fullPauseMillis,
+            dealPauseMillis = dealPauseMillis,
+            declinedPauseMillis = declinedPauseMillis,
+        )
+    }
+
+    private fun parseRandomItemOfferStepBody(): RandomItemOfferSavedStep {
+        expectSymbol('{')
+        val step =
+            when (val kind = expectIdentifier()) {
+                "choice" -> parseRandomItemOfferChoiceStepBody()
+                "dropSlot" -> parseRandomItemOfferDropSlotStepBody()
+                "message" -> parseRandomItemOfferMessageStepBody()
+                "finished" -> parseRandomItemOfferFinishedStepBody()
+                else -> unexpected("random item offer step kind $kind")
+            }
+        expectSymbol('}')
+        return step
+    }
+
+    private fun parseRandomItemOfferChoiceStepBody(): RandomItemOfferSavedStep.Choice {
+        expectSymbol('{')
+        var offerText: TextBlock? = null
+        var prompt: TextBlock? = null
+        var item: ItemId? = null
+        var itemName = ""
+        var price = 0
+        var buy: InputBindingModel? = null
+        var decline: InputBindingModel? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "offerText" -> offerText = parseRequiredTextBlock()
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseItemId()
+                }
+                "itemName" -> itemName = parseAssignedString()
+                "price" -> price = parseAssignedInt()
+                "buy" -> buy = parseInputBindingBody()
+                "decline" -> decline = parseInputBindingBody()
+                else -> unexpected("random item offer choice step field $field")
+            }
+        }
+        return RandomItemOfferSavedStep.Choice(
+            offerText = checkNotNull(offerText) { "random item offer choice requires offerText" },
+            prompt = checkNotNull(prompt) { "random item offer choice requires prompt" },
+            item = checkNotNull(item) { "random item offer choice requires item" },
+            itemName = itemName,
+            price = price,
+            buy = checkNotNull(buy) { "random item offer choice requires buy binding" },
+            decline = checkNotNull(decline) { "random item offer choice requires decline binding" },
+        )
+    }
+
+    private fun parseRandomItemOfferDropSlotStepBody(): RandomItemOfferSavedStep.DropSlot {
+        expectSymbol('{')
+        var prompt: TextBlock? = null
+        var item: ItemId? = null
+        var itemName = ""
+        var price = 0
+        var result: RandomItemOfferResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseItemId()
+                }
+                "itemName" -> itemName = parseAssignedString()
+                "price" -> price = parseAssignedInt()
+                "result" -> result = parseRandomItemOfferResultBody()
+                else -> unexpected("random item offer drop-slot step field $field")
+            }
+        }
+        return RandomItemOfferSavedStep.DropSlot(
+            prompt = checkNotNull(prompt) { "random item offer drop-slot requires prompt" },
+            item = checkNotNull(item) { "random item offer drop-slot requires item" },
+            itemName = itemName,
+            price = price,
+            result = checkNotNull(result) { "random item offer drop-slot requires result" },
+        )
+    }
+
+    private fun parseRandomItemOfferMessageStepBody(): RandomItemOfferSavedStep.Message {
+        expectSymbol('{')
+        var text: TextBlock? = null
+        var next: RandomItemOfferSavedStep? = null
+        var result: RandomItemOfferResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "text" -> text = parseRequiredTextBlock()
+                "next" -> next = parseRandomItemOfferStepBody()
+                "result" -> result = parseRandomItemOfferResultBody()
+                else -> unexpected("random item offer message step field $field")
+            }
+        }
+        return RandomItemOfferSavedStep.Message(
+            text = checkNotNull(text) { "random item offer message requires text" },
+            next = checkNotNull(next) { "random item offer message requires next step" },
+            result = checkNotNull(result) { "random item offer message requires result" },
+        )
+    }
+
+    private fun parseRandomItemOfferFinishedStepBody(): RandomItemOfferSavedStep.Finished {
+        expectSymbol('{')
+        var result: RandomItemOfferResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "result" -> result = parseRandomItemOfferResultBody()
+                else -> unexpected("random item offer finished step field $field")
+            }
+        }
+        return RandomItemOfferSavedStep.Finished(checkNotNull(result) { "random item offer finished requires result" })
+    }
+
+    private fun parseNullableRandomItemOfferResult(): RandomItemOfferResultSnapshot? {
+        if (matchSymbol('=')) {
+            return parseNullable(::parseRandomItemOfferResultExpression)
+        }
+        return parseRandomItemOfferResultBody()
+    }
+
+    private fun parseRandomItemOfferResultExpression(): RandomItemOfferResultSnapshot {
+        expectIdent("randomItemOfferResult")
+        return parseRandomItemOfferResultBody()
+    }
+
+    private fun parseRandomItemOfferResultBody(): RandomItemOfferResultSnapshot {
+        expectSymbol('{')
+        var status = RandomItemOfferStatus.Declined
+        var item: ItemId? = null
+        var price = 0
+        var slot: Int? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "status" -> {
+                    expectSymbol('=')
+                    status = parseEnum("RandomItemOfferStatus")
+                }
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseItemId()
+                }
+                "price" -> price = parseAssignedInt()
+                "slot" -> {
+                    expectSymbol('=')
+                    slot = parseNullable(::parseInt)
+                }
+                else -> unexpected("random item offer result field $field")
+            }
+        }
+        return RandomItemOfferResultSnapshot(
+            status = status,
+            item = checkNotNull(item) { "random item offer result requires item" },
+            price = price,
+            slot = slot,
+        )
+    }
+
+    private fun parseShopServiceSessionBody(): ShopServiceSessionSnapshot {
+        expectSymbol('{')
+        var building: BuildingId? = null
+        var step: ShopServiceSavedStep? = null
+        var lastTransaction: ShopTransactionResultSnapshot? = null
+        var lastSellQuote: ShopSellQuoteResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "building" -> {
+                    expectSymbol('=')
+                    building = parseBuildingId()
+                }
+                "step" -> step = parseShopServiceStepBody()
+                "lastTransaction" -> lastTransaction = parseNullableShopTransactionResult()
+                "lastSellQuote" -> lastSellQuote = parseNullableShopSellQuoteResult()
+                else -> unexpected("shop service session field $field")
+            }
+        }
+        return ShopServiceSessionSnapshot(
+            building = checkNotNull(building) { "shop service session requires building" },
+            step = checkNotNull(step) { "shop service session requires step" },
+            lastTransaction = lastTransaction,
+            lastSellQuote = lastSellQuote,
+        )
+    }
+
+    private fun parseShopServiceStepBody(): ShopServiceSavedStep {
+        expectSymbol('{')
+        val step =
+            when (val kind = expectIdentifier()) {
+                "intro" -> parseEmptyShopStep(ShopServiceSavedStep.Intro)
+                "mainMenu" -> parseEmptyShopStep(ShopServiceSavedStep.MainMenu)
+                "selectCatalog" -> parseEmptyShopStep(ShopServiceSavedStep.SelectCatalog)
+                "buyItem" -> parseShopBuyItemStepBody()
+                "quantity" -> parseShopQuantityStepBody()
+                "confirmPurchase" -> parseShopConfirmPurchaseStepBody()
+                "dropSlot" -> parseShopDropSlotStepBody()
+                "sellSlot" -> parseEmptyShopStep(ShopServiceSavedStep.SellSlot)
+                "confirmSale" -> parseShopConfirmSaleStepBody()
+                "finished" -> parseEmptyShopStep(ShopServiceSavedStep.Finished)
+                else -> unexpected("shop service step kind $kind")
+            }
+        expectSymbol('}')
+        return step
+    }
+
+    private fun parseShopBuyItemStepBody(): ShopServiceSavedStep.BuyItem {
+        expectSymbol('{')
+        var catalogKeys = emptyList<Char>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "catalogKeys" -> catalogKeys = parseCharListBody()
+                else -> unexpected("shop buy-item step field $field")
+            }
+        }
+        return ShopServiceSavedStep.BuyItem(catalogKeys)
+    }
+
+    private fun parseShopQuantityStepBody(): ShopServiceSavedStep.Quantity {
+        expectSymbol('{')
+        var item: ItemId? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseItemId()
+                }
+                else -> unexpected("shop quantity step field $field")
+            }
+        }
+        return ShopServiceSavedStep.Quantity(checkNotNull(item) { "shop quantity step requires item" })
+    }
+
+    private fun parseShopConfirmPurchaseStepBody(): ShopServiceSavedStep.ConfirmPurchase {
+        expectSymbol('{')
+        var item: ItemId? = null
+        var quantity = 1
+        var unitPrice = 0
+        var totalPrice = 0
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseItemId()
+                }
+                "quantity" -> quantity = parseAssignedInt()
+                "unitPrice" -> unitPrice = parseAssignedInt()
+                "totalPrice" -> totalPrice = parseAssignedInt()
+                else -> unexpected("shop confirm-purchase step field $field")
+            }
+        }
+        return ShopServiceSavedStep.ConfirmPurchase(
+            item = checkNotNull(item) { "shop confirm-purchase step requires item" },
+            quantity = quantity,
+            unitPrice = unitPrice,
+            totalPrice = totalPrice,
+        )
+    }
+
+    private fun parseShopDropSlotStepBody(): ShopServiceSavedStep.DropSlot {
+        expectSymbol('{')
+        var item: ItemId? = null
+        var quantity = 1
+        var result: ShopTransactionResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseItemId()
+                }
+                "quantity" -> quantity = parseAssignedInt()
+                "result" -> result = parseShopTransactionResultBody()
+                else -> unexpected("shop drop-slot step field $field")
+            }
+        }
+        return ShopServiceSavedStep.DropSlot(
+            item = checkNotNull(item) { "shop drop-slot step requires item" },
+            quantity = quantity,
+            result = checkNotNull(result) { "shop drop-slot step requires result" },
+        )
+    }
+
+    private fun parseShopConfirmSaleStepBody(): ShopServiceSavedStep.ConfirmSale {
+        expectSymbol('{')
+        var quote: ShopSellQuoteResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "quote" -> quote = parseShopSellQuoteResultBody()
+                else -> unexpected("shop confirm-sale step field $field")
+            }
+        }
+        return ShopServiceSavedStep.ConfirmSale(checkNotNull(quote) { "shop confirm-sale step requires quote" })
+    }
+
+    private fun parseEmptyShopStep(step: ShopServiceSavedStep): ShopServiceSavedStep {
+        expectSymbol('{')
+        expectSymbol('}')
+        return step
+    }
+
+    private fun parseNullableShopTransactionResult(): ShopTransactionResultSnapshot? {
+        if (matchSymbol('=')) {
+            return parseNullable(::parseShopTransactionResultExpression)
+        }
+        return parseShopTransactionResultBody()
+    }
+
+    private fun parseShopTransactionResultExpression(): ShopTransactionResultSnapshot {
+        expectIdent("shopTransactionResult")
+        return parseShopTransactionResultBody()
+    }
+
+    private fun parseShopTransactionResultBody(): ShopTransactionResultSnapshot {
+        expectSymbol('{')
+        var status = ShopTransactionStatus.Declined
+        var item: ItemId? = null
+        var goldDelta = 0
+        var slot: Int? = null
+        var quantity = 1
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "status" -> {
+                    expectSymbol('=')
+                    status = parseEnum("ShopTransactionStatus")
+                }
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseNullable(::parseItemId)
+                }
+                "goldDelta" -> goldDelta = parseAssignedInt()
+                "slot" -> {
+                    expectSymbol('=')
+                    slot = parseNullable(::parseInt)
+                }
+                "quantity" -> quantity = parseAssignedInt()
+                else -> unexpected("shop transaction result field $field")
+            }
+        }
+        return ShopTransactionResultSnapshot(status, item, goldDelta, slot, quantity)
+    }
+
+    private fun parseNullableShopSellQuoteResult(): ShopSellQuoteResultSnapshot? {
+        if (matchSymbol('=')) {
+            return parseNullable(::parseShopSellQuoteResultExpression)
+        }
+        return parseShopSellQuoteResultBody()
+    }
+
+    private fun parseShopSellQuoteResultExpression(): ShopSellQuoteResultSnapshot {
+        expectIdent("shopSellQuoteResult")
+        return parseShopSellQuoteResultBody()
+    }
+
+    private fun parseShopSellQuoteResultBody(): ShopSellQuoteResultSnapshot {
+        expectSymbol('{')
+        var status = ShopSellQuoteStatus.Declined
+        var item: ItemId? = null
+        var slot: Int? = null
+        var price = 0
+        var bargainRolls = emptyList<Int>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "status" -> {
+                    expectSymbol('=')
+                    status = parseEnum("ShopSellQuoteStatus")
+                }
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseNullable(::parseItemId)
+                }
+                "slot" -> {
+                    expectSymbol('=')
+                    slot = parseNullable(::parseInt)
+                }
+                "price" -> price = parseAssignedInt()
+                "bargainRolls" -> bargainRolls = parseIntListBody()
+                else -> unexpected("shop sell quote result field $field")
+            }
+        }
+        return ShopSellQuoteResultSnapshot(status, item, slot, price, bargainRolls)
+    }
+
+    private fun parseRewardGrantSessionBody(): RewardGrantSessionSnapshot {
+        expectSymbol('{')
+        var reward: ScriptRewardModel? = null
+        var pendingItems = emptyList<ItemId>()
+        var step: RewardGrantSavedStep? = null
+        var lastResult: RewardGrantResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "reward" -> reward = parseScriptRewardBody()
+                "pendingItems" -> pendingItems = parseItemListBody()
+                "step" -> step = parseRewardGrantStepBody()
+                "lastResult" -> lastResult = parseNullableRewardGrantResult()
+                else -> unexpected("reward grant session field $field")
+            }
+        }
+        return RewardGrantSessionSnapshot(
+            reward = checkNotNull(reward) { "reward grant session requires reward" },
+            pendingItems = pendingItems,
+            step = checkNotNull(step) { "reward grant session requires step" },
+            lastResult = lastResult,
+        )
+    }
+
+    private fun parseScriptRewardBody(): ScriptRewardModel {
+        expectSymbol('{')
+        var items = emptyList<ItemId>()
+        var application =
+            RewardApplicationModel(
+                RewardItemPlacement.FirstFreeInventorySlot,
+                RewardOverflowPolicy.SkipIfInventoryFull,
+                RewardSpecialItemPolicy.ProjectMilestoneState,
+            )
+        var messages = RewardMessageModel()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "items" -> items = parseItemListBody()
+                "application" -> application = parseRewardApplicationBody()
+                "messages" -> messages = parseRewardMessagesBody()
+                else -> unexpected("script reward field $field")
+            }
+        }
+        return ScriptRewardModel(gold = null, items = items, application = application, messages = messages)
+    }
+
+    private fun parseRewardApplicationBody(): RewardApplicationModel {
+        expectSymbol('{')
+        var regularItems = RewardItemPlacement.FirstFreeInventorySlot
+        var overflow = RewardOverflowPolicy.SkipIfInventoryFull
+        var specialItems = RewardSpecialItemPolicy.ProjectMilestoneState
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "regularItems" -> {
+                    expectSymbol('=')
+                    regularItems = parseEnum("RewardItemPlacement")
+                }
+                "overflow" -> {
+                    expectSymbol('=')
+                    overflow = parseEnum("RewardOverflowPolicy")
+                }
+                "specialItems" -> {
+                    expectSymbol('=')
+                    specialItems = parseEnum("RewardSpecialItemPolicy")
+                }
+                else -> unexpected("reward application field $field")
+            }
+        }
+        return RewardApplicationModel(regularItems, overflow, specialItems)
+    }
+
+    private fun parseRewardMessagesBody(): RewardMessageModel {
+        expectSymbol('{')
+        var cantCarry: TextBlock? = null
+        var pickedUp: TextBlock? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "cantCarry" -> cantCarry = parseNullableTextBlock()
+                "pickedUp" -> pickedUp = parseNullableTextBlock()
+                else -> unexpected("reward messages field $field")
+            }
+        }
+        return RewardMessageModel(cantCarry, pickedUp)
+    }
+
+    private fun parseRewardGrantStepBody(): RewardGrantSavedStep {
+        expectSymbol('{')
+        val step =
+            when (val kind = expectIdentifier()) {
+                "dropSlot" -> parseRewardGrantDropSlotStepBody()
+                "message" -> parseRewardGrantMessageStepBody()
+                "finished" -> parseRewardGrantFinishedStepBody()
+                else -> unexpected("reward grant step kind $kind")
+            }
+        expectSymbol('}')
+        return step
+    }
+
+    private fun parseRewardGrantDropSlotStepBody(): RewardGrantSavedStep.DropSlot {
+        expectSymbol('{')
+        var prompt: TextBlock? = null
+        var item: ItemId? = null
+        var result: RewardGrantResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseItemId()
+                }
+                "result" -> result = parseRewardGrantResultBody()
+                else -> unexpected("reward grant drop-slot step field $field")
+            }
+        }
+        return RewardGrantSavedStep.DropSlot(
+            prompt = checkNotNull(prompt) { "reward grant drop-slot step requires prompt" },
+            item = checkNotNull(item) { "reward grant drop-slot step requires item" },
+            result = checkNotNull(result) { "reward grant drop-slot step requires result" },
+        )
+    }
+
+    private fun parseRewardGrantMessageStepBody(): RewardGrantSavedStep.Message {
+        expectSymbol('{')
+        var text: TextBlock? = null
+        var result: RewardGrantResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "text" -> text = parseRequiredTextBlock()
+                "result" -> result = parseRewardGrantResultBody()
+                else -> unexpected("reward grant message step field $field")
+            }
+        }
+        return RewardGrantSavedStep.Message(
+            text = checkNotNull(text) { "reward grant message step requires text" },
+            result = checkNotNull(result) { "reward grant message step requires result" },
+        )
+    }
+
+    private fun parseRewardGrantFinishedStepBody(): RewardGrantSavedStep.Finished {
+        expectSymbol('{')
+        var result: RewardGrantResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "result" -> result = parseRewardGrantResultBody()
+                else -> unexpected("reward grant finished step field $field")
+            }
+        }
+        return RewardGrantSavedStep.Finished(checkNotNull(result) { "reward grant finished step requires result" })
+    }
+
+    private fun parseNullableRewardGrantResult(): RewardGrantResultSnapshot? {
+        if (matchSymbol('=')) {
+            return parseNullable(::parseRewardGrantResultExpression)
+        }
+        return parseRewardGrantResultBody()
+    }
+
+    private fun parseRewardGrantResultExpression(): RewardGrantResultSnapshot {
+        expectIdent("rewardGrantResult")
+        return parseRewardGrantResultBody()
+    }
+
+    private fun parseRewardGrantResultBody(): RewardGrantResultSnapshot {
+        expectSymbol('{')
+        var status = RewardGrantStatus.Granted
+        var item: ItemId? = null
+        var slot: Int? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "status" -> {
+                    expectSymbol('=')
+                    status = parseEnum("RewardGrantStatus")
+                }
+                "item" -> {
+                    expectSymbol('=')
+                    item = parseNullable(::parseItemId)
+                }
+                "slot" -> {
+                    expectSymbol('=')
+                    slot = parseNullable(::parseInt)
+                }
+                else -> unexpected("reward grant result field $field")
+            }
+        }
+        return RewardGrantResultSnapshot(status, item, slot)
+    }
+
+    private fun parseBattleSessionBody(): BattleSessionSnapshot {
+        expectSymbol('{')
+        var tier: EncounterTier? = null
+        var monster: MonsterId? = null
+        var count = 1
+        var hitPoints = emptyList<Int>()
+        var hitPointMax = 1
+        var mandatory = false
+        var round: BattleRoundState? = null
+        var step: BattleSavedStep? = null
+        var lastResult: BattleSessionResultSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "tier" -> {
+                    expectSymbol('=')
+                    tier = parseNullable(::parseEncounterTier)
+                }
+                "monster" -> {
+                    expectSymbol('=')
+                    monster = parseMonsterId()
+                }
+                "count" -> count = parseAssignedInt()
+                "hitPoints" -> hitPoints = parseIntListBody()
+                "hitPointMax" -> hitPointMax = parseAssignedInt()
+                "mandatory" -> mandatory = parseAssignedBoolean()
+                "round" -> round = parseBattleRoundBody()
+                "step" -> step = parseBattleStepBody()
+                "lastResult" -> lastResult = parseBattleResultBody()
+                else -> unexpected("battle session field $field")
+            }
+        }
+        return BattleSessionSnapshot(
+            tier = tier,
+            monster = checkNotNull(monster) { "battle session requires monster" },
+            count = count,
+            hitPoints = hitPoints,
+            hitPointMax = hitPointMax,
+            mandatory = mandatory,
+            round = checkNotNull(round) { "battle session requires round" },
+            step = checkNotNull(step) { "battle session requires step" },
+            lastResult = checkNotNull(lastResult) { "battle session requires lastResult" },
+        )
+    }
+
+    private fun parseBattleRoundBody(): BattleRoundState {
+        expectSymbol('{')
+        var currentMemberIndex = 0
+        var defendCount = 0
+        var monsterWeaponSkill = 0
+        var monsterConfused = false
+        var monstersHeld = false
+        var antimagic = false
+        var partyHeld = false
+        var partyConfused = false
+        var actionRetry = false
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "currentMemberIndex" -> currentMemberIndex = parseAssignedInt()
+                "defendCount" -> defendCount = parseAssignedInt()
+                "monsterWeaponSkill" -> monsterWeaponSkill = parseAssignedInt()
+                "monsterConfused" -> monsterConfused = parseAssignedBoolean()
+                "monstersHeld" -> monstersHeld = parseAssignedBoolean()
+                "antimagic" -> antimagic = parseAssignedBoolean()
+                "partyHeld" -> partyHeld = parseAssignedBoolean()
+                "partyConfused" -> partyConfused = parseAssignedBoolean()
+                "actionRetry" -> actionRetry = parseAssignedBoolean()
+                else -> unexpected("battle round field $field")
+            }
+        }
+        return BattleRoundState(
+            currentMemberIndex = currentMemberIndex,
+            defendCount = defendCount,
+            monsterWeaponSkill = monsterWeaponSkill,
+            monsterConfused = monsterConfused,
+            monstersHeld = monstersHeld,
+            antimagic = antimagic,
+            partyHeld = partyHeld,
+            partyConfused = partyConfused,
+            actionRetry = actionRetry,
+        )
+    }
+
+    private fun parseBattleResultBody(): BattleSessionResultSnapshot {
+        expectSymbol('{')
+        var status = BattleSessionResultStatus.EncounterStarted
+        var monster: MonsterId? = null
+        var tier: EncounterTier? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "status" -> {
+                    expectSymbol('=')
+                    status = parseEnum("BattleSessionResultStatus")
+                }
+                "monster" -> {
+                    expectSymbol('=')
+                    monster = parseNullable(::parseMonsterId)
+                }
+                "tier" -> {
+                    expectSymbol('=')
+                    tier = parseNullable(::parseEncounterTier)
+                }
+                else -> unexpected("battle result field $field")
+            }
+        }
+        return BattleSessionResultSnapshot(status, monster, tier)
+    }
+
+    private fun parseBattleStepBody(): BattleSavedStep {
+        expectSymbol('{')
+        val step =
+            when (val kind = expectIdentifier()) {
+                "opening" -> parseBattleOpeningStepBody()
+                "roundOpening" -> parseBattleRoundOpeningStepBody()
+                "message" -> parseBattleMessageStepBody()
+                "playerAction" -> parseBattlePlayerActionStepBody()
+                "monsterTarget" -> parseBattleMonsterTargetStepBody()
+                "scriptMonsterTarget" -> parseBattleScriptMonsterTargetStepBody()
+                "memberTarget" -> parseBattleMemberTargetStepBody()
+                "magicItemSlot" -> parseBattleMagicItemSlotStepBody()
+                "spellChoice" -> parseBattleSpellChoiceStepBody()
+                "monsterRound" -> parseEmptyBattleStep(BattleSavedStep.MonsterRound)
+                "finished" -> parseEmptyBattleStep(BattleSavedStep.Finished)
+                else -> unexpected("battle step kind $kind")
+            }
+        expectSymbol('}')
+        return step
+    }
+
+    private fun parseBattleOpeningStepBody(): BattleSavedStep.Opening {
+        expectSymbol('{')
+        var prompt: TextBlock? = null
+        var image: ImageId? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "image" -> {
+                    expectSymbol('=')
+                    image = parseNullable(::parseImageId)
+                }
+                else -> unexpected("battle opening step field $field")
+            }
+        }
+        return BattleSavedStep.Opening(checkNotNull(prompt) { "battle opening requires prompt" }, image)
+    }
+
+    private fun parseBattleRoundOpeningStepBody(): BattleSavedStep.RoundOpening {
+        expectSymbol('{')
+        var prompt: TextBlock? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "prompt" -> prompt = parseRequiredTextBlock()
+                else -> unexpected("battle round opening step field $field")
+            }
+        }
+        return BattleSavedStep.RoundOpening(checkNotNull(prompt) { "battle round opening requires prompt" })
+    }
+
+    private fun parseBattleMessageStepBody(): BattleSavedStep.Message {
+        expectSymbol('{')
+        var texts = emptyList<TextBlock>()
+        var next: BattleSavedStep? = null
+        var viewCommands = emptyList<ViewCommand>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "texts" -> texts = parseTextBlocksBody()
+                "next" -> next = parseBattleStepBody()
+                "viewCommands" -> viewCommands = parseViewCommandsBody()
+                else -> unexpected("battle message step field $field")
+            }
+        }
+        return BattleSavedStep.Message(texts, checkNotNull(next) { "battle message requires next step" }, viewCommands)
+    }
+
+    private fun parseBattlePlayerActionStepBody(): BattleSavedStep.PlayerAction {
+        expectSymbol('{')
+        var memberIndex = 0
+        var prompt: TextBlock? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "memberIndex" -> memberIndex = parseAssignedInt()
+                "prompt" -> prompt = parseRequiredTextBlock()
+                else -> unexpected("battle player action step field $field")
+            }
+        }
+        return BattleSavedStep.PlayerAction(memberIndex, checkNotNull(prompt) { "battle player action requires prompt" })
+    }
+
+    private fun parseBattleMonsterTargetStepBody(): BattleSavedStep.MonsterTarget {
+        expectSymbol('{')
+        var memberIndex = 0
+        var prompt: TextBlock? = null
+        var targetKeys = emptyList<Char>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "memberIndex" -> memberIndex = parseAssignedInt()
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "targetKeys" -> targetKeys = parseCharListBody()
+                else -> unexpected("battle monster target step field $field")
+            }
+        }
+        return BattleSavedStep.MonsterTarget(
+            memberIndex = memberIndex,
+            prompt = checkNotNull(prompt) { "battle monster target requires prompt" },
+            targetKeys = targetKeys,
+        )
+    }
+
+    private fun parseBattleScriptMonsterTargetStepBody(): BattleSavedStep.ScriptMonsterTarget {
+        expectSymbol('{')
+        var prompt: TextBlock? = null
+        var targetKeys = emptyList<Char>()
+        var script: CombatScriptSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "targetKeys" -> targetKeys = parseCharListBody()
+                "script" -> script = parseCombatScriptBody()
+                else -> unexpected("battle script monster target step field $field")
+            }
+        }
+        return BattleSavedStep.ScriptMonsterTarget(
+            prompt = checkNotNull(prompt) { "battle script monster target requires prompt" },
+            targetKeys = targetKeys,
+            script = checkNotNull(script) { "battle script monster target requires script" },
+        )
+    }
+
+    private fun parseBattleMemberTargetStepBody(): BattleSavedStep.MemberTarget {
+        expectSymbol('{')
+        var prompt: TextBlock? = null
+        var targetKeys = emptyList<Char>()
+        var script: CombatScriptSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "targetKeys" -> targetKeys = parseCharListBody()
+                "script" -> script = parseCombatScriptBody()
+                else -> unexpected("battle member target step field $field")
+            }
+        }
+        return BattleSavedStep.MemberTarget(
+            prompt = checkNotNull(prompt) { "battle member target requires prompt" },
+            targetKeys = targetKeys,
+            script = checkNotNull(script) { "battle member target requires script" },
+        )
+    }
+
+    private fun parseBattleMagicItemSlotStepBody(): BattleSavedStep.MagicItemSlot {
+        expectSymbol('{')
+        var memberIndex = 0
+        var prompt: TextBlock? = null
+        var slotKeys = emptyList<Char>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "memberIndex" -> memberIndex = parseAssignedInt()
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "slotKeys" -> slotKeys = parseCharListBody()
+                else -> unexpected("battle magic item slot step field $field")
+            }
+        }
+        return BattleSavedStep.MagicItemSlot(
+            memberIndex = memberIndex,
+            prompt = checkNotNull(prompt) { "battle magic item slot requires prompt" },
+            slotKeys = slotKeys,
+        )
+    }
+
+    private fun parseBattleSpellChoiceStepBody(): BattleSavedStep.SpellChoice {
+        expectSymbol('{')
+        var memberIndex = 0
+        var prompt: TextBlock? = null
+        var spellKeys = emptyList<Char>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "memberIndex" -> memberIndex = parseAssignedInt()
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "spellKeys" -> spellKeys = parseCharListBody()
+                else -> unexpected("battle spell choice step field $field")
+            }
+        }
+        return BattleSavedStep.SpellChoice(
+            memberIndex = memberIndex,
+            prompt = checkNotNull(prompt) { "battle spell choice requires prompt" },
+            spellKeys = spellKeys,
+        )
+    }
+
+    private fun parseCombatScriptBody(): CombatScriptSnapshot {
+        expectSymbol('{')
+        var memberIndex: Int? = null
+        var sourceKind = CombatScriptSourceKind.Spell
+        var sourceSlug = ""
+        var nextIndex = 0
+        var pendingVar = ""
+        var locals = emptyMap<String, Int>()
+        var activeInventorySlot: Int? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "memberIndex" -> {
+                    expectSymbol('=')
+                    memberIndex = parseNullable(::parseInt)
+                }
+                "sourceKind" -> {
+                    expectSymbol('=')
+                    sourceKind = parseEnum("CombatScriptSourceKind")
+                }
+                "sourceSlug" -> sourceSlug = parseAssignedString()
+                "nextIndex" -> nextIndex = parseAssignedInt()
+                "pendingVar" -> pendingVar = parseAssignedString()
+                "locals" -> locals = parseNamedIntMapBody()
+                "activeInventorySlot" -> {
+                    expectSymbol('=')
+                    activeInventorySlot = parseNullable(::parseInt)
+                }
+                else -> unexpected("combat script field $field")
+            }
+        }
+        return CombatScriptSnapshot(memberIndex, sourceKind, sourceSlug, nextIndex, pendingVar, locals, activeInventorySlot)
+    }
+
+    private fun parseEmptyBattleStep(step: BattleSavedStep): BattleSavedStep {
+        expectSymbol('{')
+        expectSymbol('}')
+        return step
     }
 
     private fun parseCompiledVmContinuationBody(): CompiledVmContinuationSnapshot {
@@ -651,6 +1841,73 @@ private class RuntimeStateSnapshotParser(
                 expectSymbol(')')
             }
         }
+    }
+
+    private fun parseItemListBody(): List<ItemId> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("value")
+                expectSymbol('(')
+                add(parseItemId())
+                expectSymbol(')')
+            }
+        }
+    }
+
+    private fun parseCompiledHandleListBody(): List<CompiledHandleRef> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                add(parseCompiledHandleRef())
+            }
+        }
+    }
+
+    private fun parseCompiledHandleRef(): CompiledHandleRef {
+        expectIdent("handle")
+        expectSymbol('(')
+        val kind = parseEnum<CompiledHandleKind>("CompiledHandleKind")
+        expectSymbol(',')
+        val denseId = parseInt()
+        expectSymbol(')')
+        return CompiledHandleRef(kind, denseId)
+    }
+
+    private fun parseTextBlocksBody(): List<TextBlock> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("text")
+                add(parseRequiredTextBlock())
+            }
+        }
+    }
+
+    private fun parseViewCommandsBody(): List<ViewCommand> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                when (val command = expectIdentifier()) {
+                    "clearText" -> add(parseEmptyViewCommand(ViewCommand.ClearText))
+                    "clearMapWindow" -> add(parseEmptyViewCommand(ViewCommand.ClearMapWindow))
+                    "renderMap" -> add(parseEmptyViewCommand(ViewCommand.RenderMap))
+                    "statusLine" -> add(parseEmptyViewCommand(ViewCommand.StatusLine))
+                    "showImage" -> {
+                        expectSymbol('(')
+                        add(ViewCommand.ShowImage(parseImageId()))
+                        expectSymbol(')')
+                    }
+                    else -> unexpected("view command $command")
+                }
+            }
+        }
+    }
+
+    private fun parseEmptyViewCommand(command: ViewCommand): ViewCommand {
+        expectSymbol('(')
+        expectSymbol(')')
+        return command
     }
 
     private fun parseCompiledVmPendingBody(): CompiledVmPendingInputSnapshot {
@@ -972,21 +2229,34 @@ private class RuntimeStateSnapshotParser(
         return buildList {
             while (!matchSymbol('}')) {
                 expectIdent("binding")
-                expectSymbol('{')
-                var primary = ""
-                var aliases = emptyList<String>()
-                var label = ""
-                while (!matchSymbol('}')) {
-                    when (val field = expectIdentifier()) {
-                        "primary" -> primary = parseAssignedString()
-                        "aliases" -> aliases = parseStringListBody()
-                        "label" -> label = parseAssignedString()
-                        else -> unexpected("input binding field $field")
-                    }
-                }
-                add(InputBindingModel(primary = primary, aliases = aliases, label = label.ifEmpty { primary }))
+                add(parseInputBindingFieldsBody())
             }
         }
+    }
+
+    private fun parseInputBindingBody(): InputBindingModel {
+        expectSymbol('{')
+        return parseInputBindingFields()
+    }
+
+    private fun parseInputBindingFieldsBody(): InputBindingModel {
+        expectSymbol('{')
+        return parseInputBindingFields()
+    }
+
+    private fun parseInputBindingFields(): InputBindingModel {
+        var primary = ""
+        var aliases = emptyList<String>()
+        var label = ""
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "primary" -> primary = parseAssignedString()
+                "aliases" -> aliases = parseStringListBody()
+                "label" -> label = parseAssignedString()
+                else -> unexpected("input binding field $field")
+            }
+        }
+        return InputBindingModel(primary = primary, aliases = aliases, label = label.ifEmpty { primary })
     }
 
     private fun parseCompiledVmChildRequestBody(): CompiledVmChildRequestSnapshot {
@@ -997,6 +2267,9 @@ private class RuntimeStateSnapshotParser(
                 "tellRumour" -> parseCompiledVmTellRumourRequestBody()
                 "encounter" -> parseCompiledVmEncounterRequestBody()
                 "enterDungeon" -> parseCompiledVmEnterDungeonRequestBody()
+                "grantReward" -> parseCompiledVmGrantRewardRequestBody()
+                "randomItemOffer" -> parseCompiledVmRandomItemOfferRequestBody()
+                "shopService" -> parseCompiledVmShopServiceRequestBody()
                 else -> unexpected("compiled VM child request kind $kind")
             }
         expectSymbol('}')
@@ -1080,6 +2353,111 @@ private class RuntimeStateSnapshotParser(
             ),
         )
     }
+
+    private fun parseCompiledVmGrantRewardRequestBody(): CompiledVmChildRequestSnapshot.GrantReward {
+        expectSymbol('{')
+        var gold = 0
+        var items = emptyList<CompiledHandleRef>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "gold" -> gold = parseAssignedInt()
+                "items" -> items = parseCompiledHandleListBody()
+                else -> unexpected("compiled VM grantReward request field $field")
+            }
+        }
+        return CompiledVmChildRequestSnapshot.GrantReward(
+            reward =
+                CompiledScriptReward(
+                    gold = null,
+                    items = items,
+                    application =
+                        RewardApplicationModel(
+                            RewardItemPlacement.FirstFreeInventorySlot,
+                            RewardOverflowPolicy.SkipIfInventoryFull,
+                            RewardSpecialItemPolicy.ProjectMilestoneState,
+                        ),
+                    messages = CompiledRewardMessages(cantCarry = null, pickedUp = null),
+                ),
+            gold = gold,
+        )
+    }
+
+    private fun parseCompiledVmRandomItemOfferRequestBody(): CompiledVmChildRequestSnapshot.RandomItemOffer {
+        expectSymbol('{')
+        var pool: CompiledHandleRef? = null
+        var selectedIndex = 0
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "pool" -> {
+                    expectSymbol('=')
+                    pool = parseCompiledHandleRef()
+                }
+                "selectedIndex" -> selectedIndex = parseAssignedInt()
+                else -> unexpected("compiled VM randomItemOffer request field $field")
+            }
+        }
+        return CompiledVmChildRequestSnapshot.RandomItemOffer(
+            offer = dummyCompiledRandomItemOffer(checkNotNull(pool) { "compiled VM random offer request requires pool" }),
+            selectedIndex = selectedIndex,
+        )
+    }
+
+    private fun parseCompiledVmShopServiceRequestBody(): CompiledVmChildRequestSnapshot.ShopService {
+        expectSymbol('{')
+        var building: CompiledHandleRef? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "building" -> {
+                    expectSymbol('=')
+                    building = parseCompiledHandleRef()
+                }
+                else -> unexpected("compiled VM shopService request field $field")
+            }
+        }
+        return CompiledVmChildRequestSnapshot.ShopService(
+            dummyCompiledShopService(checkNotNull(building) { "compiled VM shop request requires building" }),
+        )
+    }
+
+    private fun dummyCompiledRandomItemOffer(pool: CompiledHandleRef): CompiledRandomItemOffer =
+        CompiledRandomItemOffer(
+            pool = pool,
+            offer = EmptyCompiledTextBlock,
+            choicePrompt = EmptyCompiledTextBlock,
+            broke = EmptyCompiledTextBlock,
+            deal = EmptyCompiledTextBlock,
+            declined = null,
+            application =
+                RewardApplicationModel(
+                    RewardItemPlacement.FirstFreeInventorySlot,
+                    RewardOverflowPolicy.SkipIfInventoryFull,
+                    RewardSpecialItemPolicy.ProjectMilestoneState,
+                ),
+            messages = CompiledRewardMessages(cantCarry = null, pickedUp = null),
+            buy = EmptyCompiledInputBinding,
+            decline = EmptyCompiledInputBinding,
+            priceOverride = null,
+            pauseMillis = CompiledOfferPauses(broke = 0, full = 0, deal = 0, declined = 0),
+        )
+
+    private fun dummyCompiledShopService(building: CompiledHandleRef): CompiledShopService =
+        CompiledShopService(
+            building = building,
+            image = CompiledHandleRef(CompiledHandleKind.Image, 0),
+            closed = EmptyCompiledTextBlock,
+            intro = EmptyCompiledTextBlock,
+            menu = EmptyCompiledTextBlock,
+            keys =
+                CompiledShopMenuKeys(
+                    buy = EmptyCompiledInputBinding,
+                    sell = EmptyCompiledInputBinding,
+                    leave = EmptyCompiledInputBinding,
+                ),
+            goodbye = EmptyCompiledTextBlock,
+            buy = null,
+            sell = null,
+            interlude = null,
+        )
 
     private fun parseScriptStackBody(): List<ScriptFrame> {
         expectSymbol('{')
@@ -1685,9 +3063,15 @@ private class RuntimeStateSnapshotParser(
 
     private fun parseItemId(): ItemId = parseStringCall("item", ::item)
 
+    private fun parseItemPoolId(): ItemPoolId = parseStringCall("itemPool", ::itemPool)
+
     private fun parseMilestoneId(): GameMilestoneId = parseStringCall("milestone", ::milestone)
 
     private fun parseMonsterId(): MonsterId = parseStringCall("monster", ::monster)
+
+    private fun parseEncounterTier(): EncounterTier = parseStringCall("encounterTier", ::encounterTier)
+
+    private fun parseImageId(): ImageId = parseStringCall("image", ::image)
 
     private fun parseRumourTableId(): RumourTableId = parseStringCall("rumourTable", ::rumourTable)
 
@@ -2103,7 +3487,642 @@ private class RuntimeStateSnapshotWriter {
             continuation.stack.forEach(::scriptFrame)
         }
         line("}")
+        continuation.speakSession?.let(::speakSession)
+        continuation.battleSession?.let(::battleSession)
+        continuation.randomItemOfferSession?.let(::randomItemOfferSession)
+        continuation.rewardGrantSession?.let(::rewardGrantSession)
+        continuation.shopServiceSession?.let(::shopServiceSession)
         continuation.compiledVmContinuation?.let(::compiledVmContinuation)
+    }
+
+    private fun speakSession(session: SpeakSessionSnapshot) {
+        line("speakSession {")
+        indented {
+            line("building = ${buildingId(session.building)}")
+            line("selectedNpc = ${session.selectedNpc?.let(::npcId) ?: "null"}")
+            assignment("rumourTold", session.rumourTold)
+            speakStep(session.step)
+        }
+        line("}")
+    }
+
+    private fun speakStep(step: SpeakSavedStep) {
+        line("step {")
+        indented {
+            when (step) {
+                SpeakSavedStep.ChooseNpc -> emptySpeakStep("chooseNpc")
+                is SpeakSavedStep.ScriptBranch -> speakScriptBranchStep(step)
+                is SpeakSavedStep.MainMenu -> speakNpcStep("mainMenu", step.npc)
+                is SpeakSavedStep.QuestionMenu -> speakNpcStep("questionMenu", step.npc)
+                is SpeakSavedStep.Message -> speakMessageStep(step)
+                SpeakSavedStep.Finished -> emptySpeakStep("finished")
+            }
+        }
+        line("}")
+    }
+
+    private fun speakScriptBranchStep(step: SpeakSavedStep.ScriptBranch) {
+        line("scriptBranch {")
+        indented {
+            line("npc = ${npcId(step.npc)}")
+            scriptRoot(step.root)
+            line("next {")
+            indented {
+                when (val next = step.next) {
+                    SpeakSavedStep.ChooseNpc -> emptySpeakStep("chooseNpc")
+                    is SpeakSavedStep.ScriptBranch -> speakScriptBranchStep(next)
+                    is SpeakSavedStep.MainMenu -> speakNpcStep("mainMenu", next.npc)
+                    is SpeakSavedStep.QuestionMenu -> speakNpcStep("questionMenu", next.npc)
+                    is SpeakSavedStep.Message -> speakMessageStep(next)
+                    SpeakSavedStep.Finished -> emptySpeakStep("finished")
+                }
+            }
+            line("}")
+            step.continuation?.let { continuation ->
+                line("continuation {")
+                indented {
+                    scriptContinuationBody(continuation)
+                }
+                line("}")
+            } ?: line("continuation = null")
+        }
+        line("}")
+    }
+
+    private fun speakNpcStep(
+        name: String,
+        npc: NpcId,
+    ) {
+        line("$name {")
+        indented {
+            line("npc = ${npcId(npc)}")
+        }
+        line("}")
+    }
+
+    private fun speakMessageStep(step: SpeakSavedStep.Message) {
+        line("message {")
+        indented {
+            textBlocks("blocks", step.blocks)
+            line("next {")
+            indented {
+                when (val next = step.next) {
+                    SpeakSavedStep.ChooseNpc -> emptySpeakStep("chooseNpc")
+                    is SpeakSavedStep.ScriptBranch -> speakScriptBranchStep(next)
+                    is SpeakSavedStep.MainMenu -> speakNpcStep("mainMenu", next.npc)
+                    is SpeakSavedStep.QuestionMenu -> speakNpcStep("questionMenu", next.npc)
+                    is SpeakSavedStep.Message -> speakMessageStep(next)
+                    SpeakSavedStep.Finished -> emptySpeakStep("finished")
+                }
+            }
+            line("}")
+        }
+        line("}")
+    }
+
+    private fun emptySpeakStep(name: String) {
+        line("$name {")
+        line("}")
+    }
+
+    private fun randomItemOfferSession(session: RandomItemOfferSessionSnapshot) {
+        line("randomItemOfferSession {")
+        indented {
+            randomItemOffer(session.offer)
+            line("item = ${itemId(session.item)}")
+            assignment("itemName", session.itemName)
+            assignment("price", session.price)
+            randomItemOfferStep(session.step)
+            nullableRandomItemOfferResult("lastResult", session.lastResult)
+        }
+        line("}")
+    }
+
+    private fun randomItemOffer(offer: RandomItemOfferModel) {
+        line("offer {")
+        indented {
+            line("pool = ${itemPoolId(offer.pool)}")
+            textBlock("offerText", offer.offer)
+            textBlock("choicePrompt", offer.choicePrompt)
+            textBlock("broke", offer.broke)
+            textBlock("deal", offer.deal)
+            nullableTextBlock("declined", offer.declined)
+            rewardApplication(offer.application)
+            rewardMessages(offer.messages)
+            inputBinding("buy", offer.buy)
+            inputBinding("decline", offer.decline)
+            line("priceOverride = ${offer.priceOverride ?: "null"}")
+            assignment("brokePauseMillis", offer.brokePauseMillis)
+            assignment("fullPauseMillis", offer.fullPauseMillis)
+            assignment("dealPauseMillis", offer.dealPauseMillis)
+            assignment("declinedPauseMillis", offer.declinedPauseMillis)
+        }
+        line("}")
+    }
+
+    private fun randomItemOfferStep(step: RandomItemOfferSavedStep) {
+        line("step {")
+        indented {
+            when (step) {
+                is RandomItemOfferSavedStep.Choice -> randomItemOfferChoiceStep(step)
+                is RandomItemOfferSavedStep.DropSlot -> randomItemOfferDropSlotStep(step)
+                is RandomItemOfferSavedStep.Message -> randomItemOfferMessageStep(step)
+                is RandomItemOfferSavedStep.Finished -> randomItemOfferFinishedStep(step)
+            }
+        }
+        line("}")
+    }
+
+    private fun randomItemOfferChoiceStep(step: RandomItemOfferSavedStep.Choice) {
+        line("choice {")
+        indented {
+            textBlock("offerText", step.offerText)
+            textBlock("prompt", step.prompt)
+            line("item = ${itemId(step.item)}")
+            assignment("itemName", step.itemName)
+            assignment("price", step.price)
+            inputBinding("buy", step.buy)
+            inputBinding("decline", step.decline)
+        }
+        line("}")
+    }
+
+    private fun randomItemOfferDropSlotStep(step: RandomItemOfferSavedStep.DropSlot) {
+        line("dropSlot {")
+        indented {
+            textBlock("prompt", step.prompt)
+            line("item = ${itemId(step.item)}")
+            assignment("itemName", step.itemName)
+            assignment("price", step.price)
+            randomItemOfferResult("result", step.result)
+        }
+        line("}")
+    }
+
+    private fun randomItemOfferMessageStep(step: RandomItemOfferSavedStep.Message) {
+        line("message {")
+        indented {
+            textBlock("text", step.text)
+            randomItemOfferStep("next", step.next)
+            randomItemOfferResult("result", step.result)
+        }
+        line("}")
+    }
+
+    private fun randomItemOfferFinishedStep(step: RandomItemOfferSavedStep.Finished) {
+        line("finished {")
+        indented {
+            randomItemOfferResult("result", step.result)
+        }
+        line("}")
+    }
+
+    private fun randomItemOfferStep(
+        name: String,
+        step: RandomItemOfferSavedStep,
+    ) {
+        line("$name {")
+        indented {
+            when (step) {
+                is RandomItemOfferSavedStep.Choice -> randomItemOfferChoiceStep(step)
+                is RandomItemOfferSavedStep.DropSlot -> randomItemOfferDropSlotStep(step)
+                is RandomItemOfferSavedStep.Message -> randomItemOfferMessageStep(step)
+                is RandomItemOfferSavedStep.Finished -> randomItemOfferFinishedStep(step)
+            }
+        }
+        line("}")
+    }
+
+    private fun nullableRandomItemOfferResult(
+        name: String,
+        result: RandomItemOfferResultSnapshot?,
+    ) {
+        if (result == null) {
+            line("$name = null")
+            return
+        }
+        randomItemOfferResult(name, result)
+    }
+
+    private fun randomItemOfferResult(
+        name: String,
+        result: RandomItemOfferResultSnapshot,
+    ) {
+        line("$name {")
+        indented {
+            line("status = RandomItemOfferStatus.${result.status.name}")
+            line("item = ${itemId(result.item)}")
+            assignment("price", result.price)
+            line("slot = ${result.slot ?: "null"}")
+        }
+        line("}")
+    }
+
+    private fun shopServiceSession(session: ShopServiceSessionSnapshot) {
+        line("shopServiceSession {")
+        indented {
+            line("building = ${buildingId(session.building)}")
+            shopServiceStep(session.step)
+            nullableShopTransactionResult("lastTransaction", session.lastTransaction)
+            nullableShopSellQuoteResult("lastSellQuote", session.lastSellQuote)
+        }
+        line("}")
+    }
+
+    private fun shopServiceStep(step: ShopServiceSavedStep) {
+        line("step {")
+        indented {
+            when (step) {
+                ShopServiceSavedStep.Intro -> emptyShopStep("intro")
+                ShopServiceSavedStep.MainMenu -> emptyShopStep("mainMenu")
+                ShopServiceSavedStep.SelectCatalog -> emptyShopStep("selectCatalog")
+                is ShopServiceSavedStep.BuyItem -> shopBuyItemStep(step)
+                is ShopServiceSavedStep.Quantity -> shopQuantityStep(step)
+                is ShopServiceSavedStep.ConfirmPurchase -> shopConfirmPurchaseStep(step)
+                is ShopServiceSavedStep.DropSlot -> shopDropSlotStep(step)
+                ShopServiceSavedStep.SellSlot -> emptyShopStep("sellSlot")
+                is ShopServiceSavedStep.ConfirmSale -> shopConfirmSaleStep(step)
+                ShopServiceSavedStep.Finished -> emptyShopStep("finished")
+            }
+        }
+        line("}")
+    }
+
+    private fun shopBuyItemStep(step: ShopServiceSavedStep.BuyItem) {
+        line("buyItem {")
+        indented {
+            charList("catalogKeys", step.catalogKeys)
+        }
+        line("}")
+    }
+
+    private fun shopQuantityStep(step: ShopServiceSavedStep.Quantity) {
+        line("quantity {")
+        indented {
+            line("item = ${itemId(step.item)}")
+        }
+        line("}")
+    }
+
+    private fun shopConfirmPurchaseStep(step: ShopServiceSavedStep.ConfirmPurchase) {
+        line("confirmPurchase {")
+        indented {
+            line("item = ${itemId(step.item)}")
+            assignment("quantity", step.quantity)
+            assignment("unitPrice", step.unitPrice)
+            assignment("totalPrice", step.totalPrice)
+        }
+        line("}")
+    }
+
+    private fun shopDropSlotStep(step: ShopServiceSavedStep.DropSlot) {
+        line("dropSlot {")
+        indented {
+            line("item = ${itemId(step.item)}")
+            assignment("quantity", step.quantity)
+            shopTransactionResult("result", step.result)
+        }
+        line("}")
+    }
+
+    private fun shopConfirmSaleStep(step: ShopServiceSavedStep.ConfirmSale) {
+        line("confirmSale {")
+        indented {
+            shopSellQuoteResult("quote", step.quote)
+        }
+        line("}")
+    }
+
+    private fun emptyShopStep(name: String) {
+        line("$name {")
+        line("}")
+    }
+
+    private fun nullableShopTransactionResult(
+        name: String,
+        result: ShopTransactionResultSnapshot?,
+    ) {
+        if (result == null) {
+            line("$name = null")
+            return
+        }
+        shopTransactionResult(name, result)
+    }
+
+    private fun shopTransactionResult(
+        name: String,
+        result: ShopTransactionResultSnapshot,
+    ) {
+        line("$name {")
+        indented {
+            line("status = ShopTransactionStatus.${result.status.name}")
+            line("item = ${result.item?.let(::itemId) ?: "null"}")
+            assignment("goldDelta", result.goldDelta)
+            line("slot = ${result.slot ?: "null"}")
+            assignment("quantity", result.quantity)
+        }
+        line("}")
+    }
+
+    private fun nullableShopSellQuoteResult(
+        name: String,
+        result: ShopSellQuoteResultSnapshot?,
+    ) {
+        if (result == null) {
+            line("$name = null")
+            return
+        }
+        shopSellQuoteResult(name, result)
+    }
+
+    private fun shopSellQuoteResult(
+        name: String,
+        result: ShopSellQuoteResultSnapshot,
+    ) {
+        line("$name {")
+        indented {
+            line("status = ShopSellQuoteStatus.${result.status.name}")
+            line("item = ${result.item?.let(::itemId) ?: "null"}")
+            line("slot = ${result.slot ?: "null"}")
+            assignment("price", result.price)
+            intList("bargainRolls", result.bargainRolls)
+        }
+        line("}")
+    }
+
+    private fun rewardGrantSession(session: RewardGrantSessionSnapshot) {
+        line("rewardGrantSession {")
+        indented {
+            scriptReward(session.reward)
+            itemList("pendingItems", session.pendingItems)
+            rewardGrantStep(session.step)
+            nullableRewardGrantResult("lastResult", session.lastResult)
+        }
+        line("}")
+    }
+
+    private fun scriptReward(reward: ScriptRewardModel) {
+        line("reward {")
+        indented {
+            itemList("items", reward.items)
+            rewardApplication(reward.application)
+            rewardMessages(reward.messages)
+        }
+        line("}")
+    }
+
+    private fun rewardApplication(application: RewardApplicationModel) {
+        line("application {")
+        indented {
+            line("regularItems = RewardItemPlacement.${application.regularItems.name}")
+            line("overflow = RewardOverflowPolicy.${application.overflow.name}")
+            line("specialItems = RewardSpecialItemPolicy.${application.specialItems.name}")
+        }
+        line("}")
+    }
+
+    private fun rewardMessages(messages: RewardMessageModel) {
+        line("messages {")
+        indented {
+            nullableTextBlock("cantCarry", messages.cantCarry)
+            nullableTextBlock("pickedUp", messages.pickedUp)
+        }
+        line("}")
+    }
+
+    private fun rewardGrantStep(step: RewardGrantSavedStep) {
+        line("step {")
+        indented {
+            when (step) {
+                is RewardGrantSavedStep.DropSlot -> rewardGrantDropSlotStep(step)
+                is RewardGrantSavedStep.Message -> rewardGrantMessageStep(step)
+                is RewardGrantSavedStep.Finished -> rewardGrantFinishedStep(step)
+            }
+        }
+        line("}")
+    }
+
+    private fun rewardGrantDropSlotStep(step: RewardGrantSavedStep.DropSlot) {
+        line("dropSlot {")
+        indented {
+            textBlock("prompt", step.prompt)
+            line("item = ${itemId(step.item)}")
+            rewardGrantResult("result", step.result)
+        }
+        line("}")
+    }
+
+    private fun rewardGrantMessageStep(step: RewardGrantSavedStep.Message) {
+        line("message {")
+        indented {
+            textBlock("text", step.text)
+            rewardGrantResult("result", step.result)
+        }
+        line("}")
+    }
+
+    private fun rewardGrantFinishedStep(step: RewardGrantSavedStep.Finished) {
+        line("finished {")
+        indented {
+            rewardGrantResult("result", step.result)
+        }
+        line("}")
+    }
+
+    private fun nullableRewardGrantResult(
+        name: String,
+        result: RewardGrantResultSnapshot?,
+    ) {
+        if (result == null) {
+            line("$name = null")
+            return
+        }
+        rewardGrantResult(name, result)
+    }
+
+    private fun rewardGrantResult(
+        name: String,
+        result: RewardGrantResultSnapshot,
+    ) {
+        line("$name {")
+        indented {
+            line("status = RewardGrantStatus.${result.status.name}")
+            line("item = ${result.item?.let(::itemId) ?: "null"}")
+            line("slot = ${result.slot ?: "null"}")
+        }
+        line("}")
+    }
+
+    private fun battleSession(session: BattleSessionSnapshot) {
+        line("battleSession {")
+        indented {
+            line("tier = ${session.tier?.let(::encounterTierId) ?: "null"}")
+            line("monster = ${monsterId(session.monster)}")
+            assignment("count", session.count)
+            intList("hitPoints", session.hitPoints)
+            assignment("hitPointMax", session.hitPointMax)
+            assignment("mandatory", session.mandatory)
+            battleRound(session.round)
+            battleSavedStep(session.step)
+            battleResult(session.lastResult)
+        }
+        line("}")
+    }
+
+    private fun battleRound(round: BattleRoundState) {
+        line("round {")
+        indented {
+            assignment("currentMemberIndex", round.currentMemberIndex)
+            assignment("defendCount", round.defendCount)
+            assignment("monsterWeaponSkill", round.monsterWeaponSkill)
+            assignment("monsterConfused", round.monsterConfused)
+            assignment("monstersHeld", round.monstersHeld)
+            assignment("antimagic", round.antimagic)
+            assignment("partyHeld", round.partyHeld)
+            assignment("partyConfused", round.partyConfused)
+            assignment("actionRetry", round.actionRetry)
+        }
+        line("}")
+    }
+
+    private fun battleResult(result: BattleSessionResultSnapshot) {
+        line("lastResult {")
+        indented {
+            line("status = BattleSessionResultStatus.${result.status.name}")
+            line("monster = ${result.monster?.let(::monsterId) ?: "null"}")
+            line("tier = ${result.tier?.let(::encounterTierId) ?: "null"}")
+        }
+        line("}")
+    }
+
+    private fun battleSavedStep(step: BattleSavedStep) = battleSavedStep("step", step)
+
+    private fun battleSavedStep(
+        name: String,
+        step: BattleSavedStep,
+    ) {
+        line("$name {")
+        indented {
+            when (step) {
+                is BattleSavedStep.Opening -> battleOpeningStep(step)
+                is BattleSavedStep.RoundOpening -> battleRoundOpeningStep(step)
+                is BattleSavedStep.Message -> battleMessageStep(step)
+                is BattleSavedStep.PlayerAction -> battlePlayerActionStep(step)
+                is BattleSavedStep.MonsterTarget -> battleMonsterTargetStep(step)
+                is BattleSavedStep.ScriptMonsterTarget -> battleScriptMonsterTargetStep(step)
+                is BattleSavedStep.MemberTarget -> battleMemberTargetStep(step)
+                is BattleSavedStep.MagicItemSlot -> battleMagicItemSlotStep(step)
+                is BattleSavedStep.SpellChoice -> battleSpellChoiceStep(step)
+                BattleSavedStep.MonsterRound -> emptyBattleStep("monsterRound")
+                BattleSavedStep.Finished -> emptyBattleStep("finished")
+            }
+        }
+        line("}")
+    }
+
+    private fun battleOpeningStep(step: BattleSavedStep.Opening) {
+        line("opening {")
+        indented {
+            textBlock("prompt", step.prompt)
+            line("image = ${step.image?.let(::imageId) ?: "null"}")
+        }
+        line("}")
+    }
+
+    private fun battleRoundOpeningStep(step: BattleSavedStep.RoundOpening) {
+        line("roundOpening {")
+        indented {
+            textBlock("prompt", step.prompt)
+        }
+        line("}")
+    }
+
+    private fun battleMessageStep(step: BattleSavedStep.Message) {
+        line("message {")
+        indented {
+            textBlocks("texts", step.texts)
+            battleSavedStep("next", step.next)
+            viewCommands(step.viewCommands)
+        }
+        line("}")
+    }
+
+    private fun battlePlayerActionStep(step: BattleSavedStep.PlayerAction) {
+        line("playerAction {")
+        indented {
+            assignment("memberIndex", step.memberIndex)
+            textBlock("prompt", step.prompt)
+        }
+        line("}")
+    }
+
+    private fun battleMonsterTargetStep(step: BattleSavedStep.MonsterTarget) {
+        line("monsterTarget {")
+        indented {
+            assignment("memberIndex", step.memberIndex)
+            textBlock("prompt", step.prompt)
+            charList("targetKeys", step.targetKeys)
+        }
+        line("}")
+    }
+
+    private fun battleScriptMonsterTargetStep(step: BattleSavedStep.ScriptMonsterTarget) {
+        line("scriptMonsterTarget {")
+        indented {
+            textBlock("prompt", step.prompt)
+            charList("targetKeys", step.targetKeys)
+            combatScript(step.script)
+        }
+        line("}")
+    }
+
+    private fun battleMemberTargetStep(step: BattleSavedStep.MemberTarget) {
+        line("memberTarget {")
+        indented {
+            textBlock("prompt", step.prompt)
+            charList("targetKeys", step.targetKeys)
+            combatScript(step.script)
+        }
+        line("}")
+    }
+
+    private fun battleMagicItemSlotStep(step: BattleSavedStep.MagicItemSlot) {
+        line("magicItemSlot {")
+        indented {
+            assignment("memberIndex", step.memberIndex)
+            textBlock("prompt", step.prompt)
+            charList("slotKeys", step.slotKeys)
+        }
+        line("}")
+    }
+
+    private fun battleSpellChoiceStep(step: BattleSavedStep.SpellChoice) {
+        line("spellChoice {")
+        indented {
+            assignment("memberIndex", step.memberIndex)
+            textBlock("prompt", step.prompt)
+            charList("spellKeys", step.spellKeys)
+        }
+        line("}")
+    }
+
+    private fun combatScript(script: CombatScriptSnapshot) {
+        line("script {")
+        indented {
+            line("memberIndex = ${script.memberIndex ?: "null"}")
+            line("sourceKind = CombatScriptSourceKind.${script.sourceKind.name}")
+            assignment("sourceSlug", script.sourceSlug)
+            assignment("nextIndex", script.nextIndex)
+            assignment("pendingVar", script.pendingVar)
+            namedIntMap("locals", script.locals)
+            line("activeInventorySlot = ${script.activeInventorySlot ?: "null"}")
+        }
+        line("}")
+    }
+
+    private fun emptyBattleStep(name: String) {
+        line("$name {")
+        line("}")
     }
 
     private fun compiledVmContinuation(continuation: CompiledVmContinuationSnapshot) {
@@ -2327,18 +4346,74 @@ private class RuntimeStateSnapshotWriter {
         line("}")
     }
 
+    private fun itemList(
+        name: String,
+        values: List<ItemId>,
+    ) {
+        line("$name {")
+        indented {
+            values.forEach { value -> line("value(${itemId(value)})") }
+        }
+        line("}")
+    }
+
+    private fun compiledHandleList(
+        name: String,
+        values: List<CompiledHandleRef>,
+    ) {
+        line("$name {")
+        indented {
+            values.forEach { value -> line(compiledHandleRef(value)) }
+        }
+        line("}")
+    }
+
+    private fun compiledHandleRef(value: CompiledHandleRef): String = "handle(CompiledHandleKind.${value.kind.name}, ${value.id})"
+
+    private fun textBlocks(
+        name: String,
+        blocks: List<TextBlock>,
+    ) {
+        line("$name {")
+        indented {
+            blocks.forEach { block -> textBlock("text", block) }
+        }
+        line("}")
+    }
+
+    private fun viewCommands(commands: List<ViewCommand>) {
+        line("viewCommands {")
+        indented {
+            commands.forEach { command ->
+                when (command) {
+                    ViewCommand.ClearText -> line("clearText()")
+                    ViewCommand.ClearMapWindow -> line("clearMapWindow()")
+                    ViewCommand.RenderMap -> line("renderMap()")
+                    ViewCommand.StatusLine -> line("statusLine()")
+                    is ViewCommand.ShowImage -> line("showImage(${imageId(command.image)})")
+                }
+            }
+        }
+        line("}")
+    }
+
     private fun inputBindings(bindings: List<InputBindingModel>) {
         line("bindings {")
         indented {
-            bindings.forEach { binding ->
-                line("binding {")
-                indented {
-                    assignment("primary", binding.primary)
-                    stringList("aliases", binding.aliases)
-                    assignment("label", binding.label)
-                }
-                line("}")
-            }
+            bindings.forEach { binding -> inputBinding("binding", binding) }
+        }
+        line("}")
+    }
+
+    private fun inputBinding(
+        name: String,
+        binding: InputBindingModel,
+    ) {
+        line("$name {")
+        indented {
+            assignment("primary", binding.primary)
+            stringList("aliases", binding.aliases)
+            assignment("label", binding.label)
         }
         line("}")
     }
@@ -2464,10 +4539,29 @@ private class RuntimeStateSnapshotWriter {
                     }
                     line("}")
                 }
-                is CompiledVmChildRequestSnapshot.GrantReward,
-                is CompiledVmChildRequestSnapshot.RandomItemOffer,
-                is CompiledVmChildRequestSnapshot.ShopService,
-                -> error("runtime snapshot cannot persist compiled ${request.javaClass.simpleName} child requests yet")
+                is CompiledVmChildRequestSnapshot.GrantReward -> {
+                    line("grantReward {")
+                    indented {
+                        assignment("gold", request.gold)
+                        compiledHandleList("items", request.reward.items)
+                    }
+                    line("}")
+                }
+                is CompiledVmChildRequestSnapshot.RandomItemOffer -> {
+                    line("randomItemOffer {")
+                    indented {
+                        line("pool = ${compiledHandleRef(request.offer.pool)}")
+                        assignment("selectedIndex", request.selectedIndex)
+                    }
+                    line("}")
+                }
+                is CompiledVmChildRequestSnapshot.ShopService -> {
+                    line("shopService {")
+                    indented {
+                        line("building = ${compiledHandleRef(request.shop.building)}")
+                    }
+                    line("}")
+                }
             }
         }
         line("}")
@@ -2677,9 +4771,15 @@ private class RuntimeStateSnapshotWriter {
 
     private fun itemId(id: ItemId): String = "item(${quote(id.slug)})"
 
+    private fun itemPoolId(id: ItemPoolId): String = "itemPool(${quote(id.slug)})"
+
     private fun milestoneId(id: GameMilestoneId): String = "milestone(${quote(id.slug)})"
 
     private fun monsterId(id: MonsterId): String = "monster(${quote(id.slug)})"
+
+    private fun encounterTierId(id: EncounterTier): String = "encounterTier(${quote(id.slug)})"
+
+    private fun imageId(id: ImageId): String = "image(${quote(id.slug)})"
 
     private fun rumourTableId(id: RumourTableId): String = "rumourTable(${quote(id.slug)})"
 

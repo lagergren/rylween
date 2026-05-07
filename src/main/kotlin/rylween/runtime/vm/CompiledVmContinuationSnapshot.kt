@@ -2,16 +2,18 @@
  * Snapshot records for blocked compiled VM continuations.
  *
  * `CompiledVm.kt` owns the live executor state, while this file owns the
- * save-shaped subset that can be embedded in strict runtime snapshots. Like
+ * data-only subset that can be embedded in strict runtime snapshots. Like
  * `runtime/ScriptContinuation.kt`, the snapshot excludes the outer
- * `RuntimeSessionState`; save/load code supplies the restored runtime when it
- * turns the snapshot back into a live [CompiledVmContinuation].
+ * `RuntimeSessionState`; restore code supplies the runtime when it turns the
+ * snapshot back into a live [CompiledVmContinuation].
  *
  * This is also the recommended cross-language serialization shape. A server,
  * native, or bitmap runtime should store these plain records instead of
  * implementation objects: root identity, VM-local maps, frame paths, and one
- * typed pending input/child request. Runtime state remains in the normal save
- * model so the VM continuation does not duplicate party/realm data.
+ * typed pending input/child request. Runtime state remains in the normal
+ * snapshot model so the VM continuation does not duplicate party/realm data.
+ * A frontend still decides where player saves are legal; this type only says
+ * what must be persisted if an engine boundary is intentionally snapshotted.
  */
 package rylween.runtime.vm
 
