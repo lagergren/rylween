@@ -164,6 +164,9 @@ fun RuntimeContent.scriptRootForDungeonEvent(id: DungeonEventId): ScriptRootRef 
 /** Returns the catalogued script root for a spell. */
 fun RuntimeContent.scriptRootForSpell(id: SpellId): ScriptRootRef = scriptRootCatalog().rootFor(ScriptRootRef.spell(id))
 
+/** Returns the catalogued script root for an inventory or combat item-use script. */
+fun RuntimeContent.scriptRootForItemUse(id: ItemId): ScriptRootRef = scriptRootCatalog().rootFor(ScriptRootRef.itemUse(id))
+
 /** Returns the script root for a conversation dialogue branch. */
 fun SpeakRuntimeContent.scriptRootForDialogueBranch(
     npc: NpcId,

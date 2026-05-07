@@ -57,10 +57,11 @@ class CompiledVmScriptProgramIndex(
  * Root-oriented compiled VM runner for host adapters.
  *
  * This is the first J2a bridge between existing Kotlin session boundaries and
- * the standalone compiled opcode VM. It does not implement child sessions on
- * its own; unsupported opcode families still return the typed diagnostics from
- * [CompiledVm]. Once J2.4 lands, terminal/headless hosts can route their normal
- * script roots through this runner without a separate compiled-program lookup.
+ * the standalone compiled opcode VM. It does not run child sessions on its own;
+ * child opcodes return typed [CompiledVmChildRequest] payloads in
+ * [CompiledVmPendingInput.ChildSession] so terminal/headless hosts can keep
+ * battle, dungeon, shop, reward, and conversation flows outside the VM while
+ * still resuming the same compiled parent frame.
  *
  * Implementers in another language can use this as the outer API shape:
  * resolve a root, create [CompiledVmStart], call the VM, persist
