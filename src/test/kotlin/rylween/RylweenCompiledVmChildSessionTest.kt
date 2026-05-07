@@ -18,6 +18,7 @@ import rylween.dsl.Gender
 import rylween.dsl.InventorySaveSlotMax
 import rylween.dsl.InventorySlotState
 import rylween.dsl.MonsterId
+import rylween.dsl.NativeAllowlist
 import rylween.dsl.PartyCounters
 import rylween.dsl.PartyMemberState
 import rylween.dsl.PartyResources
@@ -30,11 +31,13 @@ import rylween.dsl.Wilderness
 import rylween.dsl.encounterTier
 import rylween.dsl.inlineText
 import rylween.dsl.item
+import rylween.dsl.lit
 import rylween.dsl.monster
 import rylween.dsl.of
 import rylween.dsl.partyId
 import rylween.dsl.rylween
 import rylween.dsl.sceneId
+import rylween.engine.EngineRequest
 import rylween.engine.EngineTraceEvent
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptRootRef
@@ -109,6 +112,20 @@ class RylweenCompiledVmChildSessionTest {
         )
     }
 
+    @Test
+    fun compiledVmExecutesAllowlistedNativeEffectCallsThroughHostTrace() {
+        val (compiled, program) = compiledScene(nativeCallModel(), nativeCallScene)
+        val host = RecordingCompiledVmHost()
+
+        val result = CompiledVm(compiled.content, host).run(program, CompiledVmStart(runtime()))
+
+        assertIs<CompiledVmResult.Completed>(result)
+        assertEquals(
+            listOf(EngineTraceEvent.NativeEffect(EngineRequest(NativeAllowlist.inventoryAdd.path, listOf("Lit(value=7)")))),
+            host.events,
+        )
+    }
+
     private fun runSceneModel(): RylweenModel =
         rylween {
             content {
@@ -129,6 +146,15 @@ class RylweenCompiledVmChildSessionTest {
                     encounter(encounterMonster, mandatory = true, tier = encounterTier)
                     party.gold += 4
                     screen("after")
+                }
+            }
+        }
+
+    private fun nativeCallModel(): RylweenModel =
+        rylween {
+            content {
+                scene(nativeCallScene) {
+                    native.inventory.add(lit(7))
                 }
             }
         }
@@ -187,6 +213,7 @@ class RylweenCompiledVmChildSessionTest {
         val parentScene: SceneId = sceneId("vm.child.parent")
         val childScene: SceneId = sceneId("vm.child.child")
         val encounterScene: SceneId = sceneId("vm.child.encounter")
+        val nativeCallScene: SceneId = sceneId("vm.child.native")
         val encounterMonster: MonsterId = monster("vm.child.monster")
         val encounterTier: EncounterTier = encounterTier("vm.child.tier")
     }

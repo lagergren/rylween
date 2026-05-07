@@ -6,6 +6,13 @@
  * that headless, ANSI, server, and native hosts can share: callers name a
  * [rylween.runtime.ScriptRootRef], receive a [CompiledVmResult], and never need
  * to inspect `compiled/CompiledHandleRef` tables directly.
+ *
+ * Cross-runtime implementers should mirror this layer even if they do not use
+ * Kotlin. The VM itself executes a single compiled program, but product hosts
+ * naturally talk in terms of "run the scene", "resume this spell", or "continue
+ * this item-use script". A root index keeps that product boundary stable while
+ * the compiled bundle remains free to assign dense ids and handle rows for hash
+ * reproducibility.
  */
 package rylween.runtime.vm
 
@@ -24,6 +31,11 @@ import rylween.runtime.ScriptRootRef
  * This index intentionally keys by kind and slug so loaded roots can still be
  * found after crossing a frontend or save boundary that does not preserve the
  * optional dense id.
+ *
+ * A non-Kotlin runtime should build the same index after loading scripts:
+ * `(root.kind, root.slug) -> program`. Dense ids are useful for compact
+ * diagnostics, but kind/slug is the stable identity that survives save/load and
+ * cross-host conformance tapes.
  */
 class CompiledVmScriptProgramIndex(
     private val content: LoadedCompiledContent,
@@ -49,6 +61,12 @@ class CompiledVmScriptProgramIndex(
  * its own; unsupported opcode families still return the typed diagnostics from
  * [CompiledVm]. Once J2.4 lands, terminal/headless hosts can route their normal
  * script roots through this runner without a separate compiled-program lookup.
+ *
+ * Implementers in another language can use this as the outer API shape:
+ * resolve a root, create [CompiledVmStart], call the VM, persist
+ * [CompiledVmContinuationSnapshot] when blocked, and resume through the same
+ * root-indexed program lookup. The authored `Op` interpreter should only be an
+ * oracle for tests, not a fallback in production compiled mode.
  */
 class CompiledVmScriptRunner(
     content: LoadedCompiledContent,
@@ -65,7 +83,9 @@ class CompiledVmScriptRunner(
      * Runs [root] from [runtime] with optional VM locals and text bindings.
      *
      * Missing roots fail as [VmDiagnostic.MissingHandle]; present roots return
-     * the underlying [CompiledVm] completion, blocked prompt, or diagnostic.
+     * the underlying [CompiledVm] completion, blocked prompt/child request, or
+     * diagnostic. Hosts should persist both runtime state and VM locals when
+     * this returns [CompiledVmResult.Blocked].
      */
     fun run(
         root: ScriptRootRef,
@@ -92,6 +112,9 @@ class CompiledVmScriptRunner(
      *
      * The continuation itself remains the saveable VM state; this adapter only
      * finds the owning compiled program before delegating to [CompiledVm.resume].
+     * This is the preferred host entry point after user input or child-session
+     * completion because it prevents hosts from caching stale program handles
+     * across bundle reloads.
      */
     fun resume(
         continuation: CompiledVmContinuation,

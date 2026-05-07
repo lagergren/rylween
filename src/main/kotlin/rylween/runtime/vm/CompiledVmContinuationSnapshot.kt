@@ -2,10 +2,16 @@
  * Snapshot records for blocked compiled VM continuations.
  *
  * `CompiledVm.kt` owns the live executor state, while this file owns the
- * save-shaped subset that can be embedded in future strict runtime snapshots.
- * Like `runtime/ScriptContinuation.kt`, the snapshot excludes the outer
+ * save-shaped subset that can be embedded in strict runtime snapshots. Like
+ * `runtime/ScriptContinuation.kt`, the snapshot excludes the outer
  * `RuntimeSessionState`; save/load code supplies the restored runtime when it
  * turns the snapshot back into a live [CompiledVmContinuation].
+ *
+ * This is also the recommended cross-language serialization shape. A server,
+ * native, or bitmap runtime should store these plain records instead of
+ * implementation objects: root identity, VM-local maps, frame paths, and one
+ * typed pending input/child request. Runtime state remains in the normal save
+ * model so the VM continuation does not duplicate party/realm data.
  */
 package rylween.runtime.vm
 
@@ -18,7 +24,14 @@ import rylween.dsl.TextBlock
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptRootRef
 
-/** Saveable subset of [CompiledVmContinuation] for one blocked VM prompt. */
+/**
+ * Saveable subset of [CompiledVmContinuation] for one blocked VM prompt or child request.
+ *
+ * [frames] is never empty because a blocked VM must know where to resume after
+ * input or child completion. [pending] repeats the root/index/path of the
+ * blocking opcode so save readers can validate the shape before reconstructing
+ * live VM state.
+ */
 data class CompiledVmContinuationSnapshot(
     val root: ScriptRootRef,
     val locals: Map<String, Int> = emptyMap(),
@@ -32,7 +45,13 @@ data class CompiledVmContinuationSnapshot(
     }
 }
 
-/** Saveable subset of [CompiledVmFrame]. */
+/**
+ * Saveable subset of [CompiledVmFrame].
+ *
+ * The path fields are numeric by design. Do not serialize Kotlin class names or
+ * enum-specific property names into save files; another implementation should
+ * be able to follow the same integer path through the compiled operand tree.
+ */
 data class CompiledVmFrameSnapshot(
     val blockPath: List<Int>,
     val nextIndex: Int,
@@ -46,7 +65,13 @@ data class CompiledVmFrameSnapshot(
     }
 }
 
-/** Saveable typed pending input shape for [CompiledVmContinuationSnapshot]. */
+/**
+ * Saveable typed pending input shape for [CompiledVmContinuationSnapshot].
+ *
+ * Every variant is data-only and frontend-neutral. A terminal can turn a menu
+ * into key prompts, a server can turn it into JSON, and a native client can
+ * draw buttons; all should resume with the matching [CompiledVmInput] variant.
+ */
 sealed interface CompiledVmPendingInputSnapshot {
     /** Script root that owns the pending input. */
     val root: ScriptRootRef
@@ -169,7 +194,13 @@ sealed interface CompiledVmPendingInputSnapshot {
         }
     }
 
-    /** Pending host-owned child session such as a battle encounter. */
+    /**
+     * Pending host-owned child session such as a battle encounter.
+     *
+     * Persisting this request lets a save taken while a child session is active
+     * restore the parent VM frame exactly where it blocked, then let the host
+     * continue or complete the child before resuming the parent script.
+     */
     data class ChildSession(
         override val root: ScriptRootRef,
         override val instructionIndex: Int,
@@ -182,7 +213,13 @@ sealed interface CompiledVmPendingInputSnapshot {
     }
 }
 
-/** Saveable host-owned child request inside [CompiledVmPendingInputSnapshot.ChildSession]. */
+/**
+ * Saveable host-owned child request inside [CompiledVmPendingInputSnapshot.ChildSession].
+ *
+ * Add new variants here when J2.4 wires additional child/session opcodes. Keep
+ * each variant stable, explicit, and independent from Kotlin runtime session
+ * classes so other languages can persist and replay the same child handoff.
+ */
 sealed interface CompiledVmChildRequestSnapshot {
     /** Saveable encounter request emitted by a compiled `Encounter` opcode. */
     data class Encounter(
