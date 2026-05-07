@@ -9,9 +9,11 @@
  */
 package rylween.runtime.vm
 
+import rylween.dsl.EncounterTier
 import rylween.dsl.InputBindingModel
 import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.MemberChoiceFilter
+import rylween.dsl.MonsterId
 import rylween.dsl.TextBlock
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptRootRef
@@ -166,6 +168,33 @@ sealed interface CompiledVmPendingInputSnapshot {
             require(maxLength == null || maxLength >= 0) { "compiled VM AskText maxLength cannot be negative" }
         }
     }
+
+    /** Pending host-owned child session such as a battle encounter. */
+    data class ChildSession(
+        override val root: ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        val request: CompiledVmChildRequestSnapshot,
+    ) : CompiledVmPendingInputSnapshot {
+        init {
+            validatePendingShape()
+        }
+    }
+}
+
+/** Saveable host-owned child request inside [CompiledVmPendingInputSnapshot.ChildSession]. */
+sealed interface CompiledVmChildRequestSnapshot {
+    /** Saveable encounter request emitted by a compiled `Encounter` opcode. */
+    data class Encounter(
+        val monster: MonsterId,
+        val mandatory: Boolean,
+        val tier: String?,
+    ) : CompiledVmChildRequestSnapshot {
+        init {
+            require(monster.slug.isNotBlank()) { "compiled VM encounter snapshot requires a monster slug" }
+            require(tier == null || tier.isNotBlank()) { "compiled VM encounter snapshot tier cannot be blank" }
+        }
+    }
 }
 
 /** Saveable menu option inside [CompiledVmPendingInputSnapshot.Menu]. */
@@ -270,6 +299,8 @@ private fun CompiledVmPendingInput.toSnapshot(): CompiledVmPendingInputSnapshot 
                 trim = trim,
                 maxLength = maxLength,
             )
+        is CompiledVmPendingInput.ChildSession ->
+            CompiledVmPendingInputSnapshot.ChildSession(root, instructionIndex, operandPath, request.toSnapshot())
     }
 
 private fun CompiledVmPendingInputSnapshot.toPendingInput(): CompiledVmPendingInput =
@@ -305,9 +336,26 @@ private fun CompiledVmPendingInputSnapshot.toPendingInput(): CompiledVmPendingIn
             )
         is CompiledVmPendingInputSnapshot.AskText ->
             CompiledVmPendingInput.AskText(root, instructionIndex, operandPath, prompt, accepted, caseSensitive, trim, maxLength)
+        is CompiledVmPendingInputSnapshot.ChildSession ->
+            CompiledVmPendingInput.ChildSession(root, instructionIndex, operandPath, request.toRequest())
     }
 
 private fun CompiledVmPendingInputSnapshot.validatePendingShape() {
     require(instructionIndex >= 0) { "compiled VM pending instructionIndex cannot be negative" }
     require(operandPath.all { segment -> segment >= 0 }) { "compiled VM pending operandPath cannot contain negative segments" }
 }
+
+private fun CompiledVmChildRequest.toSnapshot(): CompiledVmChildRequestSnapshot =
+    when (this) {
+        is CompiledVmChildRequest.Encounter -> CompiledVmChildRequestSnapshot.Encounter(monster, mandatory, tier?.slug)
+    }
+
+private fun CompiledVmChildRequestSnapshot.toRequest(): CompiledVmChildRequest =
+    when (this) {
+        is CompiledVmChildRequestSnapshot.Encounter ->
+            CompiledVmChildRequest.Encounter(
+                monster = monster,
+                mandatory = mandatory,
+                tier = tier?.let(::EncounterTier),
+            )
+    }

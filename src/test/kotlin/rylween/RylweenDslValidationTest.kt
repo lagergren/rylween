@@ -7396,7 +7396,7 @@ class RylweenDslValidationTest {
                 ?.encounter
                 ?.monster
                 ?.id,
-            Monsters.troll
+            Monsters.troll,
         )
         assertFalse(result.session.party.hasFlagState(Story.hermit.trollTooth.extracted))
         assertTrue(terminal.output.any { "ENCOUNTER!" in it })
@@ -7495,7 +7495,7 @@ class RylweenDslValidationTest {
                 ?.encounter
                 ?.monster
                 ?.id,
-            Monsters.koboldHorde
+            Monsters.koboldHorde,
         )
         assertFalse(result.session.party.hasFlagState(Story.masterCrown.task1Done))
         assertTrue(terminal.output.any { "kobold village" in it.lowercase() })
@@ -7535,7 +7535,7 @@ class RylweenDslValidationTest {
                 ?.encounter
                 ?.monster
                 ?.id,
-            Monsters.wingedThing
+            Monsters.wingedThing,
         )
         assertFalse(result.session.party.hasFlagState(Story.jazzy.ogre.jazzyDefeated))
         assertTrue(terminal.output.any { "FOOT OF JAZZY" in it })
@@ -8652,7 +8652,9 @@ class RylweenDslValidationTest {
         assertTrue(handoffLines.all { line -> line in output })
     }
 
-    private fun compiledRuntimeWithRealizedNpcs(@Suppress("SameParameterValue") rngState: Long): RuntimeSessionState {
+    private fun compiledRuntimeWithRealizedNpcs(
+        @Suppress("SameParameterValue") rngState: Long,
+    ): RuntimeSessionState {
         val content = RylweenCompiledGame.nextDsl
         return RuntimeSessionState
             .singleParty(
