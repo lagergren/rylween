@@ -9,6 +9,8 @@ package rylween.compiled
 
 import rylween.dsl.BoolAst
 import rylween.dsl.CampRulesModel
+import rylween.dsl.CastleContentModel
+import rylween.dsl.CastleTextModel
 import rylween.dsl.DungeonSystemModel
 import rylween.dsl.EngineServiceUse
 import rylween.dsl.FlagRef
@@ -34,8 +36,6 @@ import rylween.dsl.TextPart
 import rylween.dsl.TownSystemModel
 import rylween.dsl.WildernessSystemModel
 import rylween.dsl.WildernessUpkeepRules
-import rylween.dsl.YdargContentModel
-import rylween.dsl.YdargTextModel
 import rylween.dsl.building
 import rylween.dsl.castle
 import rylween.dsl.dungeon
@@ -123,7 +123,7 @@ fun File.readExternalCompiledGameBundle(): CompiledGameBundle = readBytes().read
  *
  * The `runtimeFacade` section carries the complete data graph the current
  * Kotlin session/runtime layer consumes: prompts, terminal presentation,
- * realm/upkeep balance, authored content, Ydarg castle content, and start
+ * realm/upkeep balance, authored content, castle content, and start
  * states. The loader recompiles that facade back into `CompiledGameBundle` and
  * requires it to match the normalized compiled sections, so the facade cannot
  * silently drift from the dense table bundle. This is deliberately still a
@@ -333,7 +333,7 @@ private class ExternalBundleArtifactWriter {
             "dungeon" to dungeonRuntimeJson(game.dungeons),
             "town" to townRuntimeJson(game.townSystem),
             "speak" to speakRuntimeJson(game.speak),
-            "castles" to JsonArray(game.castles.map(::ydargCastleJson)),
+            "castles" to JsonArray(game.castles.map(::castleJson)),
         )
 
     private fun realmJson(realm: RealmContentModel): JsonValue =
@@ -627,43 +627,7 @@ private class ExternalBundleArtifactWriter {
                     "viewParty" to game.dungeons.keys.viewParty,
                     "save" to game.dungeons.keys.save,
                 ),
-            "ydarg.navigation" to
-                game.ydarg
-                    ?.keys
-                    ?.let { keys ->
-                        commandListJson(
-                            "moveNorth" to keys.moveNorth,
-                            "moveSouth" to keys.moveSouth,
-                            "moveWest" to keys.moveWest,
-                            "moveEast" to keys.moveEast,
-                            "save" to keys.save,
-                            "help" to keys.help,
-                            "viewParty" to keys.viewParty,
-                            "removeArmor" to keys.removeArmor,
-                            "removeWeapon" to keys.removeWeapon,
-                            "drop" to keys.drop,
-                            "readyWeapon" to keys.readyWeapon,
-                            "readyArmor" to keys.readyArmor,
-                            "quaff" to keys.quaff,
-                            "castSpell" to keys.castSpell,
-                        )
-                    }.orJsonNull(),
-            "ydarg.treasure" to
-                game.ydarg
-                    ?.keys
-                    ?.let { keys ->
-                        commandListJson("take" to keys.treasureTake, "leave" to keys.treasureLeave)
-                    }.orJsonNull(),
-            "ydarg.stairs" to
-                game.ydarg
-                    ?.keys
-                    ?.let { keys ->
-                        commandListJson(
-                            "teleportOut" to keys.stairsTeleport,
-                            "giveItem" to keys.stairsGive,
-                            "leave" to keys.stairsLeave,
-                        )
-                    }.orJsonNull(),
+            *castleCommandJsonEntries(game).toTypedArray(),
             "town" to
                 game.townSystem
                     ?.menu
@@ -748,6 +712,38 @@ private class ExternalBundleArtifactWriter {
                         ),
                 ),
         )
+
+    private fun castleCommandJsonEntries(game: GameModel): List<Pair<String, JsonValue>> =
+        game.castles.flatMap { castle ->
+            val prefix = "castle.${castle.id.slug}"
+            val keys = castle.keys
+            listOf(
+                "$prefix.navigation" to
+                    commandListJson(
+                        "moveNorth" to keys.moveNorth,
+                        "moveSouth" to keys.moveSouth,
+                        "moveWest" to keys.moveWest,
+                        "moveEast" to keys.moveEast,
+                        "save" to keys.save,
+                        "help" to keys.help,
+                        "viewParty" to keys.viewParty,
+                        "removeArmor" to keys.removeArmor,
+                        "removeWeapon" to keys.removeWeapon,
+                        "drop" to keys.drop,
+                        "readyWeapon" to keys.readyWeapon,
+                        "readyArmor" to keys.readyArmor,
+                        "quaff" to keys.quaff,
+                        "castSpell" to keys.castSpell,
+                    ),
+                "$prefix.treasure" to commandListJson("take" to keys.treasureTake, "leave" to keys.treasureLeave),
+                "$prefix.stairs" to
+                    commandListJson(
+                        "teleportOut" to keys.stairsTeleport,
+                        "giveItem" to keys.stairsGive,
+                        "leave" to keys.stairsLeave,
+                    ),
+            )
+        }
 
     private fun dungeonRuntimeJson(dungeons: DungeonSystemModel): JsonValue =
         jsonObject(
@@ -888,43 +884,43 @@ private class ExternalBundleArtifactWriter {
                 ),
         )
 
-    private fun ydargCastleJson(ydarg: YdargContentModel): JsonValue =
+    private fun castleJson(castle: CastleContentModel): JsonValue =
         jsonObject(
-            "id" to JsonString(ydarg.id.slug),
+            "id" to JsonString(castle.id.slug),
             "kind" to JsonString("gridCastle"),
-            "entry" to gridPointJson(ydarg.entry),
-            "image" to ydarg.image?.let { JsonString(it.slug) }.orJsonNull(),
-            "requiredKey" to JsonString(ydarg.requiredKey.slug),
-            "victoryMilestone" to JsonString(ydarg.victoryMilestone.slug),
-            "mapSize" to JsonNumber(ydarg.mapSize.toString()),
-            "roomTypeMax" to JsonNumber(ydarg.roomTypeMax.toString()),
+            "entry" to gridPointJson(castle.entry),
+            "image" to castle.image?.let { JsonString(it.slug) }.orJsonNull(),
+            "entryRequirement" to castle.entryRequirement?.let { JsonString(it.slug) }.orJsonNull(),
+            "completionMilestone" to castle.completionMilestone?.let { JsonString(it.slug) }.orJsonNull(),
+            "mapSize" to JsonNumber(castle.mapSize.toString()),
+            "roomTypeMax" to JsonNumber(castle.roomTypeMax.toString()),
             "roomEvents" to
                 JsonArray(
-                    ydarg.roomEvents.entries.sortedBy { it.key }.map { (roll, event) ->
+                    castle.roomEvents.entries.sortedBy { it.key }.map { (roll, event) ->
                         jsonObject("roll" to JsonNumber(roll.toString()), "event" to JsonString(event.name))
                     },
                 ),
-            "monsterTier" to JsonString(ydarg.monsterTier.slug),
+            "monsterTier" to JsonString(castle.monsterTier.slug),
             "treasure" to
                 jsonObject(
-                    "gateMax" to JsonNumber(ydarg.treasure.gateMax.toString()),
+                    "gateMax" to JsonNumber(castle.treasure.gateMax.toString()),
                     "regularKinds" to
                         JsonArray(
-                            ydarg.treasure.regularKinds.map { items -> JsonArray(items.map { JsonString(it.slug) }) },
+                            castle.treasure.regularKinds.map { items -> JsonArray(items.map { JsonString(it.slug) }) },
                         ),
-                    "magic" to JsonArray(ydarg.treasure.magic.map { JsonString(it.slug) }),
+                    "magic" to JsonArray(castle.treasure.magic.map { JsonString(it.slug) }),
                 ),
             "pitfall" to
                 jsonObject(
-                    "damageDivisor" to JsonNumber(ydarg.pitfall.damageDivisor.toString()),
-                    "trapTypes" to JsonArray(ydarg.pitfall.trapTypes.map(::textBlockJson)),
+                    "damageDivisor" to JsonNumber(castle.pitfall.damageDivisor.toString()),
+                    "trapTypes" to JsonArray(castle.pitfall.trapTypes.map(::textBlockJson)),
                 ),
             "stairs" to
                 jsonObject(
-                    "floorCount" to JsonNumber(ydarg.stairs.floorCount.toString()),
+                    "floorCount" to JsonNumber(castle.stairs.floorCount.toString()),
                     "items" to
                         JsonArray(
-                            ydarg.stairs.items.sortedBy { it.digit }.map { item ->
+                            castle.stairs.items.sortedBy { it.digit }.map { item ->
                                 jsonObject(
                                     "digit" to JsonNumber(item.digit.toString()),
                                     "milestone" to JsonString(item.milestone.slug),
@@ -934,27 +930,30 @@ private class ExternalBundleArtifactWriter {
                             },
                         ),
                 ),
-            "confrontation" to
+            "scripts" to
                 jsonObject(
-                    "sequence" to JsonArray(ydarg.confrontation.sequence.map { JsonString(it.slug) }),
-                    "baron" to
-                        ydarg.confrontation.baron
+                    "alreadyCompleted" to
+                        castle.scripts.alreadyCompleted
+                            ?.let { JsonString(it.slug) }
+                            .orJsonNull(),
+                    "entryBlocked" to
+                        castle.scripts.entryBlocked
+                            ?.let { JsonString(it.slug) }
+                            .orJsonNull(),
+                    "entered" to
+                        castle.scripts.entered
+                            ?.let { JsonString(it.slug) }
+                            .orJsonNull(),
+                    "completed" to
+                        castle.scripts.completed
                             ?.let { JsonString(it.slug) }
                             .orJsonNull(),
                 ),
-            "text" to ydargTextJson(ydarg.text),
+            "text" to castleTextJson(castle.text),
         )
 
-    private fun ydargTextJson(text: YdargTextModel): JsonValue =
+    private fun castleTextJson(text: CastleTextModel): JsonValue =
         jsonObject(
-            "ruin" to textBlockJson(text.ruin),
-            "approach" to textBlockJson(text.approach),
-            "jaaraForm" to textBlockJson(text.jaaraForm),
-            "jaaraSpeech" to textBlockJson(text.jaaraSpeech),
-            "noKey" to textBlockJson(text.noKey),
-            "keyAccepted" to textBlockJson(text.keyAccepted),
-            "enter" to textBlockJson(text.enter),
-            "doorSlams" to textBlockJson(text.doorSlams),
             "roomMonster" to textBlockJson(text.roomMonster),
             "trapTriesDisarmSuffix" to textBlockJson(text.trapTriesDisarmSuffix),
             "trapDisarmSucceed" to textBlockJson(text.trapDisarmSucceed),
@@ -967,17 +966,14 @@ private class ExternalBundleArtifactWriter {
             "moveEast" to textBlockJson(text.moveEast),
             "moveWest" to textBlockJson(text.moveWest),
             "stairsIntro" to textBlockJson(text.stairsIntro),
-            "stairsMageOffer" to textBlockJson(text.stairsMageOffer),
+            "stairsGuardianOffer" to textBlockJson(text.stairsGuardianOffer),
             "stairsMenu" to textBlockJson(text.stairsMenu),
             "stairsLeave" to textBlockJson(text.stairsLeave),
             "teleportVortex" to textBlockJson(text.teleportVortex),
             "teleportOutside" to textBlockJson(text.teleportOutside),
             "giveMenu" to textBlockJson(text.giveMenu),
-            "mageGrateful" to textBlockJson(text.mageGrateful),
-            "confrontationAct1" to JsonArray(text.confrontationAct1.map(::textBlockJson)),
-            "confrontationAct2" to JsonArray(text.confrontationAct2.map(::textBlockJson)),
-            "confrontationAct3" to JsonArray(text.confrontationAct3.map(::textBlockJson)),
-            "confrontationAct4" to JsonArray(text.confrontationAct4.map(::textBlockJson)),
+            "stairsGuardianGrateful" to textBlockJson(text.stairsGuardianGrateful),
+            "floorNames" to JsonArray(text.floorNames.map(::JsonString)),
         )
 
     private fun textBlockJson(block: TextBlock): JsonValue =

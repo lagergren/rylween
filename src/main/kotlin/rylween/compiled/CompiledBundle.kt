@@ -139,13 +139,13 @@ import rylween.dsl.runtimeContent
 import rylween.dsl.terrain
 import rylween.dsl.text
 import rylween.dsl.town
+import rylween.runtime.CastleSessionSnapshot
 import rylween.runtime.DungeonSavedStep
 import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSnapshotMetadata
 import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.ScriptContinuationSnapshot
 import rylween.runtime.ScriptRootRef
-import rylween.runtime.YdargSessionSnapshot
 import rylween.runtime.facing
 import rylween.runtime.party
 import rylween.runtime.prompt
@@ -1236,8 +1236,8 @@ data class CompiledEquipment(
 )
 
 sealed interface CompiledRuntimeModeImage {
-    data class YdargCastle(
-        val session: YdargSessionSnapshot,
+    data class Castle(
+        val session: CastleSessionSnapshot,
     ) : CompiledRuntimeModeImage
 
     data class Dungeon(
@@ -2338,7 +2338,7 @@ private class CompiledBundleCompiler(
 
     private fun mode(mode: RuntimeModeSnapshot): CompiledRuntimeModeImage =
         when (mode) {
-            is RuntimeModeSnapshot.YdargCastle -> CompiledRuntimeModeImage.YdargCastle(mode.session)
+            is RuntimeModeSnapshot.Castle -> CompiledRuntimeModeImage.Castle(mode.session)
             is RuntimeModeSnapshot.Dungeon ->
                 CompiledRuntimeModeImage.Dungeon(
                     session =

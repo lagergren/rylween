@@ -29,6 +29,7 @@ import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
 import org.jline.utils.NonBlockingReader
 import rylween.compiled.ExternalBundleArtifactSummary
+import rylween.compiled.readExternalBundleArtifact
 import rylween.compiled.readExternalRuntimeGame
 import rylween.compiled.readVerifiedExternalBundleArtifact
 import rylween.compiled.toExternalBundleArtifact
@@ -84,6 +85,7 @@ import rylween.engine.selectStartupState
 import rylween.engine.validateStartupState
 import rylween.frontend.terminal.BattleSessionTerminalAdapter
 import rylween.frontend.terminal.CampSessionTerminalAdapter
+import rylween.frontend.terminal.CastleSessionTerminalAdapter
 import rylween.frontend.terminal.DungeonSessionTerminalAdapter
 import rylween.frontend.terminal.EquipmentPromptTerminalAdapter
 import rylween.frontend.terminal.HuntSessionTerminalAdapter
@@ -101,7 +103,6 @@ import rylween.frontend.terminal.TerminalRunStatus
 import rylween.frontend.terminal.TerminalTextContext
 import rylween.frontend.terminal.TerminalTextRenderer
 import rylween.frontend.terminal.TownSessionTerminalAdapter
-import rylween.frontend.terminal.YdargSessionTerminalAdapter
 import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.frontend.terminal.map
 import rylween.frontend.terminal.matches
@@ -219,6 +220,9 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
         val config = resolveAnsiPlayerSlot(parsedConfig, game)
         val content = game.content
         val bundleSummary = bundleFile?.readVerifiedExternalBundleArtifact(game)
+        val compiledBundleHash =
+            bundleSummary?.bundleContentHash
+                ?: game.toExternalBundleArtifact().readExternalBundleArtifact().bundleContentHash
         val dumpBundle = config.dumpBundle
         val renderer = content.terminalTextRenderer()
         val worldMap =
@@ -243,7 +247,7 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
             val bootSnapshot =
                 applyConfiguredHour(
                     config,
-                    loadConfiguredOrSavedSnapshot(game, content, config),
+                    loadConfiguredOrSavedSnapshot(game, content, config, compiledBundleHash),
                 )
             withConfiguredAnsiSession(config, bundleFile, bundleSummary, game.takeIf { dumpBundle }) { _, terminal ->
                 ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
@@ -272,7 +276,7 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
                     if (config.newGame && config.loadFile == null && config.state == null) {
                         createInitialWorldSnapshot(game, content, States.freshReplay, config.seed)
                     } else {
-                        loadConfiguredSnapshot(game, content, config)
+                        loadConfiguredSnapshot(game, content, config, compiledBundleHash)
                     }
                 val session =
                     bootAnsiWildernessSession(
@@ -286,7 +290,13 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
                         worldMap = worldMap,
                         newGame = config.newGame,
                     )
-                val savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content)
+                val savePort =
+                    FileRuntimeSavePort(
+                        file = config.saveFile,
+                        snapshotId = config.saveState,
+                        content = content,
+                        compiledBundleHash = compiledBundleHash,
+                    )
                 if (config.newGame) saveInitialRuntime(savePort, session.runtime, log)
                 runAnsiWilderness(
                     terminal = terminal,
@@ -302,6 +312,7 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
                     config = config,
                     game = game,
                     content = content,
+                    compiledBundleHash = compiledBundleHash,
                     renderer = renderer,
                     engine = engine,
                     terminal = terminal,
@@ -359,6 +370,7 @@ private fun runAnsiTitleMenu(
     config: AnsiRuntimeConfig,
     game: RylweenModel,
     content: GameModel,
+    compiledBundleHash: String,
     renderer: TerminalTextRenderer,
     engine: RylweenKotlinEngine,
     terminal: AnsiTerminal,
@@ -368,9 +380,15 @@ private fun runAnsiTitleMenu(
 ) {
     val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
     screen.showStaticScreen(content, StaticScreens.title, renderer)
-    val savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content)
+    val savePort =
+        FileRuntimeSavePort(
+            file = config.saveFile,
+            snapshotId = config.saveState,
+            content = content,
+            compiledBundleHash = compiledBundleHash,
+        )
     while (true) {
-        val snapshot = applyConfiguredHour(config, loadSavedOrInitialSnapshot(game, content, config))
+        val snapshot = applyConfiguredHour(config, loadSavedOrInitialSnapshot(game, content, config, compiledBundleHash))
         val hasSavedGame = config.saveFile.exists() && snapshot.state.parties.isNotEmpty()
         screen.bootFrame()
         screen.writeText(titleMenuLines(hasSavedGame))
@@ -648,11 +666,12 @@ private fun loadConfiguredSnapshot(
     game: RylweenModel,
     content: GameModel,
     config: AnsiRuntimeConfig,
+    compiledBundleHash: String,
     target: RuntimeStartupTarget = RuntimeStartupTarget.Wilderness,
 ): RuntimeSnapshotModel =
     config.loadFile
         ?.let { file ->
-            loadRuntimeSnapshot(file, content).also { snapshot ->
+            loadRuntimeSnapshot(file, content, compiledBundleHash = compiledBundleHash).also { snapshot ->
                 validateStartupState(snapshot.state, content, target, "save file ${file.path}")
             }
         }
@@ -669,21 +688,23 @@ private fun loadConfiguredOrSavedSnapshot(
     game: RylweenModel,
     content: GameModel,
     config: AnsiRuntimeConfig,
+    compiledBundleHash: String,
 ): RuntimeSnapshotModel =
     if (config.loadFile != null || config.state != null) {
-        loadConfiguredSnapshot(game, content, config, RuntimeStartupTarget.StaticScreen)
+        loadConfiguredSnapshot(game, content, config, compiledBundleHash, RuntimeStartupTarget.StaticScreen)
     } else {
-        loadSavedOrInitialSnapshot(game, content, config, RuntimeStartupTarget.StaticScreen)
+        loadSavedOrInitialSnapshot(game, content, config, compiledBundleHash, RuntimeStartupTarget.StaticScreen)
     }
 
 private fun loadSavedOrInitialSnapshot(
     game: RylweenModel,
     content: GameModel,
     config: AnsiRuntimeConfig,
+    compiledBundleHash: String,
     target: RuntimeStartupTarget = RuntimeStartupTarget.Wilderness,
 ): RuntimeSnapshotModel =
     if (config.saveFile.exists()) {
-        loadRuntimeSnapshot(config.saveFile, content).also { snapshot ->
+        loadRuntimeSnapshot(config.saveFile, content, compiledBundleHash = compiledBundleHash).also { snapshot ->
             validateStartupState(
                 snapshot.state,
                 content,
@@ -814,10 +835,10 @@ private class RylweenAnsiGame(
                         val updated = session.replaceDungeonSession(result.session)
                         completeChildStep(updated, session, "dungeon", result.status, "dungeon step limit reached") ?: return
                     }
-                    is WildernessSessionStep.Ydarg -> {
-                        val result = YdargSessionTerminalAdapter(port, renderer, savePort).runUntilBlocked(step.session)
-                        val updated = session.replaceYdargSession(result.session)
-                        completeChildStep(updated, session, "castle", result.status, "Ydarg step limit reached") ?: return
+                    is WildernessSessionStep.Castle -> {
+                        val result = CastleSessionTerminalAdapter(port, renderer, savePort).runUntilBlocked(step.session)
+                        val updated = session.replaceCastleSession(result.session)
+                        completeChildStep(updated, session, "castle", result.status, "Castle step limit reached") ?: return
                     }
                     is WildernessSessionStep.Town -> {
                         if (enteringTown) {
@@ -1087,7 +1108,7 @@ private fun WildernessSessionStep.runtimeStepName(): String =
         is WildernessSessionStep.QuitConfirm -> "QuitConfirm"
         is WildernessSessionStep.DungeonHandoff -> "DungeonHandoff"
         is WildernessSessionStep.Dungeon -> "Dungeon"
-        is WildernessSessionStep.Ydarg -> "Ydarg"
+        is WildernessSessionStep.Castle -> "Castle"
         is WildernessSessionStep.Town -> "Town"
         is WildernessSessionStep.Hut -> "Hut"
         is WildernessSessionStep.Battle -> "Battle"

@@ -1,7 +1,7 @@
 /**
  * Reusable party-view and journal sessions plus derived view models.
  *
- * Runtime parents such as wilderness, dungeon, and Ydarg sessions delegate
+ * Runtime parents such as wilderness, dungeon, and Castle sessions delegate
  * party inspection to these backend-neutral state machines; terminal adapters
  * in `frontend/terminal/TerminalAdapters.kt` render the returned models.
  */

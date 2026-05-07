@@ -8,6 +8,8 @@
 package rylween.save
 
 import rylween.dsl.BuildingId
+import rylween.dsl.CastleId
+import rylween.dsl.CastleRoomEvent
 import rylween.dsl.DslDefaultItems
 import rylween.dsl.DslDefaultMaps
 import rylween.dsl.DungeonEventId
@@ -18,14 +20,19 @@ import rylween.dsl.FlagState
 import rylween.dsl.GameMilestoneId
 import rylween.dsl.Gender
 import rylween.dsl.GridPoint
+import rylween.dsl.InputBindingModel
+import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.InventorySlotState
 import rylween.dsl.ItemId
 import rylween.dsl.JournalEntryState
 import rylween.dsl.LocationId
 import rylween.dsl.LocationPlacement
+import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.MissionId
+import rylween.dsl.MonsterId
 import rylween.dsl.NpcId
 import rylween.dsl.NpcPlacement
+import rylween.dsl.NpcRole
 import rylween.dsl.NpcVisitState
 import rylween.dsl.PartyAttackRecord
 import rylween.dsl.PartyCounters
@@ -36,19 +43,23 @@ import rylween.dsl.PartyState
 import rylween.dsl.PcClass
 import rylween.dsl.Race
 import rylween.dsl.RealmState
+import rylween.dsl.RumourTableId
 import rylween.dsl.RuntimeMode
 import rylween.dsl.SceneId
 import rylween.dsl.StateId
 import rylween.dsl.StateKind
 import rylween.dsl.StateModel
 import rylween.dsl.TerrainId
+import rylween.dsl.TextBlock
 import rylween.dsl.TextId
+import rylween.dsl.TextLine
+import rylween.dsl.TextPart
 import rylween.dsl.TownId
 import rylween.dsl.Wilderness
 import rylween.dsl.WorldMapId
 import rylween.dsl.WorldPosition
-import rylween.dsl.YdargRoomEvent
 import rylween.dsl.building
+import rylween.dsl.castle
 import rylween.dsl.dungeon
 import rylween.dsl.dungeonEvent
 import rylween.dsl.item
@@ -56,10 +67,13 @@ import rylween.dsl.line
 import rylween.dsl.location
 import rylween.dsl.milestone
 import rylween.dsl.missionId
+import rylween.dsl.monster
 import rylween.dsl.npc
+import rylween.dsl.npcRole
 import rylween.dsl.of
 import rylween.dsl.partyId
 import rylween.dsl.render
+import rylween.dsl.rumourTable
 import rylween.dsl.runtimeFlagState
 import rylween.dsl.sceneId
 import rylween.dsl.stateId
@@ -68,6 +82,8 @@ import rylween.dsl.text
 import rylween.dsl.town
 import rylween.dsl.worldMap
 import rylween.dsl.xy
+import rylween.runtime.CastleSavedStep
+import rylween.runtime.CastleSessionSnapshot
 import rylween.runtime.DungeonSavedStep
 import rylween.runtime.DungeonSessionSnapshot
 import rylween.runtime.MissionPostDungeonSnapshot
@@ -81,8 +97,14 @@ import rylween.runtime.ScriptFrame
 import rylween.runtime.ScriptRootKind
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.ScriptSegment
-import rylween.runtime.YdargSavedStep
-import rylween.runtime.YdargSessionSnapshot
+import rylween.runtime.vm.CompiledVmChildRequestSnapshot
+import rylween.runtime.vm.CompiledVmContinuationSnapshot
+import rylween.runtime.vm.CompiledVmFrameKind
+import rylween.runtime.vm.CompiledVmFrameSnapshot
+import rylween.runtime.vm.CompiledVmInventorySlotChoiceSnapshot
+import rylween.runtime.vm.CompiledVmMenuOptionSnapshot
+import rylween.runtime.vm.CompiledVmPendingInputSnapshot
+import rylween.runtime.wilderness.WildernessDungeonHandoff
 
 /** Renders one runtime [state] as exact save DSL text. */
 fun renderRuntimeStateSnapshot(state: StateModel): String {
@@ -155,6 +177,7 @@ private class RuntimeStateSnapshotParser(
         expectSymbol('{')
         var formatVersion = RUNTIME_SNAPSHOT_FORMAT_VERSION
         var contentHash: String? = null
+        var compiledBundleHash: String? = null
         var universeId: String? = null
         var universeVersion: String? = null
         while (!matchSymbol('}')) {
@@ -172,12 +195,17 @@ private class RuntimeStateSnapshotParser(
                     expectSymbol('=')
                     contentHash = parseNullable(::parseString)
                 }
+                "compiledBundleHash" -> {
+                    expectSymbol('=')
+                    compiledBundleHash = parseNullable(::parseString)
+                }
                 else -> unexpected("metadata field $field")
             }
         }
         return RuntimeSnapshotMetadata(
             formatVersion = formatVersion,
             contentHash = contentHash,
+            compiledBundleHash = compiledBundleHash,
             universeId = universeId,
             universeVersion = universeVersion,
         )
@@ -275,9 +303,9 @@ private class RuntimeStateSnapshotParser(
         var mode: RuntimeModeSnapshot? = null
         while (!matchSymbol('}')) {
             when (val field = expectIdentifier()) {
-                "ydarg" -> {
+                "castle" -> {
                     check(mode == null) { "runtime snapshot has multiple active session blocks" }
-                    mode = RuntimeModeSnapshot.YdargCastle(parseYdargSessionBody())
+                    mode = RuntimeModeSnapshot.Castle(parseCastleSessionBody())
                 }
                 "dungeon" -> {
                     check(mode == null) { "runtime snapshot has multiple active session blocks" }
@@ -289,15 +317,20 @@ private class RuntimeStateSnapshotParser(
         return mode
     }
 
-    private fun parseYdargSessionBody(): YdargSessionSnapshot {
+    private fun parseCastleSessionBody(): CastleSessionSnapshot {
         expectSymbol('{')
+        var castle: CastleId? = null
         var floor = 1
         var point = GridPoint(1, 1)
-        var step = YdargSavedStep.Navigate
+        var step = CastleSavedStep.Navigate
         var treasureItem: ItemId? = null
-        var rooms = emptyMap<GridPoint, YdargRoomEvent>()
+        var rooms = emptyMap<GridPoint, CastleRoomEvent>()
         while (!matchSymbol('}')) {
             when (val field = expectIdentifier()) {
+                "castle" -> {
+                    expectSymbol('=')
+                    castle = parseCastleId()
+                }
                 "floor" -> floor = parseAssignedInt()
                 "point" -> {
                     expectSymbol('=')
@@ -305,17 +338,18 @@ private class RuntimeStateSnapshotParser(
                 }
                 "step" -> {
                     expectSymbol('=')
-                    step = parseEnum("YdargSavedStep")
+                    step = parseEnum("CastleSavedStep")
                 }
                 "treasureItem" -> {
                     expectSymbol('=')
                     treasureItem = parseNullable(::parseItemId)
                 }
-                "rooms" -> rooms = parseYdargRoomsBody()
-                else -> unexpected("Ydarg session field $field")
+                "rooms" -> rooms = parseCastleRoomsBody()
+                else -> unexpected("Castle session field $field")
             }
         }
-        return YdargSessionSnapshot(
+        return CastleSessionSnapshot(
+            castle = checkNotNull(castle) { "castle session snapshot is missing castle id" },
             floor = floor,
             point = point,
             rooms = rooms,
@@ -324,7 +358,7 @@ private class RuntimeStateSnapshotParser(
         )
     }
 
-    private fun parseYdargRoomsBody(): Map<GridPoint, YdargRoomEvent> {
+    private fun parseCastleRoomsBody(): Map<GridPoint, CastleRoomEvent> {
         expectSymbol('{')
         return buildMap {
             while (!matchSymbol('}')) {
@@ -332,7 +366,7 @@ private class RuntimeStateSnapshotParser(
                 expectSymbol('(')
                 val point = parsePoint()
                 expectSymbol(',')
-                val event = parseEnum<YdargRoomEvent>("YdargRoomEvent")
+                val event = parseEnum<CastleRoomEvent>("CastleRoomEvent")
                 expectSymbol(')')
                 put(point, event)
             }
@@ -425,6 +459,7 @@ private class RuntimeStateSnapshotParser(
         var realmScalars = emptyMap<String, Int>()
         var stack = emptyList<ScriptFrame>()
         var activeInventorySlot: Int? = null
+        var compiledVmContinuation: CompiledVmContinuationSnapshot? = null
         while (!matchSymbol('}')) {
             when (val field = expectIdentifier()) {
                 "activeInventorySlot" -> {
@@ -435,6 +470,7 @@ private class RuntimeStateSnapshotParser(
                 "realmScalars" -> realmScalars = parseNamedIntMapBody()
                 "root" -> root = parseScriptRootBody()
                 "stack" -> stack = parseScriptStackBody()
+                "compiledVm" -> compiledVmContinuation = parseCompiledVmContinuationBody()
                 else -> unexpected("script continuation field $field")
             }
         }
@@ -444,6 +480,72 @@ private class RuntimeStateSnapshotParser(
             realmScalars = realmScalars,
             stack = stack,
             activeInventorySlot = activeInventorySlot,
+            compiledVmContinuation = compiledVmContinuation,
+        )
+    }
+
+    private fun parseCompiledVmContinuationBody(): CompiledVmContinuationSnapshot {
+        expectSymbol('{')
+        var root = ScriptRootRef.Unspecified
+        var locals = emptyMap<String, Int>()
+        var textBindings = emptyMap<String, String>()
+        var frames = emptyList<CompiledVmFrameSnapshot>()
+        var pending: CompiledVmPendingInputSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "root" -> root = parseScriptRootBody()
+                "locals" -> locals = parseNamedIntMapBody()
+                "textBindings" -> textBindings = parseNamedStringMapBody()
+                "frames" -> frames = parseCompiledVmFramesBody()
+                "pending" -> pending = parseCompiledVmPendingBody()
+                else -> unexpected("compiled VM continuation field $field")
+            }
+        }
+        return CompiledVmContinuationSnapshot(
+            root = root,
+            locals = locals,
+            textBindings = textBindings,
+            frames = frames,
+            pending = checkNotNull(pending) { "compiled VM continuation requires pending input" },
+        )
+    }
+
+    private fun parseCompiledVmFramesBody(): List<CompiledVmFrameSnapshot> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("frame")
+                add(parseCompiledVmFrameBody())
+            }
+        }
+    }
+
+    private fun parseCompiledVmFrameBody(): CompiledVmFrameSnapshot {
+        expectSymbol('{')
+        var blockPath = emptyList<Int>()
+        var nextIndex = 0
+        var insideLoop = false
+        var kind = CompiledVmFrameKind.Block
+        var enclosingInsideLoop = false
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "blockPath" -> blockPath = parseIntListBody()
+                "nextIndex" -> nextIndex = parseAssignedInt()
+                "insideLoop" -> insideLoop = parseAssignedBoolean()
+                "kind" -> {
+                    expectSymbol('=')
+                    kind = parseEnum("CompiledVmFrameKind")
+                }
+                "enclosingInsideLoop" -> enclosingInsideLoop = parseAssignedBoolean()
+                else -> unexpected("compiled VM frame field $field")
+            }
+        }
+        return CompiledVmFrameSnapshot(
+            blockPath = blockPath,
+            nextIndex = nextIndex,
+            insideLoop = insideLoop,
+            kind = kind,
+            enclosingInsideLoop = enclosingInsideLoop,
         )
     }
 
@@ -482,6 +584,485 @@ private class RuntimeStateSnapshotParser(
                 put(key, value)
             }
         }
+    }
+
+    private fun parseNamedStringMapBody(): Map<String, String> {
+        expectSymbol('{')
+        return buildMap {
+            while (!matchSymbol('}')) {
+                expectIdent("value")
+                expectSymbol('(')
+                val key = parseString()
+                expectSymbol(',')
+                val value = parseString()
+                expectSymbol(')')
+                put(key, value)
+            }
+        }
+    }
+
+    private fun parseIntListBody(): List<Int> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("value")
+                expectSymbol('(')
+                add(parseInt())
+                expectSymbol(')')
+            }
+        }
+    }
+
+    private fun parseCharListBody(): List<Char> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("value")
+                expectSymbol('(')
+                add(parseChar())
+                expectSymbol(')')
+            }
+        }
+    }
+
+    private fun parseStringListBody(): List<String> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("value")
+                expectSymbol('(')
+                add(parseString())
+                expectSymbol(')')
+            }
+        }
+    }
+
+    private fun parseCompiledVmPendingBody(): CompiledVmPendingInputSnapshot {
+        expectSymbol('{')
+        val pending =
+            when (val kind = expectIdentifier()) {
+                "waitInput" -> parseCompiledVmWaitInputBody()
+                "menu" -> parseCompiledVmMenuBody()
+                "askKey" -> parseCompiledVmAskKeyBody()
+                "askMember" -> parseCompiledVmAskMemberBody()
+                "askMonster" -> parseCompiledVmAskMonsterBody()
+                "askInventorySlot" -> parseCompiledVmAskInventorySlotBody()
+                "askText" -> parseCompiledVmAskTextBody()
+                "childSession" -> parseCompiledVmChildSessionBody()
+                else -> unexpected("compiled VM pending kind $kind")
+            }
+        expectSymbol('}')
+        return pending
+    }
+
+    private fun parseCompiledVmWaitInputBody(): CompiledVmPendingInputSnapshot.WaitInput {
+        expectSymbol('{')
+        val header = MutableCompiledVmPendingHeader()
+        var reason: String? = null
+        var prompt: TextBlock? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "root",
+                "instructionIndex",
+                "operandPath",
+                -> header.parseField(field)
+                "reason" -> {
+                    expectSymbol('=')
+                    reason = parseNullable(::parseString)
+                }
+                "prompt" -> prompt = parseNullableTextBlock()
+                else -> unexpected("compiled VM waitInput field $field")
+            }
+        }
+        return CompiledVmPendingInputSnapshot.WaitInput(header.root, header.instructionIndex, header.operandPath, reason, prompt)
+    }
+
+    private fun parseCompiledVmMenuBody(): CompiledVmPendingInputSnapshot.Menu {
+        expectSymbol('{')
+        val header = MutableCompiledVmPendingHeader()
+        var prompt: TextBlock? = null
+        var options = emptyList<CompiledVmMenuOptionSnapshot>()
+        var hasDefault = false
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "root",
+                "instructionIndex",
+                "operandPath",
+                -> header.parseField(field)
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "options" -> options = parseCompiledVmMenuOptionsBody()
+                "hasDefault" -> hasDefault = parseAssignedBoolean()
+                else -> unexpected("compiled VM menu field $field")
+            }
+        }
+        return CompiledVmPendingInputSnapshot.Menu(
+            root = header.root,
+            instructionIndex = header.instructionIndex,
+            operandPath = header.operandPath,
+            prompt = checkNotNull(prompt) { "compiled VM menu pending requires prompt" },
+            options = options,
+            hasDefault = hasDefault,
+        )
+    }
+
+    private fun parseCompiledVmAskKeyBody(): CompiledVmPendingInputSnapshot.AskKey {
+        expectSymbol('{')
+        val header = MutableCompiledVmPendingHeader()
+        var prompt: TextBlock? = null
+        var localName = ""
+        var bindings = emptyList<InputBindingModel>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "root",
+                "instructionIndex",
+                "operandPath",
+                -> header.parseField(field)
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "localName" -> localName = parseAssignedString()
+                "bindings" -> bindings = parseInputBindingsBody()
+                else -> unexpected("compiled VM askKey field $field")
+            }
+        }
+        return CompiledVmPendingInputSnapshot.AskKey(
+            header.root,
+            header.instructionIndex,
+            header.operandPath,
+            checkNotNull(prompt) { "compiled VM askKey pending requires prompt" },
+            localName,
+            bindings,
+        )
+    }
+
+    private fun parseCompiledVmAskMemberBody(): CompiledVmPendingInputSnapshot.AskMember {
+        expectSymbol('{')
+        val header = MutableCompiledVmPendingHeader()
+        var prompt: TextBlock? = null
+        var localName = ""
+        var filter = MemberChoiceFilter.Any
+        var accepting = MemberChoiceFilter.Any
+        var choices = emptyList<Int>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "root",
+                "instructionIndex",
+                "operandPath",
+                -> header.parseField(field)
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "localName" -> localName = parseAssignedString()
+                "filter" -> {
+                    expectSymbol('=')
+                    filter = parseEnum("MemberChoiceFilter")
+                }
+                "accepting" -> {
+                    expectSymbol('=')
+                    accepting = parseEnum("MemberChoiceFilter")
+                }
+                "choices" -> choices = parseIntListBody()
+                else -> unexpected("compiled VM askMember field $field")
+            }
+        }
+        return CompiledVmPendingInputSnapshot.AskMember(
+            header.root,
+            header.instructionIndex,
+            header.operandPath,
+            checkNotNull(prompt) { "compiled VM askMember pending requires prompt" },
+            localName,
+            filter,
+            accepting,
+            choices,
+        )
+    }
+
+    private fun parseCompiledVmAskMonsterBody(): CompiledVmPendingInputSnapshot.AskMonster {
+        expectSymbol('{')
+        val header = MutableCompiledVmPendingHeader()
+        var prompt: TextBlock? = null
+        var localName = ""
+        var targetKeys = emptyList<Char>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "root",
+                "instructionIndex",
+                "operandPath",
+                -> header.parseField(field)
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "localName" -> localName = parseAssignedString()
+                "targetKeys" -> targetKeys = parseCharListBody()
+                else -> unexpected("compiled VM askMonster field $field")
+            }
+        }
+        return CompiledVmPendingInputSnapshot.AskMonster(
+            header.root,
+            header.instructionIndex,
+            header.operandPath,
+            checkNotNull(prompt) { "compiled VM askMonster pending requires prompt" },
+            localName,
+            targetKeys,
+        )
+    }
+
+    private fun parseCompiledVmAskInventorySlotBody(): CompiledVmPendingInputSnapshot.AskInventorySlot {
+        expectSymbol('{')
+        val header = MutableCompiledVmPendingHeader()
+        var prompt: TextBlock? = null
+        var localName = ""
+        var firstKey = 'A'
+        var firstSlot = 0
+        var lastSlot = 0
+        var filter = InventorySlotChoiceFilter.Any
+        var choices = emptyList<CompiledVmInventorySlotChoiceSnapshot>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "root",
+                "instructionIndex",
+                "operandPath",
+                -> header.parseField(field)
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "localName" -> localName = parseAssignedString()
+                "firstKey" -> {
+                    expectSymbol('=')
+                    firstKey = parseChar()
+                }
+                "firstSlot" -> firstSlot = parseAssignedInt()
+                "lastSlot" -> lastSlot = parseAssignedInt()
+                "filter" -> {
+                    expectSymbol('=')
+                    filter = parseEnum("InventorySlotChoiceFilter")
+                }
+                "choices" -> choices = parseCompiledVmInventoryChoicesBody()
+                else -> unexpected("compiled VM askInventorySlot field $field")
+            }
+        }
+        return CompiledVmPendingInputSnapshot.AskInventorySlot(
+            root = header.root,
+            instructionIndex = header.instructionIndex,
+            operandPath = header.operandPath,
+            prompt = checkNotNull(prompt) { "compiled VM askInventorySlot pending requires prompt" },
+            localName = localName,
+            firstKey = firstKey,
+            firstSlot = firstSlot,
+            lastSlot = lastSlot,
+            filter = filter,
+            choices = choices,
+        )
+    }
+
+    private fun parseCompiledVmAskTextBody(): CompiledVmPendingInputSnapshot.AskText {
+        expectSymbol('{')
+        val header = MutableCompiledVmPendingHeader()
+        var prompt: TextBlock? = null
+        var accepted = emptyList<String>()
+        var caseSensitive = false
+        var trim = true
+        var maxLength: Int? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "root",
+                "instructionIndex",
+                "operandPath",
+                -> header.parseField(field)
+                "prompt" -> prompt = parseRequiredTextBlock()
+                "accepted" -> accepted = parseStringListBody()
+                "caseSensitive" -> caseSensitive = parseAssignedBoolean()
+                "trim" -> trim = parseAssignedBoolean()
+                "maxLength" -> {
+                    expectSymbol('=')
+                    maxLength = parseNullable(::parseInt)
+                }
+                else -> unexpected("compiled VM askText field $field")
+            }
+        }
+        return CompiledVmPendingInputSnapshot.AskText(
+            header.root,
+            header.instructionIndex,
+            header.operandPath,
+            checkNotNull(prompt) { "compiled VM askText pending requires prompt" },
+            accepted,
+            caseSensitive,
+            trim,
+            maxLength,
+        )
+    }
+
+    private fun parseCompiledVmChildSessionBody(): CompiledVmPendingInputSnapshot.ChildSession {
+        expectSymbol('{')
+        val header = MutableCompiledVmPendingHeader()
+        var request: CompiledVmChildRequestSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "root",
+                "instructionIndex",
+                "operandPath",
+                -> header.parseField(field)
+                "request" -> request = parseCompiledVmChildRequestBody()
+                else -> unexpected("compiled VM childSession field $field")
+            }
+        }
+        return CompiledVmPendingInputSnapshot.ChildSession(
+            header.root,
+            header.instructionIndex,
+            header.operandPath,
+            checkNotNull(request) { "compiled VM childSession pending requires request" },
+        )
+    }
+
+    private inner class MutableCompiledVmPendingHeader {
+        var root: ScriptRootRef = ScriptRootRef.Unspecified
+        var instructionIndex: Int = 0
+        var operandPath: List<Int> = emptyList()
+
+        fun parseField(field: String) {
+            when (field) {
+                "root" -> root = parseScriptRootBody()
+                "instructionIndex" -> instructionIndex = parseAssignedInt()
+                "operandPath" -> operandPath = parseIntListBody()
+                else -> unexpected("compiled VM pending header field $field")
+            }
+        }
+    }
+
+    private fun parseCompiledVmMenuOptionsBody(): List<CompiledVmMenuOptionSnapshot> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("option")
+                expectSymbol('(')
+                val key = parseChar()
+                expectSymbol(',')
+                val optionIndex = parseInt()
+                expectSymbol(')')
+                add(CompiledVmMenuOptionSnapshot(key, optionIndex))
+            }
+        }
+    }
+
+    private fun parseCompiledVmInventoryChoicesBody(): List<CompiledVmInventorySlotChoiceSnapshot> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("choice")
+                expectSymbol('(')
+                val key = parseChar()
+                expectSymbol(',')
+                val slot = parseInt()
+                expectSymbol(')')
+                add(CompiledVmInventorySlotChoiceSnapshot(key, slot))
+            }
+        }
+    }
+
+    private fun parseInputBindingsBody(): List<InputBindingModel> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("binding")
+                expectSymbol('{')
+                var primary = ""
+                var aliases = emptyList<String>()
+                var label = ""
+                while (!matchSymbol('}')) {
+                    when (val field = expectIdentifier()) {
+                        "primary" -> primary = parseAssignedString()
+                        "aliases" -> aliases = parseStringListBody()
+                        "label" -> label = parseAssignedString()
+                        else -> unexpected("input binding field $field")
+                    }
+                }
+                add(InputBindingModel(primary = primary, aliases = aliases, label = label.ifEmpty { primary }))
+            }
+        }
+    }
+
+    private fun parseCompiledVmChildRequestBody(): CompiledVmChildRequestSnapshot {
+        expectSymbol('{')
+        val request =
+            when (val kind = expectIdentifier()) {
+                "speak" -> parseCompiledVmSpeakRequestBody()
+                "tellRumour" -> parseCompiledVmTellRumourRequestBody()
+                "encounter" -> parseCompiledVmEncounterRequestBody()
+                "enterDungeon" -> parseCompiledVmEnterDungeonRequestBody()
+                else -> unexpected("compiled VM child request kind $kind")
+            }
+        expectSymbol('}')
+        return request
+    }
+
+    private fun parseCompiledVmSpeakRequestBody(): CompiledVmChildRequestSnapshot.Speak {
+        expectSymbol('{')
+        var building: BuildingId? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "building" -> {
+                    expectSymbol('=')
+                    building = parseBuildingId()
+                }
+                else -> unexpected("compiled VM speak request field $field")
+            }
+        }
+        return CompiledVmChildRequestSnapshot.Speak(checkNotNull(building) { "compiled VM speak request requires building" })
+    }
+
+    private fun parseCompiledVmTellRumourRequestBody(): CompiledVmChildRequestSnapshot.TellRumour {
+        expectSymbol('{')
+        var table: RumourTableId? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "table" -> {
+                    expectSymbol('=')
+                    table = parseRumourTableId()
+                }
+                else -> unexpected("compiled VM tellRumour request field $field")
+            }
+        }
+        return CompiledVmChildRequestSnapshot.TellRumour(checkNotNull(table) { "compiled VM rumour request requires table" })
+    }
+
+    private fun parseCompiledVmEncounterRequestBody(): CompiledVmChildRequestSnapshot.Encounter {
+        expectSymbol('{')
+        var monster: MonsterId? = null
+        var mandatory = false
+        var tier: String? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "monster" -> {
+                    expectSymbol('=')
+                    monster = parseMonsterId()
+                }
+                "mandatory" -> mandatory = parseAssignedBoolean()
+                "tier" -> {
+                    expectSymbol('=')
+                    tier = parseNullable(::parseString)
+                }
+                else -> unexpected("compiled VM encounter request field $field")
+            }
+        }
+        return CompiledVmChildRequestSnapshot.Encounter(
+            monster = checkNotNull(monster) { "compiled VM encounter request requires monster" },
+            mandatory = mandatory,
+            tier = tier,
+        )
+    }
+
+    private fun parseCompiledVmEnterDungeonRequestBody(): CompiledVmChildRequestSnapshot.EnterDungeon {
+        expectSymbol('{')
+        var dungeon: DungeonId? = null
+        var levels = 1
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "dungeon" -> {
+                    expectSymbol('=')
+                    dungeon = parseDungeonId()
+                }
+                "levels" -> levels = parseAssignedInt()
+                else -> unexpected("compiled VM enterDungeon request field $field")
+            }
+        }
+        return CompiledVmChildRequestSnapshot.EnterDungeon(
+            WildernessDungeonHandoff(
+                dungeon = checkNotNull(dungeon) { "compiled VM dungeon request requires dungeon" },
+                levels = levels,
+            ),
+        )
     }
 
     private fun parseScriptStackBody(): List<ScriptFrame> {
@@ -913,6 +1494,151 @@ private class RuntimeStateSnapshotParser(
             else -> unexpected("position $name")
         }
 
+    private fun parseNullableTextBlock(): TextBlock? {
+        if (matchSymbol('=')) {
+            return parseNullable(::parseTextBlockExpression)
+        }
+        return parseTextBlockBody()
+    }
+
+    private fun parseRequiredTextBlock(): TextBlock = parseTextBlockBody()
+
+    private fun parseTextBlockExpression(): TextBlock {
+        expectIdent("textBlock")
+        return parseTextBlockBody()
+    }
+
+    private fun parseTextBlockBody(): TextBlock {
+        expectSymbol('{')
+        val block =
+            when (val kind = expectIdentifier()) {
+                "ref" -> parseTextBlockRef()
+                "inline" -> parseTextBlockInline()
+                "structured" -> parseTextBlockStructured()
+                else -> unexpected("text block kind $kind")
+            }
+        expectSymbol('}')
+        return block
+    }
+
+    private fun parseTextBlockRef(): TextBlock.Ref {
+        expectSymbol('=')
+        return TextBlock.Ref(parseTextId())
+    }
+
+    private fun parseTextBlockInline(): TextBlock.Inline {
+        expectSymbol('{')
+        return TextBlock.Inline(
+            buildList {
+                while (!matchSymbol('}')) {
+                    expectIdent("line")
+                    expectSymbol('(')
+                    add(parseString())
+                    expectSymbol(')')
+                }
+            },
+        )
+    }
+
+    private fun parseTextBlockStructured(): TextBlock.Structured {
+        expectSymbol('{')
+        return TextBlock.Structured(
+            buildList {
+                while (!matchSymbol('}')) {
+                    expectIdent("line")
+                    add(parseTextLineBody())
+                }
+            },
+        )
+    }
+
+    private fun parseTextLineBody(): TextLine {
+        expectSymbol('{')
+        return TextLine(
+            buildList {
+                while (!matchSymbol('}')) {
+                    add(parseTextPart())
+                }
+            },
+        )
+    }
+
+    private fun parseTextPart(): TextPart =
+        when (val kind = expectIdentifier()) {
+            "literal" -> {
+                expectSymbol('(')
+                val value = parseString()
+                expectSymbol(')')
+                TextPart.Literal(value)
+            }
+            "roleName" -> {
+                expectSymbol('(')
+                val role = parseNpcRole()
+                expectSymbol(')')
+                TextPart.RoleName(role)
+            }
+            "roleLocation" -> {
+                expectSymbol('(')
+                val role = parseNpcRole()
+                expectSymbol(')')
+                TextPart.RoleLocation(role)
+            }
+            "townName" -> {
+                expectSymbol('(')
+                val town = parseTownId()
+                expectSymbol(')')
+                TextPart.TownName(town)
+            }
+            "fuzzyTownLocation" -> {
+                expectSymbol('(')
+                val town = parseTownId()
+                expectSymbol(',')
+                val radius = parseInt()
+                expectSymbol(')')
+                TextPart.FuzzyTownLocation(town, radius)
+            }
+            "locationCoordinate" -> {
+                expectSymbol('(')
+                val location = parseLocationId()
+                expectSymbol(')')
+                TextPart.LocationCoordinate(location)
+            }
+            "token" -> {
+                expectSymbol('(')
+                val tokenName = parseString()
+                expectSymbol(')')
+                parseTextPartToken(tokenName)
+            }
+            else -> unexpected("text part $kind")
+        }
+
+    private fun parseTextPartToken(tokenName: String): TextPart =
+        when (tokenName) {
+            "OfferedItemName" -> TextPart.OfferedItemName
+            "OfferedItemPrice" -> TextPart.OfferedItemPrice
+            "SelectedItemName" -> TextPart.SelectedItemName
+            "ShopPrice" -> TextPart.ShopPrice
+            "ShopCarryCap" -> TextPart.ShopCarryCap
+            "HuntMemberName" -> TextPart.HuntMemberName
+            "HuntMemberSubjectPronoun" -> TextPart.HuntMemberSubjectPronoun
+            "HuntFoodGained" -> TextPart.HuntFoodGained
+            "PartyMemberMax" -> TextPart.PartyMemberMax
+            "WildernessDungeonName" -> TextPart.WildernessDungeonName
+            "WildernessDungeonLevels" -> TextPart.WildernessDungeonLevels
+            "DungeonDepth" -> TextPart.DungeonDepth
+            "ConversationNpcName" -> TextPart.ConversationNpcName
+            "CurrentTownName" -> TextPart.CurrentTownName
+            "TownTaxPercent" -> TextPart.TownTaxPercent
+            "TownTaxAmount" -> TextPart.TownTaxAmount
+            "CreationMemberNumber" -> TextPart.CreationMemberNumber
+            "CreationMemberName" -> TextPart.CreationMemberName
+            "CreationWeaponSkill" -> TextPart.CreationWeaponSkill
+            "CreationHealth" -> TextPart.CreationHealth
+            "CreationWisdom" -> TextPart.CreationWisdom
+            "CreationCharisma" -> TextPart.CreationCharisma
+            else -> unexpected("text part token $tokenName")
+        }
+
     private fun parsePoint(): GridPoint {
         expectIdent("xy")
         expectSymbol('(')
@@ -933,13 +1659,21 @@ private class RuntimeStateSnapshotParser(
 
     private fun parseBuildingId(): BuildingId = parseStringCall("building", ::building)
 
+    private fun parseCastleId(): CastleId = parseStringCall("castle", ::castle)
+
     private fun parseLocationId(): LocationId = parseStringCall("location", ::location)
 
     private fun parseNpcId(): NpcId = parseStringCall("npc", ::npc)
 
+    private fun parseNpcRole(): NpcRole = parseStringCall("npcRole", ::npcRole)
+
     private fun parseItemId(): ItemId = parseStringCall("item", ::item)
 
     private fun parseMilestoneId(): GameMilestoneId = parseStringCall("milestone", ::milestone)
+
+    private fun parseMonsterId(): MonsterId = parseStringCall("monster", ::monster)
+
+    private fun parseRumourTableId(): RumourTableId = parseStringCall("rumourTable", ::rumourTable)
 
     private fun parseTextId(): TextId = parseStringCall("text", ::text)
 
@@ -1214,6 +1948,7 @@ private class RuntimeStateSnapshotWriter {
             line("universeId = ${metadata.universeId?.let(::quote) ?: "null"}")
             line("universeVersion = ${metadata.universeVersion?.let(::quote) ?: "null"}")
             line("contentHash = ${metadata.contentHash?.let(::quote) ?: "null"}")
+            line("compiledBundleHash = ${metadata.compiledBundleHash?.let(::quote) ?: "null"}")
         }
         line("}")
     }
@@ -1265,26 +2000,27 @@ private class RuntimeStateSnapshotWriter {
         line("sessions {")
         indented {
             when (mode) {
-                is RuntimeModeSnapshot.YdargCastle -> ydarg(mode.session)
+                is RuntimeModeSnapshot.Castle -> castle(mode.session)
                 is RuntimeModeSnapshot.Dungeon -> dungeon(mode)
             }
         }
         line("}")
     }
 
-    private fun ydarg(session: YdargSessionSnapshot) {
-        line("ydarg {")
+    private fun castle(session: CastleSessionSnapshot) {
+        line("castle {")
         indented {
+            line("castle = ${castleId(session.castle)}")
             assignment("floor", session.floor)
             line("point = ${point(session.point)}")
-            line("step = YdargSavedStep.${session.step.name}")
+            line("step = CastleSavedStep.${session.step.name}")
             line("treasureItem = ${session.treasureItem?.let(::itemId) ?: "null"}")
             line("rooms {")
             indented {
                 session.rooms.entries
                     .sortedWith(compareBy({ it.key.x }, { it.key.y }))
                     .forEach { (roomPoint, event) ->
-                        line("room(${point(roomPoint)}, YdargRoomEvent.${event.name})")
+                        line("room(${point(roomPoint)}, CastleRoomEvent.${event.name})")
                     }
             }
             line("}")
@@ -1336,8 +2072,161 @@ private class RuntimeStateSnapshotWriter {
                 continuation.stack.forEach(::scriptFrame)
             }
             line("}")
+            continuation.compiledVmContinuation?.let(::compiledVmContinuation)
         }
         line("}")
+    }
+
+    private fun compiledVmContinuation(continuation: CompiledVmContinuationSnapshot) {
+        line("compiledVm {")
+        indented {
+            scriptRoot(continuation.root)
+            namedIntMap("locals", continuation.locals)
+            namedStringMap("textBindings", continuation.textBindings)
+            line("frames {")
+            indented {
+                continuation.frames.forEach(::compiledVmFrame)
+            }
+            line("}")
+            compiledVmPending(continuation.pending)
+        }
+        line("}")
+    }
+
+    private fun compiledVmFrame(frame: CompiledVmFrameSnapshot) {
+        line("frame {")
+        indented {
+            intList("blockPath", frame.blockPath)
+            assignment("nextIndex", frame.nextIndex)
+            assignment("insideLoop", frame.insideLoop)
+            line("kind = CompiledVmFrameKind.${frame.kind.name}")
+            assignment("enclosingInsideLoop", frame.enclosingInsideLoop)
+        }
+        line("}")
+    }
+
+    private fun compiledVmPending(pending: CompiledVmPendingInputSnapshot) {
+        line("pending {")
+        indented {
+            when (pending) {
+                is CompiledVmPendingInputSnapshot.WaitInput -> compiledVmWaitInput(pending)
+                is CompiledVmPendingInputSnapshot.Menu -> compiledVmMenu(pending)
+                is CompiledVmPendingInputSnapshot.AskKey -> compiledVmAskKey(pending)
+                is CompiledVmPendingInputSnapshot.AskMember -> compiledVmAskMember(pending)
+                is CompiledVmPendingInputSnapshot.AskMonster -> compiledVmAskMonster(pending)
+                is CompiledVmPendingInputSnapshot.AskInventorySlot -> compiledVmAskInventorySlot(pending)
+                is CompiledVmPendingInputSnapshot.AskText -> compiledVmAskText(pending)
+                is CompiledVmPendingInputSnapshot.ChildSession -> compiledVmChildSession(pending)
+            }
+        }
+        line("}")
+    }
+
+    private fun compiledVmWaitInput(pending: CompiledVmPendingInputSnapshot.WaitInput) {
+        line("waitInput {")
+        indented {
+            compiledVmPendingHeader(pending)
+            line("reason = ${pending.reason?.let(::quote) ?: "null"}")
+            nullableTextBlock("prompt", pending.prompt)
+        }
+        line("}")
+    }
+
+    private fun compiledVmMenu(pending: CompiledVmPendingInputSnapshot.Menu) {
+        line("menu {")
+        indented {
+            compiledVmPendingHeader(pending)
+            textBlock("prompt", pending.prompt)
+            line("options {")
+            indented {
+                pending.options.forEach { option -> line("option(${charLiteral(option.key)}, ${option.optionIndex})") }
+            }
+            line("}")
+            assignment("hasDefault", pending.hasDefault)
+        }
+        line("}")
+    }
+
+    private fun compiledVmAskKey(pending: CompiledVmPendingInputSnapshot.AskKey) {
+        line("askKey {")
+        indented {
+            compiledVmPendingHeader(pending)
+            textBlock("prompt", pending.prompt)
+            assignment("localName", pending.localName)
+            inputBindings(pending.bindings)
+        }
+        line("}")
+    }
+
+    private fun compiledVmAskMember(pending: CompiledVmPendingInputSnapshot.AskMember) {
+        line("askMember {")
+        indented {
+            compiledVmPendingHeader(pending)
+            textBlock("prompt", pending.prompt)
+            assignment("localName", pending.localName)
+            line("filter = MemberChoiceFilter.${pending.filter.name}")
+            line("accepting = MemberChoiceFilter.${pending.accepting.name}")
+            intList("choices", pending.choices)
+        }
+        line("}")
+    }
+
+    private fun compiledVmAskMonster(pending: CompiledVmPendingInputSnapshot.AskMonster) {
+        line("askMonster {")
+        indented {
+            compiledVmPendingHeader(pending)
+            textBlock("prompt", pending.prompt)
+            assignment("localName", pending.localName)
+            charList("targetKeys", pending.targetKeys)
+        }
+        line("}")
+    }
+
+    private fun compiledVmAskInventorySlot(pending: CompiledVmPendingInputSnapshot.AskInventorySlot) {
+        line("askInventorySlot {")
+        indented {
+            compiledVmPendingHeader(pending)
+            textBlock("prompt", pending.prompt)
+            assignment("localName", pending.localName)
+            line("firstKey = ${charLiteral(pending.firstKey)}")
+            assignment("firstSlot", pending.firstSlot)
+            assignment("lastSlot", pending.lastSlot)
+            line("filter = InventorySlotChoiceFilter.${pending.filter.name}")
+            line("choices {")
+            indented {
+                pending.choices.forEach { choice -> line("choice(${charLiteral(choice.key)}, ${choice.slot})") }
+            }
+            line("}")
+        }
+        line("}")
+    }
+
+    private fun compiledVmAskText(pending: CompiledVmPendingInputSnapshot.AskText) {
+        line("askText {")
+        indented {
+            compiledVmPendingHeader(pending)
+            textBlock("prompt", pending.prompt)
+            stringList("accepted", pending.accepted)
+            assignment("caseSensitive", pending.caseSensitive)
+            assignment("trim", pending.trim)
+            line("maxLength = ${pending.maxLength ?: "null"}")
+        }
+        line("}")
+    }
+
+    private fun compiledVmChildSession(pending: CompiledVmPendingInputSnapshot.ChildSession) {
+        line("childSession {")
+        indented {
+            compiledVmPendingHeader(pending)
+            compiledVmChildRequest(pending.request)
+        }
+        line("}")
+    }
+
+    private fun compiledVmPendingHeader(pending: CompiledVmPendingInputSnapshot) {
+        scriptRoot(pending.root)
+        assignment("instructionIndex", pending.instructionIndex)
+        intList("operandPath", pending.operandPath)
     }
 
     private fun scriptRoot(root: ScriptRootRef) {
@@ -1358,6 +2247,198 @@ private class RuntimeStateSnapshotWriter {
         indented {
             values.entries.sortedBy { it.key }.forEach { (key, value) ->
                 line("value(${quote(key)}, $value)")
+            }
+        }
+        line("}")
+    }
+
+    private fun namedStringMap(
+        name: String,
+        values: Map<String, String>,
+    ) {
+        line("$name {")
+        indented {
+            values.entries.sortedBy { it.key }.forEach { (key, value) ->
+                line("value(${quote(key)}, ${quote(value)})")
+            }
+        }
+        line("}")
+    }
+
+    private fun intList(
+        name: String,
+        values: List<Int>,
+    ) {
+        line("$name {")
+        indented {
+            values.forEach { value -> line("value($value)") }
+        }
+        line("}")
+    }
+
+    private fun stringList(
+        name: String,
+        values: List<String>,
+    ) {
+        line("$name {")
+        indented {
+            values.forEach { value -> line("value(${quote(value)})") }
+        }
+        line("}")
+    }
+
+    private fun charList(
+        name: String,
+        values: List<Char>,
+    ) {
+        line("$name {")
+        indented {
+            values.forEach { value -> line("value(${charLiteral(value)})") }
+        }
+        line("}")
+    }
+
+    private fun inputBindings(bindings: List<InputBindingModel>) {
+        line("bindings {")
+        indented {
+            bindings.forEach { binding ->
+                line("binding {")
+                indented {
+                    assignment("primary", binding.primary)
+                    stringList("aliases", binding.aliases)
+                    assignment("label", binding.label)
+                }
+                line("}")
+            }
+        }
+        line("}")
+    }
+
+    private fun nullableTextBlock(
+        name: String,
+        block: TextBlock?,
+    ) {
+        if (block == null) {
+            line("$name = null")
+            return
+        }
+        textBlock(name, block)
+    }
+
+    private fun textBlock(
+        name: String,
+        block: TextBlock,
+    ) {
+        line("$name {")
+        indented {
+            when (block) {
+                is TextBlock.Ref -> line("ref = ${textId(block.id)}")
+                is TextBlock.Inline -> {
+                    line("inline {")
+                    indented {
+                        block.lines.forEach { line -> line("line(${quote(line)})") }
+                    }
+                    line("}")
+                }
+                is TextBlock.Structured -> {
+                    line("structured {")
+                    indented {
+                        block.lines.forEach(::textLine)
+                    }
+                    line("}")
+                }
+            }
+        }
+        line("}")
+    }
+
+    private fun textLine(textLine: TextLine) {
+        line("line {")
+        indented {
+            textLine.parts.forEach(::textPart)
+        }
+        line("}")
+    }
+
+    private fun textPart(part: TextPart) {
+        when (part) {
+            is TextPart.Literal -> line("literal(${quote(part.text)})")
+            is TextPart.RoleName -> line("roleName(${npcRoleId(part.role)})")
+            is TextPart.RoleLocation -> line("roleLocation(${npcRoleId(part.role)})")
+            is TextPart.TownName -> line("townName(${townId(part.town)})")
+            is TextPart.FuzzyTownLocation -> line("fuzzyTownLocation(${townId(part.town)}, ${part.radius})")
+            is TextPart.LocationCoordinate -> line("locationCoordinate(${locationId(part.location)})")
+            is TextPart.IntValue,
+            is TextPart.StringValue,
+            -> error("runtime snapshot text blocks cannot persist expression text parts yet")
+            TextPart.OfferedItemName -> textPartToken("OfferedItemName")
+            TextPart.OfferedItemPrice -> textPartToken("OfferedItemPrice")
+            TextPart.SelectedItemName -> textPartToken("SelectedItemName")
+            TextPart.ShopPrice -> textPartToken("ShopPrice")
+            TextPart.ShopCarryCap -> textPartToken("ShopCarryCap")
+            TextPart.HuntMemberName -> textPartToken("HuntMemberName")
+            TextPart.HuntMemberSubjectPronoun -> textPartToken("HuntMemberSubjectPronoun")
+            TextPart.HuntFoodGained -> textPartToken("HuntFoodGained")
+            TextPart.PartyMemberMax -> textPartToken("PartyMemberMax")
+            TextPart.WildernessDungeonName -> textPartToken("WildernessDungeonName")
+            TextPart.WildernessDungeonLevels -> textPartToken("WildernessDungeonLevels")
+            TextPart.DungeonDepth -> textPartToken("DungeonDepth")
+            TextPart.ConversationNpcName -> textPartToken("ConversationNpcName")
+            TextPart.CurrentTownName -> textPartToken("CurrentTownName")
+            TextPart.TownTaxPercent -> textPartToken("TownTaxPercent")
+            TextPart.TownTaxAmount -> textPartToken("TownTaxAmount")
+            TextPart.CreationMemberNumber -> textPartToken("CreationMemberNumber")
+            TextPart.CreationMemberName -> textPartToken("CreationMemberName")
+            TextPart.CreationWeaponSkill -> textPartToken("CreationWeaponSkill")
+            TextPart.CreationHealth -> textPartToken("CreationHealth")
+            TextPart.CreationWisdom -> textPartToken("CreationWisdom")
+            TextPart.CreationCharisma -> textPartToken("CreationCharisma")
+        }
+    }
+
+    private fun textPartToken(name: String) {
+        line("token(${quote(name)})")
+    }
+
+    private fun compiledVmChildRequest(request: CompiledVmChildRequestSnapshot) {
+        line("request {")
+        indented {
+            when (request) {
+                is CompiledVmChildRequestSnapshot.Speak -> {
+                    line("speak {")
+                    indented {
+                        line("building = ${buildingId(request.building)}")
+                    }
+                    line("}")
+                }
+                is CompiledVmChildRequestSnapshot.TellRumour -> {
+                    line("tellRumour {")
+                    indented {
+                        line("table = ${rumourTableId(request.table)}")
+                    }
+                    line("}")
+                }
+                is CompiledVmChildRequestSnapshot.Encounter -> {
+                    line("encounter {")
+                    indented {
+                        line("monster = ${monsterId(request.monster)}")
+                        assignment("mandatory", request.mandatory)
+                        line("tier = ${request.tier?.let(::quote) ?: "null"}")
+                    }
+                    line("}")
+                }
+                is CompiledVmChildRequestSnapshot.EnterDungeon -> {
+                    line("enterDungeon {")
+                    indented {
+                        line("dungeon = ${dungeonId(request.handoff.dungeon)}")
+                        assignment("levels", request.handoff.levels)
+                    }
+                    line("}")
+                }
+                is CompiledVmChildRequestSnapshot.GrantReward,
+                is CompiledVmChildRequestSnapshot.RandomItemOffer,
+                is CompiledVmChildRequestSnapshot.ShopService,
+                -> error("runtime snapshot cannot persist compiled ${request.javaClass.simpleName} child requests yet")
             }
         }
         line("}")
@@ -1557,13 +2638,21 @@ private class RuntimeStateSnapshotWriter {
 
     private fun buildingId(id: BuildingId): String = "building(${quote(id.slug)})"
 
+    private fun castleId(id: CastleId): String = "castle(${quote(id.slug)})"
+
     private fun locationId(id: LocationId): String = "location(${quote(id.slug)})"
 
     private fun npcId(id: NpcId): String = "npc(${quote(id.slug)})"
 
+    private fun npcRoleId(id: NpcRole): String = "npcRole(${quote(id.slug)})"
+
     private fun itemId(id: ItemId): String = "item(${quote(id.slug)})"
 
     private fun milestoneId(id: GameMilestoneId): String = "milestone(${quote(id.slug)})"
+
+    private fun monsterId(id: MonsterId): String = "monster(${quote(id.slug)})"
+
+    private fun rumourTableId(id: RumourTableId): String = "rumourTable(${quote(id.slug)})"
 
     private fun textId(id: TextId): String = "text(${quote(id.id)})"
 

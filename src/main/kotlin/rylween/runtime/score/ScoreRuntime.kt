@@ -49,6 +49,8 @@ data class HallOfHeroesEntry(
 /** Hall-of-heroes report derived from parties that completed the win milestone. */
 data class HallOfHeroesReport(
     val entries: List<HallOfHeroesEntry>,
+    val emptyText: String,
+    val entryText: String,
 )
 
 /** Builds the score report for the current runtime state and authored content. */
@@ -83,13 +85,20 @@ fun RuntimeSessionState.scoreReport(content: GameModel): ScoreReport {
 
 /** Builds the hall-of-heroes report for parties that satisfy the win condition. */
 fun RuntimeSessionState.hallOfHeroesReport(content: GameModel): HallOfHeroesReport {
-    val completion = content.progress.win?.completedBy ?: return HallOfHeroesReport(emptyList())
+    val win =
+        content.progress.win
+            ?: return HallOfHeroesReport(
+                entries = emptyList(),
+                emptyText = "No party has completed the winning objective yet.",
+                entryText = "{party} completed the winning objective.",
+            )
+    val completion = win.completedBy ?: return HallOfHeroesReport(emptyList(), win.hallOfHeroesEmptyText, win.hallOfHeroesEntryText)
     val entries =
         parties
             .filter { party -> completion in party.milestones }
             .sortedWith(compareBy<PartyState> { party -> party.name.lowercase() }.thenBy { party -> party.id.slug })
             .map { party -> HallOfHeroesEntry(partyName = party.name) }
-    return HallOfHeroesReport(entries)
+    return HallOfHeroesReport(entries, win.hallOfHeroesEmptyText, win.hallOfHeroesEntryText)
 }
 
 private fun GameModel.scorePowerItems(records: Map<ItemId, ItemRecordModel>): List<ScorePowerItem> =

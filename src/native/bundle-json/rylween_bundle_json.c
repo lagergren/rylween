@@ -395,16 +395,28 @@ static void validate_canonical_sections_hash(const node *root, const node *secti
     }
 }
 
-static void validate_commands(const node *commands) {
+static void require_command_group(const node *commands, const char *key) {
+    if (!obj_get(commands, key)) {
+        fprintf(stderr, "native JSON bundle reader failed: runtimeSystems.commands missing %s\n", key);
+        exit(1);
+    }
+}
+
+static void validate_commands(const node *commands, const node *castles) {
     expect_kind(commands, N_OBJ, "runtimeSystems.commands");
-    if (!obj_get(commands, "wilderness")) {
-        fail("runtimeSystems.commands missing wilderness");
-    }
-    if (!obj_get(commands, "dungeon")) {
-        fail("runtimeSystems.commands missing dungeon");
-    }
-    if (!obj_get(commands, "ydarg.navigation")) {
-        fail("runtimeSystems.commands missing ydarg.navigation");
+    require_command_group(commands, "wilderness");
+    require_command_group(commands, "dungeon");
+    expect_kind(castles, N_ARR, "runtimeSystems.castles");
+    for (size_t i = 0; i < castles->u.arr.n; i++) {
+        const node *castle = expect_kind(castles->u.arr.items[i], N_OBJ, "castle object");
+        const char *id = req_str(castle, "id");
+        char key[192];
+        snprintf(key, sizeof key, "castle.%s.navigation", id);
+        require_command_group(commands, key);
+        snprintf(key, sizeof key, "castle.%s.treasure", id);
+        require_command_group(commands, key);
+        snprintf(key, sizeof key, "castle.%s.stairs", id);
+        require_command_group(commands, key);
     }
 }
 
@@ -418,28 +430,33 @@ static void validate_prompt_groups(const node *prompts) {
     }
 }
 
-static void validate_castles(const node *systems) {
-    const node *castles = req_arr(systems, "castles");
-    const node *ydarg = find_obj_by_string_field(castles, "id", "ydarg");
-    if (!ydarg) {
-        fail("runtimeSystems.castles missing ydarg");
+static void validate_castles(const node *castles) {
+    expect_kind(castles, N_ARR, "runtimeSystems.castles");
+    if (castles->u.arr.n == 0) {
+        fail("runtimeSystems.castles is empty");
     }
-    if (!str_eq(req_str(ydarg, "kind"), "gridCastle")) {
-        fail("runtimeSystems.castles.ydarg kind must be gridCastle");
+    for (size_t i = 0; i < castles->u.arr.n; i++) {
+        const node *castle = expect_kind(castles->u.arr.items[i], N_OBJ, "castle object");
+        const char *id = req_str(castle, "id");
+        if (!str_eq(req_str(castle, "kind"), "gridCastle")) {
+            fprintf(stderr, "native JSON bundle reader failed: runtimeSystems.castles.%s kind must be gridCastle\n", id);
+            exit(1);
+        }
+        (void)req_obj(castle, "entry");
+        (void)req_arr(castle, "roomEvents");
     }
-    (void)req_obj(ydarg, "entry");
-    (void)req_arr(ydarg, "roomEvents");
 }
 
 static void validate_runtime_systems(const node *sections) {
     const node *systems = req_obj(sections, "runtimeSystems");
+    const node *castles = req_arr(systems, "castles");
     reject_reflective_type_markers(systems, "runtimeSystems");
     if (req_int(systems, "schemaVersion") != RUNTIME_SYSTEMS_SCHEMA_VERSION) {
         fail("runtimeSystems schemaVersion mismatch");
     }
-    validate_commands(req_obj(systems, "commands"));
+    validate_commands(req_obj(systems, "commands"), castles);
     validate_prompt_groups(req_obj(systems, "prompts"));
-    validate_castles(systems);
+    validate_castles(castles);
 }
 
 int main(int argc, char **argv) {

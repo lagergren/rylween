@@ -1497,6 +1497,8 @@ data class GameMilestoneModel(
 data class WinConditionModel(
     val required: List<GameMilestoneId>,
     val completedBy: GameMilestoneId?,
+    val hallOfHeroesEmptyText: String = "No party has completed the winning objective yet.",
+    val hallOfHeroesEntryText: String = "{party} completed the winning objective.",
 )
 
 data class GameProgressModel(
@@ -2228,8 +2230,7 @@ data class RuntimeContent(
     val progress: GameProgressModel = GameProgressModel(emptyList(), null),
     val characterCreation: CharacterCreationModel? = null,
     val dungeons: DungeonSystemModel = DungeonSystemModel(),
-    val ydarg: YdargContentModel? = null,
-    val castles: List<YdargContentModel> = listOfNotNull(ydarg),
+    val castles: List<CastleContentModel> = emptyList(),
     val wilderness: WildernessSystemModel = WildernessSystemModel(),
     val towns: List<TownModel> = emptyList(),
     val townSystem: TownSystemModel? = null,
@@ -2242,7 +2243,6 @@ data class RuntimeContent(
 ) {
     init {
         require(castles.map { it.id }.toSet().size == castles.size) { "duplicate castle content" }
-        require(ydarg == null || ydarg in castles) { "ydarg content alias must be present in castles" }
     }
 
     val battleConfigured: Boolean get() = combat.standardBattle != null
@@ -2270,8 +2270,7 @@ data class GameModel(
     val combat: CombatSystemModel,
     val wilderness: WildernessSystemModel,
     val dungeons: DungeonSystemModel,
-    val ydarg: YdargContentModel?,
-    val castles: List<YdargContentModel> = listOfNotNull(ydarg),
+    val castles: List<CastleContentModel>,
     val speak: SpeakSystemModel,
     val towns: List<TownModel>,
     val townSystem: TownSystemModel?,
@@ -2286,7 +2285,6 @@ data class GameModel(
 ) {
     init {
         require(castles.map { it.id }.toSet().size == castles.size) { "duplicate castle content" }
-        require(ydarg == null || ydarg in castles) { "ydarg content alias must be present in castles" }
     }
 }
 
@@ -2307,7 +2305,6 @@ fun GameModel.runtimeContent(): RuntimeContent =
         progress = progress,
         characterCreation = characterCreation,
         dungeons = dungeons,
-        ydarg = ydarg,
         castles = castles,
         wilderness = wilderness,
         towns = towns,
@@ -2725,7 +2722,7 @@ val PcClass.sourceId: Int
             PcClass.Ranger -> 6
         }
 
-enum class RuntimeMode { TitleMenu, Wilderness, Town, Dungeon, Battle, YdargCastle, GameOver }
+enum class RuntimeMode { TitleMenu, Wilderness, Town, Dungeon, Battle, Castle, GameOver }
 
 enum class Facing { North, East, South, West }
 
@@ -5528,7 +5525,7 @@ class GameBuilder {
     private var characterCreationModel: CharacterCreationModel? = null
     private var wildernessModel = WildernessSystemModel()
     private var dungeonsModel = DungeonSystemModel()
-    private val castleModels = mutableListOf<YdargContentModel>()
+    private val castleModels = mutableListOf<CastleContentModel>()
     private var speakModel = SpeakSystemModel(null)
     private val towns = mutableListOf<TownModel>()
     private var townSystemModel: TownSystemModel? = null
@@ -5626,15 +5623,11 @@ class GameBuilder {
         dungeonsModel = DungeonSystemBuilder().apply(body).build()
     }
 
-    fun ydarg(body: YdargBuilder.() -> Unit) {
-        castle(DslDefaultCastles.ydarg, body)
-    }
-
     fun castle(
         id: CastleId,
-        body: YdargBuilder.() -> Unit,
+        body: CastleBuilder.() -> Unit,
     ) {
-        castleModels += YdargBuilder(id).apply(body).build()
+        castleModels += CastleBuilder(id).apply(body).build()
     }
 
     fun speak(body: SpeakBuilder.() -> Unit) {
@@ -5695,10 +5688,6 @@ class GameBuilder {
         fun resolveItemPool(pool: ItemPoolId): ItemPoolId = itemPoolBySlug[pool.slug] ?: pool
 
         val castles = castleModels.toList()
-        val ydarg =
-            castles.singleOrNull { it.id == DslDefaultCastles.ydarg }
-                ?: castles.singleOrNull()
-
         return GameModel(
             metadata = metadataModel,
             limits = limitsModel,
@@ -5721,7 +5710,6 @@ class GameBuilder {
             characterCreation = characterCreationModel,
             wilderness = wildernessModel,
             dungeons = dungeonsModel.resolveItemPools(::resolveItemPool),
-            ydarg = ydarg,
             castles = castles,
             speak = speakModel.resolveItemPools(::resolveItemPool),
             towns = towns.toList(),
@@ -7411,6 +7399,8 @@ class WinConditionBuilder {
     private var includeMarkedRequired = false
     private val explicitRequired = mutableListOf<GameMilestoneId>()
     private var completionMilestone: GameMilestoneId? = null
+    private var hallOfHeroesEmptyText = "No party has completed the winning objective yet."
+    private var hallOfHeroesEntryText = "{party} completed the winning objective."
 
     fun requiresAllMilestonesMarkedRequired() {
         includeMarkedRequired = true
@@ -7424,6 +7414,14 @@ class WinConditionBuilder {
         completionMilestone = milestone
     }
 
+    fun hallOfHeroes(
+        empty: String,
+        entry: String,
+    ) {
+        hallOfHeroesEmptyText = empty
+        hallOfHeroesEntryText = entry
+    }
+
     fun build(defined: List<GameMilestoneModel>): WinConditionModel {
         val markedRequired =
             if (includeMarkedRequired) {
@@ -7432,7 +7430,12 @@ class WinConditionBuilder {
                 emptyList()
             }
 
-        return WinConditionModel((explicitRequired + markedRequired).distinct(), completionMilestone)
+        return WinConditionModel(
+            required = (explicitRequired + markedRequired).distinct(),
+            completedBy = completionMilestone,
+            hallOfHeroesEmptyText = hallOfHeroesEmptyText,
+            hallOfHeroesEntryText = hallOfHeroesEntryText,
+        )
     }
 }
 
@@ -8727,18 +8730,8 @@ class RealmStateBuilder {
         enter(RuntimeMode.Battle, map)
     }
 
-    fun ydargCastle(map: WorldMapId = currentMap) {
-        castle(DslDefaultCastles.ydarg, map)
-    }
-
-    fun castle(
-        castle: CastleId = DslDefaultCastles.ydarg,
-        map: WorldMapId = currentMap,
-    ) {
-        require(castle == DslDefaultCastles.ydarg) {
-            "runtime state currently supports only Castle Ydarg"
-        }
-        enter(RuntimeMode.YdargCastle, map)
+    fun castle(map: WorldMapId = currentMap) {
+        enter(RuntimeMode.Castle, map)
     }
 
     fun gameOver(map: WorldMapId = currentMap) {

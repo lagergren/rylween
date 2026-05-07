@@ -14,6 +14,7 @@ import rylween.compiled.loadCompiledGame
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeGame
 import rylween.dsl.BuildingId
+import rylween.dsl.CastleId
 import rylween.dsl.DungeonEventId
 import rylween.dsl.DungeonId
 import rylween.dsl.DungeonSystemModel
@@ -37,6 +38,7 @@ import rylween.dsl.runtimeContent
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.battle.BattleSession
+import rylween.runtime.castle.CastleSession
 import rylween.runtime.dungeon.DungeonSession
 import rylween.runtime.realizeNpcPlacements
 import rylween.runtime.scriptRootForDungeonEvent
@@ -57,7 +59,6 @@ import rylween.runtime.vm.RecordingCompiledVmHost
 import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WorldMapGrid
 import rylween.runtime.wilderness.worldMapGrid
-import rylween.runtime.ydarg.YdargSession
 
 /**
  * Non-ANSI runtime host over the same J1 JSON artifact used by the terminal app.
@@ -261,8 +262,23 @@ class KotlinHeadlessHost private constructor(
             dungeons = dungeons,
         )
 
-    /** Starts a Ydarg castle session from existing live runtime state. */
-    fun castleSession(runtime: RuntimeSessionState): YdargSession = YdargSession.start(runtime, runtimeContent)
+    /** Starts a grid-castle session from existing live runtime state. */
+    fun castleSession(
+        runtime: RuntimeSessionState,
+        castle: CastleId? = null,
+    ): CastleSession {
+        val content = runtimeContent
+        val castleContent =
+            if (castle == null) {
+                content.castles.singleOrNull()
+            } else {
+                content.castles.singleOrNull { model -> model.id == castle }
+            }
+        if (castleContent == null) {
+            error("Castle content is not configured")
+        }
+        return CastleSession.start(runtime, content, castleContent)
+    }
 
     /** Starts a battle session from existing live runtime state. */
     fun battleSession(

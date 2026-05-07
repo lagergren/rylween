@@ -1484,19 +1484,19 @@ class WildernessSessionTerminalAdapter(
                             WildernessSession::replaceDungeonSession,
                         ) { return it }
                     }
-                    is WildernessSessionStep.Ydarg -> {
+                    is WildernessSessionStep.Castle -> {
                         runChildOrBlock(
                             session,
                             step.session,
                             {
-                                YdargSessionTerminalAdapter(
+                                CastleSessionTerminalAdapter(
                                     terminal = terminal,
                                     renderer = renderer,
                                     savePort = savePort,
                                     scriptBridge = serviceBridge,
                                 ).runUntilBlocked(it)
                             },
-                            WildernessSession::replaceYdargSession,
+                            WildernessSession::replaceCastleSession,
                         ) { return it }
                     }
                     WildernessSessionStep.Explore -> {
