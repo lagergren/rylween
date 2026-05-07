@@ -80,6 +80,7 @@ import rylween.runtime.scriptPartyScalar
 import rylween.runtime.scriptRealmScalar
 import rylween.runtime.scriptRootForScene
 import rylween.runtime.scriptRuntimeFlag
+import rylween.runtime.town.ShopServiceSession
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.SpeakSession
 import rylween.runtime.town.noRumourText
@@ -221,10 +222,14 @@ class CompiledVmTerminalScriptBridge(
 
         fun waitingResult(
             blocked: CompiledVmResult.Blocked,
+            runtime: RuntimeSessionState? = null,
             rejection: TerminalInputRejection? = null,
             speakSession: SpeakSession? = null,
+            randomItemOfferSession: RandomItemOfferSession? = null,
+            rewardGrantSession: RewardGrantSession? = null,
+            shopServiceSession: ShopServiceSession? = null,
         ): ScriptBridgeResult {
-            val resultRuntime = speakSession?.runtime ?: blocked.continuation.runtime
+            val resultRuntime = runtime ?: speakSession?.runtime ?: blocked.continuation.runtime
             return ScriptBridgeResult(
                 runtime = resultRuntime,
                 status = ScriptBridgeStatus.Waiting,
@@ -236,6 +241,9 @@ class CompiledVmTerminalScriptBridge(
                             runtime = resultRuntime,
                             locals = blocked.continuation.locals,
                             speakSession = speakSession,
+                            randomItemOfferSession = randomItemOfferSession,
+                            rewardGrantSession = rewardGrantSession,
+                            shopServiceSession = shopServiceSession,
                             compiledVmContinuation = blocked.continuation,
                         ),
                 rejection = rejection,
@@ -272,8 +280,12 @@ class CompiledVmTerminalScriptBridge(
                         is ChildSessionResult.Waiting ->
                             return waitingResult(
                                 current,
+                                runtime = childResult.runtime,
                                 rejection = childResult.rejection,
                                 speakSession = childResult.speakSession,
+                                randomItemOfferSession = childResult.randomItemOfferSession,
+                                rewardGrantSession = childResult.rewardGrantSession,
+                                shopServiceSession = childResult.shopServiceSession,
                             )
                         null -> Unit
                     }
@@ -284,7 +296,7 @@ class CompiledVmTerminalScriptBridge(
                         is TerminalInput.Value -> {
                             result = runner.resume(current.continuation, input.value)
                         }
-                        is TerminalInput.Rejected -> return waitingResult(current, input.rejection)
+                        is TerminalInput.Rejected -> return waitingResult(current, rejection = input.rejection)
                         TerminalInput.Unavailable -> return waitingResult(current)
                     }
                 }
@@ -299,8 +311,12 @@ class CompiledVmTerminalScriptBridge(
         ) : ChildSessionResult
 
         data class Waiting(
-            val speakSession: SpeakSession,
+            val runtime: RuntimeSessionState,
             val rejection: TerminalInputRejection?,
+            val speakSession: SpeakSession? = null,
+            val randomItemOfferSession: RandomItemOfferSession? = null,
+            val rewardGrantSession: RewardGrantSession? = null,
+            val shopServiceSession: ShopServiceSession? = null,
         ) : ChildSessionResult
     }
 
@@ -312,11 +328,12 @@ class CompiledVmTerminalScriptBridge(
         return when (val request = pending.request) {
             is CompiledVmChildRequest.Speak -> runSpeak(request, blocked, continuation.speakSession)
             is CompiledVmChildRequest.TellRumour -> ChildSessionResult.Resumed(completeTellRumour(request, blocked))
+            is CompiledVmChildRequest.GrantReward -> runGrantReward(request, blocked, continuation.rewardGrantSession)
+            is CompiledVmChildRequest.RandomItemOffer ->
+                runRandomItemOffer(request, blocked, continuation.randomItemOfferSession)
+            is CompiledVmChildRequest.ShopService -> runShopService(request, blocked, continuation.shopServiceSession)
             is CompiledVmChildRequest.Encounter,
             is CompiledVmChildRequest.EnterDungeon,
-            is CompiledVmChildRequest.GrantReward,
-            is CompiledVmChildRequest.RandomItemOffer,
-            is CompiledVmChildRequest.ShopService,
             -> null
         }
     }
@@ -338,9 +355,114 @@ class CompiledVmTerminalScriptBridge(
                         CompiledVmInput.ChildSessionCompleted(CompiledVmChildCompletion(result.session.runtime)),
                     ),
                 )
-            is TerminalRunStatus.Waiting -> ChildSessionResult.Waiting(result.session, status.rejection)
+            is TerminalRunStatus.Waiting ->
+                ChildSessionResult.Waiting(
+                    runtime = result.session.runtime,
+                    rejection = status.rejection,
+                    speakSession = result.session,
+                )
             TerminalRunStatus.StepLimitReached ->
                 error("compiled VM speak child for ${request.building.slug} exceeded terminal bridge step budget")
+        }
+    }
+
+    private fun runGrantReward(
+        request: CompiledVmChildRequest.GrantReward,
+        blocked: CompiledVmResult.Blocked,
+        activeSession: RewardGrantSession?,
+    ): ChildSessionResult {
+        val childEngine = TraceEnginePort()
+        val initial =
+            activeSession ?: RewardGrantSession.start(
+                reward = latestTraceEvent<EngineTraceEvent.GrantReward>("GrantReward").reward,
+                party = blocked.continuation.runtime.activeParty,
+                gold = request.gold,
+                content = content,
+            )
+        val result = RewardGrantSessionTraceRunner(terminal, childEngine).runUntilBlocked(initial)
+        childEngine.events.forEach(vmHost::trace)
+        val nextRuntime = blocked.continuation.runtime.withActiveParty(result.session.party)
+        return when (val status = result.status) {
+            TerminalRunStatus.Finished ->
+                ChildSessionResult.Resumed(
+                    runner.resume(
+                        blocked.continuation,
+                        CompiledVmInput.ChildSessionCompleted(CompiledVmChildCompletion(nextRuntime)),
+                    ),
+                )
+            is TerminalRunStatus.Waiting ->
+                ChildSessionResult.Waiting(
+                    runtime = nextRuntime,
+                    rejection = status.rejection,
+                    rewardGrantSession = result.session,
+                )
+            TerminalRunStatus.StepLimitReached -> error("compiled VM reward child exceeded terminal bridge step budget")
+        }
+    }
+
+    private fun runRandomItemOffer(
+        request: CompiledVmChildRequest.RandomItemOffer,
+        blocked: CompiledVmResult.Blocked,
+        activeSession: RandomItemOfferSession?,
+    ): ChildSessionResult {
+        val childEngine = TraceEnginePort()
+        val initial =
+            activeSession ?: RandomItemOfferSession.start(
+                offer = latestTraceEvent<EngineTraceEvent.RandomItemOffer>("RandomItemOffer").offer,
+                party = blocked.continuation.runtime.activeParty,
+                content = content,
+                selectedIndex = request.selectedIndex,
+            )
+        val result = RandomItemOfferSessionTraceRunner(terminal, childEngine).runUntilBlocked(initial)
+        childEngine.events.forEach(vmHost::trace)
+        val nextRuntime = blocked.continuation.runtime.withActiveParty(result.session.party)
+        return when (val status = result.status) {
+            TerminalRunStatus.Finished ->
+                ChildSessionResult.Resumed(
+                    runner.resume(
+                        blocked.continuation,
+                        CompiledVmInput.ChildSessionCompleted(CompiledVmChildCompletion(nextRuntime)),
+                    ),
+                )
+            is TerminalRunStatus.Waiting ->
+                ChildSessionResult.Waiting(
+                    runtime = nextRuntime,
+                    rejection = status.rejection,
+                    randomItemOfferSession = result.session,
+                )
+            TerminalRunStatus.StepLimitReached -> error("compiled VM random-item child exceeded terminal bridge step budget")
+        }
+    }
+
+    private fun runShopService(
+        request: CompiledVmChildRequest.ShopService,
+        blocked: CompiledVmResult.Blocked,
+        activeSession: ShopServiceSession?,
+    ): ChildSessionResult {
+        val initial =
+            activeSession ?: ShopServiceSession.start(
+                latestTraceEvent<EngineTraceEvent.ShopService>("ShopService").shop,
+                blocked.continuation.runtime.activeParty,
+                content,
+            )
+        val result = ShopServiceTerminalAdapter(terminal, renderer).runUntilBlocked(initial)
+        val nextRuntime = blocked.continuation.runtime.withActiveParty(result.session.party)
+        return when (val status = result.status) {
+            TerminalRunStatus.Finished ->
+                ChildSessionResult.Resumed(
+                    runner.resume(
+                        blocked.continuation,
+                        CompiledVmInput.ChildSessionCompleted(CompiledVmChildCompletion(nextRuntime)),
+                    ),
+                )
+            is TerminalRunStatus.Waiting ->
+                ChildSessionResult.Waiting(
+                    runtime = nextRuntime,
+                    rejection = status.rejection,
+                    shopServiceSession = result.session,
+                )
+            TerminalRunStatus.StepLimitReached ->
+                error("compiled VM shop child for ${initial.shop.building.slug} exceeded terminal bridge step budget")
         }
     }
 
@@ -357,6 +479,13 @@ class CompiledVmTerminalScriptBridge(
             CompiledVmInput.ChildSessionCompleted(CompiledVmChildCompletion(nextRuntime)),
         )
     }
+
+    private inline fun <reified T : EngineTraceEvent> latestTraceEvent(childName: String): T =
+        vmHost.events
+            .asReversed()
+            .filterIsInstance<T>()
+            .firstOrNull()
+            ?: error("compiled VM $childName child did not trace its semantic event")
 
     private fun writePendingPrompt(
         pending: CompiledVmPendingInput,

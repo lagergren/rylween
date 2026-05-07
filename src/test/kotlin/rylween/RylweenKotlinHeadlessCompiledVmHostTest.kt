@@ -26,7 +26,9 @@ import rylween.dsl.RylweenModel
 import rylween.dsl.Wilderness
 import rylween.dsl.building
 import rylween.dsl.dungeonEvent
+import rylween.dsl.image
 import rylween.dsl.item
+import rylween.dsl.itemPool
 import rylween.dsl.keyAction
 import rylween.dsl.line
 import rylween.dsl.npc
@@ -38,6 +40,7 @@ import rylween.dsl.runtimeContent
 import rylween.dsl.rylween
 import rylween.dsl.sceneId
 import rylween.dsl.spellId
+import rylween.dsl.staticScreen
 import rylween.dsl.town
 import rylween.dsl.townPosition
 import rylween.engine.EngineTraceEvent
@@ -217,6 +220,56 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         assertIs<TownSessionStep.Menu>(second.session.step)
     }
 
+    @Test
+    fun compiledVmTerminalBridgeCompletesRewardOfferAndShopChildren() {
+        val host = KotlinHeadlessHost.fromExternalBundleCompiledVm(hostModel().toExternalBundleArtifact())
+
+        val rewardTerminal = ScenarioTerminalPort("G")
+        val reward =
+            TownSessionTerminalAdapter(
+                terminal = rewardTerminal,
+                serviceBridge = host.compiledVmTerminalScriptBridge(rewardTerminal),
+            ).runUntilBlocked(host.townSession(testRuntime(), hostTown))
+        assertIs<TerminalRunStatus.Waiting>(reward.status)
+        assertEquals(34, reward.session.runtime.activeParty.resources.gold)
+        assertIs<TownSessionStep.Menu>(reward.session.step)
+
+        val offerTerminal = ScenarioTerminalPort("O", "N")
+        val offer =
+            TownSessionTerminalAdapter(
+                terminal = offerTerminal,
+                serviceBridge = host.compiledVmTerminalScriptBridge(offerTerminal),
+            ).runUntilBlocked(host.townSession(testRuntime(), hostTown))
+        assertIs<TerminalRunStatus.Waiting>(offer.status)
+        assertTrue(offerTerminal.output.any { line -> "Declined offer." in line })
+        assertEquals(31, offer.session.runtime.activeParty.resources.gold)
+        assertIs<TownSessionStep.Menu>(offer.session.step)
+
+        val firstShopTerminal = ScenarioTerminalPort("P")
+        val firstShop =
+            TownSessionTerminalAdapter(
+                terminal = firstShopTerminal,
+                serviceBridge = host.compiledVmTerminalScriptBridge(firstShopTerminal),
+            ).runUntilBlocked(host.townSession(testRuntime(), hostTown))
+        assertIs<TerminalRunStatus.Waiting>(firstShop.status)
+        assertTrue(firstShopTerminal.output.any { line -> "Compiled shop intro." in line })
+        val blockedShop = assertIs<TownSessionStep.NativeService>(firstShop.session.step)
+        val shopContinuation = assertNotNull(blockedShop.continuation)
+        assertNotNull(shopContinuation.compiledVmContinuation)
+        assertNotNull(shopContinuation.shopServiceSession)
+
+        val secondShopTerminal = ScenarioTerminalPort("L")
+        val secondShop =
+            TownSessionTerminalAdapter(
+                terminal = secondShopTerminal,
+                serviceBridge = host.compiledVmTerminalScriptBridge(secondShopTerminal),
+            ).runUntilBlocked(firstShop.session)
+        assertIs<TerminalRunStatus.Waiting>(secondShop.status)
+        assertTrue(secondShopTerminal.output.any { line -> "Compiled shop goodbye." in line })
+        assertEquals(33, secondShop.session.runtime.activeParty.resources.gold)
+        assertIs<TownSessionStep.Menu>(secondShop.session.step)
+    }
+
     private fun assertCompiledRootMatchesAuthored(
         model: RylweenModel,
         host: KotlinHeadlessHost,
@@ -238,8 +291,15 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
     private fun hostModel(): RylweenModel =
         rylween {
             content {
+                visuals {
+                    staticScreens {
+                        image(hostShopScreen, hostShopImage)
+                    }
+                }
                 items {
                     potion(hostPotion, "Host Potion", cost = 1)
+                    treasure(hostOfferItem, "Host Offer Gem", cost = 9)
+                    pool(hostOfferPool, hostOfferItem)
                 }
                 scene(hostScene) {
                     screen("scene root")
@@ -261,6 +321,36 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                     speak(hostSpeakBuilding)
                     party.gold += 23
                     stop("speak done")
+                }
+                scene(hostRewardScene) {
+                    reward {
+                        gold(31)
+                    }
+                    party.gold += 1
+                    stop("reward done")
+                }
+                scene(hostOfferScene) {
+                    choice.randomItemOffer(hostOfferPool) {
+                        offer {
+                            line("Offer ", itemName, " for ", itemPrice)
+                        }
+                        broke("Broke.")
+                        full("Full.")
+                        deal("Deal.")
+                        declined("Declined offer.")
+                    }
+                    party.gold += 29
+                    stop("offer done")
+                }
+                scene(hostShopScene) {
+                    shopService(hostShopChildBuilding) {
+                        image = hostShopImage
+                        intro("Compiled shop intro.")
+                        menu("(L)eave")
+                        goodbye("Compiled shop goodbye.")
+                    }
+                    party.gold += 31
+                    stop("shop done")
                 }
                 speak {
                     standardConversation {}
@@ -302,6 +392,9 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                             service(hostBuilding)
                             service(hostRumourBuilding)
                             service(hostSpeakBuilding)
+                            service(hostRewardBuilding)
+                            service(hostOfferBuilding)
+                            service(hostShopServiceBuilding)
                         }
                     }
                 }
@@ -315,6 +408,9 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                         service('H', hostBuilding, hostAction)
                         service('R', hostRumourBuilding, hostRumourAction)
                         service('S', hostSpeakBuilding, hostSpeakAction)
+                        service('G', hostRewardBuilding, hostRewardAction)
+                        service('O', hostOfferBuilding, hostOfferAction)
+                        service('P', hostShopServiceBuilding, hostShopAction)
                         leave('L')
                     }
                     buildingServices {
@@ -325,6 +421,15 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                             alwaysOpen()
                         }
                         building(hostSpeakBuilding, hostSpeakAction, hostSpeakScene) {
+                            alwaysOpen()
+                        }
+                        building(hostRewardBuilding, hostRewardAction, hostRewardScene) {
+                            alwaysOpen()
+                        }
+                        building(hostOfferBuilding, hostOfferAction, hostOfferScene) {
+                            alwaysOpen()
+                        }
+                        building(hostShopServiceBuilding, hostShopAction, hostShopScene) {
                             alwaysOpen()
                         }
                     }
@@ -396,10 +501,17 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         val hostTownScene = sceneId("vm.host.town-service")
         val hostRumourScene = sceneId("vm.host.rumour-service")
         val hostSpeakScene = sceneId("vm.host.speak-service")
+        val hostRewardScene = sceneId("vm.host.reward-service")
+        val hostOfferScene = sceneId("vm.host.offer-service")
+        val hostShopScene = sceneId("vm.host.shop-service")
         val hostRumourTable = rumourTable("vm.host.rumours")
         val hostEvent = dungeonEvent("vm.host.event")
         val hostSpell = spellId("vm.host.spell")
         val hostPotion = item("vm.host.potion")
+        val hostOfferItem = item("vm.host.offer-gem")
+        val hostOfferPool = itemPool("vm.host.offer-pool")
+        val hostShopScreen = staticScreen("vm.host.shop-screen")
+        val hostShopImage = image("vm.host.shop-image")
         val hostTown = town("vm.host.town")
         val hostBuilding = building("vm.host.building")
         val hostAction = keyAction("vm.host.action")
@@ -409,5 +521,12 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         val hostSpeakAction = keyAction("vm.host.speak-action")
         val hostNpc = npc("vm.host.edda")
         val hostNpcJob = npcJob("vm.host.guide")
+        val hostRewardBuilding = building("vm.host.reward-building")
+        val hostRewardAction = keyAction("vm.host.reward-action")
+        val hostOfferBuilding = building("vm.host.offer-building")
+        val hostOfferAction = keyAction("vm.host.offer-action")
+        val hostShopServiceBuilding = building("vm.host.shop-service-building")
+        val hostShopChildBuilding = building("vm.host.shop-child-building")
+        val hostShopAction = keyAction("vm.host.shop-action")
     }
 }

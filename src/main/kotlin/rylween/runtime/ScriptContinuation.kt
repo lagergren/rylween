@@ -23,6 +23,7 @@ import rylween.dsl.npc
 import rylween.runtime.battle.BattleSession
 import rylween.runtime.reward.RandomItemOfferSession
 import rylween.runtime.reward.RewardGrantSession
+import rylween.runtime.town.ShopServiceSession
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.SpeakSession
 import rylween.runtime.vm.CompiledVmContinuation
@@ -230,10 +231,11 @@ data class ScriptFrame(
  * Runtime continuation for authored or compiled script execution.
  *
  * The legacy fields describe the authored `Op` interpreter stack and
- * host-owned child sessions. [compiledVmContinuation] carries the parallel J2
- * VM frame when a compiled script blocks at a prompt or child-session request;
- * strict save serialization rejects it until the J2.7 save/load slice defines
- * the durable compiled continuation format.
+ * host-owned child sessions such as speak, rewards, random offers, shops, and
+ * battles. [compiledVmContinuation] carries the parallel J2 VM frame when a
+ * compiled script blocks at a prompt or child-session request; strict save
+ * serialization rejects it until the J2.7 save/load slice defines the durable
+ * compiled continuation format.
  */
 data class ScriptContinuation(
     val runtime: RuntimeSessionState,
@@ -245,6 +247,7 @@ data class ScriptContinuation(
     val battleSession: BattleSession? = null,
     val randomItemOfferSession: RandomItemOfferSession? = null,
     val rewardGrantSession: RewardGrantSession? = null,
+    val shopServiceSession: ShopServiceSession? = null,
     val activeInventorySlot: Int? = null,
     val compiledVmContinuation: CompiledVmContinuation? = null,
 ) {
@@ -305,6 +308,7 @@ fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot {
         "script continuation with active random-item offer session cannot be saved yet"
     }
     require(rewardGrantSession == null) { "script continuation with active reward grant session cannot be saved yet" }
+    require(shopServiceSession == null) { "script continuation with active shop service session cannot be saved yet" }
     require(compiledVmContinuation == null) { "script continuation with compiled VM frame cannot be saved until J2.7" }
     return ScriptContinuationSnapshot(
         root = root,
