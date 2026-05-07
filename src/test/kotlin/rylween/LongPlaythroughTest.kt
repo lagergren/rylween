@@ -1,5 +1,6 @@
 package rylween
 
+import rylween.compiled.toExternalBundleArtifact
 import rylween.dsl.BoolAst
 import rylween.dsl.BuildingId
 import rylween.dsl.DungeonId
@@ -13,6 +14,7 @@ import rylween.dsl.InventorySlotState
 import rylween.dsl.LocationPlacement
 import rylween.dsl.MissionId
 import rylween.dsl.MissionModel
+import rylween.dsl.NpcPlacement
 import rylween.dsl.PartyState
 import rylween.dsl.RuntimeContent
 import rylween.dsl.RuntimeMode
@@ -24,13 +26,17 @@ import rylween.dsl.Wilderness
 import rylween.dsl.WorldPosition
 import rylween.dsl.of
 import rylween.dsl.runtimeContent
+import rylween.engine.KotlinHeadlessHost
+import rylween.frontend.terminal.ScriptBridge
 import rylween.frontend.terminal.TerminalAdapterResult
+import rylween.frontend.terminal.TerminalPort
 import rylween.frontend.terminal.TerminalRunStatus
 import rylween.frontend.terminal.TerminalTextContext
 import rylween.frontend.terminal.TerminalTextRenderer
 import rylween.frontend.terminal.TownSessionTerminalAdapter
 import rylween.frontend.terminal.WildernessSessionTerminalAdapter
 import rylween.frontend.terminal.YdargSessionTerminalAdapter
+import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.game.Buildings
 import rylween.game.Dungeons
@@ -40,6 +46,7 @@ import rylween.game.Locations
 import rylween.game.Maps
 import rylween.game.Milestones
 import rylween.game.Missions
+import rylween.game.Npcs
 import rylween.game.RylweenCompiledGame
 import rylween.game.States
 import rylween.game.StaticScreens
@@ -159,6 +166,28 @@ class LongPlaythroughTest {
     }
 
     @Test
+    fun compiledVmServiceBridgeCoversWildernessHutEntry() {
+        val playthrough = CheatedLongPlaythrough(scriptMode = PlaythroughScriptMode.CompiledVm)
+
+        val terminal = playthrough.visitWildernessHut()
+
+        assertTrue(terminal.output.any { "You enter the hut." in it })
+        assertTrue(terminal.output.any { "Speak with whom?" in it })
+        assertTrue(terminal.output.any { "1. Marcus, hermit" in it })
+    }
+
+    @Test
+    fun compiledVmServiceBridgeResumesMissionScriptsAfterDungeonReturn() {
+        val playthrough = CheatedLongPlaythrough(scriptMode = PlaythroughScriptMode.CompiledVm)
+
+        playthrough.runAllDungeonHandoffLegsThroughWildernessAndReturn()
+
+        assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredMissions)
+        assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredDungeonHandoffs)
+        assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredPostDungeonContinuations)
+    }
+
+    @Test
     fun cheatedAcceptancePlaythroughReachesYdargVictoryAndHeroesReport() {
         val playthrough = CheatedLongPlaythrough()
 
@@ -176,7 +205,14 @@ class LongPlaythroughTest {
     }
 }
 
-private class CheatedLongPlaythrough {
+private enum class PlaythroughScriptMode {
+    Authored,
+    CompiledVm,
+}
+
+private class CheatedLongPlaythrough(
+    private val scriptMode: PlaythroughScriptMode = PlaythroughScriptMode.Authored,
+) {
     private val game = RylweenCompiledGame.nextDsl
     private val renderer =
         TerminalTextRenderer(
@@ -212,6 +248,9 @@ private class CheatedLongPlaythrough {
         ).distinctBy { it.location }
 
     private val runtimeContent = game.runtimeContent().cheatedForLongPlaythrough()
+    private val compiledHost by lazy {
+        KotlinHeadlessHost.fromExternalBundleCompiledVm(RylweenCompiledGame.nextRylween.toExternalBundleArtifact())
+    }
 
     var runtime: RuntimeSessionState =
         strongReplayState
@@ -255,6 +294,12 @@ private class CheatedLongPlaythrough {
                 .filter { leg -> leg.expectedEnd is MissionEnd.DungeonHandoff }
                 .mapTo(linkedSetOf()) { leg -> leg.id }
 
+    private fun serviceBridge(terminal: TerminalPort): ScriptBridge? =
+        when (scriptMode) {
+            PlaythroughScriptMode.Authored -> null
+            PlaythroughScriptMode.CompiledVm -> compiledHost.compiledVmTerminalScriptBridge(terminal, renderer)
+        }
+
     fun visitTownService(
         building: BuildingId,
         inputs: List<String>,
@@ -262,7 +307,7 @@ private class CheatedLongPlaythrough {
     ) {
         val terminal = ScenarioTerminalPort(*(listOf("P") + inputs).toTypedArray())
         val result =
-            TownSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+            TownSessionTerminalAdapter(terminal, renderer, serviceBridge(terminal)).runUntilBlocked(
                 TownSession.start(
                     town = game.towns.single { it.id == Towns.thord.id },
                     runtime = runtime.asTown(Towns.thord.id).withHour(12),
@@ -282,6 +327,35 @@ private class CheatedLongPlaythrough {
         assertNoUnresolvedText("town service ${building.slug}", terminal.output)
         runtime = result.session.runtime.withActiveParty(result.session.party.cheatedForLongPlaythrough())
         coveredBuildings += building
+    }
+
+    fun visitWildernessHut(): ScenarioTerminalPort {
+        val hut = WorldPosition.Wilderness(worldMap.passableNpcPoints().first())
+        val npcs = listOf(NpcPlacement(Npcs.marcus, hut))
+        val terminal = ScenarioTerminalPort("E", "T", "1", "B", "L")
+        val result =
+            WildernessSessionTerminalAdapter(terminal, renderer, serviceBridge(terminal)).runUntilBlocked(
+                WildernessSession.start(
+                    content = runtimeContent,
+                    runtime =
+                        runtime
+                            .copy(npcs = npcs)
+                            .withActiveParty(baseCheatedParty.copy(position = hut).cheatedForLongPlaythrough())
+                            .withHour(12)
+                            .asWilderness(),
+                    worldMap = worldMap.withNpcHuts(npcs),
+                ),
+            )
+
+        assertTrue(
+            result.status is TerminalRunStatus.Waiting,
+            "wilderness hut did not return to waiting explore; status=${result.status}; " +
+                "step=${result.session.step}; output=${terminal.output.takeLast(30)}",
+        )
+        assertEquals(WildernessSessionResultStatus.EnteredHut, result.session.lastResult?.status)
+        assertNoUnresolvedText("wilderness hut", terminal.output)
+        runtime = result.session.runtime.withActiveParty(result.session.party.cheatedForLongPlaythrough())
+        return terminal
     }
 
     fun visitEveryThordServiceThroughWilderness(): ScenarioTerminalPort {
@@ -323,7 +397,7 @@ private class CheatedLongPlaythrough {
             )
         val terminal = ScenarioTerminalPort(*routeAndTownInputs.toTypedArray())
         val result =
-            WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+            WildernessSessionTerminalAdapter(terminal, renderer, serviceBridge(terminal)).runUntilBlocked(
                 WildernessSession.start(
                     content = runtimeContent,
                     runtime = runtime.withHour(12).asWilderness(),
@@ -388,7 +462,7 @@ private class CheatedLongPlaythrough {
         val scene = game.scenes.single { it.id == mission.action }
         val terminal = ScenarioTerminalPort(*leg.inputs.toTypedArray())
         val result =
-            WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+            WildernessSessionTerminalAdapter(terminal, renderer, serviceBridge(terminal)).runUntilBlocked(
                 WildernessSession(
                     runtime =
                         runtime
@@ -518,7 +592,7 @@ private class CheatedLongPlaythrough {
                 ).copy(locations = playthroughLocations)
         val terminal = ScenarioTerminalPort(*(route.inputs + leg.inputs + extraInputs).toTypedArray())
         val result =
-            WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+            WildernessSessionTerminalAdapter(terminal, renderer, serviceBridge(terminal)).runUntilBlocked(
                 WildernessSession.start(
                     content = content,
                     runtime = startRuntime.asWilderness(),
