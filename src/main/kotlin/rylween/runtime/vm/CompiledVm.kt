@@ -30,6 +30,7 @@ import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledTextPart
 import rylween.compiled.CompiledViewCommand
 import rylween.compiled.LoadedCompiledContent
+import rylween.dsl.EncounterTier
 import rylween.dsl.GameMilestoneId
 import rylween.dsl.Gender
 import rylween.dsl.ImageId
@@ -40,11 +41,13 @@ import rylween.dsl.ItemId
 import rylween.dsl.ItemPoolId
 import rylween.dsl.LocationId
 import rylween.dsl.MemberChoiceFilter
+import rylween.dsl.MonsterId
 import rylween.dsl.NativeAllowlist
 import rylween.dsl.PartyMemberState
 import rylween.dsl.PartyState
 import rylween.dsl.PcClass
 import rylween.dsl.PronounCase
+import rylween.dsl.SceneId
 import rylween.dsl.ScriptControlSignal
 import rylween.dsl.TextBlock
 import rylween.dsl.TextId
@@ -207,7 +210,27 @@ sealed interface CompiledVmInput {
     data class AskText(
         val raw: String,
     ) : CompiledVmInput
+
+    /** Reports that a host-owned child session finished and supplies its resulting runtime. */
+    data class ChildSessionCompleted(
+        val completion: CompiledVmChildCompletion,
+    ) : CompiledVmInput
 }
+
+/** Host-owned child session request emitted by [CompiledVm]. */
+sealed interface CompiledVmChildRequest {
+    /** Starts a battle encounter outside the VM and resumes with [CompiledVmInput.ChildSessionCompleted]. */
+    data class Encounter(
+        val monster: MonsterId,
+        val mandatory: Boolean,
+        val tier: EncounterTier?,
+    ) : CompiledVmChildRequest
+}
+
+/** Result payload supplied by a host after a child session finishes. */
+data class CompiledVmChildCompletion(
+    val runtime: RuntimeSessionState,
+)
 
 /** Typed input request that stopped a compiled VM run. */
 sealed interface CompiledVmPendingInput {
@@ -303,6 +326,14 @@ sealed interface CompiledVmPendingInput {
         val caseSensitive: Boolean,
         val trim: Boolean,
         val maxLength: Int?,
+    ) : CompiledVmPendingInput
+
+    /** Pending host-owned child session such as a battle encounter. */
+    data class ChildSession(
+        override val root: rylween.runtime.ScriptRootRef,
+        override val instructionIndex: Int,
+        override val operandPath: List<Int>,
+        val request: CompiledVmChildRequest,
     ) : CompiledVmPendingInput
 }
 
@@ -459,6 +490,9 @@ class CompiledVm(
         if (continuation.pending is CompiledVmPendingInput.AskText && input is CompiledVmInput.AskText) {
             return resumeAskText(program, continuation, input)
         }
+        if (continuation.pending is CompiledVmPendingInput.ChildSession && input is CompiledVmInput.ChildSessionCompleted) {
+            return resumeChildSession(program, continuation, input)
+        }
         val state =
             ExecutionState(
                 root = continuation.root,
@@ -499,6 +533,21 @@ class CompiledVm(
                 insideLoop = menuFrame?.insideLoop ?: false,
             )
         return result(state, executeFrames(state, program.instructions, listOf(branchFrame) + continuation.frames))
+    }
+
+    private fun resumeChildSession(
+        program: CompiledScriptProgram,
+        continuation: CompiledVmContinuation,
+        input: CompiledVmInput.ChildSessionCompleted,
+    ): CompiledVmResult {
+        val state =
+            ExecutionState(
+                root = continuation.root,
+                runtime = input.completion.runtime,
+                locals = continuation.locals.toMutableMap(),
+                textBindings = continuation.textBindings.toMutableMap(),
+            )
+        return result(state, executeFrames(state, program.instructions, continuation.frames))
     }
 
     private fun resumeAskKey(
@@ -1159,6 +1208,58 @@ class CompiledVm(
                 state.party = state.party.withMilestone(milestone)
                 host.trace(EngineTraceEvent.AchieveMilestone(milestone))
                 ControlSignal.Continue
+            }
+            CompiledOpcode.RunScene -> {
+                val scene = SceneId(index.slug(instruction.handle(0)))
+                val bindingStrings = instruction.stringIdList(1)
+                if (bindingStrings.size % 2 != 0) {
+                    ControlSignal.Failed(
+                        location.badOperand(
+                            reason = "RunSceneBindingsMustBePairs",
+                            expected = "even string-id list",
+                            actual = "${bindingStrings.size} string ids",
+                        ),
+                    )
+                } else {
+                    host.trace(
+                        EngineTraceEvent.RunScene(
+                            scene = scene,
+                            bindings =
+                                bindingStrings
+                                    .chunked(2)
+                                    .associate { (key, value) -> index.string(key) to index.string(value) },
+                        ),
+                    )
+                    ControlSignal.Continue
+                }
+            }
+            CompiledOpcode.Encounter -> {
+                val request =
+                    CompiledVmChildRequest.Encounter(
+                        monster = MonsterId(index.slug(instruction.handle(0))),
+                        mandatory = instruction.boolean(1),
+                        tier = instruction.optionalHandle(2)?.let { tier -> EncounterTier(index.slug(tier)) },
+                    )
+                host.trace(EngineTraceEvent.Encounter(request.monster, request.mandatory, request.tier))
+                ControlSignal.Blocked(
+                    pending =
+                        CompiledVmPendingInput.ChildSession(
+                            root = location.root,
+                            instructionIndex = location.instructionIndex,
+                            operandPath = location.operandPath,
+                            request = request,
+                        ),
+                    frames =
+                        listOf(
+                            continuationFrame(
+                                blockPath = location.blockPath,
+                                nextIndex = location.instructionIndex + 1,
+                                insideLoop = insideLoop,
+                                kind = blockKind,
+                                enclosingInsideLoop = enclosingInsideLoop,
+                            ),
+                        ) + parentFrames,
+                )
             }
             else ->
                 ControlSignal.Failed(
@@ -1869,8 +1970,13 @@ class CompiledVm(
 
     private fun CompiledInstruction.stringId(index: Int): Int = (operands[index] as CompiledOperand.StringId).id
 
+    private fun CompiledInstruction.stringIdList(index: Int): List<Int> = (operands[index] as CompiledOperand.StringIdList).ids
+
     private fun CompiledInstruction.optionalString(index: Int): String? =
         (operands.getOrNull(index) as? CompiledOperand.StringId)?.id?.let(this@CompiledVm.index::string)
+
+    private fun CompiledInstruction.optionalHandle(index: Int): CompiledHandleRef? =
+        (operands.getOrNull(index) as? CompiledOperand.Handle)?.ref
 
     private fun CompiledInstruction.optionalSignal(index: Int): ScriptControlSignal? =
         (operands.getOrNull(index) as? CompiledOperand.EnumName)?.name?.let(ScriptControlSignal::valueOf)
@@ -2203,6 +2309,7 @@ private fun CompiledVmContinuation.accepts(input: CompiledVmInput): Boolean =
         is CompiledVmPendingInput.AskMonster -> input is CompiledVmInput.AskMonster
         is CompiledVmPendingInput.AskInventorySlot -> input is CompiledVmInput.AskInventorySlot
         is CompiledVmPendingInput.AskText -> input is CompiledVmInput.AskText
+        is CompiledVmPendingInput.ChildSession -> input is CompiledVmInput.ChildSessionCompleted
     }
 
 private sealed interface EvalResult<out T> {
