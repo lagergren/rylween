@@ -152,6 +152,19 @@ interface CompiledVmHost {
      */
     fun trace(event: EngineTraceEvent)
 
+    /**
+     * Builds the visible prompt for a `WaitInput` opcode.
+     *
+     * Hosts that randomize prompt text must return the advanced runtime state
+     * alongside the rendered prompt. Returning `null` leaves the prompt absent
+     * and preserves runtime state, which is useful for headless conformance
+     * tests that only care that a wait occurred.
+     */
+    fun waitInputPrompt(
+        reason: String?,
+        runtime: RuntimeSessionState,
+    ): CompiledVmWaitInputPrompt? = null
+
     /** Resolves an allowlisted native integer service request and returns the deterministic result. */
     fun readInt(request: EngineRequest): Int = 0
 
@@ -221,6 +234,12 @@ interface CompiledVmHost {
         runtime: RuntimeSessionState,
     ): List<String> = TerminalTextRenderer().lines(text, TerminalTextContext(runtime = runtime))
 }
+
+/** Host-selected `WaitInput` prompt and any runtime state consumed while choosing it. */
+data class CompiledVmWaitInputPrompt(
+    val runtime: RuntimeSessionState,
+    val prompt: TextBlock,
+)
 
 /**
  * Test and adapter host that records VM trace events in memory.
@@ -997,12 +1016,19 @@ class CompiledVm(
                 ControlSignal.Continue
             }
             CompiledOpcode.WaitInput -> {
+                val reason = instruction.optionalString(0)
+                val prompt = host.waitInputPrompt(reason, state.runtime)
+                if (prompt != null) {
+                    state.runtime = prompt.runtime
+                    state.party = prompt.runtime.activeParty
+                }
                 val pending =
                     CompiledVmPendingInput.WaitInput(
                         root = location.root,
                         instructionIndex = location.instructionIndex,
                         operandPath = location.operandPath,
-                        reason = instruction.optionalString(0),
+                        reason = reason,
+                        prompt = prompt?.prompt,
                     )
                 host.trace(EngineTraceEvent.WaitInput(pending.reason, pending.prompt))
                 ControlSignal.Blocked(

@@ -123,6 +123,19 @@ import rylween.save.RuntimeSaveOutcome
 import rylween.save.RuntimeSavePort
 import rylween.save.RuntimeSaveRequest
 
+private fun StatefulScriptResult.toBridgeResult(
+    eventStart: Int,
+    engine: TraceEnginePort,
+): ScriptBridgeResult =
+    ScriptBridgeResult(
+        runtime = runtime,
+        status = status,
+        events = engine.events.drop(unwrittenEventStart.coerceAtLeast(eventStart)),
+        continuation = continuation,
+        rejection = rejection,
+        dungeonHandoff = dungeonHandoff,
+    )
+
 private fun TerminalPort.writeKeyMenu(
     renderer: TerminalTextRenderer,
     block: TextBlock,
@@ -414,6 +427,7 @@ class InventoryItemUseTerminalAdapter(
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
     private val engine: TraceEnginePort = TraceEnginePort(),
     private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
+    private val scriptBridge: ScriptBridge? = null,
 ) {
     fun run(initial: InventoryItemUseSession): InventoryItemUseSession = runUntilBlocked(initial).session
 
@@ -440,27 +454,9 @@ class InventoryItemUseTerminalAdapter(
                         ) { return it }
                     }
                     is InventoryItemUseStep.Script -> {
-                        val eventStart = engine.events.size
-                        val result =
-                            StatefulScriptServiceRunner(
-                                terminal = terminal,
-                                engine = engine,
-                                rootOps = step.use.ops,
-                                continuation = step.continuation,
-                                speakContent = speakContent,
-                                battleContent =
-                                    RuntimeContent(
-                                        itemRecords = session.itemRecords,
-                                        realm = session.realmContent,
-                                    ),
-                                textRenderer = renderer,
-                                scriptRoot = ScriptRootRef.itemUse(step.use.id),
-                            ).run()
-                        terminal.writeScriptEvents(
-                            engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
-                            renderer,
-                            result.runtime,
-                        )
+                        val root = ScriptRootRef.itemUse(step.use.id)
+                        val result = runItemUseScript(session, step, root)
+                        terminal.writeScriptEvents(result.events, renderer, result.runtime)
                         when (result.status) {
                             ScriptBridgeStatus.Finished ->
                                 session.finishScript(result.runtime)
@@ -483,6 +479,40 @@ class InventoryItemUseTerminalAdapter(
                 }
         }
         return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun runItemUseScript(
+        session: InventoryItemUseSession,
+        step: InventoryItemUseStep.Script,
+        root: ScriptRootRef,
+    ): ScriptBridgeResult {
+        scriptBridge?.let { bridge ->
+            return bridge.run(
+                ScriptBridgeInvocation(
+                    root = root,
+                    rootOps = step.use.ops,
+                    continuation = step.continuation,
+                ),
+            )
+        }
+
+        val eventStart = engine.events.size
+        val scriptResult =
+            StatefulScriptServiceRunner(
+                terminal = terminal,
+                engine = engine,
+                rootOps = step.use.ops,
+                continuation = step.continuation,
+                speakContent = speakContent,
+                battleContent =
+                    RuntimeContent(
+                        itemRecords = session.itemRecords,
+                        realm = session.realmContent,
+                    ),
+                textRenderer = renderer,
+                scriptRoot = root,
+            ).run()
+        return scriptResult.toBridgeResult(eventStart, engine)
     }
 }
 
@@ -658,6 +688,7 @@ class PriestSpellTerminalAdapter(
     private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
     private val content: RuntimeContent = RuntimeContent(),
     private val worldMap: WorldMapGrid? = null,
+    private val scriptBridge: ScriptBridge? = null,
 ) {
     fun runUntilBlocked(initial: PriestSpellSession): TerminalAdapterResult<PriestSpellSession> {
         var session = initial
@@ -679,24 +710,9 @@ class PriestSpellTerminalAdapter(
                             }
                     }
                     is PriestSpellStep.Script -> {
-                        val eventStart = engine.events.size
-                        val result =
-                            StatefulScriptServiceRunner(
-                                terminal = terminal,
-                                engine = engine,
-                                rootOps = step.spell.ops,
-                                continuation = step.continuation,
-                                speakContent = speakContent,
-                                battleContent = content,
-                                worldMap = worldMap,
-                                textRenderer = renderer,
-                                scriptRoot = content.scriptRootForSpell(step.spell.id),
-                            ).run()
-                        terminal.writeScriptEvents(
-                            engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
-                            renderer,
-                            result.runtime,
-                        )
+                        val root = content.scriptRootForSpell(step.spell.id)
+                        val result = runSpellScript(step, root)
+                        terminal.writeScriptEvents(result.events, renderer, result.runtime)
                         when (result.status) {
                             ScriptBridgeStatus.Finished -> session.finishScript(result.runtime, result.dungeonHandoff)
                             ScriptBridgeStatus.Waiting ->
@@ -718,6 +734,36 @@ class PriestSpellTerminalAdapter(
                 }
         }
         return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun runSpellScript(
+        step: PriestSpellStep.Script,
+        root: ScriptRootRef,
+    ): ScriptBridgeResult {
+        scriptBridge?.let { bridge ->
+            return bridge.run(
+                ScriptBridgeInvocation(
+                    root = root,
+                    rootOps = step.spell.ops,
+                    continuation = step.continuation,
+                ),
+            )
+        }
+
+        val eventStart = engine.events.size
+        val scriptResult =
+            StatefulScriptServiceRunner(
+                terminal = terminal,
+                engine = engine,
+                rootOps = step.spell.ops,
+                continuation = step.continuation,
+                speakContent = speakContent,
+                battleContent = content,
+                worldMap = worldMap,
+                textRenderer = renderer,
+                scriptRoot = root,
+            ).run()
+        return scriptResult.toBridgeResult(eventStart, engine)
     }
 }
 
@@ -1078,6 +1124,7 @@ class DungeonSessionTerminalAdapter(
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
     private val savePort: RuntimeSavePort? = null,
     private val postDungeon: MissionPostDungeonContinuation? = null,
+    private val scriptBridge: ScriptBridge? = null,
 ) {
     fun runUntilBlocked(initial: DungeonSession): TerminalAdapterResult<DungeonSession> {
         var session = initial
@@ -1120,7 +1167,7 @@ class DungeonSessionTerminalAdapter(
                         runChildOrBlock(
                             session,
                             step.session,
-                            { InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                            { InventoryItemUseTerminalAdapter(terminal, renderer, scriptBridge = scriptBridge).runUntilBlocked(it) },
                             DungeonSession::replaceInventoryItemUseSession,
                         ) { return it }
                     }
@@ -1150,6 +1197,7 @@ class DungeonSessionTerminalAdapter(
                                     renderer = renderer,
                                     content = session.content,
                                     worldMap = session.worldMap,
+                                    scriptBridge = scriptBridge,
                                 ).runUntilBlocked(it)
                             },
                             DungeonSession::replacePriestSpellSession,
@@ -1209,12 +1257,24 @@ class DungeonSessionTerminalAdapter(
         session: DungeonSession,
         step: DungeonSessionStep.Event,
     ): ScriptBridgeResult {
-        val engine = TraceEnginePort()
-        val eventStart = engine.events.size
+        val root = session.content.scriptRootForDungeonEvent(step.event.id)
         val continuation =
             step.continuation ?: ScriptContinuation.start(session.runtime).copy(
                 locals = mapOf("dungeon_level" to session.depth),
             )
+        scriptBridge?.let { bridge ->
+            return bridge.run(
+                ScriptBridgeInvocation(
+                    root = root,
+                    rootOps = step.event.ops,
+                    continuation = continuation,
+                    resumeModeAfterBattle = RuntimeMode.Dungeon,
+                ),
+            )
+        }
+
+        val engine = TraceEnginePort()
+        val eventStart = engine.events.size
         val result =
             StatefulScriptServiceRunner(
                 terminal = terminal,
@@ -1226,7 +1286,7 @@ class DungeonSessionTerminalAdapter(
                 worldMap = session.worldMap,
                 textRenderer = renderer,
                 resumeModeAfterBattle = RuntimeMode.Dungeon,
-                scriptRoot = session.content.scriptRootForDungeonEvent(step.event.id),
+                scriptRoot = root,
             ).run()
         return ScriptBridgeResult(
             runtime = result.runtime,
@@ -1418,6 +1478,7 @@ class WildernessSessionTerminalAdapter(
                                     renderer = renderer,
                                     savePort = savePort,
                                     postDungeon = step.postDungeon,
+                                    scriptBridge = serviceBridge,
                                 ).runUntilBlocked(it)
                             },
                             WildernessSession::replaceDungeonSession,
@@ -1427,7 +1488,14 @@ class WildernessSessionTerminalAdapter(
                         runChildOrBlock(
                             session,
                             step.session,
-                            { YdargSessionTerminalAdapter(terminal, renderer, savePort).runUntilBlocked(it) },
+                            {
+                                YdargSessionTerminalAdapter(
+                                    terminal = terminal,
+                                    renderer = renderer,
+                                    savePort = savePort,
+                                    scriptBridge = serviceBridge,
+                                ).runUntilBlocked(it)
+                            },
                             WildernessSession::replaceYdargSession,
                         ) { return it }
                     }
@@ -1486,7 +1554,7 @@ class WildernessSessionTerminalAdapter(
                         runChildOrBlock(
                             session,
                             step.session,
-                            { InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                            { InventoryItemUseTerminalAdapter(terminal, renderer, scriptBridge = serviceBridge).runUntilBlocked(it) },
                             WildernessSession::replaceInventoryItemUseSession,
                         ) { return it }
                     }
@@ -1532,6 +1600,7 @@ class WildernessSessionTerminalAdapter(
                                     renderer,
                                     content = session.content,
                                     worldMap = session.worldMap,
+                                    scriptBridge = serviceBridge,
                                 ).runUntilBlocked(it)
                             },
                             WildernessSession::replacePriestSpellSession,

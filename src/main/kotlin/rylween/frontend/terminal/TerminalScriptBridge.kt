@@ -93,6 +93,7 @@ import rylween.runtime.vm.CompiledVmInput
 import rylween.runtime.vm.CompiledVmPendingInput
 import rylween.runtime.vm.CompiledVmResult
 import rylween.runtime.vm.CompiledVmScriptRunner
+import rylween.runtime.vm.CompiledVmWaitInputPrompt
 import rylween.runtime.vm.RecordingCompiledVmHost
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 import rylween.runtime.wilderness.WorldMapGrid
@@ -125,8 +126,27 @@ data class ScriptBridgeResult(
     val realm: RealmState get() = runtime.realm
 }
 
+/**
+ * Root-level script invocation shared by authored and compiled bridge backends.
+ *
+ * [root] identifies the compiled-bundle program and save/diagnostic identity.
+ * [rootOps] lets the authored interpreter remain the fallback implementation
+ * for the same root without requiring callers to know which backend is active.
+ * [traceEvent] is emitted before execution when the script root also represents
+ * a visible host transition, such as entering a town service.
+ */
+data class ScriptBridgeInvocation(
+    val root: ScriptRootRef,
+    val rootOps: List<Op>,
+    val continuation: ScriptContinuation,
+    val traceEvent: EngineTraceEvent? = null,
+    val resumeModeAfterBattle: RuntimeMode? = null,
+)
+
 /** Frontend-facing bridge for running or resuming authored script blocks. */
 interface ScriptBridge {
+    fun run(invocation: ScriptBridgeInvocation): ScriptBridgeResult
+
     fun run(
         service: BuildingServiceModel,
         scene: SceneModel,
@@ -143,25 +163,21 @@ class StatefulScriptBridge(
     private val worldMap: WorldMapGrid? = null,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(characters = speakContent.characters),
 ) : ScriptBridge {
-    override fun run(
-        service: BuildingServiceModel,
-        scene: SceneModel,
-        continuation: ScriptContinuation,
-    ): ScriptBridgeResult {
+    override fun run(invocation: ScriptBridgeInvocation): ScriptBridgeResult {
         val eventStart = engine.events.size
-        engine.trace(EngineTraceEvent.TownService(service, scene))
-        val root = battleContent.scriptRootForScene(scene.id)
+        invocation.traceEvent?.let(engine::trace)
         val result =
             StatefulScriptServiceRunner(
-                terminal,
-                engine,
-                scene.ops,
-                continuation,
-                speakContent,
-                battleContent,
-                worldMap,
-                renderer,
-                scriptRoot = root,
+                terminal = terminal,
+                engine = engine,
+                rootOps = invocation.rootOps,
+                continuation = invocation.continuation,
+                speakContent = speakContent,
+                battleContent = battleContent,
+                worldMap = worldMap,
+                textRenderer = renderer,
+                resumeModeAfterBattle = invocation.resumeModeAfterBattle,
+                scriptRoot = invocation.root,
             ).run()
         return ScriptBridgeResult(
             runtime = result.runtime,
@@ -170,6 +186,22 @@ class StatefulScriptBridge(
             continuation = result.continuation,
             rejection = result.rejection,
             dungeonHandoff = result.dungeonHandoff,
+        )
+    }
+
+    override fun run(
+        service: BuildingServiceModel,
+        scene: SceneModel,
+        continuation: ScriptContinuation,
+    ): ScriptBridgeResult {
+        val root = battleContent.scriptRootForScene(scene.id)
+        return run(
+            ScriptBridgeInvocation(
+                root = root,
+                rootOps = scene.ops,
+                continuation = continuation,
+                traceEvent = EngineTraceEvent.TownService(service, scene),
+            ),
         )
     }
 }
@@ -196,15 +228,12 @@ class CompiledVmTerminalScriptBridge(
     private val content: RuntimeContent,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
 ) : ScriptBridge {
-    override fun run(
-        service: BuildingServiceModel,
-        scene: SceneModel,
-        continuation: ScriptContinuation,
-    ): ScriptBridgeResult {
+    override fun run(invocation: ScriptBridgeInvocation): ScriptBridgeResult {
+        val root = invocation.root
+        val continuation = invocation.continuation
         val eventStart = vmHost.events.size
         var writtenEventCount = eventStart
-        val root = content.scriptRootForScene(scene.id)
-        vmHost.trace(EngineTraceEvent.TownService(service, scene))
+        invocation.traceEvent?.let(vmHost::trace)
 
         fun unwrittenEvents(): List<EngineTraceEvent> = vmHost.events.drop(writtenEventCount.coerceAtLeast(eventStart))
 
@@ -276,7 +305,14 @@ class CompiledVmTerminalScriptBridge(
                     error("compiled VM script ${root.kind}.${root.slug} failed: ${current.diagnostic}")
                 is CompiledVmResult.Blocked -> {
                     val promptRendered = flushEvents(current.continuation.runtime)
-                    when (val childResult = runChildSession(current, continuation)) {
+                    when (
+                        val childResult =
+                            runChildSession(
+                                blocked = current,
+                                continuation = continuation,
+                                resumeModeAfterBattle = invocation.resumeModeAfterBattle,
+                            )
+                    ) {
                         is ChildSessionResult.Resumed -> {
                             result = childResult.result
                             return@repeat
@@ -336,6 +372,22 @@ class CompiledVmTerminalScriptBridge(
         error("compiled VM script ${root.kind}.${root.slug} exceeded terminal bridge step budget")
     }
 
+    override fun run(
+        service: BuildingServiceModel,
+        scene: SceneModel,
+        continuation: ScriptContinuation,
+    ): ScriptBridgeResult {
+        val root = content.scriptRootForScene(scene.id)
+        return run(
+            ScriptBridgeInvocation(
+                root = root,
+                rootOps = scene.ops,
+                continuation = continuation,
+                traceEvent = EngineTraceEvent.TownService(service, scene),
+            ),
+        )
+    }
+
     private sealed interface ChildSessionResult {
         data class Resumed(
             val result: CompiledVmResult,
@@ -365,18 +417,34 @@ class CompiledVmTerminalScriptBridge(
     private fun runChildSession(
         blocked: CompiledVmResult.Blocked,
         continuation: ScriptContinuation,
+        resumeModeAfterBattle: RuntimeMode?,
     ): ChildSessionResult? {
-        val pending = blocked.pending as? CompiledVmPendingInput.ChildSession ?: return null
+        val pending = blocked.pending as? CompiledVmPendingInput.ChildSession
+        if (pending == null) {
+            return null
+        }
+        val activeContinuation = continuation.takeIf { it.compiledVmContinuation?.pending.samePending(blocked.pending) }
         return when (val request = pending.request) {
-            is CompiledVmChildRequest.Speak -> runSpeak(request, blocked, continuation.speakSession)
+            is CompiledVmChildRequest.Speak -> runSpeak(request, blocked, activeContinuation?.speakSession)
             is CompiledVmChildRequest.TellRumour -> ChildSessionResult.Resumed(completeTellRumour(request, blocked))
-            is CompiledVmChildRequest.GrantReward -> runGrantReward(request, blocked, continuation.rewardGrantSession)
+            is CompiledVmChildRequest.GrantReward -> runGrantReward(request, blocked, activeContinuation?.rewardGrantSession)
             is CompiledVmChildRequest.RandomItemOffer ->
-                runRandomItemOffer(request, blocked, continuation.randomItemOfferSession)
-            is CompiledVmChildRequest.ShopService -> runShopService(request, blocked, continuation.shopServiceSession)
-            is CompiledVmChildRequest.Encounter -> runEncounter(request, blocked, continuation.battleSession)
+                runRandomItemOffer(request, blocked, activeContinuation?.randomItemOfferSession)
+            is CompiledVmChildRequest.ShopService -> runShopService(request, blocked, activeContinuation?.shopServiceSession)
+            is CompiledVmChildRequest.Encounter ->
+                runEncounter(request, blocked, activeContinuation?.battleSession, resumeModeAfterBattle)
             is CompiledVmChildRequest.EnterDungeon -> runEnterDungeon(request, blocked, continuation)
         }
+    }
+
+    private fun CompiledVmPendingInput?.samePending(other: CompiledVmPendingInput): Boolean {
+        val pending = this
+        if (pending == null) {
+            return false
+        }
+        return pending.root.sameRoot(other.root) &&
+            pending.instructionIndex == other.instructionIndex &&
+            pending.operandPath == other.operandPath
     }
 
     private fun runSpeak(
@@ -511,6 +579,7 @@ class CompiledVmTerminalScriptBridge(
         request: CompiledVmChildRequest.Encounter,
         blocked: CompiledVmResult.Blocked,
         activeSession: BattleSession?,
+        resumeModeAfterBattle: RuntimeMode?,
     ): ChildSessionResult {
         if (!content.battleConfigured) {
             return completeChildSession(blocked, blocked.continuation.runtime)
@@ -535,11 +604,22 @@ class CompiledVmTerminalScriptBridge(
                 battleSession = current,
             )
         }
-        val nextRuntime = finished.runtime
+        val nextRuntime = finished.runtime.afterCompiledScriptBattle(resumeModeAfterBattle)
         if (nextRuntime.realm.currentMode == RuntimeMode.GameOver) {
             return ChildSessionResult.Finished(nextRuntime)
         }
         return completeChildSession(blocked, nextRuntime)
+    }
+
+    private fun RuntimeSessionState.afterCompiledScriptBattle(resumeModeAfterBattle: RuntimeMode?): RuntimeSessionState {
+        val mode = resumeModeAfterBattle
+        if (mode == null) {
+            return this
+        }
+        if (realm.currentMode == RuntimeMode.GameOver) {
+            return this
+        }
+        return withRealm(realm.copy(currentMode = mode, currentTown = null))
     }
 
     private fun runEnterDungeon(
@@ -696,7 +776,7 @@ class CompiledVmTerminalScriptBridge(
 fun KotlinHeadlessHost.compiledVmTerminalScriptBridge(
     terminal: TerminalPort,
     renderer: TerminalTextRenderer = TerminalTextRenderer(),
-    vmHost: RecordingCompiledVmHost = RecordingCompiledVmHost(),
+    vmHost: RecordingCompiledVmHost = TerminalCompiledVmHost(renderer),
 ): ScriptBridge =
     CompiledVmTerminalScriptBridge(
         terminal = terminal,
@@ -705,6 +785,22 @@ fun KotlinHeadlessHost.compiledVmTerminalScriptBridge(
         content = content.runtimeContent(),
         renderer = renderer,
     )
+
+private class TerminalCompiledVmHost(
+    private val renderer: TerminalTextRenderer,
+) : RecordingCompiledVmHost() {
+    override fun waitInputPrompt(
+        reason: String?,
+        runtime: RuntimeSessionState,
+    ): CompiledVmWaitInputPrompt {
+        val range = renderer.pauseVerbIndexRange()
+        if (range == null) {
+            return CompiledVmWaitInputPrompt(runtime, renderer.pausePrompt())
+        }
+        val draw = runtime.drawRandom(range.first, range.last)
+        return CompiledVmWaitInputPrompt(draw.runtime, renderer.pausePrompt(draw.value))
+    }
+}
 
 /** Full result of running a script continuation through terminal adapters. */
 data class StatefulScriptResult(
@@ -1128,18 +1224,20 @@ class StatefulScriptServiceRunner(
     private fun currentRuntime(): RuntimeSessionState = runtime.withActiveParty(party)
 
     private fun RuntimeSessionState.afterScriptBattle(): RuntimeSessionState {
-        val mode = resumeModeAfterBattle ?: return this
-        return if (realm.currentMode == RuntimeMode.GameOver) {
-            this
-        } else {
-            withRealm(
-                realm.copy(
-                    currentMode = mode,
-                    currentTown = null,
-                    currentMap = worldMap?.id ?: realm.currentMap,
-                ),
-            )
+        val mode = resumeModeAfterBattle
+        if (mode == null) {
+            return this
         }
+        if (realm.currentMode == RuntimeMode.GameOver) {
+            return this
+        }
+        return withRealm(
+            realm.copy(
+                currentMode = mode,
+                currentTown = null,
+                currentMap = worldMap?.id ?: realm.currentMap,
+            ),
+        )
     }
 
     private fun continuation(runtime: RuntimeSessionState): ScriptContinuation =

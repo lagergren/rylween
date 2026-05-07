@@ -7,6 +7,7 @@ import rylween.dsl.DungeonId
 import rylween.dsl.EquipmentState
 import rylween.dsl.FlagState
 import rylween.dsl.GameMilestoneId
+import rylween.dsl.GameModel
 import rylween.dsl.GridPoint
 import rylween.dsl.IntAst
 import rylween.dsl.InventorySaveSlotMax
@@ -203,6 +204,23 @@ class LongPlaythroughTest {
         assertTrue(reports.verboseScoreLines.any { line -> line == "  Leader             : Fighter" })
         assertTrue(reports.heroesLines.any { line -> line == "  Playtest defeated Baron Ydarg" })
     }
+
+    @Test
+    fun compiledVmServiceBridgeAcceptancePlaythroughReachesYdargVictoryAndHeroesReport() {
+        val playthrough = CheatedLongPlaythrough(scriptMode = PlaythroughScriptMode.CompiledVm)
+
+        val reports = playthrough.runAcceptancePlaythrough()
+
+        assertEquals(playthrough.allTownBuildings, playthrough.coveredBuildings)
+        assertEquals(playthrough.allMissions, playthrough.coveredMissions)
+        assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredFixedDungeonCompletions)
+        assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredPostDungeonContinuations)
+        assertTrue(playthrough.ydargCompleted)
+        assertTrue(Milestones.ydargVictory in playthrough.runtime.activeParty.milestones)
+        assertTrue(reports.scoreLines.any { line -> "Playtest" in line })
+        assertTrue(reports.verboseScoreLines.any { line -> line == "  Leader             : Fighter" })
+        assertTrue(reports.heroesLines.any { line -> line == "  Playtest defeated Baron Ydarg" })
+    }
 }
 
 private enum class PlaythroughScriptMode {
@@ -213,7 +231,7 @@ private enum class PlaythroughScriptMode {
 private class CheatedLongPlaythrough(
     private val scriptMode: PlaythroughScriptMode = PlaythroughScriptMode.Authored,
 ) {
-    private val game = RylweenCompiledGame.nextDsl
+    private val game = RylweenCompiledGame.nextDsl.cheatedForLongPlaythrough()
     private val renderer =
         TerminalTextRenderer(
             towns = game.towns,
@@ -247,9 +265,13 @@ private class CheatedLongPlaythrough(
                 )
         ).distinctBy { it.location }
 
-    private val runtimeContent = game.runtimeContent().cheatedForLongPlaythrough()
+    private val runtimeContent = game.runtimeContent()
     private val compiledHost by lazy {
-        KotlinHeadlessHost.fromExternalBundleCompiledVm(RylweenCompiledGame.nextRylween.toExternalBundleArtifact())
+        KotlinHeadlessHost.fromExternalBundleCompiledVm(
+            RylweenCompiledGame.nextRylween
+                .copy(content = game)
+                .toExternalBundleArtifact(),
+        )
     }
 
     var runtime: RuntimeSessionState =
@@ -1200,6 +1222,15 @@ private sealed interface MissionEnd {
         val dungeon: DungeonId,
         val levels: Int,
     ) : MissionEnd
+}
+
+private fun GameModel.cheatedForLongPlaythrough(): GameModel {
+    val content = runtimeContent().cheatedForLongPlaythrough()
+    return copy(
+        monsters = content.monsters,
+        formulas = content.formulas,
+        rewards = content.rewards,
+    )
 }
 
 private fun RuntimeContent.cheatedForLongPlaythrough(): RuntimeContent =
