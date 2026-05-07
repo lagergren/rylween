@@ -6015,7 +6015,7 @@ val nextRylween: RylweenModel = rylween {
                     line("small favour. A priest")
                     line("named ", character(Roles.priestWithBook).name, " has got")
                     line("one of my books. We are")
-                    line("old friends, and I lended")
+                    line("old friends, and I lent")
                     line("it to him. However, I")
                     line("haven't heard much from")
                     line("him lately.")
