@@ -3,13 +3,9 @@ package rylween
 import rylween.dsl.RuntimeMode
 import rylween.dsl.SecretActionModel
 import rylween.dsl.SecretPlayerModel
-import rylween.dsl.Wilderness
 import rylween.dsl.WorldPosition
-import rylween.dsl.item
 import rylween.dsl.matches
-import rylween.dsl.monster
 import rylween.dsl.runtimeContent
-import rylween.dsl.worldMap
 import rylween.dsl.xy
 import rylween.game.Items
 import rylween.game.Maps
@@ -20,13 +16,11 @@ import rylween.runtime.RuntimeSessionState
 import rylween.runtime.WildernessDirection
 import rylween.runtime.inputForToken
 import rylween.runtime.inventoryItem
-import rylween.runtime.party
 import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WildernessSessionInput
 import rylween.runtime.wilderness.WildernessSessionResultStatus
 import rylween.runtime.wilderness.WildernessSessionStep
 import rylween.runtime.wilderness.WorldMapGrid
-import rylween.runtime.wilderness.exploreCommands
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs

@@ -830,7 +830,7 @@ class RylweenDslValidationTest {
     fun cleanStartupSnapshotCreatesWorldThroughCharacterCreation() {
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
-        val snapshot = createInitialWorldSnapshot(game, content, States.freshReplay, rngState = null)
+        val snapshot = createInitialWorldSnapshot(game, content, States.freshReplay)
         val engine =
             RylweenKotlinEngine(
                 content,
@@ -849,7 +849,7 @@ class RylweenDslValidationTest {
 
         var creation =
             engine
-                .characterCreationSession(snapshot.state, partyId("created"), playerName = "Player", rngState = null)
+                .characterCreationSession(snapshot.state, partyId("created"), rngState = null)
                 .apply(CharacterCreationInput.PartyName("Created Party"))
         listOf("A", "B", "C", "D").forEach { name ->
             creation = acceptCreatedThief(creation, name)
@@ -1983,7 +1983,6 @@ class RylweenDslValidationTest {
 
         val party =
             testParty(
-                food = 0,
                 inventoryItems = mapOf(1 to Items.donkey, 2 to horse, 3 to magicRobe),
             )
 
@@ -2035,7 +2034,7 @@ class RylweenDslValidationTest {
 
     @Test
     fun campSessionRefusesWithInsufficientFoodAfterGuardChoice() {
-        val party = testParty(food = 0, restedHours = 0)
+        val party = testParty()
         val session =
             CampSession.start(
                 runtime = RuntimeSessionState.singleParty(party = party, hour = 12, currentTown = null),
@@ -2057,7 +2056,6 @@ class RylweenDslValidationTest {
         val damaged =
             testParty(
                 food = 100,
-                restedHours = 0,
                 inventoryItems = mapOf(1 to Items.tent),
                 members =
                     listOf(
@@ -2416,7 +2414,7 @@ class RylweenDslValidationTest {
         )
         assertEquals(thunSceneRoot, loaded.content.script(checkNotNull(thunSceneRoot).rootHandle))
         assertTrue(
-            checkNotNull(thunSceneRoot).instructions.anyCompiledNested { instruction ->
+            thunSceneRoot.instructions.anyCompiledNested { instruction ->
                 instruction.opcode == CompiledOpcode.EnterDungeon
             },
         )
@@ -2607,7 +2605,7 @@ class RylweenDslValidationTest {
                     RylweenCompiledGame.nextDsl.runtimeContent().copy(
                         realm =
                             RylweenCompiledGame.nextDsl.realm.copy(
-                                upkeep = WildernessUpkeepRules(foodTickEvery = 0, fatigue = emptyList()),
+                                upkeep = WildernessUpkeepRules(fatigue = emptyList()),
                                 hunt =
                                     checkNotNull(RylweenCompiledGame.nextDsl.realm.hunt).copy(
                                         successChancePercent = 100,
@@ -2633,7 +2631,7 @@ class RylweenDslValidationTest {
     fun consumeTorchDecrementsResourceOrReportsNoTorches() {
         val lit = testParty(torches = 2).consumeTorch() as TorchActionResult.Consumed
         val last = testParty(torches = 1).consumeTorch() as TorchActionResult.Consumed
-        val none = testParty(torches = 0).consumeTorch() as TorchActionResult.NoTorches
+        val none = testParty().consumeTorch() as TorchActionResult.NoTorches
 
         assertEquals(1, lit.party.resources.torches)
         assertEquals(0, last.party.resources.torches)
@@ -2678,7 +2676,7 @@ class RylweenDslValidationTest {
             testParty(torches = 2).tryDungeonDescent(currentDepth = 1, maxDepth = 3)
                 as DungeonDescentResult.Descended
         val noTorches =
-            testParty(torches = 0).tryDungeonDescent(currentDepth = 1, maxDepth = 3)
+            testParty().tryDungeonDescent(currentDepth = 1, maxDepth = 3)
                 as DungeonDescentResult.NoTorches
         val atMaxDepth =
             testParty(torches = 2).tryDungeonDescent(currentDepth = 3, maxDepth = 3)
@@ -2968,11 +2966,9 @@ class RylweenDslValidationTest {
                     party =
                         testParty(
                             pcClass = PcClass.Priest,
-                            level = 1,
                             wisdom = 100,
                             mana = 100,
                         ),
-                    rngState = 1L,
                 ),
             )
 
@@ -3008,7 +3004,6 @@ class RylweenDslValidationTest {
                             1 to DungeonEvents.findObject,
                         ),
                     party = testParty(inventoryItems = inventory),
-                    rngState = 1L,
                 ),
             )
 
@@ -3032,7 +3027,6 @@ class RylweenDslValidationTest {
                             Dungeons.randomCave,
                             1 to DungeonEvents.findObject,
                         ),
-                    rngState = 1L,
                 ),
             )
 
@@ -3055,12 +3049,10 @@ class RylweenDslValidationTest {
                     party =
                         testParty(
                             pcClass = PcClass.Priest,
-                            level = 1,
                             wisdom = 100,
                             mana = 100,
                             inventoryItems = inventory,
                         ),
-                    rngState = 1L,
                 ),
             )
 
@@ -3586,7 +3578,7 @@ class RylweenDslValidationTest {
             ShopServiceSession
                 .start(
                     shop,
-                    testParty(gold = 0, inventoryItems = mapOf(1 to Items.sword, 2 to Items.axe)),
+                    testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.axe)),
                     compiledItemRecords(),
                     compiledRealmContent(),
                 ).continueIntro()
@@ -3634,7 +3626,7 @@ class RylweenDslValidationTest {
         assertEquals(EngineTraceEvent.Menu(shop.menu, listOf('B', 'S', 'L')), engine.events[1])
         assertEquals(EngineTraceEvent.Menu(buy.prompt, listOf('A', 'B', 'C')), engine.events[2])
         assertEquals(
-            EngineTraceEvent.Screen((buy.offerFor(Items.torch)!!.purchase as ShopPurchaseModel.Bulk).quantityPrompt),
+            EngineTraceEvent.Screen(((buy.offerFor(Items.torch) ?: return).purchase as ShopPurchaseModel.Bulk).quantityPrompt),
             engine.events[3],
         )
         assertEquals(EngineTraceEvent.Menu(buy.payPrompt, listOf('P', 'N')), engine.events[4])
@@ -4202,7 +4194,6 @@ class RylweenDslValidationTest {
                             party =
                                 testParty(
                                     health = 30,
-                                    hitPoints = 10,
                                     inventoryItems = mapOf(1 to Items.redPotion),
                                 ),
                             hour = 12,
@@ -4599,7 +4590,7 @@ class RylweenDslValidationTest {
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
                     scenes = listOf(testChurchScene()),
-                    party = testParty(gold = 100, hitPoints = 2, health = 10),
+                    party = testParty(gold = 100, hitPoints = 2),
                     currentHour = 12,
                 ),
             )
@@ -4622,7 +4613,7 @@ class RylweenDslValidationTest {
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
                     scenes = listOf(testChurchScene()),
-                    party = testParty(gold = 10, hitPoints = 2, health = 10),
+                    party = testParty(gold = 10, hitPoints = 2),
                     currentHour = 12,
                 ),
             )
@@ -4651,7 +4642,6 @@ class RylweenDslValidationTest {
                             level = 2,
                             pcClass = PcClass.Mage,
                             mana = 3,
-                            wisdom = 10,
                         ),
                     currentHour = 12,
                 ),
@@ -4679,7 +4669,6 @@ class RylweenDslValidationTest {
                         testParty(
                             gold = 1000,
                             hitPoints = 0,
-                            health = 10,
                             dead = true,
                             memberCount = 0,
                         ),
@@ -4706,7 +4695,7 @@ class RylweenDslValidationTest {
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
                     scenes = listOf(testChurchScene()),
-                    party = testParty(gold = 100, hitPoints = 10, health = 10),
+                    party = testParty(gold = 100),
                     currentHour = 12,
                 ),
             )
@@ -4725,7 +4714,7 @@ class RylweenDslValidationTest {
                         town = testTown(Buildings.inn),
                         townSystem = testTownSystem(Buildings.inn),
                         scenes = listOf(testInnScene()),
-                        party = testParty(gold = 100, level = 2, hitPoints = 1, health = 10),
+                        party = testParty(gold = 100, level = 2, hitPoints = 1),
                         currentHour = 12,
                     ),
                 )
@@ -4749,7 +4738,7 @@ class RylweenDslValidationTest {
                         town = testTown(Buildings.inn),
                         townSystem = testTownSystem(Buildings.inn),
                         scenes = listOf(testInnScene()),
-                        party = testParty(gold = 20, hitPoints = 1, health = 10),
+                        party = testParty(gold = 20, hitPoints = 1),
                         currentHour = 12,
                     ),
                 )
@@ -4778,9 +4767,9 @@ class RylweenDslValidationTest {
                                 gold = 100,
                                 members =
                                     listOf(
-                                        testMember(name = "A", hitPoints = 2, health = 10),
+                                        testMember(name = "A", hitPoints = 2),
                                         testMember(name = "B", hitPoints = 8, health = 12),
-                                        testMember(name = "C", hitPoints = 0, health = 10, dead = true),
+                                        testMember(name = "C", hitPoints = 0, dead = true),
                                     ),
                             ),
                         currentHour = 23,
@@ -4878,7 +4867,7 @@ class RylweenDslValidationTest {
                 scene,
                 ScriptContinuation.start(
                     RuntimeSessionState.singleParty(
-                        party = testParty(gold = 200, level = 2, hitPoints = 5, health = 10),
+                        party = testParty(gold = 200, level = 2, hitPoints = 5),
                         hour = 12,
                         currentTown = Towns.thord.id,
                     ),
@@ -5759,8 +5748,8 @@ class RylweenDslValidationTest {
                     gold = 10,
                     members =
                         listOf(
-                            testMember(name = "Alive", hitPoints = 1, health = 10),
-                            testMember(name = "Dead", hitPoints = 0, health = 10, dead = true),
+                            testMember(name = "Alive", hitPoints = 1),
+                            testMember(name = "Dead", hitPoints = 0, dead = true),
                         ),
                 ),
             checkpoints =
@@ -5791,7 +5780,7 @@ class RylweenDslValidationTest {
             inputs = listOf("T", "N", "T", "1", "T", "", "L", "L"),
             party =
                 testParty(
-                    members = listOf(testMember(name = "Borin", charisma = 10)),
+                    members = listOf(testMember(name = "Borin")),
                 ),
             checkpoints =
                 listOf(
@@ -5820,7 +5809,7 @@ class RylweenDslValidationTest {
             inputs = listOf("T", "T", "1", "T", "", "L", "L"),
             party =
                 testParty(
-                    members = listOf(testMember(name = "Borin", charisma = 10)),
+                    members = listOf(testMember(name = "Borin")),
                 ),
             rngState = 4L,
             checkpoints =
@@ -6010,7 +5999,7 @@ class RylweenDslValidationTest {
                         restedHours = 14,
                         members =
                             listOf(
-                                testMember(level = 4, pcClass = PcClass.Mage, wisdom = 10, mana = 8),
+                                testMember(level = 4, pcClass = PcClass.Mage, mana = 8),
                                 testMember(name = "Second"),
                             ),
                     ),
@@ -6059,7 +6048,7 @@ class RylweenDslValidationTest {
         val result =
             WildernessSessionTerminalAdapter(terminal).runUntilBlocked(
                 compiledWildernessSession(
-                    party = testParty(food = 10, timeLeft = 0, restedHours = 14),
+                    party = testParty(food = 10, restedHours = 14),
                 ),
             )
 
@@ -6133,7 +6122,6 @@ class RylweenDslValidationTest {
                             timeLeft = 200,
                             restedHours = 14,
                             health = 30,
-                            hitPoints = 10,
                             inventoryItems = mapOf(1 to Items.redPotion),
                         ),
                 ),
@@ -6230,7 +6218,7 @@ class RylweenDslValidationTest {
                 },
             start = {
                 compiledWildernessSession(
-                    party = testParty(food = 100, timeLeft = 0, restedHours = 14),
+                    party = testParty(food = 100, restedHours = 14),
                     rngState = 1L,
                 )
             },
@@ -6276,9 +6264,7 @@ class RylweenDslValidationTest {
                             timeLeft = 200,
                             restedHours = 14,
                             pcClass = PcClass.Priest,
-                            level = 1,
                             health = 30,
-                            hitPoints = 10,
                             wisdom = 20,
                             mana = 20,
                         ),
@@ -6309,7 +6295,6 @@ class RylweenDslValidationTest {
                             timeLeft = 200,
                             restedHours = 14,
                             pcClass = PcClass.Priest,
-                            level = 1,
                             health = 30,
                             hitPoints = 3,
                             wisdom = 50,
@@ -6338,7 +6323,7 @@ class RylweenDslValidationTest {
                 restedHours = 14,
                 members =
                     listOf(
-                        testMember("Priest", pcClass = PcClass.Priest, level = 1, wisdom = 100, mana = 100),
+                        testMember("Priest", pcClass = PcClass.Priest, wisdom = 100, mana = 100),
                         testMember("Fallen", health = 30, hitPoints = 0, dead = true),
                     ),
             )
@@ -6370,7 +6355,6 @@ class RylweenDslValidationTest {
                     party =
                         testParty(
                             pcClass = PcClass.Priest,
-                            level = 1,
                             wisdom = 100,
                             mana = 100,
                         ),
@@ -6399,7 +6383,6 @@ class RylweenDslValidationTest {
                             timeLeft = 200,
                             restedHours = 14,
                             pcClass = PcClass.Priest,
-                            level = 1,
                             wisdom = 100,
                             mana = 100,
                         ),
@@ -6467,7 +6450,7 @@ class RylweenDslValidationTest {
         val map =
             WorldMapGrid.fromSourceRows(
                 List(30) { y ->
-                    if (y == 29) mapRow(14 to '2', width = 20) else mapRow(width = 20)
+                    if (y == 29) mapRow(14 to '2') else mapRow()
                 },
             )
         runCompiledWildernessScenario(
@@ -6500,7 +6483,7 @@ class RylweenDslValidationTest {
         val map =
             WorldMapGrid.fromSourceRows(
                 List(30) { y ->
-                    if (y == 29) mapRow(14 to '2', width = 20) else mapRow(width = 20)
+                    if (y == 29) mapRow(14 to '2') else mapRow()
                 },
             )
         runCompiledWildernessScenario(
@@ -6538,7 +6521,7 @@ class RylweenDslValidationTest {
         val map =
             WorldMapGrid.fromSourceRows(
                 List(30) { y ->
-                    if (y == 29) mapRow(14 to '2', width = 20) else mapRow(width = 20)
+                    if (y == 29) mapRow(14 to '2') else mapRow()
                 },
             )
         runCompiledWildernessScenario(
@@ -7049,7 +7032,7 @@ class RylweenDslValidationTest {
     @Test
     fun wildernessMoveCanEnterAuthoredLocationDungeonMission() {
         val terminal = FakeTerminalPort("2", "E")
-        val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow(width = 20) })
+        val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow() })
         val result =
             WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
@@ -7407,12 +7390,13 @@ class RylweenDslValidationTest {
         assertEquals(Missions.trollTooth, result.session.lastResult?.mission)
         assertTrue(result.session.step is WildernessSessionStep.Mission)
         val mission = result.session.step
-        assertTrue(
+        assertEquals(
             mission.continuation
                 ?.battleSession
                 ?.encounter
                 ?.monster
-                ?.id == Monsters.troll,
+                ?.id,
+            Monsters.troll
         )
         assertFalse(result.session.party.hasFlagState(Story.hermit.trollTooth.extracted))
         assertTrue(terminal.output.any { "ENCOUNTER!" in it })
@@ -7505,12 +7489,13 @@ class RylweenDslValidationTest {
         assertEquals(Missions.koboldVillage, result.session.lastResult?.mission)
         assertTrue(result.session.step is WildernessSessionStep.Mission)
         val mission = result.session.step
-        assertTrue(
+        assertEquals(
             mission.continuation
                 ?.battleSession
                 ?.encounter
                 ?.monster
-                ?.id == Monsters.koboldHorde,
+                ?.id,
+            Monsters.koboldHorde
         )
         assertFalse(result.session.party.hasFlagState(Story.masterCrown.task1Done))
         assertTrue(terminal.output.any { "kobold village" in it.lowercase() })
@@ -7544,12 +7529,13 @@ class RylweenDslValidationTest {
         assertEquals(Missions.jazzyFoot, result.session.lastResult?.mission)
         assertTrue(result.session.step is WildernessSessionStep.Mission)
         val mission = result.session.step
-        assertTrue(
+        assertEquals(
             mission.continuation
                 ?.battleSession
                 ?.encounter
                 ?.monster
-                ?.id == Monsters.wingedThing,
+                ?.id,
+            Monsters.wingedThing
         )
         assertFalse(result.session.party.hasFlagState(Story.jazzy.ogre.jazzyDefeated))
         assertTrue(terminal.output.any { "FOOT OF JAZZY" in it })
@@ -8067,7 +8053,6 @@ class RylweenDslValidationTest {
                                     members =
                                         listOf(
                                             testMember(
-                                                level = 1,
                                                 experience = 1999,
                                                 health = 30,
                                                 hitPoints = 5,
@@ -8667,7 +8652,7 @@ class RylweenDslValidationTest {
         assertTrue(handoffLines.all { line -> line in output })
     }
 
-    private fun compiledRuntimeWithRealizedNpcs(rngState: Long): RuntimeSessionState {
+    private fun compiledRuntimeWithRealizedNpcs(@Suppress("SameParameterValue") rngState: Long): RuntimeSessionState {
         val content = RylweenCompiledGame.nextDsl
         return RuntimeSessionState
             .singleParty(
@@ -8864,7 +8849,7 @@ class RylweenDslValidationTest {
         val scene = game.scenes.single { it.id == mission.action }
         return TerminalScenario(
             name = name,
-            fixture = ScenarioFixture(startState = States.freshReplay, seed = null),
+            fixture = ScenarioFixture(startState = States.freshReplay),
             inputs = inputs,
             start = {
                 val runtime =
@@ -10037,7 +10022,7 @@ class RylweenDslValidationTest {
             .apply(CharacterCreationInput.RaceChoice(Race.Elf))
             .apply(CharacterCreationInput.ClassChoice(PcClass.Thief))
 
-    private fun thunTempleTestMap(): WorldMapGrid = WorldMapGrid.fromSourceRows((1..12).map { mapRow(width = 20) })
+    private fun thunTempleTestMap(): WorldMapGrid = WorldMapGrid.fromSourceRows((1..12).map { mapRow() })
 
     private fun thunTempleTestSceneAndMission(): Pair<SceneModel, MissionModel> {
         val scene =
