@@ -73,6 +73,7 @@ import rylween.dsl.LocationId
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.MonsterId
 import rylween.dsl.NativeAllowlist
+import rylween.dsl.NpcRole
 import rylween.dsl.PartyMemberState
 import rylween.dsl.PartyState
 import rylween.dsl.PcClass
@@ -101,8 +102,8 @@ import rylween.dsl.TextId
 import rylween.dsl.TextLine
 import rylween.dsl.TextPart
 import rylween.dsl.TextPattern
+import rylween.dsl.TownId
 import rylween.dsl.ViewCommand
-import rylween.dsl.fallbackText
 import rylween.dsl.inputKey
 import rylween.dsl.matches
 import rylween.dsl.pronoun
@@ -111,6 +112,7 @@ import rylween.engine.EngineTraceEvent
 import rylween.frontend.terminal.TerminalTextContext
 import rylween.frontend.terminal.TerminalTextRenderer
 import rylween.runtime.RuntimeSessionState
+import rylween.runtime.consumeInventoryItems
 import rylween.runtime.countInventoryItems
 import rylween.runtime.drawRandom
 import rylween.runtime.inventoryItem
@@ -1499,6 +1501,18 @@ class CompiledVm(
                     request = CompiledVmChildRequest.EnterDungeon(handoff),
                 )
             }
+            CompiledOpcode.ConsumeInventoryPool -> {
+                val pool = index.itemPool(instruction.handle(0))
+                val quantity = evalInt(state, instruction.intExpr(1), location.child(1))
+                quantity.fold(
+                    ok = { value ->
+                        state.party = state.party.consumeInventoryItems(pool, value)
+                        host.trace(EngineTraceEvent.ConsumeInventoryPool(pool, value))
+                        ControlSignal.Continue
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
+            }
             CompiledOpcode.GrantReward -> {
                 val reward = instruction.reward(0)
                 val gold = reward.gold?.let { expr -> evalInt(state, expr, location.child(0).child(0)) } ?: EvalResult.Ok(0)
@@ -1997,18 +2011,33 @@ class CompiledVm(
             is CompiledTextBlock.Ref -> EvalResult.Ok(TextBlock.Ref(TextId(index.slug(block.text))))
             is CompiledTextBlock.Inline -> EvalResult.Ok(TextBlock.Inline(block.lineStrings.map(index::string)))
             is CompiledTextBlock.Structured -> {
-                val rendered = mutableListOf<String>()
-                block.lines.forEachIndexed { lineIndex, line ->
-                    val parts = mutableListOf<String>()
-                    line.parts.forEachIndexed { partIndex, part ->
-                        when (val value = renderTextPart(state, part, location.child(lineIndex).child(partIndex))) {
-                            is EvalResult.Failed -> return value
-                            is EvalResult.Ok -> parts += value.value
+                val rendered =
+                    buildList {
+                        block.lines.forEachIndexed { lineIndex, line ->
+                            val parts =
+                                buildList {
+                                    line.parts.forEachIndexed { partIndex, part ->
+                                        when (val value = renderTextPart(state, part, location.child(lineIndex).child(partIndex))) {
+                                            is EvalResult.Failed -> return value
+                                            is EvalResult.Ok -> add(value.value)
+                                        }
+                                    }
+                                }
+                            add(TextLine(parts))
                         }
                     }
-                    rendered += parts.joinToString(separator = "")
-                }
-                EvalResult.Ok(TextBlock.Inline(rendered))
+                val allLiteral = rendered.all { line -> line.parts.all { part -> part is TextPart.Literal } }
+                EvalResult.Ok(
+                    if (allLiteral) {
+                        TextBlock.Inline(
+                            rendered.map { line ->
+                                line.parts.joinToString(separator = "") { part -> (part as TextPart.Literal).text }
+                            },
+                        )
+                    } else {
+                        TextBlock.Structured(rendered)
+                    },
+                )
             }
         }
 
@@ -2016,22 +2045,19 @@ class CompiledVm(
         state: ExecutionState,
         part: CompiledTextPart,
         location: VmLocation,
-    ): EvalResult<String> =
+    ): EvalResult<TextPart> =
         when (part) {
-            is CompiledTextPart.Literal -> EvalResult.Ok(index.string(part.string))
+            is CompiledTextPart.Literal -> EvalResult.Ok(TextPart.Literal(index.string(part.string)))
             is CompiledTextPart.IntValue ->
-                evalInt(state, part.value, location).map(Int::toString)
-            is CompiledTextPart.StringValue -> evalString(state, part.value, location)
-            is CompiledTextPart.RoleName -> EvalResult.Ok("{${index.slug(part.role)}.name}")
-            is CompiledTextPart.RoleLocation -> EvalResult.Ok("{${index.slug(part.role)}.location}")
-            is CompiledTextPart.TownName -> EvalResult.Ok(index.slug(part.town))
-            is CompiledTextPart.FuzzyTownLocation -> EvalResult.Ok("${index.slug(part.town)}.near")
-            is CompiledTextPart.LocationCoordinate ->
-                EvalResult.Ok(
-                    locationCoordinate(state, index.slug(part.location))
-                        ?: "{${index.slug(part.location)}.coordinates}",
-                )
-            is CompiledTextPart.Runtime -> EvalResult.Ok(runtimeTextPart(part.kind).fallbackText())
+                evalInt(state, part.value, location).map { value -> TextPart.Literal(value.toString()) }
+            is CompiledTextPart.StringValue -> evalString(state, part.value, location).map(TextPart::Literal)
+            is CompiledTextPart.RoleName -> EvalResult.Ok(TextPart.RoleName(NpcRole(index.slug(part.role))))
+            is CompiledTextPart.RoleLocation -> EvalResult.Ok(TextPart.RoleLocation(NpcRole(index.slug(part.role))))
+            is CompiledTextPart.TownName -> EvalResult.Ok(TextPart.TownName(TownId(index.slug(part.town))))
+            is CompiledTextPart.FuzzyTownLocation ->
+                EvalResult.Ok(TextPart.FuzzyTownLocation(TownId(index.slug(part.town)), part.radius))
+            is CompiledTextPart.LocationCoordinate -> EvalResult.Ok(TextPart.LocationCoordinate(LocationId(index.slug(part.location))))
+            is CompiledTextPart.Runtime -> EvalResult.Ok(runtimeTextPart(part.kind))
         }
 
     private fun runtimeTextPart(kind: CompiledRuntimeTextPart): TextPart =
@@ -2059,17 +2085,6 @@ class CompiledVm(
             CompiledRuntimeTextPart.CreationWisdom -> TextPart.CreationWisdom
             CompiledRuntimeTextPart.CreationCharisma -> TextPart.CreationCharisma
         }
-
-    private fun locationCoordinate(
-        state: ExecutionState,
-        slug: String,
-    ): String? =
-        state
-            .runtime
-            .locations
-            .firstOrNull { it.location == LocationId(slug) }
-            ?.point
-            ?.let { "${it.x}x${it.y}" }
 
     private fun evalInt(
         state: ExecutionState,
@@ -2579,11 +2594,11 @@ class CompiledVm(
         when (part) {
             is CompiledTextPart.Literal -> TextPart.Literal(index.string(part.string))
             is CompiledTextPart.Runtime -> runtimeTextPart(part.kind)
-            is CompiledTextPart.RoleName -> TextPart.Literal("{${index.slug(part.role)}.name}")
-            is CompiledTextPart.RoleLocation -> TextPart.Literal("{${index.slug(part.role)}.location}")
-            is CompiledTextPart.TownName -> TextPart.Literal(index.slug(part.town))
-            is CompiledTextPart.FuzzyTownLocation -> TextPart.Literal("${index.slug(part.town)}.near")
-            is CompiledTextPart.LocationCoordinate -> TextPart.Literal("{${index.slug(part.location)}.coordinates}")
+            is CompiledTextPart.RoleName -> TextPart.RoleName(NpcRole(index.slug(part.role)))
+            is CompiledTextPart.RoleLocation -> TextPart.RoleLocation(NpcRole(index.slug(part.role)))
+            is CompiledTextPart.TownName -> TextPart.TownName(TownId(index.slug(part.town)))
+            is CompiledTextPart.FuzzyTownLocation -> TextPart.FuzzyTownLocation(TownId(index.slug(part.town)), part.radius)
+            is CompiledTextPart.LocationCoordinate -> TextPart.LocationCoordinate(LocationId(index.slug(part.location)))
             is CompiledTextPart.IntValue -> TextPart.Literal("{int}")
             is CompiledTextPart.StringValue -> TextPart.Literal("{string}")
         }
@@ -2668,21 +2683,23 @@ class CompiledVm(
         instruction: CompiledInstruction,
         location: VmLocation,
     ): EvalResult<List<CompiledVmMenuOption>> {
-        val options = mutableListOf<CompiledVmMenuOption>()
-        instruction.menuOptions(1).forEachIndexed { optionIndex, option ->
-            val optionLocation = location.child(optionIndex)
-            val primary = index.string(option.binding.primaryString)
-            val key =
-                primary.singleOrNull()?.uppercaseChar()
-                    ?: return EvalResult.Failed(
-                        optionLocation.badOperand(
-                            reason = "InputBindingPrimary",
-                            expected = "single character",
-                            actual = primary,
-                        ),
-                    )
-            options += CompiledVmMenuOption(key, optionIndex)
-        }
+        val options =
+            buildList {
+                instruction.menuOptions(1).forEachIndexed { optionIndex, option ->
+                    val optionLocation = location.child(optionIndex)
+                    val primary = index.string(option.binding.primaryString)
+                    val key =
+                        primary.singleOrNull()?.uppercaseChar()
+                            ?: return EvalResult.Failed(
+                                optionLocation.badOperand(
+                                    reason = "InputBindingPrimary",
+                                    expected = "single character",
+                                    actual = primary,
+                                ),
+                            )
+                    add(CompiledVmMenuOption(key, optionIndex))
+                }
+            }
         return EvalResult.Ok(options)
     }
 

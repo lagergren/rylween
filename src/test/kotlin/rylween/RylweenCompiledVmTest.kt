@@ -1088,6 +1088,7 @@ class RylweenCompiledVmTest {
                     val poolCount = let("pool_count", party.inventory.count(VmTreasurePool))
                     val slotCost = let("slot_cost", party.inventory.itemCost(InventorySlotRef(slot)))
                     party.gold set (key + (poolCount * 10) + slotCost)
+                    party.inventory.consume(VmTreasurePool, 1)
                     screen {
                         line("expr=", key, "/", poolCount, "/", slotCost)
                     }
