@@ -4,6 +4,7 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService
 import org.gradle.process.ExecOperations
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.io.InputStream
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketTimeoutException
@@ -192,7 +193,7 @@ abstract class CheckAnsiServerLauncherTask : DefaultTask() {
     }
 
     private fun readUntil(
-        input: java.io.InputStream,
+        input: InputStream,
         needle: String,
         maxBytes: Int,
     ): String {
@@ -1777,10 +1778,11 @@ kotlin {
 }
 
 val javaToolchains: JavaToolchainService = extensions.getByType()
-val kotlinRuntimeJavaLauncher =
+val kotlinRuntimeJavaLauncher: Provider<JavaLauncher> =
     javaToolchains.launcherFor {
         languageVersion.set(JavaLanguageVersion.of(25))
     }
+
 
 val main: SourceSet by sourceSets.getting
 
