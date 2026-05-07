@@ -9,12 +9,17 @@
 package rylween
 
 import rylween.compiled.toExternalBundleArtifact
+import rylween.dsl.BuildingServiceModel
+import rylween.dsl.DslDefaultFormulas
+import rylween.dsl.DungeonId
+import rylween.dsl.EncounterTier
 import rylween.dsl.EquipmentState
 import rylween.dsl.Facing
 import rylween.dsl.Gender
 import rylween.dsl.InventorySaveSlotMax
 import rylween.dsl.InventorySlotState
 import rylween.dsl.ItemConsumePolicy
+import rylween.dsl.MonsterId
 import rylween.dsl.Op
 import rylween.dsl.PartyCounters
 import rylween.dsl.PartyMemberState
@@ -22,15 +27,20 @@ import rylween.dsl.PartyResources
 import rylween.dsl.PartyState
 import rylween.dsl.PcClass
 import rylween.dsl.Race
+import rylween.dsl.RuntimeMode
 import rylween.dsl.RylweenModel
+import rylween.dsl.SceneId
 import rylween.dsl.Wilderness
 import rylween.dsl.building
+import rylween.dsl.dungeon
 import rylween.dsl.dungeonEvent
+import rylween.dsl.encounterTier
 import rylween.dsl.image
 import rylween.dsl.item
 import rylween.dsl.itemPool
 import rylween.dsl.keyAction
 import rylween.dsl.line
+import rylween.dsl.monster
 import rylween.dsl.npc
 import rylween.dsl.npcJob
 import rylween.dsl.of
@@ -56,6 +66,7 @@ import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptContinuation
 import rylween.runtime.ScriptRootRef
+import rylween.runtime.battle.BattleSessionStep
 import rylween.runtime.scriptRootForDungeonEvent
 import rylween.runtime.scriptRootForItemUse
 import rylween.runtime.scriptRootForScene
@@ -270,6 +281,107 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         assertIs<TownSessionStep.Menu>(secondShop.session.step)
     }
 
+    @Test
+    fun compiledVmTerminalBridgeRunsEncounterChildSession() {
+        val model = hostModel()
+        val host = KotlinHeadlessHost.fromExternalBundleCompiledVm(model.toExternalBundleArtifact())
+        val scene = model.content.scenes.single { scene -> scene.id == hostEncounterScene }
+
+        val first =
+            host
+                .compiledVmTerminalScriptBridge(ScenarioTerminalPort())
+                .run(bridgeService(hostEncounterScene), scene, ScriptContinuation.start(testRuntime()))
+
+        assertEquals(ScriptBridgeStatus.Waiting, first.status)
+        assertEquals(RuntimeMode.Battle, first.runtime.realm.currentMode)
+        val continuation = assertNotNull(first.continuation)
+        val battle = assertNotNull(continuation.battleSession)
+        assertNotNull(continuation.compiledVmContinuation)
+        assertEquals(hostMonster, battle.encounter.monster.id)
+
+        val returnedParty =
+            battle.runtime.activeParty.copy(
+                resources =
+                    battle.runtime.activeParty.resources
+                        .copy(gold = 40),
+            )
+        val returnedRuntime =
+            battle.runtime
+                .withRealm(
+                    battle.runtime.realm.copy(
+                        currentMode = RuntimeMode.Wilderness,
+                        currentTown = null,
+                    ),
+                ).withActiveParty(returnedParty)
+        val second =
+            host
+                .compiledVmTerminalScriptBridge(ScenarioTerminalPort())
+                .run(
+                    bridgeService(hostEncounterScene),
+                    scene,
+                    continuation.copy(
+                        runtime = returnedRuntime,
+                        battleSession =
+                            battle.copy(
+                                runtime = returnedRuntime,
+                                step = BattleSessionStep.Finished(returnedRuntime),
+                            ),
+                    ),
+                )
+
+        assertEquals(ScriptBridgeStatus.Finished, second.status)
+        assertEquals(81, second.runtime.activeParty.resources.gold)
+        assertNull(second.continuation)
+    }
+
+    @Test
+    fun compiledVmTerminalBridgeHandsOffAndResumesDungeonChildSession() {
+        val model = hostModel()
+        val host = KotlinHeadlessHost.fromExternalBundleCompiledVm(model.toExternalBundleArtifact())
+        val scene = model.content.scenes.single { scene -> scene.id == hostDungeonScene }
+
+        val first =
+            host
+                .compiledVmTerminalScriptBridge(ScenarioTerminalPort())
+                .run(bridgeService(hostDungeonScene), scene, ScriptContinuation.start(testRuntime()))
+
+        assertEquals(ScriptBridgeStatus.Finished, first.status)
+        assertEquals(hostDungeon, first.dungeonHandoff?.dungeon)
+        assertEquals(2, first.dungeonHandoff?.levels)
+        assertEquals(RuntimeMode.Dungeon, first.runtime.realm.currentMode)
+        val continuation = assertNotNull(first.continuation)
+        assertNotNull(continuation.compiledVmContinuation)
+        assertEquals(2, first.runtime.activeParty.resources.gold)
+
+        val returnedParty =
+            first.runtime.activeParty.copy(
+                resources =
+                    first.runtime.activeParty.resources
+                        .copy(gold = 70),
+            )
+        val returnedRuntime =
+            first.runtime
+                .withRealm(
+                    first.runtime.realm.copy(
+                        currentMode = RuntimeMode.Wilderness,
+                        currentTown = null,
+                    ),
+                ).withActiveParty(returnedParty)
+        val second =
+            host
+                .compiledVmTerminalScriptBridge(ScenarioTerminalPort())
+                .run(
+                    bridgeService(hostDungeonScene),
+                    scene,
+                    continuation.copy(runtime = returnedRuntime),
+                )
+
+        assertEquals(ScriptBridgeStatus.Finished, second.status)
+        assertNull(second.dungeonHandoff)
+        assertNull(second.continuation)
+        assertEquals(107, second.runtime.activeParty.resources.gold)
+    }
+
     private fun assertCompiledRootMatchesAuthored(
         model: RylweenModel,
         host: KotlinHeadlessHost,
@@ -291,6 +403,25 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
     private fun hostModel(): RylweenModel =
         rylween {
             content {
+                formulas {
+                    formula(DslDefaultFormulas.encounterH1Scaled) {
+                        value = encounterHitPointMinBase
+                    }
+                    formula(DslDefaultFormulas.encounterH2Scaled) {
+                        value = encounterHitPointMaxBase
+                    }
+                }
+                combat {
+                    standardBattle {}
+                }
+                monsters {
+                    monster(hostMonster) {
+                        name = "Host Monster"
+                        hitPoints = 1..1
+                        weaponSkill = 1
+                        tier = hostEncounterTier
+                    }
+                }
                 visuals {
                     staticScreens {
                         image(hostShopScreen, hostShopImage)
@@ -352,6 +483,16 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                     party.gold += 31
                     stop("shop done")
                 }
+                scene(hostEncounterScene) {
+                    encounter(hostMonster, mandatory = true, tier = hostEncounterTier)
+                    party.gold += 41
+                    stop("encounter done")
+                }
+                scene(hostDungeonScene) {
+                    enterDungeon(hostDungeon, levels = 2)
+                    party.gold += 37
+                    stop("dungeon done")
+                }
                 speak {
                     standardConversation {}
                     textTables {
@@ -369,6 +510,10 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                             party.gold += 5
                             stop("event done")
                         }
+                    }
+                    scenario(hostDungeon) {
+                        name("Host Dungeon")
+                        levels(2)
                     }
                 }
                 spell(hostSpell, slot = 1, baseCost = 0, name = "Host Spell") {
@@ -459,6 +604,16 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         return result.runtime to engine.events
     }
 
+    private fun bridgeService(scene: SceneId): BuildingServiceModel =
+        BuildingServiceModel(
+            building = hostBuilding,
+            action = hostAction,
+            scene = scene,
+            opensAt = null,
+            closesAt = null,
+            nativeServices = emptyList(),
+        )
+
     private fun testRuntime(): RuntimeSessionState = RuntimeSessionState.singleParty(testParty(), hour = 12, currentTown = null)
 
     private fun testParty(): PartyState =
@@ -504,8 +659,13 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         val hostRewardScene = sceneId("vm.host.reward-service")
         val hostOfferScene = sceneId("vm.host.offer-service")
         val hostShopScene = sceneId("vm.host.shop-service")
+        val hostEncounterScene = sceneId("vm.host.encounter-service")
+        val hostDungeonScene = sceneId("vm.host.dungeon-service")
         val hostRumourTable = rumourTable("vm.host.rumours")
         val hostEvent = dungeonEvent("vm.host.event")
+        val hostDungeon: DungeonId = dungeon("vm.host.dungeon")
+        val hostMonster: MonsterId = monster("vm.host.monster")
+        val hostEncounterTier: EncounterTier = encounterTier("vm.host.encounter-tier")
         val hostSpell = spellId("vm.host.spell")
         val hostPotion = item("vm.host.potion")
         val hostOfferItem = item("vm.host.offer-gem")

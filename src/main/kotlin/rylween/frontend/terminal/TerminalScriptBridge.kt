@@ -88,6 +88,7 @@ import rylween.runtime.town.selectRumour
 import rylween.runtime.town.speakRuntimeContent
 import rylween.runtime.vm.CompiledVmChildCompletion
 import rylween.runtime.vm.CompiledVmChildRequest
+import rylween.runtime.vm.CompiledVmContinuation
 import rylween.runtime.vm.CompiledVmInput
 import rylween.runtime.vm.CompiledVmPendingInput
 import rylween.runtime.vm.CompiledVmResult
@@ -214,6 +215,7 @@ class CompiledVmTerminalScriptBridge(
                 events = events,
                 renderer = renderer,
                 runtime = runtime,
+                renderDungeonHandoff = false,
                 renderTownService = false,
             )
             writtenEventCount = vmHost.events.size
@@ -228,8 +230,9 @@ class CompiledVmTerminalScriptBridge(
             randomItemOfferSession: RandomItemOfferSession? = null,
             rewardGrantSession: RewardGrantSession? = null,
             shopServiceSession: ShopServiceSession? = null,
+            battleSession: BattleSession? = null,
         ): ScriptBridgeResult {
-            val resultRuntime = runtime ?: speakSession?.runtime ?: blocked.continuation.runtime
+            val resultRuntime = runtime ?: speakSession?.runtime ?: battleSession?.runtime ?: blocked.continuation.runtime
             return ScriptBridgeResult(
                 runtime = resultRuntime,
                 status = ScriptBridgeStatus.Waiting,
@@ -244,6 +247,7 @@ class CompiledVmTerminalScriptBridge(
                             randomItemOfferSession = randomItemOfferSession,
                             rewardGrantSession = rewardGrantSession,
                             shopServiceSession = shopServiceSession,
+                            battleSession = battleSession,
                             compiledVmContinuation = blocked.continuation,
                         ),
                 rejection = rejection,
@@ -277,6 +281,32 @@ class CompiledVmTerminalScriptBridge(
                             result = childResult.result
                             return@repeat
                         }
+                        is ChildSessionResult.Finished ->
+                            return ScriptBridgeResult(
+                                runtime = childResult.runtime,
+                                status = ScriptBridgeStatus.Finished,
+                                events = unwrittenEvents(),
+                            )
+                        is ChildSessionResult.DungeonHandoff ->
+                            return ScriptBridgeResult(
+                                runtime = childResult.runtime,
+                                status = ScriptBridgeStatus.Finished,
+                                events = unwrittenEvents(),
+                                continuation =
+                                    continuation
+                                        .withRoot(root)
+                                        .copy(
+                                            runtime = childResult.runtime,
+                                            locals = childResult.continuation.locals,
+                                            speakSession = null,
+                                            battleSession = null,
+                                            randomItemOfferSession = null,
+                                            rewardGrantSession = null,
+                                            shopServiceSession = null,
+                                            compiledVmContinuation = childResult.continuation,
+                                        ),
+                                dungeonHandoff = childResult.handoff,
+                            )
                         is ChildSessionResult.Waiting ->
                             return waitingResult(
                                 current,
@@ -286,6 +316,7 @@ class CompiledVmTerminalScriptBridge(
                                 randomItemOfferSession = childResult.randomItemOfferSession,
                                 rewardGrantSession = childResult.rewardGrantSession,
                                 shopServiceSession = childResult.shopServiceSession,
+                                battleSession = childResult.battleSession,
                             )
                         null -> Unit
                     }
@@ -310,6 +341,16 @@ class CompiledVmTerminalScriptBridge(
             val result: CompiledVmResult,
         ) : ChildSessionResult
 
+        data class Finished(
+            val runtime: RuntimeSessionState,
+        ) : ChildSessionResult
+
+        data class DungeonHandoff(
+            val runtime: RuntimeSessionState,
+            val handoff: WildernessDungeonHandoff,
+            val continuation: CompiledVmContinuation,
+        ) : ChildSessionResult
+
         data class Waiting(
             val runtime: RuntimeSessionState,
             val rejection: TerminalInputRejection?,
@@ -317,6 +358,7 @@ class CompiledVmTerminalScriptBridge(
             val randomItemOfferSession: RandomItemOfferSession? = null,
             val rewardGrantSession: RewardGrantSession? = null,
             val shopServiceSession: ShopServiceSession? = null,
+            val battleSession: BattleSession? = null,
         ) : ChildSessionResult
     }
 
@@ -332,9 +374,8 @@ class CompiledVmTerminalScriptBridge(
             is CompiledVmChildRequest.RandomItemOffer ->
                 runRandomItemOffer(request, blocked, continuation.randomItemOfferSession)
             is CompiledVmChildRequest.ShopService -> runShopService(request, blocked, continuation.shopServiceSession)
-            is CompiledVmChildRequest.Encounter,
-            is CompiledVmChildRequest.EnterDungeon,
-            -> null
+            is CompiledVmChildRequest.Encounter -> runEncounter(request, blocked, continuation.battleSession)
+            is CompiledVmChildRequest.EnterDungeon -> runEnterDungeon(request, blocked, continuation)
         }
     }
 
@@ -466,6 +507,64 @@ class CompiledVmTerminalScriptBridge(
         }
     }
 
+    private fun runEncounter(
+        request: CompiledVmChildRequest.Encounter,
+        blocked: CompiledVmResult.Blocked,
+        activeSession: BattleSession?,
+    ): ChildSessionResult {
+        if (!content.battleConfigured) {
+            return completeChildSession(blocked, blocked.continuation.runtime)
+        }
+        val monster =
+            checkNotNull(content.monsters.firstOrNull { monster -> monster.id == request.monster }) {
+                "encounter references unknown monster ${request.monster.slug}"
+            }
+        val current =
+            activeSession ?: BattleSession.startMonster(
+                runtime = blocked.continuation.runtime,
+                monster = monster,
+                content = content,
+                tier = request.tier ?: monster.tier,
+                mandatory = request.mandatory,
+            )
+        val finished = current.step as? BattleSessionStep.Finished
+        if (finished == null) {
+            return ChildSessionResult.Waiting(
+                runtime = current.runtime,
+                rejection = null,
+                battleSession = current,
+            )
+        }
+        val nextRuntime = finished.runtime
+        if (nextRuntime.realm.currentMode == RuntimeMode.GameOver) {
+            return ChildSessionResult.Finished(nextRuntime)
+        }
+        return completeChildSession(blocked, nextRuntime)
+    }
+
+    private fun runEnterDungeon(
+        request: CompiledVmChildRequest.EnterDungeon,
+        blocked: CompiledVmResult.Blocked,
+        continuation: ScriptContinuation,
+    ): ChildSessionResult {
+        val canResumeFromDungeon =
+            continuation.compiledVmContinuation
+                ?.root
+                ?.sameRoot(blocked.continuation.root) == true &&
+                continuation.runtime.realm.currentMode != RuntimeMode.Dungeon
+        if (canResumeFromDungeon) {
+            if (continuation.runtime.realm.currentMode == RuntimeMode.GameOver) {
+                return ChildSessionResult.Finished(continuation.runtime)
+            }
+            return completeChildSession(blocked, continuation.runtime)
+        }
+        return ChildSessionResult.DungeonHandoff(
+            runtime = blocked.continuation.runtime,
+            handoff = request.handoff,
+            continuation = blocked.continuation,
+        )
+    }
+
     private fun completeTellRumour(
         request: CompiledVmChildRequest.TellRumour,
         blocked: CompiledVmResult.Blocked,
@@ -479,6 +578,17 @@ class CompiledVmTerminalScriptBridge(
             CompiledVmInput.ChildSessionCompleted(CompiledVmChildCompletion(nextRuntime)),
         )
     }
+
+    private fun completeChildSession(
+        blocked: CompiledVmResult.Blocked,
+        runtime: RuntimeSessionState,
+    ): ChildSessionResult.Resumed =
+        ChildSessionResult.Resumed(
+            runner.resume(
+                blocked.continuation,
+                CompiledVmInput.ChildSessionCompleted(CompiledVmChildCompletion(runtime)),
+            ),
+        )
 
     private inline fun <reified T : EngineTraceEvent> latestTraceEvent(childName: String): T =
         vmHost.events
