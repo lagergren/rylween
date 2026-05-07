@@ -37,8 +37,20 @@ import rylween.compiled.CompiledMenuOption
 import rylween.compiled.CompiledNativeStringArg
 import rylween.compiled.CompiledOpcode
 import rylween.compiled.CompiledOperand
+import rylween.compiled.CompiledRandomItemOffer
+import rylween.compiled.CompiledRewardMessages
 import rylween.compiled.CompiledRuntimeTextPart
 import rylween.compiled.CompiledScriptProgram
+import rylween.compiled.CompiledScriptReward
+import rylween.compiled.CompiledShopBuy
+import rylween.compiled.CompiledShopCatalog
+import rylween.compiled.CompiledShopCatalogPage
+import rylween.compiled.CompiledShopInterlude
+import rylween.compiled.CompiledShopItemOffer
+import rylween.compiled.CompiledShopPrice
+import rylween.compiled.CompiledShopPurchase
+import rylween.compiled.CompiledShopSell
+import rylween.compiled.CompiledShopService
 import rylween.compiled.CompiledStringExpr
 import rylween.compiled.CompiledSwitchCase
 import rylween.compiled.CompiledTextAnswer
@@ -46,6 +58,8 @@ import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledTextPart
 import rylween.compiled.CompiledViewCommand
 import rylween.compiled.LoadedCompiledContent
+import rylween.dsl.BuildingId
+import rylween.dsl.DungeonId
 import rylween.dsl.EncounterTier
 import rylween.dsl.GameMilestoneId
 import rylween.dsl.Gender
@@ -63,10 +77,28 @@ import rylween.dsl.PartyMemberState
 import rylween.dsl.PartyState
 import rylween.dsl.PcClass
 import rylween.dsl.PronounCase
+import rylween.dsl.RandomItemOfferModel
+import rylween.dsl.RewardMessageModel
+import rylween.dsl.RumourTableId
+import rylween.dsl.RuntimeMode
 import rylween.dsl.SceneId
 import rylween.dsl.ScriptControlSignal
+import rylween.dsl.ScriptRewardModel
+import rylween.dsl.ShopBuyModel
+import rylween.dsl.ShopCatalogModel
+import rylween.dsl.ShopCatalogPageModel
+import rylween.dsl.ShopInterludeModel
+import rylween.dsl.ShopItemOfferModel
+import rylween.dsl.ShopMenuKeysModel
+import rylween.dsl.ShopPriceModel
+import rylween.dsl.ShopPurchaseKeysModel
+import rylween.dsl.ShopPurchaseModel
+import rylween.dsl.ShopSaleKeysModel
+import rylween.dsl.ShopSellModel
+import rylween.dsl.ShopServiceModel
 import rylween.dsl.TextBlock
 import rylween.dsl.TextId
+import rylween.dsl.TextLine
 import rylween.dsl.TextPart
 import rylween.dsl.TextPattern
 import rylween.dsl.ViewCommand
@@ -87,6 +119,7 @@ import rylween.runtime.scriptMemberFlag
 import rylween.runtime.scriptPartyScalar
 import rylween.runtime.scriptRealmScalar
 import rylween.runtime.scriptRuntimeFlag
+import rylween.runtime.wilderness.WildernessDungeonHandoff
 import rylween.runtime.withFlagState
 import rylween.runtime.withJournalLines
 import rylween.runtime.withMilestone
@@ -156,6 +189,15 @@ interface CompiledVmHost {
      * host with target context resumes it.
      */
     fun monsterTargetKeys(): List<Char> = emptyList()
+
+    /**
+     * Returns battle monster indices that a `ForEachMonster` opcode should visit.
+     *
+     * Encounter size, dead/alive filtering, and monster ordering are battle-host
+     * responsibilities because they depend on the active child battle session.
+     * Returning `null` means this host cannot execute battle monster iteration.
+     */
+    fun monsterIterationIndices(includeDead: Boolean): List<Int>? = null
 
     /** Reads a battle monster boolean flag for hosts that execute combat predicates. */
     fun readMonsterFlag(
@@ -282,11 +324,43 @@ sealed interface CompiledVmInput {
  * [CompiledVmInput.ChildSessionCompleted].
  */
 sealed interface CompiledVmChildRequest {
+    /** Starts a conversation flow for [building] outside the VM. */
+    data class Speak(
+        val building: BuildingId,
+    ) : CompiledVmChildRequest
+
+    /** Lets the host select and display a rumour from [table]. */
+    data class TellRumour(
+        val table: RumourTableId,
+    ) : CompiledVmChildRequest
+
     /** Starts a battle encounter outside the VM and resumes with [CompiledVmInput.ChildSessionCompleted]. */
     data class Encounter(
         val monster: MonsterId,
         val mandatory: Boolean,
         val tier: EncounterTier?,
+    ) : CompiledVmChildRequest
+
+    /** Hands control to a dungeon session and resumes the parent script after dungeon completion. */
+    data class EnterDungeon(
+        val handoff: WildernessDungeonHandoff,
+    ) : CompiledVmChildRequest
+
+    /** Runs a reward-grant child session using an already evaluated [gold] amount. */
+    data class GrantReward(
+        val reward: CompiledScriptReward,
+        val gold: Int,
+    ) : CompiledVmChildRequest
+
+    /** Runs a random-item-offer child session with the deterministic item [selectedIndex]. */
+    data class RandomItemOffer(
+        val offer: CompiledRandomItemOffer,
+        val selectedIndex: Int,
+    ) : CompiledVmChildRequest
+
+    /** Runs a town shop service outside the VM. */
+    data class ShopService(
+        val shop: CompiledShopService,
     ) : CompiledVmChildRequest
 }
 
@@ -447,6 +521,9 @@ enum class CompiledVmFrameKind {
 
     /** Direct body block for one `ForEachMember` member index. */
     ForEachMemberBody,
+
+    /** Direct body block for one `ForEachMonster` monster index. */
+    ForEachMonsterBody,
 }
 
 /**
@@ -876,6 +953,7 @@ class CompiledVm(
             }
             CompiledVmFrameKind.LoopBody -> executeLoopBodyFrame(state, rootInstructions, frame, parentFrames)
             CompiledVmFrameKind.ForEachMemberBody -> executeForEachMemberBodyFrame(state, rootInstructions, frame, parentFrames)
+            CompiledVmFrameKind.ForEachMonsterBody -> executeForEachMonsterBodyFrame(state, rootInstructions, frame, parentFrames)
         }
 
     private fun executeInstruction(
@@ -1321,11 +1399,45 @@ class CompiledVm(
                     enclosingInsideLoop = enclosingInsideLoop,
                     parentFrames = parentFrames,
                 )
+            CompiledOpcode.ForEachMonster ->
+                executeForEachMonster(
+                    state = state,
+                    instruction = instruction,
+                    location = location,
+                    insideLoop = insideLoop,
+                    blockKind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                    parentFrames = parentFrames,
+                )
             CompiledOpcode.AchieveMilestone -> {
                 val milestone = GameMilestoneId(index.slug(instruction.handle(0)))
                 state.party = state.party.withMilestone(milestone)
                 host.trace(EngineTraceEvent.AchieveMilestone(milestone))
                 ControlSignal.Continue
+            }
+            CompiledOpcode.Speak -> {
+                val building = BuildingId(index.slug(instruction.handle(0)))
+                host.trace(EngineTraceEvent.Speak(building))
+                blockChildSession(
+                    location = location,
+                    insideLoop = insideLoop,
+                    blockKind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                    parentFrames = parentFrames,
+                    request = CompiledVmChildRequest.Speak(building),
+                )
+            }
+            CompiledOpcode.TellRumour -> {
+                val table = RumourTableId(index.slug(instruction.handle(0)))
+                host.trace(EngineTraceEvent.Rumour(table))
+                blockChildSession(
+                    location = location,
+                    insideLoop = insideLoop,
+                    blockKind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                    parentFrames = parentFrames,
+                    request = CompiledVmChildRequest.TellRumour(table),
+                )
             }
             CompiledOpcode.RunScene -> {
                 val scene = SceneId(index.slug(instruction.handle(0)))
@@ -1359,24 +1471,87 @@ class CompiledVm(
                         tier = instruction.optionalHandle(2)?.let { tier -> EncounterTier(index.slug(tier)) },
                     )
                 host.trace(EngineTraceEvent.Encounter(request.monster, request.mandatory, request.tier))
-                ControlSignal.Blocked(
-                    pending =
-                        CompiledVmPendingInput.ChildSession(
-                            root = location.root,
-                            instructionIndex = location.instructionIndex,
-                            operandPath = location.operandPath,
-                            request = request,
+                blockChildSession(
+                    location = location,
+                    insideLoop = insideLoop,
+                    blockKind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                    parentFrames = parentFrames,
+                    request = request,
+                )
+            }
+            CompiledOpcode.EnterDungeon -> {
+                val handoff = WildernessDungeonHandoff(DungeonId(index.slug(instruction.handle(0))), instruction.integer(1))
+                state.runtime =
+                    state.runtime.withRealm(
+                        state.runtime.realm.copy(
+                            currentMode = RuntimeMode.Dungeon,
+                            currentTown = null,
                         ),
-                    frames =
-                        listOf(
-                            continuationFrame(
-                                blockPath = location.blockPath,
-                                nextIndex = location.instructionIndex + 1,
-                                insideLoop = insideLoop,
-                                kind = blockKind,
-                                enclosingInsideLoop = enclosingInsideLoop,
-                            ),
-                        ) + parentFrames,
+                    )
+                host.trace(EngineTraceEvent.DungeonHandoff(handoff))
+                blockChildSession(
+                    location = location,
+                    insideLoop = insideLoop,
+                    blockKind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                    parentFrames = parentFrames,
+                    request = CompiledVmChildRequest.EnterDungeon(handoff),
+                )
+            }
+            CompiledOpcode.GrantReward -> {
+                val reward = instruction.reward(0)
+                val gold = reward.gold?.let { expr -> evalInt(state, expr, location.child(0).child(0)) } ?: EvalResult.Ok(0)
+                gold.fold(
+                    ok = { goldValue ->
+                        host.trace(EngineTraceEvent.GrantReward(scriptReward(reward)))
+                        blockChildSession(
+                            location = location,
+                            insideLoop = insideLoop,
+                            blockKind = blockKind,
+                            enclosingInsideLoop = enclosingInsideLoop,
+                            parentFrames = parentFrames,
+                            request = CompiledVmChildRequest.GrantReward(reward, goldValue),
+                        )
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
+            }
+            CompiledOpcode.RandomItemOffer -> {
+                val offer = instruction.randomItemOffer(0)
+                val pool = index.itemPool(offer.pool)
+                if (pool.items.isEmpty()) {
+                    ControlSignal.Failed(
+                        location.badOperand(
+                            reason = "RandomItemOfferPool",
+                            expected = "non-empty item pool",
+                            actual = index.slug(offer.pool),
+                        ),
+                    )
+                } else {
+                    val draw = state.runtime.drawRandom(0, pool.items.lastIndex)
+                    state.runtime = draw.runtime
+                    host.trace(EngineTraceEvent.RandomItemOffer(randomItemOffer(offer)))
+                    blockChildSession(
+                        location = location,
+                        insideLoop = insideLoop,
+                        blockKind = blockKind,
+                        enclosingInsideLoop = enclosingInsideLoop,
+                        parentFrames = parentFrames,
+                        request = CompiledVmChildRequest.RandomItemOffer(offer, draw.value),
+                    )
+                }
+            }
+            CompiledOpcode.ShopService -> {
+                val shop = instruction.shopService(0)
+                host.trace(EngineTraceEvent.ShopService(shopService(shop)))
+                blockChildSession(
+                    location = location,
+                    insideLoop = insideLoop,
+                    blockKind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                    parentFrames = parentFrames,
+                    request = CompiledVmChildRequest.ShopService(shop),
                 )
             }
             CompiledOpcode.NativeCall -> {
@@ -1638,6 +1813,170 @@ class CompiledVm(
             parentFrames = afterForEachFrames,
         )
     }
+
+    private fun executeForEachMonster(
+        state: ExecutionState,
+        instruction: CompiledInstruction,
+        location: VmLocation,
+        insideLoop: Boolean,
+        blockKind: CompiledVmFrameKind,
+        enclosingInsideLoop: Boolean,
+        parentFrames: List<CompiledVmFrame>,
+    ): ControlSignal {
+        val includeDead = instruction.boolean(1)
+        val monsterIndices =
+            host.monsterIterationIndices(includeDead)
+                ?: return ControlSignal.Failed(location.unsupported("ForEachMonster", "Host does not provide battle monster iteration"))
+        val afterForEachFrames =
+            listOf(
+                continuationFrame(
+                    blockPath = location.blockPath,
+                    nextIndex = location.instructionIndex + 1,
+                    insideLoop = insideLoop,
+                    kind = blockKind,
+                    enclosingInsideLoop = enclosingInsideLoop,
+                ),
+            ) + parentFrames
+        return executeForEachMonsterIterations(
+            state = state,
+            instruction = instruction,
+            location = location,
+            insideLoop = insideLoop,
+            monsterIndices = monsterIndices,
+            afterForEachFrames = afterForEachFrames,
+            startCursor = 0,
+        )
+    }
+
+    private fun executeForEachMonsterBodyFrame(
+        state: ExecutionState,
+        rootInstructions: List<CompiledInstruction>,
+        frame: CompiledVmFrame,
+        parentFrames: List<CompiledVmFrame>,
+    ): ControlSignal {
+        val context =
+            iterationFrameContext(
+                state = state,
+                rootInstructions = rootInstructions,
+                frame = frame,
+                expectedOpcode = CompiledOpcode.ForEachMonster,
+                expectedOperand = 2,
+            ) ?: return ControlSignal.Failed(frame.badContinuation(state, "UnknownForEachMonsterFrame"))
+        val includeDead = context.instruction.boolean(1)
+        val monsterIndices =
+            host.monsterIterationIndices(includeDead)
+                ?: return ControlSignal.Failed(
+                    context.location.unsupported("ForEachMonster", "Host does not provide battle monster iteration"),
+                )
+        return when (
+            val signal =
+                executeForEachMonsterBody(
+                    state = state,
+                    instruction = context.instruction,
+                    location = context.location,
+                    monsterIndex = context.cursor,
+                    insideLoop = frame.insideLoop,
+                    startIndex = frame.nextIndex,
+                    afterForEachFrames = parentFrames,
+                )
+        ) {
+            ControlSignal.Continue -> {
+                val nextCursor =
+                    monsterIndices
+                        .indexOfFirst { monsterIndex -> monsterIndex > context.cursor }
+                        .let { cursor -> if (cursor < 0) monsterIndices.size else cursor }
+                executeForEachMonsterIterations(
+                    state = state,
+                    instruction = context.instruction,
+                    location = context.location,
+                    insideLoop = frame.insideLoop,
+                    monsterIndices = monsterIndices,
+                    afterForEachFrames = parentFrames,
+                    startCursor = nextCursor.coerceAtLeast(0),
+                )
+            }
+            else -> signal
+        }
+    }
+
+    private fun executeForEachMonsterIterations(
+        state: ExecutionState,
+        instruction: CompiledInstruction,
+        location: VmLocation,
+        insideLoop: Boolean,
+        monsterIndices: List<Int>,
+        afterForEachFrames: List<CompiledVmFrame>,
+        startCursor: Int,
+    ): ControlSignal {
+        for (cursor in startCursor until monsterIndices.size) {
+            val signal =
+                executeForEachMonsterBody(
+                    state = state,
+                    instruction = instruction,
+                    location = location,
+                    monsterIndex = monsterIndices[cursor],
+                    insideLoop = insideLoop,
+                    startIndex = 0,
+                    afterForEachFrames = afterForEachFrames,
+                )
+            when (signal) {
+                ControlSignal.Continue -> Unit
+                else -> return signal
+            }
+        }
+        return ControlSignal.Continue
+    }
+
+    private fun executeForEachMonsterBody(
+        state: ExecutionState,
+        instruction: CompiledInstruction,
+        location: VmLocation,
+        monsterIndex: Int,
+        insideLoop: Boolean,
+        startIndex: Int,
+        afterForEachFrames: List<CompiledVmFrame>,
+    ): ControlSignal {
+        val name = index.string(instruction.stringId(0))
+        state.locals[name] = monsterIndex
+        return executeBlock(
+            state = state,
+            instructions = instruction.instructions(2),
+            path = location.operandBranch(2, monsterIndex),
+            insideLoop = insideLoop,
+            blockKind = CompiledVmFrameKind.ForEachMonsterBody,
+            enclosingInsideLoop = insideLoop,
+            startIndex = startIndex,
+            parentFrames = afterForEachFrames,
+        )
+    }
+
+    private fun blockChildSession(
+        location: VmLocation,
+        insideLoop: Boolean,
+        blockKind: CompiledVmFrameKind,
+        enclosingInsideLoop: Boolean,
+        parentFrames: List<CompiledVmFrame>,
+        request: CompiledVmChildRequest,
+    ): ControlSignal =
+        ControlSignal.Blocked(
+            pending =
+                CompiledVmPendingInput.ChildSession(
+                    root = location.root,
+                    instructionIndex = location.instructionIndex,
+                    operandPath = location.operandPath,
+                    request = request,
+                ),
+            frames =
+                listOf(
+                    continuationFrame(
+                        blockPath = location.blockPath,
+                        nextIndex = location.instructionIndex + 1,
+                        insideLoop = insideLoop,
+                        kind = blockKind,
+                        enclosingInsideLoop = enclosingInsideLoop,
+                    ),
+                ) + parentFrames,
+        )
 
     private fun controlSignal(
         signal: ScriptControlSignal,
@@ -2087,6 +2426,168 @@ class CompiledVm(
             failed = { ControlSignal.Failed(it) },
         )
 
+    private fun scriptReward(reward: CompiledScriptReward): ScriptRewardModel =
+        ScriptRewardModel(
+            gold = null,
+            items = reward.items.map(index::item),
+            application = reward.application,
+            messages = reward.messages.rewardMessages(),
+        )
+
+    private fun CompiledRewardMessages.rewardMessages(): RewardMessageModel =
+        RewardMessageModel(
+            cantCarry = cantCarry?.let(::traceTextBlock),
+            pickedUp = pickedUp?.let(::traceTextBlock),
+        )
+
+    private fun randomItemOffer(offer: CompiledRandomItemOffer): RandomItemOfferModel =
+        RandomItemOfferModel(
+            pool = index.itemPool(offer.pool),
+            offer = traceTextBlock(offer.offer),
+            choicePrompt = traceTextBlock(offer.choicePrompt),
+            broke = traceTextBlock(offer.broke),
+            deal = traceTextBlock(offer.deal),
+            declined = offer.declined?.let(::traceTextBlock),
+            application = offer.application,
+            messages = offer.messages.rewardMessages(),
+            buy = inputBinding(offer.buy),
+            decline = inputBinding(offer.decline),
+            priceOverride = offer.priceOverride,
+            brokePauseMillis = offer.pauseMillis.broke,
+            fullPauseMillis = offer.pauseMillis.full,
+            dealPauseMillis = offer.pauseMillis.deal,
+            declinedPauseMillis = offer.pauseMillis.declined,
+        )
+
+    private fun shopService(service: CompiledShopService): ShopServiceModel =
+        ShopServiceModel(
+            building = BuildingId(index.slug(service.building)),
+            image = ImageId(index.slug(service.image)),
+            closed = traceTextBlock(service.closed),
+            intro = traceTextBlock(service.intro),
+            menu = traceTextBlock(service.menu),
+            keys =
+                ShopMenuKeysModel(
+                    buy = inputBinding(service.keys.buy),
+                    sell = inputBinding(service.keys.sell),
+                    leave = inputBinding(service.keys.leave),
+                ),
+            goodbye = traceTextBlock(service.goodbye),
+            buy = service.buy?.let(::shopBuy),
+            sell = service.sell?.let(::shopSell),
+            interlude = service.interlude?.let(::shopInterlude),
+        )
+
+    private fun shopBuy(buy: CompiledShopBuy): ShopBuyModel =
+        ShopBuyModel(
+            prompt = traceTextBlock(buy.prompt),
+            catalogs = buy.catalogs.map(::shopCatalog),
+            tooExpensive = traceTextBlock(buy.tooExpensive),
+            cantCarry = traceTextBlock(buy.cantCarry),
+            deal = traceTextBlock(buy.deal),
+            unitPrice = buy.unitPrice?.let(::traceTextBlock),
+            singlePrice = buy.singlePrice?.let(::traceTextBlock),
+            payPrompt = traceTextBlock(buy.payPrompt),
+            paymentKeys = ShopPurchaseKeysModel(inputBinding(buy.paymentKeys.pay), inputBinding(buy.paymentKeys.decline)),
+            inventoryApplication = buy.inventoryApplication,
+        )
+
+    private fun shopCatalog(catalog: CompiledShopCatalog): ShopCatalogModel =
+        ShopCatalogModel(
+            binding = inputBinding(catalog.binding),
+            title = index.string(catalog.titleString),
+            intro = catalog.intro?.let(::traceTextBlock),
+            pages = catalog.pages.map(::shopCatalogPage),
+        )
+
+    private fun shopCatalogPage(page: CompiledShopCatalogPage): ShopCatalogPageModel =
+        ShopCatalogPageModel(
+            entries = page.entries.map(::shopItemOffer),
+            footer = page.footer?.let(::traceTextBlock),
+        )
+
+    private fun shopItemOffer(offer: CompiledShopItemOffer): ShopItemOfferModel =
+        ShopItemOfferModel(
+            binding = inputBinding(offer.binding),
+            item = index.item(offer.item),
+            label = offer.labelString?.let(index::string),
+            description = offer.description?.let(::traceTextBlock),
+            price = shopPrice(offer.price),
+            purchase = shopPurchase(offer.purchase),
+        )
+
+    private fun shopPrice(price: CompiledShopPrice): ShopPriceModel =
+        when (price) {
+            CompiledShopPrice.ItemCost -> ShopPriceModel.ItemCost
+            CompiledShopPrice.HalfItemCost -> ShopPriceModel.HalfItemCost
+            is CompiledShopPrice.Fixed -> ShopPriceModel.Fixed(price.amount)
+            is CompiledShopPrice.LeaderLevelPlus -> ShopPriceModel.LeaderLevelPlus(price.addend)
+            is CompiledShopPrice.ItemCostPlusLeaderLevelTimes -> ShopPriceModel.ItemCostPlusLeaderLevelTimes(price.multiplier)
+        }
+
+    private fun shopPurchase(purchase: CompiledShopPurchase): ShopPurchaseModel =
+        when (purchase) {
+            CompiledShopPurchase.InventoryItem -> ShopPurchaseModel.InventoryItem
+            is CompiledShopPurchase.Bulk ->
+                ShopPurchaseModel.Bulk(
+                    resource = purchase.resource,
+                    quantityPrompt = traceTextBlock(purchase.quantityPrompt),
+                    cap = purchase.cap,
+                    tooMany = traceTextBlock(purchase.tooMany),
+                    zeroQuantityDeal = purchase.zeroQuantityDeal,
+                )
+        }
+
+    private fun shopSell(sell: CompiledShopSell): ShopSellModel =
+        ShopSellModel(
+            prompt = traceTextBlock(sell.prompt),
+            acceptedKinds = sell.acceptedKinds,
+            acceptedItems = sell.acceptedItems.map(index::item).toSet(),
+            rejectedItems = sell.rejectedItems.map(index::item).toSet(),
+            wrongKind = traceTextBlock(sell.wrongKind),
+            offer = traceTextBlock(sell.offer),
+            sold = sell.sold?.let(::traceTextBlock),
+            price = shopPrice(sell.price),
+            bargain = sell.bargain,
+            saleKeys = ShopSaleKeysModel(inputBinding(sell.saleKeys.accept), inputBinding(sell.saleKeys.decline)),
+        )
+
+    private fun shopInterlude(interlude: CompiledShopInterlude): ShopInterludeModel =
+        ShopInterludeModel(
+            chancePercent = interlude.chancePercent,
+            offer = traceTextBlock(interlude.offer),
+            accept = inputBinding(interlude.accept),
+            decline = inputBinding(interlude.decline),
+            accepted = interlude.accepted.map(::traceTextBlock),
+            declined = traceTextBlock(interlude.declined),
+            runsRumourAfterAccept = interlude.runsRumourAfterAccept,
+        )
+
+    private fun traceTextBlock(block: CompiledTextBlock): TextBlock =
+        when (block) {
+            is CompiledTextBlock.Ref -> TextBlock.Ref(TextId(index.slug(block.text)))
+            is CompiledTextBlock.Inline -> TextBlock.Inline(block.lineStrings.map(index::string))
+            is CompiledTextBlock.Structured ->
+                TextBlock.Structured(
+                    block.lines.map { line ->
+                        TextLine(line.parts.map(::traceTextPart))
+                    },
+                )
+        }
+
+    private fun traceTextPart(part: CompiledTextPart): TextPart =
+        when (part) {
+            is CompiledTextPart.Literal -> TextPart.Literal(index.string(part.string))
+            is CompiledTextPart.Runtime -> runtimeTextPart(part.kind)
+            is CompiledTextPart.RoleName -> TextPart.Literal("{${index.slug(part.role)}.name}")
+            is CompiledTextPart.RoleLocation -> TextPart.Literal("{${index.slug(part.role)}.location}")
+            is CompiledTextPart.TownName -> TextPart.Literal(index.slug(part.town))
+            is CompiledTextPart.FuzzyTownLocation -> TextPart.Literal("${index.slug(part.town)}.near")
+            is CompiledTextPart.LocationCoordinate -> TextPart.Literal("{${index.slug(part.location)}.coordinates}")
+            is CompiledTextPart.IntValue -> TextPart.Literal("{int}")
+            is CompiledTextPart.StringValue -> TextPart.Literal("{string}")
+        }
+
     private fun viewCommand(command: CompiledViewCommand): ViewCommand =
         when (command) {
             CompiledViewCommand.ClearText -> ViewCommand.ClearText
@@ -2148,6 +2649,13 @@ class CompiledVm(
         (operands[index] as CompiledOperand.InputBindings).bindings.map(::inputBinding)
 
     private fun CompiledInstruction.textAnswer(index: Int): CompiledTextAnswer = (operands[index] as CompiledOperand.TextAnswer).answer
+
+    private fun CompiledInstruction.reward(index: Int): CompiledScriptReward = (operands[index] as CompiledOperand.Reward).reward
+
+    private fun CompiledInstruction.randomItemOffer(index: Int): CompiledRandomItemOffer =
+        (operands[index] as CompiledOperand.RandomItemOffer).offer
+
+    private fun CompiledInstruction.shopService(index: Int): CompiledShopService = (operands[index] as CompiledOperand.ShopService).service
 
     private fun inputBinding(binding: CompiledInputBinding): InputBindingModel =
         InputBindingModel(
@@ -2234,7 +2742,11 @@ class CompiledVm(
             instructions =
                 when (operand) {
                     is CompiledOperand.Instructions -> {
-                        if (instruction.opcode == CompiledOpcode.Loop || instruction.opcode == CompiledOpcode.ForEachMember) {
+                        if (
+                            instruction.opcode == CompiledOpcode.Loop ||
+                            instruction.opcode == CompiledOpcode.ForEachMember ||
+                            instruction.opcode == CompiledOpcode.ForEachMonster
+                        ) {
                             cursor += 1
                         }
                         operand.instructions
@@ -2301,6 +2813,14 @@ private fun continuationFrame(
                 kind = kind,
                 enclosingInsideLoop = enclosingInsideLoop,
             )
+        CompiledVmFrameKind.ForEachMonsterBody ->
+            CompiledVmFrame(
+                blockPath = blockPath,
+                nextIndex = nextIndex,
+                insideLoop = insideLoop,
+                kind = kind,
+                enclosingInsideLoop = enclosingInsideLoop,
+            )
     }
 
 private fun List<CompiledVmFrame>.afterConsumedLoopSignal(): List<CompiledVmFrame>? {
@@ -2357,6 +2877,8 @@ private class CompiledVmContentIndex(
     fun slug(ref: CompiledHandleRef): String = string(content.handle(ref).slugString)
 
     fun flagNative(ref: CompiledHandleRef): String = flagNatives[ref] ?: slug(ref).substringAfterLast('.')
+
+    fun item(ref: CompiledHandleRef): ItemId = ItemId.authored(slug(ref))
 
     fun itemPool(ref: CompiledHandleRef): ItemPoolId = itemPools[ref] ?: ItemPoolId.authored(slug(ref), emptyList())
 
