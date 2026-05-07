@@ -2,8 +2,9 @@
  * Typed diagnostic model shared by the compiled loader and compiled VM.
  *
  * Loader-side opcode and native-service failures in `compiled/CompiledLoader.kt`
- * already flow through this file; the J2 VM kernel will add runtime failures
- * from `CompiledVm.kt` using the same script-root and operand-path shape.
+ * flow through this file, as do runtime failures from `CompiledVm.kt`. The
+ * categories are intentionally language-neutral so a native/server VM can emit
+ * the same error kind, root, instruction index, and operand path as Kotlin.
  */
 package rylween.runtime.vm
 
@@ -15,11 +16,10 @@ import rylween.runtime.ScriptRootRef
  * Stable diagnostic categories for the compiled VM contract.
  *
  * This file is the public J2 diagnostic surface shared by
- * `compiled/CompiledLoader.kt` and the future `CompiledVm.kt` executor. Loader
- * failures currently map opcode-schema violations from
- * [rylween.compiled.CompiledOpcodeContract] into [BadOpcode] and [BadOperand];
- * the VM kernel will use the remaining variants for runtime evaluation,
- * continuation, handle, and host-service failures.
+ * `compiled/CompiledLoader.kt` and `CompiledVm.kt`. Loader failures map
+ * opcode-schema violations from [rylween.compiled.CompiledOpcodeContract] into
+ * [BadOpcode] and [BadOperand]; the VM uses the remaining variants for runtime
+ * evaluation, continuation, handle, native-service, and host-service failures.
  */
 enum class VmDiagnosticKind {
     BadOpcode,

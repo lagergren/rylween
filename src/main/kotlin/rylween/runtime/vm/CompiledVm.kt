@@ -1,11 +1,27 @@
 /**
- * Pure compiled-script executor for the first J2 VM kernel slice.
+ * Reference implementation of the Rylween compiled-script virtual machine.
  *
- * This file consumes validated script programs from `compiled/CompiledLoader.kt`
- * and mirrors the non-interactive behavior of
- * `frontend/terminal/TerminalScriptBridge.kt` without depending on terminal IO.
- * Runtime failures use `VmDiagnostic.kt`, while native service bindings share
- * the allowlist shape from `NativeServiceCatalog.kt`.
+ * A J1 bundle contains validated, table-backed script programs; this file
+ * defines how a runtime executes those programs without interpreting the
+ * original Kotlin DSL `Op` tree. Non-Kotlin runtimes should treat this file as
+ * the executable specification for dispatch order, state mutation, blocking
+ * prompts, child-session handoffs, native-service validation, and diagnostics.
+ *
+ * Cross-runtime contract:
+ * - Load and validate a bundle first through the equivalent of
+ *   `compiled/CompiledLoader.kt`; the VM assumes handles, strings, opcode
+ *   operand shapes, and native-service signatures are already checked.
+ * - Execute one [CompiledScriptProgram] at a time from [CompiledVmStart].
+ * - Mutate [RuntimeSessionState] by value and return it in [CompiledVmResult].
+ * - Never read terminal input, render UI, or run battles/shops directly inside
+ *   the VM. Return [CompiledVmResult.Blocked] with a typed
+ *   [CompiledVmPendingInput] instead, then resume with [CompiledVmInput].
+ * - Report malformed runtime state or unsupported host capabilities as
+ *   [VmDiagnostic] rather than throwing from opcode execution.
+ *
+ * Frontends such as ANSI, server, bitmap, and native code should implement the
+ * same state machine and use [CompiledVmHost] only for services that are
+ * genuinely outside deterministic script execution.
  */
 package rylween.runtime.vm
 
@@ -78,7 +94,19 @@ import rylween.runtime.withScriptMemberField
 import rylween.runtime.withScriptPartyScalar
 import rylween.runtime.withScriptRealmScalar
 
-/** Host callbacks used by [CompiledVm] for effects outside deterministic state mutation. */
+/**
+ * Host callbacks used by [CompiledVm] for effects outside deterministic state mutation.
+ *
+ * An implementation in another language should keep this boundary deliberately
+ * small. The VM owns opcode dispatch, expression evaluation, locals, text
+ * bindings, and immutable runtime-state updates. The host owns observable
+ * tracing, native services, battle-scoped data that lives in a child battle
+ * session, and presentation-specific journal rendering.
+ *
+ * Returning `null` or the default value means the host does not implement that
+ * service; [CompiledVm] converts that into [VmDiagnostic.UnsupportedHostService]
+ * at the opcode/expression location that required it.
+ */
 interface CompiledVmHost {
     /**
      * Receives backend-neutral semantic output from executed instructions.
@@ -89,10 +117,10 @@ interface CompiledVmHost {
      */
     fun trace(event: EngineTraceEvent)
 
-    /** Resolves a native integer service request. */
+    /** Resolves an allowlisted native integer service request and returns the deterministic result. */
     fun readInt(request: EngineRequest): Int = 0
 
-    /** Resolves a native string service request. */
+    /** Resolves an allowlisted native string service request and returns the deterministic result. */
     fun readString(request: EngineRequest): String = ""
 
     /** Reads a battle monster integer field for hosts that execute combat script expressions. */
@@ -150,7 +178,14 @@ interface CompiledVmHost {
     ): List<String> = TerminalTextRenderer().lines(text, TerminalTextContext(runtime = runtime))
 }
 
-/** Test and adapter host that records VM trace events in memory. */
+/**
+ * Test and adapter host that records VM trace events in memory.
+ *
+ * This is useful for conformance tests and for new host implementations while
+ * they are being brought up: run a compiled root, compare [events] and
+ * resulting [RuntimeSessionState] against the Kotlin authored interpreter, then
+ * replace only the callbacks whose behavior is host-specific.
+ */
 open class RecordingCompiledVmHost(
     private val ints: Map<EngineRequest, Int> = emptyMap(),
     private val strings: Map<EngineRequest, String> = emptyMap(),
@@ -169,14 +204,28 @@ open class RecordingCompiledVmHost(
     override fun readString(request: EngineRequest): String = strings[request] ?: ""
 }
 
-/** Mutable input state for running a compiled script program. */
+/**
+ * Initial VM-local state for running one compiled script root.
+ *
+ * [runtime] is the persistent game state. [locals] and [textBindings] are
+ * script-frame-local values; they are returned on completion/blocking so a
+ * runtime can serialize and resume them exactly. A fresh root normally starts
+ * with empty maps.
+ */
 data class CompiledVmStart(
     val runtime: RuntimeSessionState,
     val locals: Map<String, Int> = emptyMap(),
     val textBindings: Map<String, String> = emptyMap(),
 )
 
-/** Input delivered to a blocked compiled VM continuation. */
+/**
+ * Input delivered to a blocked compiled VM continuation.
+ *
+ * The input variant must match [CompiledVmContinuation.pending]. Invalid user
+ * choices that are still shape-compatible, such as an unknown menu key, return
+ * the same blocked continuation instead of advancing. Shape mismatches return
+ * [VmDiagnostic.BadContinuationFrame].
+ */
 sealed interface CompiledVmInput {
     /** Acknowledges a `WaitInput` prompt and resumes at the next instruction. */
     data object Continue : CompiledVmInput
@@ -211,13 +260,27 @@ sealed interface CompiledVmInput {
         val raw: String,
     ) : CompiledVmInput
 
-    /** Reports that a host-owned child session finished and supplies its resulting runtime. */
+    /**
+     * Reports that a host-owned child session finished and supplies its resulting runtime.
+     *
+     * The VM does not know how the child was presented or stepped. It only
+     * trusts the host to return the runtime state that should become the parent
+     * script state before execution resumes after the child opcode.
+     */
     data class ChildSessionCompleted(
         val completion: CompiledVmChildCompletion,
     ) : CompiledVmInput
 }
 
-/** Host-owned child session request emitted by [CompiledVm]. */
+/**
+ * Host-owned child session request emitted by [CompiledVm].
+ *
+ * Child requests are the portability boundary for systems that are larger than
+ * one script opcode: battles, dungeon entry, shops, rewards, random offers, and
+ * conversation sessions. Another runtime should serialize this request, run the
+ * corresponding host/session implementation, then resume the VM with
+ * [CompiledVmInput.ChildSessionCompleted].
+ */
 sealed interface CompiledVmChildRequest {
     /** Starts a battle encounter outside the VM and resumes with [CompiledVmInput.ChildSessionCompleted]. */
     data class Encounter(
@@ -227,12 +290,25 @@ sealed interface CompiledVmChildRequest {
     ) : CompiledVmChildRequest
 }
 
-/** Result payload supplied by a host after a child session finishes. */
+/**
+ * Result payload supplied by a host after a child session finishes.
+ *
+ * For now the parent VM needs only the updated [runtime]. Future child-session
+ * kinds can add more explicit completion payloads if the VM needs information
+ * that is not already represented in runtime state.
+ */
 data class CompiledVmChildCompletion(
     val runtime: RuntimeSessionState,
 )
 
-/** Typed input request that stopped a compiled VM run. */
+/**
+ * Typed request that stopped a compiled VM run.
+ *
+ * This is the save/load and foreign-runtime interop surface for blocked
+ * execution. Every variant carries [root], [instructionIndex], and [operandPath]
+ * so diagnostics, save files, and conformance tapes can identify the exact
+ * opcode or nested branch that is waiting.
+ */
 sealed interface CompiledVmPendingInput {
     /** Script root that owns the pending input. */
     val root: rylween.runtime.ScriptRootRef
@@ -328,7 +404,13 @@ sealed interface CompiledVmPendingInput {
         val maxLength: Int?,
     ) : CompiledVmPendingInput
 
-    /** Pending host-owned child session such as a battle encounter. */
+    /**
+     * Pending host-owned child session such as a battle encounter.
+     *
+     * The VM has already emitted any semantic trace event for the child opcode
+     * and stored a frame pointing after that opcode. A host resumes with
+     * [CompiledVmInput.ChildSessionCompleted] after the child session is done.
+     */
     data class ChildSession(
         override val root: rylween.runtime.ScriptRootRef,
         override val instructionIndex: Int,
@@ -349,7 +431,13 @@ data class CompiledVmInventorySlotChoice(
     val slot: Int,
 )
 
-/** Execution shape for a resumable [CompiledVmFrame]. */
+/**
+ * Execution shape for a resumable [CompiledVmFrame].
+ *
+ * Plain blocks can resume directly from [CompiledVmFrame.blockPath]. Iteration
+ * bodies carry extra cursor semantics so loops and member iteration continue
+ * after a blocked prompt without replaying earlier iterations.
+ */
 enum class CompiledVmFrameKind {
     /** Plain instruction block, such as a root, branch, menu option, or text-answer body. */
     Block,
@@ -361,7 +449,15 @@ enum class CompiledVmFrameKind {
     ForEachMemberBody,
 }
 
-/** One resumable compiled VM instruction-block frame. */
+/**
+ * One resumable compiled VM instruction-block frame.
+ *
+ * [blockPath] is a numeric path through nested compiled operands. The path is
+ * intentionally language-neutral: a non-Kotlin VM can follow the same segments
+ * through `Instructions`, `SwitchCases`, `MenuOptions`, and `TextAnswer`
+ * operands without knowing Kotlin class names. [nextIndex] is the next
+ * instruction inside that block to execute.
+ */
 data class CompiledVmFrame(
     val blockPath: List<Int>,
     val nextIndex: Int,
@@ -370,7 +466,14 @@ data class CompiledVmFrame(
     val enclosingInsideLoop: Boolean = insideLoop,
 )
 
-/** Saveable VM-local state needed to resume after [CompiledVmResult.Blocked]. */
+/**
+ * Saveable VM-local state needed to resume after [CompiledVmResult.Blocked].
+ *
+ * This is the live continuation used by [CompiledVm.resume]. Strict save files
+ * should persist [CompiledVmContinuationSnapshot] from
+ * `CompiledVmContinuationSnapshot.kt` rather than this live object so the
+ * runtime state can be stored in the normal save-state section.
+ */
 data class CompiledVmContinuation(
     val root: rylween.runtime.ScriptRootRef,
     val runtime: RuntimeSessionState,
@@ -380,7 +483,14 @@ data class CompiledVmContinuation(
     val pending: CompiledVmPendingInput,
 )
 
-/** Completed or failed result from [CompiledVm.run]. */
+/**
+ * Result from [CompiledVm.run] or [CompiledVm.resume].
+ *
+ * Hosts should handle all three cases explicitly. [Completed] means the script
+ * root is done. [Blocked] means host/user input or a child session is required.
+ * [Failed] means the VM contract could not continue and the diagnostic should
+ * be surfaced as a loader/runtime conformance failure, not silently ignored.
+ */
 sealed interface CompiledVmResult {
     /** Script ran to completion or hit a terminating `Stop`/outer `Break`. */
     data class Completed(
@@ -402,13 +512,21 @@ sealed interface CompiledVmResult {
 }
 
 /**
- * Executes validated compiled script programs for J2 non-interactive opcodes and expressions.
+ * Executes validated compiled script programs.
  *
  * [content] must come from [rylween.compiled.CompiledBundleLoader] so handle,
- * string, opcode-shape, and native-service checks have already run. This kernel
- * intentionally rejects opcodes whose host or continuation contract has not
- * landed yet, while implemented prompts return typed [CompiledVmPendingInput]
- * continuations instead of talking to terminal IO directly.
+ * string, opcode-shape, and native-service checks have already run. The VM is
+ * deterministic with respect to [CompiledVmStart], [CompiledVmInput], and
+ * [CompiledVmHost] callback results. It must not depend on terminal state,
+ * process globals, or frontend-specific session objects.
+ *
+ * Porting guide:
+ * - Implement the same opcode switch over [rylween.compiled.CompiledOpcode].
+ * - Use [CompiledVmFrame.blockPath] and [CompiledVmPendingInput.operandPath]
+ *   as your save/diagnostic addressing scheme.
+ * - Keep child systems out of the VM; block with [CompiledVmChildRequest] and
+ *   resume with [CompiledVmChildCompletion].
+ * - Treat [NativeServiceCatalog] as the ABI for native service paths and arity.
  */
 class CompiledVm(
     private val content: LoadedCompiledContent,
@@ -1259,6 +1377,22 @@ class CompiledVm(
                                 enclosingInsideLoop = enclosingInsideLoop,
                             ),
                         ) + parentFrames,
+                )
+            }
+            CompiledOpcode.NativeCall -> {
+                val path = index.string(instruction.stringId(0))
+                val args = instruction.stringIdList(1).map(index::string)
+                validateNativeService(
+                    path = path,
+                    expectedKind = NativeServiceKind.Effect,
+                    actualSlots = List(args.size) { NativeServiceArgSlot.StringValue },
+                    location = location,
+                ).fold(
+                    ok = {
+                        host.trace(EngineTraceEvent.NativeEffect(EngineRequest(path, args)))
+                        ControlSignal.Continue
+                    },
+                    failed = { ControlSignal.Failed(it) },
                 )
             }
             else ->

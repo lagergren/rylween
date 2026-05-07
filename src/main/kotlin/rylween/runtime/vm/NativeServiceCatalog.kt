@@ -2,8 +2,10 @@
  * Native-service allowlist and signature catalog for compiled script execution.
  *
  * `compiled/CompiledLoader.kt` uses these descriptors to reject unknown or
- * malformed native calls, and the upcoming `CompiledVm.kt` host boundary should
- * bind callbacks against the same catalog.
+ * malformed native calls, and `CompiledVm.kt` uses the same descriptors before
+ * invoking host callbacks. Other-language runtimes should treat this as the
+ * native-service ABI: path, kind, arity, and argument-slot kinds must all match
+ * before a service call is allowed to run.
  */
 package rylween.runtime.vm
 
@@ -13,9 +15,8 @@ import rylween.dsl.NativeAllowlist
  * Execution family for a native service path.
  *
  * The catalog is consumed by `compiled/CompiledLoader.kt` for `NativeCall`
- * validation and will be consumed by `CompiledVm.kt` when native int/string
- * expression evaluation lands. The source of truth for currently authored
- * paths remains [NativeAllowlist].
+ * validation and by `CompiledVm.kt` for native effect/int/string execution.
+ * The source of truth for currently authored paths remains [NativeAllowlist].
  */
 enum class NativeServiceKind {
     Effect,
@@ -54,12 +55,13 @@ data class NativeServiceDescriptor(
 }
 
 /**
- * Native-service allowlist used by the compiled loader and future VM host.
+ * Native-service allowlist used by the compiled loader and VM host.
  *
  * The loader uses [descriptor] to reject unknown `NativeCall` paths before a
- * runtime sees the bundle. The future VM host should use the same catalog when
- * binding host callbacks so Kotlin, native, server, and bitmap frontends agree
- * on path, arity, and argument-slot semantics.
+ * runtime sees the bundle. The VM uses the same catalog at execution time so
+ * Kotlin, native, server, and bitmap frontends agree on path, arity, and
+ * argument-slot semantics. If a non-Kotlin host adds a service, it should add a
+ * descriptor here and a loader/VM conformance test at the same time.
  */
 data class NativeServiceCatalog(
     val entries: Map<String, NativeServiceDescriptor>,
