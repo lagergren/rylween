@@ -6,9 +6,11 @@ import rylween.dsl.DungeonScenarioModel
 import rylween.dsl.GameModel
 import rylween.dsl.RuntimeContent
 import rylween.dsl.StateModel
+import rylween.dsl.ViewCommand
 import rylween.dsl.building
 import rylween.dsl.runtimeContent
 import rylween.dsl.stateId
+import rylween.engine.EngineTraceEvent
 import rylween.engine.KotlinHeadlessHost
 import rylween.engine.RuntimeConformanceSuite
 import rylween.engine.RuntimeHostDiagnosticKind
@@ -23,12 +25,14 @@ import rylween.frontend.terminal.TerminalTextContext
 import rylween.frontend.terminal.TownSessionTerminalAdapter
 import rylween.frontend.terminal.WildernessSessionTerminalAdapter
 import rylween.frontend.terminal.YdargSessionTerminalAdapter
+import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.frontend.terminal.terminalTextRenderer
 import rylween.game.Dungeons
 import rylween.game.EncounterTiers
 import rylween.game.Maps
 import rylween.game.RylweenCompiledGame
+import rylween.game.Scenes
 import rylween.game.States
 import rylween.game.StaticScreens
 import rylween.game.Towns
@@ -46,6 +50,7 @@ import rylween.runtime.town.ShopServiceStep
 import rylween.runtime.town.SpeakStep
 import rylween.runtime.town.TownSession
 import rylween.runtime.town.TownSessionStep
+import rylween.runtime.vm.RecordingCompiledVmHost
 import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WildernessSessionInput
 import rylween.runtime.wilderness.WildernessSessionResultStatus
@@ -192,6 +197,30 @@ class RuntimeHostContractTest {
         covered += headlessStaticScreenScenario(host).run().suites
         covered += headlessWildernessBundleBootScenario(host).run().suites
         covered += headlessTownScenario(host, runtime).run().suites
+        covered += headlessDungeonScenario(host, runtime, worldMap).run().suites
+        covered += headlessCastleScenario(host, runtime).run().suites
+        covered += headlessBattleScenario(host, runtime).run().suites
+        covered += headlessSaveLoadScenario(runtime).run().suites
+
+        assertEquals(RuntimeConformanceSuite.entries.toSet(), covered)
+    }
+
+    @Test
+    fun bundleLoadedHeadlessCompiledVmHostCoversTheNamedJ3ConformanceSuites() {
+        val host =
+            KotlinHeadlessHost.fromExternalBundleCompiledVm(
+                RylweenCompiledGame.nextRylween.toExternalBundleArtifact(),
+            )
+        val runtime = host.runtime(States.freshReplay)
+        val worldMap = host.worldMap(Maps.wilderness)
+        val covered = mutableSetOf<RuntimeConformanceSuite>()
+
+        assertEquals(RylweenRuntimeHostContract.kotlinHeadlessCompiledVm, host.surface)
+        assertEquals(RuntimeScriptExecutionStrategy.CompiledVm, host.surface.scriptExecution)
+
+        covered += headlessStaticScreenScenario(host).run().suites
+        covered += headlessWildernessBundleBootScenario(host).run().suites
+        covered += compiledVmTownServiceScenario(host, runtime).run().suites
         covered += headlessDungeonScenario(host, runtime, worldMap).run().suites
         covered += headlessCastleScenario(host, runtime).run().suites
         covered += headlessBattleScenario(host, runtime).run().suites
@@ -373,6 +402,48 @@ class RuntimeHostContractTest {
                 ),
             suites = setOf(RuntimeConformanceSuite.TownServices),
         )
+
+    private fun compiledVmTownServiceScenario(
+        host: KotlinHeadlessHost,
+        runtime: RuntimeSessionState,
+    ): TerminalScenario<TownSession> {
+        val vmHost = RecordingCompiledVmHost()
+        return TerminalScenario(
+            name = "j2a-headless-compiled-vm-town-service",
+            fixture = ScenarioFixture(startState = States.freshReplay, seed = runtime.realm.rngState),
+            inputs = listOf("C", "L", "L"),
+            start = { host.townSession(runtime, Towns.thord.id) },
+            drive = { terminal, session ->
+                TownSessionTerminalAdapter(
+                    terminal = terminal,
+                    renderer = host.content.terminalTextRenderer(),
+                    serviceBridge = host.compiledVmTerminalScriptBridge(terminal, vmHost = vmHost),
+                ).runUntilBlocked(session)
+            },
+            checkpoints =
+                listOf(
+                    checkpoint("town service scene runs through compiled VM bridge") {
+                        assertTrue(result.status is TerminalRunStatus.Finished)
+                        assertOutputContains("Dalina")
+                        assertImageShown("blitgfx.church")
+                        assertTrue(
+                            vmHost.events.any { event ->
+                                event is EngineTraceEvent.TownService &&
+                                    event.scene.id == Scenes.Towne.church
+                            },
+                        )
+                        assertTrue(
+                            vmHost.events.any { event ->
+                                event is EngineTraceEvent.View &&
+                                    event.command == ViewCommand.ClearMapWindow
+                            },
+                        )
+                        assertTrue(vmHost.events.any { event -> event is EngineTraceEvent.Menu })
+                    },
+                ),
+            suites = setOf(RuntimeConformanceSuite.TownServices),
+        )
+    }
 
     private fun dungeonScenario(
         content: GameModel,
