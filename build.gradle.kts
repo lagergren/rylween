@@ -1783,7 +1783,6 @@ val kotlinRuntimeJavaLauncher: Provider<JavaLauncher> =
         languageVersion.set(JavaLanguageVersion.of(25))
     }
 
-
 val main: SourceSet by sourceSets.getting
 
 val game: SourceSet by sourceSets.creating {
