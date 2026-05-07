@@ -359,7 +359,7 @@ Talk to everyone you meet!  This is the way to success.
 
 INN
 -=-
-Good to stay at if you are tired.  You will restore more hitpoints than
+Good to stay at if you are tired.  You will restore more hit points than
 if you sleep in the wilderness, you won't be murdered by orcs in the
 middle of the night, and you can have a nice warm supper here.  The Inn
 also houses many important characters you should talk to.

@@ -90,6 +90,16 @@ class RuntimeHostContractTest {
     }
 
     @Test
+    fun kotlinHeadlessCompiledVmDeclaresThePlayableJ25Surface() {
+        val surface = RylweenRuntimeHostContract.kotlinHeadlessCompiledVm
+
+        RylweenRuntimeHostContract.standard.requirePlayable(surface)
+
+        assertEquals(RuntimeHostStatus.PlayableRuntime, surface.status)
+        assertEquals(RuntimeScriptExecutionStrategy.CompiledVm, surface.scriptExecution)
+    }
+
+    @Test
     fun nativeJsonReaderIsOnlyABoundaryProbeUntilItImplementsTheHostSurface() {
         val probe = RylweenRuntimeHostContract.nativeJsonBundleReader
         assertEquals(emptyList(), RylweenRuntimeHostContract.standard.validate(probe))

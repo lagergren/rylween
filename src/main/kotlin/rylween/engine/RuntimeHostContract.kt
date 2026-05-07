@@ -165,6 +165,19 @@ object RylweenRuntimeHostContract {
     val kotlinHeadless: RuntimeHostSurface =
         playableKotlinHost("kotlin-headless")
 
+    /**
+     * Headless host surface for J2/J2a compiled-script execution.
+     *
+     * This intentionally keeps `kotlin-headless` as the authored-op oracle while
+     * giving conformance tests and future server/native hosts a concrete Kotlin
+     * reference surface that declares the compiled VM as its script engine.
+     */
+    val kotlinHeadlessCompiledVm: RuntimeHostSurface =
+        playableKotlinHost(
+            id = "kotlin-headless-compiled-vm",
+            scriptExecution = RuntimeScriptExecutionStrategy.CompiledVm,
+        )
+
     val nativeJsonBundleReader: RuntimeHostSurface =
         RuntimeHostSurface(
             id = "native-json-bundle-reader",
@@ -178,12 +191,15 @@ object RylweenRuntimeHostContract {
                 ),
         )
 
-    private fun playableKotlinHost(id: String): RuntimeHostSurface =
+    private fun playableKotlinHost(
+        id: String,
+        scriptExecution: RuntimeScriptExecutionStrategy = RuntimeScriptExecutionStrategy.KotlinAuthoredOpInterpreter,
+    ): RuntimeHostSurface =
         RuntimeHostSurface(
             id = id,
             status = RuntimeHostStatus.PlayableRuntime,
             artifactSource = RuntimeHostArtifactSource.J1JsonBundle,
-            scriptExecution = RuntimeScriptExecutionStrategy.KotlinAuthoredOpInterpreter,
+            scriptExecution = scriptExecution,
             requirements = RuntimeHostRequirement.entries.toSet(),
             viewCommands = RuntimeViewCommandKind.entries.toSet(),
             conformanceSuites = RuntimeConformanceSuite.entries.toSet(),
