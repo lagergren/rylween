@@ -30,6 +30,7 @@ class YdargSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
     private val savePort: RuntimeSavePort? = null,
+    private val scriptBridge: ScriptBridge? = null,
 ) {
     fun run(initial: YdargSession): YdargSession = runUntilBlocked(initial).session
 
@@ -145,7 +146,7 @@ class YdargSessionTerminalAdapter(
                         runChildOrBlock(
                             session,
                             step.session,
-                            { InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                            { InventoryItemUseTerminalAdapter(terminal, renderer, scriptBridge = scriptBridge).runUntilBlocked(it) },
                             YdargSession::replaceInventoryItemUseSession,
                         ) { return it }
                     }
@@ -158,6 +159,7 @@ class YdargSessionTerminalAdapter(
                                     terminal = terminal,
                                     renderer = renderer,
                                     content = session.content,
+                                    scriptBridge = scriptBridge,
                                 ).runUntilBlocked(it)
                             },
                             YdargSession::replacePriestSpellSession,
