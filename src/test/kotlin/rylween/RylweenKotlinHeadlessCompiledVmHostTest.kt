@@ -28,8 +28,10 @@ import rylween.dsl.building
 import rylween.dsl.dungeonEvent
 import rylween.dsl.item
 import rylween.dsl.keyAction
+import rylween.dsl.line
 import rylween.dsl.of
 import rylween.dsl.partyId
+import rylween.dsl.rumourTable
 import rylween.dsl.runtimeContent
 import rylween.dsl.rylween
 import rylween.dsl.sceneId
@@ -160,6 +162,23 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         assertIs<TownSessionStep.Menu>(second.session.step)
     }
 
+    @Test
+    fun compiledVmTerminalBridgeCompletesRumourChildSession() {
+        val host = KotlinHeadlessHost.fromExternalBundleCompiledVm(hostModel().toExternalBundleArtifact())
+        val terminal = ScenarioTerminalPort("R")
+
+        val result =
+            TownSessionTerminalAdapter(
+                terminal = terminal,
+                serviceBridge = host.compiledVmTerminalScriptBridge(terminal),
+            ).runUntilBlocked(host.townSession(testRuntime(), hostTown))
+
+        assertIs<TerminalRunStatus.Waiting>(result.status)
+        assertTrue(terminal.output.any { line -> "A host rumour from the compiled VM." in line })
+        assertEquals(19, result.session.runtime.activeParty.resources.gold)
+        assertIs<TownSessionStep.Menu>(result.session.step)
+    }
+
     private fun assertCompiledRootMatchesAuthored(
         model: RylweenModel,
         host: KotlinHeadlessHost,
@@ -195,6 +214,20 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                     party.gold += 13
                     stop("town done")
                 }
+                scene(hostRumourScene) {
+                    tellRumour(hostRumourTable)
+                    party.gold += 17
+                    stop("rumour done")
+                }
+                speak {
+                    textTables {
+                        rumourTable(hostRumourTable) {
+                            rumour {
+                                line("A host rumour from the compiled VM.")
+                            }
+                        }
+                    }
+                }
                 dungeons {
                     event(hostEvent) {
                         run {
@@ -223,16 +256,21 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                         name = "Host Town"
                         services {
                             service(hostBuilding)
+                            service(hostRumourBuilding)
                         }
                     }
                 }
                 townSystem {
                     menu {
                         service('H', hostBuilding, hostAction)
+                        service('R', hostRumourBuilding, hostRumourAction)
                         leave('L')
                     }
                     buildingServices {
                         building(hostBuilding, hostAction, hostTownScene) {
+                            alwaysOpen()
+                        }
+                        building(hostRumourBuilding, hostRumourAction, hostRumourScene) {
                             alwaysOpen()
                         }
                     }
@@ -302,11 +340,15 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
     private companion object {
         val hostScene = sceneId("vm.host.scene")
         val hostTownScene = sceneId("vm.host.town-service")
+        val hostRumourScene = sceneId("vm.host.rumour-service")
+        val hostRumourTable = rumourTable("vm.host.rumours")
         val hostEvent = dungeonEvent("vm.host.event")
         val hostSpell = spellId("vm.host.spell")
         val hostPotion = item("vm.host.potion")
         val hostTown = town("vm.host.town")
         val hostBuilding = building("vm.host.building")
         val hostAction = keyAction("vm.host.action")
+        val hostRumourBuilding = building("vm.host.rumour-building")
+        val hostRumourAction = keyAction("vm.host.rumour-action")
     }
 }

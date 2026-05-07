@@ -84,6 +84,9 @@ import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.SpeakSession
 import rylween.runtime.town.noRumourText
 import rylween.runtime.town.selectRumour
+import rylween.runtime.town.speakRuntimeContent
+import rylween.runtime.vm.CompiledVmChildCompletion
+import rylween.runtime.vm.CompiledVmChildRequest
 import rylween.runtime.vm.CompiledVmInput
 import rylween.runtime.vm.CompiledVmPendingInput
 import rylween.runtime.vm.CompiledVmResult
@@ -179,9 +182,10 @@ class StatefulScriptBridge(
  * [ScriptContinuation.compiledVmContinuation], and returns the same
  * [ScriptBridgeResult] shape to callers.
  *
- * Child-session requests are intentionally surfaced as waiting continuations in
- * this slice. Follow-up J2a work will map those typed VM child requests onto
- * the existing battle, dungeon, shop, reward, and conversation sessions.
+ * The bridge also owns the first host-side child-session completions. Lightweight
+ * host services such as `TellRumour` complete in place; larger sessions still
+ * surface as waiting continuations until their existing adapters are wired to
+ * [CompiledVmInput.ChildSessionCompleted].
  */
 class CompiledVmTerminalScriptBridge(
     private val terminal: TerminalPort,
@@ -256,6 +260,10 @@ class CompiledVmTerminalScriptBridge(
                     error("compiled VM script ${root.kind}.${root.slug} failed: ${current.diagnostic}")
                 is CompiledVmResult.Blocked -> {
                     val promptRendered = flushEvents(current.continuation.runtime)
+                    runChildSession(current)?.let { childResult ->
+                        result = childResult
+                        return@repeat
+                    }
                     if (!promptRendered) {
                         writePendingPrompt(current.pending, current.continuation.runtime)
                     }
@@ -270,6 +278,34 @@ class CompiledVmTerminalScriptBridge(
             }
         }
         error("compiled VM script ${root.kind}.${root.slug} exceeded terminal bridge step budget")
+    }
+
+    private fun runChildSession(blocked: CompiledVmResult.Blocked): CompiledVmResult? {
+        val pending = blocked.pending as? CompiledVmPendingInput.ChildSession ?: return null
+        return when (val request = pending.request) {
+            is CompiledVmChildRequest.TellRumour -> completeTellRumour(request, blocked)
+            is CompiledVmChildRequest.Speak,
+            is CompiledVmChildRequest.Encounter,
+            is CompiledVmChildRequest.EnterDungeon,
+            is CompiledVmChildRequest.GrantReward,
+            is CompiledVmChildRequest.RandomItemOffer,
+            is CompiledVmChildRequest.ShopService,
+            -> null
+        }
+    }
+
+    private fun completeTellRumour(
+        request: CompiledVmChildRequest.TellRumour,
+        blocked: CompiledVmResult.Blocked,
+    ): CompiledVmResult {
+        val speakContent = content.speakRuntimeContent()
+        val selection = speakContent.selectRumour(request.table, blocked.continuation.runtime)
+        val nextRuntime = selection?.runtime ?: blocked.continuation.runtime
+        vmHost.trace(EngineTraceEvent.Screen(selection?.rumour?.text ?: speakContent.noRumourText()))
+        return runner.resume(
+            blocked.continuation,
+            CompiledVmInput.ChildSessionCompleted(CompiledVmChildCompletion(nextRuntime)),
+        )
     }
 
     private fun writePendingPrompt(
