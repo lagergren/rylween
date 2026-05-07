@@ -25,6 +25,7 @@ import rylween.runtime.reward.RandomItemOfferSession
 import rylween.runtime.reward.RewardGrantSession
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.SpeakSession
+import rylween.runtime.vm.CompiledVmContinuation
 
 /** Authored script-root categories used by compiled bundles and save diagnostics. */
 enum class ScriptRootKind {
@@ -225,7 +226,15 @@ data class ScriptFrame(
     val localValue: Int? = null,
 )
 
-/** Runtime continuation for an authored script, including nested child sessions. */
+/**
+ * Runtime continuation for authored or compiled script execution.
+ *
+ * The legacy fields describe the authored `Op` interpreter stack and
+ * host-owned child sessions. [compiledVmContinuation] carries the parallel J2
+ * VM frame when a compiled script blocks at a prompt or child-session request;
+ * strict save serialization rejects it until the J2.7 save/load slice defines
+ * the durable compiled continuation format.
+ */
 data class ScriptContinuation(
     val runtime: RuntimeSessionState,
     val root: ScriptRootRef = ScriptRootRef.Unspecified,
@@ -237,6 +246,7 @@ data class ScriptContinuation(
     val randomItemOfferSession: RandomItemOfferSession? = null,
     val rewardGrantSession: RewardGrantSession? = null,
     val activeInventorySlot: Int? = null,
+    val compiledVmContinuation: CompiledVmContinuation? = null,
 ) {
     /** Active party in the continuation runtime state. */
     val party: PartyState get() = runtime.activeParty
@@ -295,6 +305,7 @@ fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot {
         "script continuation with active random-item offer session cannot be saved yet"
     }
     require(rewardGrantSession == null) { "script continuation with active reward grant session cannot be saved yet" }
+    require(compiledVmContinuation == null) { "script continuation with compiled VM frame cannot be saved until J2.7" }
     return ScriptContinuationSnapshot(
         root = root,
         locals = locals,

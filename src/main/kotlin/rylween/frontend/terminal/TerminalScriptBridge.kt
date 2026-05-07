@@ -36,20 +36,24 @@ import rylween.dsl.TextPart
 import rylween.dsl.building
 import rylween.dsl.dungeon
 import rylween.dsl.fallbackText
+import rylween.dsl.inputKey
 import rylween.dsl.item
 import rylween.dsl.line
 import rylween.dsl.lines
 import rylween.dsl.location
+import rylween.dsl.matches
 import rylween.dsl.milestone
 import rylween.dsl.monster
 import rylween.dsl.pronoun
 import rylween.dsl.rumour
+import rylween.dsl.runtimeContent
 import rylween.dsl.text
 import rylween.dsl.town
 import rylween.dsl.townNpcName
 import rylween.dsl.worldMap
 import rylween.engine.EngineRequest
 import rylween.engine.EngineTraceEvent
+import rylween.engine.KotlinHeadlessHost
 import rylween.engine.RuntimeEventLevel
 import rylween.engine.TraceEnginePort
 import rylween.engine.runtimeEvent
@@ -80,6 +84,11 @@ import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.SpeakSession
 import rylween.runtime.town.noRumourText
 import rylween.runtime.town.selectRumour
+import rylween.runtime.vm.CompiledVmInput
+import rylween.runtime.vm.CompiledVmPendingInput
+import rylween.runtime.vm.CompiledVmResult
+import rylween.runtime.vm.CompiledVmScriptRunner
+import rylween.runtime.vm.RecordingCompiledVmHost
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 import rylween.runtime.wilderness.WorldMapGrid
 import rylween.runtime.wilderness.teleportParty
@@ -159,6 +168,218 @@ class StatefulScriptBridge(
         )
     }
 }
+
+/**
+ * Terminal [ScriptBridge] implementation backed by the compiled VM.
+ *
+ * This is the J2a adapter that lets existing town, wilderness, and terminal
+ * session adapters opt into compiled script execution without replacing their
+ * host-owned session state machines. The bridge consumes the same terminal
+ * prompts as [StatefulScriptBridge], stores blocked VM frames inside
+ * [ScriptContinuation.compiledVmContinuation], and returns the same
+ * [ScriptBridgeResult] shape to callers.
+ *
+ * Child-session requests are intentionally surfaced as waiting continuations in
+ * this slice. Follow-up J2a work will map those typed VM child requests onto
+ * the existing battle, dungeon, shop, reward, and conversation sessions.
+ */
+class CompiledVmTerminalScriptBridge(
+    private val terminal: TerminalPort,
+    private val runner: CompiledVmScriptRunner,
+    private val vmHost: RecordingCompiledVmHost,
+    private val content: RuntimeContent,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) : ScriptBridge {
+    override fun run(
+        service: BuildingServiceModel,
+        scene: SceneModel,
+        continuation: ScriptContinuation,
+    ): ScriptBridgeResult {
+        val eventStart = vmHost.events.size
+        var writtenEventCount = eventStart
+        val root = content.scriptRootForScene(scene.id)
+        vmHost.trace(EngineTraceEvent.TownService(service, scene))
+
+        fun unwrittenEvents(): List<EngineTraceEvent> = vmHost.events.drop(writtenEventCount.coerceAtLeast(eventStart))
+
+        fun flushEvents(runtime: RuntimeSessionState): Boolean {
+            val events = unwrittenEvents()
+            if (events.isEmpty()) return false
+            terminal.writeScriptEvents(
+                events = events,
+                renderer = renderer,
+                runtime = runtime,
+                renderTownService = false,
+            )
+            writtenEventCount = vmHost.events.size
+            return true
+        }
+
+        fun waitingResult(
+            blocked: CompiledVmResult.Blocked,
+            rejection: TerminalInputRejection? = null,
+        ): ScriptBridgeResult =
+            ScriptBridgeResult(
+                runtime = blocked.continuation.runtime,
+                status = ScriptBridgeStatus.Waiting,
+                events = unwrittenEvents(),
+                continuation =
+                    continuation
+                        .withRoot(root)
+                        .copy(
+                            runtime = blocked.continuation.runtime,
+                            locals = blocked.continuation.locals,
+                            compiledVmContinuation = blocked.continuation,
+                        ),
+                rejection = rejection,
+            )
+
+        var result: CompiledVmResult =
+            continuation.compiledVmContinuation
+                ?.takeIf { compiled -> compiled.root.sameRoot(root) }
+                ?.let { compiled -> CompiledVmResult.Blocked(compiled.pending, compiled) }
+                ?: runner.run(
+                    root = root,
+                    runtime = continuation.runtime,
+                    locals = continuation.locals,
+                )
+
+        repeat(512) {
+            when (val current = result) {
+                is CompiledVmResult.Completed ->
+                    return ScriptBridgeResult(
+                        runtime = current.runtime,
+                        status = ScriptBridgeStatus.Finished,
+                        events = unwrittenEvents(),
+                    )
+                is CompiledVmResult.Failed ->
+                    error("compiled VM script ${root.kind}.${root.slug} failed: ${current.diagnostic}")
+                is CompiledVmResult.Blocked -> {
+                    val promptRendered = flushEvents(current.continuation.runtime)
+                    if (!promptRendered) {
+                        writePendingPrompt(current.pending, current.continuation.runtime)
+                    }
+                    when (val input = readPendingInput(current.pending)) {
+                        is TerminalInput.Value -> {
+                            result = runner.resume(current.continuation, input.value)
+                        }
+                        is TerminalInput.Rejected -> return waitingResult(current, input.rejection)
+                        TerminalInput.Unavailable -> return waitingResult(current)
+                    }
+                }
+            }
+        }
+        error("compiled VM script ${root.kind}.${root.slug} exceeded terminal bridge step budget")
+    }
+
+    private fun writePendingPrompt(
+        pending: CompiledVmPendingInput,
+        runtime: RuntimeSessionState,
+    ) {
+        val context = TerminalTextContext(runtime = runtime)
+        when (pending) {
+            is CompiledVmPendingInput.WaitInput ->
+                terminal.write(renderer.lines(pending.prompt ?: renderer.pausePrompt(), context))
+            is CompiledVmPendingInput.Menu ->
+                terminal.writeKeyPrompt(renderer, pending.prompt, pending.keys, context)
+            is CompiledVmPendingInput.AskKey ->
+                terminal.writeBindingPrompt(renderer, pending.prompt, pending.bindings, context)
+            is CompiledVmPendingInput.AskText ->
+                terminal.write(renderer.lines(pending.prompt, context))
+            is CompiledVmPendingInput.AskMember ->
+                terminal.write(renderer.lines(pending.prompt, context))
+            is CompiledVmPendingInput.AskMonster ->
+                terminal.write(renderer.lines(pending.prompt, context))
+            is CompiledVmPendingInput.AskInventorySlot ->
+                terminal.write(renderer.lines(pending.prompt, context))
+            is CompiledVmPendingInput.ChildSession -> Unit
+        }
+    }
+
+    private fun readPendingInput(pending: CompiledVmPendingInput): TerminalInput<CompiledVmInput> =
+        when (pending) {
+            is CompiledVmPendingInput.WaitInput ->
+                when (terminal.readReturn()) {
+                    true -> TerminalInput.Value(CompiledVmInput.Continue)
+                    false,
+                    null,
+                    -> TerminalInput.Unavailable
+                }
+            is CompiledVmPendingInput.Menu -> readMenuInput(pending)
+            is CompiledVmPendingInput.AskKey -> readAskKeyInput(pending)
+            is CompiledVmPendingInput.AskMember ->
+                terminal.readMemberNumber(pending.choices).map { member -> CompiledVmInput.AskMember(member) }
+            is CompiledVmPendingInput.AskMonster -> readAskMonsterInput(pending)
+            is CompiledVmPendingInput.AskInventorySlot -> readAskInventorySlotInput(pending)
+            is CompiledVmPendingInput.AskText ->
+                terminal
+                    .readTextLine(pending.maxLength)
+                    ?.let { raw -> TerminalInput.Value(CompiledVmInput.AskText(raw)) }
+                    ?: TerminalInput.Unavailable
+            is CompiledVmPendingInput.ChildSession -> TerminalInput.Unavailable
+        }
+
+    private fun readMenuInput(pending: CompiledVmPendingInput.Menu): TerminalInput<CompiledVmInput> {
+        val raw = terminal.readLine() ?: return TerminalInput.Unavailable
+        val key = raw.firstOrNull()?.uppercaseChar()
+        if (key != null && key in pending.keys) {
+            return TerminalInput.Value(CompiledVmInput.MenuKey(key))
+        }
+        return if (pending.hasDefault) {
+            TerminalInput.Value(CompiledVmInput.MenuKey(key ?: '\u0000'))
+        } else {
+            TerminalInput.Rejected(TerminalInputRejection(raw, pending.keys.map { key -> key.toString() }))
+        }
+    }
+
+    private fun readAskKeyInput(pending: CompiledVmPendingInput.AskKey): TerminalInput<CompiledVmInput> {
+        val raw = terminal.readLine() ?: return TerminalInput.Unavailable
+        return if (pending.bindings.any { binding -> binding.matches(raw) }) {
+            TerminalInput.Value(CompiledVmInput.AskKey(raw))
+        } else {
+            TerminalInput.Rejected(TerminalInputRejection(raw, pending.bindings.map { binding -> binding.label }.distinct()))
+        }
+    }
+
+    private fun readAskMonsterInput(pending: CompiledVmPendingInput.AskMonster): TerminalInput<CompiledVmInput> {
+        val raw = terminal.readLine() ?: return TerminalInput.Unavailable
+        val key = raw.firstOrNull()?.uppercaseChar()
+        return if (key != null && key in pending.targetKeys) {
+            TerminalInput.Value(CompiledVmInput.AskMonster(key.code - 'A'.code))
+        } else {
+            TerminalInput.Rejected(TerminalInputRejection(raw, pending.targetKeys.map { key -> key.toString() }))
+        }
+    }
+
+    private fun readAskInventorySlotInput(pending: CompiledVmPendingInput.AskInventorySlot): TerminalInput<CompiledVmInput> {
+        val raw = terminal.readLine() ?: return TerminalInput.Unavailable
+        return if (pending.keys.any { key -> inputKey(key).matches(raw) }) {
+            TerminalInput.Value(CompiledVmInput.AskInventorySlot(raw))
+        } else {
+            TerminalInput.Rejected(TerminalInputRejection(raw, pending.keys.map { key -> key.toString() }))
+        }
+    }
+}
+
+/**
+ * Builds a compiled-VM terminal bridge from a compiled headless host.
+ *
+ * The extension lives in the terminal package so `engine/KotlinHeadlessHost.kt`
+ * stays frontend-neutral. The returned bridge is suitable for the
+ * `serviceBridge` parameters on terminal session adapters.
+ */
+fun KotlinHeadlessHost.compiledVmTerminalScriptBridge(
+    terminal: TerminalPort,
+    renderer: TerminalTextRenderer = TerminalTextRenderer(),
+    vmHost: RecordingCompiledVmHost = RecordingCompiledVmHost(),
+): ScriptBridge =
+    CompiledVmTerminalScriptBridge(
+        terminal = terminal,
+        runner = compiledScriptRunner(vmHost),
+        vmHost = vmHost,
+        content = content.runtimeContent(),
+        renderer = renderer,
+    )
 
 /** Full result of running a script continuation through terminal adapters. */
 data class StatefulScriptResult(

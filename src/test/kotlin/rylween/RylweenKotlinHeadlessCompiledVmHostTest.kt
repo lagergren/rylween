@@ -24,14 +24,17 @@ import rylween.dsl.PcClass
 import rylween.dsl.Race
 import rylween.dsl.RylweenModel
 import rylween.dsl.Wilderness
+import rylween.dsl.building
 import rylween.dsl.dungeonEvent
 import rylween.dsl.item
+import rylween.dsl.keyAction
 import rylween.dsl.of
 import rylween.dsl.partyId
 import rylween.dsl.runtimeContent
 import rylween.dsl.rylween
 import rylween.dsl.sceneId
 import rylween.dsl.spellId
+import rylween.dsl.town
 import rylween.engine.EngineTraceEvent
 import rylween.engine.KotlinHeadlessHost
 import rylween.engine.RuntimeScriptExecutionStrategy
@@ -39,6 +42,9 @@ import rylween.engine.RylweenRuntimeHostContract
 import rylween.engine.TraceEnginePort
 import rylween.frontend.terminal.ScriptBridgeStatus
 import rylween.frontend.terminal.StatefulScriptServiceRunner
+import rylween.frontend.terminal.TerminalRunStatus
+import rylween.frontend.terminal.TownSessionTerminalAdapter
+import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptContinuation
 import rylween.runtime.ScriptRootRef
@@ -47,13 +53,16 @@ import rylween.runtime.scriptRootForItemUse
 import rylween.runtime.scriptRootForScene
 import rylween.runtime.scriptRootForSpell
 import rylween.runtime.town.SpeakRuntimeContent
+import rylween.runtime.town.TownSessionStep
 import rylween.runtime.vm.CompiledVmResult
 import rylween.runtime.vm.RecordingCompiledVmHost
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RylweenKotlinHeadlessCompiledVmHostTest {
     @Test
@@ -121,6 +130,36 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
         }
     }
 
+    @Test
+    fun compiledVmTerminalBridgeResumesThroughTownSessionContinuation() {
+        val host = KotlinHeadlessHost.fromExternalBundleCompiledVm(hostModel().toExternalBundleArtifact())
+        val initial = host.townSession(testRuntime(), hostTown)
+        val firstTerminal = ScenarioTerminalPort("H")
+
+        val first =
+            TownSessionTerminalAdapter(
+                terminal = firstTerminal,
+                serviceBridge = host.compiledVmTerminalScriptBridge(firstTerminal),
+            ).runUntilBlocked(initial)
+
+        assertIs<TerminalRunStatus.Waiting>(first.status)
+        assertTrue(firstTerminal.output.any { line -> "compiled town service" in line })
+        val blockedStep = assertIs<TownSessionStep.NativeService>(first.session.step)
+        assertNotNull(blockedStep.continuation?.compiledVmContinuation)
+        assertEquals(2, first.session.runtime.activeParty.resources.gold)
+
+        val secondTerminal = ScenarioTerminalPort("")
+        val second =
+            TownSessionTerminalAdapter(
+                terminal = secondTerminal,
+                serviceBridge = host.compiledVmTerminalScriptBridge(secondTerminal),
+            ).runUntilBlocked(first.session)
+
+        assertIs<TerminalRunStatus.Waiting>(second.status)
+        assertEquals(15, second.session.runtime.activeParty.resources.gold)
+        assertIs<TownSessionStep.Menu>(second.session.step)
+    }
+
     private fun assertCompiledRootMatchesAuthored(
         model: RylweenModel,
         host: KotlinHeadlessHost,
@@ -150,6 +189,12 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                     party.gold += 3
                     stop("scene done")
                 }
+                scene(hostTownScene) {
+                    screen("compiled town service")
+                    waitInput("town service")
+                    party.gold += 13
+                    stop("town done")
+                }
                 dungeons {
                     event(hostEvent) {
                         run {
@@ -171,6 +216,25 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
                         screen("item root")
                         party.gold += 11
                         stop("item done")
+                    }
+                }
+                towns {
+                    town(hostTown.slug) {
+                        name = "Host Town"
+                        services {
+                            service(hostBuilding)
+                        }
+                    }
+                }
+                townSystem {
+                    menu {
+                        service('H', hostBuilding, hostAction)
+                        leave('L')
+                    }
+                    buildingServices {
+                        building(hostBuilding, hostAction, hostTownScene) {
+                            alwaysOpen()
+                        }
                     }
                 }
             }
@@ -237,8 +301,12 @@ class RylweenKotlinHeadlessCompiledVmHostTest {
 
     private companion object {
         val hostScene = sceneId("vm.host.scene")
+        val hostTownScene = sceneId("vm.host.town-service")
         val hostEvent = dungeonEvent("vm.host.event")
         val hostSpell = spellId("vm.host.spell")
         val hostPotion = item("vm.host.potion")
+        val hostTown = town("vm.host.town")
+        val hostBuilding = building("vm.host.building")
+        val hostAction = keyAction("vm.host.action")
     }
 }

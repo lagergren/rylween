@@ -1322,7 +1322,7 @@ class WildernessSessionTerminalAdapter(
                     is WildernessSessionStep.Mission -> {
                         val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
                         val bridge =
-                            StatefulScriptBridge(
+                            serviceBridge ?: StatefulScriptBridge(
                                 terminal = terminal,
                                 speakContent = session.content.speakRuntimeContent(),
                                 battleContent = session.content,
