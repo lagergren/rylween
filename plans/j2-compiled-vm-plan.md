@@ -362,6 +362,15 @@ Estimated size: 1-2 weeks.
 
 Do not accidentally drift from probe to product.
 
+Decision for this track: stop at the native probe. The C/native code should keep
+validating the J1 loader boundary and narrow J2 VM portability, but it should
+not become a playable runtime inside J2. A playable non-JVM target would have to
+own much more than opcode dispatch: frontend rendering, persistence,
+diagnostics, host services, conformance fixtures, and the full acceptance
+playthrough. That scope belongs in a separate product task with an explicit
+target such as the server/MUD path described in `plans/future-directions.md` or
+a native terminal runtime.
+
 If a non-JVM playable runtime is scheduled, create a new product task for that
 runtime. It must implement:
 
@@ -443,9 +452,9 @@ Total for a fully playable native runtime: likely 2-3 months beyond the probe.
 - [x] pure VM roots execute without authored `Op` fallback
 - [x] prompts and menus resume without replaying side effects
 - [x] child sessions block and resume through typed request/result records
-- [ ] compiled VM continuations save/load under strict snapshot validation
+- [x] compiled VM continuations save/load under strict snapshot validation
 - [x] Kotlin headless declares `CompiledVm` and passes J3 suites
-- [x] Kotlin ANSI can opt into `CompiledVm`
+- [x] Kotlin ANSI production launchers run script roots through `CompiledVm`
 - [x] full acceptance playthrough passes in compiled-VM mode
-- [ ] C/native probe executes a narrow compiled scenario from the J1 bundle
+- [x] C/native probe executes a narrow compiled scenario from the J1 bundle
 - [x] ledger distinguishes completed J2 pieces from optional native product work

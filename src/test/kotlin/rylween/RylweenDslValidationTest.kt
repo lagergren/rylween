@@ -124,6 +124,7 @@ import rylween.dsl.WildernessFatigueMatch
 import rylween.dsl.WildernessFatigueRule
 import rylween.dsl.WildernessUpkeepRules
 import rylween.dsl.WorldPosition
+import rylween.dsl.analyzeScriptSources
 import rylween.dsl.castle
 import rylween.dsl.cells
 import rylween.dsl.collectAuthoredContentDiagnostics
@@ -145,7 +146,6 @@ import rylween.dsl.location
 import rylween.dsl.lt
 import rylween.dsl.missionId
 import rylween.dsl.monster
-import rylween.dsl.nativePathsIn
 import rylween.dsl.of
 import rylween.dsl.partyId
 import rylween.dsl.pronoun
@@ -188,6 +188,7 @@ import rylween.frontend.terminal.CharacterCreationTerminalAdapter
 import rylween.frontend.terminal.DungeonSessionTerminalAdapter
 import rylween.frontend.terminal.EquipmentPromptTerminalAdapter
 import rylween.frontend.terminal.InventoryItemUseTerminalAdapter
+import rylween.frontend.terminal.PriestSpellTerminalAdapter
 import rylween.frontend.terminal.ScriptBridge
 import rylween.frontend.terminal.ScriptBridgeStatus
 import rylween.frontend.terminal.ShopServiceTerminalAdapter
@@ -322,6 +323,7 @@ import rylween.runtime.town.TownSessionResultStatus
 import rylween.runtime.town.TownSessionStep
 import rylween.runtime.town.charactersFor
 import rylween.runtime.town.offerFor
+import rylween.runtime.town.speakRuntimeContent
 import rylween.runtime.town.toSnapshot
 import rylween.runtime.tryDungeonDescent
 import rylween.runtime.unequipToInventory
@@ -339,6 +341,7 @@ import rylween.runtime.wilderness.HuntSession
 import rylween.runtime.wilderness.HuntSessionInput
 import rylween.runtime.wilderness.HuntSessionStatus
 import rylween.runtime.wilderness.HuntSessionStep
+import rylween.runtime.wilderness.MissionPostDungeonContinuation
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WildernessSessionInput
@@ -1626,7 +1629,7 @@ class RylweenDslValidationTest {
 
     @Test
     fun compiledGameUsesTypedViewCommandsInsteadOfNativeScreenCalls() {
-        val nativePaths = nativePathsIn(RylweenCompiledGame.nextDsl)
+        val nativePaths = analyzeScriptSources(RylweenCompiledGame.nextDsl).nativePaths
 
         assertFalse(
             nativePaths.any { it.startsWith("screen.") },
@@ -2939,7 +2942,7 @@ class RylweenDslValidationTest {
                 step = WildernessSessionStep.Explore,
             )
 
-        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(session)
+        val result = authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(session)
 
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertEquals(WildernessSessionResultStatus.HuntSucceeded, result.session.lastResult?.status)
@@ -3063,7 +3066,7 @@ class RylweenDslValidationTest {
         val runtime = RuntimeSessionState.singleParty(testParty(), hour = 12, currentTown = null)
 
         val first =
-            DungeonSessionTerminalAdapter(FakeTerminalPort())
+            authoredDungeonAdapter(FakeTerminalPort())
                 .runUntilBlocked(
                     DungeonSession.start(runtime, map, Dungeons.randomCave, levels = 1, dungeons = dungeons),
                 ).session
@@ -3094,7 +3097,7 @@ class RylweenDslValidationTest {
         val runtime = RuntimeSessionState.singleParty(testParty(), hour = 12, currentTown = null)
 
         val session =
-            DungeonSessionTerminalAdapter(FakeTerminalPort())
+            authoredDungeonAdapter(FakeTerminalPort())
                 .runUntilBlocked(
                     DungeonSession.start(runtime, map, Dungeons.randomCave, levels = 1, dungeons = dungeons),
                 ).session
@@ -3129,7 +3132,7 @@ class RylweenDslValidationTest {
         val terminal = FakeTerminalPort()
 
         val session =
-            DungeonSessionTerminalAdapter(terminal)
+            authoredDungeonAdapter(terminal)
                 .runUntilBlocked(
                     DungeonSession.start(runtime, map, Dungeons.fireShieldCave, levels = 1, dungeons = dungeons),
                 ).session
@@ -3280,7 +3283,7 @@ class RylweenDslValidationTest {
     fun dungeonPriestRevelationCanFindAndTakeAuthoredItem() {
         val terminal = FakeTerminalPort("Z", "1", "5", "T")
         val result =
-            DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredDungeonAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledDungeonSession(
                     dungeon = Dungeons.randomCave,
                     levels = 1,
@@ -3316,7 +3319,7 @@ class RylweenDslValidationTest {
         val inventory = fullInventory()
         val terminal = FakeTerminalPort("T")
         val result =
-            DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredDungeonAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledDungeonSession(
                     dungeon = Dungeons.randomCave,
                     levels = 1,
@@ -3340,7 +3343,7 @@ class RylweenDslValidationTest {
     fun dungeonFindObjectLeavePathIsSilent() {
         val terminal = FakeTerminalPort("L")
         val result =
-            DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredDungeonAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledDungeonSession(
                     dungeon = Dungeons.randomCave,
                     levels = 1,
@@ -3363,7 +3366,7 @@ class RylweenDslValidationTest {
         val inventory = fullInventory()
         val terminal = FakeTerminalPort("Z", "1", "5", "T")
         val result =
-            DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredDungeonAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledDungeonSession(
                     dungeon = Dungeons.randomCave,
                     levels = 1,
@@ -3622,7 +3625,7 @@ class RylweenDslValidationTest {
     @Test
     fun tammysPrisonStaysArmedUntilRescueThenClears() {
         val waiting =
-            DungeonSessionTerminalAdapter(FakeTerminalPort(), compiledTextRenderer())
+            authoredDungeonAdapter(FakeTerminalPort(), compiledTextRenderer())
                 .runUntilBlocked(
                     compiledDungeonSession(
                         dungeon = Dungeons.ogreCave,
@@ -3634,7 +3637,7 @@ class RylweenDslValidationTest {
                 ).session
 
         val rescued =
-            DungeonSessionTerminalAdapter(FakeTerminalPort(""), compiledTextRenderer())
+            authoredDungeonAdapter(FakeTerminalPort(""), compiledTextRenderer())
                 .runUntilBlocked(
                     compiledDungeonSession(
                         dungeon = Dungeons.ogreCave,
@@ -3662,7 +3665,7 @@ class RylweenDslValidationTest {
             DungeonEvents.deepEncounter to EncounterTiers.deep,
         ).forEach { (event, tier) ->
             val result =
-                DungeonSessionTerminalAdapter(FakeTerminalPort(), compiledTextRenderer()).runUntilBlocked(
+                authoredDungeonAdapter(FakeTerminalPort(), compiledTextRenderer()).runUntilBlocked(
                     compiledDungeonSession(
                         dungeon = Dungeons.randomCave,
                         levels = 1,
@@ -3698,7 +3701,7 @@ class RylweenDslValidationTest {
             )
         val dropTerminal = FakeTerminalPort("L", "A")
         val dropResult =
-            DungeonSessionTerminalAdapter(dropTerminal, compiledTextRenderer()).runUntilBlocked(
+            authoredDungeonAdapter(dropTerminal, compiledTextRenderer()).runUntilBlocked(
                 compiledDungeonSession(
                     dungeon = Dungeons.randomCave,
                     levels = 1,
@@ -3716,7 +3719,7 @@ class RylweenDslValidationTest {
 
         val viewTerminal = FakeTerminalPort("V", "A")
         val viewResult =
-            DungeonSessionTerminalAdapter(viewTerminal, compiledTextRenderer()).runUntilBlocked(
+            authoredDungeonAdapter(viewTerminal, compiledTextRenderer()).runUntilBlocked(
                 compiledDungeonSession(
                     dungeon = Dungeons.randomCave,
                     levels = 1,
@@ -4509,7 +4512,7 @@ class RylweenDslValidationTest {
         val content = RylweenCompiledGame.nextDsl
         val terminal = FakeTerminalPort("A", "1")
         val result =
-            InventoryItemUseTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredInventoryItemUseAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 InventoryItemUseSession.start(
                     runtime =
                         RuntimeSessionState.singleParty(
@@ -4545,7 +4548,7 @@ class RylweenDslValidationTest {
     fun inventoryItemUseCanReadyWeaponFromSameMenu() {
         val terminal = FakeTerminalPort("A", "1")
         val result =
-            InventoryItemUseTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredInventoryItemUseAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 InventoryItemUseSession.start(
                     runtime =
                         RuntimeSessionState.singleParty(
@@ -4604,7 +4607,7 @@ class RylweenDslValidationTest {
     fun townTerminalAdapterDispatchesShopAndLeaveFlows() {
         val terminal = FakeTerminalPort("M", "B", "A", "99", "P", "L", "L")
         val session =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.merchant),
                     townSystem = testTownSystem(Buildings.merchant),
@@ -4656,7 +4659,7 @@ class RylweenDslValidationTest {
     fun townTerminalAdapterRunsLeaveEquipmentPromptBeforeExit() {
         val terminal = FakeTerminalPort("L", "Y", "A", "1", "Y", "B", "1")
         val session =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.merchant),
                     townSystem = testTownSystem(Buildings.merchant),
@@ -4688,7 +4691,7 @@ class RylweenDslValidationTest {
     fun townTerminalAdapterRunsNativeServiceBridgeAndReturnsToMenu() {
         val terminal = FakeTerminalPort("C", "L")
         val session =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -4776,7 +4779,7 @@ class RylweenDslValidationTest {
             )
         val terminal = FakeTerminalPort("CHURCH", "LEAVE")
         val session =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = townSystem,
@@ -4825,7 +4828,7 @@ class RylweenDslValidationTest {
             )
 
         val session =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -4865,7 +4868,7 @@ class RylweenDslValidationTest {
             )
 
         val session =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -4889,7 +4892,7 @@ class RylweenDslValidationTest {
             )
 
         val session =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -4907,7 +4910,7 @@ class RylweenDslValidationTest {
     @Test
     fun townTerminalAdapterRunsAuthoredChurchHealingBranch() {
         val session =
-            TownSessionTerminalAdapter(FakeTerminalPort("C", "H", "1", "P", "L", "L")).runUntilBlocked(
+            authoredTownAdapter(FakeTerminalPort("C", "H", "1", "P", "L", "L")).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -4930,7 +4933,7 @@ class RylweenDslValidationTest {
     @Test
     fun townTerminalAdapterRunsAuthoredChurchHealingBrokeBranch() {
         val session =
-            TownSessionTerminalAdapter(FakeTerminalPort("C", "H", "1", "P", "L", "L")).runUntilBlocked(
+            authoredTownAdapter(FakeTerminalPort("C", "H", "1", "P", "L", "L")).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -4953,7 +4956,7 @@ class RylweenDslValidationTest {
     @Test
     fun townTerminalAdapterRunsAuthoredChurchEnergizeBranch() {
         val session =
-            TownSessionTerminalAdapter(FakeTerminalPort("C", "E", "1", "P", "L", "L")).runUntilBlocked(
+            authoredTownAdapter(FakeTerminalPort("C", "E", "1", "P", "L", "L")).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -4982,7 +4985,7 @@ class RylweenDslValidationTest {
     @Test
     fun townTerminalAdapterRunsAuthoredChurchRaiseBranch() {
         val session =
-            TownSessionTerminalAdapter(FakeTerminalPort("C", "R", "1", "P", "L", "L")).runUntilBlocked(
+            authoredTownAdapter(FakeTerminalPort("C", "R", "1", "P", "L", "L")).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -5012,7 +5015,7 @@ class RylweenDslValidationTest {
     fun townTerminalAdapterKeepsAuthoredChurchLoopAfterStopBranch() {
         val terminal = FakeTerminalPort("C", "H", "1", "L", "L")
         val session =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -5030,7 +5033,7 @@ class RylweenDslValidationTest {
     @Test
     fun townTerminalAdapterRunsAuthoredInnSupperBranch() {
         val session =
-            TownSessionTerminalAdapter(FakeTerminalPort("I", "Y", "", "N", "N", "L", "L"))
+            authoredTownAdapter(FakeTerminalPort("I", "Y", "", "N", "N", "L", "L"))
                 .runUntilBlocked(
                     TownSession.start(
                         town = testTown(Buildings.inn),
@@ -5054,7 +5057,7 @@ class RylweenDslValidationTest {
     @Test
     fun townTerminalAdapterRunsAuthoredInnDrinkBranch() {
         val session =
-            TownSessionTerminalAdapter(FakeTerminalPort("I", "N", "Y", "D", "N", "L", "L"))
+            authoredTownAdapter(FakeTerminalPort("I", "N", "Y", "D", "N", "L", "L"))
                 .runUntilBlocked(
                     TownSession.start(
                         town = testTown(Buildings.inn),
@@ -5078,7 +5081,7 @@ class RylweenDslValidationTest {
     @Test
     fun townTerminalAdapterRunsAuthoredInnLodgingBranchWithRealmAndPartyRecovery() {
         val session =
-            TownSessionTerminalAdapter(FakeTerminalPort("I", "N", "N", "Y", "T", "", "L"))
+            authoredTownAdapter(FakeTerminalPort("I", "N", "N", "Y", "T", "", "L"))
                 .runUntilBlocked(
                     TownSession.start(
                         town = testTown(Buildings.inn),
@@ -5111,7 +5114,7 @@ class RylweenDslValidationTest {
     fun townTerminalAdapterRunsInnChitchatThroughReusableSpeakSession() {
         val terminal = FakeTerminalPort("I", "N", "N", "N", "C", "1", "C", "B", "L", "L")
         val session =
-            TownSessionTerminalAdapter(
+            authoredTownAdapter(
                 terminal,
                 serviceBridge = StatefulScriptBridge(terminal, speakContent = testSpeakContent()),
             ).runUntilBlocked(
@@ -5136,7 +5139,7 @@ class RylweenDslValidationTest {
     fun townTerminalAdapterRunsTavernSpeakQuestionThroughReusableSpeakSession() {
         val terminal = FakeTerminalPort("T", "S", "1", "Q", "P", "B", "L", "L")
         val session =
-            TownSessionTerminalAdapter(
+            authoredTownAdapter(
                 terminal,
                 serviceBridge = StatefulScriptBridge(terminal, speakContent = testSpeakContent()),
             ).runUntilBlocked(
@@ -5272,7 +5275,7 @@ class RylweenDslValidationTest {
                 itemRecords = compiledItemRecords(),
             )
 
-        val blocked = TownSessionTerminalAdapter(FakeTerminalPort("T", "B")).runUntilBlocked(start)
+        val blocked = authoredTownAdapter(FakeTerminalPort("T", "B")).runUntilBlocked(start)
         val blockedStep = blocked.session.step as TownSessionStep.NativeService
 
         assertTrue(blocked.status is TerminalRunStatus.Waiting)
@@ -5280,7 +5283,7 @@ class RylweenDslValidationTest {
         assertEquals(Items.rope, blocked.session.party.inventoryItem(1))
         assertTrue(blockedStep.continuation?.randomItemOfferSession?.step is RandomItemOfferStep.DropSlot)
 
-        val resumed = TownSessionTerminalAdapter(FakeTerminalPort("A", "L", "L", "N")).runUntilBlocked(blocked.session)
+        val resumed = authoredTownAdapter(FakeTerminalPort("A", "L", "L", "N")).runUntilBlocked(blocked.session)
 
         assertTrue(resumed.status is TerminalRunStatus.Finished)
         assertEquals(200, resumed.session.party.resources.gold)
@@ -5303,7 +5306,7 @@ class RylweenDslValidationTest {
             )
 
         val result =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.church),
                     townSystem = testTownSystem(Buildings.church),
@@ -5347,7 +5350,7 @@ class RylweenDslValidationTest {
                 currentHour = 12,
             )
 
-        val blocked = TownSessionTerminalAdapter(FakeTerminalPort("C", "1")).runUntilBlocked(start)
+        val blocked = authoredTownAdapter(FakeTerminalPort("C", "1")).runUntilBlocked(start)
         val blockedStep = blocked.session.step as TownSessionStep.NativeService
 
         assertTrue(blocked.status is TerminalRunStatus.Waiting)
@@ -5360,7 +5363,7 @@ class RylweenDslValidationTest {
         )
         assertEquals(1, blockedStep.continuation?.locals?.get("member"))
 
-        val resumed = TownSessionTerminalAdapter(FakeTerminalPort("", "L")).runUntilBlocked(blocked.session)
+        val resumed = authoredTownAdapter(FakeTerminalPort("", "L")).runUntilBlocked(blocked.session)
 
         assertTrue(resumed.status is TerminalRunStatus.Finished)
         assertEquals(5, resumed.session.party.resources.gold)
@@ -5394,7 +5397,7 @@ class RylweenDslValidationTest {
 
         val terminal = FakeTerminalPort("C")
         val blocked =
-            TownSessionTerminalAdapter(
+            authoredTownAdapter(
                 terminal,
                 renderer = TerminalTextRenderer(prompts = GamePromptsModel(pauseVerbs = listOf("Hammer"))),
             ).runUntilBlocked(start)
@@ -5411,7 +5414,7 @@ class RylweenDslValidationTest {
         )
         assertTrue("(Hammer RETURN key)" in terminal.output)
 
-        val resumed = TownSessionTerminalAdapter(FakeTerminalPort("", "L")).runUntilBlocked(blocked.session)
+        val resumed = authoredTownAdapter(FakeTerminalPort("", "L")).runUntilBlocked(blocked.session)
 
         assertTrue(resumed.status is TerminalRunStatus.Finished)
         assertEquals(7, resumed.session.realm.hour)
@@ -5427,7 +5430,7 @@ class RylweenDslValidationTest {
                 party = testParty(gold = 10),
                 currentHour = 12,
             )
-        val result = TownSessionTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(session)
+        val result = authoredTownAdapter(FakeTerminalPort("X")).runUntilBlocked(session)
 
         assertTrue(result.session.step is TownSessionStep.Menu)
         assertEquals(session.party, result.session.party)
@@ -5832,7 +5835,7 @@ class RylweenDslValidationTest {
         val content = RylweenCompiledGame.nextDsl
 
         val result =
-            TownSessionTerminalAdapter(FakeTerminalPort("C", "L", "L")).runUntilBlocked(
+            authoredTownAdapter(FakeTerminalPort("C", "L", "L")).runUntilBlocked(
                 compiledTownSession(
                     party =
                         game.states
@@ -6257,7 +6260,7 @@ class RylweenDslValidationTest {
         val hut = Wilderness.xy(12, 11)
         val terminal = FakeTerminalPort("E", "T", "1", "B", "L")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party = testParty(food = 100, timeLeft = 200, restedHours = 14).copy(position = hut),
                     npcs = listOf(NpcPlacement(Npcs.marcus, hut)),
@@ -6327,7 +6330,7 @@ class RylweenDslValidationTest {
                     ),
                 hour = 23,
             )
-        val result = WildernessSessionTerminalAdapter(FakeTerminalPort()).runUntilBlocked(session)
+        val result = authoredWildernessAdapter(FakeTerminalPort()).runUntilBlocked(session)
         val party = result.session.party
 
         assertTrue(result.status is TerminalRunStatus.Waiting)
@@ -6351,7 +6354,7 @@ class RylweenDslValidationTest {
                 party = testParty(food = 10, timeLeft = 199, restedHours = -3),
                 hour = 12,
             )
-        val result = WildernessSessionTerminalAdapter(terminal).runUntilBlocked(session)
+        val result = authoredWildernessAdapter(terminal).runUntilBlocked(session)
 
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertEquals(
@@ -6368,7 +6371,7 @@ class RylweenDslValidationTest {
     fun wildernessOutOfMovesUsesSaveOrQuitPrompt() {
         val terminal = FakeTerminalPort("Q")
         val result =
-            WildernessSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredWildernessAdapter(terminal).runUntilBlocked(
                 compiledWildernessSession(
                     party = testParty(food = 10, restedHours = 14),
                 ),
@@ -6389,7 +6392,7 @@ class RylweenDslValidationTest {
                 (1..12).map { y -> if (y == 10) mapRow(12 to 'g') else mapRow() },
             )
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(food = 100, timeLeft = 200, restedHours = 14)
@@ -6408,7 +6411,7 @@ class RylweenDslValidationTest {
     @Test
     fun wildernessMovementAcceptsNumberKeysAndArrowAliases() {
         val arrowResult =
-            WildernessSessionTerminalAdapter(FakeTerminalPort(InputAliases.ArrowDown)).runUntilBlocked(
+            authoredWildernessAdapter(FakeTerminalPort(InputAliases.ArrowDown)).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(food = 100, timeLeft = 200, restedHours = 14)
@@ -6416,7 +6419,7 @@ class RylweenDslValidationTest {
                 ),
             )
         val wordAliasResult =
-            WildernessSessionTerminalAdapter(FakeTerminalPort("UP")).runUntilBlocked(
+            authoredWildernessAdapter(FakeTerminalPort("UP")).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(food = 100, timeLeft = 200, restedHours = 14)
@@ -6436,7 +6439,7 @@ class RylweenDslValidationTest {
     fun wildernessInventoryCommandRunsGenericItemUseSession() {
         val terminal = FakeTerminalPort("Q", "A", "1")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -6468,7 +6471,7 @@ class RylweenDslValidationTest {
     fun wildernessJournalCommandShowsAuthoredPartyJournal() {
         val terminal = FakeTerminalPort("J", "")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -6561,7 +6564,7 @@ class RylweenDslValidationTest {
     fun wildernessCastSpellKeyRejectsNonPriest() {
         val terminal = FakeTerminalPort("Z", "1")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party = testParty(food = 100, timeLeft = 200, restedHours = 14),
                 ),
@@ -6578,7 +6581,7 @@ class RylweenDslValidationTest {
     fun wildernessCastSpellKeyRunsPriestHealingScript() {
         val terminal = FakeTerminalPort("Z", "1", "1", "1")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -6609,7 +6612,7 @@ class RylweenDslValidationTest {
     fun wildernessPriestRestorationFullyHealsAndSpendsMana() {
         val terminal = FakeTerminalPort("Z", "1", "2", "1")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -6651,7 +6654,7 @@ class RylweenDslValidationTest {
             )
         val terminal = FakeTerminalPort("Z", "1", "3", "2")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(party = party),
             )
 
@@ -6669,7 +6672,7 @@ class RylweenDslValidationTest {
     fun dungeonPriestBanishSetsRealmFlagAndSpendsMana() {
         val terminal = FakeTerminalPort("Z", "1", "4", "")
         val result =
-            DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredDungeonAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledDungeonSession(
                     dungeon = Dungeons.randomCave,
                     levels = 1,
@@ -6697,7 +6700,7 @@ class RylweenDslValidationTest {
     fun wildernessPriestEarthquakeLeavePathSpendsManaWithoutEnteringDungeon() {
         val terminal = FakeTerminalPort("Z", "1", "7", "L")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -6725,7 +6728,7 @@ class RylweenDslValidationTest {
     fun wildernessMoveCanFindAndLeaveCave() {
         val terminal = FakeTerminalPort("2", "L")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(food = 100, timeLeft = 200, restedHours = 14)
@@ -6744,7 +6747,7 @@ class RylweenDslValidationTest {
     fun wildernessCaveEntryHandsOffToDungeonRuntimeShape() {
         val terminal = FakeTerminalPort("2", "E")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(food = 100, timeLeft = 200, restedHours = 14)
@@ -6910,7 +6913,7 @@ class RylweenDslValidationTest {
             )
         val saveTerminal = FakeTerminalPort()
         val blocked =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = saveTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(saveTerminal, compiledTextRenderer()),
@@ -6933,7 +6936,7 @@ class RylweenDslValidationTest {
         val resumedCastle = (resumed.step as WildernessSessionStep.Castle).session
         val resumeTerminal = FakeTerminalPort("")
         val finished =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = resumeTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(resumeTerminal, compiledTextRenderer()),
@@ -6989,7 +6992,7 @@ class RylweenDslValidationTest {
             )
         val saveTerminal = FakeTerminalPort()
         val blocked =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = saveTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(saveTerminal, compiledTextRenderer()),
@@ -7035,7 +7038,7 @@ class RylweenDslValidationTest {
             )
         val resumeTerminal = FakeTerminalPort()
         val finished =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = resumeTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(resumeTerminal, compiledTextRenderer()),
@@ -7106,7 +7109,7 @@ class RylweenDslValidationTest {
             )
         val saveTerminal = FakeTerminalPort()
         val blocked =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = saveTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(saveTerminal, compiledTextRenderer()),
@@ -7133,7 +7136,7 @@ class RylweenDslValidationTest {
                 ?: error("expected resumed reward grant child session")
         val resumeTerminal = FakeTerminalPort("A")
         val finished =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = resumeTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(resumeTerminal, compiledTextRenderer()),
@@ -7205,7 +7208,7 @@ class RylweenDslValidationTest {
             )
         val saveTerminal = FakeTerminalPort("B")
         val blocked =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = saveTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(saveTerminal, compiledTextRenderer()),
@@ -7232,7 +7235,7 @@ class RylweenDslValidationTest {
                 ?: error("expected resumed random-item offer child session")
         val resumeTerminal = FakeTerminalPort("A")
         val finished =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = resumeTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(resumeTerminal, compiledTextRenderer()),
@@ -7282,7 +7285,7 @@ class RylweenDslValidationTest {
             )
         val saveTerminal = FakeTerminalPort()
         val blocked =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = saveTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(saveTerminal, compiledTextRenderer()),
@@ -7309,7 +7312,7 @@ class RylweenDslValidationTest {
                 ?: error("expected resumed shop child session")
         val resumeTerminal = FakeTerminalPort("L")
         val finished =
-            CastleSessionTerminalAdapter(
+            authoredCastleAdapter(
                 terminal = resumeTerminal,
                 renderer = compiledTextRenderer(),
                 scriptBridge = compiledHost.compiledVmTerminalScriptBridge(resumeTerminal, compiledTextRenderer()),
@@ -7809,7 +7812,7 @@ class RylweenDslValidationTest {
         val terminal = FakeTerminalPort("2", "E")
         val map = WorldMapGrid.fromSourceRows((1..22).map { mapRow(width = 50) })
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -7843,7 +7846,7 @@ class RylweenDslValidationTest {
         val terminal = FakeTerminalPort("2", "E")
         val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow() })
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -7877,7 +7880,7 @@ class RylweenDslValidationTest {
     fun wildernessMoveCanOpenThunTempleBySpendingFiveGems() {
         val terminal = FakeTerminalPort("2", "", "", "Y", "")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 thunTempleApproachSession(
                     mapOf(
                         1 to Items.redGem,
@@ -7917,7 +7920,7 @@ class RylweenDslValidationTest {
                 dungeons = thunTempleTestDungeonSystem(),
             )
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 WildernessSession(
                     runtime =
                         RuntimeSessionState.singleParty(
@@ -7988,7 +7991,7 @@ class RylweenDslValidationTest {
             }
 
         val savedRun =
-            WildernessSessionTerminalAdapter(
+            authoredWildernessAdapter(
                 terminal = FakeTerminalPort("S"),
                 renderer = compiledTextRenderer(),
                 savePort = savePort,
@@ -8009,7 +8012,7 @@ class RylweenDslValidationTest {
                 realizeNpcs = false,
             )
         val finished =
-            WildernessSessionTerminalAdapter(
+            authoredWildernessAdapter(
                 terminal = FakeTerminalPort("A"),
                 renderer = compiledTextRenderer(),
             ).runUntilBlocked(resumed)
@@ -8077,7 +8080,7 @@ class RylweenDslValidationTest {
         val saveTerminal = FakeTerminalPort("S")
 
         val savedRun =
-            WildernessSessionTerminalAdapter(
+            authoredWildernessAdapter(
                 terminal = saveTerminal,
                 renderer = compiledTextRenderer(),
                 savePort = savePort,
@@ -8094,7 +8097,7 @@ class RylweenDslValidationTest {
             )
         val resumeTerminal = FakeTerminalPort("A")
         val finished =
-            WildernessSessionTerminalAdapter(
+            authoredWildernessAdapter(
                 terminal = resumeTerminal,
                 renderer = compiledTextRenderer(),
                 serviceBridge = compiledHost.compiledVmTerminalScriptBridge(resumeTerminal, compiledTextRenderer()),
@@ -8116,7 +8119,7 @@ class RylweenDslValidationTest {
     fun wildernessMoveToThunTempleWithoutFiveGemsDoesNotSpendOrEnter() {
         val terminal = FakeTerminalPort("2", "", "", "Y", "")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 thunTempleApproachSession(
                     mapOf(
                         1 to Items.redGem,
@@ -8139,7 +8142,7 @@ class RylweenDslValidationTest {
     fun wildernessCaveEntryRejectsWhenMovesAreTooLow() {
         val terminal = FakeTerminalPort("2", "E")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(food = 100, timeLeft = 11, restedHours = 14)
@@ -8158,7 +8161,7 @@ class RylweenDslValidationTest {
     fun wildernessMoveCanHandOffEncounterByAuthoredTier() {
         val terminal = FakeTerminalPort("2")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(food = 100, timeLeft = 200, restedHours = 14)
@@ -8182,7 +8185,7 @@ class RylweenDslValidationTest {
     fun wildernessMoveCanTriggerAuthoredBanditsMissionAndWaitInBattle() {
         val approachTerminal = FakeTerminalPort("2")
         val approach =
-            WildernessSessionTerminalAdapter(approachTerminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(approachTerminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -8204,7 +8207,7 @@ class RylweenDslValidationTest {
 
         val battleTerminal = FakeTerminalPort("")
         val result =
-            WildernessSessionTerminalAdapter(battleTerminal, compiledTextRenderer())
+            authoredWildernessAdapter(battleTerminal, compiledTextRenderer())
                 .runUntilBlocked(approach.session)
 
         assertTrue(result.status is TerminalRunStatus.Waiting)
@@ -8233,7 +8236,7 @@ class RylweenDslValidationTest {
                 equipment = EquipmentState(Items.deathBlade, Items.none),
             )
         val approach =
-            WildernessSessionTerminalAdapter(FakeTerminalPort("2"), compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(FakeTerminalPort("2"), compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -8247,12 +8250,12 @@ class RylweenDslValidationTest {
                 ),
             )
         val battle =
-            WildernessSessionTerminalAdapter(FakeTerminalPort(""), compiledTextRenderer())
+            authoredWildernessAdapter(FakeTerminalPort(""), compiledTextRenderer())
                 .runUntilBlocked(approach.session)
         val cargoTerminal = FakeTerminalPort("F", "A", "A", "F", "A", "B")
-        val cargo = WildernessSessionTerminalAdapter(cargoTerminal, compiledTextRenderer()).runUntilBlocked(battle.session)
+        val cargo = authoredWildernessAdapter(cargoTerminal, compiledTextRenderer()).runUntilBlocked(battle.session)
         val terminal = FakeTerminalPort("")
-        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(cargo.session)
+        val result = authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(cargo.session)
 
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertTrue(
@@ -8270,7 +8273,7 @@ class RylweenDslValidationTest {
     fun wildernessMoveCanTriggerAuthoredTrollToothMissionAndWaitInBattle() {
         val terminal = FakeTerminalPort("2")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -8308,7 +8311,7 @@ class RylweenDslValidationTest {
                 (1..12).map { y -> if (y == 10) mapRow(12 to 't') else mapRow() },
             )
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -8334,7 +8337,7 @@ class RylweenDslValidationTest {
     fun wildernessMoveCanCompleteAuthoredBorinMeetMissionAndAppendJournal() {
         val terminal = FakeTerminalPort("2", "", "", "", "", "", "")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -8368,7 +8371,7 @@ class RylweenDslValidationTest {
     fun wildernessMoveCanTriggerAuthoredKoboldVillageMissionAndWaitInBattle() {
         val terminal = FakeTerminalPort("2", "A", "")
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -8408,7 +8411,7 @@ class RylweenDslValidationTest {
                 (1..12).map { y -> if (y == 10) mapRow(12 to 'f') else mapRow() },
             )
         val result =
-            WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredWildernessAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 compiledWildernessSession(
                     party =
                         testParty(
@@ -9275,8 +9278,8 @@ class RylweenDslValidationTest {
     fun wildernessQuitConfirmationCanCancelOrFinish() {
         val session = compiledWildernessSession()
 
-        val cancelled = WildernessSessionTerminalAdapter(FakeTerminalPort("X", "N")).runUntilBlocked(session)
-        val finished = WildernessSessionTerminalAdapter(FakeTerminalPort("X", "Y")).runUntilBlocked(cancelled.session)
+        val cancelled = authoredWildernessAdapter(FakeTerminalPort("X", "N")).runUntilBlocked(session)
+        val finished = authoredWildernessAdapter(FakeTerminalPort("X", "Y")).runUntilBlocked(cancelled.session)
 
         assertTrue(cancelled.status is TerminalRunStatus.Waiting)
         assertTrue(cancelled.session.step is WildernessSessionStep.Explore)
@@ -9289,7 +9292,7 @@ class RylweenDslValidationTest {
     @Test
     fun wildernessQuitConfirmationBlocksForAnswer() {
         val session = compiledWildernessSession()
-        val result = WildernessSessionTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(session)
+        val result = authoredWildernessAdapter(FakeTerminalPort("X")).runUntilBlocked(session)
 
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertTrue(result.session.step is WildernessSessionStep.QuitConfirm)
@@ -9537,6 +9540,98 @@ class RylweenDslValidationTest {
             )
         }
 
+    private fun authoredScriptBridge(
+        terminal: TerminalPort,
+        renderer: TerminalTextRenderer = compiledTextRenderer(),
+        content: RuntimeContent = RylweenCompiledGame.nextDsl.runtimeContent(),
+        worldMap: WorldMapGrid? = null,
+        speakContent: SpeakRuntimeContent = content.speakRuntimeContent(),
+    ): ScriptBridge =
+        StatefulScriptBridge(
+            terminal = terminal,
+            speakContent = speakContent,
+            battleContent = content,
+            worldMap = worldMap,
+            renderer = renderer,
+        )
+
+    private fun authoredTownAdapter(
+        terminal: TerminalPort,
+        renderer: TerminalTextRenderer = compiledTextRenderer(),
+        serviceBridge: ScriptBridge = authoredScriptBridge(terminal, renderer),
+    ): TownSessionTerminalAdapter =
+        TownSessionTerminalAdapter(
+            terminal = terminal,
+            renderer = renderer,
+            serviceBridge = serviceBridge,
+        )
+
+    private fun authoredWildernessAdapter(
+        terminal: TerminalPort,
+        renderer: TerminalTextRenderer = compiledTextRenderer(),
+        serviceBridge: ScriptBridge = authoredScriptBridge(terminal, renderer),
+        savePort: RuntimeSavePort? = null,
+    ): WildernessSessionTerminalAdapter =
+        WildernessSessionTerminalAdapter(
+            terminal = terminal,
+            renderer = renderer,
+            serviceBridge = serviceBridge,
+            savePort = savePort,
+        )
+
+    private fun authoredDungeonAdapter(
+        terminal: TerminalPort,
+        renderer: TerminalTextRenderer = compiledTextRenderer(),
+        savePort: RuntimeSavePort? = null,
+        postDungeon: MissionPostDungeonContinuation? = null,
+        scriptBridge: ScriptBridge = authoredScriptBridge(terminal, renderer),
+    ): DungeonSessionTerminalAdapter =
+        DungeonSessionTerminalAdapter(
+            terminal = terminal,
+            renderer = renderer,
+            savePort = savePort,
+            postDungeon = postDungeon,
+            scriptBridge = scriptBridge,
+        )
+
+    private fun authoredCastleAdapter(
+        terminal: TerminalPort,
+        renderer: TerminalTextRenderer = compiledTextRenderer(),
+        savePort: RuntimeSavePort? = null,
+        scriptBridge: ScriptBridge = authoredScriptBridge(terminal, renderer),
+    ): CastleSessionTerminalAdapter =
+        CastleSessionTerminalAdapter(
+            terminal = terminal,
+            renderer = renderer,
+            savePort = savePort,
+            scriptBridge = scriptBridge,
+        )
+
+    private fun authoredInventoryItemUseAdapter(
+        terminal: TerminalPort,
+        renderer: TerminalTextRenderer = compiledTextRenderer(),
+        scriptBridge: ScriptBridge = authoredScriptBridge(terminal, renderer),
+    ): InventoryItemUseTerminalAdapter =
+        InventoryItemUseTerminalAdapter(
+            terminal = terminal,
+            renderer = renderer,
+            scriptBridge = scriptBridge,
+        )
+
+    private fun authoredPriestSpellAdapter(
+        terminal: TerminalPort,
+        renderer: TerminalTextRenderer = compiledTextRenderer(),
+        speakContent: SpeakRuntimeContent = compiledSpeakContent(),
+        content: RuntimeContent = RylweenCompiledGame.nextDsl.runtimeContent(),
+        worldMap: WorldMapGrid? = null,
+        scriptBridge: ScriptBridge = authoredScriptBridge(terminal, renderer, content, worldMap, speakContent),
+    ): PriestSpellTerminalAdapter =
+        PriestSpellTerminalAdapter(
+            terminal = terminal,
+            renderer = renderer,
+            scriptBridge = scriptBridge,
+        )
+
     private fun assertDungeonHandoffOutput(
         output: List<String>,
         dungeon: DungeonId,
@@ -9618,10 +9713,12 @@ class RylweenDslValidationTest {
                 )
             },
             drive = { terminal, session ->
-                TownSessionTerminalAdapter(
+                authoredTownAdapter(
                     terminal = terminal,
                     renderer = compiledTextRenderer(),
-                    serviceBridge = serviceBridge?.invoke(terminal),
+                    serviceBridge =
+                        serviceBridge?.invoke(terminal)
+                            ?: authoredScriptBridge(terminal, content = session.content),
                 ).runUntilBlocked(session)
             },
             checkpoints = checkpoints,
@@ -9667,7 +9764,16 @@ class RylweenDslValidationTest {
             inputs = inputs,
             start = session,
             drive = { terminal, start ->
-                DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(start)
+                authoredDungeonAdapter(
+                    terminal = terminal,
+                    renderer = compiledTextRenderer(),
+                    scriptBridge =
+                        authoredScriptBridge(
+                            terminal = terminal,
+                            content = start.content,
+                            worldMap = start.worldMap,
+                        ),
+                ).runUntilBlocked(start)
             },
             checkpoints =
                 checkpoints +
@@ -9691,10 +9797,16 @@ class RylweenDslValidationTest {
             inputs = inputs,
             start = start,
             drive = { terminal, session ->
-                WildernessSessionTerminalAdapter(
+                authoredWildernessAdapter(
                     terminal = terminal,
                     renderer = compiledTextRenderer(),
-                    serviceBridge = serviceBridge?.invoke(terminal),
+                    serviceBridge =
+                        serviceBridge?.invoke(terminal)
+                            ?: authoredScriptBridge(
+                                terminal = terminal,
+                                content = session.content,
+                                worldMap = session.worldMap,
+                            ),
                     savePort = savePort,
                 ).runUntilBlocked(session)
             },
@@ -9733,7 +9845,12 @@ class RylweenDslValidationTest {
             inputs = inputs,
             start = start,
             drive = { terminal, session ->
-                CastleSessionTerminalAdapter(terminal, compiledTextRenderer(), savePort).runUntilBlocked(session)
+                authoredCastleAdapter(
+                    terminal = terminal,
+                    renderer = compiledTextRenderer(),
+                    savePort = savePort,
+                    scriptBridge = authoredScriptBridge(terminal, content = session.content),
+                ).runUntilBlocked(session)
             },
             checkpoints = checkpoints,
         ).run()
@@ -9777,7 +9894,16 @@ class RylweenDslValidationTest {
                 )
             },
             drive = { terminal, start ->
-                WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(start)
+                authoredWildernessAdapter(
+                    terminal = terminal,
+                    renderer = compiledTextRenderer(),
+                    serviceBridge =
+                        authoredScriptBridge(
+                            terminal = terminal,
+                            content = start.content,
+                            worldMap = start.worldMap,
+                        ),
+                ).runUntilBlocked(start)
             },
             checkpoints =
                 checkpoints +
@@ -10975,7 +11101,7 @@ class RylweenDslValidationTest {
     ): Pair<FakeTerminalPort, TerminalAdapterResult<TownSession>> {
         val terminal = FakeTerminalPort("T", "R", "", "L", "L")
         val result =
-            TownSessionTerminalAdapter(
+            authoredTownAdapter(
                 terminal,
                 renderer = compiledTextRenderer(),
                 serviceBridge =
@@ -11011,7 +11137,7 @@ class RylweenDslValidationTest {
     ): Pair<FakeTerminalPort, TerminalAdapterResult<TownSession>> {
         val terminal = FakeTerminalPort("T", "R", "", "L", "L")
         val session =
-            TownSessionTerminalAdapter(
+            authoredTownAdapter(
                 terminal,
                 serviceBridge = StatefulScriptBridge(terminal, speakContent = testSpeakContent()),
             ).runUntilBlocked(
@@ -11030,7 +11156,7 @@ class RylweenDslValidationTest {
     private fun runTavernRandomOfferTownTest(rngState: Long? = null): Pair<FakeTerminalPort, TerminalAdapterResult<TownSession>> {
         val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
         val session =
-            TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            authoredTownAdapter(terminal).runUntilBlocked(
                 TownSession.start(
                     town = testTown(Buildings.tavern),
                     townSystem = testTownSystem(Buildings.tavern),
@@ -11049,7 +11175,7 @@ class RylweenDslValidationTest {
         val town = content.towns.single { it.id == Towns.thord.id }
         val terminal = FakeTerminalPort(*terminalInputs)
         val session =
-            TownSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            authoredTownAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
                 TownSession.start(
                     town = town,
                     party = testParty(gold = 1000, level = 5),

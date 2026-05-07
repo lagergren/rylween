@@ -4,7 +4,11 @@
  * `TerminalScriptBridge.kt` delegates nested reward, offer, and conversation
  * flows here so script execution can keep emitting [rylween.engine.EngineTraceEvent]
  * values without embedding terminal UI policy into the engine port.
+ *
+ * This file belongs to the authored interpreter/oracle surface. Compiled VM
+ * hosts model the same boundaries through `CompiledVmChildRequest` instead.
  */
+@file:rylween.runtime.AuthoredScriptOracleApi
 
 package rylween.frontend.terminal
 

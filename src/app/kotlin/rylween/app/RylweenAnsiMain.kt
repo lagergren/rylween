@@ -64,7 +64,6 @@ import rylween.dsl.layout
 import rylween.dsl.line
 import rylween.dsl.lines
 import rylween.dsl.matches
-import rylween.dsl.runtimeContent
 import rylween.dsl.stateId
 import rylween.dsl.staticScreen
 import rylween.dsl.terrain
@@ -78,7 +77,6 @@ import rylween.engine.RuntimeEventScope
 import rylween.engine.RuntimeEventSink
 import rylween.engine.RuntimeStartupTarget
 import rylween.engine.RylweenKotlinEngine
-import rylween.engine.TraceEnginePort
 import rylween.engine.createInitialWorldSnapshot
 import rylween.engine.runtimeEvent
 import rylween.engine.selectStartupState
@@ -96,7 +94,6 @@ import rylween.frontend.terminal.PartyViewTerminalAdapter
 import rylween.frontend.terminal.PriestSpellTerminalAdapter
 import rylween.frontend.terminal.ScriptBridge
 import rylween.frontend.terminal.ScriptBridgeStatus
-import rylween.frontend.terminal.StatefulScriptBridge
 import rylween.frontend.terminal.TerminalInputRejection
 import rylween.frontend.terminal.TerminalPort
 import rylween.frontend.terminal.TerminalRunStatus
@@ -127,7 +124,6 @@ import rylween.runtime.inputForToken
 import rylween.runtime.party
 import rylween.runtime.prompt
 import rylween.runtime.toRuntimeSessionState
-import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WildernessSessionInput
 import rylween.runtime.wilderness.WildernessSessionResultStatus
@@ -183,27 +179,26 @@ private data class AnsiRuntimeConfig(
     val logSpec: String = "",
     val logLevel: String = "",
     val dumpBundle: Boolean = false,
-    val scriptVmMode: ScriptVmMode = ScriptVmMode.Authored,
+    val scriptVmMode: ScriptVmMode = ScriptVmMode.Compiled,
 )
 
 private enum class ScriptVmMode(
     val cliName: String,
 ) {
-    Authored("authored"),
     Compiled("compiled"),
 }
 
 private fun scriptVmModeArg(value: String): ScriptVmMode =
     when (val normalized = value.lowercase()) {
-        ScriptVmMode.Authored.cliName,
+        "authored",
         "interpreter",
         "op",
-        -> ScriptVmMode.Authored
+        -> error("authored Op execution is a test-only oracle; production launchers run the compiled VM")
         ScriptVmMode.Compiled.cliName,
         "compiled-vm",
         "vm",
         -> ScriptVmMode.Compiled
-        else -> error("unknown script VM mode '$normalized'; expected authored or compiled")
+        else -> error("unknown script VM mode '$normalized'; expected compiled")
     }
 
 object RylweenAnsiMain {
@@ -268,7 +263,6 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
                     bundleFile = bundleFile,
                     game = game,
                     renderer = renderer,
-                    speakContent = engine.speakContent(),
                     log = log,
                 )
             if (config.newGame || config.loadFile != null || config.state != null) {
@@ -583,9 +577,9 @@ private fun bootAnsiWildernessSession(
 /**
  * Creates the script bridge used by ANSI child sessions for service roots.
  *
- * The factory is the J2.6 handoff point: authored mode returns the legacy
- * `Op` interpreter bridge, while compiled mode returns a bridge over the
- * loaded J1 bundle VM without changing terminal session adapters.
+ * The factory is the J2.6/J2a handoff point: production ANSI sessions receive
+ * a bridge over the loaded J1 bundle VM without changing terminal session
+ * adapters.
  */
 private fun interface AnsiScriptBridgeFactory {
     fun create(
@@ -600,31 +594,15 @@ private fun buildAnsiScriptBridgeFactory(
     bundleFile: File?,
     game: RylweenModel,
     renderer: TerminalTextRenderer,
-    speakContent: SpeakRuntimeContent,
     log: RylweenLog,
 ): AnsiScriptBridgeFactory {
     log.audit("scriptVm", "mode=${mode.cliName}")
-    return when (mode) {
-        ScriptVmMode.Authored ->
-            AnsiScriptBridgeFactory { terminal, battleContent, worldMap ->
-                StatefulScriptBridge(
-                    terminal,
-                    engine = TraceEnginePort(eventSink = log),
-                    speakContent = speakContent,
-                    battleContent = battleContent,
-                    worldMap = worldMap,
-                    renderer = renderer,
-                )
-            }
-        ScriptVmMode.Compiled -> {
-            val host =
-                KotlinHeadlessHost.fromExternalBundleCompiledVm(
-                    bundleFile?.readBytes() ?: game.toExternalBundleArtifact(),
-                )
-            AnsiScriptBridgeFactory { terminal, _, _ ->
-                host.compiledVmTerminalScriptBridge(terminal, renderer)
-            }
-        }
+    val host =
+        KotlinHeadlessHost.fromExternalBundleCompiledVm(
+            bundleFile?.readBytes() ?: game.toExternalBundleArtifact(),
+        )
+    return AnsiScriptBridgeFactory { terminal, _, _ ->
+        host.compiledVmTerminalScriptBridge(terminal, renderer)
     }
 }
 
@@ -734,7 +712,11 @@ private class RylweenAnsiGame(
 ) {
     private val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
     private val port = AnsiTerminalPort(terminal, screen)
-    private val serviceBridge = scriptBridgeFactory.create(port, content.runtimeContent(), worldMap = null)
+
+    private fun scriptBridge(
+        battleContent: RuntimeContent,
+        worldMap: WorldMapGrid?,
+    ): ScriptBridge = scriptBridgeFactory.create(port, battleContent, worldMap)
 
     fun run(initial: WildernessSession) {
         var session = initial
@@ -825,18 +807,26 @@ private class RylweenAnsiGame(
                         session.startDungeonFromHandoff().logged("dungeonHandoff", session)
                     }
                     is WildernessSessionStep.Dungeon -> {
+                        val bridge = scriptBridge(session.content, session.worldMap)
                         val result =
                             DungeonSessionTerminalAdapter(
                                 terminal = port,
                                 renderer = renderer,
                                 savePort = savePort,
                                 postDungeon = step.postDungeon,
+                                scriptBridge = bridge,
                             ).runUntilBlocked(step.session)
                         val updated = session.replaceDungeonSession(result.session)
                         completeChildStep(updated, session, "dungeon", result.status, "dungeon step limit reached") ?: return
                     }
                     is WildernessSessionStep.Castle -> {
-                        val result = CastleSessionTerminalAdapter(port, renderer, savePort).runUntilBlocked(step.session)
+                        val result =
+                            CastleSessionTerminalAdapter(
+                                terminal = port,
+                                renderer = renderer,
+                                savePort = savePort,
+                                scriptBridge = scriptBridge(session.content, session.worldMap),
+                            ).runUntilBlocked(step.session)
                         val updated = session.replaceCastleSession(result.session)
                         completeChildStep(updated, session, "castle", result.status, "Castle step limit reached") ?: return
                     }
@@ -844,13 +834,20 @@ private class RylweenAnsiGame(
                         if (enteringTown) {
                             screen.writeText(listOf("Entering town...", ""))
                         }
-                        val result = TownSessionTerminalAdapter(port, renderer, serviceBridge).runUntilBlocked(step.session)
+                        val result =
+                            TownSessionTerminalAdapter(
+                                terminal = port,
+                                renderer = renderer,
+                                serviceBridge = scriptBridge(session.content, session.worldMap),
+                            ).runUntilBlocked(step.session)
                         val updated = session.replaceTownSession(result.session)
                         completeChildStep(updated, session, "town", result.status, "town step limit reached") ?: return
                     }
                     is WildernessSessionStep.Hut -> {
                         val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
-                        val result = serviceBridge.run(step.scene.hutService(), step.scene, continuation)
+                        val result =
+                            scriptBridge(session.content, session.worldMap)
+                                .run(step.scene.hutService(), step.scene, continuation)
                         port.writeScriptEvents(result.events, renderer, result.runtime)
                         when (result.status) {
                             ScriptBridgeStatus.Finished -> session.finishHut(result.runtime).logged("hut", session)
@@ -882,7 +879,12 @@ private class RylweenAnsiGame(
                         completeChildStep(updated, session, "hunt", result.status, "hunt step limit reached") ?: return
                     }
                     is WildernessSessionStep.InventoryItemUse -> {
-                        val result = InventoryItemUseTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                        val result =
+                            InventoryItemUseTerminalAdapter(
+                                terminal = port,
+                                renderer = renderer,
+                                scriptBridge = scriptBridge(session.content, session.worldMap),
+                            ).runUntilBlocked(step.session)
                         val updated = session.replaceInventoryItemUseSession(result.session)
                         completeChildStep(updated, session, "inventoryUse", result.status, "inventory step limit reached") ?: return
                     }
@@ -909,17 +911,16 @@ private class RylweenAnsiGame(
                     is WildernessSessionStep.PriestSpell -> {
                         val result =
                             PriestSpellTerminalAdapter(
-                                port,
-                                renderer,
-                                content = session.content,
-                                worldMap = session.worldMap,
+                                terminal = port,
+                                renderer = renderer,
+                                scriptBridge = scriptBridge(session.content, session.worldMap),
                             ).runUntilBlocked(step.session)
                         val updated = session.replacePriestSpellSession(result.session)
                         completeChildStep(updated, session, "priestSpell", result.status, "priest spell step limit reached") ?: return
                     }
                     is WildernessSessionStep.Mission -> {
                         val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
-                        val missionBridge = scriptBridgeFactory.create(port, session.content, session.worldMap)
+                        val missionBridge = scriptBridge(session.content, session.worldMap)
                         val result = missionBridge.run(step.mission.service(), step.scene, continuation)
                         when (result.status) {
                             ScriptBridgeStatus.Finished ->
@@ -2212,8 +2213,8 @@ Verbose-help section:
   Bundle boot:
     --bundle <file> reads a J1 compiled JSON bundle, verifies its hash and runtime facade,
     then boots the same Kotlin runtime/session stack from that artifact.
-    --script-vm compiled runs service roots through the J2 compiled VM contract. The default
-    --script-vm authored keeps the authored Op interpreter as the compiler/test oracle.
+    Script roots run through the J2 compiled VM contract. The old authored Op
+    interpreter is retained only for annotated test/parity oracle APIs.
 
   Logging detail:
     RYL_LOG is a comma-separated sink list. stderr writes to standard error,
@@ -2249,8 +2250,8 @@ private class RylweenAnsiCommand : CliktCommand(name = "rylween") {
     private val scriptVmMode by option(
         "--script-vm",
         envvar = "RYL_SCRIPT_VM",
-        help = "authored|compiled; selects the script VM used by ANSI service roots.",
-    ).convert { scriptVmModeArg(it) }.default(ScriptVmMode.Authored)
+        help = "compiled, compiled-vm, or vm; production ANSI service roots always use the compiled VM.",
+    ).convert { scriptVmModeArg(it) }.default(ScriptVmMode.Compiled)
     private val loadFileOpt by option(
         "--load",
         help = "Runtime snapshot file to boot instead of --state.",

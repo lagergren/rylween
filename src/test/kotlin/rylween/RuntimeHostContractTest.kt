@@ -21,6 +21,7 @@ import rylween.engine.RylweenRuntimeHostContract
 import rylween.frontend.terminal.BattleSessionTerminalAdapter
 import rylween.frontend.terminal.CastleSessionTerminalAdapter
 import rylween.frontend.terminal.DungeonSessionTerminalAdapter
+import rylween.frontend.terminal.StatefulScriptBridge
 import rylween.frontend.terminal.TerminalRunStatus
 import rylween.frontend.terminal.TerminalTextContext
 import rylween.frontend.terminal.TownSessionTerminalAdapter
@@ -54,6 +55,7 @@ import rylween.runtime.town.ShopServiceStep
 import rylween.runtime.town.SpeakStep
 import rylween.runtime.town.TownSession
 import rylween.runtime.town.TownSessionStep
+import rylween.runtime.town.speakRuntimeContent
 import rylween.runtime.vm.RecordingCompiledVmHost
 import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WildernessSessionInput
@@ -82,7 +84,7 @@ class RuntimeHostContractTest {
         RylweenRuntimeHostContract.standard.requirePlayable(surface)
 
         assertEquals(RuntimeHostStatus.PlayableRuntime, surface.status)
-        assertNotEquals(RuntimeScriptExecutionStrategy.CompiledVm, surface.scriptExecution)
+        assertEquals(RuntimeScriptExecutionStrategy.CompiledVm, surface.scriptExecution)
     }
 
     @Test
@@ -549,6 +551,13 @@ class RuntimeHostContractTest {
                 CastleSessionTerminalAdapter(
                     terminal = terminal,
                     renderer = content.terminalTextRenderer(),
+                    scriptBridge =
+                        StatefulScriptBridge(
+                            terminal = terminal,
+                            speakContent = runtimeContent.speakRuntimeContent(),
+                            battleContent = runtimeContent,
+                            renderer = content.terminalTextRenderer(),
+                        ),
                 ).runUntilBlocked(session)
             },
             checkpoints =

@@ -19,7 +19,6 @@ plugins {
 enum class AnsiScriptVmMode(
     val cliArgument: String,
 ) {
-    Authored("authored"),
     Compiled("compiled"),
 }
 
@@ -2150,7 +2149,7 @@ val checkKotlinAnsiServerBoot: TaskProvider<CheckAnsiServerLauncherTask> by task
     CheckAnsiServerLauncherTask::class,
 ) {
     group = "verification"
-    description = "Boots the ANSI launcher in --serve socket mode and verifies a client can drive a town/shop route."
+    description = "Boots the ANSI launcher in --serve socket mode with the compiled VM and verifies a town/shop route."
 
     dependsOn(installKotlinAnsi)
     executableFile.set(kotlinAnsiExecutable)
@@ -2161,7 +2160,7 @@ val checkKotlinAnsiServerBoot: TaskProvider<CheckAnsiServerLauncherTask> by task
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
     stateSlug.set("strong-replay")
-    scriptVmMode.set(AnsiScriptVmMode.Authored)
+    scriptVmMode.set(AnsiScriptVmMode.Compiled)
     workingDirectoryPath.set(layout.projectDirectory.asFile.absolutePath)
     logFile.set(layout.buildDirectory.file("logs/check-kotlin-ansi-server.log"))
 }
