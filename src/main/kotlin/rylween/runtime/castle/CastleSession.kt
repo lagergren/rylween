@@ -60,7 +60,9 @@ import rylween.runtime.party.PriestSpellStep
 import rylween.runtime.party.toParentStatus
 import rylween.runtime.placeInventoryItem
 import rylween.runtime.plus
+import rylween.runtime.toContinuation
 import rylween.runtime.toParentStatus
+import rylween.runtime.toSnapshot
 import rylween.runtime.withMilestone
 import rylween.runtime.withoutMilestone
 
@@ -938,16 +940,22 @@ data class CastleSession(
 }
 
 fun CastleSession.toCastleSnapshot(): RuntimeModeSnapshot.Castle =
-    RuntimeModeSnapshot.Castle(
-        CastleSessionSnapshot(
-            castle = castleContent.id,
-            floor = floor,
-            point = point,
-            rooms = rooms,
-            step = savedStep(),
-            treasureItem = (snapshotStep() as? CastleSessionStep.TreasureOffer)?.item,
-        ),
-    )
+    snapshotStep().let { current ->
+        val script = current as? CastleSessionStep.Script
+        RuntimeModeSnapshot.Castle(
+            CastleSessionSnapshot(
+                castle = castleContent.id,
+                floor = floor,
+                point = point,
+                rooms = rooms,
+                step = savedStep(),
+                treasureItem = (current as? CastleSessionStep.TreasureOffer)?.item,
+                scriptScene = script?.scene?.id,
+                scriptContinuation = script?.continuation?.toSnapshot(),
+                scriptNext = script?.next,
+            ),
+        )
+    }
 
 fun RuntimeModeSnapshot.Castle.toCastleSession(
     runtime: RuntimeSessionState,
@@ -956,14 +964,15 @@ fun RuntimeModeSnapshot.Castle.toCastleSession(
     val castleContent =
         content.castles.singleOrNull { castle -> castle.id == session.castle }
             ?: error("Castle ${session.castle.slug} content is not configured")
+    val castleRuntime = runtime.asCastle()
     return CastleSession(
-        runtime = runtime.asCastle(),
+        runtime = castleRuntime,
         content = content,
         castleContent = castleContent,
         rooms = session.rooms,
         floor = session.floor,
         point = session.point,
-        step = session.toStep(),
+        step = session.toStep(content, castleRuntime),
     )
 }
 
@@ -974,12 +983,16 @@ private fun CastleSession.savedStep(): CastleSavedStep =
         is CastleSessionStep.TreasureOffer -> CastleSavedStep.TreasureOffer
         CastleSessionStep.StairsMenu -> CastleSavedStep.StairsMenu
         CastleSessionStep.StairGive -> CastleSavedStep.StairGive
+        is CastleSessionStep.Script -> CastleSavedStep.Script
         else -> error("cannot save castle while ${step.javaClass.simpleName} is active")
     }
 
 private fun CastleSession.snapshotStep(): CastleSessionStep = (step as? CastleSessionStep.Save)?.next ?: step
 
-private fun CastleSessionSnapshot.toStep(): CastleSessionStep =
+private fun CastleSessionSnapshot.toStep(
+    content: RuntimeContent,
+    runtime: RuntimeSessionState,
+): CastleSessionStep =
     when (step) {
         CastleSavedStep.RoomEntry -> CastleSessionStep.RoomEntry
         CastleSavedStep.Navigate -> CastleSessionStep.Navigate
@@ -989,6 +1002,20 @@ private fun CastleSessionSnapshot.toStep(): CastleSessionStep =
             )
         CastleSavedStep.StairsMenu -> CastleSessionStep.StairsMenu
         CastleSavedStep.StairGive -> CastleSessionStep.StairGive
+        CastleSavedStep.Script -> {
+            val sceneId = checkNotNull(scriptScene) { "castle script snapshot requires scriptScene" }
+            val scene =
+                content.scenes.singleOrNull { scene -> scene.id == sceneId }
+                    ?: error("castle script snapshot references unknown scene ${sceneId.slug}")
+            CastleSessionStep.Script(
+                scene = scene,
+                continuation =
+                    checkNotNull(scriptContinuation) {
+                        "castle script snapshot requires scriptContinuation"
+                    }.toContinuation(runtime),
+                next = checkNotNull(scriptNext) { "castle script snapshot requires scriptNext" },
+            )
+        }
     }
 
 private fun RuntimeSessionState.asCastle(): RuntimeSessionState =

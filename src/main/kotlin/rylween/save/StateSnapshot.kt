@@ -97,6 +97,7 @@ import rylween.runtime.ScriptFrame
 import rylween.runtime.ScriptRootKind
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.ScriptSegment
+import rylween.runtime.castle.CastleScriptContinuation
 import rylween.runtime.vm.CompiledVmChildRequestSnapshot
 import rylween.runtime.vm.CompiledVmContinuationSnapshot
 import rylween.runtime.vm.CompiledVmFrameKind
@@ -324,6 +325,9 @@ private class RuntimeStateSnapshotParser(
         var point = GridPoint(1, 1)
         var step = CastleSavedStep.Navigate
         var treasureItem: ItemId? = null
+        var scriptScene: SceneId? = null
+        var scriptContinuation: ScriptContinuationSnapshot? = null
+        var scriptNext: CastleScriptContinuation? = null
         var rooms = emptyMap<GridPoint, CastleRoomEvent>()
         while (!matchSymbol('}')) {
             when (val field = expectIdentifier()) {
@@ -344,6 +348,15 @@ private class RuntimeStateSnapshotParser(
                     expectSymbol('=')
                     treasureItem = parseNullable(::parseItemId)
                 }
+                "scriptScene" -> {
+                    expectSymbol('=')
+                    scriptScene = parseNullable(::parseSceneId)
+                }
+                "scriptNext" -> {
+                    expectSymbol('=')
+                    scriptNext = parseNullable { parseEnum<CastleScriptContinuation>("CastleScriptContinuation") }
+                }
+                "scriptContinuation" -> scriptContinuation = parseScriptContinuationBody()
                 "rooms" -> rooms = parseCastleRoomsBody()
                 else -> unexpected("Castle session field $field")
             }
@@ -355,6 +368,9 @@ private class RuntimeStateSnapshotParser(
             rooms = rooms,
             step = step,
             treasureItem = treasureItem,
+            scriptScene = scriptScene,
+            scriptContinuation = scriptContinuation,
+            scriptNext = scriptNext,
         )
     }
 
@@ -2015,6 +2031,15 @@ private class RuntimeStateSnapshotWriter {
             line("point = ${point(session.point)}")
             line("step = CastleSavedStep.${session.step.name}")
             line("treasureItem = ${session.treasureItem?.let(::itemId) ?: "null"}")
+            line("scriptScene = ${session.scriptScene?.let(::sceneId) ?: "null"}")
+            line("scriptNext = ${session.scriptNext?.let { next -> "CastleScriptContinuation.${next.name}" } ?: "null"}")
+            session.scriptContinuation?.let { continuation ->
+                line("scriptContinuation {")
+                indented {
+                    scriptContinuationBody(continuation)
+                }
+                line("}")
+            }
             line("rooms {")
             indented {
                 session.rooms.entries
@@ -2063,18 +2088,22 @@ private class RuntimeStateSnapshotWriter {
     private fun scriptContinuation(continuation: ScriptContinuationSnapshot) {
         line("continuation {")
         indented {
-            scriptRoot(continuation.root)
-            line("activeInventorySlot = ${continuation.activeInventorySlot ?: "null"}")
-            namedIntMap("locals", continuation.locals)
-            namedIntMap("realmScalars", continuation.realmScalars)
-            line("stack {")
-            indented {
-                continuation.stack.forEach(::scriptFrame)
-            }
-            line("}")
-            continuation.compiledVmContinuation?.let(::compiledVmContinuation)
+            scriptContinuationBody(continuation)
         }
         line("}")
+    }
+
+    private fun scriptContinuationBody(continuation: ScriptContinuationSnapshot) {
+        scriptRoot(continuation.root)
+        line("activeInventorySlot = ${continuation.activeInventorySlot ?: "null"}")
+        namedIntMap("locals", continuation.locals)
+        namedIntMap("realmScalars", continuation.realmScalars)
+        line("stack {")
+        indented {
+            continuation.stack.forEach(::scriptFrame)
+        }
+        line("}")
+        continuation.compiledVmContinuation?.let(::compiledVmContinuation)
     }
 
     private fun compiledVmContinuation(continuation: CompiledVmContinuationSnapshot) {

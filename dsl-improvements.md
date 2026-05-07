@@ -203,7 +203,7 @@ Current status:
 | Combat/rewards | reusable standard battle shape, action list, tunables, authored prompt/menu text, authored static fight/run and action input bindings, reward bundle, formula catalog, leveling table, reusable `BattleSession` for encounter allocation, fight/run, per-member player actions, target prompts, mage spell casting, combat magic-item use, monster melee/spells, death, victory rewards, loot, and level-up application/narration; reusable out-of-combat priest spell picker/session | standard battle tunables/text, all 68 current monster records with weak/wild/deep tiers, 6 mage battle spells, 4 monster spells, 7 priest spells, 12 battle magic items, battle loot/reward shape, authored combat/priest text/effect bodies, and compiled scenarios for the standard battle loop, rewards, loot, and level-up path | no known Kotlin-port content gap; broader adapter/playthrough traces belong under H11 and any newly discovered monster-specific behavior should reopen as a concrete content task |
 | Missions/scenes/scripts | typed scenes/op AST, dialogue branches, rewards, reusable choices, explicit control signals, native allowlist, current-game script helper layer, wilderness random-step/terrain/position/location mission polling, reusable `enterDungeon(...)` handoff op, script journal append, runtime location-coordinate text refs, inventory-pool count/consume ops, resumable mission-scene execution with nested battle continuations, persisted post-dungeon mission continuations for dungeon saves, and dense runtime script-root identity for continuations/debug metadata | 17 authored wilderness missions: bandits, troll tooth, Thun gem altar, kobold village first battle handoff, skullweed, Borin meet with journal, Borin gift, Ogre cave first battle handoff, Foot of Jazzy first battle handoff, Hobgoblin caravan first battle handoff, and seven current dungeon-entry mission prompts/handoffs; Garth dialogue, rumour/church/Ydarg probes, tavern traveller-story helper | broader parity tests for C edge cases and future non-inlined helper-fragment handles if compiled bundles/source maps need them |
 | World/map/terrain/visual/layout | typed handles exist for many concepts; `metadata { ... }` plus `limits { ... }` declare universe/screen/map allocation limits; `terrain { ... }` declares map codes, passability, movement cost, NPC-placement permission, and settlement semantics; `terminal { ... }` declares the current two-character terminal terrain glyph/color table; `layouts { ... }` declares classic screen regions; `visuals { images { ... } staticScreens { ... } }` declares ANSI/full-screen and map-window resources plus frame/title/help/manual/score/vscore/heroes routes; `worldMap(Maps.wilderness) { size = cells(...); storageCapacity = ...; layer(MapLayers.terrain) { rows(...) } }` provides exact wilderness dimensions, storage capacity, and map rows; `WorldMapGrid` consumes authored terrain semantics for passability/settlements/NPC huts while preserving reference coordinates | four current town coordinates, 10 current terrain semantic declarations, 10 current terminal terrain glyphs, 18 authored ANSI image resources, 5 classic screen regions, wilderness movement key/arrow aliases, static screen/document routes, authored wilderness map rows/size/capacity, runtime score/vscore/heroes rendering, and eight current terrain-transition texts are exercised by the compiled game runtime | bitmap frontend-specific asset decoding and broader non-terminal adapter parity |
-| Dungeons/castles/secrets | narrow native islands and handles plus cave-found and authored-script dungeon handoff shapes; reusable `DungeonSession` with run-local level event tables, authored event execution, conditional recurring clear, D/A/?/equipment/quaff/priest-spell routing, torch descent checks, dungeon leave handoff, semantic `teleportParty(...)` and `discoverCave(...)` ops, semantic `context.inDungeon`/`context.dungeonLevel` script predicates, text-answer prompts, game-authored cave/dungeon backdrops, compiled dungeon playthrough checks, validated authored `dungeons { event(...) scenario(...) }` content table, authored `CastleContentModel`, reusable `CastleSession` handoff, authored name-gated sysop/secrets, and Kotlin test scenarios that construct their target state directly instead of `RYL_FORCE_*` knobs | random-cave discovery prompt/cost/depth band is authored; fixed Erethor/husband/hermit/Nolrim/Master Crown/Silver Key/Hobgoblin dungeon entries now hand off to semantic dungeon handles; random dungeon fill now includes semantic found-object pools and gold chests; authored special events now cover Thun riddles, Reebar colour riddles, Silver Sanctum, Hobgoblin patrol/guards/chief, Ogre/Orc/Tammy, and Erethor priests/Lute chamber; fixed scenarios explicitly use the same standard random dungeon event mix plus their special placements; compiled tests verify all nine fixed dungeon scenario placement tables, every authored fixed dungeon event body through the terminal adapter, weak/deep random-encounter tier handoff, Spectrum recurrence, and Tammy's rescue-clear condition; priest Teleport, Earthquake, and Revelation first-pass effects use authored script plus semantic runtime ops; find-object/Revelation full-inventory behavior now matches the reference no-drop-prompt rejection; first Thun/Reebar/Silver Key playthrough checks cover riddles, `context.inDungeon`/`context.dungeonLevel`, and password reward; dungeon `S` save/load now resumes active dungeon depth, level-event plan, and post-dungeon mission continuation; Castle Ydarg no-key/key entry, stair gift, shared utility-command checks, `S` save, and save/load resume for floor/point/room state cover the semantic session path; castle victory mutates the persisted completion milestone consumed by the authored Hall-of-Heroes runtime report; post-dungeon continuations resume mission scripts; Marcus/Karl reference sysop actions are declared in `secrets { ... }` and consumed by wilderness key/step dispatch | richer room/secret model only if future reference behavior requires it |
+| Dungeons/castles/secrets | narrow native islands and handles plus cave-found and authored-script dungeon handoff shapes; reusable `DungeonSession` with run-local level event tables, authored event execution, conditional recurring clear, D/A/?/equipment/quaff/priest-spell routing, torch descent checks, dungeon leave handoff, semantic `teleportParty(...)` and `discoverCave(...)` ops, semantic `context.inDungeon`/`context.dungeonLevel` script predicates, text-answer prompts, game-authored cave/dungeon backdrops, compiled dungeon playthrough checks, validated authored `dungeons { event(...) scenario(...) }` content table, authored `CastleContentModel`, reusable `CastleSession` handoff, authored name-gated sysop/secrets, and Kotlin test scenarios that construct their target state directly instead of `RYL_FORCE_*` knobs | random-cave discovery prompt/cost/depth band is authored; fixed Erethor/husband/hermit/Nolrim/Master Crown/Silver Key/Hobgoblin dungeon entries now hand off to semantic dungeon handles; random dungeon fill now includes semantic found-object pools and gold chests; authored special events now cover Thun riddles, Reebar colour riddles, Silver Sanctum, Hobgoblin patrol/guards/chief, Ogre/Orc/Tammy, and Erethor priests/Lute chamber; fixed scenarios explicitly use the same standard random dungeon event mix plus their special placements; compiled tests verify all nine fixed dungeon scenario placement tables, every authored fixed dungeon event body through the terminal adapter, weak/deep random-encounter tier handoff, Spectrum recurrence, and Tammy's rescue-clear condition; priest Teleport, Earthquake, and Revelation first-pass effects use authored script plus semantic runtime ops; find-object/Revelation full-inventory behavior now matches the reference no-drop-prompt rejection; first Thun/Reebar/Silver Key playthrough checks cover riddles, `context.inDungeon`/`context.dungeonLevel`, and password reward; dungeon `S` save/load now resumes active dungeon depth, level-event plan, and post-dungeon mission continuation; Castle Ydarg no-key/key entry, stair gift, shared utility-command checks, `S` save, floor/point/room resume, and compiled castle-hook continuation save/load cover the semantic session path; castle victory mutates the persisted completion milestone consumed by the authored Hall-of-Heroes runtime report; post-dungeon continuations resume mission scripts; Marcus/Karl reference sysop actions are declared in `secrets { ... }` and consumed by wilderness key/step dispatch | richer room/secret model only if future reference behavior requires it |
 
 Rule for future checklist updates: every pass should say both what DSL/runtime
 capability moved and what real game content count moved. If either side did not
@@ -578,7 +578,8 @@ contract, while the authored game remains portable JSON/data.
   - [x] J2.4. Child session handoffs. `CompiledVm` now exposes typed child requests for `Speak`, `TellRumour`, `Encounter`, `EnterDungeon`, `GrantReward`, `RandomItemOffer`, and `ShopService`, plus `CompiledVmChildCompletion` and a save-shaped `ChildSession` pending continuation. Child opcodes trace the same semantic event family, preserve parent VM frames, round-trip through `CompiledVmContinuationSnapshot`, and resume from a host-supplied child runtime without replaying parent effects. `EnterDungeon` mutates the runtime into dungeon mode before blocking so hosts receive the same handoff state as the authored bridge. `RunScene` emits the semantic trace event directly, `NativeCall` validates effect descriptors through `NativeServiceCatalog`, and `ForEachMonster` now executes through an explicit battle-host monster iteration boundary with resumable body frames. `RylweenCompiledVmChildSessionTest` covers each child request shape, snapshot round trips, post-child resume behavior, and native-effect execution; `RylweenCompiledVmTest` covers `ForEachMonster` continuation behavior. J2.4 is closed for the compiled-VM contract; running the actual child sessions from compiled payloads belongs to the J2a/J2.5 host-adapter work.
   - [ ] J2a. Kotlin ANSI compiled-VM parity path. The current Kotlin ANSI client implements the full game through Kotlin session state machines plus the authored `Op` interpreter; it does not yet run all scripts from the compiled VM op stream. If the architecture decision is "every runtime executes the VM," add a Kotlin VM adapter behind the same script/session boundaries, run the existing ANSI/headless playthrough scenarios through that adapter, and keep the authored `Op` interpreter only as compiler/test oracle until intentionally retired. First slice: `CompiledVmScriptRunner` indexes validated loaded bundle scripts by stable `ScriptRootRef`, runs supported roots through `CompiledVm`, and reports missing roots or unsupported opcode families as typed VM diagnostics without falling back to the authored interpreter. J2.5 headless slice now adds a `kotlin-headless-compiled-vm` surface, stores validated compiled content on the explicit compiled host factory, and exposes scene/dungeon-event/spell/item-use root helpers that execute through the VM while the plain headless surface remains the authored-op oracle. Current J2a adapter slice adds `CompiledVmTerminalScriptBridge`, stores blocked VM frames inside `ScriptContinuation.compiledVmContinuation`, lets town/wilderness terminal adapters receive a compiled `serviceBridge`, and proves a real `TownSessionTerminalAdapter` native-service path can block and resume through the VM without falling back to `StatefulScriptServiceRunner`. The first child-adapter slice now completes compiled `TellRumour` child requests in the terminal bridge by reusing `SpeakRuntimeContent` rumour selection, tracing the selected text, and resuming the parent VM frame with `CompiledVmInput.ChildSessionCompleted`. The second child-adapter slice routes compiled `Speak` requests through `SpeakSessionTraceRunner`, stores active `SpeakSession` state next to the blocked compiled VM frame when conversation input waits, and resumes the parent VM only after the conversation finishes. The third child-adapter slice routes compiled reward grants, random-item offers, and shop services through their existing terminal child sessions; reward/offer/shop waits now store host-owned child state alongside the compiled VM frame, and parent VM execution resumes only after the child reports its updated party/runtime. The fourth child-adapter slice maps compiled `Encounter` and `EnterDungeon` requests: battle waits carry the existing `BattleSession` next to the blocked VM frame, game-over battles finish without replaying parent effects, dungeon handoffs return the existing `WildernessDungeonHandoff`, and post-dungeon continuations resume the parent VM from the stored frame. The conformance slice now runs every named J3 suite against the `kotlin-headless-compiled-vm` surface, with the town-services suite driving the real Thord church service through `CompiledVmTerminalScriptBridge` and asserting VM trace events. The first ANSI host slice adds `--script-vm authored|compiled`, injects the same `ScriptBridge` boundary into ANSI town, hut, and mission service roots, and adds `checkKotlinAnsiCompiledVmServerBoot` so `./gradlew check` drives a real socket ANSI town/shop route through the compiled VM. The next coverage slice makes `LongPlaythroughTest` parameterize its service bridge, proves compiled mode can run a real wilderness hut scene and all mission dungeon handoff/post-dungeon continuations, preserves structured role/location text parts through VM output so terminal renderers resolve them with runtime context, and implements compiled `ConsumeInventoryPool` for the Thun altar path. The ANSI closeout slice generalizes `ScriptBridge` into a root-level invocation boundary, routes dungeon events plus item-use and priest-spell script roots through the compiled bridge from wilderness, dungeon, and Ydarg/castle child sessions, gives terminal compiled waits the same prompt RNG behavior as the authored terminal path, keys resumed child state to the exact pending VM instruction, and proves the full Ydarg-victory acceptance playthrough in compiled-VM mode. Remaining J2a work now starts at strict save/load and native probe tasks rather than ANSI script-root coverage.
     - [x] J2.6 ANSI compiled-VM closeout. Route every ANSI script-root boundary through `CompiledVm` when `--script-vm compiled` is selected, add targeted regressions for tavern traveller-story prompts, shops, dungeon events, Ydarg-adjacent scripted flows, and any remaining mission/hut service roots, and run the full acceptance playthrough in compiled-VM mode with no authored-op fallback.
-    - [ ] J2.7 strict save/load closeout. Add compiled VM continuation records to the runtime snapshot format, bind them to the verified bundle hash/universe, preserve active child-session snapshots, reject mismatched bundle loads, and add deterministic parse/render plus live save/load tests for waits, menus, loops, child battles, dungeon post-continuations, and town services. First slice landed: strict snapshot schema version 2 carries compiled VM continuation frames for authored script continuations, runtime saves can store the verified compiled bundle hash, load rejects compiled continuations without the matching bundle hash, and a live compiled-VM post-dungeon continuation saves, parses, resumes, and completes through the compiled bridge.
+    - [ ] J2a retirement path for the authored `Op` emitter/interpreter. Decision: the authored `Op` AST is transitional compiler IR plus a parity oracle, not the final runtime contract. It can go away from production runtime once every non-test host uses `CompiledVm`, strict save/load covers all compiled waits and child sessions, DSL validation/source maps no longer depend on walking `List<Op>` directly, and tests either compare against golden compiled traces or keep the old interpreter in a test-only fixture. Do not delete it while it is still the only easy way to validate authoring semantics, debug source locations, or prove compiled parity.
+    - [ ] J2.7 strict save/load closeout. Add compiled VM continuation records to the runtime snapshot format, bind them to the verified bundle hash/universe, preserve active child-session snapshots, reject mismatched bundle loads, and add deterministic parse/render plus live save/load tests for waits, menus, loops, child battles, dungeon post-continuations, castle hook scripts, and town services. First slice landed: strict snapshot schema version 2 carries compiled VM continuation frames for authored script continuations, runtime saves can store the verified compiled bundle hash, load rejects compiled continuations without the matching bundle hash, and a live compiled-VM post-dungeon continuation saves, parses, resumes, and completes through the compiled bridge. Current slice upgrades the strict snapshot schema to include castle hook script continuations so a castle entry/completion script can be saved without falling back to an unsaveable mode.
     - [ ] J2.8 native VM probe. Keep the C JSON reader as the loader boundary, add a small native compiled-VM executor for one pure root and one prompt-shaped root from the J1 bundle, render events to a simple log, report root/opcode/operand/continuation positions on failure, and wire the probe into Gradle verification without declaring it a playable runtime.
     - [ ] J2.9 native product decision. If a non-JVM playable runtime is wanted, create a separate product task that owns the full J1 loader, J2 VM, J3 host surface, frontend rendering, persistence, diagnostics, conformance suites, and full acceptance playthrough; otherwise keep native work classified as a probe.
   - [ ] J2 closeout checklist, mirrored from [plans/j2-compiled-vm-plan.md](plans/j2-compiled-vm-plan.md). Current status: [x] opcode arity/type contract is tested; [x] compiled expression and lvalue evaluators cover current emitted shapes; [x] pure VM roots execute without authored `Op` fallback; [x] prompts and menus resume without replaying side effects; [x] child sessions block and resume through typed request/result records; [ ] compiled VM continuations save/load under strict snapshot validation; [x] Kotlin headless declares `CompiledVm` and passes J3 suites; [x] Kotlin ANSI can opt into `CompiledVm`; [x] full acceptance playthrough passes in compiled-VM mode; [ ] C/native probe executes a narrow compiled scenario from the J1 bundle; [x] ledger distinguishes completed J2 pieces from optional native product work.
@@ -1390,3 +1391,155 @@ The Kotlin DSL compiler or loader should validate:
 
 The final state is: Kotlin DSL is the canonical source, C consumes compiled
 typed content/state, and runtime saves are exact state DSL snapshots.
+
+## Appendix: J2 compiled JSON op shape
+
+The J1 bundle stores scripts under `sections.scripts[]`. Each script root has a
+stable `ScriptRootRef`, a compiled script-root handle, and an ordered
+`instructions` array. Production J2 runtimes should execute these
+`CompiledInstruction` records, not the Kotlin authored `List<Op>` tree.
+
+```json
+{
+  "_type": "CompiledScriptProgram",
+  "root": {
+    "_type": "ScriptRootRef",
+    "denseId": 3,
+    "kind": "Scene",
+    "slug": "castle.ydarg.entered"
+  },
+  "rootHandle": { "_type": "CompiledHandleRef", "id": 3, "kind": "ScriptRoot" },
+  "instructions": []
+}
+```
+
+A view operation carries a typed view-command operand plus a dense handle ref.
+For example, current generated bundles emit the Castle Ydarg backdrop as an
+image handle that resolves through `sections.handles` to
+`blitgfx.ydarg_castle`.
+
+```json
+{
+  "_type": "CompiledInstruction",
+  "opcode": "View",
+  "operands": [
+    {
+      "_type": "ViewCommandValue",
+      "value": {
+        "_type": "ShowImage",
+        "image": { "_type": "CompiledHandleRef", "id": 3, "kind": "Image" }
+      }
+    }
+  ]
+}
+```
+
+Text is stored as structured blocks with literal string ids into
+`sections.strings`. A runtime resolves the ids, renders text parts through its
+frontend, and keeps the compiled instruction stream independent from Kotlin
+string objects.
+
+```json
+{
+  "_type": "CompiledInstruction",
+  "opcode": "Screen",
+  "operands": [
+    {
+      "_type": "TextBlockValue",
+      "value": {
+        "_type": "Structured",
+        "lines": [
+          {
+            "_type": "CompiledTextLine",
+            "parts": [
+              { "_type": "Literal", "string": 571 }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+Child sessions are explicit VM/host boundaries. An authored `encounter(...)`
+becomes an `Encounter` instruction with a monster handle and a mandatory flag.
+The VM blocks with a child request; the host runs the battle session and resumes
+the VM with the updated runtime state.
+
+```json
+{
+  "_type": "CompiledInstruction",
+  "opcode": "Encounter",
+  "operands": [
+    {
+      "_type": "Handle",
+      "ref": { "_type": "CompiledHandleRef", "id": 27, "kind": "Monster" }
+    },
+    {
+      "_type": "BooleanValue",
+      "value": true
+    }
+  ]
+}
+```
+
+Nested control flow stores child instruction arrays directly inside typed
+operands. Menus, branches, loops, text answers, and switches therefore remain
+fully inspectable by non-Kotlin loaders without rebuilding a Kotlin AST.
+
+```json
+{
+  "_type": "CompiledInstruction",
+  "opcode": "Menu",
+  "operands": [
+    { "_type": "TextBlockValue", "value": { "_type": "Structured", "lines": [] } },
+    {
+      "_type": "MenuOptions",
+      "options": [
+        {
+          "_type": "CompiledMenuOption",
+          "binding": {
+            "_type": "CompiledInputBinding",
+            "labelString": 719,
+            "primaryString": 719,
+            "aliasStrings": []
+          },
+          "body": [
+            {
+              "_type": "CompiledInstruction",
+              "opcode": "EnterDungeon",
+              "operands": [
+                { "_type": "Handle", "ref": { "id": 9, "kind": "Dungeon" } },
+                { "_type": "Integer", "value": 12 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    { "_type": "Instructions", "instructions": [] }
+  ]
+}
+```
+
+State mutation is represented by a typed lvalue operand and a typed expression
+operand. The VM owns evaluating these records against `RuntimeSessionState`;
+hosts should not re-enter the authored `Op` interpreter in compiled mode.
+
+```json
+{
+  "_type": "CompiledInstruction",
+  "opcode": "Add",
+  "operands": [
+    {
+      "_type": "LValueValue",
+      "value": { "_type": "PartyScalar", "nameString": 398 }
+    },
+    {
+      "_type": "IntExprValue",
+      "value": { "_type": "Local", "nameString": 818 }
+    }
+  ]
+}
+```
