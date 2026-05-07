@@ -964,7 +964,12 @@ fun RuntimeModeSnapshot.Castle.toCastleSession(
     val castleContent =
         content.castles.singleOrNull { castle -> castle.id == session.castle }
             ?: error("Castle ${session.castle.slug} content is not configured")
-    val castleRuntime = runtime.asCastle()
+    val castleRuntime =
+        if (session.scriptContinuation?.battleSession == null) {
+            runtime.asCastle()
+        } else {
+            runtime
+        }
     return CastleSession(
         runtime = castleRuntime,
         content = content,
@@ -1012,7 +1017,7 @@ private fun CastleSessionSnapshot.toStep(
                 continuation =
                     checkNotNull(scriptContinuation) {
                         "castle script snapshot requires scriptContinuation"
-                    }.toContinuation(runtime),
+                    }.toContinuation(runtime, content),
                 next = checkNotNull(scriptNext) { "castle script snapshot requires scriptNext" },
             )
         }

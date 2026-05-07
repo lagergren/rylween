@@ -21,11 +21,24 @@ import rylween.dsl.SpellId
 import rylween.dsl.dungeonEvent
 import rylween.dsl.npc
 import rylween.runtime.battle.BattleSession
+import rylween.runtime.battle.BattleSessionSnapshot
+import rylween.runtime.battle.toBattleSession
+import rylween.runtime.battle.toSnapshot
 import rylween.runtime.reward.RandomItemOfferSession
+import rylween.runtime.reward.RandomItemOfferSessionSnapshot
 import rylween.runtime.reward.RewardGrantSession
+import rylween.runtime.reward.RewardGrantSessionSnapshot
+import rylween.runtime.reward.toRandomItemOfferSession
+import rylween.runtime.reward.toRewardGrantSession
+import rylween.runtime.reward.toSnapshot
 import rylween.runtime.town.ShopServiceSession
+import rylween.runtime.town.ShopServiceSessionSnapshot
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.SpeakSession
+import rylween.runtime.town.SpeakSessionSnapshot
+import rylween.runtime.town.toShopServiceSession
+import rylween.runtime.town.toSnapshot
+import rylween.runtime.town.toSpeakSession
 import rylween.runtime.vm.CompiledVmContinuation
 import rylween.runtime.vm.CompiledVmContinuationSnapshot
 import rylween.runtime.vm.toContinuation
@@ -237,8 +250,11 @@ data class ScriptFrame(
  * host-owned child sessions such as speak, rewards, random offers, shops, and
  * battles. [compiledVmContinuation] carries the parallel J2 VM frame when a
  * compiled script blocks at a prompt or child-session request; strict runtime
- * snapshots persist that frame through [ScriptContinuationSnapshot] when no
- * host-owned child session is still active.
+ * snapshots can persist that frame through [ScriptContinuationSnapshot]. These
+ * snapshots are engine execution-boundary records, not a decision that every
+ * frontend may expose player saves at that point. Active battle children are
+ * recorded with their parent frame so a runtime can restore the host battle
+ * first, then resume the parent VM after combat finishes.
  */
 data class ScriptContinuation(
     val runtime: RuntimeSessionState,
@@ -294,37 +310,80 @@ data class ScriptContinuation(
     }
 }
 
-/** Saveable subset of [ScriptContinuation]. */
+/**
+ * Portable subset of [ScriptContinuation] for strict runtime snapshots.
+ *
+ * This record is intentionally data-only so it can cross JVM/native/server
+ * boundaries. User-visible save policy is enforced by the session/frontend that
+ * chooses whether to write a snapshot, not by the presence of this type.
+ */
 data class ScriptContinuationSnapshot(
     val root: ScriptRootRef = ScriptRootRef.Unspecified,
     val locals: Map<String, Int> = emptyMap(),
     val realmScalars: Map<String, Int> = emptyMap(),
     val stack: List<ScriptFrame>,
     val activeInventorySlot: Int? = null,
+    val speakSession: SpeakSessionSnapshot? = null,
+    val battleSession: BattleSessionSnapshot? = null,
+    val randomItemOfferSession: RandomItemOfferSessionSnapshot? = null,
+    val rewardGrantSession: RewardGrantSessionSnapshot? = null,
+    val shopServiceSession: ShopServiceSessionSnapshot? = null,
     val compiledVmContinuation: CompiledVmContinuationSnapshot? = null,
 )
 
-/** Converts a continuation into a saveable snapshot when no child session is active. */
-fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot {
-    require(speakSession == null) { "script continuation with active speak session cannot be saved yet" }
-    require(battleSession == null) { "script continuation with active battle session cannot be saved yet" }
-    require(randomItemOfferSession == null) {
-        "script continuation with active random-item offer session cannot be saved yet"
-    }
-    require(rewardGrantSession == null) { "script continuation with active reward grant session cannot be saved yet" }
-    require(shopServiceSession == null) { "script continuation with active shop service session cannot be saved yet" }
-    return ScriptContinuationSnapshot(
+/** Converts a continuation into a portable snapshot when supported child sessions can be represented. */
+fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot =
+    ScriptContinuationSnapshot(
         root = root,
         locals = locals,
         realmScalars = realmScalars,
         stack = stack,
         activeInventorySlot = activeInventorySlot,
+        speakSession = speakSession?.toSnapshot(),
+        battleSession = battleSession?.toSnapshot(),
+        randomItemOfferSession = randomItemOfferSession?.toSnapshot(),
+        rewardGrantSession = rewardGrantSession?.toSnapshot(),
+        shopServiceSession = shopServiceSession?.toSnapshot(),
         compiledVmContinuation = compiledVmContinuation?.toSnapshot(),
     )
+
+/**
+ * Restores a runtime continuation from this snapshot and live [runtime].
+ *
+ * Use the [RuntimeContent] overload when [battleSession] is present so authored
+ * combat scripts can be looked up while rebuilding the battle child session.
+ */
+fun ScriptContinuationSnapshot.toContinuation(runtime: RuntimeSessionState): ScriptContinuation {
+    require(speakSession == null) { "script continuation with speak session requires runtime content" }
+    require(battleSession == null) { "script continuation with battle session requires runtime content" }
+    require(randomItemOfferSession == null) { "script continuation with random-item offer session requires runtime content" }
+    require(rewardGrantSession == null) { "script continuation with reward grant session requires runtime content" }
+    require(shopServiceSession == null) { "script continuation with shop service session requires runtime content" }
+    return toContinuation(runtime, restoredBattleSession = null)
 }
 
-/** Restores a runtime continuation from this snapshot and live [runtime]. */
-fun ScriptContinuationSnapshot.toContinuation(runtime: RuntimeSessionState): ScriptContinuation =
+/** Restores a runtime continuation and any saveable child sessions from current authored [content]. */
+fun ScriptContinuationSnapshot.toContinuation(
+    runtime: RuntimeSessionState,
+    content: RuntimeContent,
+): ScriptContinuation =
+    toContinuation(
+        runtime = runtime,
+        restoredSpeakSession = speakSession?.toSpeakSession(runtime, content),
+        restoredBattleSession = battleSession?.toBattleSession(runtime, content),
+        restoredRandomItemOfferSession = randomItemOfferSession?.toRandomItemOfferSession(runtime.activeParty, content),
+        restoredRewardGrantSession = rewardGrantSession?.toRewardGrantSession(runtime.activeParty, content),
+        restoredShopServiceSession = shopServiceSession?.toShopServiceSession(runtime.activeParty, content),
+    )
+
+private fun ScriptContinuationSnapshot.toContinuation(
+    runtime: RuntimeSessionState,
+    restoredSpeakSession: SpeakSession? = null,
+    restoredBattleSession: BattleSession?,
+    restoredRandomItemOfferSession: RandomItemOfferSession? = null,
+    restoredRewardGrantSession: RewardGrantSession? = null,
+    restoredShopServiceSession: ShopServiceSession? = null,
+): ScriptContinuation =
     ScriptContinuation(
         runtime = runtime,
         root = root,
@@ -332,5 +391,10 @@ fun ScriptContinuationSnapshot.toContinuation(runtime: RuntimeSessionState): Scr
         realmScalars = realmScalars,
         stack = stack,
         activeInventorySlot = activeInventorySlot,
+        speakSession = restoredSpeakSession,
+        battleSession = restoredBattleSession,
+        randomItemOfferSession = restoredRandomItemOfferSession,
+        rewardGrantSession = restoredRewardGrantSession,
+        shopServiceSession = restoredShopServiceSession,
         compiledVmContinuation = compiledVmContinuation?.toContinuation(runtime),
     )

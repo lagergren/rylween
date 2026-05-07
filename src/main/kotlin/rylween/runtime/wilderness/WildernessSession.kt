@@ -282,7 +282,7 @@ fun MissionPostDungeonSnapshot.toMissionPostDungeonContinuation(
         scene =
             content.scenes.singleOrNull { it.id == scene }
                 ?: error("runtime snapshot post-dungeon scene ${scene.slug} is not authored"),
-        continuation = continuation.toContinuation(runtime),
+        continuation = continuation.toContinuation(runtime, content),
     )
 
 sealed interface WildernessSessionStep {
