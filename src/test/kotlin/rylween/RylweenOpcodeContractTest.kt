@@ -122,7 +122,7 @@ class RylweenOpcodeContractTest {
         // fall through. This catches a future CompiledOperand subtype
         // whose slot mapping wasn't added.
         val samples =
-            listOf<CompiledOperand>(
+            listOf(
                 CompiledOperand.Integer(0),
                 CompiledOperand.BooleanValue(false),
                 CompiledOperand.Character(' '),
