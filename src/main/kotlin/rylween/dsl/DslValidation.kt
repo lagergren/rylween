@@ -288,6 +288,8 @@ fun validateGameProgress(
         win.completedBy?.let {
             check(it in defined) { "win completion references unknown milestone ${it.slug}" }
         }
+        check(win.hallOfHeroesEmptyText.isNotBlank()) { "hall of heroes empty text is blank" }
+        check("{party}" in win.hallOfHeroesEntryText) { "hall of heroes entry text must include {party}" }
     }
 }
 
@@ -570,81 +572,97 @@ fun validateDungeonSystem(
     }
 }
 
-/** Validates Ydarg castle content, room events, rewards, and references. */
-fun validateYdargSystem(
-    ydarg: YdargContentModel?,
+/** Validates authored castle content, room events, rewards, and references. */
+fun validateCastleSystem(
+    castle: CastleContentModel,
     itemCatalog: List<ItemRecordModel>,
     progress: GameProgressModel,
     monsters: List<MonsterModel>,
+    scenes: List<SceneModel> = emptyList(),
     worldMaps: List<WorldMapModel> = emptyList(),
 ) {
-    if (ydarg == null) return
-
-    check(ydarg.entry.x >= 0 && ydarg.entry.y >= 0) { "Ydarg entry must use non-negative world coordinates" }
-    validateYdargEntryTile(ydarg, worldMaps)
-    check(ydarg.mapSize > 1) { "Ydarg map size must be greater than one" }
-    check(ydarg.roomTypeMax >= 3) { "Ydarg room type max must allow monster, pitfall, and treasure rooms" }
-    check(ydarg.roomEvents.keys.all { it in 1..ydarg.roomTypeMax }) {
-        "Ydarg room event rolls must fit inside 1..${ydarg.roomTypeMax}"
+    val label = "castle ${castle.id.slug}"
+    check(castle.entry.x >= 0 && castle.entry.y >= 0) { "$label entry must use non-negative world coordinates" }
+    validateCastleEntryTile(castle, worldMaps)
+    check(castle.mapSize > 1) { "$label map size must be greater than one" }
+    check(castle.roomTypeMax >= 3) { "$label room type max must allow monster, pitfall, and treasure rooms" }
+    check(castle.roomEvents.keys.all { it in 1..castle.roomTypeMax }) {
+        "$label room event rolls must fit inside 1..${castle.roomTypeMax}"
     }
     val milestones = progress.milestones.map { it.id }.toSet()
-    check(ydarg.requiredKey in milestones) { "Ydarg required key references unknown milestone ${ydarg.requiredKey.slug}" }
-    check(ydarg.victoryMilestone in milestones) {
-        "Ydarg victory marker references unknown milestone ${ydarg.victoryMilestone.slug}"
+    castle.entryRequirement?.let { requirement ->
+        check(requirement in milestones) { "$label entry requirement references unknown milestone ${requirement.slug}" }
     }
-    val monsterIds = monsters.map { it.id }.toSet()
-    check(monsters.any { it.tier == ydarg.monsterTier }) {
-        "Ydarg monster tier ${ydarg.monsterTier.slug} has no authored monsters"
+    castle.completionMilestone?.let { completion ->
+        check(completion in milestones) {
+            "$label completion marker references unknown milestone ${completion.slug}"
+        }
     }
-    ydarg.confrontation.sequence.forEach { monster ->
-        check(monster in monsterIds) { "Ydarg confrontation references missing monster ${monster.slug}" }
+    check(monsters.any { it.tier == castle.monsterTier }) {
+        "$label monster tier ${castle.monsterTier.slug} has no authored monsters"
     }
-    ydarg.confrontation.baron?.let { baron ->
-        check(baron in monsterIds) { "Ydarg baron references missing monster ${baron.slug}" }
-    }
+    validateCastleScripts(castle.scripts, scenes, label)
 
     val itemIds = itemCatalog.map { it.id }.toSet()
-    check(ydarg.treasure.gateMax >= 0) { "Ydarg treasure gate max must be non-negative" }
-    check(ydarg.treasure.regularKinds.isNotEmpty()) { "Ydarg treasure needs at least one regular kind table" }
-    ydarg.treasure.regularKinds.forEachIndexed { index, items ->
-        check(items.isNotEmpty()) { "Ydarg regular treasure kind $index is empty" }
-        items.forEach { item -> check(item in itemIds) { "Ydarg treasure references missing item ${item.slug}" } }
+    check(castle.treasure.gateMax >= 0) { "$label treasure gate max must be non-negative" }
+    check(castle.treasure.regularKinds.isNotEmpty()) { "$label treasure needs at least one regular kind table" }
+    castle.treasure.regularKinds.forEachIndexed { index, items ->
+        check(items.isNotEmpty()) { "$label regular treasure kind $index is empty" }
+        items.forEach { item -> check(item in itemIds) { "$label treasure references missing item ${item.slug}" } }
     }
-    check(ydarg.treasure.magic.isNotEmpty()) { "Ydarg magic treasure table is empty" }
-    ydarg.treasure.magic.forEach { item ->
-        check(item in itemIds) { "Ydarg magic treasure references missing item ${item.slug}" }
-    }
-
-    check(ydarg.pitfall.damageDivisor > 0) { "Ydarg pitfall damage divisor must be positive" }
-    check(ydarg.pitfall.trapTypes.isNotEmpty()) { "Ydarg pitfall needs at least one trap type" }
-    ydarg.pitfall.trapTypes.forEachIndexed { index, block ->
-        validateTextBlock(block, "Ydarg pitfall trap ${index + 1}")
+    check(castle.treasure.magic.isNotEmpty()) { "$label magic treasure table is empty" }
+    castle.treasure.magic.forEach { item ->
+        check(item in itemIds) { "$label magic treasure references missing item ${item.slug}" }
     }
 
-    check(ydarg.stairs.floorCount > 0) { "Ydarg floor count must be positive" }
+    check(castle.pitfall.damageDivisor > 0) { "$label pitfall damage divisor must be positive" }
+    check(castle.pitfall.trapTypes.isNotEmpty()) { "$label pitfall needs at least one trap type" }
+    castle.pitfall.trapTypes.forEachIndexed { index, block ->
+        validateTextBlock(block, "$label pitfall trap ${index + 1}")
+    }
+
+    check(castle.stairs.floorCount > 0) { "$label floor count must be positive" }
     check(
-        ydarg.stairs.items
+        castle.stairs.items
             .map { it.digit }
             .toSet()
-            .size == ydarg.stairs.items.size,
+            .size == castle.stairs.items.size,
     ) {
-        "Ydarg stairs contain duplicate give digits"
+        "$label stairs contain duplicate give digits"
     }
-    ydarg.stairs.items.forEach { item ->
-        check(item.digit in 1..9) { "Ydarg stair item digit must be 1..9" }
+    castle.stairs.items.forEach { item ->
+        check(item.digit in 1..9) { "$label stair item digit must be 1..9" }
         check(item.milestone in milestones) {
-            "Ydarg stair item ${item.itemName} references unknown milestone ${item.milestone.slug}"
+            "$label stair item ${item.itemName} references unknown milestone ${item.milestone.slug}"
         }
-        check(item.itemName.isNotBlank()) { "Ydarg stair item ${item.digit} has blank display name" }
-        validateTextBlock(item.reject, "Ydarg stair item ${item.itemName} rejection")
+        check(item.itemName.isNotBlank()) { "$label stair item ${item.digit} has blank display name" }
+        validateTextBlock(item.reject, "$label stair item ${item.itemName} rejection")
     }
 
-    validateYdargKeys(ydarg.keys)
-    validateYdargText(ydarg.text)
+    validateCastleKeys(castle.keys, label)
+    validateCastleText(castle.text, castle.stairs.floorCount, label)
 }
 
-private fun validateYdargEntryTile(
-    ydarg: YdargContentModel,
+private fun validateCastleScripts(
+    scripts: CastleScriptsModel,
+    scenes: List<SceneModel>,
+    label: String,
+) {
+    val sceneIds = scenes.map { it.id }.toSet()
+    listOf(
+        "already completed" to scripts.alreadyCompleted,
+        "entry blocked" to scripts.entryBlocked,
+        "entered" to scripts.entered,
+        "completed" to scripts.completed,
+    ).forEach { (hook, scene) ->
+        scene?.let {
+            check(it in sceneIds) { "$label $hook script references missing scene ${it.slug}" }
+        }
+    }
+}
+
+private fun validateCastleEntryTile(
+    castle: CastleContentModel,
     worldMaps: List<WorldMapModel>,
 ) {
     if (worldMaps.isEmpty()) return
@@ -652,11 +670,11 @@ private fun validateYdargEntryTile(
     val terrainRows =
         worldMap.layers.singleOrNull { layer -> layer.id == DslDefaultMapLayers.terrain }?.rows
             ?: return
-    val row = if (ydarg.entry.y > 0) terrainRows.getOrNull(ydarg.entry.y - 1) else null
-    val tile = row?.getOrNull(ydarg.entry.x)
+    val row = if (castle.entry.y > 0) terrainRows.getOrNull(castle.entry.y - 1) else null
+    val tile = row?.getOrNull(castle.entry.x)
     val castleTile = DslDefaultTerrain.castle.sourceMapCode
     check(tile == castleTile) {
-        "Ydarg entry ${ydarg.entry.x}x${ydarg.entry.y} must point at castle tile '$castleTile' " +
+        "castle ${castle.id.slug} entry ${castle.entry.x}x${castle.entry.y} must point at castle tile '$castleTile' " +
             "on world map ${worldMap.id.slug}"
     }
 }
@@ -711,7 +729,10 @@ private fun validateSecretAction(
     }
 }
 
-private fun validateYdargKeys(keys: YdargKeysModel) {
+private fun validateCastleKeys(
+    keys: CastleKeysModel,
+    label: String,
+) {
     val navigate =
         listOf(
             "move north" to keys.moveNorth,
@@ -736,24 +757,20 @@ private fun validateYdargKeys(keys: YdargKeysModel) {
             "give" to keys.stairsGive,
             "leave" to keys.stairsLeave,
         )
-    (navigate + treasure + stairs).forEach { (label, binding) ->
-        validateInputBinding(binding, "Ydarg key $label")
+    (navigate + treasure + stairs).forEach { (inputLabel, binding) ->
+        validateInputBinding(binding, "$label key $inputLabel")
     }
-    checkUniqueBindings(navigate.map { it.second }, "Ydarg navigation")
-    checkUniqueBindings(treasure.map { it.second }, "Ydarg treasure")
-    checkUniqueBindings(stairs.map { it.second }, "Ydarg stairs")
+    checkUniqueBindings(navigate.map { it.second }, "$label navigation")
+    checkUniqueBindings(treasure.map { it.second }, "$label treasure")
+    checkUniqueBindings(stairs.map { it.second }, "$label stairs")
 }
 
-private fun validateYdargText(text: YdargTextModel) {
+private fun validateCastleText(
+    text: CastleTextModel,
+    floorCount: Int,
+    label: String,
+) {
     listOf(
-        "ruin" to text.ruin,
-        "approach" to text.approach,
-        "Jaara form" to text.jaaraForm,
-        "Jaara speech" to text.jaaraSpeech,
-        "no key" to text.noKey,
-        "key accepted" to text.keyAccepted,
-        "enter" to text.enter,
-        "door slams" to text.doorSlams,
         "room monster" to text.roomMonster,
         "trap disarm suffix" to text.trapTriesDisarmSuffix,
         "trap disarm succeeds" to text.trapDisarmSucceed,
@@ -766,22 +783,20 @@ private fun validateYdargText(text: YdargTextModel) {
         "move east" to text.moveEast,
         "move west" to text.moveWest,
         "stairs intro" to text.stairsIntro,
-        "stairs mage offer" to text.stairsMageOffer,
+        "stairs guardian offer" to text.stairsGuardianOffer,
         "stairs menu" to text.stairsMenu,
         "stairs leave" to text.stairsLeave,
         "teleport vortex" to text.teleportVortex,
         "teleport outside" to text.teleportOutside,
         "give menu" to text.giveMenu,
-        "mage grateful" to text.mageGrateful,
-    ).forEach { (label, block) -> validateTextBlock(block, "Ydarg $label") }
-    listOf(
-        "act1" to text.confrontationAct1,
-        "act2" to text.confrontationAct2,
-        "act3" to text.confrontationAct3,
-        "act4" to text.confrontationAct4,
-    ).forEach { (label, blocks) ->
-        blocks.forEachIndexed { index, block ->
-            validateTextBlock(block, "Ydarg confrontation $label screen ${index + 1}")
+        "stairs guardian grateful" to text.stairsGuardianGrateful,
+    ).forEach { (textLabel, block) -> validateTextBlock(block, "$label $textLabel") }
+    text.floorNames.forEachIndexed { index, floor ->
+        check(floor.isNotBlank()) { "$label floor name ${index + 1} is blank" }
+    }
+    if (text.floorNames.isNotEmpty()) {
+        check(text.floorNames.size >= floorCount) {
+            "$label floor names must cover $floorCount floors"
         }
     }
 }
@@ -2242,7 +2257,9 @@ private fun validateImageReferences(content: GameModel) {
             content.wilderness.events.caveImage
                 ?.let { add(it to "wilderness cave image") }
             content.dungeons.backdrop?.let { add(it to "dungeon backdrop") }
-            content.ydarg?.image?.let { add(it to "Ydarg backdrop") }
+            content.castles.forEach { castle ->
+                castle.image?.let { add(it to "castle ${castle.id.slug} backdrop") }
+            }
             content.combat.standardBattle?.let { battle ->
                 battle.opening.banners.forEach { add(it to "battle opening banner") }
                 battle.victoryImage?.let { add(it to "battle victory image") }
@@ -2598,8 +2615,10 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("combat") { validateCombatSystem(content.combat, content.rewards) }
         captureValidation("wilderness") { validateWildernessSystem(content.wilderness, terrainBindings) }
         captureValidation("dungeons") { validateDungeonSystem(content.dungeons, content.monsters) }
-        captureValidation("ydarg") {
-            validateYdargSystem(content.ydarg, content.itemCatalog, content.progress, content.monsters, content.worldMaps)
+        content.castles.forEach { castle ->
+            captureValidation("castles.${castle.id.slug}") {
+                validateCastleSystem(castle, content.itemCatalog, content.progress, content.monsters, content.scenes, content.worldMaps)
+            }
         }
         captureValidation("secrets") { validateSecretSystem(content.secrets, content.itemCatalog, content.monsters) }
         captureValidation("towns") { validateTowns(content.towns) }

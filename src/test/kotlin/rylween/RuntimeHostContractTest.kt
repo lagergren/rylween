@@ -19,17 +19,18 @@ import rylween.engine.RuntimeScriptExecutionStrategy
 import rylween.engine.RylweenKotlinEngine
 import rylween.engine.RylweenRuntimeHostContract
 import rylween.frontend.terminal.BattleSessionTerminalAdapter
+import rylween.frontend.terminal.CastleSessionTerminalAdapter
 import rylween.frontend.terminal.DungeonSessionTerminalAdapter
 import rylween.frontend.terminal.TerminalRunStatus
 import rylween.frontend.terminal.TerminalTextContext
 import rylween.frontend.terminal.TownSessionTerminalAdapter
 import rylween.frontend.terminal.WildernessSessionTerminalAdapter
-import rylween.frontend.terminal.YdargSessionTerminalAdapter
 import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.frontend.terminal.terminalTextRenderer
 import rylween.game.Dungeons
 import rylween.game.EncounterTiers
+import rylween.game.Images
 import rylween.game.Maps
 import rylween.game.RylweenCompiledGame
 import rylween.game.Scenes
@@ -40,6 +41,9 @@ import rylween.runtime.RuntimeSessionState
 import rylween.runtime.battle.BattleSession
 import rylween.runtime.battle.BattleSessionResultStatus
 import rylween.runtime.battle.BattleSessionStep
+import rylween.runtime.castle.CastleSession
+import rylween.runtime.castle.CastleSessionStatus
+import rylween.runtime.castle.CastleSessionStep
 import rylween.runtime.dungeon.DungeonSession
 import rylween.runtime.dungeon.DungeonSessionInput
 import rylween.runtime.dungeon.DungeonSessionResultStatus
@@ -59,9 +63,6 @@ import rylween.runtime.wilderness.WorldMapGrid
 import rylween.runtime.wilderness.effectiveHelpPages
 import rylween.runtime.wilderness.exploreCommands
 import rylween.runtime.wilderness.worldMapGrid
-import rylween.runtime.ydarg.YdargSession
-import rylween.runtime.ydarg.YdargSessionStatus
-import rylween.runtime.ydarg.YdargSessionStep
 import rylween.save.RuntimeSaveOutcome
 import rylween.save.RuntimeSavePort
 import rylween.save.parseRuntimeStateSnapshot
@@ -538,14 +539,14 @@ class RuntimeHostContractTest {
         content: GameModel,
         runtime: RuntimeSessionState,
         runtimeContent: RuntimeContent,
-    ): TerminalScenario<YdargSession> =
+    ): TerminalScenario<CastleSession> =
         TerminalScenario(
             name = "j3-castle-gate",
             fixture = ScenarioFixture(startState = States.freshReplay, seed = runtime.realm.rngState),
             inputs = emptyList(),
-            start = { YdargSession.start(runtime, runtimeContent) },
+            start = { CastleSession.start(runtime, runtimeContent) },
             drive = { terminal, session ->
-                YdargSessionTerminalAdapter(
+                CastleSessionTerminalAdapter(
                     terminal = terminal,
                     renderer = content.terminalTextRenderer(),
                 ).runUntilBlocked(session)
@@ -554,7 +555,7 @@ class RuntimeHostContractTest {
                 listOf(
                     checkpoint("castle flow emits typed image view command") {
                         assertTrue(result.status is TerminalRunStatus.Finished)
-                        assertEquals(YdargSessionStatus.MissingKey, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStatus.EntryBlocked, result.session.lastResult?.status)
                         assertFalse(terminal.viewCommands.isEmpty())
                         assertImageShown("blitgfx.ydarg_castle")
                     },
@@ -565,7 +566,7 @@ class RuntimeHostContractTest {
     private fun headlessCastleScenario(
         host: KotlinHeadlessHost,
         runtime: RuntimeSessionState,
-    ): HeadlessScenario<YdargSession> =
+    ): HeadlessScenario<CastleSession> =
         HeadlessScenario(
             name = "j3c-headless-castle-gate",
             fixture = ScenarioFixture(startState = States.freshReplay, seed = runtime.realm.rngState),
@@ -574,10 +575,10 @@ class RuntimeHostContractTest {
             checkpoints =
                 listOf(
                     headlessCheckpoint("castle emits typed image data without ANSI adapter") {
-                        val messages = result.step as YdargSessionStep.Messages
-                        assertEquals(YdargSessionStatus.MissingKey, result.lastResult?.status)
-                        assertTrue(messages.image != null)
-                        assertTrue(host.image(checkNotNull(messages.image)) != null)
+                        val script = result.step as CastleSessionStep.Script
+                        assertEquals(CastleSessionStatus.EntryBlocked, result.lastResult?.status)
+                        assertEquals("castle.ydarg.entry_blocked", script.scene.id.slug)
+                        assertTrue(host.image(Images.Backdrop.ydargCastle) != null)
                     },
                 ),
             suites = setOf(RuntimeConformanceSuite.CastleFlow, RuntimeConformanceSuite.ViewCommands),

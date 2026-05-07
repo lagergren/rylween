@@ -2,11 +2,13 @@
  * Serializable runtime snapshot model used by save/load.
  *
  * `save/StateSnapshot.kt` renders and parses these records, while dungeon and
- * Ydarg runtime sessions convert their nested progress into the mode-specific
+ * castle runtime sessions convert their nested progress into the mode-specific
  * snapshots declared here.
  */
 package rylween.runtime
 
+import rylween.dsl.CastleId
+import rylween.dsl.CastleRoomEvent
 import rylween.dsl.DungeonEventId
 import rylween.dsl.DungeonId
 import rylween.dsl.GridPoint
@@ -14,7 +16,6 @@ import rylween.dsl.ItemId
 import rylween.dsl.MissionId
 import rylween.dsl.SceneId
 import rylween.dsl.StateModel
-import rylween.dsl.YdargRoomEvent
 
 /** Full saveable runtime image: world state plus optional mode/session state. */
 data class RuntimeSnapshotModel(
@@ -27,14 +28,15 @@ data class RuntimeSnapshotModel(
 data class RuntimeSnapshotMetadata(
     val formatVersion: Int,
     val contentHash: String? = null,
+    val compiledBundleHash: String? = null,
     val universeId: String? = null,
     val universeVersion: String? = null,
 )
 
 /** Nested session snapshot for modes that cannot be reconstructed from realm state alone. */
 sealed interface RuntimeModeSnapshot {
-    data class YdargCastle(
-        val session: YdargSessionSnapshot,
+    data class Castle(
+        val session: CastleSessionSnapshot,
     ) : RuntimeModeSnapshot
 
     data class Dungeon(
@@ -43,17 +45,18 @@ sealed interface RuntimeModeSnapshot {
     ) : RuntimeModeSnapshot
 }
 
-/** Saveable state for a Ydarg castle traversal. */
-data class YdargSessionSnapshot(
+/** Saveable state for an authored castle traversal. */
+data class CastleSessionSnapshot(
+    val castle: CastleId,
     val floor: Int,
     val point: GridPoint,
-    val rooms: Map<GridPoint, YdargRoomEvent>,
-    val step: YdargSavedStep = YdargSavedStep.Navigate,
+    val rooms: Map<GridPoint, CastleRoomEvent>,
+    val step: CastleSavedStep = CastleSavedStep.Navigate,
     val treasureItem: ItemId? = null,
 )
 
-/** Persisted Ydarg step tokens that are stable across runtime implementation details. */
-enum class YdargSavedStep {
+/** Persisted castle step tokens that are stable across runtime implementation details. */
+enum class CastleSavedStep {
     RoomEntry,
     Navigate,
     TreasureOffer,

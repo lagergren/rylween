@@ -87,6 +87,7 @@ class FileRuntimeSavePort(
     private val file: File,
     private val snapshotId: StateId,
     private val content: GameModel? = null,
+    private val compiledBundleHash: String? = null,
 ) : RuntimeSavePort {
     override fun save(runtime: RuntimeSessionState): RuntimeSaveOutcome = save(RuntimeSaveRequest(runtime))
 
@@ -97,7 +98,7 @@ class FileRuntimeSavePort(
                 RuntimeSnapshotModel(
                     state = request.runtime.toRuntimeStateSnapshot(snapshotId),
                     mode = request.mode,
-                    metadata = content?.runtimeSnapshotMetadata(),
+                    metadata = content?.runtimeSnapshotMetadata()?.copy(compiledBundleHash = compiledBundleHash),
                 )
             val rendered = renderRuntimeStateSnapshot(snapshot)
             file.parentFile?.mkdirs()
@@ -116,9 +117,9 @@ class FileRuntimeSavePort(
                     error("Wilderness runtime save must not include a session snapshot")
                 }
             }
-            RuntimeMode.YdargCastle -> {
-                if (request.mode !is RuntimeModeSnapshot.YdargCastle) {
-                    error("YdargCastle runtime save requires Ydarg session snapshot")
+            RuntimeMode.Castle -> {
+                if (request.mode !is RuntimeModeSnapshot.Castle) {
+                    error("Castle runtime save requires Castle session snapshot")
                 }
             }
             RuntimeMode.Dungeon -> {

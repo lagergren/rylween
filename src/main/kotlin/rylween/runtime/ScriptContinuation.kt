@@ -27,6 +27,9 @@ import rylween.runtime.town.ShopServiceSession
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.SpeakSession
 import rylween.runtime.vm.CompiledVmContinuation
+import rylween.runtime.vm.CompiledVmContinuationSnapshot
+import rylween.runtime.vm.toContinuation
+import rylween.runtime.vm.toSnapshot
 
 /** Authored script-root categories used by compiled bundles and save diagnostics. */
 enum class ScriptRootKind {
@@ -298,6 +301,7 @@ data class ScriptContinuationSnapshot(
     val realmScalars: Map<String, Int> = emptyMap(),
     val stack: List<ScriptFrame>,
     val activeInventorySlot: Int? = null,
+    val compiledVmContinuation: CompiledVmContinuationSnapshot? = null,
 )
 
 /** Converts a continuation into a saveable snapshot when no child session is active. */
@@ -309,13 +313,13 @@ fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot {
     }
     require(rewardGrantSession == null) { "script continuation with active reward grant session cannot be saved yet" }
     require(shopServiceSession == null) { "script continuation with active shop service session cannot be saved yet" }
-    require(compiledVmContinuation == null) { "script continuation with compiled VM frame cannot be saved until J2.7" }
     return ScriptContinuationSnapshot(
         root = root,
         locals = locals,
         realmScalars = realmScalars,
         stack = stack,
         activeInventorySlot = activeInventorySlot,
+        compiledVmContinuation = compiledVmContinuation?.toSnapshot(),
     )
 }
 
@@ -328,4 +332,5 @@ fun ScriptContinuationSnapshot.toContinuation(runtime: RuntimeSessionState): Scr
         realmScalars = realmScalars,
         stack = stack,
         activeInventorySlot = activeInventorySlot,
+        compiledVmContinuation = compiledVmContinuation?.toContinuation(runtime),
     )

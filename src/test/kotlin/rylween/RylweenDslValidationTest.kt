@@ -19,6 +19,7 @@ import rylween.compiled.toNativeSmokeArtifact
 import rylween.dsl.BattleOpeningKeysModel
 import rylween.dsl.BuildingId
 import rylween.dsl.BuildingServiceModel
+import rylween.dsl.CastleRoomEvent
 import rylween.dsl.CharacterModel
 import rylween.dsl.CharacterPlacementModel
 import rylween.dsl.ChitchatSubject
@@ -122,7 +123,6 @@ import rylween.dsl.WildernessFatigueMatch
 import rylween.dsl.WildernessFatigueRule
 import rylween.dsl.WildernessUpkeepRules
 import rylween.dsl.WorldPosition
-import rylween.dsl.YdargRoomEvent
 import rylween.dsl.cells
 import rylween.dsl.collectAuthoredContentDiagnostics
 import rylween.dsl.declareFlag
@@ -168,6 +168,7 @@ import rylween.dsl.xy
 import rylween.engine.EngineRequest
 import rylween.engine.EngineTraceEvent
 import rylween.engine.EquipmentPromptTraceRunner
+import rylween.engine.KotlinHeadlessHost
 import rylween.engine.RuntimeStartupTarget
 import rylween.engine.RylweenKotlinEngine
 import rylween.engine.ScriptTraceRunner
@@ -179,6 +180,7 @@ import rylween.engine.requireStartupTown
 import rylween.engine.selectStartupState
 import rylween.engine.validateStartupState
 import rylween.frontend.terminal.BattleSessionTerminalAdapter
+import rylween.frontend.terminal.CastleSessionTerminalAdapter
 import rylween.frontend.terminal.CharacterCreationTerminalAdapter
 import rylween.frontend.terminal.DungeonSessionTerminalAdapter
 import rylween.frontend.terminal.EquipmentPromptTerminalAdapter
@@ -196,11 +198,12 @@ import rylween.frontend.terminal.TerminalTextRenderer
 import rylween.frontend.terminal.TownLeaveEquipmentTerminalAdapter
 import rylween.frontend.terminal.TownSessionTerminalAdapter
 import rylween.frontend.terminal.WildernessSessionTerminalAdapter
-import rylween.frontend.terminal.YdargSessionTerminalAdapter
+import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.frontend.terminal.terminalTextRenderer
 import rylween.frontend.terminal.writeScriptEvents
 import rylween.game.Buildings
+import rylween.game.Castles
 import rylween.game.DungeonEvents
 import rylween.game.Dungeons
 import rylween.game.EncounterTiers
@@ -230,6 +233,8 @@ import rylween.game.Story
 import rylween.game.T
 import rylween.game.Terrain
 import rylween.game.Towns
+import rylween.runtime.CastleSavedStep
+import rylween.runtime.CastleSessionSnapshot
 import rylween.runtime.CharacterCreationInput
 import rylween.runtime.DungeonDescentResult
 import rylween.runtime.DungeonSessionSnapshot
@@ -257,13 +262,16 @@ import rylween.runtime.TorchActionResult
 import rylween.runtime.TownLeaveEquipmentInput
 import rylween.runtime.WildernessDirection
 import rylween.runtime.WildernessNpcPlacementPolicy
-import rylween.runtime.YdargSavedStep
-import rylween.runtime.YdargSessionSnapshot
 import rylween.runtime.applyEquipmentCommand
 import rylween.runtime.battle.BattleSession
 import rylween.runtime.battle.BattleSessionResultStatus
 import rylween.runtime.battle.BattleSessionStep
 import rylween.runtime.campGearEffect
+import rylween.runtime.castle.CastleSession
+import rylween.runtime.castle.CastleSessionInput
+import rylween.runtime.castle.CastleSessionStatus
+import rylween.runtime.castle.CastleSessionStep
+import rylween.runtime.castle.navigationHelpPages
 import rylween.runtime.consumeInventoryItems
 import rylween.runtime.consumeTorch
 import rylween.runtime.countInventoryItems
@@ -309,6 +317,11 @@ import rylween.runtime.town.charactersFor
 import rylween.runtime.town.offerFor
 import rylween.runtime.tryDungeonDescent
 import rylween.runtime.unequipToInventory
+import rylween.runtime.vm.CompiledVmContinuationSnapshot
+import rylween.runtime.vm.CompiledVmFrameKind
+import rylween.runtime.vm.CompiledVmFrameSnapshot
+import rylween.runtime.vm.CompiledVmMenuOptionSnapshot
+import rylween.runtime.vm.CompiledVmPendingInputSnapshot
 import rylween.runtime.wilderness.CampSession
 import rylween.runtime.wilderness.CampSessionInput
 import rylween.runtime.wilderness.CampSessionStatus
@@ -326,11 +339,6 @@ import rylween.runtime.wilderness.WorldMapGrid
 import rylween.runtime.wilderness.effectiveHelpPages
 import rylween.runtime.wilderness.wildernessPoint
 import rylween.runtime.wilderness.worldMapGrid
-import rylween.runtime.ydarg.YdargSession
-import rylween.runtime.ydarg.YdargSessionInput
-import rylween.runtime.ydarg.YdargSessionStatus
-import rylween.runtime.ydarg.YdargSessionStep
-import rylween.runtime.ydarg.navigationHelpPages
 import rylween.save.FileRuntimeSavePort
 import rylween.save.RUNTIME_SNAPSHOT_FORMAT_VERSION
 import rylween.save.RuntimeSaveOutcome
@@ -359,6 +367,12 @@ import kotlin.test.assertTrue
 private fun compiledItemRecords(): List<ItemRecordModel> = RylweenCompiledGame.nextDsl.itemCatalog
 
 private fun compiledRealmContent(): RealmContentModel = RylweenCompiledGame.nextDsl.realm
+
+private fun compiledBundleHash(): String =
+    RylweenCompiledGame.nextRylween
+        .toExternalBundleArtifact()
+        .readExternalBundleArtifact()
+        .bundleContentHash
 
 private fun restrictedEquipmentRecords(): List<ItemRecordModel> =
     ItemCatalogBuilder()
@@ -966,7 +980,150 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun runtimeSnapshotEmitterRoundTripsYdargSessionBlock() {
+    fun runtimeSnapshotEmitterRoundTripsCompiledVmContinuationBlock() {
+        val content = RylweenCompiledGame.nextDsl
+        val root = ScriptRootRef.scene(Scenes.Missions.thunTemple, denseId = 1)
+        val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val snapshot =
+            RuntimeSnapshotModel(
+                state =
+                    base
+                        .toRuntimeSessionState(1234L)
+                        .withRealm(
+                            base.realm.copy(
+                                currentMode = RuntimeMode.Dungeon,
+                                rngState = 1234L,
+                            ),
+                        ).toRuntimeStateSnapshot(base.id),
+                metadata = content.runtimeSnapshotMetadata().copy(compiledBundleHash = compiledBundleHash()),
+                mode =
+                    RuntimeModeSnapshot.Dungeon(
+                        session =
+                            DungeonSessionSnapshot(
+                                dungeon = Dungeons.thunTemple,
+                                maxDepth = 1,
+                                depth = 1,
+                                levelEvents = emptyMap(),
+                            ),
+                        postDungeon =
+                            MissionPostDungeonSnapshot(
+                                mission = Missions.thunTemple,
+                                scene = Scenes.Missions.thunTemple,
+                                continuation =
+                                    ScriptContinuationSnapshot(
+                                        root = root,
+                                        stack = listOf(ScriptFrame(ScriptBlockRef.Root, nextIndex = 0)),
+                                        compiledVmContinuation =
+                                            CompiledVmContinuationSnapshot(
+                                                root = root,
+                                                locals = mapOf("choice" to 2),
+                                                textBindings = mapOf("speaker" to "traveller"),
+                                                frames =
+                                                    listOf(
+                                                        CompiledVmFrameSnapshot(
+                                                            blockPath = listOf(3, 1),
+                                                            nextIndex = 4,
+                                                            insideLoop = true,
+                                                            kind = CompiledVmFrameKind.LoopBody,
+                                                            enclosingInsideLoop = true,
+                                                        ),
+                                                    ),
+                                                pending =
+                                                    CompiledVmPendingInputSnapshot.Menu(
+                                                        root = root,
+                                                        instructionIndex = 5,
+                                                        operandPath = listOf(0, 2),
+                                                        prompt = inlineText("Choose a gate."),
+                                                        options = listOf(CompiledVmMenuOptionSnapshot('A', 0)),
+                                                        hasDefault = true,
+                                                    ),
+                                            ),
+                                    ),
+                            ),
+                    ),
+            )
+
+        val rendered = renderRuntimeStateSnapshot(snapshot)
+        val parsed = parseRuntimeSnapshotForLoad(rendered, content, compiledBundleHash = compiledBundleHash())
+        val rerendered = renderRuntimeStateSnapshot(parsed)
+
+        assertEquals(rendered, rerendered)
+        assertEquals(
+            snapshot.mode as RuntimeModeSnapshot.Dungeon,
+            parsed.mode as RuntimeModeSnapshot.Dungeon,
+        )
+    }
+
+    @Test
+    fun runtimeSnapshotLoadRejectsCompiledVmContinuationWithMismatchedBundleHash() {
+        val content = RylweenCompiledGame.nextDsl
+        val root = ScriptRootRef.scene(Scenes.Missions.thunTemple, denseId = 1)
+        val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val snapshot =
+            RuntimeSnapshotModel(
+                state =
+                    base
+                        .toRuntimeSessionState(1234L)
+                        .withRealm(base.realm.copy(currentMode = RuntimeMode.Dungeon, rngState = 1234L))
+                        .toRuntimeStateSnapshot(base.id),
+                metadata = content.runtimeSnapshotMetadata().copy(compiledBundleHash = compiledBundleHash()),
+                mode =
+                    RuntimeModeSnapshot.Dungeon(
+                        session =
+                            DungeonSessionSnapshot(
+                                dungeon = Dungeons.thunTemple,
+                                maxDepth = 1,
+                                depth = 1,
+                                levelEvents = emptyMap(),
+                            ),
+                        postDungeon =
+                            MissionPostDungeonSnapshot(
+                                mission = Missions.thunTemple,
+                                scene = Scenes.Missions.thunTemple,
+                                continuation =
+                                    ScriptContinuationSnapshot(
+                                        root = root,
+                                        stack = listOf(ScriptFrame(ScriptBlockRef.Root, nextIndex = 0)),
+                                        compiledVmContinuation =
+                                            CompiledVmContinuationSnapshot(
+                                                root = root,
+                                                frames =
+                                                    listOf(
+                                                        CompiledVmFrameSnapshot(
+                                                            blockPath = emptyList(),
+                                                            nextIndex = 1,
+                                                        ),
+                                                    ),
+                                                pending =
+                                                    CompiledVmPendingInputSnapshot.WaitInput(
+                                                        root = root,
+                                                        instructionIndex = 0,
+                                                        operandPath = emptyList(),
+                                                        reason = "test",
+                                                        prompt = inlineText("Continue?"),
+                                                    ),
+                                            ),
+                                    ),
+                            ),
+                    ),
+            )
+
+        val failure =
+            assertFailsWith<RylweenValidationException> {
+                parseRuntimeSnapshotForLoad(
+                    renderRuntimeStateSnapshot(snapshot),
+                    content,
+                    sourceName = "compiled save",
+                    compiledBundleHash = "sha256:not-the-current-bundle",
+                )
+            }
+
+        assertEquals("compiled save", failure.diagnostics.single().path)
+        assertTrue("compiled bundle hash does not match" in failure.diagnostics.single().message)
+    }
+
+    @Test
+    fun runtimeSnapshotEmitterRoundTripsCastleSessionBlock() {
         val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
         val snapshot =
             RuntimeSnapshotModel(
@@ -975,21 +1132,22 @@ class RylweenDslValidationTest {
                         kind = StateKind.RuntimeSnapshot,
                         realm =
                             base.realm.copy(
-                                currentMode = RuntimeMode.YdargCastle,
+                                currentMode = RuntimeMode.Castle,
                                 rngState = 1234L,
                             ),
                     ),
                 mode =
-                    RuntimeModeSnapshot.YdargCastle(
-                        YdargSessionSnapshot(
+                    RuntimeModeSnapshot.Castle(
+                        CastleSessionSnapshot(
+                            castle = Castles.ydarg,
                             floor = 2,
                             point = GridPoint(3, 4),
                             rooms =
                                 mapOf(
-                                    GridPoint(1, 1) to YdargRoomEvent.Empty,
-                                    GridPoint(3, 4) to YdargRoomEvent.Treasure,
+                                    GridPoint(1, 1) to CastleRoomEvent.Empty,
+                                    GridPoint(3, 4) to CastleRoomEvent.Treasure,
                                 ),
-                            step = YdargSavedStep.TreasureOffer,
+                            step = CastleSavedStep.TreasureOffer,
                             treasureItem = Items.redGem,
                         ),
                     ),
@@ -999,8 +1157,8 @@ class RylweenDslValidationTest {
         val parsed = parseRuntimeSnapshot(rendered)
 
         assertTrue("sessions {" in rendered)
-        assertTrue("ydarg {" in rendered)
-        assertTrue("step = YdargSavedStep.TreasureOffer" in rendered)
+        assertTrue("castle {" in rendered)
+        assertTrue("step = CastleSavedStep.TreasureOffer" in rendered)
         assertTrue("""treasureItem = item("red_gem")""" in rendered)
         assertEquals(snapshot.state.realm, parsed.state.realm)
         assertEquals(snapshot.mode, parsed.mode)
@@ -1140,8 +1298,9 @@ class RylweenDslValidationTest {
                     RuntimeSaveRequest(
                         runtime = runtime,
                         mode =
-                            RuntimeModeSnapshot.YdargCastle(
-                                YdargSessionSnapshot(
+                            RuntimeModeSnapshot.Castle(
+                                CastleSessionSnapshot(
+                                    castle = Castles.ydarg,
                                     floor = 1,
                                     point = GridPoint(1, 1),
                                     rooms = emptyMap(),
@@ -1158,7 +1317,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun fileRuntimeSavePortRejectsLossyYdargSaveWithoutSessionSnapshot() {
+    fun fileRuntimeSavePortRejectsLossyCastleSaveWithoutSessionSnapshot() {
         val file = File.createTempFile("rylween-save-", ".kts")
         val baseRuntime =
             RuntimeSessionState.singleParty(
@@ -1167,13 +1326,13 @@ class RylweenDslValidationTest {
                 currentTown = null,
                 rngState = 1L,
             )
-        val runtime = baseRuntime.withRealm(baseRuntime.realm.copy(currentMode = RuntimeMode.YdargCastle))
+        val runtime = baseRuntime.withRealm(baseRuntime.realm.copy(currentMode = RuntimeMode.Castle))
 
         try {
             val outcome = FileRuntimeSavePort(file, stateId("test-save")).save(runtime)
 
             assertFalse(outcome.saved)
-            assertTrue(checkNotNull(outcome.error).contains("YdargCastle runtime save requires Ydarg session snapshot"))
+            assertTrue(checkNotNull(outcome.error).contains("Castle runtime save requires Castle session snapshot"))
         } finally {
             file.delete()
         }
@@ -1273,7 +1432,7 @@ class RylweenDslValidationTest {
             }
 
         assertEquals("startup.state.bad-mode", failure.diagnostics.single().path)
-        assertTrue("can only resume Wilderness or Dungeon or YdargCastle states" in failure.diagnostics.single().message)
+        assertTrue("can only resume Wilderness or Dungeon or Castle states" in failure.diagnostics.single().message)
     }
 
     @Test
@@ -2299,8 +2458,12 @@ class RylweenDslValidationTest {
             RylweenCompiledGame.nextDsl.dungeons.keys
                 .effectiveHelpPages()
         val dungeonLines = dungeonPages.flatMap { page -> renderer.lines(page) }
-        val ydargPages = checkNotNull(RylweenCompiledGame.nextDsl.ydarg).keys.navigationHelpPages()
-        val ydargLines = ydargPages.flatMap { page -> renderer.lines(page) }
+        val castlePages =
+            RylweenCompiledGame.nextDsl.castles
+                .single { castle -> castle.id == Castles.ydarg }
+                .keys
+                .navigationHelpPages()
+        val castleLines = castlePages.flatMap { page -> renderer.lines(page) }
         val textWindowWidth =
             checkNotNull(
                 RylweenCompiledGame.nextDsl.layouts.regions
@@ -2311,14 +2474,14 @@ class RylweenDslValidationTest {
 
         assertTrue(wildernessPages.all { page -> renderer.lines(page).size <= 7 })
         assertTrue(dungeonPages.all { page -> renderer.lines(page).size <= 7 })
-        assertTrue(ydargPages.all { page -> renderer.lines(page).size <= 7 })
-        assertTrue((wildernessLines + dungeonLines + ydargLines).all { line -> line.length <= textWindowWidth })
+        assertTrue(castlePages.all { page -> renderer.lines(page).size <= 7 })
+        assertTrue((wildernessLines + dungeonLines + castleLines).all { line -> line.length <= textWindowWidth })
         assertTrue("C = Camp" in wildernessLines)
         assertTrue("8/Up = Move North" in wildernessLines)
         assertTrue("D = Descend" in dungeonLines)
         assertTrue("S = Save Game" in dungeonLines)
-        assertTrue("8 = Move North" in ydargLines)
-        assertTrue("? = View Help" in ydargLines)
+        assertTrue("8 = Move North" in castleLines)
+        assertTrue("? = View Help" in castleLines)
     }
 
     @Test
@@ -2481,7 +2644,7 @@ class RylweenDslValidationTest {
         assertEquals(1, runtimeSystems.schemaVersion)
         assertTrue("wilderness" in runtimeSystems.commandGroups)
         assertTrue("dungeon" in runtimeSystems.commandGroups)
-        assertTrue("ydarg.navigation" in runtimeSystems.commandGroups)
+        assertTrue("castle.ydarg.navigation" in runtimeSystems.commandGroups)
         assertTrue("wilderness" in runtimeSystems.promptGroups)
         assertTrue("dungeon" in runtimeSystems.promptGroups)
         assertTrue("ydarg" in runtimeSystems.castles)
@@ -2498,8 +2661,10 @@ class RylweenDslValidationTest {
         val runtimeGame = artifact.readExternalRuntimeGame()
         assertEquals(bundle, runtimeGame.toCompiledGameBundle())
         assertEquals(artifact.toList(), runtimeGame.toExternalBundleArtifact().toList())
-        assertEquals(RylweenCompiledGame.nextDsl.ydarg?.entry, runtimeGame.content.ydarg?.entry)
-        assertEquals(RylweenCompiledGame.nextDsl.ydarg?.mapSize, runtimeGame.content.ydarg?.mapSize)
+        val sourceCastle = RylweenCompiledGame.nextDsl.castles.single { castle -> castle.id == Castles.ydarg }
+        val runtimeCastle = runtimeGame.content.castles.single { castle -> castle.id == Castles.ydarg }
+        assertEquals(sourceCastle.entry, runtimeCastle.entry)
+        assertEquals(sourceCastle.mapSize, runtimeCastle.mapSize)
         assertEquals(RylweenCompiledGame.nextDsl.prompts, runtimeGame.content.prompts)
         assertEquals(RylweenCompiledGame.nextDsl.terminal, runtimeGame.content.terminal)
         assertEquals(RylweenCompiledGame.nextDsl.realm, runtimeGame.content.realm)
@@ -2513,7 +2678,12 @@ class RylweenDslValidationTest {
                 realizeNpcs = false,
             )
         assertEquals(RuntimeMode.Wilderness, runtimeSession.runtime.realm.currentMode)
-        assertEquals(runtimeGame.content.ydarg?.entry, runtimeSession.content.ydarg?.entry)
+        assertEquals(
+            runtimeCastle.entry,
+            runtimeSession.content.castles
+                .single { castle -> castle.id == Castles.ydarg }
+                .entry,
+        )
 
         val file = File.createTempFile("rylween-bundle-", ".json")
         try {
@@ -5230,7 +5400,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun validationRejectsYdargEntryOffCastleTile() {
+    fun validationRejectsCastleEntryOffCastleTile() {
         val content = RylweenCompiledGame.nextDsl
         val wildernessMap = content.worldMaps.single { it.id == Maps.wilderness }
         val brokenMap =
@@ -5258,8 +5428,8 @@ class RylweenDslValidationTest {
 
         assertTrue(
             diagnostics.any {
-                it.path == "ydarg" &&
-                    "Ydarg entry 14x30 must point at castle tile '2'" in it.message
+                it.path == "castles.ydarg" &&
+                    "castle ydarg entry 14x30 must point at castle tile '2'" in it.message
             },
         )
     }
@@ -6446,7 +6616,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun wildernessCastleEntryWithoutSilverKeyRunsAuthoredYdargGate() {
+    fun wildernessCastleEntryWithoutSilverKeyRunsAuthoredCastleGate() {
         val map =
             WorldMapGrid.fromSourceRows(
                 List(30) { y ->
@@ -6454,7 +6624,7 @@ class RylweenDslValidationTest {
                 },
             )
         runCompiledWildernessScenario(
-            name = "ydarg-gate-without-silver-key",
+            name = "castle-gate-without-silver-key",
             inputs = listOf("E"),
             start = {
                 compiledWildernessSession(
@@ -6468,7 +6638,7 @@ class RylweenDslValidationTest {
                 listOf(
                     checkpoint("authored gate text and backdrop render") {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(WildernessSessionResultStatus.LeftYdarg, result.session.lastResult?.status)
+                        assertEquals(WildernessSessionResultStatus.LeftCastle, result.session.lastResult?.status)
                         assertImageShown(Images.Backdrop.ydargCastle.slug)
                         assertOutputContains("guardian of the gate.")
                         assertOutputContains("remain sealed.")
@@ -6479,7 +6649,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun wildernessCastleEntryAfterYdargVictoryShowsRuinsAndReturns() {
+    fun wildernessCastleEntryAfterCastleVictoryShowsRuinsAndReturns() {
         val map =
             WorldMapGrid.fromSourceRows(
                 List(30) { y ->
@@ -6487,7 +6657,7 @@ class RylweenDslValidationTest {
                 },
             )
         runCompiledWildernessScenario(
-            name = "ydarg-gate-after-victory",
+            name = "castle-gate-after-victory",
             inputs = listOf("E"),
             start = {
                 compiledWildernessSession(
@@ -6505,7 +6675,7 @@ class RylweenDslValidationTest {
                 listOf(
                     checkpoint("cleared castle renders ruins and returns to wilderness") {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(WildernessSessionResultStatus.LeftYdarg, result.session.lastResult?.status)
+                        assertEquals(WildernessSessionResultStatus.LeftCastle, result.session.lastResult?.status)
                         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
                         assertImageShown(Images.Backdrop.ydargCastle.slug)
                         assertOutputContains("nothing but a ruin.")
@@ -6517,7 +6687,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun wildernessCastleEntryWithSilverKeyHandsOffToYdargSession() {
+    fun wildernessCastleEntryWithSilverKeyHandsOffToCastleSession() {
         val map =
             WorldMapGrid.fromSourceRows(
                 List(30) { y ->
@@ -6525,7 +6695,7 @@ class RylweenDslValidationTest {
                 },
             )
         runCompiledWildernessScenario(
-            name = "ydarg-entry-with-silver-key",
+            name = "castle-entry-with-silver-key",
             inputs = listOf("E"),
             seed = 1L,
             start = {
@@ -6543,9 +6713,9 @@ class RylweenDslValidationTest {
             },
             checkpoints =
                 listOf(
-                    checkpoint("hands off to Ydarg battle opening") {
+                    checkpoint("hands off to Castle battle opening") {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertTrue(result.session.step is WildernessSessionStep.Ydarg)
+                        assertTrue(result.session.step is WildernessSessionStep.Castle)
                         assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
                         assertOutputContains("resounding KRASH")
                         assertOutputContains("You are spotted by")
@@ -6556,7 +6726,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun ydargStairGiftConsumesAuthoredMilestoneAndAdvancesFloor() {
+    fun castleStairGiftConsumesAuthoredMilestoneAndAdvancesFloor() {
         val content = RylweenCompiledGame.nextDsl
         val party =
             testParty(
@@ -6566,27 +6736,27 @@ class RylweenDslValidationTest {
                 milestones = listOf(Milestones.silverKey, Milestones.fireShield),
             )
         val started =
-            YdargSession.start(
+            CastleSession.start(
                 runtime = RuntimeSessionState.singleParty(party = party, hour = 12, currentTown = null),
                 content = content.runtimeContent(),
             )
 
         val stairs =
             started.copy(
-                step = YdargSessionStep.StairGive,
+                step = CastleSessionStep.StairGive,
                 floor = 1,
                 point = GridPoint(5, 5),
             )
-        val result = stairs.apply(YdargSessionInput.StairItem(1))
+        val result = stairs.apply(CastleSessionInput.StairItem(1))
 
         assertEquals(2, result.floor)
         assertEquals(GridPoint(1, 1), result.point)
         assertFalse(Milestones.fireShield in result.party.milestones)
-        assertTrue(result.step is YdargSessionStep.Messages)
+        assertTrue(result.step is CastleSessionStep.Messages)
     }
 
     @Test
-    fun ydargNavigationUsesSharedPartyUtilitySessions() {
+    fun castleNavigationUsesSharedPartyUtilitySessions() {
         val content = RylweenCompiledGame.nextDsl
         val party =
             testParty(
@@ -6597,36 +6767,36 @@ class RylweenDslValidationTest {
                 milestones = listOf(Milestones.silverKey),
             )
         val started =
-            YdargSession
+            CastleSession
                 .start(
                     runtime = RuntimeSessionState.singleParty(party = party, hour = 12, currentTown = null),
                     content = content.runtimeContent(),
-                ).copy(step = YdargSessionStep.Navigate)
+                ).copy(step = CastleSessionStep.Navigate)
 
-        runCompiledYdargScenario(
-            name = "ydarg-navigation-drop-uses-shared-inventory-session",
+        runCompiledCastleScenario(
+            name = "castle-navigation-drop-uses-shared-inventory-session",
             inputs = listOf("L", "A"),
             start = { started },
             checkpoints =
                 listOf(
                     checkpoint("drop removes item and reapplies capacity") {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(YdargSessionStatus.DropUsed, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStatus.DropUsed, result.session.lastResult?.status)
                         assertEquals(null, result.session.party.inventoryItem(1))
                         assertTrue(result.session.party.resources.food < 999)
                     },
                 ),
         )
 
-        runCompiledYdargScenario(
-            name = "ydarg-navigation-view-uses-shared-party-session",
+        runCompiledCastleScenario(
+            name = "castle-navigation-view-uses-shared-party-session",
             inputs = listOf("V", "Q"),
             start = { started },
             checkpoints =
                 listOf(
-                    checkpoint("party view renders inside Ydarg navigation") {
+                    checkpoint("party view renders inside Castle navigation") {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(YdargSessionStatus.ViewPartyShown, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStatus.ViewPartyShown, result.session.lastResult?.status)
                         assertOutputContains("Torches:")
                     },
                 ),
@@ -6634,32 +6804,32 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun ydargNavigationEmitsAnsiBoundaryViewsAndAuthoredMoveText() {
+    fun castleNavigationEmitsAnsiBoundaryViewsAndAuthoredMoveText() {
         val started =
-            YdargSession
+            CastleSession
                 .start(
                     runtime =
                         RuntimeSessionState.singleParty(
-                            party = ydargCastleParty(),
+                            party = castleParty(),
                             hour = 12,
                             currentTown = null,
                             rngState = 1L,
                         ),
                     content = RylweenCompiledGame.nextDsl.runtimeContent(),
                 ).copy(
-                    rooms = mapOf(GridPoint(2, 1) to YdargRoomEvent.Empty),
-                    step = YdargSessionStep.Navigate,
+                    rooms = mapOf(GridPoint(2, 1) to CastleRoomEvent.Empty),
+                    step = CastleSessionStep.Navigate,
                 )
 
-        runCompiledYdargScenario(
-            name = "ydarg-navigation-ansi-boundary-and-move-text",
+        runCompiledCastleScenario(
+            name = "castle-navigation-ansi-boundary-and-move-text",
             inputs = listOf("6"),
             start = { started },
             checkpoints =
                 listOf(
                     checkpoint("navigation restores castle backdrop, status, and authored move text") {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(YdargSessionStatus.Moved, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStatus.Moved, result.session.lastResult?.status)
                         assertEquals(GridPoint(2, 1), result.session.point)
                         assertImageShown(Images.Backdrop.ydargCastle.slug)
                         assertViewCommand(ViewCommand.StatusLine)
@@ -6671,7 +6841,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun ydargSaveCommandPersistsAndResumesCastleSession() {
+    fun castleSaveCommandPersistsAndResumesCastleSession() {
         val content = RylweenCompiledGame.nextDsl
         val party =
             testParty(
@@ -6683,7 +6853,7 @@ class RylweenDslValidationTest {
                 party.copy(counters = party.counters.copy(attackedToday = listOf(PartyAttackRecord(party.id, false))))
             }
         val started =
-            YdargSession
+            CastleSession
                 .start(
                     runtime =
                         RuntimeSessionState.singleParty(
@@ -6696,36 +6866,36 @@ class RylweenDslValidationTest {
                 ).copy(
                     rooms =
                         mapOf(
-                            GridPoint(1, 1) to YdargRoomEvent.Empty,
-                            GridPoint(2, 1) to YdargRoomEvent.Pitfall,
+                            GridPoint(1, 1) to CastleRoomEvent.Empty,
+                            GridPoint(2, 1) to CastleRoomEvent.Pitfall,
                         ),
-                    step = YdargSessionStep.Navigate,
+                    step = CastleSessionStep.Navigate,
                     floor = 2,
                     point = GridPoint(2, 1),
                 )
         var saved: RuntimeSnapshotModel? = null
         val savePort =
             object : RuntimeSavePort {
-                override fun save(runtime: RuntimeSessionState): RuntimeSaveOutcome = error("Ydarg save must include session state")
+                override fun save(runtime: RuntimeSessionState): RuntimeSaveOutcome = error("Castle save must include session state")
 
                 override fun save(request: RuntimeSaveRequest): RuntimeSaveOutcome {
                     saved =
                         RuntimeSnapshotModel(
-                            state = request.runtime.toRuntimeStateSnapshot(stateId("ydarg-save")),
+                            state = request.runtime.toRuntimeStateSnapshot(stateId("castle-save")),
                             mode = request.mode,
                         )
                     return RuntimeSaveOutcome(saved = true, target = "memory")
                 }
             }
 
-        runCompiledYdargScenario(
-            name = "ydarg-save-command-round-trips-session",
+        runCompiledCastleScenario(
+            name = "castle-save-command-round-trips-session",
             inputs = listOf("S"),
             savePort = savePort,
             start = { started },
             checkpoints =
                 listOf(
-                    checkpoint("save request includes Ydarg floor, point, rooms, and resume step") {
+                    checkpoint("save request includes castle floor, point, rooms, and resume step") {
                         val snapshot = checkNotNull(saved)
                         val rendered = renderRuntimeStateSnapshot(snapshot)
                         val parsed = parseRuntimeSnapshotForLoad(rendered, content)
@@ -6735,36 +6905,36 @@ class RylweenDslValidationTest {
                                 worldMap = checkNotNull(content.worldMapGrid(Maps.wilderness)),
                                 realizeNpcs = false,
                             )
-                        val resumedYdarg = (resumed.step as WildernessSessionStep.Ydarg).session
+                        val resumedCastle = (resumed.step as WildernessSessionStep.Castle).session
 
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(YdargSessionStatus.Saved, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStatus.Saved, result.session.lastResult?.status)
                         assertOutputContains("Saving position...")
                         assertOutputContains("Done.")
-                        assertEquals(RuntimeMode.YdargCastle, parsed.state.realm.currentMode)
-                        assertTrue(parsed.mode is RuntimeModeSnapshot.YdargCastle)
-                        assertEquals(2, resumedYdarg.floor)
-                        assertEquals(GridPoint(2, 1), resumedYdarg.point)
-                        assertEquals(YdargRoomEvent.Pitfall, resumedYdarg.rooms[GridPoint(2, 1)])
-                        assertTrue(resumedYdarg.step is YdargSessionStep.Navigate)
+                        assertEquals(RuntimeMode.Castle, parsed.state.realm.currentMode)
+                        assertTrue(parsed.mode is RuntimeModeSnapshot.Castle)
+                        assertEquals(2, resumedCastle.floor)
+                        assertEquals(GridPoint(2, 1), resumedCastle.point)
+                        assertEquals(CastleRoomEvent.Pitfall, resumedCastle.rooms[GridPoint(2, 1)])
+                        assertTrue(resumedCastle.step is CastleSessionStep.Navigate)
                     },
                 ),
         )
     }
 
     @Test
-    fun ydargTreasureRoomRunsThroughScenarioHarness() {
-        runCompiledYdargScenario(
-            name = "ydarg-treasure-room-take-item",
+    fun castleTreasureRoomRunsThroughScenarioHarness() {
+        runCompiledCastleScenario(
+            name = "castle-treasure-room-take-item",
             inputs = listOf("T"),
             seed = 1L,
-            start = { ydargRoomSession(YdargRoomEvent.Treasure) },
+            start = { castleRoomSession(CastleRoomEvent.Treasure) },
             checkpoints =
                 listOf(
                     checkpoint("treasure prompt grants authored item") {
                         val item = checkNotNull(result.session.lastResult?.item)
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(YdargSessionStatus.TreasureTaken, result.session.lastResult.status)
+                        assertEquals(CastleSessionStatus.TreasureTaken, result.session.lastResult.status)
                         assertEquals(item, result.session.party.inventoryItem(1))
                         assertOutputContains("You find a")
                         assertOutputContains("Ok.")
@@ -6774,18 +6944,18 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun ydargTreasureRoomCanLeaveItemOrReportFullInventory() {
-        runCompiledYdargScenario(
-            name = "ydarg-treasure-room-leave-item",
+    fun castleTreasureRoomCanLeaveItemOrReportFullInventory() {
+        runCompiledCastleScenario(
+            name = "castle-treasure-room-leave-item",
             inputs = listOf("L"),
             seed = 1L,
-            start = { ydargRoomSession(YdargRoomEvent.Treasure) },
+            start = { castleRoomSession(CastleRoomEvent.Treasure) },
             checkpoints =
                 listOf(
                     checkpoint("leave keeps inventory unchanged and returns to navigation") {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(YdargSessionStatus.TreasureLeft, result.session.lastResult?.status)
-                        assertEquals(YdargSessionStep.Navigate, result.session.step)
+                        assertEquals(CastleSessionStatus.TreasureLeft, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStep.Navigate, result.session.step)
                         assertTrue(
                             (1..InventorySaveSlotMax).all { slot -> result.session.party.inventoryItem(slot) == null },
                         )
@@ -6795,15 +6965,15 @@ class RylweenDslValidationTest {
                 ),
         )
 
-        runCompiledYdargScenario(
-            name = "ydarg-treasure-room-full-inventory",
+        runCompiledCastleScenario(
+            name = "castle-treasure-room-full-inventory",
             inputs = listOf("T"),
             seed = 1L,
             start = {
-                ydargRoomSession(
-                    YdargRoomEvent.Treasure,
+                castleRoomSession(
+                    CastleRoomEvent.Treasure,
                     party =
-                        ydargCastleParty(
+                        castleParty(
                             inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.redPotion },
                         ),
                 )
@@ -6812,8 +6982,8 @@ class RylweenDslValidationTest {
                 listOf(
                     checkpoint("full inventory reports authored refusal text") {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(YdargSessionStatus.TreasureInventoryFull, result.session.lastResult?.status)
-                        assertEquals(YdargSessionStep.Navigate, result.session.step)
+                        assertEquals(CastleSessionStatus.TreasureInventoryFull, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStep.Navigate, result.session.step)
                         assertEquals(null, result.session.party.firstFreeInventorySlot())
                         assertOutputContains("You can't carry more.")
                     },
@@ -6822,19 +6992,19 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun ydargPitfallRoomRunsThroughScenarioHarness() {
-        runCompiledYdargScenario(
-            name = "ydarg-pitfall-room-damages-party",
+    fun castlePitfallRoomRunsThroughScenarioHarness() {
+        runCompiledCastleScenario(
+            name = "castle-pitfall-room-damages-party",
             inputs = emptyList(),
             seed = 1L,
             start = {
-                ydargRoomSession(YdargRoomEvent.Pitfall, party = ydargCastleParty(health = 60, hitPoints = 60))
+                castleRoomSession(CastleRoomEvent.Pitfall, party = castleParty(health = 60, hitPoints = 60))
             },
             checkpoints =
                 listOf(
                     checkpoint("pitfall text and damage apply") {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
-                        assertEquals(YdargSessionStatus.Pitfall, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStatus.Pitfall, result.session.lastResult?.status)
                         assertEquals(
                             50,
                             result.session.party.members
@@ -6848,22 +7018,22 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun ydargPitfallThiefCanDisarmOrFail() {
+    fun castlePitfallThiefCanDisarmOrFail() {
         fun runThiefPitfallScenario(
             name: String,
             wisdom: Int,
             expectedHp: Int,
             expectedText: String,
         ) {
-            runCompiledYdargScenario(
+            runCompiledCastleScenario(
                 name = name,
                 inputs = emptyList(),
                 seed = 1L,
                 start = {
-                    ydargRoomSession(
-                        YdargRoomEvent.Pitfall,
+                    castleRoomSession(
+                        CastleRoomEvent.Pitfall,
                         party =
-                            ydargCastleParty(
+                            castleParty(
                                 members =
                                     listOf(
                                         testMember(
@@ -6881,7 +7051,7 @@ class RylweenDslValidationTest {
                     listOf(
                         checkpoint("thief disarm branch matches authored outcome") {
                             assertTrue(result.status is TerminalRunStatus.Waiting)
-                            assertEquals(YdargSessionStatus.Pitfall, result.session.lastResult?.status)
+                            assertEquals(CastleSessionStatus.Pitfall, result.session.lastResult?.status)
                             assertEquals(
                                 expectedHp,
                                 result.session.party.members
@@ -6897,13 +7067,13 @@ class RylweenDslValidationTest {
         }
 
         runThiefPitfallScenario(
-            name = "ydarg-pitfall-thief-disarms",
+            name = "castle-pitfall-thief-disarms",
             wisdom = 100,
             expectedHp = 60,
             expectedText = "AND SUCCEEDS!",
         )
         runThiefPitfallScenario(
-            name = "ydarg-pitfall-thief-fails",
+            name = "castle-pitfall-thief-fails",
             wisdom = 0,
             expectedHp = 50,
             expectedText = "BUT FAILS!",
@@ -6911,25 +7081,25 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun ydargFinalConfrontationDefeatRunsThroughScenarioHarness() {
+    fun castleCompletionDefeatRunsThroughScenarioHarness() {
         val content = RylweenCompiledGame.nextDsl.runtimeContent().withLethalMissionMonsters(Monsters.cryptHorror)
         val party =
-            ydargCastleParty(
+            castleParty(
                 health = 1,
                 hitPoints = 1,
-                milestones = ydargConfrontationMilestones(),
+                milestones = castleCompletionMilestones(),
             )
 
-        runCompiledYdargScenario(
-            name = "ydarg-final-confrontation-party-defeat",
+        runCompiledCastleScenario(
+            name = "castle-completion-party-defeat",
             inputs = listOf("4", "F", "D"),
             seed = 1L,
-            start = { ydargFinalConfrontationSession(content, party) },
+            start = { castleCompletionSession(content, party) },
             checkpoints =
                 listOf(
                     checkpoint("defeat from nested battle ends in game over") {
                         assertTrue(result.status is TerminalRunStatus.Finished)
-                        assertEquals(YdargSessionStatus.PartyDefeated, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStatus.PartyDefeated, result.session.lastResult?.status)
                         assertEquals(RuntimeMode.GameOver, result.session.runtime.realm.currentMode)
                         assertTrue(
                             result.session.party.members
@@ -6943,7 +7113,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun ydargFinalConfrontationRunsThroughScenarioHarness() {
+    fun castleCompletionRunsThroughScenarioHarness() {
         val content =
             RylweenCompiledGame.nextDsl.runtimeContent().withTinyMissionMonsters(
                 Monsters.cryptHorror,
@@ -6954,11 +7124,11 @@ class RylweenDslValidationTest {
             )
         val party =
             decisiveMissionParty().copy(
-                milestones = ydargConfrontationMilestones(),
+                milestones = castleCompletionMilestones(),
             )
 
-        runCompiledYdargScenario(
-            name = "ydarg-final-confrontation-victory",
+        runCompiledCastleScenario(
+            name = "castle-completion-victory",
             inputs =
                 listOf(
                     "4",
@@ -6979,12 +7149,12 @@ class RylweenDslValidationTest {
                     "A",
                 ),
             seed = 1L,
-            start = { ydargFinalConfrontationSession(content, party) },
+            start = { castleCompletionSession(content, party) },
             checkpoints =
                 listOf(
                     checkpoint("victory milestone and ending text apply") {
                         assertTrue(result.status is TerminalRunStatus.Finished)
-                        assertEquals(YdargSessionStatus.Victory, result.session.lastResult?.status)
+                        assertEquals(CastleSessionStatus.Completed, result.session.lastResult?.status)
                         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
                         assertTrue(Milestones.ydargVictory in result.session.party.milestones)
                         assertFalse(Milestones.braceletsOfThun in result.session.party.milestones)
@@ -7209,6 +7379,95 @@ class RylweenDslValidationTest {
         assertEquals(RuntimeMode.Dungeon, parsed.state.realm.currentMode)
         assertTrue(parsed.mode is RuntimeModeSnapshot.Dungeon)
         assertTrue((resumed.step as WildernessSessionStep.Dungeon).postDungeon != null)
+        assertTrue(finished.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.MissionCompleted, finished.session.lastResult?.status)
+        assertTrue(finished.session.party.hasFlagState(Story.masterCrown.task1Done))
+    }
+
+    @Test
+    fun dungeonSavePersistsCompiledVmPostDungeonMissionContinuation() {
+        val map = thunTempleTestMap()
+        val (scene, mission) = thunTempleTestSceneAndMission()
+        val gameContent =
+            RylweenCompiledGame.nextDsl.copy(
+                dungeons = thunTempleTestDungeonSystem(),
+                missions = listOf(mission),
+                scenes = listOf(scene),
+            )
+        val content = gameContent.runtimeContent()
+        val bundle = RylweenCompiledGame.nextRylween.copy(content = gameContent).toExternalBundleArtifact()
+        val bundleHash = bundle.readExternalBundleArtifact().bundleContentHash
+        val compiledHost = KotlinHeadlessHost.fromExternalBundleCompiledVm(bundle)
+        val party =
+            testParty(food = 100, timeLeft = 200, restedHours = 14).let { source ->
+                source.copy(
+                    counters =
+                        source.counters.copy(
+                            attackedToday = listOf(PartyAttackRecord(source.id, false)),
+                        ),
+                )
+            }
+        val started =
+            WildernessSession(
+                runtime =
+                    RuntimeSessionState.singleParty(
+                        party = party,
+                        hour = 12,
+                        currentTown = null,
+                        rngState = 7L,
+                    ),
+                worldMap = map,
+                content = content,
+                step = WildernessSessionStep.Mission(mission, scene),
+            )
+        var saved: RuntimeSnapshotModel? = null
+        val savePort =
+            object : RuntimeSavePort {
+                override fun save(runtime: RuntimeSessionState): RuntimeSaveOutcome = error("dungeon save must include session state")
+
+                override fun save(request: RuntimeSaveRequest): RuntimeSaveOutcome {
+                    saved =
+                        RuntimeSnapshotModel(
+                            state = request.runtime.toRuntimeStateSnapshot(stateId("compiled-dungeon-save")),
+                            mode = request.mode,
+                            metadata = gameContent.runtimeSnapshotMetadata().copy(compiledBundleHash = bundleHash),
+                        )
+                    return RuntimeSaveOutcome(saved = true, target = "memory")
+                }
+            }
+        val saveTerminal = FakeTerminalPort("S")
+
+        val savedRun =
+            WildernessSessionTerminalAdapter(
+                terminal = saveTerminal,
+                renderer = compiledTextRenderer(),
+                savePort = savePort,
+                serviceBridge = compiledHost.compiledVmTerminalScriptBridge(saveTerminal, compiledTextRenderer()),
+            ).runUntilBlocked(started)
+        val snapshot = checkNotNull(saved)
+        val rendered = renderRuntimeStateSnapshot(snapshot)
+        val parsed = parseRuntimeSnapshotForLoad(rendered, gameContent, compiledBundleHash = bundleHash)
+        val resumed =
+            RylweenKotlinEngine(gameContent).wildernessSession(
+                snapshot = parsed,
+                worldMap = map,
+                realizeNpcs = false,
+            )
+        val resumeTerminal = FakeTerminalPort("A")
+        val finished =
+            WildernessSessionTerminalAdapter(
+                terminal = resumeTerminal,
+                renderer = compiledTextRenderer(),
+                serviceBridge = compiledHost.compiledVmTerminalScriptBridge(resumeTerminal, compiledTextRenderer()),
+            ).runUntilBlocked(resumed)
+        val parsedMode = parsed.mode as? RuntimeModeSnapshot.Dungeon
+        if (parsedMode == null) {
+            error("expected compiled dungeon snapshot")
+        }
+
+        assertTrue(savedRun.status is TerminalRunStatus.Waiting)
+        assertTrue(parsedMode.postDungeon?.continuation?.compiledVmContinuation != null)
+        assertEquals(RuntimeMode.Dungeon, parsed.state.realm.currentMode)
         assertTrue(finished.session.step is WildernessSessionStep.Explore)
         assertEquals(WildernessSessionResultStatus.MissionCompleted, finished.session.lastResult?.status)
         assertTrue(finished.session.party.hasFlagState(Story.masterCrown.task1Done))
@@ -8333,16 +8592,16 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun headlessScenarioHarnessDrivesYdargNavigation() {
+    fun headlessScenarioHarnessDrivesCastleNavigation() {
         HeadlessScenario(
-            name = "headless-ydarg-move-into-empty-room",
+            name = "headless-castle-move-into-empty-room",
             fixture = ScenarioFixture(startState = States.freshReplay, seed = 1L),
             start = {
-                YdargSession
+                CastleSession
                     .start(
                         runtime =
                             RuntimeSessionState.singleParty(
-                                party = ydargCastleParty(),
+                                party = castleParty(),
                                 hour = 12,
                                 currentTown = null,
                                 rngState = 1L,
@@ -8352,22 +8611,22 @@ class RylweenDslValidationTest {
                         rooms = emptyMap(),
                         floor = 1,
                         point = GridPoint(1, 1),
-                        step = YdargSessionStep.Navigate,
+                        step = CastleSessionStep.Navigate,
                     )
             },
             steps =
                 listOf(
-                    headlessStep("move east") { it.apply(YdargSessionInput.Move(WildernessDirection.East)) },
-                    headlessStep("continue move message") { it.apply(YdargSessionInput.Continue) },
+                    headlessStep("move east") { it.apply(CastleSessionInput.Move(WildernessDirection.East)) },
+                    headlessStep("continue move message") { it.apply(CastleSessionInput.Continue) },
                     headlessStep("enter empty room") { it.enterRoom() },
                 ),
             checkpoints =
                 listOf(
-                    headlessCheckpoint("semantic Ydarg inputs return to navigation") {
-                        assertEquals(YdargSessionStep.Navigate, result.step)
-                        assertEquals(YdargSessionStatus.Moved, result.lastResult?.status)
+                    headlessCheckpoint("semantic castle inputs return to navigation") {
+                        assertEquals(CastleSessionStep.Navigate, result.step)
+                        assertEquals(CastleSessionStatus.Moved, result.lastResult?.status)
                         assertEquals(GridPoint(2, 1), result.point)
-                        assertEquals(RuntimeMode.YdargCastle, result.runtime.realm.currentMode)
+                        assertEquals(RuntimeMode.Castle, result.runtime.realm.currentMode)
                     },
                 ),
         ).run()
@@ -8821,21 +9080,21 @@ class RylweenDslValidationTest {
             checkpoints = checkpoints,
         ).run()
 
-    private fun runCompiledYdargScenario(
+    private fun runCompiledCastleScenario(
         name: String,
         inputs: List<String>,
         seed: Long? = null,
         savePort: RuntimeSavePort? = null,
-        start: () -> YdargSession,
-        checkpoints: List<TerminalScenarioCheckpoint<YdargSession>> = emptyList(),
-    ): TerminalScenarioRun<YdargSession> =
+        start: () -> CastleSession,
+        checkpoints: List<TerminalScenarioCheckpoint<CastleSession>> = emptyList(),
+    ): TerminalScenarioRun<CastleSession> =
         TerminalScenario(
             name = name,
             fixture = ScenarioFixture(startState = States.freshReplay, seed = seed),
             inputs = inputs,
             start = start,
             drive = { terminal, session ->
-                YdargSessionTerminalAdapter(terminal, compiledTextRenderer(), savePort).runUntilBlocked(session)
+                CastleSessionTerminalAdapter(terminal, compiledTextRenderer(), savePort).runUntilBlocked(session)
             },
             checkpoints = checkpoints,
         ).run()
@@ -8939,7 +9198,7 @@ class RylweenDslValidationTest {
         )
     }
 
-    private fun ydargCastleParty(
+    private fun castleParty(
         health: Int = 10,
         hitPoints: Int = 10,
         inventoryItems: Map<Int, ItemId> = emptyMap(),
@@ -8957,15 +9216,15 @@ class RylweenDslValidationTest {
             members = members ?: listOf(testMember(health = health, hitPoints = hitPoints)),
         )
 
-    private fun ydargRoomSession(
-        room: YdargRoomEvent,
-        party: PartyState = ydargCastleParty(),
+    private fun castleRoomSession(
+        room: CastleRoomEvent,
+        party: PartyState = castleParty(),
         content: RuntimeContent = RylweenCompiledGame.nextDsl.runtimeContent(),
         rngState: Long = 1L,
         floor: Int = 1,
         point: GridPoint = GridPoint(1, 1),
-    ): YdargSession =
-        YdargSession
+    ): CastleSession =
+        CastleSession
             .start(
                 runtime =
                     RuntimeSessionState.singleParty(
@@ -8977,12 +9236,12 @@ class RylweenDslValidationTest {
                 content = content,
             ).copy(
                 rooms = mapOf(point to room),
-                step = YdargSessionStep.RoomEntry,
+                step = CastleSessionStep.RoomEntry,
                 floor = floor,
                 point = point,
             )
 
-    private fun ydargConfrontationMilestones(): List<GameMilestoneId> =
+    private fun castleCompletionMilestones(): List<GameMilestoneId> =
         listOf(
             Milestones.silverKey,
             Milestones.fireShield,
@@ -8991,11 +9250,11 @@ class RylweenDslValidationTest {
             Milestones.braceletsOfThun,
         )
 
-    private fun ydargFinalConfrontationSession(
+    private fun castleCompletionSession(
         content: RuntimeContent,
         party: PartyState,
-    ): YdargSession =
-        YdargSession
+    ): CastleSession =
+        CastleSession
             .start(
                 runtime =
                     RuntimeSessionState.singleParty(
@@ -9006,7 +9265,7 @@ class RylweenDslValidationTest {
                     ),
                 content = content,
             ).copy(
-                step = YdargSessionStep.StairGive,
+                step = CastleSessionStep.StairGive,
                 floor = 4,
                 point = GridPoint(5, 5),
             )

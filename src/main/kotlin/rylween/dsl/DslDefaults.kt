@@ -41,10 +41,6 @@ internal object DslDefaultDungeons {
     val randomCave = dungeon("random_cave")
 }
 
-internal object DslDefaultCastles {
-    val ydarg = castle("ydarg")
-}
-
 internal object DslDefaultBuildings {
     val none = building("none")
     val inn = building("inn")

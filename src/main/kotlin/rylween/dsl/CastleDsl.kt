@@ -1,19 +1,21 @@
 /**
- * DSL model and builders for Ydarg's castle crawl.
+ * DSL model and builders for authored grid-castle crawls.
  *
- * The authored castle content lives with the rest of the game DSL, while runtime
- * behavior is implemented in `runtime/ydarg/YdargSession.kt` and terminal
- * presentation in `frontend/terminal/YdargSessionTerminalAdapter.kt`.
+ * Authors declare `castle(id) { ... }` blocks, the wilderness runtime enters
+ * the castle whose authored entry matches the map tile, and
+ * `runtime/castle/CastleSession.kt` consumes only this content model rather
+ * than hard-coded game tables. Terminal presentation remains in
+ * `frontend/terminal/CastleSessionTerminalAdapter.kt`.
  */
 @file:Suppress("unused", "MemberVisibilityCanBePrivate", "CanBeParameter", "KotlinExplicitApi")
 
 package rylween.dsl
 
-/** Room-event categories encoded in the generated Ydarg room map. */
-enum class YdargRoomEvent { Empty, Monster, Pitfall, Treasure }
+/** Room-event categories encoded in a generated castle room map. */
+enum class CastleRoomEvent { Empty, Monster, Pitfall, Treasure }
 
-/** Authored key bindings used by Ydarg navigation and prompts. */
-data class YdargKeysModel(
+/** Authored key bindings used by castle navigation and prompts. */
+data class CastleKeysModel(
     val moveNorth: InputBindingModel = inputKey("8"),
     val moveSouth: InputBindingModel = inputKey("2"),
     val moveWest: InputBindingModel = inputKey("4"),
@@ -35,49 +37,43 @@ data class YdargKeysModel(
     val stairsLeave: InputBindingModel = inputKey("L"),
 )
 
-/** Treasure-generation tables and gates for Ydarg rooms. */
-data class YdargTreasureModel(
+/** Treasure-generation tables and gates for castle rooms. */
+data class CastleTreasureModel(
     val gateMax: Int = 4,
     val regularKinds: List<List<ItemId>> = emptyList(),
     val magic: List<ItemId> = emptyList(),
 )
 
-/** Pitfall damage and narration configuration for Ydarg trap rooms. */
-data class YdargPitfallModel(
+/** Pitfall damage and narration configuration for castle trap rooms. */
+data class CastlePitfallModel(
     val damageDivisor: Int = 6,
     val trapTypes: List<TextBlock> = emptyList(),
 )
 
-/** Milestone-backed item accepted by the Ydarg stair guardian. */
-data class YdargStairItemModel(
+/** Milestone-backed item accepted by a castle stair guardian. */
+data class CastleStairItemModel(
     val digit: Int,
     val milestone: GameMilestoneId,
     val itemName: String,
     val reject: TextBlock,
 )
 
-/** Stair progression and required item configuration for Ydarg. */
-data class YdargStairsModel(
+/** Stair progression and required item configuration for a castle. */
+data class CastleStairsModel(
     val floorCount: Int = 4,
-    val items: List<YdargStairItemModel> = emptyList(),
+    val items: List<CastleStairItemModel> = emptyList(),
 )
 
-/** Final Ydarg confrontation monster sequence. */
-data class YdargConfrontationModel(
-    val sequence: List<MonsterId> = emptyList(),
-    val baron: MonsterId? = null,
+/** Authored scripts attached to generic castle lifecycle hooks. */
+data class CastleScriptsModel(
+    val alreadyCompleted: SceneId? = null,
+    val entryBlocked: SceneId? = null,
+    val entered: SceneId? = null,
+    val completed: SceneId? = null,
 )
 
-/** Text prompts and narration used by the Ydarg runtime session. */
-data class YdargTextModel(
-    val ruin: TextBlock = inlineText("Castle Ydarg is silent.", ""),
-    val approach: TextBlock = inlineText("Castle Ydarg looms ahead.", ""),
-    val jaaraForm: TextBlock = inlineText("A ghostly guardian appears.", ""),
-    val jaaraSpeech: TextBlock = inlineText("The gate is sealed.", ""),
-    val noKey: TextBlock = inlineText("You need the Silver Key.", ""),
-    val keyAccepted: TextBlock = inlineText("The Silver Key opens the gate.", ""),
-    val enter: TextBlock = inlineText("You enter.", ""),
-    val doorSlams: TextBlock = inlineText("The door slams shut behind you."),
+/** Text prompts and narration used by the castle runtime session. */
+data class CastleTextModel(
     val roomMonster: TextBlock = inlineText("You are spotted by", "monsters!"),
     val trapTriesDisarmSuffix: TextBlock = inlineText("tries to", "disarm it...", ""),
     val trapDisarmSucceed: TextBlock = inlineText("AND SUCCEEDS!"),
@@ -90,62 +86,59 @@ data class YdargTextModel(
     val moveEast: TextBlock = inlineText("East."),
     val moveWest: TextBlock = inlineText("West."),
     val stairsIntro: TextBlock = inlineText("You stand before the", "stairs to the next level.", ""),
-    val stairsMageOffer: TextBlock = inlineText("A mage offers passage.", ""),
+    val stairsGuardianOffer: TextBlock = inlineText("A guardian offers passage.", ""),
     val stairsMenu: TextBlock = inlineText("Choose:", "", "(T)eleport Out", "(G)ive him an item", "(L)eave"),
     val stairsLeave: TextBlock = inlineText("You take the nearest exit!"),
     val teleportVortex: TextBlock = inlineText("The world fades into a", "vortex of agonizing", "vertigo...", ""),
     val teleportOutside: TextBlock = inlineText("And you are outside..."),
     val giveMenu: TextBlock = inlineText("Give him what?", "", "5. Nothing"),
-    val mageGrateful: TextBlock = inlineText("The mage opens the way.", ""),
-    val confrontationAct1: List<TextBlock> = emptyList(),
-    val confrontationAct2: List<TextBlock> = emptyList(),
-    val confrontationAct3: List<TextBlock> = emptyList(),
-    val confrontationAct4: List<TextBlock> = emptyList(),
+    val stairsGuardianGrateful: TextBlock = inlineText("The guardian opens the way.", ""),
+    val floorNames: List<String> = emptyList(),
 )
 
-/** Complete authored model consumed by `runtime/ydarg/YdargSession.kt`. */
-data class YdargContentModel(
-    val id: CastleId = DslDefaultCastles.ydarg,
+/** Complete authored grid-castle model consumed by `runtime/castle/CastleSession.kt`. */
+data class CastleContentModel(
+    val id: CastleId,
     val entry: GridPoint,
     val image: ImageId?,
-    val requiredKey: GameMilestoneId,
-    val victoryMilestone: GameMilestoneId,
+    val entryRequirement: GameMilestoneId?,
+    val completionMilestone: GameMilestoneId?,
     val mapSize: Int,
     val roomTypeMax: Int,
-    val roomEvents: Map<Int, YdargRoomEvent>,
+    val roomEvents: Map<Int, CastleRoomEvent>,
     val monsterTier: EncounterTier,
-    val treasure: YdargTreasureModel,
-    val pitfall: YdargPitfallModel,
-    val stairs: YdargStairsModel,
-    val confrontation: YdargConfrontationModel,
-    val keys: YdargKeysModel,
-    val text: YdargTextModel,
+    val treasure: CastleTreasureModel,
+    val pitfall: CastlePitfallModel,
+    val stairs: CastleStairsModel,
+    val scripts: CastleScriptsModel,
+    val keys: CastleKeysModel,
+    val text: CastleTextModel,
 )
 
-/** Builder for one [YdargContentModel] block in the game DSL. */
+/** Builder for one authored castle block in the game DSL. */
 @RylNextDsl
-class YdargBuilder(
-    private val id: CastleId = DslDefaultCastles.ydarg,
+class CastleBuilder(
+    private val id: CastleId,
 ) {
     var entry: GridPoint = GridPoint(14, 30)
     var image: ImageId? = null
-    var requiredKey: GameMilestoneId? = null
-    var victoryMilestone: GameMilestoneId? = null
+    var entryRequirement: GameMilestoneId? = null
+    var completionMilestone: GameMilestoneId? = null
     var mapSize: Int = 5
     var roomTypeMax: Int = 5
     var monsterTier: EncounterTier? = null
     private val roomEvents =
         mutableMapOf(
-            1 to YdargRoomEvent.Monster,
-            2 to YdargRoomEvent.Pitfall,
-            3 to YdargRoomEvent.Treasure,
+            1 to CastleRoomEvent.Monster,
+            2 to CastleRoomEvent.Pitfall,
+            3 to CastleRoomEvent.Treasure,
         )
-    private var treasureModel = YdargTreasureBuilder().build()
-    private var pitfallModel = YdargPitfallBuilder().build()
-    private var stairsModel = YdargStairsBuilder().build()
-    private var confrontationModel = YdargConfrontationBuilder().build()
-    private var keysModel = YdargKeysModel()
-    private var textModel = YdargTextBuilder().build()
+    private var treasureModel = CastleTreasureBuilder().build()
+    private var pitfallModel = CastlePitfallBuilder().build()
+    private var stairsModel = CastleStairsBuilder().build()
+    private var scriptsModel = CastleScriptsBuilder().build()
+    private var keysModel = CastleKeysModel()
+    private var textModel = CastleTextBuilder().build()
 
     fun map(
         size: Int,
@@ -157,58 +150,58 @@ class YdargBuilder(
 
     fun roomEvent(
         roll: Int,
-        event: YdargRoomEvent,
+        event: CastleRoomEvent,
     ) {
         roomEvents[roll] = event
     }
 
-    fun treasure(body: YdargTreasureBuilder.() -> Unit) {
-        treasureModel = YdargTreasureBuilder(treasureModel).apply(body).build()
+    fun treasure(body: CastleTreasureBuilder.() -> Unit) {
+        treasureModel = CastleTreasureBuilder(treasureModel).apply(body).build()
     }
 
-    fun pitfall(body: YdargPitfallBuilder.() -> Unit) {
-        pitfallModel = YdargPitfallBuilder(pitfallModel).apply(body).build()
+    fun pitfall(body: CastlePitfallBuilder.() -> Unit) {
+        pitfallModel = CastlePitfallBuilder(pitfallModel).apply(body).build()
     }
 
-    fun stairs(body: YdargStairsBuilder.() -> Unit) {
-        stairsModel = YdargStairsBuilder(stairsModel).apply(body).build()
+    fun stairs(body: CastleStairsBuilder.() -> Unit) {
+        stairsModel = CastleStairsBuilder(stairsModel).apply(body).build()
     }
 
-    fun confrontation(body: YdargConfrontationBuilder.() -> Unit) {
-        confrontationModel = YdargConfrontationBuilder(confrontationModel).apply(body).build()
+    fun scripts(body: CastleScriptsBuilder.() -> Unit) {
+        scriptsModel = CastleScriptsBuilder(scriptsModel).apply(body).build()
     }
 
-    fun keys(body: YdargKeysBuilder.() -> Unit) {
-        keysModel = YdargKeysBuilder(keysModel).apply(body).build()
+    fun keys(body: CastleKeysBuilder.() -> Unit) {
+        keysModel = CastleKeysBuilder(keysModel).apply(body).build()
     }
 
-    fun text(body: YdargTextBuilder.() -> Unit) {
-        textModel = YdargTextBuilder(textModel).apply(body).build()
+    fun text(body: CastleTextBuilder.() -> Unit) {
+        textModel = CastleTextBuilder(textModel).apply(body).build()
     }
 
-    fun build(): YdargContentModel =
-        YdargContentModel(
+    fun build(): CastleContentModel =
+        CastleContentModel(
             id = id,
             entry = entry,
             image = image,
-            requiredKey = checkNotNull(requiredKey) { "ydarg requires requiredKey" },
-            victoryMilestone = checkNotNull(victoryMilestone) { "ydarg requires victoryMilestone" },
+            entryRequirement = entryRequirement,
+            completionMilestone = completionMilestone,
             mapSize = mapSize,
             roomTypeMax = roomTypeMax,
             roomEvents = roomEvents.toMap(),
-            monsterTier = checkNotNull(monsterTier) { "ydarg requires monsterTier" },
+            monsterTier = checkNotNull(monsterTier) { "castle ${id.slug} requires monsterTier" },
             treasure = treasureModel,
             pitfall = pitfallModel,
             stairs = stairsModel,
-            confrontation = confrontationModel,
+            scripts = scriptsModel,
             keys = keysModel,
             text = textModel,
         )
 }
 
 @RylNextDsl
-class YdargTreasureBuilder(
-    initial: YdargTreasureModel = YdargTreasureModel(),
+class CastleTreasureBuilder(
+    initial: CastleTreasureModel = CastleTreasureModel(),
 ) {
     var gateMax: Int = initial.gateMax
     private val regularKinds = initial.regularKinds.toMutableList()
@@ -223,8 +216,8 @@ class YdargTreasureBuilder(
         magic += items
     }
 
-    fun build(): YdargTreasureModel =
-        YdargTreasureModel(
+    fun build(): CastleTreasureModel =
+        CastleTreasureModel(
             gateMax = gateMax,
             regularKinds = regularKinds.toList(),
             magic = magic.toList(),
@@ -232,8 +225,8 @@ class YdargTreasureBuilder(
 }
 
 @RylNextDsl
-class YdargPitfallBuilder(
-    initial: YdargPitfallModel = YdargPitfallModel(),
+class CastlePitfallBuilder(
+    initial: CastlePitfallModel = CastlePitfallModel(),
 ) {
     var damageDivisor: Int = initial.damageDivisor
     private val trapTypes = initial.trapTypes.toMutableList()
@@ -242,16 +235,16 @@ class YdargPitfallBuilder(
         trapTypes += structuredText(body)
     }
 
-    fun build(): YdargPitfallModel =
-        YdargPitfallModel(
+    fun build(): CastlePitfallModel =
+        CastlePitfallModel(
             damageDivisor = damageDivisor,
             trapTypes = trapTypes.toList(),
         )
 }
 
 @RylNextDsl
-class YdargStairsBuilder(
-    initial: YdargStairsModel = YdargStairsModel(),
+class CastleStairsBuilder(
+    initial: CastleStairsModel = CastleStairsModel(),
 ) {
     var floorCount: Int = initial.floorCount
     private val items = initial.items.toMutableList()
@@ -262,34 +255,37 @@ class YdargStairsBuilder(
         itemName: String,
         reject: TextBlock,
     ) {
-        items += YdargStairItemModel(digit, milestone, itemName, reject)
+        items += CastleStairItemModel(digit, milestone, itemName, reject)
     }
 
-    fun build(): YdargStairsModel =
-        YdargStairsModel(
+    fun build(): CastleStairsModel =
+        CastleStairsModel(
             floorCount = floorCount,
             items = items.toList(),
         )
 }
 
 @RylNextDsl
-class YdargConfrontationBuilder(
-    initial: YdargConfrontationModel = YdargConfrontationModel(),
+class CastleScriptsBuilder(
+    initial: CastleScriptsModel = CastleScriptsModel(),
 ) {
-    private val sequence = initial.sequence.toMutableList()
-    var baron: MonsterId? = initial.baron
+    var alreadyCompleted: SceneId? = initial.alreadyCompleted
+    var entryBlocked: SceneId? = initial.entryBlocked
+    var entered: SceneId? = initial.entered
+    var completed: SceneId? = initial.completed
 
-    fun sequence(vararg monsters: MonsterId) {
-        sequence.clear()
-        sequence += monsters
-    }
-
-    fun build(): YdargConfrontationModel = YdargConfrontationModel(sequence = sequence.toList(), baron = baron)
+    fun build(): CastleScriptsModel =
+        CastleScriptsModel(
+            alreadyCompleted = alreadyCompleted,
+            entryBlocked = entryBlocked,
+            entered = entered,
+            completed = completed,
+        )
 }
 
 @RylNextDsl
-class YdargKeysBuilder(
-    initial: YdargKeysModel = YdargKeysModel(),
+class CastleKeysBuilder(
+    initial: CastleKeysModel = CastleKeysModel(),
 ) {
     var moveNorth: InputBindingModel = initial.moveNorth
     var moveSouth: InputBindingModel = initial.moveSouth
@@ -311,8 +307,8 @@ class YdargKeysBuilder(
     var stairsGive: InputBindingModel = initial.stairsGive
     var stairsLeave: InputBindingModel = initial.stairsLeave
 
-    fun build(): YdargKeysModel =
-        YdargKeysModel(
+    fun build(): CastleKeysModel =
+        CastleKeysModel(
             moveNorth = moveNorth,
             moveSouth = moveSouth,
             moveWest = moveWest,
@@ -336,17 +332,9 @@ class YdargKeysBuilder(
 }
 
 @RylNextDsl
-class YdargTextBuilder(
-    initial: YdargTextModel = YdargTextModel(),
+class CastleTextBuilder(
+    initial: CastleTextModel = CastleTextModel(),
 ) {
-    var ruin: TextBlock = initial.ruin
-    var approach: TextBlock = initial.approach
-    var jaaraForm: TextBlock = initial.jaaraForm
-    var jaaraSpeech: TextBlock = initial.jaaraSpeech
-    var noKey: TextBlock = initial.noKey
-    var keyAccepted: TextBlock = initial.keyAccepted
-    var enter: TextBlock = initial.enter
-    var doorSlams: TextBlock = initial.doorSlams
     var roomMonster: TextBlock = initial.roomMonster
     var trapTriesDisarmSuffix: TextBlock = initial.trapTriesDisarmSuffix
     var trapDisarmSucceed: TextBlock = initial.trapDisarmSucceed
@@ -359,48 +347,22 @@ class YdargTextBuilder(
     var moveEast: TextBlock = initial.moveEast
     var moveWest: TextBlock = initial.moveWest
     var stairsIntro: TextBlock = initial.stairsIntro
-    var stairsMageOffer: TextBlock = initial.stairsMageOffer
+    var stairsGuardianOffer: TextBlock = initial.stairsGuardianOffer
     var stairsMenu: TextBlock = initial.stairsMenu
     var stairsLeave: TextBlock = initial.stairsLeave
     var teleportVortex: TextBlock = initial.teleportVortex
     var teleportOutside: TextBlock = initial.teleportOutside
     var giveMenu: TextBlock = initial.giveMenu
-    var mageGrateful: TextBlock = initial.mageGrateful
-    private val confrontationAct1 = initial.confrontationAct1.toMutableList()
-    private val confrontationAct2 = initial.confrontationAct2.toMutableList()
-    private val confrontationAct3 = initial.confrontationAct3.toMutableList()
-    private val confrontationAct4 = initial.confrontationAct4.toMutableList()
+    var stairsGuardianGrateful: TextBlock = initial.stairsGuardianGrateful
+    private val floorNames = initial.floorNames.toMutableList()
 
-    fun confrontationAct1(vararg blocks: TextBlock) {
-        confrontationAct1.clear()
-        confrontationAct1 += blocks
+    fun floorNames(vararg names: String) {
+        floorNames.clear()
+        floorNames += names
     }
 
-    fun confrontationAct2(vararg blocks: TextBlock) {
-        confrontationAct2.clear()
-        confrontationAct2 += blocks
-    }
-
-    fun confrontationAct3(vararg blocks: TextBlock) {
-        confrontationAct3.clear()
-        confrontationAct3 += blocks
-    }
-
-    fun confrontationAct4(vararg blocks: TextBlock) {
-        confrontationAct4.clear()
-        confrontationAct4 += blocks
-    }
-
-    fun build(): YdargTextModel =
-        YdargTextModel(
-            ruin = ruin,
-            approach = approach,
-            jaaraForm = jaaraForm,
-            jaaraSpeech = jaaraSpeech,
-            noKey = noKey,
-            keyAccepted = keyAccepted,
-            enter = enter,
-            doorSlams = doorSlams,
+    fun build(): CastleTextModel =
+        CastleTextModel(
             roomMonster = roomMonster,
             trapTriesDisarmSuffix = trapTriesDisarmSuffix,
             trapDisarmSucceed = trapDisarmSucceed,
@@ -413,16 +375,13 @@ class YdargTextBuilder(
             moveEast = moveEast,
             moveWest = moveWest,
             stairsIntro = stairsIntro,
-            stairsMageOffer = stairsMageOffer,
+            stairsGuardianOffer = stairsGuardianOffer,
             stairsMenu = stairsMenu,
             stairsLeave = stairsLeave,
             teleportVortex = teleportVortex,
             teleportOutside = teleportOutside,
             giveMenu = giveMenu,
-            mageGrateful = mageGrateful,
-            confrontationAct1 = confrontationAct1.toList(),
-            confrontationAct2 = confrontationAct2.toList(),
-            confrontationAct3 = confrontationAct3.toList(),
-            confrontationAct4 = confrontationAct4.toList(),
+            stairsGuardianGrateful = stairsGuardianGrateful,
+            floorNames = floorNames.toList(),
         )
 }

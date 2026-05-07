@@ -2,7 +2,7 @@
  * Boot facade from authored game content into backend-neutral runtime sessions.
  *
  * App launchers and tests use [RylweenKotlinEngine] to create wilderness, town,
- * dungeon, Ydarg, battle, and character-creation sessions from validated
+ * dungeon, castle, battle, and character-creation sessions from validated
  * [rylween.dsl.GameModel] content.
  */
 
@@ -27,6 +27,7 @@ import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.RylweenRandomPort
+import rylween.runtime.castle.toCastleSession
 import rylween.runtime.dungeon.toDungeonSession
 import rylween.runtime.party
 import rylween.runtime.realizeNpcPlacements
@@ -38,7 +39,6 @@ import rylween.runtime.wilderness.WildernessSession
 import rylween.runtime.wilderness.WildernessSessionStep
 import rylween.runtime.wilderness.WorldMapGrid
 import rylween.runtime.wilderness.toMissionPostDungeonContinuation
-import rylween.runtime.ydarg.toYdargSession
 
 /** Factory and resume helper for the current pure-Kotlin runtime session graph. */
 class RylweenKotlinEngine(
@@ -143,7 +143,7 @@ class RylweenKotlinEngine(
         )
     }
 
-    /** Resumes wilderness, dungeon, or Ydarg mode from a full runtime snapshot. */
+    /** Resumes wilderness, dungeon, or Castle mode from a full runtime snapshot. */
     fun wildernessSession(
         snapshot: RuntimeSnapshotModel,
         worldMap: WorldMapGrid,
@@ -165,9 +165,9 @@ class RylweenKotlinEngine(
                 }
                 base
             }
-            is RuntimeModeSnapshot.YdargCastle -> {
-                val ydarg = mode.toYdargSession(runtime, content.runtimeContent())
-                base.copy(runtime = ydarg.runtime, step = WildernessSessionStep.Ydarg(ydarg))
+            is RuntimeModeSnapshot.Castle -> {
+                val castle = mode.toCastleSession(runtime, content.runtimeContent())
+                base.copy(runtime = castle.runtime, step = WildernessSessionStep.Castle(castle))
             }
             is RuntimeModeSnapshot.Dungeon -> {
                 val runtimeContent = content.runtimeContent()

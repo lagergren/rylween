@@ -95,8 +95,7 @@ class RylweenCompiledGameLedgerTest {
         val standardBattle = checkNotNull(nextDsl.combat.standardBattle)
         val standardConversation = checkNotNull(nextDsl.speak.standardConversation)
         val townSystem = checkNotNull(nextDsl.townSystem)
-        val ydarg = nextDsl.castles.single { it.id == Castles.ydarg }
-        check(nextDsl.ydarg == ydarg)
+        val castleContent = nextDsl.castles.single { it.id == Castles.ydarg }
 
         check(nextDsl.flags.size == 13)
         check(nextDsl.authoredFlags.size == 13)
@@ -430,10 +429,25 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.monsters.single { it.id == Monsters.baronYdarg }.immune)
         check(nextDsl.monsters.single { it.id == Monsters.skagerbergKiller }.immune)
         check(nextDsl.castles.size == 1)
-        check(ydarg.entry == xy(14, 30))
-        check(ydarg.requiredKey == Milestones.silverKey)
-        check(ydarg.confrontation.sequence == listOf(Monsters.cryptHorror, Monsters.nightGaunt, Monsters.thyraga, Monsters.liche))
-        check(nextDsl.scenes.size == 24)
+        check(castleContent.entry == xy(14, 30))
+        check(castleContent.entryRequirement == Milestones.silverKey)
+        check(castleContent.completionMilestone == Milestones.ydargVictory)
+        check(castleContent.scripts.completed?.slug == "castle.ydarg.completed")
+        check(
+            nextDsl.scenes
+                .single { it.id.slug == "castle.ydarg.completed" }
+                .ops
+                .filterIsInstance<Op.Encounter>()
+                .map { it.foe } ==
+                listOf(
+                    Monsters.cryptHorror,
+                    Monsters.nightGaunt,
+                    Monsters.thyraga,
+                    Monsters.liche,
+                    Monsters.baronYdarg,
+                ),
+        )
+        check(nextDsl.scenes.size == 28)
 
         fun List<Op>.anyNested(predicate: (Op) -> Boolean): Boolean =
             any { op ->

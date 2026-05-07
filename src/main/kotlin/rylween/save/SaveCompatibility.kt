@@ -14,13 +14,14 @@ import java.security.MessageDigest
 import java.util.IdentityHashMap
 
 /** Current textual runtime snapshot schema version. */
-const val RUNTIME_SNAPSHOT_FORMAT_VERSION: Int = 1
+const val RUNTIME_SNAPSHOT_FORMAT_VERSION: Int = 2
 
 /** Builds the metadata block persisted beside runtime state snapshots. */
 fun GameModel.runtimeSnapshotMetadata(): RuntimeSnapshotMetadata =
     RuntimeSnapshotMetadata(
         formatVersion = RUNTIME_SNAPSHOT_FORMAT_VERSION,
         contentHash = runtimeContentHash(),
+        compiledBundleHash = null,
         universeId = metadata.universe.compatibilityId,
         universeVersion = metadata.universe.version,
     )

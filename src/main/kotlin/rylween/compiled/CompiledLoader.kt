@@ -700,7 +700,7 @@ private class CompiledBundleValidator(
                     handle(post.scene, "post dungeon scene")
                 }
             }
-            is CompiledRuntimeModeImage.YdargCastle,
+            is CompiledRuntimeModeImage.Castle,
             null,
             -> Unit
         }

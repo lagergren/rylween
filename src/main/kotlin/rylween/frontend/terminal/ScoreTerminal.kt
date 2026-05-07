@@ -85,10 +85,10 @@ private fun HallOfHeroesReport.hallOfHeroesLines(): List<String> =
         addAll(framedHeaderLines(HALL_OF_HEROES_HEADER))
         add("")
         if (entries.isEmpty()) {
-            add("  No party has defeated Baron Ydarg yet.")
+            add("  $emptyText")
         } else {
             entries.forEach { entry ->
-                add("  ${entry.partyName} defeated Baron Ydarg")
+                add("  ${entryText.replace("{party}", entry.partyName)}")
             }
         }
         add("")

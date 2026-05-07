@@ -377,8 +377,8 @@ val nextRylween: RylweenModel = rylween {
     castle(Castles.ydarg) {
         entry = xy(14, 30)
         image = Images.Backdrop.ydargCastle
-        requiredKey = Milestones.silverKey
-        victoryMilestone = Milestones.ydargVictory
+        entryRequirement = Milestones.silverKey
+        completionMilestone = Milestones.ydargVictory
         monsterTier = EncounterTiers.deep
         map(size = 5, roomTypeMax = 5)
 
@@ -425,69 +425,15 @@ val nextRylween: RylweenModel = rylween {
             item(4, Milestones.braceletsOfThun, "The Bracelets of Thun", inlineText("You don't have them!"))
         }
 
-        confrontation {
-            sequence(Monsters.cryptHorror, Monsters.nightGaunt, Monsters.thyraga, Monsters.liche)
-            baron = Monsters.baronYdarg
+        scripts {
+            alreadyCompleted = sceneId("castle.ydarg.already_completed")
+            entryBlocked = sceneId("castle.ydarg.entry_blocked")
+            entered = sceneId("castle.ydarg.entered")
+            completed = sceneId("castle.ydarg.completed")
         }
 
         text {
-            ruin = inlineText(
-                "The once so mighty",
-                "castle Zadraz is now",
-                "nothing but a ruin.",
-                "You have nothing else",
-                "to do here.",
-                "",
-            )
-            approach = inlineText(
-                "A black and foreboding",
-                "castle looms over the",
-                "horizon. Its cold, black",
-                "stone walls are decorated",
-                "with complex symbols and",
-                "archaic runes of long",
-                "forgotten language.",
-                "",
-            )
-            jaaraForm = inlineText(
-                "A shape of white mist",
-                "slowly thickens to human",
-                "shape. A transparent image",
-                "of a beautiful woman",
-                "forms in front of you.",
-                "",
-            )
-            jaaraSpeech = inlineText(
-                "- Do not be afraid,",
-                "adventurers. I am Jaara,",
-                "guardian of the gate.",
-                "Baron Ydarg has imprisoned",
-                "me here forever. I can't",
-                "hurt you, just stop you",
-                "from entering if you don't",
-                "have the Silver Key!",
-                "",
-            )
-            noKey = inlineText(
-                "- You don't have the",
-                "Key. The gate will",
-                "remain sealed.",
-                "",
-            )
-            keyAccepted = inlineText(
-                "You show the Silver Key to",
-                "the ghost. Her eyes widen,",
-                "as she sees it. She smiles",
-                "and waves her hand towards",
-                "the drawbridge. It falls",
-                "to the ground with a",
-                "resounding KRASH. Jaara",
-                "slowly fades away until",
-                "nothing remains.",
-                "",
-            )
-            enter = inlineText("You enter.", "")
-            doorSlams = inlineText("The first door you enter", "slams shut behind you!")
+            floorNames("(Ground Level)", "(First Floor)", "(Base of Tower)", "(Top of Tower)")
             roomMonster = inlineText("You are spotted by", "monsters!")
             trapTriesDisarmSuffix = inlineText("tries to", "disarm it...", "")
             trapDisarmSucceed = inlineText("AND SUCCEEDS!")
@@ -500,7 +446,7 @@ val nextRylween: RylweenModel = rylween {
             moveEast = inlineText("East.")
             moveWest = inlineText("West.")
             stairsIntro = inlineText("You stand before the", "stairs to the next level.", "")
-            stairsMageOffer = inlineText(
+            stairsGuardianOffer = inlineText(
                 "A mage imprisoned in a",
                 "fiery sphere offers to",
                 "open trapdoor at the top",
@@ -524,7 +470,7 @@ val nextRylween: RylweenModel = rylween {
                 "4. The Bracelets of Thun",
                 "5. Nothing",
             )
-            mageGrateful = inlineText(
+            stairsGuardianGrateful = inlineText(
                 "The sphere fades away",
                 "and the mage steps out.",
                 "He is grateful. Before",
@@ -535,122 +481,221 @@ val nextRylween: RylweenModel = rylween {
                 "final battle!",
                 "",
             )
-            confrontationAct1(
-                inlineText(
-                    "The last trapdoor",
-                    "slams shut behind you.",
-                    "You are high above the",
-                    "forest, on the roof",
-                    "of this fortress.",
-                    "Suddenly, a voice speaks:",
-                    "",
-                ),
-                inlineText(
-                    "- Fools! You have gone",
-                    "long to come this far, but",
-                    "here ends your journey!",
-                    "",
-                    "The night sky above lights",
-                    "up with green flashes, and",
-                    "Ydargs minions rush",
-                    "to attack you!",
-                    "",
-                ),
-            )
-            confrontationAct2(
-                inlineText(
-                    "Corpses of the nightmare",
-                    "terrors are strewn all",
-                    "around. A dark cloaked",
-                    "figure appears before you.",
-                    "He takes a broad step over",
-                    "the dead and dying, and",
-                    "gazes at you with cold",
-                    "glowing green eyes.",
-                    "",
-                ),
-                inlineText(
-                    "- So. You have completed",
-                    "the battle test. I must",
-                    "confess that you impress",
-                    "me. But now...",
-                    "",
-                    "(He waves a pointed stick",
-                    "and energy begins to form",
-                    "in the air before you.)",
-                    "",
-                ),
-                inlineText(
-                    "A glowing energy sphere",
-                    "appears, and at a gesture",
-                    "from Ydarg's stick, it",
-                    "hurtles towards you!!!",
-                    "",
-                ),
-                inlineText(
-                    "Suddenly! You feel someone",
-                    "else near. The four",
-                    "grey-clad mages raise",
-                    "their hands, and the",
-                    "sphere is absorbed by",
-                    "their hands!",
-                    "",
-                ),
-                inlineText(
-                    "- CURSES! Ydarg growls.",
-                    "- So this is what has come",
-                    "to! Well, you got here by",
-                    "aid of cold steel, and",
-                    "that is the way you shall",
-                    "perish!",
-                    "",
-                ),
-                inlineText(
-                    "He pulls a huge trident",
-                    "from his robe and utters",
-                    "a single syllable. Without",
-                    "warning he appears a foot",
-                    "before you!!!",
-                    "",
-                ),
-                inlineText("Let the battle commence!", ""),
-            )
-            confrontationAct3(
-                inlineText(
-                    "Ydarg's trident clatters",
-                    "to the ground before you.",
-                    "He shudders and falls over.",
-                    "As you rush to kill him",
-                    "he screams:",
-                    "",
-                ),
-                inlineText(
-                    "- It is not over! I shall",
-                    "see you in hell! In",
-                    "another world! A time",
-                    "to come! You have tainted",
-                    "Zadraz with your ancient",
-                    "items, but I will triumph",
-                    "again!!! Anew...",
-                    "",
-                ),
-                inlineText("His cloak collapses, and", "when you tear it away,", "you reveal nothing but...", ""),
-                inlineText("dust...", ""),
-                inlineText(
-                    "CONGRATULATIONS!",
-                    "",
-                    "You have banished Ydarg",
-                    "from this dimension.",
-                    "Please ask your SysOp to",
-                    "reset the game.",
-                    "",
-                ),
-            )
-            confrontationAct4(
-                inlineText("Be ready for:", "HEROES OF RYLWEEN", "- The second coming.", "Soon online at a BBS", "near you!", ""),
-                inlineText("See Ya!!!", "", "     /Marcus", ""),
-            )
         }
+    }
+
+    scene(sceneId("castle.ydarg.already_completed")) {
+        showBackdrop(Images.Backdrop.ydargCastle)
+        screen(
+            "The once so mighty",
+            "castle Zadraz is now",
+            "nothing but a ruin.",
+            "You have nothing else",
+            "to do here.",
+            "",
+        )
+    }
+
+    scene(sceneId("castle.ydarg.entry_blocked")) {
+        showBackdrop(Images.Backdrop.ydargCastle)
+        screen(
+            "A black and foreboding",
+            "castle looms over the",
+            "horizon. Its cold, black",
+            "stone walls are decorated",
+            "with complex symbols and",
+            "archaic runes of long",
+            "forgotten language.",
+            "",
+        )
+        screen(
+            "A shape of white mist",
+            "slowly thickens to human",
+            "shape. A transparent image",
+            "of a beautiful woman",
+            "forms in front of you.",
+            "",
+        )
+        screen(
+            "- Do not be afraid,",
+            "adventurers. I am Jaara,",
+            "guardian of the gate.",
+            "Baron Ydarg has imprisoned",
+            "me here forever. I can't",
+            "hurt you, just stop you",
+            "from entering if you don't",
+            "have the Silver Key!",
+            "",
+        )
+        screen(
+            "- You don't have the",
+            "Key. The gate will",
+            "remain sealed.",
+            "",
+        )
+    }
+
+    scene(sceneId("castle.ydarg.entered")) {
+        showBackdrop(Images.Backdrop.ydargCastle)
+        screen(
+            "A black and foreboding",
+            "castle looms over the",
+            "horizon. Its cold, black",
+            "stone walls are decorated",
+            "with complex symbols and",
+            "archaic runes of long",
+            "forgotten language.",
+            "",
+        )
+        screen(
+            "A shape of white mist",
+            "slowly thickens to human",
+            "shape. A transparent image",
+            "of a beautiful woman",
+            "forms in front of you.",
+            "",
+        )
+        screen(
+            "- Do not be afraid,",
+            "adventurers. I am Jaara,",
+            "guardian of the gate.",
+            "Baron Ydarg has imprisoned",
+            "me here forever. I can't",
+            "hurt you, just stop you",
+            "from entering if you don't",
+            "have the Silver Key!",
+            "",
+        )
+        screen(
+            "You show the Silver Key to",
+            "the ghost. Her eyes widen,",
+            "as she sees it. She smiles",
+            "and waves her hand towards",
+            "the drawbridge. It falls",
+            "to the ground with a",
+            "resounding KRASH. Jaara",
+            "slowly fades away until",
+            "nothing remains.",
+            "",
+        )
+        screen("You enter.", "")
+        screen("The first door you enter", "slams shut behind you!")
+    }
+
+    scene(sceneId("castle.ydarg.completed")) {
+        screen(
+            "The last trapdoor",
+            "slams shut behind you.",
+            "You are high above the",
+            "forest, on the roof",
+            "of this fortress.",
+            "Suddenly, a voice speaks:",
+            "",
+        )
+        screen(
+            "- Fools! You have gone",
+            "long to come this far, but",
+            "here ends your journey!",
+            "",
+            "The night sky above lights",
+            "up with green flashes, and",
+            "Ydargs minions rush",
+            "to attack you!",
+            "",
+        )
+        encounter(Monsters.cryptHorror, mandatory = true)
+        encounter(Monsters.nightGaunt, mandatory = true)
+        encounter(Monsters.thyraga, mandatory = true)
+        encounter(Monsters.liche, mandatory = true)
+        screen(
+            "Corpses of the nightmare",
+            "terrors are strewn all",
+            "around. A dark cloaked",
+            "figure appears before you.",
+            "He takes a broad step over",
+            "the dead and dying, and",
+            "gazes at you with cold",
+            "glowing green eyes.",
+            "",
+        )
+        screen(
+            "- So. You have completed",
+            "the battle test. I must",
+            "confess that you impress",
+            "me. But now...",
+            "",
+            "(He waves a pointed stick",
+            "and energy begins to form",
+            "in the air before you.)",
+            "",
+        )
+        screen(
+            "A glowing energy sphere",
+            "appears, and at a gesture",
+            "from Ydarg's stick, it",
+            "hurtles towards you!!!",
+            "",
+        )
+        screen(
+            "Suddenly! You feel someone",
+            "else near. The four",
+            "grey-clad mages raise",
+            "their hands, and the",
+            "sphere is absorbed by",
+            "their hands!",
+            "",
+        )
+        screen(
+            "- CURSES! Ydarg growls.",
+            "- So this is what has come",
+            "to! Well, you got here by",
+            "aid of cold steel, and",
+            "that is the way you shall",
+            "perish!",
+            "",
+        )
+        screen(
+            "He pulls a huge trident",
+            "from his robe and utters",
+            "a single syllable. Without",
+            "warning he appears a foot",
+            "before you!!!",
+            "",
+        )
+        screen("Let the battle commence!", "")
+        encounter(Monsters.baronYdarg, mandatory = true)
+        screen(
+            "Ydarg's trident clatters",
+            "to the ground before you.",
+            "He shudders and falls over.",
+            "As you rush to kill him",
+            "he screams:",
+            "",
+        )
+        screen(
+            "- It is not over! I shall",
+            "see you in hell! In",
+            "another world! A time",
+            "to come! You have tainted",
+            "Zadraz with your ancient",
+            "items, but I will triumph",
+            "again!!! Anew...",
+            "",
+        )
+        screen("His cloak collapses, and", "when you tear it away,", "you reveal nothing but...", "")
+        screen("dust...", "")
+        screen(
+            "CONGRATULATIONS!",
+            "",
+            "You have banished Ydarg",
+            "from this dimension.",
+            "Please ask your SysOp to",
+            "reset the game.",
+            "",
+        )
+        achieve(Milestones.ydargVictory)
+        screen("Be ready for:", "HEROES OF RYLWEEN", "- The second coming.", "Soon online at a BBS", "near you!", "")
+        screen("See Ya!!!", "", "     /Marcus", "")
     }
 
     prompts {
@@ -1013,6 +1058,10 @@ val nextRylween: RylweenModel = rylween {
         winningConfiguration {
             requiresAllMilestonesMarkedRequired()
             completedBy(Milestones.ydargVictory)
+            hallOfHeroes(
+                empty = "No party has defeated Baron Ydarg yet.",
+                entry = "{party} defeated Baron Ydarg",
+            )
         }
     }
 

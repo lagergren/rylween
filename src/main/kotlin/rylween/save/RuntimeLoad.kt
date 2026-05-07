@@ -24,32 +24,37 @@ fun loadRuntimeStateSnapshot(
     file: File,
     content: GameModel,
     sourceName: String = "save file ${file.path}",
-): StateModel = parseRuntimeStateSnapshotForLoad(file.readText(), content, sourceName)
+    compiledBundleHash: String? = null,
+): StateModel = parseRuntimeStateSnapshotForLoad(file.readText(), content, sourceName, compiledBundleHash)
 
 /** Loads a save file and returns its validated full runtime snapshot. */
 fun loadRuntimeSnapshot(
     file: File,
     content: GameModel,
     sourceName: String = "save file ${file.path}",
-): RuntimeSnapshotModel = parseRuntimeSnapshotForLoad(file.readText(), content, sourceName)
+    compiledBundleHash: String? = null,
+): RuntimeSnapshotModel = parseRuntimeSnapshotForLoad(file.readText(), content, sourceName, compiledBundleHash)
 
 /** Parses snapshot text for loading and returns only the validated state. */
 fun parseRuntimeStateSnapshotForLoad(
     source: String,
     content: GameModel,
     sourceName: String = "runtime snapshot",
-): StateModel = parseRuntimeSnapshotForLoad(source, content, sourceName).state
+    compiledBundleHash: String? = null,
+): StateModel = parseRuntimeSnapshotForLoad(source, content, sourceName, compiledBundleHash).state
 
 /** Parses snapshot text for loading and returns the validated full snapshot. */
 fun parseRuntimeSnapshotForLoad(
     source: String,
     content: GameModel,
     sourceName: String = "runtime snapshot",
+    compiledBundleHash: String? = null,
 ): RuntimeSnapshotModel =
     validateRuntimeStateSnapshotForLoad(
         snapshot = parseRuntimeSnapshotWithDiagnostics(source, sourceName),
         content = content,
         sourceName = sourceName,
+        compiledBundleHash = compiledBundleHash,
     )
 
 /** Validates a parsed runtime state against current authored [content]. */
@@ -64,6 +69,7 @@ fun validateRuntimeStateSnapshotForLoad(
     snapshot: RuntimeSnapshotModel,
     content: GameModel,
     sourceName: String = "runtime snapshot",
+    compiledBundleHash: String? = null,
 ): RuntimeSnapshotModel {
     try {
         validateStates(listOf(snapshot.state), content)
@@ -72,7 +78,8 @@ fun validateRuntimeStateSnapshotForLoad(
     } catch (error: IllegalStateException) {
         throw runtimeLoadFailure(sourceName, error.message ?: "runtime snapshot is not valid")
     }
-    validateSnapshotMetadata(snapshot, content, sourceName)
+    validateSnapshotMetadata(snapshot, content, sourceName, compiledBundleHash)
+    validateCompiledContinuationBundle(snapshot, sourceName, compiledBundleHash)
     validateModeSnapshot(snapshot, content, sourceName)
     return snapshot
 }
@@ -91,6 +98,7 @@ private fun validateSnapshotMetadata(
     snapshot: RuntimeSnapshotModel,
     content: GameModel,
     sourceName: String,
+    compiledBundleHash: String?,
 ) {
     val metadata = snapshot.metadata ?: return
     if (metadata.formatVersion != RUNTIME_SNAPSHOT_FORMAT_VERSION) {
@@ -121,15 +129,42 @@ private fun validateSnapshotMetadata(
     }
 }
 
+private fun validateCompiledContinuationBundle(
+    snapshot: RuntimeSnapshotModel,
+    sourceName: String,
+    compiledBundleHash: String?,
+) {
+    if (!snapshot.hasCompiledVmContinuation()) {
+        return
+    }
+    val savedHash =
+        snapshot.metadata?.compiledBundleHash
+            ?: throw runtimeLoadFailure(sourceName, "compiled VM continuation requires compiled bundle hash metadata")
+    if (compiledBundleHash == null) {
+        throw runtimeLoadFailure(sourceName, "compiled VM continuation requires a verified compiled bundle hash")
+    }
+    if (savedHash != compiledBundleHash) {
+        throw runtimeLoadFailure(sourceName, "runtime snapshot compiled bundle hash does not match this game bundle")
+    }
+}
+
+private fun RuntimeSnapshotModel.hasCompiledVmContinuation(): Boolean =
+    when (val activeMode = mode) {
+        is RuntimeModeSnapshot.Dungeon -> activeMode.postDungeon?.continuation?.compiledVmContinuation != null
+        is RuntimeModeSnapshot.Castle,
+        null,
+        -> false
+    }
+
 private fun validateModeSnapshot(
     snapshot: RuntimeSnapshotModel,
     content: GameModel,
     sourceName: String,
 ) {
     when (snapshot.state.realm.currentMode) {
-        RuntimeMode.YdargCastle -> {
-            if (snapshot.mode !is RuntimeModeSnapshot.YdargCastle) {
-                throw runtimeLoadFailure(sourceName, "YdargCastle runtime snapshot requires sessions { ydarg { ... } }")
+        RuntimeMode.Castle -> {
+            if (snapshot.mode !is RuntimeModeSnapshot.Castle) {
+                throw runtimeLoadFailure(sourceName, "Castle runtime snapshot requires sessions { castle { ... } }")
             }
         }
         RuntimeMode.Dungeon -> {

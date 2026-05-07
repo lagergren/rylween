@@ -28,6 +28,7 @@ import rylween.dsl.WorldPosition
 import rylween.dsl.of
 import rylween.dsl.runtimeContent
 import rylween.engine.KotlinHeadlessHost
+import rylween.frontend.terminal.CastleSessionTerminalAdapter
 import rylween.frontend.terminal.ScriptBridge
 import rylween.frontend.terminal.TerminalAdapterResult
 import rylween.frontend.terminal.TerminalPort
@@ -36,7 +37,6 @@ import rylween.frontend.terminal.TerminalTextContext
 import rylween.frontend.terminal.TerminalTextRenderer
 import rylween.frontend.terminal.TownSessionTerminalAdapter
 import rylween.frontend.terminal.WildernessSessionTerminalAdapter
-import rylween.frontend.terminal.YdargSessionTerminalAdapter
 import rylween.frontend.terminal.compiledVmTerminalScriptBridge
 import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.game.Buildings
@@ -56,6 +56,9 @@ import rylween.game.Towns
 import rylween.runtime.ReferenceRylweenRandom
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.WildernessDirection
+import rylween.runtime.castle.CastleSession
+import rylween.runtime.castle.CastleSessionStatus
+import rylween.runtime.castle.CastleSessionStep
 import rylween.runtime.delta
 import rylween.runtime.hasFlagState
 import rylween.runtime.toRuntimeSessionState
@@ -65,9 +68,6 @@ import rylween.runtime.wilderness.WildernessSessionResultStatus
 import rylween.runtime.wilderness.WildernessSessionStep
 import rylween.runtime.wilderness.worldMapGrid
 import rylween.runtime.withFlagState
-import rylween.runtime.ydarg.YdargSession
-import rylween.runtime.ydarg.YdargSessionStatus
-import rylween.runtime.ydarg.YdargSessionStep
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -75,7 +75,7 @@ import kotlin.test.assertTrue
 
 class LongPlaythroughTest {
     @Test
-    fun cheatedGoldenPathCoversTownServicesMissionsDungeonsAndYdarg() {
+    fun cheatedGoldenPathCoversTownServicesMissionsDungeonsAndCastle() {
         val playthrough = CheatedLongPlaythrough()
 
         playthrough.visitTownService(
@@ -110,12 +110,12 @@ class LongPlaythroughTest {
         )
 
         playthrough.runAllMissionLegs()
-        playthrough.finishYdarg()
+        playthrough.finishCastle()
 
         assertEquals(playthrough.allTownBuildings, playthrough.coveredBuildings)
         assertEquals(playthrough.allMissions, playthrough.coveredMissions)
         assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredDungeonHandoffs)
-        assertTrue(playthrough.ydargCompleted)
+        assertTrue(playthrough.castleCompleted)
         assertTrue(Milestones.ydargVictory in playthrough.runtime.activeParty.milestones)
     }
 
@@ -189,7 +189,7 @@ class LongPlaythroughTest {
     }
 
     @Test
-    fun cheatedAcceptancePlaythroughReachesYdargVictoryAndHeroesReport() {
+    fun cheatedAcceptancePlaythroughReachesCastleVictoryAndHeroesReport() {
         val playthrough = CheatedLongPlaythrough()
 
         val reports = playthrough.runAcceptancePlaythrough()
@@ -198,7 +198,7 @@ class LongPlaythroughTest {
         assertEquals(playthrough.allMissions, playthrough.coveredMissions)
         assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredFixedDungeonCompletions)
         assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredPostDungeonContinuations)
-        assertTrue(playthrough.ydargCompleted)
+        assertTrue(playthrough.castleCompleted)
         assertTrue(Milestones.ydargVictory in playthrough.runtime.activeParty.milestones)
         assertTrue(reports.scoreLines.any { line -> "Playtest" in line })
         assertTrue(reports.verboseScoreLines.any { line -> line == "  Leader             : Fighter" })
@@ -206,7 +206,7 @@ class LongPlaythroughTest {
     }
 
     @Test
-    fun compiledVmServiceBridgeAcceptancePlaythroughReachesYdargVictoryAndHeroesReport() {
+    fun compiledVmServiceBridgeAcceptancePlaythroughReachesCastleVictoryAndHeroesReport() {
         val playthrough = CheatedLongPlaythrough(scriptMode = PlaythroughScriptMode.CompiledVm)
 
         val reports = playthrough.runAcceptancePlaythrough()
@@ -215,7 +215,7 @@ class LongPlaythroughTest {
         assertEquals(playthrough.allMissions, playthrough.coveredMissions)
         assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredFixedDungeonCompletions)
         assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredPostDungeonContinuations)
-        assertTrue(playthrough.ydargCompleted)
+        assertTrue(playthrough.castleCompleted)
         assertTrue(Milestones.ydargVictory in playthrough.runtime.activeParty.milestones)
         assertTrue(reports.scoreLines.any { line -> "Playtest" in line })
         assertTrue(reports.verboseScoreLines.any { line -> line == "  Leader             : Fighter" })
@@ -286,7 +286,7 @@ private class CheatedLongPlaythrough(
     val coveredDungeonHandoffs = linkedSetOf<DungeonId>()
     val coveredPostDungeonContinuations = linkedSetOf<MissionId>()
     val coveredFixedDungeonCompletions = linkedSetOf<DungeonId>()
-    var ydargCompleted = false
+    var castleCompleted = false
         private set
 
     val allTownBuildings: Set<BuildingId> =
@@ -471,11 +471,11 @@ private class CheatedLongPlaythrough(
         }
 
         assertTrue(
-            requiredYdargMilestones.all { milestone -> milestone in runtime.activeParty.milestones },
-            "acceptance playthrough reached Ydarg without all power milestones; " +
+            requiredCastleMilestones.all { milestone -> milestone in runtime.activeParty.milestones },
+            "acceptance playthrough reached the castle without all power milestones; " +
                 "milestones=${runtime.activeParty.milestones.map(GameMilestoneId::slug)}",
         )
-        finishYdarg(grantPowerMilestones = false)
+        finishCastle(grantPowerMilestones = false)
         return renderRuntimeReports()
     }
 
@@ -696,13 +696,13 @@ private class CheatedLongPlaythrough(
         coveredPostDungeonContinuations += leg.id
     }
 
-    fun finishYdarg(grantPowerMilestones: Boolean = true) {
+    fun finishCastle(grantPowerMilestones: Boolean = true) {
         val party =
             runtime.activeParty
                 .cheatedForLongPlaythrough()
                 .let { party ->
                     if (grantPowerMilestones) {
-                        party.withMilestones(*requiredYdargMilestones.toTypedArray())
+                        party.withMilestones(*requiredCastleMilestones.toTypedArray())
                     } else {
                         party
                     }
@@ -716,8 +716,8 @@ private class CheatedLongPlaythrough(
                 locations = playthroughLocations,
             )
         val session =
-            YdargSession.start(startRuntime, runtimeContent).copy(
-                step = YdargSessionStep.StairGive,
+            CastleSession.start(startRuntime, runtimeContent).copy(
+                step = CastleSessionStep.StairGive,
                 floor = 4,
                 point = GridPoint(5, 5),
             )
@@ -740,14 +740,14 @@ private class CheatedLongPlaythrough(
                 "A",
                 "A",
             )
-        val result = YdargSessionTerminalAdapter(terminal, renderer).runUntilBlocked(session)
+        val result = CastleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(session)
 
         assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(YdargSessionStatus.Victory, result.session.lastResult?.status)
+        assertEquals(CastleSessionStatus.Completed, result.session.lastResult?.status)
         assertTrue(terminal.output.any { "CONGRATULATIONS!" in it })
-        assertNoUnresolvedText("Ydarg finale", terminal.output)
+        assertNoUnresolvedText("castle completion", terminal.output)
         runtime = result.session.runtime
-        ydargCompleted = true
+        castleCompleted = true
     }
 
     private fun renderRuntimeReports(): AcceptanceReports {
@@ -1154,7 +1154,7 @@ private class CheatedLongPlaythrough(
         generateSequence(1L) { it + 1L }
             .first { seed -> ReferenceRylweenRandom.draw(seed, 1, 9).value in 6..7 }
 
-    private val requiredYdargMilestones: Set<GameMilestoneId> =
+    private val requiredCastleMilestones: Set<GameMilestoneId> =
         linkedSetOf(
             Milestones.silverKey,
             Milestones.fireShield,
