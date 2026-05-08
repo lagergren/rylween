@@ -153,7 +153,45 @@ val checkCompiledRuntimeTownScript: TaskProvider<RunInstalledLauncherWithJavaTas
         },
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    script.set("22E1BBA12PQBCPQS1YQLE4BBWN7PQLX")
+    replay.set("town-social-smoke")
+    expectedOutputContains.set(
+        listOf(
+            "compiled replay: town-social-smoke",
+            "compiled replay component 1: travel.to_thord",
+            "compiled replay component 2: town.thord_service_social_circuit",
+            "Entering Thord",
+            "The smith welcomes you",
+            "Welcome! Have a seat",
+        ),
+    )
+}
+
+val checkCompiledRuntimeTownDialogueReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs a named compiled-runtime replay through Thord tavern NPC dialogue and reward scripting."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    replay.set("town-garth-reward-smoke")
+    expectedOutputContains.set(
+        listOf(
+            "compiled replay: town-garth-reward-smoke",
+            "compiled replay component 1: travel.to_thord",
+            "compiled replay component 2: town.thord_garth_reward_dialogue",
+            "The merchant is GRATEFUL!",
+            "You pick up the gem.",
+        ),
+    )
 }
 
 val checkCompiledRuntimeSaveScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
@@ -409,6 +447,7 @@ val checkCompiledRuntimeAcceptanceHeroesScreen: TaskProvider<RunInstalledLaunche
 tasks.check {
     dependsOn(checkCompiledRuntimeBundleBoot)
     dependsOn(checkCompiledRuntimeTownScript)
+    dependsOn(checkCompiledRuntimeTownDialogueReplay)
     dependsOn(checkCompiledRuntimeLoadScript)
     dependsOn(checkCompiledRuntimePartyJournalScript)
     dependsOn(checkCompiledRuntimeWildernessActionsScript)
