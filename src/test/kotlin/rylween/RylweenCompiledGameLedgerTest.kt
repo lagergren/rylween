@@ -993,7 +993,7 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.missions.single { it.id == Missions.jazzyFoot }.trigger == Trigger.OnTerrain(Terrain.foothills))
         check(nextDsl.missions.single { it.id == Missions.silverKey }.trigger == Trigger.AtLocation(Locations.silverKeyPit))
         check(nextDsl.missions.single { it.id == Missions.hobgoblinCaravan }.trigger == Trigger.RandomStep(9))
-        check(nextRylween.states.size == 5)
+        check(nextRylween.states.size == 7)
 
         val freshParty =
             nextRylween.states
@@ -1008,6 +1008,16 @@ class RylweenCompiledGameLedgerTest {
         val strongParty =
             nextRylween.states
                 .single { it.id == States.strongReplay }
+                .parties
+                .single()
+        val townMissionParty =
+            nextRylween.states
+                .single { it.id == States.townMissionReplay }
+                .parties
+                .single()
+        val townSilverKeyParty =
+            nextRylween.states
+                .single { it.id == States.townSilverKeyReplay }
                 .parties
                 .single()
         val nearWinningParty =
@@ -1046,6 +1056,11 @@ class RylweenCompiledGameLedgerTest {
                     restedHours = 14,
                 ),
         )
+        check(townMissionParty.flags.isEmpty())
+        check(townMissionParty.resources.gold == 100000)
+        check(townMissionParty.inventory.single { it.slot == 1 }.item == Items.redGem)
+        check(Story.silverKey.noteFound in townSilverKeyParty.flags)
+        check(townSilverKeyParty.position == Wilderness.xy(12, 9))
         check(strongParty.members.map { it.pcClass } == listOf(PcClass.Fighter, PcClass.Ranger, PcClass.Mage, PcClass.Priest))
         check(
             strongParty.members.all { member ->
@@ -1369,6 +1384,8 @@ class RylweenCompiledGameLedgerTest {
                 "checkCompiledRuntimeBundleBoot",
                 "checkCompiledRuntimeTownScript",
                 "checkCompiledRuntimeTownDialogueReplay",
+                "checkCompiledRuntimeTownMissionIntroReplay",
+                "checkCompiledRuntimeTownSilverKeyReplay",
                 "checkCompiledRuntimeDungeonScript",
                 "checkCompiledRuntimeCastleScript",
                 "checkCompiledRuntimeHeroesScreen",
@@ -1429,7 +1446,12 @@ class RylweenCompiledGameLedgerTest {
             "StandaloneReplayComponent",
             "acceptancePowerRoute",
             "townGarthRewardSmoke",
+            "townMissionIntroRoute",
+            "townSilverKeyChainRoute",
             "town.thord_garth_reward_dialogue",
+            "town.thord_mission_dialogues",
+            "town.wilor_mission_dialogues",
+            "town.ollk_silver_key_chain",
             "routeToTerrain",
             "systems.castleRows.single().entry",
             "compiled replay component",

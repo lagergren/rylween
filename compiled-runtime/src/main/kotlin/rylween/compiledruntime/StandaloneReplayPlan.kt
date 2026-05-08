@@ -55,7 +55,11 @@ internal object StandaloneCompiledReplayPlans {
     private const val ACCEPTANCE_STATE = "acceptance-replay"
     private const val TOWN_SOCIAL_SMOKE = "town-social-smoke"
     private const val TOWN_GARTH_REWARD_SMOKE = "town-garth-reward-smoke"
+    private const val TOWN_MISSION_INTRO_ROUTE = "town-mission-intro-route"
+    private const val TOWN_SILVER_KEY_CHAIN_ROUTE = "town-silver-key-chain-route"
     private const val FRESH_STATE = "fresh-replay"
+    private const val TOWN_MISSION_STATE = "town-mission-replay"
+    private const val TOWN_SILVER_KEY_STATE = "town-silver-key-replay"
 
     fun build(
         name: String,
@@ -67,8 +71,98 @@ internal object StandaloneCompiledReplayPlans {
             ACCEPTANCE_POWER_ROUTE -> acceptancePowerRoute(bundle, systems, stateOverride ?: ACCEPTANCE_STATE)
             TOWN_SOCIAL_SMOKE -> townSocialSmoke(bundle, stateOverride ?: FRESH_STATE)
             TOWN_GARTH_REWARD_SMOKE -> townGarthRewardSmoke(bundle, stateOverride ?: FRESH_STATE)
+            TOWN_MISSION_INTRO_ROUTE -> townMissionIntroRoute(bundle, stateOverride ?: TOWN_MISSION_STATE)
+            TOWN_SILVER_KEY_CHAIN_ROUTE -> townSilverKeyChainRoute(bundle, stateOverride ?: TOWN_SILVER_KEY_STATE)
             else -> error("unknown compiled replay plan $normalized")
         }
+
+    private fun townSilverKeyChainRoute(
+        bundle: CompiledGameBundle,
+        stateSlug: String,
+    ): StandaloneReplayPlan {
+        val content = bundle.content
+        val state = bundle.stateBySlug(stateSlug)
+        val world = ReplayWorldMap.from(state, content = content)
+        val route = world.routeTo(state.startPoint(), content.townPoint("ollk"))
+        return StandaloneReplayPlan(
+            name = TOWN_SILVER_KEY_CHAIN_ROUTE,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    StandaloneReplayComponent(
+                        name = "travel.to_ollk",
+                        commands = route.commands,
+                        checkpoints = listOf("position:ollk"),
+                    ),
+                    StandaloneReplayComponent(
+                        name = "town.ollk_silver_key_chain",
+                        commands = "E3S2BS1BLX",
+                        checkpoints =
+                            listOf(
+                                "output:sold the Key",
+                                "output:Nah, sorry",
+                                "output:Find them and take it back",
+                            ),
+                    ),
+                ),
+        )
+    }
+
+    private fun townMissionIntroRoute(
+        bundle: CompiledGameBundle,
+        stateSlug: String,
+    ): StandaloneReplayPlan {
+        val content = bundle.content
+        val state = bundle.stateBySlug(stateSlug)
+        val world = ReplayWorldMap.from(state, content = content)
+        var point = state.startPoint()
+
+        fun moveToTown(slug: String): StandaloneReplayComponent {
+            val route = world.routeTo(point, content.townPoint(slug))
+            point = route.end
+            return StandaloneReplayComponent(
+                name = "travel.to_$slug",
+                commands = route.commands,
+                checkpoints = listOf("position:$slug"),
+            )
+        }
+
+        return StandaloneReplayPlan(
+            name = TOWN_MISSION_INTRO_ROUTE,
+            stateSlug = stateSlug,
+            components =
+                buildList {
+                    add(moveToTown("thord"))
+                    add(
+                        StandaloneReplayComponent(
+                            name = "town.thord_mission_dialogues",
+                            commands = thordMissionDialogueRoute(),
+                            checkpoints =
+                                listOf(
+                                    "output:In fact, I have a mission",
+                                    "output:You persuade him to",
+                                    "output:You take the blade.",
+                                    "output:GO TO CAVE AT",
+                                ),
+                        ),
+                    )
+                    add(moveToTown("wilor"))
+                    add(
+                        StandaloneReplayComponent(
+                            name = "town.wilor_mission_dialogues",
+                            commands = wilorMissionDialogueRoute(),
+                            checkpoints =
+                                listOf(
+                                    "output:precious map",
+                                    "output:temple",
+                                    "output:Ah, a seeker",
+                                    "output:Erethor's Lute",
+                                ),
+                        ),
+                    )
+                },
+        )
+    }
 
     private fun townGarthRewardSmoke(
         bundle: CompiledGameBundle,
@@ -299,6 +393,33 @@ internal object StandaloneCompiledReplayPlans {
         }
 
     private fun castleStep(command: Char): String = command.toString() + battle()
+
+    private fun thordMissionDialogueRoute(): String =
+        "E3" +
+            speakNpc(1) +
+            speakNpc(3) +
+            speakNpc(7) +
+            speakNpc(1) +
+            speakNpc(8) +
+            speakNpc(6) +
+            speakNpc(2) +
+            speakNpc(5, "AA") +
+            "L"
+
+    private fun wilorMissionDialogueRoute(): String =
+        "E3" +
+            speakNpc(1, "B") +
+            speakNpc(4, "B") +
+            speakNpc(2) +
+            speakNpc(5) +
+            speakNpc(6) +
+            speakNpc(7) +
+            "LX"
+
+    private fun speakNpc(
+        index: Int,
+        branchInput: String = "",
+    ): String = "S$index${branchInput}B"
 
     private fun dungeonRoute(
         levels: Int,
