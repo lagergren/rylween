@@ -170,6 +170,24 @@ sealed interface TextPart {
     object CreationWisdom : TextPart
 
     object CreationCharisma : TextPart
+
+    object BattleFoeDisplayName : TextPart
+
+    object BattleAttackerName : TextPart
+
+    object BattleTargetName : TextPart
+
+    object BattleDamage : TextPart
+
+    object BattleExperience : TextPart
+
+    object BattleGold : TextPart
+
+    object BattleLootName : TextPart
+
+    object BattleLevelMemberName : TextPart
+
+    object BattleLevelsGained : TextPart
 }
 
 /** Returns a deterministic placeholder used when no runtime renderer is available. */
@@ -205,6 +223,15 @@ fun TextPart.fallbackText(): String =
         TextPart.CreationHealth -> "{health}"
         TextPart.CreationWisdom -> "{wisdom}"
         TextPart.CreationCharisma -> "{charisma}"
+        TextPart.BattleFoeDisplayName -> "{battle_foe}"
+        TextPart.BattleAttackerName -> "{battle_attacker}"
+        TextPart.BattleTargetName -> "{battle_target}"
+        TextPart.BattleDamage -> "{battle_damage}"
+        TextPart.BattleExperience -> "{battle_experience}"
+        TextPart.BattleGold -> "{battle_gold}"
+        TextPart.BattleLootName -> "{battle_loot}"
+        TextPart.BattleLevelMemberName -> "{battle_level_member}"
+        TextPart.BattleLevelsGained -> "{battle_levels}"
     }
 
 /** Structured text line made of literal and dynamic parts. */
@@ -1640,6 +1667,11 @@ val StandardYesNoKeys: YesNoKeysModel = YesNoKeysModel()
 data class BattleTextModel(
     val encounterBanner: TextBlock = inlineText("ENCOUNTER!", ""),
     val youFace: TextBlock = inlineText("You face"),
+    val foeDisplayName: TextBlock =
+        structuredText {
+            line(TextPart.BattleFoeDisplayName)
+            line("")
+        },
     val stillFace: TextBlock = inlineText("You still face"),
     val fight: TextBlock = inlineText("(F)ight"),
     val run: TextBlock = inlineText("(R)un"),
@@ -1666,11 +1698,44 @@ data class BattleTextModel(
             " enemies enough to get",
             " them off guard.)",
         ),
+    val playerHit: TextBlock =
+        structuredText {
+            line(TextPart.BattleAttackerName, " hits for")
+            line(TextPart.BattleDamage, " damage pts!")
+        },
+    val playerMiss: TextBlock = structuredText { line(TextPart.BattleAttackerName, " misses!") },
+    val monsterHit: TextBlock =
+        structuredText {
+            line(TextPart.BattleAttackerName, " attacks")
+            line(TextPart.BattleTargetName, "!")
+            line("And hits for")
+            line(TextPart.BattleDamage, " damage pts!!!")
+        },
+    val monsterMiss: TextBlock =
+        structuredText {
+            line(TextPart.BattleAttackerName, " attacks")
+            line(TextPart.BattleTargetName, "!")
+            line("Blow misses!")
+        },
+    val memberDeath: TextBlock = structuredText { line(TextPart.BattleTargetName, " DIES!!!") },
     val killed: TextBlock = inlineText("...KILLED!"),
     val partyHeld: TextBlock = inlineText("PARTY IS HELD!"),
+    val partyDefeated: TextBlock = inlineText("The party has fallen."),
     val victoryBested: TextBlock = inlineText("Thou hast bested", "thy foes.", ""),
     val victoryEachSurvivor: TextBlock = inlineText("Each survivor gets"),
+    val victoryReward: TextBlock =
+        structuredText {
+            line(TextPart.BattleExperience, " experience pts")
+            line("and ", TextPart.BattleGold, " gold pieces.")
+            line("")
+        },
     val victoryFoundObject: TextBlock = inlineText("You find a"),
+    val victoryLoot: TextBlock = structuredText { line(TextPart.BattleLootName, ".") },
+    val levelGain: TextBlock =
+        structuredText {
+            line(TextPart.BattleLevelMemberName, " gains >", TextPart.BattleLevelsGained, "<")
+            line("experience levels.")
+        },
 )
 
 data class PlayerAttackRulesModel(
@@ -1823,6 +1888,18 @@ object HuntText {
     val memberSubjectPronoun: TextPart = TextPart.HuntMemberSubjectPronoun
     val foodGained: TextPart = TextPart.HuntFoodGained
     val partyMemberMax: TextPart = TextPart.PartyMemberMax
+}
+
+object BattleText {
+    val foeDisplayName: TextPart = TextPart.BattleFoeDisplayName
+    val attackerName: TextPart = TextPart.BattleAttackerName
+    val targetName: TextPart = TextPart.BattleTargetName
+    val damage: TextPart = TextPart.BattleDamage
+    val experience: TextPart = TextPart.BattleExperience
+    val gold: TextPart = TextPart.BattleGold
+    val lootName: TextPart = TextPart.BattleLootName
+    val levelMemberName: TextPart = TextPart.BattleLevelMemberName
+    val levelsGained: TextPart = TextPart.BattleLevelsGained
 }
 
 object TownText {
@@ -2016,7 +2093,10 @@ data class StandardBattleModel(
     val monsterRound: MonsterRoundModel,
     val text: BattleTextModel,
     val rewards: RewardBundleId,
+    val roundLimit: Int,
     val encounterFoeCountMax: Int,
+    val encounterHitPointMinFormula: FormulaId,
+    val encounterHitPointMaxFormula: FormulaId,
     val victoryImage: ImageId?,
     val nativeServices: List<EngineServiceUse>,
 )
@@ -7762,7 +7842,10 @@ class StandardBattleBuilder {
     private var monsterRoundModel = MonsterRoundBuilder().build()
     private var textModel = BattleTextBuilder().build()
     var rewards: RewardBundleId = DslDefaultRewards.standardBattle
+    var roundLimit: Int = 200
     var encounterFoeCountMax: Int = 8
+    var encounterHitPointMinFormula: FormulaId = DslDefaultFormulas.encounterH1Scaled
+    var encounterHitPointMaxFormula: FormulaId = DslDefaultFormulas.encounterH2Scaled
     private var victoryImage: ImageId? = null
 
     fun text(body: BattleTextBuilder.() -> Unit) {
@@ -7802,7 +7885,10 @@ class StandardBattleBuilder {
             monsterRound = monsterRoundModel,
             text = textModel,
             rewards = rewards,
+            roundLimit = roundLimit,
             encounterFoeCountMax = encounterFoeCountMax,
+            encounterHitPointMinFormula = encounterHitPointMinFormula,
+            encounterHitPointMaxFormula = encounterHitPointMaxFormula,
             victoryImage = victoryImage,
             nativeServices = defaultNativeServices,
         )
@@ -7838,6 +7924,7 @@ class BattleTextBuilder(
     private val defaults = initial ?: BattleTextModel()
     private var encounterBannerText = defaults.encounterBanner
     private var youFaceText = defaults.youFace
+    private var foeDisplayNameText = defaults.foeDisplayName
     private var stillFaceText = defaults.stillFace
     private var fightText = defaults.fight
     private var runText = defaults.run
@@ -7857,11 +7944,20 @@ class BattleTextBuilder(
     private var restGainHitsText = defaults.restGainHits
     private var defendStanceText = defaults.defendStance
     private var battleCryText = defaults.battleCry
+    private var playerHitText = defaults.playerHit
+    private var playerMissText = defaults.playerMiss
+    private var monsterHitText = defaults.monsterHit
+    private var monsterMissText = defaults.monsterMiss
+    private var memberDeathText = defaults.memberDeath
     private var killedText = defaults.killed
     private var partyHeldText = defaults.partyHeld
+    private var partyDefeatedText = defaults.partyDefeated
     private var victoryBestedText = defaults.victoryBested
     private var victoryEachSurvivorText = defaults.victoryEachSurvivor
+    private var victoryRewardText = defaults.victoryReward
     private var victoryFoundObjectText = defaults.victoryFoundObject
+    private var victoryLootText = defaults.victoryLoot
+    private var levelGainText = defaults.levelGain
 
     fun encounterBanner(body: StructuredTextBlockBuilder.() -> Unit) {
         encounterBannerText = structuredText(body)
@@ -7869,6 +7965,10 @@ class BattleTextBuilder(
 
     fun youFace(body: StructuredTextBlockBuilder.() -> Unit) {
         youFaceText = structuredText(body)
+    }
+
+    fun foeDisplayName(body: StructuredTextBlockBuilder.() -> Unit) {
+        foeDisplayNameText = structuredText(body)
     }
 
     fun stillFace(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -7951,6 +8051,26 @@ class BattleTextBuilder(
         battleCryText = structuredText(body)
     }
 
+    fun playerHit(body: StructuredTextBlockBuilder.() -> Unit) {
+        playerHitText = structuredText(body)
+    }
+
+    fun playerMiss(body: StructuredTextBlockBuilder.() -> Unit) {
+        playerMissText = structuredText(body)
+    }
+
+    fun monsterHit(body: StructuredTextBlockBuilder.() -> Unit) {
+        monsterHitText = structuredText(body)
+    }
+
+    fun monsterMiss(body: StructuredTextBlockBuilder.() -> Unit) {
+        monsterMissText = structuredText(body)
+    }
+
+    fun memberDeath(body: StructuredTextBlockBuilder.() -> Unit) {
+        memberDeathText = structuredText(body)
+    }
+
     fun killed(body: StructuredTextBlockBuilder.() -> Unit) {
         killedText = structuredText(body)
     }
@@ -7963,6 +8083,10 @@ class BattleTextBuilder(
         partyHeldText = structuredText(body)
     }
 
+    fun partyDefeated(body: StructuredTextBlockBuilder.() -> Unit) {
+        partyDefeatedText = structuredText(body)
+    }
+
     fun victoryBested(body: StructuredTextBlockBuilder.() -> Unit) {
         victoryBestedText = structuredText(body)
     }
@@ -7971,14 +8095,27 @@ class BattleTextBuilder(
         victoryEachSurvivorText = structuredText(body)
     }
 
+    fun victoryReward(body: StructuredTextBlockBuilder.() -> Unit) {
+        victoryRewardText = structuredText(body)
+    }
+
     fun victoryFoundObject(body: StructuredTextBlockBuilder.() -> Unit) {
         victoryFoundObjectText = structuredText(body)
+    }
+
+    fun victoryLoot(body: StructuredTextBlockBuilder.() -> Unit) {
+        victoryLootText = structuredText(body)
+    }
+
+    fun levelGain(body: StructuredTextBlockBuilder.() -> Unit) {
+        levelGainText = structuredText(body)
     }
 
     fun build(): BattleTextModel =
         BattleTextModel(
             encounterBanner = encounterBannerText,
             youFace = youFaceText,
+            foeDisplayName = foeDisplayNameText,
             stillFace = stillFaceText,
             fight = fightText,
             run = runText,
@@ -7998,11 +8135,20 @@ class BattleTextBuilder(
             restGainHits = restGainHitsText,
             defendStance = defendStanceText,
             battleCry = battleCryText,
+            playerHit = playerHitText,
+            playerMiss = playerMissText,
+            monsterHit = monsterHitText,
+            monsterMiss = monsterMissText,
+            memberDeath = memberDeathText,
             killed = killedText,
             partyHeld = partyHeldText,
+            partyDefeated = partyDefeatedText,
             victoryBested = victoryBestedText,
             victoryEachSurvivor = victoryEachSurvivorText,
+            victoryReward = victoryRewardText,
             victoryFoundObject = victoryFoundObjectText,
+            victoryLoot = victoryLootText,
+            levelGain = levelGainText,
         )
 }
 

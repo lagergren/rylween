@@ -34,7 +34,7 @@ internal class StandaloneWildernessCommands private constructor(
     }
 }
 
-private fun ExternalRuntimeInputBinding.matches(command: Char): Boolean =
+internal fun ExternalRuntimeInputBinding.matches(command: Char): Boolean =
     (listOf(primary) + aliases).any { token -> token.matchesCommand(command) }
 
 private fun String.matchesCommand(command: Char): Boolean =

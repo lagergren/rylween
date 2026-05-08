@@ -2194,6 +2194,15 @@ class CompiledVm(
             CompiledRuntimeTextPart.CreationHealth -> TextPart.CreationHealth
             CompiledRuntimeTextPart.CreationWisdom -> TextPart.CreationWisdom
             CompiledRuntimeTextPart.CreationCharisma -> TextPart.CreationCharisma
+            CompiledRuntimeTextPart.BattleFoeDisplayName -> TextPart.BattleFoeDisplayName
+            CompiledRuntimeTextPart.BattleAttackerName -> TextPart.BattleAttackerName
+            CompiledRuntimeTextPart.BattleTargetName -> TextPart.BattleTargetName
+            CompiledRuntimeTextPart.BattleDamage -> TextPart.BattleDamage
+            CompiledRuntimeTextPart.BattleExperience -> TextPart.BattleExperience
+            CompiledRuntimeTextPart.BattleGold -> TextPart.BattleGold
+            CompiledRuntimeTextPart.BattleLootName -> TextPart.BattleLootName
+            CompiledRuntimeTextPart.BattleLevelMemberName -> TextPart.BattleLevelMemberName
+            CompiledRuntimeTextPart.BattleLevelsGained -> TextPart.BattleLevelsGained
         }
 
     private fun evalInt(

@@ -11,11 +11,15 @@ package rylween.compiledruntime
 
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledPartyMember
+import rylween.compiled.CompiledTerrain
 import rylween.compiled.ExternalCampRules
 import rylween.compiled.ExternalHuntRules
+import rylween.compiled.ExternalRuntimeCombat
 import rylween.compiled.ExternalRuntimeRealm
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalWildernessFatigueRule
+import rylween.compiled.ExternalWildernessRuntime
+import rylween.dsl.GridPoint
 import rylween.dsl.PcClass
 import rylween.dsl.PronounCase
 import rylween.dsl.RuntimeMode
@@ -29,10 +33,14 @@ internal data class StandaloneWildernessActionResult(
     val messages: List<String> = emptyList(),
 )
 
+private val manaRegenerationClasses = setOf(PcClass.Mage, PcClass.Priest)
+
 /** Applies bundle-authored wilderness rules to standalone runtime state. */
 internal class StandaloneWildernessActions(
     private val content: CompiledContentBundle,
     private val realm: ExternalRuntimeRealm,
+    private val combat: ExternalRuntimeCombat,
+    private val wilderness: ExternalWildernessRuntime,
     private val input: StandaloneInput,
     private val screen: CompiledAnsiScreen,
 ) {
@@ -41,12 +49,8 @@ internal class StandaloneWildernessActions(
         val messages = mutableListOf<String>()
         party = party.regenerateMana(realm.upkeep.manaRegenChance)
 
-        val foodAfterTick =
-            if (realm.upkeep.foodTickEvery > 0 && party.resources.timeLeft % realm.upkeep.foodTickEvery == 0) {
-                (party.resources.food - party.foodTickCost()).coerceAtLeast(0)
-            } else {
-                party.resources.food
-            }
+        val foodTick = realm.upkeep.foodTickEvery > 0 && party.resources.timeLeft % realm.upkeep.foodTickEvery == 0
+        val foodAfterTick = if (foodTick) (party.resources.food - party.foodTickCost()).coerceAtLeast(0) else party.resources.food
         party = party.applyStarvation(foodAfterTick, realm.upkeep.starveFoodThreshold, realm.upkeep.starveDamage, messages)
 
         val restedHours = party.resources.restedHours - realm.upkeep.restedHoursCostPerTurn
@@ -60,12 +64,8 @@ internal class StandaloneWildernessActions(
                     ),
             )
 
-        val mode =
-            if (party.members.isNotEmpty() && party.members.all(CompiledPartyMember::dead)) {
-                RuntimeMode.GameOver
-            } else {
-                runtime.currentMode
-            }
+        val allDead = party.members.isNotEmpty() && party.members.all(CompiledPartyMember::dead)
+        val mode = if (allDead) RuntimeMode.GameOver else runtime.currentMode
         return StandaloneWildernessActionResult(
             runtime =
                 runtime.copy(
@@ -113,7 +113,7 @@ internal class StandaloneWildernessActions(
             input.readCommandFromPrompt(rules.text.guardPrompt.renderCamp(runtime))
                 ?: return StandaloneWildernessActionResult(runtime)
         val guardIndex =
-            if (guardAnswer == 'Y') {
+            guardAnswer.takeIf { it == 'Y' }?.let {
                 val memberNumber =
                     input.readIntFromPrompt(rules.text.guardMemberPrompt.renderCamp(runtime))
                         ?: return StandaloneWildernessActionResult(runtime)
@@ -122,8 +122,6 @@ internal class StandaloneWildernessActions(
                     return StandaloneWildernessActionResult(runtime, rules.text.guardMemberDead.renderCamp(runtime))
                 }
                 memberNumber - 1
-            } else {
-                null
             }
 
         val foodCost = rules.foodCostPerMember * livingCount
@@ -131,6 +129,40 @@ internal class StandaloneWildernessActions(
             return StandaloneWildernessActionResult(runtime, rules.text.notEnoughFood.renderCamp(runtime))
         }
         return runtime.resolveCamp(rules, guardIndex, foodCost)
+    }
+
+    fun applyMoveEvents(
+        runtime: StandaloneRuntimeState,
+        move: StandaloneMoveEvent,
+    ): StandaloneWildernessActionResult {
+        if (runtime.party.rngState == null) return StandaloneWildernessActionResult(runtime)
+        var current = runtime
+        val messages = mutableListOf<String>()
+        current = current.applyTerrainTransition(move, messages)
+
+        var party = current.party
+        val eventDraw = party.drawRandom(0, 99)
+        party = eventDraw.party
+        current = current.withParty(party)
+        val events = wilderness.events
+        if (eventDraw.value < events.caveChancePercent) {
+            val caveLines = events.caveFoundPrompt.renderStandalone()
+            return StandaloneWildernessActionResult(
+                current,
+                messages + caveLines + "Cave entry is not implemented in standalone runtime yet.",
+            )
+        }
+
+        val quietLimit = events.caveChancePercent + events.quietChancePercent
+        if (eventDraw.value < quietLimit) {
+            return StandaloneWildernessActionResult(current, messages)
+        }
+
+        val splitDraw = current.party.drawRandom(0, 99)
+        current = current.withParty(splitDraw.party)
+        val tier = if (splitDraw.value < events.encounterSplitPercent) events.easyEncounterTier else events.hardEncounterTier
+        val battle = battleRunner().runTier(current, tier)
+        return StandaloneWildernessActionResult(battle.runtime, messages + battle.messages)
     }
 
     private fun StandaloneInput.readCommandFromPrompt(lines: List<String>): Char? {
@@ -154,25 +186,24 @@ internal class StandaloneWildernessActions(
             )
         val chance = party.drawRandom(0, 99)
         party = chance.party
-        return if (chance.value < rules.successChancePercent) {
-            val food = party.drawRandom(rules.foodMin, rules.foodMax)
-            val gained = food.value + party.leaderLevel()
-            party =
-                food.party.copy(
-                    resources = food.party.resources.copy(food = food.party.resources.food + gained),
-                )
-            StandaloneWildernessActionResult(
-                withParty(party),
-                rules.text.tries.renderHunt(this, memberNumber, member, gained) +
-                    rules.text.succeeds.renderHunt(this, memberNumber, member, gained),
-            )
-        } else {
-            StandaloneWildernessActionResult(
+        if (chance.value >= rules.successChancePercent) {
+            return StandaloneWildernessActionResult(
                 withParty(party),
                 rules.text.tries.renderHunt(this, memberNumber, member) +
                     rules.text.fails.renderHunt(this, memberNumber, member),
             )
         }
+        val food = party.drawRandom(rules.foodMin, rules.foodMax)
+        val gained = food.value + party.leaderLevel()
+        party =
+            food.party.copy(
+                resources = food.party.resources.copy(food = food.party.resources.food + gained),
+            )
+        return StandaloneWildernessActionResult(
+            withParty(party),
+            rules.text.tries.renderHunt(this, memberNumber, member, gained) +
+                rules.text.succeeds.renderHunt(this, memberNumber, member, gained),
+        )
     }
 
     private fun StandaloneRuntimeState.resolveCamp(
@@ -231,22 +262,19 @@ internal class StandaloneWildernessActions(
                 .filterNot(protectedBands::contains)
                 .sumOf { band -> rules.temperatureDamage[band] ?: 0 }
         val damagedParty =
-            if (damaged > 0) {
-                draw.party.copy(
+            draw.party.takeUnless { damaged > 0 }
+                ?: draw.party.copy(
                     members =
                         draw.party.members.map { member ->
-                            if (member.dead) {
-                                member
-                            } else {
-                                member.copy(
-                                    hitPoints = member.hitPoints.copy(current = (member.hitPoints.current - damaged).coerceAtLeast(1)),
+                            member.takeIf(CompiledPartyMember::dead)
+                                ?: member.copy(
+                                    hitPoints =
+                                        member.hitPoints.copy(
+                                            current = (member.hitPoints.current - damaged).coerceAtLeast(1),
+                                        ),
                                 )
-                            }
                         },
                 )
-            } else {
-                draw.party
-            }
         val messages =
             buildList {
                 activeBands.forEach { band ->
@@ -263,7 +291,8 @@ internal class StandaloneWildernessActions(
         rules: ExternalCampRules,
         guardIndex: Int?,
     ): CampMutation {
-        if (rules.ambushChancePercent <= 0 || rules.ambushTier == null) return CampMutation(this)
+        val ambushTier = rules.ambushTier
+        if (rules.ambushChancePercent <= 0 || ambushTier == null) return CampMutation(this)
         val chance = party.drawRandom(0, 99)
         if (chance.value >= rules.ambushChancePercent) return CampMutation(withParty(chance.party))
 
@@ -279,45 +308,48 @@ internal class StandaloneWildernessActions(
                 victim.party.copy(
                     members =
                         victim.party.members.mapIndexed { index, member ->
-                            if (index == victimIndex) {
-                                member.copy(hitPoints = member.hitPoints.copy(current = 0), dead = true)
-                            } else {
-                                member
-                            }
+                            member.takeUnless { index == victimIndex }
+                                ?: member.copy(hitPoints = member.hitPoints.copy(current = 0), dead = true)
                         },
                 )
             messages += rules.text.surpriseKill.renderCamp(withParty(party))
         }
-        messages += "Camp ambush battle is not implemented in standalone runtime yet."
-        return CampMutation(withParty(party), messages, triggered = true)
+        val battle = battleRunner().runTier(withParty(party), ambushTier)
+        return CampMutation(battle.runtime, messages + battle.messages, triggered = true)
+    }
+
+    private fun StandaloneRuntimeState.applyTerrainTransition(
+        move: StandaloneMoveEvent,
+        messages: MutableList<String>,
+    ): StandaloneRuntimeState {
+        val from = move.fromTerrain?.let { terrain -> content.slug(terrain.id) }
+        val to = move.toTerrain?.let { terrain -> content.slug(terrain.id) }
+        if (from == null || to == null || from == to) return this
+        val transition = wilderness.terrainTransitions.entries.firstOrNull { entry -> entry.terrain == to } ?: return this
+        val draw = party.drawRandom(0, 99)
+        if (draw.value < wilderness.terrainTransitions.chancePercent) {
+            messages += transition.text.renderStandalone()
+        }
+        return withParty(draw.party)
     }
 
     private fun StandaloneParty.regenerateMana(chancePercent: Int): StandaloneParty {
         var party = this
         val members =
             members.map { member ->
-                if (member.pcClass !in setOf(PcClass.Mage, PcClass.Priest) || member.mana.current >= member.mana.max) {
-                    member
-                } else {
-                    val draw = party.drawRandom(0, 99)
-                    party = draw.party
-                    if (draw.value < chancePercent) {
-                        member.copy(mana = member.mana.copy(current = (member.mana.current + 1).coerceAtMost(member.mana.max)))
-                    } else {
-                        member
-                    }
-                }
+                if (member.pcClass !in manaRegenerationClasses || member.mana.current >= member.mana.max) return@map member
+                val draw = party.drawRandom(0, 99)
+                party = draw.party
+                member.takeUnless { draw.value < chancePercent }
+                    ?: member.copy(
+                        mana = member.mana.copy(current = (member.mana.current + 1).coerceAtMost(member.mana.max)),
+                    )
             }
         return party.copy(members = members)
     }
 
     private fun StandaloneParty.foodTickCost(): Int {
-        val leaderLevelCost =
-            if (realm.upkeep.foodCostLeaderDiv > 0) {
-                leaderLevel() / realm.upkeep.foodCostLeaderDiv
-            } else {
-                0
-            }
+        val leaderLevelCost = if (realm.upkeep.foodCostLeaderDiv > 0) leaderLevel() / realm.upkeep.foodCostLeaderDiv else 0
         return (counters.memberCount ?: members.size) + leaderLevelCost
     }
 
@@ -331,18 +363,15 @@ internal class StandaloneWildernessActions(
         return copy(
             members =
                 members.map { member ->
-                    if (member.dead) {
-                        member
-                    } else {
-                        val nextHp = member.hitPoints.current - damage
-                        if (nextHp < 1) {
-                            messages += "${content.strings.value(member.nameString)} starved"
-                            messages += "to death!!!"
-                            member.copy(hitPoints = member.hitPoints.copy(current = 0), dead = true)
-                        } else {
-                            member.copy(hitPoints = member.hitPoints.copy(current = nextHp))
-                        }
-                    }
+                    if (member.dead) return@map member
+                    val nextHp = member.hitPoints.current - damage
+                    if (nextHp >= 1) return@map member.copy(hitPoints = member.hitPoints.copy(current = nextHp))
+                    messages += "${content.strings.value(member.nameString)} starved"
+                    messages += "to death!!!"
+                    member.copy(
+                        hitPoints = member.hitPoints.copy(current = 0),
+                        dead = true,
+                    )
                 },
         )
     }
@@ -354,20 +383,14 @@ internal class StandaloneWildernessActions(
     ): StandaloneParty {
         val rule = rules.firstOrNull { rule -> rule.matches(restedHours) } ?: return this
         messages += rule.text.renderStandalone()
-        return if (rule.drain) {
-            copy(
-                members =
-                    members.map { member ->
-                        if (member.hitPoints.current > 1) {
-                            member.copy(hitPoints = member.hitPoints.copy(current = member.hitPoints.current - 1))
-                        } else {
-                            member
-                        }
-                    },
-            )
-        } else {
-            this
-        }
+        if (!rule.drain) return this
+        return copy(
+            members =
+                members.map { member ->
+                    member.takeUnless { it.hitPoints.current > 1 }
+                        ?: member.copy(hitPoints = member.hitPoints.copy(current = member.hitPoints.current - 1))
+                },
+        )
     }
 
     private fun ExternalWildernessFatigueRule.matches(restedHours: Int): Boolean =
@@ -392,6 +415,8 @@ internal class StandaloneWildernessActions(
                 else -> null
             }
         }
+
+    private fun battleRunner(): StandaloneCompiledBattleRunner = StandaloneCompiledBattleRunner(content, combat, input, screen)
 
     private fun ExternalRuntimeTextBlock.renderCamp(runtime: StandaloneRuntimeState): List<String> =
         render { kind ->
@@ -424,6 +449,14 @@ private data class CampMutation(
     val runtime: StandaloneRuntimeState,
     val messages: List<String> = emptyList(),
     val triggered: Boolean = false,
+)
+
+/** Movement context used for direct standalone wilderness event polling. */
+internal data class StandaloneMoveEvent(
+    val from: GridPoint,
+    val to: GridPoint,
+    val fromTerrain: CompiledTerrain?,
+    val toTerrain: CompiledTerrain?,
 )
 
 private fun Int.positiveMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus

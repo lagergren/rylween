@@ -461,6 +461,15 @@ private class NativePathCollector {
             TextPart.CreationHealth,
             TextPart.CreationWisdom,
             TextPart.CreationCharisma,
+            TextPart.BattleFoeDisplayName,
+            TextPart.BattleAttackerName,
+            TextPart.BattleTargetName,
+            TextPart.BattleDamage,
+            TextPart.BattleExperience,
+            TextPart.BattleGold,
+            TextPart.BattleLootName,
+            TextPart.BattleLevelMemberName,
+            TextPart.BattleLevelsGained,
             -> Unit
         }
     }

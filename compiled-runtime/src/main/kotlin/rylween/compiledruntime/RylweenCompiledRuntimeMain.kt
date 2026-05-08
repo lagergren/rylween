@@ -42,6 +42,7 @@ import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledTextPart
 import rylween.compiled.CompiledViewCommand
 import rylween.compiled.CompiledWorldPosition
+import rylween.compiled.ExternalRuntimeCombat
 import rylween.compiled.ExternalRuntimeRealm
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.readExternalCompiledBundleContentHash
@@ -198,44 +199,51 @@ class StandaloneCompiledRuntime private constructor(
         scriptedInput: String?,
     ) {
         var runtime =
-            if (loadFile != null) {
+            loadFile?.let { file ->
                 StandaloneCompiledSave.read(
-                    file = loadFile,
+                    file = file,
                     expectedBundleHash = bundleContentHash,
                     content = content,
                     stateLookup = ::stateBySlug,
                 )
-            } else {
-                StandaloneRuntimeState.from(stateBySlug(stateSlug), content)
-            }
+            } ?: StandaloneRuntimeState.from(stateBySlug(stateSlug), content)
         val world = StandaloneWorldMap.from(content, runtime.currentMap)
         CompiledAnsiTerminals.open(scripted = scriptedInput != null).use { terminal ->
             val screen = CompiledAnsiScreen(terminal, bundle, systems)
             val input = StandaloneInput(terminal, scriptedInput)
             val commands = StandaloneWildernessCommands.from(systems)
-            val actions = StandaloneWildernessActions(content, systems.realm, input, screen)
+            val actions = StandaloneWildernessActions(content, systems.realm, systems.combat, systems.wilderness, input, screen)
             screen.bootFrame()
             screen.renderWilderness(runtime, world)
             while (true) {
                 val command = input.readCommand()
+                var moveEvent: StandaloneMoveEvent? = null
                 val advanceTurn =
                     when {
                         command == null -> return
                         commands.matches("quit", command) -> return
                         commands.matches("moveNorth", command) -> {
-                            runtime = runtime.withParty(move(runtime.party, world, 0, -1, screen))
+                            val move = move(runtime.party, world, 0, -1, screen)
+                            runtime = runtime.copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain).withParty(move.party)
+                            moveEvent = move.event
                             true
                         }
                         commands.matches("moveSouth", command) -> {
-                            runtime = runtime.withParty(move(runtime.party, world, 0, 1, screen))
+                            val move = move(runtime.party, world, 0, 1, screen)
+                            runtime = runtime.copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain).withParty(move.party)
+                            moveEvent = move.event
                             true
                         }
                         commands.matches("moveWest", command) -> {
-                            runtime = runtime.withParty(move(runtime.party, world, -1, 0, screen))
+                            val move = move(runtime.party, world, -1, 0, screen)
+                            runtime = runtime.copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain).withParty(move.party)
+                            moveEvent = move.event
                             true
                         }
                         commands.matches("moveEast", command) -> {
-                            runtime = runtime.withParty(move(runtime.party, world, 1, 0, screen))
+                            val move = move(runtime.party, world, 1, 0, screen)
+                            runtime = runtime.copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain).withParty(move.party)
+                            moveEvent = move.event
                             true
                         }
                         commands.matches("pass", command) -> {
@@ -260,7 +268,7 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                         commands.matches("enter", command) -> {
-                            runtime = runtime.withParty(enterTown(runtime.party, input, screen))
+                            runtime = enterTown(runtime, input, screen)
                             true
                         }
                         commands.matches("readyWeapon", command) -> {
@@ -308,6 +316,10 @@ class StandaloneCompiledRuntime private constructor(
                 if (advanceTurn) {
                     runtime = applyAction(actions.applyTurnUpkeep(runtime), screen, world)
                     if (runtime.currentMode == RuntimeMode.GameOver) return
+                    moveEvent?.let { event ->
+                        runtime = applyAction(actions.applyMoveEvents(runtime, event), screen, world)
+                        if (runtime.currentMode == RuntimeMode.GameOver) return
+                    }
                 }
                 if (input.exhausted) return
             }
@@ -332,37 +344,43 @@ class StandaloneCompiledRuntime private constructor(
         dx: Int,
         dy: Int,
         screen: CompiledAnsiScreen,
-    ): StandaloneParty {
-        val target = GridPoint(party.position.x + dx, party.position.y + dy)
-        val terrain = world.terrainAt(target)
-        if (terrain == null || !terrain.passable) {
+    ): StandaloneMoveResult {
+        val source = party.position
+        val target = GridPoint(source.x + dx, source.y + dy)
+        val sourceTerrain = world.terrainAt(source)
+        val targetTerrain = world.terrainAt(target)
+        if (targetTerrain == null || !targetTerrain.passable) {
             screen.writeText(listOf("Blocked."))
-            return party
+            return StandaloneMoveResult(party)
         }
-        return party.copy(
-            position = target,
-            resources =
-                party.resources.copy(
-                    timeLeft = max(0, party.resources.timeLeft - terrain.movementCost),
+        return StandaloneMoveResult(
+            party =
+                party.copy(
+                    position = target,
+                    resources =
+                        party.resources.copy(
+                            timeLeft = max(0, party.resources.timeLeft - targetTerrain.movementCost),
+                        ),
                 ),
+            event = StandaloneMoveEvent(source, target, sourceTerrain, targetTerrain),
         )
     }
 
     private fun printHelp(screen: CompiledAnsiScreen) {
-        screen.writeText(
-            listOf(
-                "Move with 8/2/4/6 or arrows.",
-                "E enters a town or site.",
-                "S saves this wilderness state.",
-                "! redraws the wilderness view.",
-                "Space waits in place.",
-                "X exits this compiled runtime.",
-                "",
-                "Dungeon, castle, battle,",
-                "and more host services are next here.",
-            ),
-        )
+        val lines =
+            systems.wilderness.helpPages
+                .firstOrNull()
+                ?.render { null }
+                ?: generatedWildernessHelpLines()
+        screen.writeText(lines)
     }
+
+    private fun generatedWildernessHelpLines(): List<String> =
+        systems.commands["wilderness"]
+            .orEmpty()
+            .map { command -> "${command.binding.label}: ${command.action.readableSlug()}" }
+            .take(7)
+            .ifEmpty { listOf("Press ? for commands.") }
 
     private fun saveRuntime(
         runtime: StandaloneRuntimeState,
@@ -374,14 +392,14 @@ class StandaloneCompiledRuntime private constructor(
     }
 
     private fun enterTown(
-        party: StandaloneParty,
+        runtime: StandaloneRuntimeState,
         input: StandaloneInput,
         screen: CompiledAnsiScreen,
-    ): StandaloneParty {
-        val town = content.towns.firstOrNull { it.position == party.position }
+    ): StandaloneRuntimeState {
+        val town = content.towns.firstOrNull { it.position == runtime.party.position }
         if (town == null) {
             screen.writeText(listOf("There is nothing to enter here."))
-            return party
+            return runtime
         }
         val services =
             town.services.mapNotNull { building ->
@@ -389,7 +407,7 @@ class StandaloneCompiledRuntime private constructor(
             }
         if (services.isEmpty()) {
             screen.writeText(listOf("${string(town.nameString)} has no compiled services."))
-            return party
+            return runtime
         }
         val menu =
             buildList {
@@ -401,32 +419,32 @@ class StandaloneCompiledRuntime private constructor(
                 add("L. Leave")
             }
         screen.writeText(menu)
-        val choice = input.readCommand() ?: return party
-        if (choice == 'L') return party
+        val choice = input.readCommand() ?: return runtime
+        if (choice == 'L') return runtime
         val index = choice.digitToIntOrNull()?.minus(1)
         val service = index?.let(services::getOrNull)
         if (service == null) {
             screen.writeText(listOf("No such service."))
-            return party
+            return runtime
         }
-        return runService(party, service, input, screen)
+        return runService(runtime, service, input, screen)
     }
 
     private fun runService(
-        party: StandaloneParty,
+        runtime: StandaloneRuntimeState,
         service: CompiledBuildingService,
         input: StandaloneInput,
         screen: CompiledAnsiScreen,
-    ): StandaloneParty {
+    ): StandaloneRuntimeState {
         val sceneSlug = slug(service.scene)
         val program =
             content.scripts.roots.firstOrNull { root -> root.root.kind.name == "Scene" && root.root.slug == sceneSlug }
         if (program == null) {
             screen.writeText(listOf("No compiled scene program for $sceneSlug."))
-            return party
+            return runtime
         }
         screen.writeText(listOf("Running ${slug(service.building).readableSlug()}", "Scene: $sceneSlug"))
-        return StandaloneScriptExecutor(content, systems.realm, input, screen, party).execute(program.instructions)
+        return StandaloneScriptExecutor(content, systems.realm, systems.combat, input, screen, runtime).execute(program.instructions)
     }
 
     private fun stateBySlug(slug: String): CompiledStateImage {
@@ -582,6 +600,11 @@ internal data class StandaloneRandomDraw(
     val party: StandaloneParty,
 )
 
+internal data class StandaloneMoveResult(
+    val party: StandaloneParty,
+    val event: StandaloneMoveEvent? = null,
+)
+
 private const val REFERENCE_RANDOM_MULTIPLIER: Long = 0x2545F4914F6CDD1DL
 
 internal class StandaloneInput(
@@ -669,18 +692,19 @@ private fun CompiledTextPart.renderStandalone(
 private class StandaloneScriptExecutor(
     private val content: CompiledContentBundle,
     private val realm: ExternalRuntimeRealm,
+    private val combat: ExternalRuntimeCombat,
     private val input: StandaloneInput,
     private val screen: CompiledAnsiScreen,
-    initialParty: StandaloneParty,
+    initialRuntime: StandaloneRuntimeState,
 ) {
-    private var party: StandaloneParty = initialParty
+    private var runtime: StandaloneRuntimeState = initialRuntime
 
-    fun execute(instructions: List<CompiledInstruction>): StandaloneParty {
+    fun execute(instructions: List<CompiledInstruction>): StandaloneRuntimeState {
         instructions.forEach { instruction ->
             val stop = execute(instruction)
-            if (stop) return party
+            if (stop) return runtime
         }
-        return party
+        return runtime
     }
 
     private fun execute(instruction: CompiledInstruction): Boolean =
@@ -695,13 +719,19 @@ private class StandaloneScriptExecutor(
             -> true
             CompiledOpcode.ShopService ->
                 false.also {
-                    party = StandaloneCompiledShopService(content, realm, input, screen).run(instruction.shopServiceOperand(0), party)
+                    runtime =
+                        runtime.withParty(
+                            StandaloneCompiledShopService(content, realm, input, screen).run(
+                                instruction.shopServiceOperand(0),
+                                runtime.party,
+                            ),
+                        )
                 }
             CompiledOpcode.RandomItemOffer -> false.also { screen.writeText(listOf("Random item offer host is not implemented yet.")) }
             CompiledOpcode.GrantReward -> false.also { screen.writeText(listOf("Reward host is not implemented yet.")) }
             CompiledOpcode.Speak -> false.also { screen.writeText(listOf("Speak host is not implemented yet.")) }
             CompiledOpcode.TellRumour -> false.also { screen.writeText(listOf("Rumour host is not implemented yet.")) }
-            CompiledOpcode.Encounter -> false.also { screen.writeText(listOf("Encounter host is not implemented yet.")) }
+            CompiledOpcode.Encounter -> false.also { runEncounter(instruction) }
             CompiledOpcode.EnterDungeon,
             CompiledOpcode.DiscoverCave,
             -> false.also { screen.writeText(listOf("Dungeon host is not implemented yet.")) }
@@ -731,8 +761,16 @@ private class StandaloneScriptExecutor(
             execute(instruction.instructionsOperand(2))
             return false
         }
-        party = StandaloneScriptExecutor(content, realm, input, screen, party).execute(option.body)
+        runtime = StandaloneScriptExecutor(content, realm, combat, input, screen, runtime).execute(option.body)
         return false
+    }
+
+    private fun runEncounter(instruction: CompiledInstruction) {
+        val battle =
+            StandaloneCompiledBattleRunner(content, combat, input, screen)
+                .runMonster(runtime, instruction.handleOperand(0))
+        runtime = battle.runtime
+        if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
     }
 
     private fun renderView(command: CompiledViewCommand) {
@@ -773,6 +811,8 @@ private class StandaloneScriptExecutor(
 
     private fun CompiledInstruction.shopServiceOperand(index: Int): CompiledShopService =
         (operands[index] as CompiledOperand.ShopService).service
+
+    private fun CompiledInstruction.handleOperand(index: Int): CompiledHandleRef = (operands[index] as CompiledOperand.Handle).ref
 }
 
 internal class StandaloneWorldMap(

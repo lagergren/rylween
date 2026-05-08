@@ -7,11 +7,19 @@
  */
 package rylween.compiled
 
+import rylween.dsl.BattleTextModel
 import rylween.dsl.BoolAst
 import rylween.dsl.CampRulesModel
 import rylween.dsl.CastleContentModel
 import rylween.dsl.CastleTextModel
+import rylween.dsl.ClassLevelUpModel
+import rylween.dsl.CombatActionKind
+import rylween.dsl.CombatActionModel
+import rylween.dsl.CombatActionRequirement
+import rylween.dsl.CombatSystemModel
+import rylween.dsl.DefendRulesModel
 import rylween.dsl.DungeonSystemModel
+import rylween.dsl.EncounterOpeningModel
 import rylween.dsl.EngineServiceUse
 import rylween.dsl.FlagRef
 import rylween.dsl.FlagScope
@@ -23,12 +31,19 @@ import rylween.dsl.HuntRulesModel
 import rylween.dsl.InputBindingModel
 import rylween.dsl.IntAst
 import rylween.dsl.JobTextModel
+import rylween.dsl.LevelingModel
+import rylween.dsl.MandatoryRunRule
+import rylween.dsl.MonsterMeleeRulesModel
+import rylween.dsl.MonsterRoundModel
 import rylween.dsl.NativeStringArg
+import rylween.dsl.PcClass
+import rylween.dsl.PlayerRoundModel
 import rylween.dsl.RealmContentModel
 import rylween.dsl.Resource
 import rylween.dsl.RylweenModel
 import rylween.dsl.SpeakSystemModel
 import rylween.dsl.SpeakTextTablesModel
+import rylween.dsl.StandardBattleModel
 import rylween.dsl.StandardConversationModel
 import rylween.dsl.StrAst
 import rylween.dsl.TemperatureBand
@@ -225,6 +240,8 @@ data class ExternalRuntimeSystems(
     val castles: List<String>,
     val commands: Map<String, List<ExternalRuntimeCommand>>,
     val realm: ExternalRuntimeRealm,
+    val combat: ExternalRuntimeCombat,
+    val wilderness: ExternalWildernessRuntime,
     val presentation: ExternalRuntimePresentation,
 )
 
@@ -247,6 +264,158 @@ data class ExternalRuntimeRealm(
     val upkeep: ExternalWildernessUpkeep,
     val camp: ExternalCampRules,
     val hunt: ExternalHuntRules?,
+)
+
+/** Combat runtime-system rows consumed by direct bundle runtimes. */
+data class ExternalRuntimeCombat(
+    val standardBattle: ExternalStandardBattle?,
+    val leveling: ExternalLevelingRules?,
+)
+
+/** Standard battle contract exported without Kotlin runtime facade shapes. */
+data class ExternalStandardBattle(
+    val opening: ExternalBattleOpening,
+    val openingKeys: ExternalBattleOpeningKeys,
+    val actions: List<ExternalCombatAction>,
+    val playerRound: ExternalPlayerRoundRules,
+    val monsterRound: ExternalMonsterRoundRules,
+    val text: ExternalBattleText,
+    val rewards: String,
+    val roundLimit: Int,
+    val encounterFoeCountMax: Int,
+    val encounterHitPointMinFormula: String,
+    val encounterHitPointMaxFormula: String,
+    val victoryImage: String?,
+    val nativeServices: List<ExternalEngineServiceUse>,
+)
+
+/** Encounter opening tuning and optional banner image ids. */
+data class ExternalBattleOpening(
+    val fleeChancePercent: Int,
+    val desperateFleeChancePercent: Int,
+    val mandatoryRun: MandatoryRunRule,
+    val banners: List<String>,
+)
+
+/** Fight/run bindings for a standard battle opening prompt. */
+data class ExternalBattleOpeningKeys(
+    val fight: ExternalRuntimeInputBinding,
+    val run: ExternalRuntimeInputBinding,
+)
+
+/** One authored player combat action row. */
+data class ExternalCombatAction(
+    val binding: ExternalRuntimeInputBinding,
+    val action: String,
+    val kind: CombatActionKind,
+    val requirement: CombatActionRequirement,
+    val prompt: ExternalRuntimeTextBlock,
+)
+
+/** Player-side combat arithmetic and state mutation rules. */
+data class ExternalPlayerRoundRules(
+    val attack: ExternalPlayerAttackRules,
+    val defend: ExternalDefendRules,
+    val battleCry: ExternalBattleCryRules,
+)
+
+/** Player attack hit and damage tuning. */
+data class ExternalPlayerAttackRules(
+    val hitBonus: Int,
+    val damageSpreadMax: Int,
+    val confusionDivisor: Int,
+    val hpDefenseDivisor: Int,
+)
+
+/** Defend action tuning. */
+data class ExternalDefendRules(
+    val weaponSkillPenalty: Int,
+    val restThreshold: Int,
+    val cap: Int,
+)
+
+/** Battle cry action tuning. */
+data class ExternalBattleCryRules(
+    val weaponSkillPenalty: Int,
+)
+
+/** Monster-side spell and melee rules. */
+data class ExternalMonsterRoundRules(
+    val spellChanceBasePercent: Int,
+    val spellPowerDivisor: Int,
+    val melee: ExternalMonsterMeleeRules,
+)
+
+/** Monster melee hit and damage tuning. */
+data class ExternalMonsterMeleeRules(
+    val hitBonus: Int,
+    val damageDivisor: Int,
+    val damageSpreadMax: Int,
+    val damageMin: Int,
+    val fallback: String,
+)
+
+/** Battle prompt and narration text blocks. */
+data class ExternalBattleText(
+    val encounterBanner: ExternalRuntimeTextBlock,
+    val youFace: ExternalRuntimeTextBlock,
+    val foeDisplayName: ExternalRuntimeTextBlock,
+    val stillFace: ExternalRuntimeTextBlock,
+    val fight: ExternalRuntimeTextBlock,
+    val run: ExternalRuntimeTextBlock,
+    val bloodFlow: ExternalRuntimeTextBlock,
+    val whatNow: ExternalRuntimeTextBlock,
+    val targetPrompt: ExternalRuntimeTextBlock,
+    val useWhat: ExternalRuntimeTextBlock,
+    val spellAbort: ExternalRuntimeTextBlock,
+    val runCoward: ExternalRuntimeTextBlock,
+    val runDesperateFail: ExternalRuntimeTextBlock,
+    val runFailAway: ExternalRuntimeTextBlock,
+    val runEscaped: ExternalRuntimeTextBlock,
+    val notPossible: ExternalRuntimeTextBlock,
+    val magicImmune: ExternalRuntimeTextBlock,
+    val spellFizzle: ExternalRuntimeTextBlock,
+    val notEnoughMagic: ExternalRuntimeTextBlock,
+    val restGainHits: ExternalRuntimeTextBlock,
+    val defendStance: ExternalRuntimeTextBlock,
+    val battleCry: ExternalRuntimeTextBlock,
+    val playerHit: ExternalRuntimeTextBlock,
+    val playerMiss: ExternalRuntimeTextBlock,
+    val monsterHit: ExternalRuntimeTextBlock,
+    val monsterMiss: ExternalRuntimeTextBlock,
+    val memberDeath: ExternalRuntimeTextBlock,
+    val killed: ExternalRuntimeTextBlock,
+    val partyHeld: ExternalRuntimeTextBlock,
+    val partyDefeated: ExternalRuntimeTextBlock,
+    val victoryBested: ExternalRuntimeTextBlock,
+    val victoryEachSurvivor: ExternalRuntimeTextBlock,
+    val victoryReward: ExternalRuntimeTextBlock,
+    val victoryFoundObject: ExternalRuntimeTextBlock,
+    val victoryLoot: ExternalRuntimeTextBlock,
+    val levelGain: ExternalRuntimeTextBlock,
+)
+
+/** Level-up rules needed when battle rewards advance survivors. */
+data class ExternalLevelingRules(
+    val maxLevel: Int,
+    val xpThresholds: List<Int>,
+    val hitPointFloor: String,
+    val classGrowth: List<ExternalClassLevelUpRules>,
+)
+
+/** Per-class level-up stat gains. */
+data class ExternalClassLevelUpRules(
+    val pcClass: PcClass,
+    val weaponSkill: Int,
+    val health: Int,
+    val wisdom: Int,
+    val charisma: Int,
+)
+
+/** Native service dependency declared by an authored runtime system. */
+data class ExternalEngineServiceUse(
+    val service: String,
+    val reason: String,
 )
 
 /** Wilderness upkeep balance and fatigue text from the stable runtime-system section. */
@@ -351,6 +520,41 @@ sealed interface ExternalRuntimeTextPart {
         val kind: String,
     ) : ExternalRuntimeTextPart
 }
+
+/** Stable wilderness runtime rows consumed by direct bundle runtimes. */
+data class ExternalWildernessRuntime(
+    val commandHint: ExternalRuntimeTextBlock,
+    val helpPages: List<ExternalRuntimeTextBlock>,
+    val events: ExternalWildernessEvents,
+    val terrainTransitions: ExternalTerrainTransitions,
+)
+
+/** Random wilderness event balance from the stable runtime-system section. */
+data class ExternalWildernessEvents(
+    val caveChancePercent: Int,
+    val quietChancePercent: Int,
+    val encounterSplitPercent: Int,
+    val easyEncounterTier: String,
+    val hardEncounterTier: String,
+    val caveDungeon: String,
+    val caveDepthRange: IntRange,
+    val caveEntryCost: Int,
+    val caveImage: String?,
+    val caveFoundPrompt: ExternalRuntimeTextBlock,
+    val caveNoMoves: ExternalRuntimeTextBlock,
+)
+
+/** Terrain-entry flavor text rules from the stable runtime-system section. */
+data class ExternalTerrainTransitions(
+    val chancePercent: Int,
+    val entries: List<ExternalTerrainTransition>,
+)
+
+/** Flavor text emitted when entering one terrain kind. */
+data class ExternalTerrainTransition(
+    val terrain: String,
+    val text: ExternalRuntimeTextBlock,
+)
 
 /** Terminal presentation data in the stable runtime-system section. */
 data class ExternalRuntimePresentation(
@@ -519,11 +723,155 @@ private class ExternalBundleArtifactWriter {
             "prompts" to promptsJson(game.prompts),
             "presentation" to presentationJson(game),
             "commands" to commandsJson(game),
+            "combat" to combatJson(game.combat, game.leveling),
             "wilderness" to wildernessJson(game.wilderness),
             "dungeon" to dungeonRuntimeJson(game.dungeons),
             "town" to townRuntimeJson(game.townSystem),
             "speak" to speakRuntimeJson(game.speak),
             "castles" to JsonArray(game.castles.map(::castleJson)),
+        )
+
+    private fun combatJson(
+        combat: CombatSystemModel,
+        leveling: LevelingModel?,
+    ): JsonValue =
+        jsonObject(
+            "standardBattle" to combat.standardBattle?.let(::standardBattleJson).orJsonNull(),
+            "leveling" to leveling?.let(::levelingJson).orJsonNull(),
+        )
+
+    private fun standardBattleJson(battle: StandardBattleModel): JsonValue =
+        jsonObject(
+            "opening" to openingJson(battle.opening),
+            "openingKeys" to
+                jsonObject(
+                    "fight" to bindingJson(battle.openingKeys.fight),
+                    "run" to bindingJson(battle.openingKeys.run),
+                ),
+            "actions" to JsonArray(battle.actions.map(::combatActionJson)),
+            "playerRound" to playerRoundJson(battle.playerRound),
+            "monsterRound" to monsterRoundJson(battle.monsterRound),
+            "text" to battleTextJson(battle.text),
+            "rewards" to JsonString(battle.rewards.slug),
+            "roundLimit" to JsonNumber(battle.roundLimit.toString()),
+            "encounterFoeCountMax" to JsonNumber(battle.encounterFoeCountMax.toString()),
+            "encounterHitPointMinFormula" to JsonString(battle.encounterHitPointMinFormula.slug),
+            "encounterHitPointMaxFormula" to JsonString(battle.encounterHitPointMaxFormula.slug),
+            "victoryImage" to battle.victoryImage?.let { JsonString(it.slug) }.orJsonNull(),
+            "nativeServices" to nativeServicesJson(battle.nativeServices),
+        )
+
+    private fun openingJson(opening: EncounterOpeningModel): JsonValue =
+        jsonObject(
+            "fleeChancePercent" to JsonNumber(opening.fleeChancePercent.toString()),
+            "desperateFleeChancePercent" to JsonNumber(opening.desperateFleeChancePercent.toString()),
+            "mandatoryRun" to JsonString(opening.mandatoryRun.name),
+            "banners" to stringArray(opening.banners.map { image -> image.slug }),
+        )
+
+    private fun combatActionJson(action: CombatActionModel): JsonValue =
+        jsonObject(
+            "binding" to bindingJson(action.binding),
+            "action" to JsonString(action.action.slug),
+            "kind" to JsonString(action.kind.name),
+            "requirement" to JsonString(action.requirement.name),
+            "prompt" to textBlockJson(action.prompt),
+        )
+
+    private fun playerRoundJson(round: PlayerRoundModel): JsonValue =
+        jsonObject(
+            "attack" to
+                jsonObject(
+                    "hitBonus" to JsonNumber(round.attack.hitBonus.toString()),
+                    "damageSpreadMax" to JsonNumber(round.attack.damageSpreadMax.toString()),
+                    "confusionDivisor" to JsonNumber(round.attack.confusionDivisor.toString()),
+                    "hpDefenseDivisor" to JsonNumber(round.attack.hpDefenseDivisor.toString()),
+                ),
+            "defend" to defendRulesJson(round.defend),
+            "battleCry" to
+                jsonObject(
+                    "weaponSkillPenalty" to JsonNumber(round.battleCry.weaponSkillPenalty.toString()),
+                ),
+        )
+
+    private fun defendRulesJson(rules: DefendRulesModel): JsonValue =
+        jsonObject(
+            "weaponSkillPenalty" to JsonNumber(rules.weaponSkillPenalty.toString()),
+            "restThreshold" to JsonNumber(rules.restThreshold.toString()),
+            "cap" to JsonNumber(rules.cap.toString()),
+        )
+
+    private fun monsterRoundJson(round: MonsterRoundModel): JsonValue =
+        jsonObject(
+            "spellChanceBasePercent" to JsonNumber(round.spellChanceBasePercent.toString()),
+            "spellPowerDivisor" to JsonNumber(round.spellPowerDivisor.toString()),
+            "melee" to monsterMeleeJson(round.melee),
+        )
+
+    private fun monsterMeleeJson(melee: MonsterMeleeRulesModel): JsonValue =
+        jsonObject(
+            "hitBonus" to JsonNumber(melee.hitBonus.toString()),
+            "damageDivisor" to JsonNumber(melee.damageDivisor.toString()),
+            "damageSpreadMax" to JsonNumber(melee.damageSpreadMax.toString()),
+            "damageMin" to JsonNumber(melee.damageMin.toString()),
+            "fallback" to JsonString(melee.fallback.slug),
+        )
+
+    private fun battleTextJson(text: BattleTextModel): JsonValue =
+        jsonObject(
+            "encounterBanner" to textBlockJson(text.encounterBanner),
+            "youFace" to textBlockJson(text.youFace),
+            "foeDisplayName" to textBlockJson(text.foeDisplayName),
+            "stillFace" to textBlockJson(text.stillFace),
+            "fight" to textBlockJson(text.fight),
+            "run" to textBlockJson(text.run),
+            "bloodFlow" to textBlockJson(text.bloodFlow),
+            "whatNow" to textBlockJson(text.whatNow),
+            "targetPrompt" to textBlockJson(text.targetPrompt),
+            "useWhat" to textBlockJson(text.useWhat),
+            "spellAbort" to textBlockJson(text.spellAbort),
+            "runCoward" to textBlockJson(text.runCoward),
+            "runDesperateFail" to textBlockJson(text.runDesperateFail),
+            "runFailAway" to textBlockJson(text.runFailAway),
+            "runEscaped" to textBlockJson(text.runEscaped),
+            "notPossible" to textBlockJson(text.notPossible),
+            "magicImmune" to textBlockJson(text.magicImmune),
+            "spellFizzle" to textBlockJson(text.spellFizzle),
+            "notEnoughMagic" to textBlockJson(text.notEnoughMagic),
+            "restGainHits" to textBlockJson(text.restGainHits),
+            "defendStance" to textBlockJson(text.defendStance),
+            "battleCry" to textBlockJson(text.battleCry),
+            "playerHit" to textBlockJson(text.playerHit),
+            "playerMiss" to textBlockJson(text.playerMiss),
+            "monsterHit" to textBlockJson(text.monsterHit),
+            "monsterMiss" to textBlockJson(text.monsterMiss),
+            "memberDeath" to textBlockJson(text.memberDeath),
+            "killed" to textBlockJson(text.killed),
+            "partyHeld" to textBlockJson(text.partyHeld),
+            "partyDefeated" to textBlockJson(text.partyDefeated),
+            "victoryBested" to textBlockJson(text.victoryBested),
+            "victoryEachSurvivor" to textBlockJson(text.victoryEachSurvivor),
+            "victoryReward" to textBlockJson(text.victoryReward),
+            "victoryFoundObject" to textBlockJson(text.victoryFoundObject),
+            "victoryLoot" to textBlockJson(text.victoryLoot),
+            "levelGain" to textBlockJson(text.levelGain),
+        )
+
+    private fun levelingJson(leveling: LevelingModel): JsonValue =
+        jsonObject(
+            "maxLevel" to JsonNumber(leveling.maxLevel.toString()),
+            "xpThresholds" to JsonArray(leveling.xpThresholds.map { threshold -> JsonNumber(threshold.toString()) }),
+            "hitPointFloor" to JsonString(leveling.hitPointFloor.slug),
+            "classGrowth" to JsonArray(leveling.classGrowth.map(::classLevelUpJson)),
+        )
+
+    private fun classLevelUpJson(growth: ClassLevelUpModel): JsonValue =
+        jsonObject(
+            "pcClass" to JsonString(growth.klass.name),
+            "weaponSkill" to JsonNumber(growth.weaponSkill.toString()),
+            "health" to JsonNumber(growth.health.toString()),
+            "wisdom" to JsonNumber(growth.wisdom.toString()),
+            "charisma" to JsonNumber(growth.charisma.toString()),
         )
 
     private fun realmJson(realm: RealmContentModel): JsonValue =
@@ -1227,6 +1575,15 @@ private class ExternalBundleArtifactWriter {
             TextPart.CreationHealth -> textTokenJson("creationHealth")
             TextPart.CreationWisdom -> textTokenJson("creationWisdom")
             TextPart.CreationCharisma -> textTokenJson("creationCharisma")
+            TextPart.BattleFoeDisplayName -> textTokenJson("battleFoeDisplayName")
+            TextPart.BattleAttackerName -> textTokenJson("battleAttackerName")
+            TextPart.BattleTargetName -> textTokenJson("battleTargetName")
+            TextPart.BattleDamage -> textTokenJson("battleDamage")
+            TextPart.BattleExperience -> textTokenJson("battleExperience")
+            TextPart.BattleGold -> textTokenJson("battleGold")
+            TextPart.BattleLootName -> textTokenJson("battleLootName")
+            TextPart.BattleLevelMemberName -> textTokenJson("battleLevelMemberName")
+            TextPart.BattleLevelsGained -> textTokenJson("battleLevelsGained")
         }
 
     private fun textTokenJson(kind: String): JsonValue = jsonObject("kind" to JsonString(kind))
@@ -1494,6 +1851,8 @@ private class ExternalRuntimeSystemsReader(
                 },
             commands = commandGroups,
             realm = systems.requiredObject("realm").readRealm(),
+            combat = systems.requiredObject("combat").readCombat(),
+            wilderness = systems.requiredObject("wilderness").readWilderness(),
             presentation = systems.requiredObject("presentation").readPresentation(),
         )
     }
@@ -1517,6 +1876,157 @@ private class ExternalRuntimeSystemsReader(
             primary = requiredString("primary"),
             aliases = requiredArray("aliases").values.map { value -> value.asString("binding alias") },
             label = requiredString("label"),
+        )
+
+    private fun JsonObject.readCombat(): ExternalRuntimeCombat =
+        ExternalRuntimeCombat(
+            standardBattle = optional("standardBattle")?.takeUnless { it is JsonNull }?.asObject("standard battle")?.readStandardBattle(),
+            leveling = optional("leveling")?.takeUnless { it is JsonNull }?.asObject("leveling")?.readLeveling(),
+        )
+
+    private fun JsonObject.readStandardBattle(): ExternalStandardBattle =
+        ExternalStandardBattle(
+            opening = requiredObject("opening").readBattleOpening(),
+            openingKeys =
+                requiredObject("openingKeys").let { keys ->
+                    ExternalBattleOpeningKeys(
+                        fight = keys.requiredObject("fight").readBinding(),
+                        run = keys.requiredObject("run").readBinding(),
+                    )
+                },
+            actions = requiredArray("actions").values.map { row -> row.asObject("combat action").readCombatAction() },
+            playerRound = requiredObject("playerRound").readPlayerRound(),
+            monsterRound = requiredObject("monsterRound").readMonsterRound(),
+            text = requiredObject("text").readBattleText(),
+            rewards = requiredString("rewards"),
+            roundLimit = requiredInt("roundLimit"),
+            encounterFoeCountMax = requiredInt("encounterFoeCountMax"),
+            encounterHitPointMinFormula = requiredString("encounterHitPointMinFormula"),
+            encounterHitPointMaxFormula = requiredString("encounterHitPointMaxFormula"),
+            victoryImage = optionalNullableString("victoryImage"),
+            nativeServices = requiredArray("nativeServices").values.map { row -> row.asObject("native service").readNativeService() },
+        )
+
+    private fun JsonObject.readBattleOpening(): ExternalBattleOpening =
+        ExternalBattleOpening(
+            fleeChancePercent = requiredInt("fleeChancePercent"),
+            desperateFleeChancePercent = requiredInt("desperateFleeChancePercent"),
+            mandatoryRun = requiredEnum("mandatoryRun"),
+            banners = requiredArray("banners").values.map { value -> value.asString("battle banner") },
+        )
+
+    private fun JsonObject.readCombatAction(): ExternalCombatAction =
+        ExternalCombatAction(
+            binding = requiredObject("binding").readBinding(),
+            action = requiredString("action"),
+            kind = requiredEnum("kind"),
+            requirement = requiredEnum("requirement"),
+            prompt = required("prompt").readTextBlock(),
+        )
+
+    private fun JsonObject.readPlayerRound(): ExternalPlayerRoundRules =
+        ExternalPlayerRoundRules(
+            attack =
+                requiredObject("attack").let { attack ->
+                    ExternalPlayerAttackRules(
+                        hitBonus = attack.requiredInt("hitBonus"),
+                        damageSpreadMax = attack.requiredInt("damageSpreadMax"),
+                        confusionDivisor = attack.requiredInt("confusionDivisor"),
+                        hpDefenseDivisor = attack.requiredInt("hpDefenseDivisor"),
+                    )
+                },
+            defend =
+                requiredObject("defend").let { defend ->
+                    ExternalDefendRules(
+                        weaponSkillPenalty = defend.requiredInt("weaponSkillPenalty"),
+                        restThreshold = defend.requiredInt("restThreshold"),
+                        cap = defend.requiredInt("cap"),
+                    )
+                },
+            battleCry =
+                requiredObject("battleCry").let { battleCry ->
+                    ExternalBattleCryRules(weaponSkillPenalty = battleCry.requiredInt("weaponSkillPenalty"))
+                },
+        )
+
+    private fun JsonObject.readMonsterRound(): ExternalMonsterRoundRules =
+        ExternalMonsterRoundRules(
+            spellChanceBasePercent = requiredInt("spellChanceBasePercent"),
+            spellPowerDivisor = requiredInt("spellPowerDivisor"),
+            melee =
+                requiredObject("melee").let { melee ->
+                    ExternalMonsterMeleeRules(
+                        hitBonus = melee.requiredInt("hitBonus"),
+                        damageDivisor = melee.requiredInt("damageDivisor"),
+                        damageSpreadMax = melee.requiredInt("damageSpreadMax"),
+                        damageMin = melee.requiredInt("damageMin"),
+                        fallback = melee.requiredString("fallback"),
+                    )
+                },
+        )
+
+    private fun JsonObject.readBattleText(): ExternalBattleText =
+        ExternalBattleText(
+            encounterBanner = required("encounterBanner").readTextBlock(),
+            youFace = required("youFace").readTextBlock(),
+            foeDisplayName = required("foeDisplayName").readTextBlock(),
+            stillFace = required("stillFace").readTextBlock(),
+            fight = required("fight").readTextBlock(),
+            run = required("run").readTextBlock(),
+            bloodFlow = required("bloodFlow").readTextBlock(),
+            whatNow = required("whatNow").readTextBlock(),
+            targetPrompt = required("targetPrompt").readTextBlock(),
+            useWhat = required("useWhat").readTextBlock(),
+            spellAbort = required("spellAbort").readTextBlock(),
+            runCoward = required("runCoward").readTextBlock(),
+            runDesperateFail = required("runDesperateFail").readTextBlock(),
+            runFailAway = required("runFailAway").readTextBlock(),
+            runEscaped = required("runEscaped").readTextBlock(),
+            notPossible = required("notPossible").readTextBlock(),
+            magicImmune = required("magicImmune").readTextBlock(),
+            spellFizzle = required("spellFizzle").readTextBlock(),
+            notEnoughMagic = required("notEnoughMagic").readTextBlock(),
+            restGainHits = required("restGainHits").readTextBlock(),
+            defendStance = required("defendStance").readTextBlock(),
+            battleCry = required("battleCry").readTextBlock(),
+            playerHit = required("playerHit").readTextBlock(),
+            playerMiss = required("playerMiss").readTextBlock(),
+            monsterHit = required("monsterHit").readTextBlock(),
+            monsterMiss = required("monsterMiss").readTextBlock(),
+            memberDeath = required("memberDeath").readTextBlock(),
+            killed = required("killed").readTextBlock(),
+            partyHeld = required("partyHeld").readTextBlock(),
+            partyDefeated = required("partyDefeated").readTextBlock(),
+            victoryBested = required("victoryBested").readTextBlock(),
+            victoryEachSurvivor = required("victoryEachSurvivor").readTextBlock(),
+            victoryReward = required("victoryReward").readTextBlock(),
+            victoryFoundObject = required("victoryFoundObject").readTextBlock(),
+            victoryLoot = required("victoryLoot").readTextBlock(),
+            levelGain = required("levelGain").readTextBlock(),
+        )
+
+    private fun JsonObject.readLeveling(): ExternalLevelingRules =
+        ExternalLevelingRules(
+            maxLevel = requiredInt("maxLevel"),
+            xpThresholds = requiredArray("xpThresholds").values.map { value -> value.asNumber("xp threshold").toInt() },
+            hitPointFloor = requiredString("hitPointFloor"),
+            classGrowth =
+                requiredArray("classGrowth").values.map { row ->
+                    val growth = row.asObject("class level-up")
+                    ExternalClassLevelUpRules(
+                        pcClass = growth.requiredEnum("pcClass"),
+                        weaponSkill = growth.requiredInt("weaponSkill"),
+                        health = growth.requiredInt("health"),
+                        wisdom = growth.requiredInt("wisdom"),
+                        charisma = growth.requiredInt("charisma"),
+                    )
+                },
+        )
+
+    private fun JsonObject.readNativeService(): ExternalEngineServiceUse =
+        ExternalEngineServiceUse(
+            service = requiredString("service"),
+            reason = requiredString("reason"),
         )
 
     private fun JsonObject.readRealm(): ExternalRuntimeRealm =
@@ -1665,6 +2175,44 @@ private class ExternalRuntimeSystemsReader(
             else -> ExternalRuntimeTextPart.Runtime(kind)
         }
     }
+
+    private fun JsonObject.readWilderness(): ExternalWildernessRuntime =
+        ExternalWildernessRuntime(
+            commandHint = required("commandHint").readTextBlock(),
+            helpPages = requiredArray("helpPages").values.map { page -> page.readTextBlock() },
+            events = requiredObject("events").readWildernessEvents(),
+            terrainTransitions = requiredObject("terrainTransitions").readTerrainTransitions(),
+        )
+
+    private fun JsonObject.readWildernessEvents(): ExternalWildernessEvents =
+        ExternalWildernessEvents(
+            caveChancePercent = requiredInt("caveChancePercent"),
+            quietChancePercent = requiredInt("quietChancePercent"),
+            encounterSplitPercent = requiredInt("encounterSplitPercent"),
+            easyEncounterTier = requiredString("easyEncounterTier"),
+            hardEncounterTier = requiredString("hardEncounterTier"),
+            caveDungeon = requiredString("caveDungeon"),
+            caveDepthRange = requiredObject("caveDepthRange").readIntRange(),
+            caveEntryCost = requiredInt("caveEntryCost"),
+            caveImage = optionalNullableString("caveImage"),
+            caveFoundPrompt = required("caveFoundPrompt").readTextBlock(),
+            caveNoMoves = required("caveNoMoves").readTextBlock(),
+        )
+
+    private fun JsonObject.readTerrainTransitions(): ExternalTerrainTransitions =
+        ExternalTerrainTransitions(
+            chancePercent = requiredInt("chancePercent"),
+            entries =
+                requiredArray("entries").values.map { row ->
+                    val entry = row.asObject("terrain transition")
+                    ExternalTerrainTransition(
+                        terrain = entry.requiredString("terrain"),
+                        text = entry.required("text").readTextBlock(),
+                    )
+                },
+        )
+
+    private fun JsonObject.readIntRange(): IntRange = requiredInt("first")..requiredInt("last")
 
     private fun JsonObject.readPresentation(): ExternalRuntimePresentation =
         ExternalRuntimePresentation(

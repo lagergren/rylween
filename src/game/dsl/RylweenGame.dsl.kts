@@ -1199,6 +1199,7 @@ val nextRylween: RylweenModel = rylween {
 
     combat {
         standardBattle {
+            roundLimit = 200
             encounterFoeCountMax = 8
             victoryImage(Images.Backdrop.battleVictory)
 
@@ -1218,6 +1219,7 @@ val nextRylween: RylweenModel = rylween {
             text {
                 encounterBanner { lines("ENCOUNTER!", "") }
                 youFace { line("You face") }
+                foeDisplayName { line(BattleText.foeDisplayName); line("") }
                 stillFace { line("You still face") }
                 fight { line("(F)ight") }
                 run { line("(R)un") }
@@ -1245,11 +1247,39 @@ val nextRylween: RylweenModel = rylween {
                         " them off guard.)",
                     )
                 }
+                playerHit {
+                    line(BattleText.attackerName, " hits for")
+                    line(BattleText.damage, " damage pts!")
+                }
+                playerMiss { line(BattleText.attackerName, " misses!") }
+                monsterHit {
+                    line(BattleText.attackerName, " attacks")
+                    line(BattleText.targetName, "!")
+                    line("And hits for")
+                    line(BattleText.damage, " damage pts!!!")
+                }
+                monsterMiss {
+                    line(BattleText.attackerName, " attacks")
+                    line(BattleText.targetName, "!")
+                    line("Blow misses!")
+                }
+                memberDeath { line(BattleText.targetName, " DIES!!!") }
                 monsterKilledLine()
                 partyHeld { line("PARTY IS HELD!") }
+                partyDefeated { line("The party has fallen.") }
                 victoryBested { lines("Thou hast bested", "thy foes.", "") }
                 victoryEachSurvivor { line("Each survivor gets") }
+                victoryReward {
+                    line(BattleText.experience, " experience pts")
+                    line("and ", BattleText.gold, " gold pieces.")
+                    line("")
+                }
                 victoryFoundObject { line("You find a") }
+                victoryLoot { line(BattleText.lootName, ".") }
+                levelGain {
+                    line(BattleText.levelMemberName, " gains >", BattleText.levelsGained, "<")
+                    line("experience levels.")
+                }
             }
 
             playerActions {
