@@ -69,7 +69,6 @@ configurations.named(bundleToolSourceSet.implementationConfigurationName) {
 dependencies {
     implementation(kotlin("reflect"))
     testImplementation(kotlin("test"))
-    testImplementation(project(":ansi-runtime"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -326,6 +325,5 @@ tasks.check {
     dependsOn(inspectExternalCompiledBundle)
     dependsOn(checkRustMudBundleInspect)
     dependsOn(":ansi-terminal:check")
-    dependsOn(":ansi-runtime:check")
     dependsOn(":compiled-runtime:check")
 }
