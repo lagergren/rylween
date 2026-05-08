@@ -304,8 +304,9 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                         commands.matches("enter", command) -> {
-                            runtime = enterLocation(runtime, input, screen, saveFile)
-                            true
+                            val entered = enterLocation(runtime, input, screen, saveFile)
+                            runtime = entered
+                            entered.currentMode == RuntimeMode.Wilderness
                         }
                         commands.matches("readyWeapon", command) -> {
                             runtime = utility.readyWeapon(runtime)

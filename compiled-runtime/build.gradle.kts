@@ -41,6 +41,8 @@ val compiledRuntimeExecutable: Provider<RegularFile> =
     layout.buildDirectory.file("install/rylween-compiled-runtime/bin/rylween-compiled")
 val compiledRuntimeSaveFile: Provider<RegularFile> =
     layout.buildDirectory.file("tmp/checkCompiledRuntimeSaveLoad/compiled-runtime.rsave")
+val compiledRuntimeFullPlaythroughSaveFile: Provider<RegularFile> =
+    layout.buildDirectory.file("tmp/checkCompiledRuntimeFullPlaythrough/compiled-runtime-win.rsave")
 val compiledRuntimeJar: TaskProvider<Jar> = tasks.named<Jar>("jar")
 val compiledRuntimeJarFile: Provider<RegularFile> = compiledRuntimeJar.flatMap { it.archiveFile }
 val rootRuntimeJar: TaskProvider<Jar> = rootProject.tasks.named<Jar>("jar")
@@ -55,6 +57,31 @@ tasks.jar {
         attributes["Main-Class"] = "rylween.compiledruntime.RylweenCompiledRuntimeMain"
     }
 }
+
+fun compiledRuntimeBattleMacro(): String = "F" + "A".repeat(5)
+
+fun compiledRuntimeCastleStep(command: Char): String = command.toString() + compiledRuntimeBattleMacro()
+
+fun compiledRuntimeCastleFloor(itemDigit: Char): String =
+    buildString {
+        repeat(4) { append(compiledRuntimeCastleStep('6')) }
+        repeat(3) { append(compiledRuntimeCastleStep('2')) }
+        append("2G")
+        append(itemDigit)
+    }
+
+fun compiledRuntimeWinningRoute(): String =
+    buildString {
+        repeat(21) { append('2') }
+        append("66E")
+        append(compiledRuntimeBattleMacro())
+        append(compiledRuntimeCastleFloor('1'))
+        append(compiledRuntimeCastleFloor('2'))
+        append(compiledRuntimeCastleFloor('3'))
+        append(compiledRuntimeCastleFloor('4'))
+        repeat(5) { append(compiledRuntimeBattleMacro()) }
+        append('S')
+    }
 
 val compiledRuntimeStartScripts: TaskProvider<CreateStartScripts> by tasks.registering(CreateStartScripts::class) {
     group = "application"
@@ -264,6 +291,60 @@ val checkCompiledRuntimeHeroesScreen: TaskProvider<RunInstalledLauncherWithJavaT
     screen.set("heroes")
 }
 
+val checkCompiledRuntimeFullPlaythrough: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Completes the winning castle route in the standalone compiled runtime and saves the result."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    stateSlug.set("near-winning-replay")
+    script.set(compiledRuntimeWinningRoute())
+    saveFile.set(compiledRuntimeFullPlaythroughSaveFile)
+    expectedOutputContains.set(
+        listOf(
+            "CONGRATULATIONS!",
+            "You have banished Ydarg",
+            "See Ya!!!",
+            "Game saved.",
+        ),
+    )
+}
+
+val checkCompiledRuntimeFullPlaythroughHeroesScreen: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Renders Hall-of-Heroes from the standalone compiled runtime's saved winning route."
+
+    dependsOn(checkCompiledRuntimeFullPlaythrough)
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    screen.set("heroes")
+    loadFile.set(compiledRuntimeFullPlaythroughSaveFile)
+    expectedOutputContains.set(
+        listOf(
+            "HALL OF NATIONAL HEROES",
+            "Replay defeated Baron Ydarg",
+        ),
+    )
+}
+
 tasks.check {
     dependsOn(checkCompiledRuntimeBundleBoot)
     dependsOn(checkCompiledRuntimeTownScript)
@@ -273,4 +354,5 @@ tasks.check {
     dependsOn(checkCompiledRuntimeDungeonScript)
     dependsOn(checkCompiledRuntimeCastleScript)
     dependsOn(checkCompiledRuntimeHeroesScreen)
+    dependsOn(checkCompiledRuntimeFullPlaythroughHeroesScreen)
 }
