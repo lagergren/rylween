@@ -22,28 +22,21 @@ import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledGameBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
-import rylween.compiled.CompiledInstruction
 import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.CompiledJournalEntry
-import rylween.compiled.CompiledMenuOption
+import rylween.compiled.CompiledNpcPlacement
 import rylween.compiled.CompiledNpcVisit
-import rylween.compiled.CompiledOpcode
-import rylween.compiled.CompiledOperand
 import rylween.compiled.CompiledPartyCounters
 import rylween.compiled.CompiledPartyImage
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledRuntimeTextPart
-import rylween.compiled.CompiledShopService
 import rylween.compiled.CompiledStateImage
 import rylween.compiled.CompiledStringExpr
 import rylween.compiled.CompiledTerrain
 import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledTextPart
-import rylween.compiled.CompiledViewCommand
 import rylween.compiled.CompiledWorldPosition
-import rylween.compiled.ExternalRuntimeCombat
-import rylween.compiled.ExternalRuntimeRealm
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
@@ -272,23 +265,23 @@ class StandaloneCompiledRuntime private constructor(
                             true
                         }
                         commands.matches("readyWeapon", command) -> {
-                            screen.writeText(listOf("Ready weapon is not implemented in standalone runtime yet."))
+                            screen.writeText(listOf("That command cannot be used here."))
                             false
                         }
                         commands.matches("readyArmor", command) -> {
-                            screen.writeText(listOf("Ready armor is not implemented in standalone runtime yet."))
+                            screen.writeText(listOf("That command cannot be used here."))
                             false
                         }
                         commands.matches("removeWeapon", command) -> {
-                            screen.writeText(listOf("Remove weapon is not implemented in standalone runtime yet."))
+                            screen.writeText(listOf("That command cannot be used here."))
                             false
                         }
                         commands.matches("removeArmor", command) -> {
-                            screen.writeText(listOf("Remove armor is not implemented in standalone runtime yet."))
+                            screen.writeText(listOf("That command cannot be used here."))
                             false
                         }
                         commands.matches("drop", command) -> {
-                            screen.writeText(listOf("Drop item is not implemented in standalone runtime yet."))
+                            screen.writeText(listOf("That command cannot be used here."))
                             false
                         }
                         commands.matches("camp", command) -> {
@@ -300,11 +293,11 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                         commands.matches("castSpell", command) -> {
-                            screen.writeText(listOf("Cast spell is not implemented in standalone runtime yet."))
+                            screen.writeText(listOf("That command cannot be used here."))
                             false
                         }
                         commands.matches("quaff", command) -> {
-                            screen.writeText(listOf("Quaff is not implemented in standalone runtime yet."))
+                            screen.writeText(listOf("That command cannot be used here."))
                             false
                         }
                         command == '\n' -> false
@@ -427,7 +420,8 @@ class StandaloneCompiledRuntime private constructor(
             screen.writeText(listOf("No such service."))
             return runtime
         }
-        return runService(runtime, service, input, screen)
+        val serviceRuntime = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
+        return runService(serviceRuntime, service, input, screen).copy(currentMode = RuntimeMode.Wilderness, currentTown = null)
     }
 
     private fun runService(
@@ -443,8 +437,7 @@ class StandaloneCompiledRuntime private constructor(
             screen.writeText(listOf("No compiled scene program for $sceneSlug."))
             return runtime
         }
-        screen.writeText(listOf("Running ${slug(service.building).readableSlug()}", "Scene: $sceneSlug"))
-        return StandaloneScriptExecutor(content, systems.realm, systems.combat, input, screen, runtime).execute(program.instructions)
+        return StandaloneScriptExecutor(content, systems, input, screen, runtime).execute(program.instructions)
     }
 
     private fun stateBySlug(slug: String): CompiledStateImage {
@@ -478,6 +471,7 @@ internal data class StandaloneRuntimeState(
     val currentTown: CompiledHandleRef?,
     val lastTerrain: CompiledHandleRef?,
     val partyMemberMax: Int,
+    val npcs: List<CompiledNpcPlacement>,
     val party: StandaloneParty,
 ) {
     fun withParty(party: StandaloneParty): StandaloneRuntimeState = copy(party = party)
@@ -498,6 +492,7 @@ internal data class StandaloneRuntimeState(
                 currentTown = state.realm.currentTown,
                 lastTerrain = state.realm.lastTerrain,
                 partyMemberMax = state.realm.partyMemberMax,
+                npcs = state.npcs,
                 party = StandaloneParty.from(content, state.activeParty(), state.realm.rngState),
             )
     }
@@ -630,6 +625,13 @@ internal class StandaloneInput(
         return terminal.readTextLine(maxDigits)?.trim()?.toIntOrNull()
     }
 
+    fun readText(maxLength: Int? = null): String? {
+        val scriptedValue = readScriptedText()
+        if (scriptedValue != null) return scriptedValue
+        if (scripted != null) return null
+        return terminal.readTextLine(maxLength ?: DEFAULT_TEXT_INPUT_LIMIT)
+    }
+
     private fun readScriptedCommand(): Char? {
         val chars = scripted ?: return null
         while (chars.isNotEmpty()) {
@@ -652,7 +654,23 @@ internal class StandaloneInput(
             }
         return digits.takeIf(String::isNotEmpty)?.toIntOrNull()
     }
+
+    private fun readScriptedText(): String? {
+        val chars = scripted ?: return null
+        while (chars.firstOrNull()?.isWhitespace() == true) {
+            chars.removeFirst()
+        }
+        val value =
+            buildString {
+                while (chars.isNotEmpty() && !chars.first().isWhitespace()) {
+                    append(chars.removeFirst())
+                }
+            }
+        return value.takeIf(String::isNotEmpty)
+    }
 }
+
+private const val DEFAULT_TEXT_INPUT_LIMIT = 80
 
 internal fun CompiledTextBlock.renderStandaloneLines(
     content: CompiledContentBundle,
@@ -688,132 +706,6 @@ private fun CompiledTextPart.renderStandalone(
         is CompiledTextPart.LocationCoordinate -> "[location:${content.slug(location)}]"
         is CompiledTextPart.Runtime -> runtimeValue(kind)
     }
-
-private class StandaloneScriptExecutor(
-    private val content: CompiledContentBundle,
-    private val realm: ExternalRuntimeRealm,
-    private val combat: ExternalRuntimeCombat,
-    private val input: StandaloneInput,
-    private val screen: CompiledAnsiScreen,
-    initialRuntime: StandaloneRuntimeState,
-) {
-    private var runtime: StandaloneRuntimeState = initialRuntime
-
-    fun execute(instructions: List<CompiledInstruction>): StandaloneRuntimeState {
-        instructions.forEach { instruction ->
-            val stop = execute(instruction)
-            if (stop) return runtime
-        }
-        return runtime
-    }
-
-    private fun execute(instruction: CompiledInstruction): Boolean =
-        when (instruction.opcode) {
-            CompiledOpcode.Screen -> false.also { screen.writeText(instruction.textBlockOperand(0).renderLines()) }
-            CompiledOpcode.View -> false.also { renderView(instruction.viewOperand(0)) }
-            CompiledOpcode.WaitInput -> false.also { input.readCommand() }
-            CompiledOpcode.Pause -> false
-            CompiledOpcode.Menu -> executeMenu(instruction)
-            CompiledOpcode.Stop,
-            CompiledOpcode.Break,
-            -> true
-            CompiledOpcode.ShopService ->
-                false.also {
-                    runtime =
-                        runtime.withParty(
-                            StandaloneCompiledShopService(content, realm, input, screen).run(
-                                instruction.shopServiceOperand(0),
-                                runtime.party,
-                            ),
-                        )
-                }
-            CompiledOpcode.RandomItemOffer -> false.also { screen.writeText(listOf("Random item offer host is not implemented yet.")) }
-            CompiledOpcode.GrantReward -> false.also { screen.writeText(listOf("Reward host is not implemented yet.")) }
-            CompiledOpcode.Speak -> false.also { screen.writeText(listOf("Speak host is not implemented yet.")) }
-            CompiledOpcode.TellRumour -> false.also { screen.writeText(listOf("Rumour host is not implemented yet.")) }
-            CompiledOpcode.Encounter -> false.also { runEncounter(instruction) }
-            CompiledOpcode.EnterDungeon,
-            CompiledOpcode.DiscoverCave,
-            -> false.also { screen.writeText(listOf("Dungeon host is not implemented yet.")) }
-            CompiledOpcode.NativeCall ->
-                false.also { screen.writeText(listOf("Native effect ${instruction.stringOperand(0)} is not implemented yet.")) }
-            CompiledOpcode.RunScene -> false.also { screen.writeText(listOf("Nested scene host is not implemented yet.")) }
-            else ->
-                false.also {
-                    screen.writeText(listOf("Compiled opcode ${instruction.opcode.name} is not implemented in standalone runtime yet."))
-                }
-        }
-
-    private fun executeMenu(instruction: CompiledInstruction): Boolean {
-        val options = instruction.menuOptionsOperand(1)
-        val lines =
-            buildList {
-                addAll(instruction.textBlockOperand(0).renderLines())
-                options.forEach { option ->
-                    add("${option.binding.primaryStandaloneLabel(content)}. ${content.strings.value(option.binding.labelString)}")
-                }
-            }
-        screen.writeText(lines)
-        val choice = input.readCommand() ?: return true
-        val option = options.firstOrNull { menu -> menu.binding.matchesStandalone(content, choice) }
-        if (option == null) {
-            screen.writeText(listOf("No such choice."))
-            execute(instruction.instructionsOperand(2))
-            return false
-        }
-        runtime = StandaloneScriptExecutor(content, realm, combat, input, screen, runtime).execute(option.body)
-        return false
-    }
-
-    private fun runEncounter(instruction: CompiledInstruction) {
-        val battle =
-            StandaloneCompiledBattleRunner(content, combat, input, screen)
-                .runMonster(runtime, instruction.handleOperand(0))
-        runtime = battle.runtime
-        if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
-    }
-
-    private fun renderView(command: CompiledViewCommand) {
-        screen.writeViewCommand(command.toRuntimeViewCommand())
-    }
-
-    private fun CompiledViewCommand.toRuntimeViewCommand(): CompiledRuntimeViewCommand =
-        when (this) {
-            CompiledViewCommand.ClearText -> CompiledRuntimeViewCommand.ClearText
-            CompiledViewCommand.ClearMapWindow -> CompiledRuntimeViewCommand.ClearMapWindow
-            CompiledViewCommand.RenderMap -> CompiledRuntimeViewCommand.RenderMap
-            CompiledViewCommand.StatusLine -> CompiledRuntimeViewCommand.StatusLine
-            is CompiledViewCommand.ShowImage -> CompiledRuntimeViewCommand.ShowImage(content.slug(image))
-        }
-
-    private fun CompiledTextBlock.renderLines(): List<String> =
-        when (this) {
-            is CompiledTextBlock.Ref,
-            is CompiledTextBlock.Inline,
-            is CompiledTextBlock.Structured,
-            -> renderStandaloneLines(content)
-        }
-
-    private fun CompiledInstruction.textBlockOperand(index: Int): CompiledTextBlock =
-        (operands[index] as CompiledOperand.TextBlockValue).value
-
-    private fun CompiledInstruction.viewOperand(index: Int): CompiledViewCommand =
-        (operands[index] as CompiledOperand.ViewCommandValue).value
-
-    private fun CompiledInstruction.stringOperand(index: Int): String =
-        content.strings.value((operands[index] as CompiledOperand.StringId).id)
-
-    private fun CompiledInstruction.menuOptionsOperand(index: Int): List<CompiledMenuOption> =
-        (operands[index] as CompiledOperand.MenuOptions).options
-
-    private fun CompiledInstruction.instructionsOperand(index: Int): List<CompiledInstruction> =
-        (operands[index] as CompiledOperand.Instructions).instructions
-
-    private fun CompiledInstruction.shopServiceOperand(index: Int): CompiledShopService =
-        (operands[index] as CompiledOperand.ShopService).service
-
-    private fun CompiledInstruction.handleOperand(index: Int): CompiledHandleRef = (operands[index] as CompiledOperand.Handle).ref
-}
 
 internal class StandaloneWorldMap(
     private val content: CompiledContentBundle,

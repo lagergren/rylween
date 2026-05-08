@@ -535,11 +535,11 @@ Joakim Larsson   - Another Rylween-o-phile. (But he grew tired of it).
 Matias Larsson   - Graphics Wizard. The best of them all!
 Magnus Lilja     - For keeping my adrenalin level high. ;->
 H.P. Lovecraft   - For contributing to the atmosphere.
-Alex May         - Splooty! (And I believe you did some beta testing too?)
+Alex May         - Everything and everything at FOON! (And I believe you did some beta testing too?)
 Vicente Nicola   - For enthusiastic testing and bug reports in V2.
 Micke Persson    - For supporting my by registering early.
 Stephen Price    - For supporting me by registering early, from the other side of the world (this world)!
-Lars Siden       - Thanks for everything.
+Lazze Sidén      - Thanks for everything.
 Michael Sinz     - The creator of Enforcer.
 Mike Soucy       - Testing and bug reports.
 Karl Skagerberg  - Beta tester.

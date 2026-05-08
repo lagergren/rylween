@@ -147,10 +147,7 @@ internal class StandaloneWildernessActions(
         val events = wilderness.events
         if (eventDraw.value < events.caveChancePercent) {
             val caveLines = events.caveFoundPrompt.renderStandalone()
-            return StandaloneWildernessActionResult(
-                current,
-                messages + caveLines + "Cave entry is not implemented in standalone runtime yet.",
-            )
+            return StandaloneWildernessActionResult(current, messages + caveLines)
         }
 
         val quietLimit = events.caveChancePercent + events.quietChancePercent
