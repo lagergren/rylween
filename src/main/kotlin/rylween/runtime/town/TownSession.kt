@@ -3,7 +3,8 @@
  *
  * [TownSession] filters currently available services, applies opening hours,
  * routes shops and native services, and runs town-leave equipment prompts.
- * Terminal rendering lives in `frontend/terminal/TerminalAdapters.kt`.
+ * Terminal rendering lives in
+ * `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalAdapters.kt`.
  */
 
 package rylween.runtime.town

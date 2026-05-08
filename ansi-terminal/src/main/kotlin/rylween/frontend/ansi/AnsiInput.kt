@@ -4,7 +4,8 @@
  * The classic Kotlin ANSI launcher and the standalone compiled-bundle launcher
  * both normalize arrow keys to the original numeric keypad movement tokens and
  * both need the same simple editable line reader. This file keeps that protocol
- * in one place while each launcher owns its terminal transport.
+ * in the `:ansi-terminal` module while each launcher owns its terminal
+ * transport.
  */
 package rylween.frontend.ansi
 

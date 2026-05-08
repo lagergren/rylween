@@ -32,12 +32,14 @@ compiled tables and expose the services the VM requires.
 There are currently two Kotlin runtime paths in the repository:
 
 - `run.sh` installs and runs `rylween-bundle`, whose entry point is
-  `src/app/kotlin/rylween/app/RylweenAnsiMain.kt`. This is the mature hybrid
+  `ansi-runtime/src/main/kotlin/rylween/app/RylweenAnsiMain.kt`. This is the mature hybrid
   ANSI product path. It requires the J1 JSON bundle, verifies the artifact, and
   executes script roots through the J2 compiled VM, but it still materializes
   the bundle into the Kotlin runtime-facing model and drives gameplay through
-  `RylweenKotlinEngine`, `src/main/kotlin/rylween/runtime/**`, and
-  `src/main/kotlin/rylween/frontend/terminal/**`.
+  `RylweenKotlinEngine`, `src/main/kotlin/rylween/runtime/**`, shared terminal
+  rendering helpers, and the ANSI/session adapters in `ansi-runtime`. The
+  launcher/install/check tasks live in the `:ansi-runtime` Gradle subproject so
+  the classic host and standalone compiled consumer are not root source sets.
 - `run-compiled.sh` installs and runs `rylween-compiled`, whose entry point is
   `compiled-runtime/src/main/kotlin/rylween/compiledruntime/RylweenCompiledRuntimeMain.kt`.
   This is the standalone compiled-bundle consumer under construction. It reads
@@ -324,8 +326,8 @@ requirements:
 
 The current JVM ANSI helpers live in:
 
-- `src/main/kotlin/rylween/frontend/ansi/AnsiCodes.kt`
-- `src/main/kotlin/rylween/frontend/ansi/AnsiInput.kt`
+- `ansi-terminal/src/main/kotlin/rylween/frontend/ansi/AnsiCodes.kt`
+- `ansi-terminal/src/main/kotlin/rylween/frontend/ansi/AnsiInput.kt`
 - `compiled-runtime/src/main/kotlin/rylween/compiledruntime/CompiledAnsiScreen.kt`
 - `compiled-runtime/src/main/kotlin/rylween/compiledruntime/CompiledAnsiTerminal.kt`
 

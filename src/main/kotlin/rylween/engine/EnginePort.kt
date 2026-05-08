@@ -238,12 +238,14 @@ class TraceEnginePort(
             mutableEvents += EngineTraceEvent.NativeString(request, result)
         }
 
-    internal fun trace(event: EngineTraceEvent) {
+    /** Records a semantic engine event and mirrors loggable events to the runtime event sink. */
+    fun trace(event: EngineTraceEvent) {
         mutableEvents += event
         event.toRuntimeEvent()?.let(eventSink::emit)
     }
 
-    internal fun diagnostic(event: RuntimeEvent) {
+    /** Emits a diagnostic event without adding a user-visible script trace entry. */
+    fun diagnostic(event: RuntimeEvent) {
         eventSink.emit(event)
     }
 }

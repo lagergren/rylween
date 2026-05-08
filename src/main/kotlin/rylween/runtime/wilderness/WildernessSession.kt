@@ -3,7 +3,8 @@
  *
  * This session coordinates map movement, terrain transitions, child sessions,
  * save requests, and script handoffs. Terminal rendering lives in
- * `frontend/terminal/TerminalAdapters.kt`; save/load mode snapshots live in
+ * `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalAdapters.kt`;
+ * save/load mode snapshots live in
  * `runtime/RuntimeSnapshotModel.kt`.
  */
 package rylween.runtime.wilderness

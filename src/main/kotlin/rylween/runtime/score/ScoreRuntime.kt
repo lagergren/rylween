@@ -1,9 +1,10 @@
 /**
  * Runtime score and hall-of-heroes report generation.
  *
- * `frontend/terminal/ScoreTerminal.kt` renders these reports for static
- * screens, while future persistent scoreboards can reuse the report model
- * without depending on terminal formatting.
+ * `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/ScoreTerminal.kt`
+ * renders these reports for static screens, while future persistent
+ * scoreboards can reuse the report model without depending on terminal
+ * formatting.
  */
 package rylween.runtime.score
 

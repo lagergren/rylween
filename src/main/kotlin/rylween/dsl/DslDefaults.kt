@@ -41,7 +41,8 @@ internal object DslDefaultDungeons {
     val randomCave = dungeon("random_cave")
 }
 
-internal object DslDefaultBuildings {
+/** Built-in building handles used by runtime adapters when no authored building handle is active. */
+object DslDefaultBuildings {
     val none = building("none")
     val inn = building("inn")
     val tavern = building("tavern")

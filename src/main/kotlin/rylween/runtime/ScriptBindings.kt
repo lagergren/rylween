@@ -120,67 +120,84 @@ private val memberFlagReaders: Map<String, PartyMemberState.() -> Boolean> =
         "spellcaster" to { !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest) },
     )
 
-internal fun scriptMemberFlagKnown(name: String): Boolean = name in memberFlagReaders
+/** Returns true when [name] is a supported member boolean flag in script expressions. */
+fun scriptMemberFlagKnown(name: String): Boolean = name in memberFlagReaders
 
-internal fun RuntimeSessionState.scriptRuntimeFlag(name: String): Boolean = runtimeFlagReaders[name]?.invoke(this) ?: false
+/** Reads a runtime-wide boolean flag by script binding name, defaulting missing flags to false. */
+fun RuntimeSessionState.scriptRuntimeFlag(name: String): Boolean = runtimeFlagReaders[name]?.invoke(this) ?: false
 
-internal fun RuntimeSessionState.scriptRealmScalar(
+/** Reads a realm scalar by script binding name, falling back to local script integers and then zero. */
+fun RuntimeSessionState.scriptRealmScalar(
     name: String,
     locals: Map<String, Int>,
 ): Int = scriptRealmScalarOrNull(name) ?: locals[name] ?: 0
 
-internal fun RuntimeSessionState.scriptRealmScalarOrNull(name: String): Int? = realmScalarBindings[name]?.read?.invoke(this)
+/** Reads a realm scalar by script binding name, or null when no binding exists. */
+fun RuntimeSessionState.scriptRealmScalarOrNull(name: String): Int? = realmScalarBindings[name]?.read?.invoke(this)
 
-internal fun RuntimeSessionState.withScriptRealmScalar(
+/** Returns a runtime with the named realm scalar updated, or null when the binding is unknown. */
+fun RuntimeSessionState.withScriptRealmScalar(
     name: String,
     value: Int,
 ): RuntimeSessionState? = realmScalarBindings[name]?.write?.invoke(this, value)
 
-internal fun PartyState.scriptPartyScalar(name: String): Int = scriptPartyScalarOrNull(name) ?: 0
+/** Reads a party scalar by script binding name, defaulting missing values to zero. */
+fun PartyState.scriptPartyScalar(name: String): Int = scriptPartyScalarOrNull(name) ?: 0
 
-internal fun PartyState.scriptPartyScalarOrNull(name: String): Int? = partyScalarReaders[name]?.invoke(this)
+/** Reads a party scalar by script binding name, or null when no binding exists. */
+fun PartyState.scriptPartyScalarOrNull(name: String): Int? = partyScalarReaders[name]?.invoke(this)
 
-internal fun PartyState.withScriptPartyScalar(
+/** Returns a party with the named scalar updated, leaving the party unchanged when the binding is unknown. */
+fun PartyState.withScriptPartyScalar(
     name: String,
     value: Int,
 ): PartyState = withScriptPartyScalarOrNull(name, value) ?: this
 
-internal fun PartyState.withScriptPartyScalarOrNull(
+/** Returns a party with the named scalar updated, or null when no binding exists. */
+fun PartyState.withScriptPartyScalarOrNull(
     name: String,
     value: Int,
 ): PartyState? = partyScalarWriters[name]?.invoke(this, value)
 
-internal fun PartyState.scriptMemberField(
+/** Reads a one-based party member integer field by script binding name, defaulting missing values to zero. */
+fun PartyState.scriptMemberField(
     memberNumber: Int,
     field: String,
 ): Int = scriptMemberIndexField(memberNumber - 1, field)
 
-internal fun PartyState.scriptMemberIndexField(
+/** Reads a zero-based party member integer field by script binding name, defaulting missing values to zero. */
+fun PartyState.scriptMemberIndexField(
     memberIndex: Int,
     field: String,
 ): Int = members.getOrNull(memberIndex)?.scriptMemberFieldOrNull(field) ?: 0
 
-internal fun PartyMemberState.scriptMemberFieldOrNull(field: String): Int? = memberFieldReaders[field]?.invoke(this)
+/** Reads a member integer field by script binding name, or null when no binding exists. */
+fun PartyMemberState.scriptMemberFieldOrNull(field: String): Int? = memberFieldReaders[field]?.invoke(this)
 
-internal fun PartyState.scriptMemberFlag(
+/** Reads a one-based party member boolean flag by script binding name, defaulting missing values to false. */
+fun PartyState.scriptMemberFlag(
     memberNumber: Int,
     name: String,
 ): Boolean = scriptMemberIndexFlag(memberNumber - 1, name)
 
-internal fun PartyState.scriptMemberIndexFlag(
+/** Reads a zero-based party member boolean flag by script binding name, defaulting missing values to false. */
+fun PartyState.scriptMemberIndexFlag(
     memberIndex: Int,
     name: String,
 ): Boolean = members.getOrNull(memberIndex)?.scriptMemberFlagOrNull(name) ?: false
 
-internal fun PartyMemberState.scriptMemberFlagOrNull(name: String): Boolean? = memberFlagReaders[name]?.invoke(this)
+/** Reads a member boolean flag by script binding name, or null when no binding exists. */
+fun PartyMemberState.scriptMemberFlagOrNull(name: String): Boolean? = memberFlagReaders[name]?.invoke(this)
 
-internal fun PartyState.withScriptMemberField(
+/** Returns a party with a one-based member integer field updated by script binding name. */
+fun PartyState.withScriptMemberField(
     memberNumber: Int,
     field: String,
     value: Int,
 ): PartyState = withScriptMemberIndexField(memberNumber - 1, field, value)
 
-internal fun PartyState.withScriptMemberIndexField(
+/** Returns a party with a zero-based member integer field updated by script binding name. */
+fun PartyState.withScriptMemberIndexField(
     memberIndex: Int,
     field: String,
     value: Int,
@@ -190,7 +207,8 @@ internal fun PartyState.withScriptMemberIndexField(
     return copy(members = members.mapIndexed { index, existing -> if (index == memberIndex) updated else existing })
 }
 
-internal fun PartyMemberState.withScriptMemberFieldOrNull(
+/** Returns a member with an integer field updated by script binding name, or null when no binding exists. */
+fun PartyMemberState.withScriptMemberFieldOrNull(
     field: String,
     value: Int,
 ): PartyMemberState? = memberFieldWriters[field]?.invoke(this, value)

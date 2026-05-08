@@ -3,7 +3,8 @@
  *
  * Town services, dungeon events, item use, rewards, and future compiled-VM
  * frames all need a backend-neutral continuation shape. Rendering and input are
- * handled by adapters such as `frontend/terminal/TerminalScriptBridge.kt`.
+ * handled by adapters such as
+ * `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalScriptBridge.kt`.
  */
 
 package rylween.runtime

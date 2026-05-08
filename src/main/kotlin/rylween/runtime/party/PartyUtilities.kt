@@ -3,7 +3,8 @@
  *
  * Runtime parents such as wilderness, dungeon, and Castle sessions delegate
  * party inspection to these backend-neutral state machines; terminal adapters
- * in `frontend/terminal/TerminalAdapters.kt` render the returned models.
+ * in `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalAdapters.kt`
+ * render the returned models.
  */
 package rylween.runtime.party
 

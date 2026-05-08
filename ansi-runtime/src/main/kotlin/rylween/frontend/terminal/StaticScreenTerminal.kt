@@ -37,13 +37,14 @@ fun GameModel.renderTerminalStaticScreen(
                 maxLinesPerPage = maxLinesPerPage,
             )
         }
+    val resource = screen.resource
     val pages =
         runtimePages ?: when {
             screen.commandHelp ->
                 wilderness.keys
                     .effectiveHelpPages(maxLinesPerPage)
                     .map { page -> renderer.lines(page, context) }
-            screen.resource != null -> resourceText(screen.resource).documentPages(maxLinesPerPage)
+            resource != null -> resourceText(resource).documentPages(maxLinesPerPage)
             else -> emptyList()
         }
     return TerminalStaticScreen(
