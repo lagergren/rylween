@@ -85,5 +85,6 @@ This runtime is still being completed. It currently boots directly from the
 compiled bundle, renders compiled static screens and wilderness frames, runs
 the direct wilderness loop, enters town services, handles compiled shop catalog
 buy/sell paging, renders direct party/journal pages, reads wilderness command
-bindings from the bundle, and writes/loads its standalone wilderness save format
+bindings from the bundle, runs direct hunt/camp/upkeep rules from
+`runtimeSystems.realm`, and writes/loads its standalone wilderness save format
 with bundle-hash validation.

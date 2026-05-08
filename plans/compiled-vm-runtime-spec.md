@@ -47,9 +47,10 @@ There are currently two Kotlin runtime paths in the repository:
   depend on `RylweenKotlinEngine`, old session classes such as
   `WildernessSession`/`ShopSession`, terminal adapters, generated game handles,
   or authored `Op` execution. It currently owns direct wilderness state, direct
-  party/journal pages, bundle-driven wilderness command bindings, and a
-  standalone wilderness save file that validates the compiled bundle hash before
-  restoring mutable runtime ids.
+  party/journal pages, bundle-driven wilderness command bindings, direct
+  hunt/camp/upkeep rules from `runtimeSystems.realm`, and a standalone
+  wilderness save file that validates the compiled bundle hash before restoring
+  mutable runtime ids.
 
 The old Kotlin sessions may remain as the reference implementation and parity
 oracle until the standalone consumer reaches full conformance. They are not the

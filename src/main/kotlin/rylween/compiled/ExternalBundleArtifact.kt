@@ -35,6 +35,7 @@ import rylween.dsl.TemperatureBand
 import rylween.dsl.TextBlock
 import rylween.dsl.TextPart
 import rylween.dsl.TownSystemModel
+import rylween.dsl.WildernessFatigueMatch
 import rylween.dsl.WildernessSystemModel
 import rylween.dsl.WildernessUpkeepRules
 import rylween.dsl.building
@@ -243,7 +244,113 @@ data class ExternalRuntimeInputBinding(
 /** Realm-wide runtime constants consumed by standalone bundle runtimes. */
 data class ExternalRuntimeRealm(
     val baseResourceCapacity: Map<Resource, Int>,
+    val upkeep: ExternalWildernessUpkeep,
+    val camp: ExternalCampRules,
+    val hunt: ExternalHuntRules?,
 )
+
+/** Wilderness upkeep balance and fatigue text from the stable runtime-system section. */
+data class ExternalWildernessUpkeep(
+    val foodCostLeaderDiv: Int,
+    val foodTickEvery: Int,
+    val starveFoodThreshold: Int,
+    val starveDamage: Int,
+    val manaRegenChance: Int,
+    val restedHoursCostPerTurn: Int,
+    val fatigue: List<ExternalWildernessFatigueRule>,
+)
+
+/** One authored fatigue rule consumed by direct bundle runtimes. */
+data class ExternalWildernessFatigueRule(
+    val threshold: Int,
+    val match: WildernessFatigueMatch,
+    val drain: Boolean,
+    val text: ExternalRuntimeTextBlock,
+)
+
+/** Camp/rest balance and text from the stable runtime-system section. */
+data class ExternalCampRules(
+    val healthGain: Int,
+    val foodCostPerMember: Int,
+    val hoursAdvanced: Int,
+    val hoursRestedReset: Int,
+    val temperatureMax: Int,
+    val temperatureBands: List<ExternalTemperatureBandRange>,
+    val temperatureDamage: Map<TemperatureBand, Int>,
+    val ambushChancePercent: Int,
+    val ambushTier: String?,
+    val text: ExternalCampText,
+)
+
+/** Inclusive temperature range belonging to one camp damage band. */
+data class ExternalTemperatureBandRange(
+    val band: TemperatureBand,
+    val first: Int,
+    val last: Int,
+)
+
+/** Camp prompt and narration text used by direct bundle runtimes. */
+data class ExternalCampText(
+    val notTired: ExternalRuntimeTextBlock,
+    val notEnoughFood: ExternalRuntimeTextBlock,
+    val guardPrompt: ExternalRuntimeTextBlock,
+    val guardMemberPrompt: ExternalRuntimeTextBlock,
+    val guardMemberDead: ExternalRuntimeTextBlock,
+    val standsGuard: ExternalRuntimeTextBlock,
+    val sleeping: ExternalRuntimeTextBlock,
+    val rested: ExternalRuntimeTextBlock,
+    val ambush: ExternalRuntimeTextBlock,
+    val surpriseKill: ExternalRuntimeTextBlock,
+    val temperatureMessage: Map<TemperatureBand, ExternalRuntimeTextBlock>,
+    val noShelterMessage: Map<TemperatureBand, ExternalRuntimeTextBlock>,
+)
+
+/** Hunt balance and text from the stable runtime-system section. */
+data class ExternalHuntRules(
+    val successChancePercent: Int,
+    val timeCost: Int,
+    val foodMin: Int,
+    val foodMax: Int,
+    val text: ExternalHuntText,
+)
+
+/** Hunt prompt and narration text used by direct bundle runtimes. */
+data class ExternalHuntText(
+    val whoPrompt: ExternalRuntimeTextBlock,
+    val dead: ExternalRuntimeTextBlock,
+    val notRanger: ExternalRuntimeTextBlock,
+    val tooFewMoves: ExternalRuntimeTextBlock,
+    val tries: ExternalRuntimeTextBlock,
+    val succeeds: ExternalRuntimeTextBlock,
+    val fails: ExternalRuntimeTextBlock,
+)
+
+/** Portable text block in runtime-system JSON, rendered by direct runtimes. */
+data class ExternalRuntimeTextBlock(
+    val lines: List<List<ExternalRuntimeTextPart>>,
+) {
+    /** Renders this block with runtime token substitution. */
+    fun render(values: (String) -> String?): List<String> =
+        lines.map { line ->
+            line.joinToString(separator = "") { part ->
+                when (part) {
+                    is ExternalRuntimeTextPart.Literal -> part.text
+                    is ExternalRuntimeTextPart.Runtime -> values(part.kind) ?: "{${part.kind}}"
+                }
+            }
+        }
+}
+
+/** Text parts supported by runtime-system prompt rows. */
+sealed interface ExternalRuntimeTextPart {
+    data class Literal(
+        val text: String,
+    ) : ExternalRuntimeTextPart
+
+    data class Runtime(
+        val kind: String,
+    ) : ExternalRuntimeTextPart
+}
 
 /** Terminal presentation data in the stable runtime-system section. */
 data class ExternalRuntimePresentation(
@@ -1421,7 +1528,143 @@ private class ExternalRuntimeSystemsReader(
                         val entry = row.asObject("base resource capacity")
                         enumValueOf<Resource>(entry.requiredString("resource")) to entry.requiredInt("capacity")
                     },
+            upkeep = requiredObject("upkeep").readUpkeep(),
+            camp = requiredObject("camp").readCamp(),
+            hunt = optional("hunt")?.takeUnless { it is JsonNull }?.asObject("hunt")?.readHunt(),
         )
+
+    private fun JsonObject.readUpkeep(): ExternalWildernessUpkeep =
+        ExternalWildernessUpkeep(
+            foodCostLeaderDiv = requiredInt("foodCostLeaderDiv"),
+            foodTickEvery = requiredInt("foodTickEvery"),
+            starveFoodThreshold = requiredInt("starveFoodThreshold"),
+            starveDamage = requiredInt("starveDamage"),
+            manaRegenChance = requiredInt("manaRegenChance"),
+            restedHoursCostPerTurn = requiredInt("restedHoursCostPerTurn"),
+            fatigue =
+                requiredArray("fatigue").values.map { row ->
+                    val rule = row.asObject("fatigue rule")
+                    ExternalWildernessFatigueRule(
+                        threshold = rule.requiredInt("threshold"),
+                        match = rule.requiredEnum("match"),
+                        drain = rule.required("drain").asBoolean("fatigue drain"),
+                        text = rule.required("text").readTextBlock(),
+                    )
+                },
+        )
+
+    private fun JsonObject.readCamp(): ExternalCampRules =
+        ExternalCampRules(
+            healthGain = requiredInt("healthGain"),
+            foodCostPerMember = requiredInt("foodCostPerMember"),
+            hoursAdvanced = requiredInt("hoursAdvanced"),
+            hoursRestedReset = requiredInt("hoursRestedReset"),
+            temperatureMax = requiredInt("temperatureMax"),
+            temperatureBands =
+                requiredArray("temperatureBands").values.map { row ->
+                    val range = row.asObject("temperature band")
+                    ExternalTemperatureBandRange(
+                        band = range.requiredEnum("band"),
+                        first = range.requiredInt("first"),
+                        last = range.requiredInt("last"),
+                    )
+                },
+            temperatureDamage = requiredArray("temperatureDamage").readTemperatureIntMap(),
+            ambushChancePercent = requiredInt("ambushChancePercent"),
+            ambushTier = optionalNullableString("ambushTier"),
+            text = requiredObject("text").readCampText(),
+        )
+
+    private fun JsonObject.readCampText(): ExternalCampText =
+        ExternalCampText(
+            notTired = required("notTired").readTextBlock(),
+            notEnoughFood = required("notEnoughFood").readTextBlock(),
+            guardPrompt = required("guardPrompt").readTextBlock(),
+            guardMemberPrompt = required("guardMemberPrompt").readTextBlock(),
+            guardMemberDead = required("guardMemberDead").readTextBlock(),
+            standsGuard = required("standsGuard").readTextBlock(),
+            sleeping = required("sleeping").readTextBlock(),
+            rested = required("rested").readTextBlock(),
+            ambush = required("ambush").readTextBlock(),
+            surpriseKill = required("surpriseKill").readTextBlock(),
+            temperatureMessage = requiredArray("temperatureMessage").readTemperatureTextMap(),
+            noShelterMessage = requiredArray("noShelterMessage").readTemperatureTextMap(),
+        )
+
+    private fun JsonObject.readHunt(): ExternalHuntRules =
+        ExternalHuntRules(
+            successChancePercent = requiredInt("successChancePercent"),
+            timeCost = requiredInt("timeCost"),
+            foodMin = requiredInt("foodMin"),
+            foodMax = requiredInt("foodMax"),
+            text =
+                requiredObject("text").let { text ->
+                    ExternalHuntText(
+                        whoPrompt = text.required("whoPrompt").readTextBlock(),
+                        dead = text.required("dead").readTextBlock(),
+                        notRanger = text.required("notRanger").readTextBlock(),
+                        tooFewMoves = text.required("tooFewMoves").readTextBlock(),
+                        tries = text.required("tries").readTextBlock(),
+                        succeeds = text.required("succeeds").readTextBlock(),
+                        fails = text.required("fails").readTextBlock(),
+                    )
+                },
+        )
+
+    private fun JsonArray.readTemperatureIntMap(): Map<TemperatureBand, Int> =
+        values.associate { row ->
+            val obj = row.asObject("temperature damage")
+            obj.requiredEnum<TemperatureBand>("band") to obj.requiredInt("value")
+        }
+
+    private fun JsonArray.readTemperatureTextMap(): Map<TemperatureBand, ExternalRuntimeTextBlock> =
+        values.associate { row ->
+            val obj = row.asObject("temperature text")
+            obj.requiredEnum<TemperatureBand>("band") to obj.required("text").readTextBlock()
+        }
+
+    private fun JsonValue.readTextBlock(): ExternalRuntimeTextBlock {
+        val block = asObject("runtime text block")
+        return when (val kind = block.requiredString("kind")) {
+            "ref" ->
+                ExternalRuntimeTextBlock(
+                    listOf(listOf(ExternalRuntimeTextPart.Literal("[text:${block.requiredString("id")}]"))),
+                )
+            "inline" ->
+                ExternalRuntimeTextBlock(
+                    block.requiredArray("lines").values.map { line ->
+                        listOf(ExternalRuntimeTextPart.Literal(line.asString("inline text line")))
+                    },
+                )
+            "structured" ->
+                ExternalRuntimeTextBlock(
+                    block.requiredArray("lines").values.map { line ->
+                        line
+                            .asObject("structured text line")
+                            .requiredArray("parts")
+                            .values
+                            .map { part -> part.readTextPart() }
+                    },
+                )
+            else -> error("unsupported runtime text block kind $kind")
+        }
+    }
+
+    private fun JsonValue.readTextPart(): ExternalRuntimeTextPart {
+        val part = asObject("runtime text part")
+        return when (val kind = part.requiredString("kind")) {
+            "literal" -> ExternalRuntimeTextPart.Literal(part.requiredString("text"))
+            "intExpr",
+            "stringExpr",
+            "roleName",
+            "roleLocation",
+            "townName",
+            "fuzzyTownLocation",
+            "locationCoordinate",
+            -> ExternalRuntimeTextPart.Runtime(kind)
+            else -> ExternalRuntimeTextPart.Runtime(kind)
+        }
+    }
 
     private fun JsonObject.readPresentation(): ExternalRuntimePresentation =
         ExternalRuntimePresentation(

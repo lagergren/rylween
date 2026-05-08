@@ -213,11 +213,12 @@ class StandaloneCompiledRuntime private constructor(
             val screen = CompiledAnsiScreen(terminal, bundle, systems)
             val input = StandaloneInput(terminal, scriptedInput)
             val commands = StandaloneWildernessCommands.from(systems)
+            val actions = StandaloneWildernessActions(content, systems.realm, input, screen)
             screen.bootFrame()
             screen.renderWilderness(runtime, world)
             while (true) {
                 val command = input.readCommand()
-                val redrawWilderness =
+                val advanceTurn =
                     when {
                         command == null -> return
                         commands.matches("quit", command) -> return
@@ -283,11 +284,11 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                         commands.matches("camp", command) -> {
-                            screen.writeText(listOf("Camp is not implemented in standalone runtime yet."))
+                            runtime = applyAction(actions.camp(runtime), screen, world)
                             false
                         }
                         commands.matches("hunt", command) -> {
-                            screen.writeText(listOf("Hunt is not implemented in standalone runtime yet."))
+                            runtime = applyAction(actions.hunt(runtime), screen, world)
                             false
                         }
                         commands.matches("castSpell", command) -> {
@@ -304,12 +305,25 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                     }
-                if (redrawWilderness) {
-                    screen.renderWilderness(runtime, world)
+                if (advanceTurn) {
+                    runtime = applyAction(actions.applyTurnUpkeep(runtime), screen, world)
+                    if (runtime.currentMode == RuntimeMode.GameOver) return
                 }
                 if (input.exhausted) return
             }
         }
+    }
+
+    private fun applyAction(
+        result: StandaloneWildernessActionResult,
+        screen: CompiledAnsiScreen,
+        world: StandaloneWorldMap,
+    ): StandaloneRuntimeState {
+        screen.renderWilderness(result.runtime, world)
+        if (result.messages.isNotEmpty()) {
+            screen.writeText(result.messages)
+        }
+        return result.runtime
     }
 
     private fun move(
@@ -445,6 +459,7 @@ internal data class StandaloneRuntimeState(
     val currentMode: RuntimeMode,
     val currentTown: CompiledHandleRef?,
     val lastTerrain: CompiledHandleRef?,
+    val partyMemberMax: Int,
     val party: StandaloneParty,
 ) {
     fun withParty(party: StandaloneParty): StandaloneRuntimeState = copy(party = party)
@@ -464,6 +479,7 @@ internal data class StandaloneRuntimeState(
                 currentMode = state.realm.currentMode,
                 currentTown = state.realm.currentTown,
                 lastTerrain = state.realm.lastTerrain,
+                partyMemberMax = state.realm.partyMemberMax,
                 party = StandaloneParty.from(content, state.activeParty(), state.realm.rngState),
             )
     }
