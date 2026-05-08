@@ -2474,7 +2474,7 @@ class RylweenDslValidationTest {
         assertEquals(Images.Static.screen, screens.getValue(StaticScreens.frame).image)
         assertEquals(Images.Static.title, screens.getValue(StaticScreens.title).image)
         assertTrue(help.commandHelp)
-        assertEquals("rylween-doc.txt", screens.getValue(StaticScreens.manual).resource)
+        assertEquals("adventurers-of-rylween.md", screens.getValue(StaticScreens.manual).resource)
         assertEquals(null, screens.getValue(StaticScreens.score).resource)
         assertEquals(null, screens.getValue(StaticScreens.verboseScore).resource)
         assertEquals(null, screens.getValue(StaticScreens.heroes).resource)
@@ -2511,7 +2511,7 @@ class RylweenDslValidationTest {
                     id = StaticScreens.manual,
                     renderer = renderer,
                     resourceText = { path ->
-                        assertEquals("rylween-doc.txt", path)
+                        assertEquals("adventurers-of-rylween.md", path)
                         "first\nsecond\nthird"
                     },
                     maxLinesPerPage = 2,

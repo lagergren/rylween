@@ -25,9 +25,12 @@ import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInstruction
 import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledInventorySlot
+import rylween.compiled.CompiledJournalEntry
 import rylween.compiled.CompiledMenuOption
+import rylween.compiled.CompiledNpcVisit
 import rylween.compiled.CompiledOpcode
 import rylween.compiled.CompiledOperand
+import rylween.compiled.CompiledPartyCounters
 import rylween.compiled.CompiledPartyImage
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledRuntimeTextPart
@@ -41,11 +44,14 @@ import rylween.compiled.CompiledViewCommand
 import rylween.compiled.CompiledWorldPosition
 import rylween.compiled.ExternalRuntimeRealm
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
+import rylween.dsl.Facing
 import rylween.dsl.GridPoint
 import rylween.dsl.PartyResources
 import rylween.dsl.Resource
+import rylween.dsl.RuntimeMode
 import java.io.File
 import kotlin.math.max
 import kotlin.system.exitProcess
@@ -67,6 +73,8 @@ object RylweenCompiledRuntimeMain {
 data class CompiledRuntimeConfig(
     val bundleFile: File,
     val stateSlug: String = "fresh-replay",
+    val loadFile: File? = null,
+    val saveFile: File = File("build/saves/compiled-runtime.rsave"),
     val staticScreen: String? = null,
     val scriptedInput: String? = null,
 )
@@ -80,6 +88,8 @@ private object CompiledRuntimeCli {
 
         var bundleFile: File? = null
         var stateSlug = "fresh-replay"
+        var loadFile: File? = null
+        var saveFile = File("build/saves/compiled-runtime.rsave")
         var staticScreen: String? = null
         var scriptedInput: String? = null
         var index = 0
@@ -91,6 +101,14 @@ private object CompiledRuntimeCli {
                 }
                 "--state" -> {
                     stateSlug = args.valueAfter(index, arg)
+                    index += 2
+                }
+                "--load" -> {
+                    loadFile = File(args.valueAfter(index, arg))
+                    index += 2
+                }
+                "--save" -> {
+                    saveFile = File(args.valueAfter(index, arg))
                     index += 2
                 }
                 "--screen" -> {
@@ -107,6 +125,8 @@ private object CompiledRuntimeCli {
         return CompiledRuntimeConfig(
             bundleFile = checkNotNull(bundleFile) { "--bundle is required" },
             stateSlug = stateSlug,
+            loadFile = loadFile,
+            saveFile = saveFile,
             staticScreen = staticScreen,
             scriptedInput = scriptedInput,
         )
@@ -119,6 +139,8 @@ private object CompiledRuntimeCli {
             |
             |Options:
             |  --state <slug>    Boot compiled state image, default fresh-replay.
+            |  --load <file>     Load a standalone compiled-runtime save.
+            |  --save <file>     Save target for the S command, default build/saves/compiled-runtime.rsave.
             |  --screen <slug>   Render one compiled static screen and exit.
             |  --script <chars>  Feed command characters, useful for smoke tests.
             """.trimMargin(),
@@ -144,7 +166,7 @@ private fun CompiledRuntimeConfig.run() {
         runtime.renderStaticScreen(staticScreen)
         return
     }
-    runtime.runWilderness(stateSlug, scriptedInput)
+    runtime.runWilderness(stateSlug, loadFile, saveFile, scriptedInput)
 }
 
 /**
@@ -157,6 +179,7 @@ private fun CompiledRuntimeConfig.run() {
 class StandaloneCompiledRuntime private constructor(
     private val bundle: CompiledGameBundle,
     private val systems: ExternalRuntimeSystems,
+    private val bundleContentHash: String,
 ) {
     private val content: CompiledContentBundle = bundle.content
 
@@ -170,40 +193,120 @@ class StandaloneCompiledRuntime private constructor(
     /** Runs the standalone wilderness loop from one compiled state image. */
     fun runWilderness(
         stateSlug: String,
+        loadFile: File?,
+        saveFile: File,
         scriptedInput: String?,
     ) {
-        val state = stateBySlug(stateSlug)
-        var party = StandaloneParty.from(state.activeParty(), content, state.realm.rngState)
-        val world = StandaloneWorldMap.from(content, state.realm.currentMap)
+        var runtime =
+            if (loadFile != null) {
+                StandaloneCompiledSave.read(
+                    file = loadFile,
+                    expectedBundleHash = bundleContentHash,
+                    content = content,
+                    stateLookup = ::stateBySlug,
+                )
+            } else {
+                StandaloneRuntimeState.from(stateBySlug(stateSlug), content)
+            }
+        val world = StandaloneWorldMap.from(content, runtime.currentMap)
         CompiledAnsiTerminals.open(scripted = scriptedInput != null).use { terminal ->
             val screen = CompiledAnsiScreen(terminal, bundle, systems)
             val input = StandaloneInput(terminal, scriptedInput)
+            val commands = StandaloneWildernessCommands.from(systems)
             screen.bootFrame()
-            screen.renderWilderness(state, party, world)
+            screen.renderWilderness(runtime, world)
             while (true) {
                 val command = input.readCommand()
-                when (command) {
-                    null,
-                    'X',
-                    -> return
-                    '8',
-                    'N',
-                    -> party = move(party, world, 0, -1, screen)
-                    '2',
-                    -> party = move(party, world, 0, 1, screen)
-                    '4',
-                    'W',
-                    -> party = move(party, world, -1, 0, screen)
-                    '6',
-                    -> party = move(party, world, 1, 0, screen)
-                    ' ' -> party = party.passTurn()
-                    '?' -> printHelp(screen)
-                    'T' -> screen.showStaticScreen("title")
-                    'E' -> party = enterTown(party, input, screen)
-                    '\n' -> Unit
-                    else -> screen.writeText(listOf("Unknown command '$command'.", "Press ? for commands."))
+                val redrawWilderness =
+                    when {
+                        command == null -> return
+                        commands.matches("quit", command) -> return
+                        commands.matches("moveNorth", command) -> {
+                            runtime = runtime.withParty(move(runtime.party, world, 0, -1, screen))
+                            true
+                        }
+                        commands.matches("moveSouth", command) -> {
+                            runtime = runtime.withParty(move(runtime.party, world, 0, 1, screen))
+                            true
+                        }
+                        commands.matches("moveWest", command) -> {
+                            runtime = runtime.withParty(move(runtime.party, world, -1, 0, screen))
+                            true
+                        }
+                        commands.matches("moveEast", command) -> {
+                            runtime = runtime.withParty(move(runtime.party, world, 1, 0, screen))
+                            true
+                        }
+                        commands.matches("pass", command) -> {
+                            runtime = runtime.withParty(runtime.party.passTurn())
+                            true
+                        }
+                        commands.matches("redraw", command) -> true
+                        commands.matches("help", command) -> {
+                            printHelp(screen)
+                            false
+                        }
+                        commands.matches("save", command) -> {
+                            saveRuntime(runtime, saveFile, screen)
+                            false
+                        }
+                        commands.matches("viewParty", command) -> {
+                            screen.writeText(StandalonePartyPages.partyLines(content, runtime.party))
+                            false
+                        }
+                        commands.matches("journal", command) -> {
+                            screen.writeText(StandalonePartyPages.journalLines(content, runtime.party))
+                            false
+                        }
+                        commands.matches("enter", command) -> {
+                            runtime = runtime.withParty(enterTown(runtime.party, input, screen))
+                            true
+                        }
+                        commands.matches("readyWeapon", command) -> {
+                            screen.writeText(listOf("Ready weapon is not implemented in standalone runtime yet."))
+                            false
+                        }
+                        commands.matches("readyArmor", command) -> {
+                            screen.writeText(listOf("Ready armor is not implemented in standalone runtime yet."))
+                            false
+                        }
+                        commands.matches("removeWeapon", command) -> {
+                            screen.writeText(listOf("Remove weapon is not implemented in standalone runtime yet."))
+                            false
+                        }
+                        commands.matches("removeArmor", command) -> {
+                            screen.writeText(listOf("Remove armor is not implemented in standalone runtime yet."))
+                            false
+                        }
+                        commands.matches("drop", command) -> {
+                            screen.writeText(listOf("Drop item is not implemented in standalone runtime yet."))
+                            false
+                        }
+                        commands.matches("camp", command) -> {
+                            screen.writeText(listOf("Camp is not implemented in standalone runtime yet."))
+                            false
+                        }
+                        commands.matches("hunt", command) -> {
+                            screen.writeText(listOf("Hunt is not implemented in standalone runtime yet."))
+                            false
+                        }
+                        commands.matches("castSpell", command) -> {
+                            screen.writeText(listOf("Cast spell is not implemented in standalone runtime yet."))
+                            false
+                        }
+                        commands.matches("quaff", command) -> {
+                            screen.writeText(listOf("Quaff is not implemented in standalone runtime yet."))
+                            false
+                        }
+                        command == '\n' -> false
+                        else -> {
+                            screen.writeText(listOf("Unknown command '$command'.", "Press ? for commands."))
+                            false
+                        }
+                    }
+                if (redrawWilderness) {
+                    screen.renderWilderness(runtime, world)
                 }
-                screen.renderWilderness(state, party, world)
                 if (input.exhausted) return
             }
         }
@@ -236,13 +339,24 @@ class StandaloneCompiledRuntime private constructor(
             listOf(
                 "Move with 8/2/4/6 or arrows.",
                 "E enters a town or site.",
+                "S saves this wilderness state.",
+                "! redraws the wilderness view.",
                 "Space waits in place.",
                 "X exits this compiled runtime.",
                 "",
-                "Dungeon, castle, battle, save/load,",
+                "Dungeon, castle, battle,",
                 "and more host services are next here.",
             ),
         )
+    }
+
+    private fun saveRuntime(
+        runtime: StandaloneRuntimeState,
+        saveFile: File,
+        screen: CompiledAnsiScreen,
+    ) {
+        StandaloneCompiledSave.write(saveFile, runtime, bundleContentHash, content)
+        screen.writeText(listOf("Game saved.", saveFile.path))
     }
 
     private fun enterTown(
@@ -301,10 +415,6 @@ class StandaloneCompiledRuntime private constructor(
         return StandaloneScriptExecutor(content, systems.realm, input, screen, party).execute(program.instructions)
     }
 
-    private fun CompiledStateImage.activeParty(): CompiledPartyImage =
-        parties.firstOrNull { it.id == realm.activeParty }
-            ?: error("state ${slug(state)} has no active party ${realm.activeParty}")
-
     private fun stateBySlug(slug: String): CompiledStateImage {
         val stateRef = content.ref(CompiledHandleKind.State, slug)
         return bundle.states.firstOrNull { it.state == stateRef } ?: error("unknown compiled state $slug")
@@ -320,16 +430,59 @@ class StandaloneCompiledRuntime private constructor(
             StandaloneCompiledRuntime(
                 bundle = bundleFile.readExternalCompiledGameBundle(),
                 systems = bundleFile.readExternalRuntimeSystems(),
+                bundleContentHash = bundleFile.readExternalCompiledBundleContentHash(),
+            )
+    }
+}
+
+internal data class StandaloneRuntimeState(
+    val stateSlug: String,
+    val state: CompiledHandleRef,
+    val day: Int,
+    val hour: Int,
+    val minute: Int,
+    val currentMap: CompiledHandleRef,
+    val currentMode: RuntimeMode,
+    val currentTown: CompiledHandleRef?,
+    val lastTerrain: CompiledHandleRef?,
+    val party: StandaloneParty,
+) {
+    fun withParty(party: StandaloneParty): StandaloneRuntimeState = copy(party = party)
+
+    companion object {
+        fun from(
+            state: CompiledStateImage,
+            content: CompiledContentBundle,
+        ): StandaloneRuntimeState =
+            StandaloneRuntimeState(
+                stateSlug = content.slug(state.state),
+                state = state.state,
+                day = state.realm.day,
+                hour = state.realm.hour,
+                minute = state.realm.minute,
+                currentMap = state.realm.currentMap,
+                currentMode = state.realm.currentMode,
+                currentTown = state.realm.currentTown,
+                lastTerrain = state.realm.lastTerrain,
+                party = StandaloneParty.from(content, state.activeParty(), state.realm.rngState),
             )
     }
 }
 
 internal data class StandaloneParty(
+    val id: CompiledHandleRef,
+    val playerString: Int,
     val name: String,
     val position: GridPoint,
+    val facing: Facing?,
     val resources: PartyResources,
+    val counters: CompiledPartyCounters,
+    val flags: List<CompiledHandleRef>,
+    val milestones: List<CompiledHandleRef>,
     val inventory: List<CompiledInventorySlot>,
     val members: List<CompiledPartyMember>,
+    val visitedNpcs: List<CompiledNpcVisit>,
+    val journal: List<CompiledJournalEntry>,
     val rngState: Long?,
 ) {
     fun passTurn(): StandaloneParty = copy(resources = resources.copy(timeLeft = max(0, resources.timeLeft - 1)))
@@ -379,8 +532,8 @@ internal data class StandaloneParty(
 
     companion object {
         fun from(
-            party: CompiledPartyImage,
             content: CompiledContentBundle,
+            party: CompiledPartyImage,
             rngState: Long?,
         ): StandaloneParty {
             val position =
@@ -389,11 +542,19 @@ internal data class StandaloneParty(
                     is CompiledWorldPosition.Town -> GridPoint(0, 0)
                 }
             return StandaloneParty(
+                id = party.id,
+                playerString = party.playerString,
                 name = content.strings.value(party.nameString),
                 position = position,
+                facing = party.facing,
                 resources = party.resources,
+                counters = party.counters,
+                flags = party.flags,
+                milestones = party.milestones,
                 inventory = party.inventory,
                 members = party.members,
+                visitedNpcs = party.visitedNpcs,
+                journal = party.journal,
                 rngState = rngState,
             )
         }
@@ -419,7 +580,8 @@ internal class StandaloneInput(
         val scriptedCommand = readScriptedCommand()
         if (scriptedCommand != null) return scriptedCommand
         if (scripted != null) return null
-        return terminal.readKeyToken()?.firstOrNull()?.uppercaseChar()
+        val token = terminal.readKeyToken() ?: return null
+        return token.firstOrNull()?.uppercaseChar() ?: '\n'
     }
 
     fun readInt(maxDigits: Int = 6): Int? {
@@ -627,7 +789,7 @@ internal class StandaloneWorldMap(
     }
 }
 
-private fun CompiledContentBundle.ref(
+internal fun CompiledContentBundle.ref(
     kind: CompiledHandleKind,
     slug: String,
 ): CompiledHandleRef {
@@ -637,3 +799,7 @@ private fun CompiledContentBundle.ref(
 
 private fun CompiledContentBundle.townName(ref: CompiledHandleRef): String =
     towns.firstOrNull { town -> town.id == ref }?.let { town -> strings.value(town.nameString) } ?: slug(ref)
+
+private fun CompiledStateImage.activeParty(): CompiledPartyImage =
+    parties.firstOrNull { it.id == realm.activeParty }
+        ?: error("state ${state.kind} has no active party ${realm.activeParty}")

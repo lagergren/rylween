@@ -35,7 +35,7 @@ val rootGameSourceSet: SourceSet = rootSourceSets.named("game").get()
 val mainSourceSet: SourceSet = sourceSets.named("main").get()
 mainSourceSet.apply {
     resources.srcDir(rootProject.layout.projectDirectory.dir("data"))
-    resources.include("ansi/**", "tiles/**", "rylween-doc.txt", "ALTAIR.displayme")
+    resources.include("ansi/**", "tiles/**", "adventurers-of-rylween.md", "ALTAIR.displayme")
     compileClasspath += rootGameSourceSet.output
     runtimeClasspath += rootGameSourceSet.output
 }
@@ -51,7 +51,7 @@ val bundleApp: SourceSet by sourceSets.creating {
         "rylween/frontend/terminal/**",
     )
     resources.srcDir(rootProject.layout.projectDirectory.dir("data"))
-    resources.include("ansi/**", "tiles/**", "rylween-doc.txt", "ALTAIR.displayme")
+    resources.include("ansi/**", "tiles/**", "adventurers-of-rylween.md", "ALTAIR.displayme")
     runtimeClasspath += output + compileClasspath
 }
 

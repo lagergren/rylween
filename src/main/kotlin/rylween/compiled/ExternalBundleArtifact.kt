@@ -119,6 +119,12 @@ fun ByteArray.readExternalCompiledGameBundle(): CompiledGameBundle =
 /** Reads the J1 strict JSON artifact file back into the typed compiled bundle model. */
 fun File.readExternalCompiledGameBundle(): CompiledGameBundle = readBytes().readExternalCompiledGameBundle()
 
+/** Reads and verifies only the J1 strict JSON artifact content hash. */
+fun ByteArray.readExternalCompiledBundleContentHash(): String = readExternalBundleEnvelope(decodeToString()).contentHash
+
+/** Reads and verifies only the J1 strict JSON artifact file content hash. */
+fun File.readExternalCompiledBundleContentHash(): String = readBytes().readExternalCompiledBundleContentHash()
+
 /**
  * Reads the J1 strict JSON artifact into the runtime-facing Kotlin game model.
  *
@@ -216,8 +222,22 @@ data class ExternalRuntimeSystems(
     val commandGroups: List<String>,
     val promptGroups: List<String>,
     val castles: List<String>,
+    val commands: Map<String, List<ExternalRuntimeCommand>>,
     val realm: ExternalRuntimeRealm,
     val presentation: ExternalRuntimePresentation,
+)
+
+/** One command binding row from the stable runtime-system section. */
+data class ExternalRuntimeCommand(
+    val action: String,
+    val binding: ExternalRuntimeInputBinding,
+)
+
+/** Portable input binding row consumed by direct bundle runtimes. */
+data class ExternalRuntimeInputBinding(
+    val primary: String,
+    val aliases: List<String>,
+    val label: String,
 )
 
 /** Realm-wide runtime constants consumed by standalone bundle runtimes. */
@@ -1351,11 +1371,12 @@ private class ExternalRuntimeSystemsReader(
                 .requiredObject(ExternalBundleSectionId.RuntimeSystems.jsonName)
         systems.rejectReflectiveTypeMarkers("runtimeSystems")
         val commands = systems.requiredObject("commands")
+        val commandGroups = commands.entries.associate { (name, value) -> name to value.readCommandGroup(name) }
         val prompts = systems.requiredObject("prompts")
         val castles = systems.requiredArray("castles")
         return ExternalRuntimeSystems(
             schemaVersion = systems.requiredInt("schemaVersion"),
-            commandGroups = commands.entries.map { it.first },
+            commandGroups = commandGroups.keys.toList(),
             promptGroups =
                 prompts.requiredArray("groups").values.map { group ->
                     group.asObject("prompt group").requiredString("group")
@@ -1364,10 +1385,32 @@ private class ExternalRuntimeSystemsReader(
                 castles.values.map { castle ->
                     castle.asObject("castle").requiredString("id")
                 },
+            commands = commandGroups,
             realm = systems.requiredObject("realm").readRealm(),
             presentation = systems.requiredObject("presentation").readPresentation(),
         )
     }
+
+    private fun JsonValue.readCommandGroup(name: String): List<ExternalRuntimeCommand> =
+        when (this) {
+            is JsonNull -> emptyList()
+            is JsonArray ->
+                values.map { row ->
+                    val obj = row.asObject("runtime command $name")
+                    ExternalRuntimeCommand(
+                        action = obj.requiredString("action"),
+                        binding = obj.requiredObject("binding").readBinding(),
+                    )
+                }
+            else -> error("expected command array for $name")
+        }
+
+    private fun JsonObject.readBinding(): ExternalRuntimeInputBinding =
+        ExternalRuntimeInputBinding(
+            primary = requiredString("primary"),
+            aliases = requiredArray("aliases").values.map { value -> value.asString("binding alias") },
+            label = requiredString("label"),
+        )
 
     private fun JsonObject.readRealm(): ExternalRuntimeRealm =
         ExternalRuntimeRealm(

@@ -109,13 +109,16 @@ Now, when you have decided you want to keep some good values, enter a name
 for this character. Once again, names with fantasy touch will create a
 better atmosphere during the game.
 
-Select a race for this character:
-
 ## Races
+
+Select a race for your character.
 
 ### Human
 
-Well. I hope I don't need to explain this one. (except maybe for Alex May).
+Well, I hope I don't need to explain this one (except maybe for Alex May).
+Humans a versatile range, who can specialize into any character class,
+eventually overcoming their their inherent limitations. Most of the
+inhabitants of Rylween are human.
 
 ### Dwarf
 
@@ -123,16 +126,20 @@ Small stout bearded humanoids. They make excellent fighters.
 
 ### Elf
 
-Tall slender humanoids. Excellent rangers or maybe mages.
+Tall slender humanoids. Excellent rangers or mages. Elves are spiritual
+creatures, and you also see elven priests, since the elf kind is the
+most ancient of races, and are connected to the history or creation and
+the gods that sculpted Rylween from primordial chaus.
 
 ### Halflings
 
 Short humanoids with hairy feet. Excellent thieves, and their fighting
-skill is not to be underestimated.
-
-Next, pick a class for the character:
+skill is not to be underestimated. Halflings have an innate ability to
+find what is hidden and avoid being detected.
 
 ## Classes
+
+Next, pick a class for the character.
 
 ### Fighter
 
@@ -153,24 +160,29 @@ spellcasting. Mage spells are offensive and can only be used in battle.
 
 ### Priest
 
-Priests are servants under one of Rylween's many gods. They also know
+Priests are servants under one of many gods of Rylween. They also know
 magic (but not the same kind as mages). Their spells are defensive and
 can only be used when not in combat.
 
 ### Bard
 
-Bards are experts in telling stories and singing traveller's tunes. A bard
+Bards are experts in telling stories and singing traveler's tunes. A bard
 is also often quite a fearsome fighter. Having a bard in your party will
-make you popular in Rylween's many taverns. Bards have no magic skill.
+make you popular in the many taverns of Rylween. This means that you may be
+able to acquire information that otherwise would be hidden from you.
+Bards have no magic skill, but there are many benefits to a good reputation.
 
 ### Ranger
 
 Lonely hunters. Rangers are almost as good warriors as fighters. They can
-sometimes trap wild animals for the party to eat. Rangers have no magic
-skill.
+sometimes trap wild animals for the party to eat. This can be an important
+skill when you are stranded in the wilderness, far away from any settlement
+or place where you can get food. Rangers have no magic skill.
 
-Your initial game will now be saved. Select 'continue saved game' from
-the guild menu.
+## Starting the Game
+
+After party creation, your initial game will now be saved. Select 'continue
+saved game' from the guild menu to start playing.
 
 ## The Map Screen
 
@@ -180,17 +192,16 @@ is to the north, the terrain below to the south and so on. The different
 terrain types are:
 
 ```text
-/\    =  Mountains. High impenetrable peaks.
-^^    =  Foothills.
-~~    =  Water. Impenetrable.
-gg    =  Forests.
-..    =  Plainland.
-%%    =  Swamps.
-::    =  Deserts.
-TT    =  Towne.
-HH    =  Hut.
-CC    =  Castle (there is only one castle, and I wouldn't enter it that
-         soon if I were you).
+/\    =  Mountains. High peaks (impenetrable)
+^^    =  Foothills
+~~    =  Water (impenetrable)
+gg    =  Forests
+..    =  Plainland
+%%    =  Swamps
+::    =  Deserts
+TT    =  Towns
+HH    =  Huts
+CC    =  Castles (there is only one castle, and I wouldn't enter it that soon if I were you)
 ```
 
 Pressing '?' will bring up a control summary. Here is a more verbose
@@ -220,7 +231,7 @@ animal for you to eat. This is good if you are starving and out of food.
 
 ### J = View Journal
 
-View the traveller's journal where all important coordinates and such
+View the traveler's journal where all important coordinates and such
 are recorded, so that you don't need to write them down. Nice one.
 
 ### L = Leave Item
@@ -277,6 +288,10 @@ were just robbed of all your belongings. Just exit and restore the last save.
 Priest magic. Only the priest knows about his art. He wouldn't tell me :)
 - But do experiment. I don't want to reveal all.
 
+### ! - Redraw the Screen
+
+This redraws the screen, should you encounter any glitches in updating graphics.
+
 ### Movement
 
 ```text
@@ -287,8 +302,6 @@ Priest magic. Only the priest knows about his art. He wouldn't tell me :)
 6 = Move East (or arrow right)
 
 2 = Move South (or arrow down)
-
-! = Redraw Screen
 ```
 
 ## The Four Towns of Rylween
