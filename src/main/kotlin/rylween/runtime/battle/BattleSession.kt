@@ -14,7 +14,6 @@ import rylween.dsl.CombatActionKind
 import rylween.dsl.CombatActionModel
 import rylween.dsl.CombatActionRequirement
 import rylween.dsl.CombatSystemModel
-import rylween.dsl.DslDefaultFormulas
 import rylween.dsl.DslDefaultSpells
 import rylween.dsl.EncounterTier
 import rylween.dsl.FormulaId
@@ -602,7 +601,7 @@ data class BattleSession(
             copy(runtime = hitDraw.runtime).copy(
                 step =
                     messageStep(
-                        BattlePromptText.attackMiss(member.name),
+                        BattlePromptText.attackMiss(battle.text, member.name),
                         nextAfterMemberAction(memberIndex, encounter),
                     ),
             )
@@ -816,9 +815,9 @@ data class BattleSession(
                                 dead = target.dead || nextHp == 0,
                             )
                         nextRuntime = nextRuntime.withActiveMember(targetIndex, nextTarget)
-                        texts += BattlePromptText.monsterHit(nextEncounter.monster.name, target.name, damage, nextHp == 0)
+                        texts += BattlePromptText.monsterHit(battle.text, nextEncounter.monster.name, target.name, damage, nextHp == 0)
                     } else {
-                        texts += BattlePromptText.monsterMiss(nextEncounter.monster.name, target.name)
+                        texts += BattlePromptText.monsterMiss(battle.text, nextEncounter.monster.name, target.name)
                     }
                 }
             }
@@ -1005,7 +1004,7 @@ data class BattleSession(
             val bannerImage = bannerDraw?.value?.let { battle.opening.banners[it] }
             val countDraw = (bannerDraw?.runtime ?: runtime).drawRandom(1, countMax)
             val count = countDraw.value.coerceAtLeast(monster.count.first).coerceAtMost(battle.encounterFoeCountMax)
-            val hpRange = countDraw.runtime.scaledEncounterHpRange(monster, content.formulas)
+            val hpRange = countDraw.runtime.scaledEncounterHpRange(monster, battle, content.formulas)
             var hpRuntime = countDraw.runtime
             val hitPoints =
                 buildList {
@@ -1422,6 +1421,15 @@ private class CombatScriptRunner(
                                 TextPart.CreationHealth,
                                 TextPart.CreationWisdom,
                                 TextPart.CreationCharisma,
+                                TextPart.BattleFoeDisplayName,
+                                TextPart.BattleAttackerName,
+                                TextPart.BattleTargetName,
+                                TextPart.BattleDamage,
+                                TextPart.BattleExperience,
+                                TextPart.BattleGold,
+                                TextPart.BattleLootName,
+                                TextPart.BattleLevelMemberName,
+                                TextPart.BattleLevelsGained,
                                 -> part.fallbackText()
                                 // CPD-ON
                             }
@@ -1732,7 +1740,7 @@ object BattlePromptText {
         combineTextBlocks(
             text.encounterBanner,
             text.youFace,
-            inlineText(encounter.foeDisplayName(), ""),
+            text.foeDisplayName.withBattleValues(TextPart.BattleFoeDisplayName to encounter.foeDisplayName()),
             text.fight,
             text.run,
         )
@@ -1797,7 +1805,7 @@ object BattlePromptText {
     ): TextBlock =
         combineTextBlocks(
             text.stillFace,
-            inlineText(encounter.foeDisplayName(), ""),
+            text.foeDisplayName.withBattleValues(TextPart.BattleFoeDisplayName to encounter.foeDisplayName()),
             text.fight,
             text.run,
         )
@@ -1809,31 +1817,47 @@ object BattlePromptText {
         killed: Boolean,
     ): List<TextBlock> =
         buildList {
-            add(inlineText("$attackerName hits for"))
-            add(inlineText("$damage damage pts!"))
+            add(
+                text.playerHit.withBattleValues(
+                    TextPart.BattleAttackerName to attackerName,
+                    TextPart.BattleDamage to damage.toString(),
+                ),
+            )
             if (killed) add(text.killed)
         }
 
-    fun attackMiss(attackerName: String): TextBlock = inlineText("$attackerName misses!")
+    fun attackMiss(
+        text: BattleTextModel,
+        attackerName: String,
+    ): TextBlock = text.playerMiss.withBattleValues(TextPart.BattleAttackerName to attackerName)
 
     fun monsterHit(
+        text: BattleTextModel,
         monsterName: String,
         targetName: String,
         damage: Int,
         killed: Boolean,
-    ): TextBlock =
-        inlineText(
-            "$monsterName attacks",
-            "$targetName!",
-            "And hits for",
-            "$damage damage pts!!!",
-            if (killed) "\u001B[31m$targetName DIES!!!\u001B[37m" else "",
-        )
+    ): List<TextBlock> =
+        buildList {
+            add(
+                text.monsterHit.withBattleValues(
+                    TextPart.BattleAttackerName to monsterName,
+                    TextPart.BattleTargetName to targetName,
+                    TextPart.BattleDamage to damage.toString(),
+                ),
+            )
+            if (killed) add(text.memberDeath.withBattleValues(TextPart.BattleTargetName to targetName))
+        }
 
     fun monsterMiss(
+        text: BattleTextModel,
         monsterName: String,
         targetName: String,
-    ): TextBlock = inlineText("$monsterName attacks", "$targetName!", "Blow misses!")
+    ): TextBlock =
+        text.monsterMiss.withBattleValues(
+            TextPart.BattleAttackerName to monsterName,
+            TextPart.BattleTargetName to targetName,
+        )
 
     fun monsterCasts(monsterName: String): TextBlock = inlineText("$monsterName casts")
 
@@ -1846,11 +1870,48 @@ object BattlePromptText {
     ): List<TextBlock> =
         buildList {
             add(text.victoryBested)
-            add(combineTextBlocks(text.victoryEachSurvivor, inlineText("$experience experience pts", "and $gold gold pieces.", "")))
-            lootName?.let { add(combineTextBlocks(text.victoryFoundObject, inlineText("$it."))) }
-            levelGains.forEach { gain ->
-                add(inlineText("${gain.memberName} gains >${gain.levels}<", "experience levels."))
+            add(
+                combineTextBlocks(
+                    text.victoryEachSurvivor,
+                    text.victoryReward.withBattleValues(
+                        TextPart.BattleExperience to experience.toString(),
+                        TextPart.BattleGold to gold.toString(),
+                    ),
+                ),
+            )
+            lootName?.let {
+                add(
+                    combineTextBlocks(
+                        text.victoryFoundObject,
+                        text.victoryLoot.withBattleValues(TextPart.BattleLootName to it),
+                    ),
+                )
             }
+            levelGains.forEach { gain ->
+                add(
+                    text.levelGain.withBattleValues(
+                        TextPart.BattleLevelMemberName to gain.memberName,
+                        TextPart.BattleLevelsGained to gain.levels.toString(),
+                    ),
+                )
+            }
+        }
+
+    private fun TextBlock.withBattleValues(vararg values: Pair<TextPart, String>): TextBlock = withBattleValues(values.toMap())
+
+    private fun TextBlock.withBattleValues(values: Map<TextPart, String>): TextBlock =
+        when (this) {
+            is TextBlock.Inline,
+            is TextBlock.Ref,
+            -> this
+            is TextBlock.Structured ->
+                TextBlock.Inline(
+                    lines.map { line ->
+                        line.parts.joinToString(separator = "") { part ->
+                            values[part] ?: part.fallbackText()
+                        }
+                    },
+                )
         }
 }
 
@@ -1883,6 +1944,7 @@ private fun RuntimeSessionState.withActiveMember(
 
 private fun RuntimeSessionState.scaledEncounterHpRange(
     monster: MonsterModel,
+    battle: StandardBattleModel,
     formulas: List<FormulaModel>,
 ): IntRange {
     val firstLevel = activeParty.members.firstOrNull()?.level ?: 0
@@ -1900,8 +1962,8 @@ private fun RuntimeSessionState.scaledEncounterHpRange(
             "party_avg" to partyAverage,
             "first_level" to firstLevel,
         )
-    val min = formulas.evalFormula(DslDefaultFormulas.encounterH1Scaled, bindings)
-    val max = formulas.evalFormula(DslDefaultFormulas.encounterH2Scaled, bindings)
+    val min = formulas.evalFormula(battle.encounterHitPointMinFormula, bindings)
+    val max = formulas.evalFormula(battle.encounterHitPointMaxFormula, bindings)
     return min.coerceAtMost(max)..max
 }
 

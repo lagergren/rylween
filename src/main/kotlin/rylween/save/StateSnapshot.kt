@@ -3036,6 +3036,15 @@ private class RuntimeStateSnapshotParser(
             "CreationHealth" -> TextPart.CreationHealth
             "CreationWisdom" -> TextPart.CreationWisdom
             "CreationCharisma" -> TextPart.CreationCharisma
+            "BattleFoeDisplayName" -> TextPart.BattleFoeDisplayName
+            "BattleAttackerName" -> TextPart.BattleAttackerName
+            "BattleTargetName" -> TextPart.BattleTargetName
+            "BattleDamage" -> TextPart.BattleDamage
+            "BattleExperience" -> TextPart.BattleExperience
+            "BattleGold" -> TextPart.BattleGold
+            "BattleLootName" -> TextPart.BattleLootName
+            "BattleLevelMemberName" -> TextPart.BattleLevelMemberName
+            "BattleLevelsGained" -> TextPart.BattleLevelsGained
             else -> unexpected("text part token $tokenName")
         }
 
@@ -4504,6 +4513,15 @@ private class RuntimeStateSnapshotWriter {
             TextPart.CreationHealth -> textPartToken("CreationHealth")
             TextPart.CreationWisdom -> textPartToken("CreationWisdom")
             TextPart.CreationCharisma -> textPartToken("CreationCharisma")
+            TextPart.BattleFoeDisplayName -> textPartToken("BattleFoeDisplayName")
+            TextPart.BattleAttackerName -> textPartToken("BattleAttackerName")
+            TextPart.BattleTargetName -> textPartToken("BattleTargetName")
+            TextPart.BattleDamage -> textPartToken("BattleDamage")
+            TextPart.BattleExperience -> textPartToken("BattleExperience")
+            TextPart.BattleGold -> textPartToken("BattleGold")
+            TextPart.BattleLootName -> textPartToken("BattleLootName")
+            TextPart.BattleLevelMemberName -> textPartToken("BattleLevelMemberName")
+            TextPart.BattleLevelsGained -> textPartToken("BattleLevelsGained")
         }
     }
 

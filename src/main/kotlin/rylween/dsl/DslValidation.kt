@@ -168,6 +168,18 @@ private val TownEntryTaxTextBindings: Set<TextPart> =
         TextPart.TownTaxPercent,
         TextPart.TownTaxAmount,
     )
+private val BattleTextBindings: Set<TextPart> =
+    setOf(
+        TextPart.BattleFoeDisplayName,
+        TextPart.BattleAttackerName,
+        TextPart.BattleTargetName,
+        TextPart.BattleDamage,
+        TextPart.BattleExperience,
+        TextPart.BattleGold,
+        TextPart.BattleLootName,
+        TextPart.BattleLevelMemberName,
+        TextPart.BattleLevelsGained,
+    )
 private val CharacterCreationStatsTextBindings: Set<TextPart> =
     setOf(
         TextPart.CreationMemberNumber,
@@ -422,6 +434,7 @@ fun validateCombatSystem(
         check(battle.monsterRound.melee.damageMin >= 0) {
             "standard battle monster melee damage minimum must be non-negative"
         }
+        check(battle.roundLimit > 0) { "standard battle round limit must be positive" }
         check(battle.encounterFoeCountMax > 0) { "standard battle foe count max must be positive" }
 
         check(battle.rewards in rewardIds) {
@@ -437,6 +450,7 @@ private fun validateBattleText(text: BattleTextModel) {
     listOf(
         "encounter banner" to text.encounterBanner,
         "you-face" to text.youFace,
+        "foe display name" to text.foeDisplayName,
         "still-face" to text.stillFace,
         "fight prompt" to text.fight,
         "run prompt" to text.run,
@@ -456,13 +470,22 @@ private fun validateBattleText(text: BattleTextModel) {
         "rest gain hits" to text.restGainHits,
         "defend stance" to text.defendStance,
         "battle cry" to text.battleCry,
+        "player hit" to text.playerHit,
+        "player miss" to text.playerMiss,
+        "monster hit" to text.monsterHit,
+        "monster miss" to text.monsterMiss,
+        "member death" to text.memberDeath,
         "killed" to text.killed,
         "party held" to text.partyHeld,
+        "party defeated" to text.partyDefeated,
         "victory bested" to text.victoryBested,
         "victory each survivor" to text.victoryEachSurvivor,
+        "victory reward" to text.victoryReward,
         "victory found object" to text.victoryFoundObject,
+        "victory loot" to text.victoryLoot,
+        "level gain" to text.levelGain,
     ).forEach { (label, block) ->
-        validateTextBlock(block, "standard battle text $label")
+        validateTextBlock(block, "standard battle text $label", allowedRuntimeBindings = BattleTextBindings)
     }
 }
 
@@ -1104,6 +1127,15 @@ private fun validateTextBlock(
             TextPart.CreationHealth,
             TextPart.CreationWisdom,
             TextPart.CreationCharisma,
+            TextPart.BattleFoeDisplayName,
+            TextPart.BattleAttackerName,
+            TextPart.BattleTargetName,
+            TextPart.BattleDamage,
+            TextPart.BattleExperience,
+            TextPart.BattleGold,
+            TextPart.BattleLootName,
+            TextPart.BattleLevelMemberName,
+            TextPart.BattleLevelsGained,
             ->
                 check(part in allowedRuntimeBindings) {
                     "$label uses runtime text binding ${part.fallbackText()}, but this text is not rendered with that binding"

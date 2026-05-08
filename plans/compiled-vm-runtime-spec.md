@@ -143,6 +143,22 @@ implement equivalent semantics.
 
 Compiled scripts are intentionally smaller than the whole game. They call out
 to host services for systems that own long-lived state or interaction loops.
+In this document, a host is the runtime environment around the compiled script
+VM: it owns input, rendering, persistence, RNG, mutable game state, and
+long-running gameplay sessions. A host must not invent game-specific prose or a
+second set of rules when the DSL already declares them. For example, battle text
+such as encounter banners and victory narration belongs to the compiled
+`standardBattle`/text tables, while battle math belongs to the reusable compiled
+battle rules. The host's job is to execute those tables and return typed
+results to the VM.
+
+The stable JSON bundle exposes those battle tables through
+`sections.runtimeSystems.combat.standardBattle`, not through the reflective
+Kotlin runtime facade. A non-JVM runtime should read that row for opening
+bindings, player action bindings, authored battle text templates, reward and
+encounter HP formula ids, round limit, round tuning, victory image, and native-service
+dependencies; `runtimeSystems.combat.leveling` supplies the level-up thresholds
+and per-class growth needed after battle rewards.
 
 A full runtime must provide host systems for:
 
@@ -267,7 +283,9 @@ Implement:
   milestone behavior, full-inventory prompts, decline/broke/deal text, and RNG.
 - Battle loop: encounter setup, opening choice, combat rounds, member/monster
   targeting, spells, item use, morale/run/death/victory, rewards, level-up, and
-  game-over state.
+  game-over state. The implementation must consume the compiled standard-battle
+  contract and authored text/reward/formula/item/spell rows; hard-coded strings
+  or one-off combat loops are not a conforming battle host.
 - Dungeon loop: depth movement, torch checks, event plan generation,
   fixed/random events, random encounters, equipment/item/spell commands, saves
   at allowed dungeon boundaries, leave/ascend/descend behavior, and

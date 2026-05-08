@@ -791,6 +791,15 @@ enum class CompiledRuntimeTextPart {
     CreationHealth,
     CreationWisdom,
     CreationCharisma,
+    BattleFoeDisplayName,
+    BattleAttackerName,
+    BattleTargetName,
+    BattleDamage,
+    BattleExperience,
+    BattleGold,
+    BattleLootName,
+    BattleLevelMemberName,
+    BattleLevelsGained,
 }
 
 sealed interface CompiledViewCommand {
@@ -1902,6 +1911,15 @@ private class CompiledBundleCompiler(
             TextPart.CreationHealth -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationHealth)
             TextPart.CreationWisdom -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationWisdom)
             TextPart.CreationCharisma -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationCharisma)
+            TextPart.BattleFoeDisplayName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleFoeDisplayName)
+            TextPart.BattleAttackerName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleAttackerName)
+            TextPart.BattleTargetName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleTargetName)
+            TextPart.BattleDamage -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleDamage)
+            TextPart.BattleExperience -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleExperience)
+            TextPart.BattleGold -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleGold)
+            TextPart.BattleLootName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleLootName)
+            TextPart.BattleLevelMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleLevelMemberName)
+            TextPart.BattleLevelsGained -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleLevelsGained)
         }
 
     private fun viewCommand(command: ViewCommand): CompiledViewCommand =

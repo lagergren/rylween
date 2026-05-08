@@ -15,6 +15,7 @@ import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.ExternalImageAsset
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalScreenRegion
 import rylween.compiled.ExternalStaticScreen
 import rylween.compiled.ExternalTerminalTerrainStyle
@@ -51,12 +52,8 @@ internal class CompiledAnsiScreen(
     fun bootFrame() {
         classicFrameActive = true
         terminal.writeRaw("${AnsiCodes.CSI}?25l")
-        val frameImage = staticScreenById["frame"]?.image
-        if (frameImage != null) {
-            renderImage(frameImage)
-        } else {
-            terminal.writeRaw("${AnsiCodes.CSI}2J${AnsiCodes.CSI}1;1H")
-        }
+        staticScreenById["frame"]?.image?.let(::renderImage)
+            ?: terminal.writeRaw("${AnsiCodes.CSI}2J${AnsiCodes.CSI}1;1H")
         terminal.writeRaw("${AnsiCodes.FG_WHITE}${AnsiCodes.BG_BLACK}")
         terminal.flush()
     }
@@ -80,7 +77,7 @@ internal class CompiledAnsiScreen(
         ensureClassicFrame()
         renderStatus(runtime)
         renderMap(runtime.party.position, world)
-        writeText(wildernessContextLines(runtime, world))
+        writeText(wildernessContextLines(runtime, world) + systems.wilderness.commandHint.render(runtime))
     }
 
     /** Clears the classic text window and writes the supplied lines inside it. */
@@ -132,16 +129,20 @@ internal class CompiledAnsiScreen(
         world: StandaloneWorldMap,
     ): List<String> =
         buildList {
-            add("Wilderness ${runtime.stateSlug}")
+            add("Wilderness")
             world.terrainAt(runtime.party.position)?.let { terrain -> add("Terrain: ${content.slug(terrain.id).readableSlug()}") }
             content.towns.firstOrNull { town -> town.position == runtime.party.position }?.let { town ->
                 add("At: ${content.strings.value(town.nameString)}")
                 add("Press E to enter.")
             }
-            add("Move: 8/2/4/6 or arrows.")
-            add("S save  C camp  H hunt")
-            add("V party  J journal  ? help")
-            add("X exits this compiled runtime.")
+        }
+
+    private fun ExternalRuntimeTextBlock.render(runtime: StandaloneRuntimeState): List<String> =
+        render { kind ->
+            when (kind) {
+                "partyMemberMax" -> runtime.partyMemberMax.toString()
+                else -> null
+            }
         }
 
     private fun renderImage(imageSlug: String) {
@@ -176,12 +177,12 @@ internal class CompiledAnsiScreen(
         val bottom =
             (0 until 4).joinToString("   ") { index ->
                 val member = party.members.getOrNull(index)
-                if (member == null) {
-                    "H${index + 1}:        "
-                } else {
-                    "H${index + 1}: ${AnsiCodes.FG_YELLOW}${member.hitPoints.current.toString().padStart(3)}/" +
-                        "${member.hitPoints.max.toString().padStart(3)}${AnsiCodes.FG_GREEN}"
-                }
+                member
+                    ?.let { current ->
+                        "H${index + 1}: ${AnsiCodes.FG_YELLOW}${current.hitPoints.current.toString().padStart(3)}/" +
+                            "${current.hitPoints.max.toString().padStart(3)}${AnsiCodes.FG_GREEN}"
+                    }
+                    ?: "H${index + 1}:        "
             }
         goto(statusTop)
         terminal.writeRaw(top)

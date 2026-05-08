@@ -170,6 +170,7 @@ class RylweenCompiledGameLedgerTest {
         check(standardBattle.playerRound.attack.hpDefenseDivisor == 12)
         check(standardBattle.playerRound.defend.cap == 250)
         check(standardBattle.monsterRound.melee.damageDivisor == 6)
+        check(standardBattle.roundLimit == 200)
         check(standardBattle.encounterFoeCountMax == 8)
         check(standardBattle.victoryImage == Images.Backdrop.battleVictory)
         check(standardBattle.rewards == Rewards.standardBattle)
@@ -1373,6 +1374,45 @@ class RylweenCompiledGameLedgerTest {
         }
         check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneWildernessActions.kt").isFile) {
             "standalone compiled runtime must own direct hunt, camp, and upkeep actions"
+        }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledBattleRunner.kt").isFile) {
+            "standalone compiled runtime must own a direct compiled standard-battle runner"
+        }
+        val battleRunnerSource =
+            File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledBattleRunner.kt")
+                .readText()
+        check("runBattleScript" in battleRunnerSource && "CompiledOpcode.AskMonster" in battleRunnerSource) {
+            "standalone compiled battle runner must execute compiled combat item/spell scripts, not just a hard-coded melee loop"
+        }
+        check(!File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneBattleHost.kt").exists()) {
+            "standalone compiled runtime must not grow a one-off hard-coded battle host"
+        }
+        val hardCodedBattleNarration =
+            listOf(
+                "Thou hast bested",
+                "Each survivor gets",
+                "party deals",
+                "Foes deal",
+            )
+        val battleNarrationOffenders =
+            sources.flatMap { file ->
+                val source = file.readText()
+                hardCodedBattleNarration
+                    .filter { text -> text in source }
+                    .map { text -> "${file.invariantSeparatorsPath}: $text" }
+            }
+        check(battleNarrationOffenders.isEmpty()) {
+            "standalone compiled runtime battle text must come from compiled standard-battle content: " +
+                battleNarrationOffenders.joinToString()
+        }
+        val runtimeSpec = File("plans/compiled-vm-runtime-spec.md").readText()
+        check(
+            "compiled standard-battle" in runtimeSpec &&
+                "runtimeSystems.combat.standardBattle" in runtimeSpec &&
+                "contract and authored text/reward/formula/item/spell rows" in runtimeSpec &&
+                "one-off combat loops are not a conforming battle host" in runtimeSpec,
+        ) {
+            "compiled runtime spec must keep the battle host boundary explicit"
         }
         check(File("run-compiled.sh").readText().contains(":compiled-runtime:installCompiledRuntime")) {
             "run-compiled.sh must launch the standalone compiled runtime"

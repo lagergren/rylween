@@ -10,6 +10,7 @@ import rylween.compiled.loadCompiledGame
 import rylween.compiled.readExternalBundleArtifact
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeGame
+import rylween.compiled.readExternalRuntimeSystems
 import rylween.compiled.readExternalRuntimeSystemsSummary
 import rylween.compiled.readNativeSmokeArtifact
 import rylween.compiled.readVerifiedExternalBundleArtifact
@@ -374,6 +375,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 private fun compiledItemRecords(): List<ItemRecordModel> = RylweenCompiledGame.nextDsl.itemCatalog
@@ -2805,6 +2807,12 @@ class RylweenDslValidationTest {
         assertTrue("ydarg" in runtimeSystems.castles)
         val runtimeSystemsJson = artifact.decodeToString().substringAfter("\"runtimeSystems\": ").substringBefore("\n    \"runtimeFacade\"")
         assertFalse("\"_type\"" in runtimeSystemsJson)
+        val runtimeSystemRows = artifact.readExternalRuntimeSystems()
+        val standardBattle = assertNotNull(runtimeSystemRows.combat.standardBattle)
+        assertNotNull(runtimeSystemRows.combat.leveling)
+        assertEquals("standard_battle", standardBattle.rewards)
+        assertEquals(200, standardBattle.roundLimit)
+        assertEquals("encounter_h1_scaled", standardBattle.encounterHitPointMinFormula)
 
         val materialized = artifact.readExternalCompiledGameBundle()
         assertEquals(bundle, materialized)
