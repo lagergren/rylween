@@ -1,22 +1,23 @@
 /**
- * Engine snapshot records for reward child sessions in resumable continuations.
+ * Data-only reward-grant continuation snapshots.
  *
- * `runtime/ScriptContinuation.kt` embeds these snapshots while a compiled or
- * authored script is blocked on reward placement. `save/StateSnapshot.kt` can
- * serialize the records into the strict runtime snapshot DSL for validation,
- * tests, or backend handoff. This is not a frontend policy that permits player
- * saves at reward prompts; save availability stays with the active
- * session/frontend. [RewardGrantSession] remains the live runtime state machine
- * that owns inventory placement behavior.
+ * Active compiled-bundle contracts keep this portable state shape while the
+ * old live reward session implementation is archived under
+ * `legacy/reference-runtime`.
  */
-
 package rylween.runtime.reward
 
 import rylween.dsl.ItemId
-import rylween.dsl.PartyState
-import rylween.dsl.RuntimeContent
 import rylween.dsl.ScriptRewardModel
 import rylween.dsl.TextBlock
+
+/** Stable result categories for a reward grant. */
+enum class RewardGrantStatus {
+    Granted,
+    NeedsDropSlot,
+    InventoryFull,
+    InvalidDropSlot,
+}
 
 /** Portable reward-grant state stored inside a script continuation snapshot. */
 data class RewardGrantSessionSnapshot(
@@ -50,45 +51,3 @@ sealed interface RewardGrantSavedStep {
         val result: RewardGrantResultSnapshot,
     ) : RewardGrantSavedStep
 }
-
-/** Converts a live reward grant into a content-independent snapshot. */
-fun RewardGrantSession.toSnapshot(): RewardGrantSessionSnapshot =
-    RewardGrantSessionSnapshot(
-        reward = reward.copy(gold = null),
-        pendingItems = pendingItems,
-        step = step.toSnapshot(),
-        lastResult = lastResult?.toSnapshot(),
-    )
-
-/** Restores a reward grant from snapshot data and current [party] state. */
-fun RewardGrantSessionSnapshot.toRewardGrantSession(
-    party: PartyState,
-    content: RuntimeContent,
-): RewardGrantSession =
-    RewardGrantSession(
-        reward = reward,
-        party = party,
-        pendingItems = pendingItems,
-        step = step.toRewardGrantStep(party),
-        lastResult = lastResult?.toRewardGrantResult(party),
-        content = content,
-    )
-
-private fun RewardGrantStep.toSnapshot(): RewardGrantSavedStep =
-    when (this) {
-        is RewardGrantStep.DropSlot -> RewardGrantSavedStep.DropSlot(prompt, item, result.toSnapshot())
-        is RewardGrantStep.Message -> RewardGrantSavedStep.Message(text, result.toSnapshot())
-        is RewardGrantStep.Finished -> RewardGrantSavedStep.Finished(result.toSnapshot())
-    }
-
-private fun RewardGrantSavedStep.toRewardGrantStep(party: PartyState): RewardGrantStep =
-    when (this) {
-        is RewardGrantSavedStep.DropSlot -> RewardGrantStep.DropSlot(prompt, item, result.toRewardGrantResult(party))
-        is RewardGrantSavedStep.Message -> RewardGrantStep.Message(text, result.toRewardGrantResult(party))
-        is RewardGrantSavedStep.Finished -> RewardGrantStep.Finished(result.toRewardGrantResult(party))
-    }
-
-private fun RewardGrantResult.toSnapshot(): RewardGrantResultSnapshot = RewardGrantResultSnapshot(status, item, slot)
-
-private fun RewardGrantResultSnapshot.toRewardGrantResult(party: PartyState): RewardGrantResult =
-    RewardGrantResult(status, party, item, slot)

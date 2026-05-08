@@ -1,11 +1,11 @@
 /**
  * Snapshot records for blocked compiled VM continuations.
  *
- * `CompiledVm.kt` owns the live executor state, while this file owns the
- * data-only subset that can be embedded in strict runtime snapshots. Like
- * `runtime/ScriptContinuation.kt`, the snapshot excludes the outer
- * `RuntimeSessionState`; restore code supplies the runtime when it turns the
- * snapshot back into a live [CompiledVmContinuation].
+ * This file owns the data-only subset that can be embedded in strict runtime
+ * snapshots. The old Kotlin live executor implementation is archived under
+ * `legacy/reference-runtime`; active bundle code keeps only the portable frame,
+ * pending-input, and child-request records that other implementations can
+ * validate and resume in their own VM.
  *
  * This is also the recommended cross-language serialization shape. A server,
  * native, or bitmap runtime should store these plain records instead of
@@ -21,19 +21,17 @@ import rylween.compiled.CompiledRandomItemOffer
 import rylween.compiled.CompiledScriptReward
 import rylween.compiled.CompiledShopService
 import rylween.dsl.BuildingId
-import rylween.dsl.EncounterTier
 import rylween.dsl.InputBindingModel
 import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.MonsterId
 import rylween.dsl.RumourTableId
 import rylween.dsl.TextBlock
-import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.wilderness.WildernessDungeonHandoff
 
 /**
- * Saveable subset of [CompiledVmContinuation] for one blocked VM prompt or child request.
+ * Saveable VM continuation for one blocked prompt or child request.
  *
  * [frames] is never empty because a blocked VM must know where to resume after
  * input or child completion. [pending] repeats the root/index/path of the
@@ -55,7 +53,28 @@ data class CompiledVmContinuationSnapshot(
 }
 
 /**
- * Saveable subset of [CompiledVmFrame].
+ * Execution shape for a resumable compiled VM frame.
+ *
+ * Plain blocks can resume directly from their numeric block path. Iteration
+ * bodies carry extra cursor semantics so loops and member iteration continue
+ * after a blocked prompt without replaying earlier iterations.
+ */
+enum class CompiledVmFrameKind {
+    /** Plain instruction block, such as a root, branch, menu option, or text-answer body. */
+    Block,
+
+    /** Direct body block for one `Loop` iteration. */
+    LoopBody,
+
+    /** Direct body block for one `ForEachMember` member index. */
+    ForEachMemberBody,
+
+    /** Direct body block for one `ForEachMonster` monster index. */
+    ForEachMonsterBody,
+}
+
+/**
+ * Saveable subset of a compiled VM frame.
  *
  * The path fields are numeric by design. Do not serialize Kotlin class names or
  * enum-specific property names into save files; another implementation should
@@ -79,7 +98,8 @@ data class CompiledVmFrameSnapshot(
  *
  * Every variant is data-only and frontend-neutral. A terminal can turn a menu
  * into key prompts, a server can turn it into JSON, and a native client can
- * draw buttons; all should resume with the matching [CompiledVmInput] variant.
+ * draw buttons; all should resume with the matching input shape in their own
+ * VM implementation.
  */
 sealed interface CompiledVmPendingInputSnapshot {
     /** Script root that owns the pending input. */
@@ -312,159 +332,7 @@ data class CompiledVmInventorySlotChoiceSnapshot(
     }
 }
 
-/** Converts a live compiled VM continuation into its saveable snapshot record. */
-fun CompiledVmContinuation.toSnapshot(): CompiledVmContinuationSnapshot =
-    CompiledVmContinuationSnapshot(
-        root = root,
-        locals = locals.toSortedMap(),
-        textBindings = textBindings.toSortedMap(),
-        activeInventorySlot = activeInventorySlot,
-        frames = frames.map(CompiledVmFrame::toSnapshot),
-        pending = pending.toSnapshot(),
-    )
-
-/** Restores a live compiled VM continuation from this snapshot and live [runtime]. */
-fun CompiledVmContinuationSnapshot.toContinuation(runtime: RuntimeSessionState): CompiledVmContinuation =
-    CompiledVmContinuation(
-        root = root,
-        runtime = runtime,
-        locals = locals.toSortedMap(),
-        textBindings = textBindings.toSortedMap(),
-        activeInventorySlot = activeInventorySlot,
-        frames = frames.map(CompiledVmFrameSnapshot::toFrame),
-        pending = pending.toPendingInput(),
-    )
-
-private fun CompiledVmFrame.toSnapshot(): CompiledVmFrameSnapshot =
-    CompiledVmFrameSnapshot(
-        blockPath = blockPath,
-        nextIndex = nextIndex,
-        insideLoop = insideLoop,
-        kind = kind,
-        enclosingInsideLoop = enclosingInsideLoop,
-    )
-
-private fun CompiledVmFrameSnapshot.toFrame(): CompiledVmFrame =
-    CompiledVmFrame(
-        blockPath = blockPath,
-        nextIndex = nextIndex,
-        insideLoop = insideLoop,
-        kind = kind,
-        enclosingInsideLoop = enclosingInsideLoop,
-    )
-
-private fun CompiledVmPendingInput.toSnapshot(): CompiledVmPendingInputSnapshot =
-    when (this) {
-        is CompiledVmPendingInput.WaitInput ->
-            CompiledVmPendingInputSnapshot.WaitInput(root, instructionIndex, operandPath, reason, prompt)
-        is CompiledVmPendingInput.Menu ->
-            CompiledVmPendingInputSnapshot.Menu(
-                root = root,
-                instructionIndex = instructionIndex,
-                operandPath = operandPath,
-                prompt = prompt,
-                options = options.map { option -> CompiledVmMenuOptionSnapshot(option.key, option.optionIndex) },
-                hasDefault = hasDefault,
-            )
-        is CompiledVmPendingInput.AskKey ->
-            CompiledVmPendingInputSnapshot.AskKey(root, instructionIndex, operandPath, prompt, localName, bindings)
-        is CompiledVmPendingInput.AskMember ->
-            CompiledVmPendingInputSnapshot.AskMember(root, instructionIndex, operandPath, prompt, localName, filter, accepting, choices)
-        is CompiledVmPendingInput.AskMonster ->
-            CompiledVmPendingInputSnapshot.AskMonster(root, instructionIndex, operandPath, prompt, localName, targetKeys)
-        is CompiledVmPendingInput.AskInventorySlot ->
-            CompiledVmPendingInputSnapshot.AskInventorySlot(
-                root = root,
-                instructionIndex = instructionIndex,
-                operandPath = operandPath,
-                prompt = prompt,
-                localName = localName,
-                firstKey = firstKey,
-                firstSlot = slots.first,
-                lastSlot = slots.last,
-                filter = filter,
-                choices = choices.map { choice -> CompiledVmInventorySlotChoiceSnapshot(choice.key, choice.slot) },
-            )
-        is CompiledVmPendingInput.AskText ->
-            CompiledVmPendingInputSnapshot.AskText(
-                root = root,
-                instructionIndex = instructionIndex,
-                operandPath = operandPath,
-                prompt = prompt,
-                accepted = accepted,
-                caseSensitive = caseSensitive,
-                trim = trim,
-                maxLength = maxLength,
-            )
-        is CompiledVmPendingInput.ChildSession ->
-            CompiledVmPendingInputSnapshot.ChildSession(root, instructionIndex, operandPath, request.toSnapshot())
-    }
-
-private fun CompiledVmPendingInputSnapshot.toPendingInput(): CompiledVmPendingInput =
-    when (this) {
-        is CompiledVmPendingInputSnapshot.WaitInput ->
-            CompiledVmPendingInput.WaitInput(root, instructionIndex, operandPath, reason, prompt)
-        is CompiledVmPendingInputSnapshot.Menu ->
-            CompiledVmPendingInput.Menu(
-                root = root,
-                instructionIndex = instructionIndex,
-                operandPath = operandPath,
-                prompt = prompt,
-                options = options.map { option -> CompiledVmMenuOption(option.key, option.optionIndex) },
-                hasDefault = hasDefault,
-            )
-        is CompiledVmPendingInputSnapshot.AskKey ->
-            CompiledVmPendingInput.AskKey(root, instructionIndex, operandPath, prompt, localName, bindings)
-        is CompiledVmPendingInputSnapshot.AskMember ->
-            CompiledVmPendingInput.AskMember(root, instructionIndex, operandPath, prompt, localName, filter, accepting, choices)
-        is CompiledVmPendingInputSnapshot.AskMonster ->
-            CompiledVmPendingInput.AskMonster(root, instructionIndex, operandPath, prompt, localName, targetKeys)
-        is CompiledVmPendingInputSnapshot.AskInventorySlot ->
-            CompiledVmPendingInput.AskInventorySlot(
-                root = root,
-                instructionIndex = instructionIndex,
-                operandPath = operandPath,
-                prompt = prompt,
-                localName = localName,
-                firstKey = firstKey,
-                slots = firstSlot..lastSlot,
-                filter = filter,
-                choices = choices.map { choice -> CompiledVmInventorySlotChoice(choice.key, choice.slot) },
-            )
-        is CompiledVmPendingInputSnapshot.AskText ->
-            CompiledVmPendingInput.AskText(root, instructionIndex, operandPath, prompt, accepted, caseSensitive, trim, maxLength)
-        is CompiledVmPendingInputSnapshot.ChildSession ->
-            CompiledVmPendingInput.ChildSession(root, instructionIndex, operandPath, request.toRequest())
-    }
-
 private fun CompiledVmPendingInputSnapshot.validatePendingShape() {
     require(instructionIndex >= 0) { "compiled VM pending instructionIndex cannot be negative" }
     require(operandPath.all { segment -> segment >= 0 }) { "compiled VM pending operandPath cannot contain negative segments" }
 }
-
-private fun CompiledVmChildRequest.toSnapshot(): CompiledVmChildRequestSnapshot =
-    when (this) {
-        is CompiledVmChildRequest.Speak -> CompiledVmChildRequestSnapshot.Speak(building)
-        is CompiledVmChildRequest.TellRumour -> CompiledVmChildRequestSnapshot.TellRumour(table)
-        is CompiledVmChildRequest.Encounter -> CompiledVmChildRequestSnapshot.Encounter(monster, mandatory, tier?.slug)
-        is CompiledVmChildRequest.EnterDungeon -> CompiledVmChildRequestSnapshot.EnterDungeon(handoff)
-        is CompiledVmChildRequest.GrantReward -> CompiledVmChildRequestSnapshot.GrantReward(reward, gold)
-        is CompiledVmChildRequest.RandomItemOffer -> CompiledVmChildRequestSnapshot.RandomItemOffer(offer, selectedIndex)
-        is CompiledVmChildRequest.ShopService -> CompiledVmChildRequestSnapshot.ShopService(shop)
-    }
-
-private fun CompiledVmChildRequestSnapshot.toRequest(): CompiledVmChildRequest =
-    when (this) {
-        is CompiledVmChildRequestSnapshot.Speak -> CompiledVmChildRequest.Speak(building)
-        is CompiledVmChildRequestSnapshot.TellRumour -> CompiledVmChildRequest.TellRumour(table)
-        is CompiledVmChildRequestSnapshot.Encounter ->
-            CompiledVmChildRequest.Encounter(
-                monster = monster,
-                mandatory = mandatory,
-                tier = tier?.let(::EncounterTier),
-            )
-        is CompiledVmChildRequestSnapshot.EnterDungeon -> CompiledVmChildRequest.EnterDungeon(handoff)
-        is CompiledVmChildRequestSnapshot.GrantReward -> CompiledVmChildRequest.GrantReward(reward, gold)
-        is CompiledVmChildRequestSnapshot.RandomItemOffer -> CompiledVmChildRequest.RandomItemOffer(offer, selectedIndex)
-        is CompiledVmChildRequestSnapshot.ShopService -> CompiledVmChildRequest.ShopService(shop)
-    }

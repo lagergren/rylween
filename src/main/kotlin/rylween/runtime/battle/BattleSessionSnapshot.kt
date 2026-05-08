@@ -1,27 +1,42 @@
 /**
- * Engine snapshot records used when a script blocks in combat.
+ * Data-only battle continuation snapshots for compiled/runtime state records.
  *
- * `runtime/ScriptContinuation.kt` embeds these snapshots beside authored or
- * compiled parent frames, while `save/StateSnapshot.kt` can render them into
- * the strict runtime snapshot DSL for validation, tests, or backend handoff.
- * This is not a frontend policy that permits player saves during combat; save
- * availability stays with the active session/frontend. The live [BattleSession]
- * still owns combat rules and prompt handling, and this file only records
- * enough host state for another runtime to resume the same battle boundary.
+ * The live Kotlin battle session is archived under `legacy/reference-runtime`.
+ * Active code keeps only these stable records so compiled bundles and external
+ * runtimes can describe a blocked battle boundary without depending on that
+ * old interpreter.
  */
-
 package rylween.runtime.battle
 
-import rylween.dsl.CombatActionRequirement
 import rylween.dsl.EncounterTier
 import rylween.dsl.ImageId
-import rylween.dsl.ItemUseContext
 import rylween.dsl.MonsterId
-import rylween.dsl.PcClass
-import rylween.dsl.RuntimeContent
 import rylween.dsl.TextBlock
 import rylween.dsl.ViewCommand
-import rylween.runtime.RuntimeSessionState
+
+/** Stable result categories for a battle boundary. */
+enum class BattleSessionResultStatus {
+    EncounterStarted,
+    FightSelected,
+    RunEscaped,
+    RunFailed,
+    RunDenied,
+    Victory,
+    PartyDefeated,
+}
+
+/** Portable battle-round state needed to resume a blocked battle boundary. */
+data class BattleRoundState(
+    val currentMemberIndex: Int,
+    val defendCount: Int,
+    val monsterWeaponSkill: Int,
+    val monsterConfused: Boolean = false,
+    val monstersHeld: Boolean = false,
+    val antimagic: Boolean = false,
+    val partyHeld: Boolean = false,
+    val partyConfused: Boolean = false,
+    val actionRetry: Boolean = false,
+)
 
 /** Portable battle session state stored inside a script continuation snapshot. */
 data class BattleSessionSnapshot(
@@ -106,7 +121,10 @@ sealed interface BattleSavedStep {
     object Finished : BattleSavedStep
 }
 
-/** Combat-script continuation record with authored ops recovered from runtime content on restore. */
+/** Script source families that can block inside a battle boundary. */
+enum class CombatScriptSourceKind { Spell, MagicItem, MonsterSpell }
+
+/** Combat-script continuation record with authored ops recovered by the runtime implementation. */
 data class CombatScriptSnapshot(
     val memberIndex: Int?,
     val sourceKind: CombatScriptSourceKind,
@@ -116,139 +134,3 @@ data class CombatScriptSnapshot(
     val locals: Map<String, Int>,
     val activeInventorySlot: Int? = null,
 )
-
-/** Converts a live battle session into a content-independent snapshot. */
-fun BattleSession.toSnapshot(): BattleSessionSnapshot =
-    BattleSessionSnapshot(
-        tier = tier,
-        monster = encounter.monster.id,
-        count = encounter.count,
-        hitPoints = encounter.hitPoints,
-        hitPointMax = encounter.hitPointMax,
-        mandatory = encounter.mandatory,
-        round = round,
-        step = step.toSnapshot(),
-        lastResult = lastResult.toSnapshot(),
-    )
-
-/** Restores a battle session from snapshot data and current authored [content]. */
-fun BattleSessionSnapshot.toBattleSession(
-    runtime: RuntimeSessionState,
-    content: RuntimeContent,
-): BattleSession {
-    val battle = requireNotNull(content.combat.standardBattle) { "standard battle is not configured" }
-    val monsterModel =
-        content.monsters.singleOrNull { candidate -> candidate.id == monster }
-            ?: error("battle snapshot references unknown monster ${monster.slug}")
-    return BattleSession(
-        runtime = runtime,
-        battle = battle,
-        content = content,
-        tier = tier,
-        encounter =
-            BattleMonsterState(
-                monster = monsterModel,
-                count = count,
-                hitPoints = hitPoints,
-                hitPointMax = hitPointMax,
-                mandatory = mandatory,
-            ),
-        round = round,
-        step = step.toBattleSessionStep(runtime, content),
-        lastResult =
-            BattleSessionResult(
-                status = lastResult.status,
-                monster = lastResult.monster,
-                tier = lastResult.tier,
-            ),
-    )
-}
-
-private fun BattleSessionResult.toSnapshot(): BattleSessionResultSnapshot = BattleSessionResultSnapshot(status, monster, tier)
-
-private fun BattleSessionStep.toSnapshot(): BattleSavedStep =
-    when (this) {
-        is BattleSessionStep.Opening -> BattleSavedStep.Opening(prompt, image)
-        is BattleSessionStep.RoundOpening -> BattleSavedStep.RoundOpening(prompt)
-        is BattleSessionStep.Message -> BattleSavedStep.Message(texts, next.toSnapshot(), viewCommands)
-        is BattleSessionStep.PlayerAction -> BattleSavedStep.PlayerAction(memberIndex, prompt)
-        is BattleSessionStep.MonsterTarget -> BattleSavedStep.MonsterTarget(memberIndex, prompt, targetKeys)
-        is BattleSessionStep.ScriptMonsterTarget -> BattleSavedStep.ScriptMonsterTarget(prompt, targetKeys, script.toSnapshot())
-        is BattleSessionStep.MemberTarget -> BattleSavedStep.MemberTarget(prompt, targetKeys, script.toSnapshot())
-        is BattleSessionStep.MagicItemSlot -> BattleSavedStep.MagicItemSlot(memberIndex, prompt, slotKeys)
-        is BattleSessionStep.SpellChoice -> BattleSavedStep.SpellChoice(memberIndex, prompt, spellKeys)
-        BattleSessionStep.MonsterRound -> BattleSavedStep.MonsterRound
-        is BattleSessionStep.Finished -> BattleSavedStep.Finished
-    }
-
-private fun BattleSavedStep.toBattleSessionStep(
-    runtime: RuntimeSessionState,
-    content: RuntimeContent,
-): BattleSessionStep =
-    when (this) {
-        is BattleSavedStep.Opening -> BattleSessionStep.Opening(prompt, image)
-        is BattleSavedStep.RoundOpening -> BattleSessionStep.RoundOpening(prompt)
-        is BattleSavedStep.Message -> BattleSessionStep.Message(texts, next.toBattleSessionStep(runtime, content), viewCommands)
-        is BattleSavedStep.PlayerAction ->
-            BattleSessionStep.PlayerAction(memberIndex, prompt, availableActions(runtime, content, memberIndex))
-        is BattleSavedStep.MonsterTarget -> BattleSessionStep.MonsterTarget(memberIndex, prompt, targetKeys)
-        is BattleSavedStep.ScriptMonsterTarget ->
-            BattleSessionStep.ScriptMonsterTarget(prompt, targetKeys, script.toCombatScriptContinuation(content))
-        is BattleSavedStep.MemberTarget -> BattleSessionStep.MemberTarget(prompt, targetKeys, script.toCombatScriptContinuation(content))
-        is BattleSavedStep.MagicItemSlot -> BattleSessionStep.MagicItemSlot(memberIndex, prompt, slotKeys)
-        is BattleSavedStep.SpellChoice -> BattleSessionStep.SpellChoice(memberIndex, prompt, spellKeys)
-        BattleSavedStep.MonsterRound -> BattleSessionStep.MonsterRound
-        BattleSavedStep.Finished -> BattleSessionStep.Finished(runtime)
-    }
-
-private fun CombatScriptContinuation.toSnapshot(): CombatScriptSnapshot =
-    CombatScriptSnapshot(
-        memberIndex = memberIndex,
-        sourceKind = sourceKind,
-        sourceSlug = sourceSlug,
-        nextIndex = nextIndex,
-        pendingVar = pendingVar,
-        locals = locals,
-        activeInventorySlot = activeInventorySlot,
-    )
-
-private fun CombatScriptSnapshot.toCombatScriptContinuation(content: RuntimeContent): CombatScriptContinuation {
-    val ops =
-        when (sourceKind) {
-            CombatScriptSourceKind.Spell,
-            CombatScriptSourceKind.MonsterSpell,
-            ->
-                content.spells
-                    .singleOrNull { spell -> spell.id.slug == sourceSlug }
-                    ?.ops
-            CombatScriptSourceKind.MagicItem ->
-                content.itemUses
-                    .singleOrNull { use -> use.id.slug == sourceSlug && ItemUseContext.Combat in use.contexts }
-                    ?.ops
-        } ?: error("battle script snapshot references unknown ${sourceKind.name} script $sourceSlug")
-    return CombatScriptContinuation(
-        memberIndex = memberIndex,
-        sourceKind = sourceKind,
-        sourceSlug = sourceSlug,
-        ops = ops,
-        nextIndex = nextIndex,
-        pendingVar = pendingVar,
-        locals = locals,
-        activeInventorySlot = activeInventorySlot,
-    )
-}
-
-private fun availableActions(
-    runtime: RuntimeSessionState,
-    content: RuntimeContent,
-    memberIndex: Int,
-) = content.combat.standardBattle
-    ?.actions
-    .orEmpty()
-    .filter { action ->
-        val member = runtime.activeParty.members.getOrNull(memberIndex)
-        when (action.requirement) {
-            CombatActionRequirement.Always -> true
-            CombatActionRequirement.Mage -> member?.pcClass == PcClass.Mage
-        }
-    }

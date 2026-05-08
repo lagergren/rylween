@@ -30,7 +30,7 @@ compiled tables and expose the services the VM requires.
 ## Current JVM Runtime Split
 
 There is currently one active playable Kotlin runtime path in the Gradle build,
-plus one archived historical path:
+plus archived historical/reference paths:
 
 - `run.sh` and `run-compiled.sh` install and run `rylween-compiled`, whose
   entry point is
@@ -47,16 +47,23 @@ plus one archived historical path:
 - `legacy/ansi-runtime` contains the old interpreted/hybrid ANSI product path.
   It required the J1 JSON bundle, verified the artifact, and executed script
   roots through the J2 compiled VM, but it still materialized the bundle into
-  the Kotlin runtime-facing model and drove gameplay through `RylweenKotlinEngine`,
-  `src/main/kotlin/rylween/runtime/**`, shared terminal rendering helpers, and
-  ANSI/session adapters. It is intentionally no longer included as an active
-  Gradle subproject.
+  the Kotlin runtime-facing model and drove gameplay through
+  `RylweenKotlinEngine`, the live session graph, terminal rendering helpers,
+  and ANSI/session adapters. It is intentionally no longer included as an
+  active Gradle subproject.
+- `legacy/reference-runtime` contains the old live JVM session graph, engine
+  facade, save renderer/parser, stateful authored-script oracle, and terminal
+  session helpers that used to live under `src/main/kotlin/rylween/runtime`,
+  `src/main/kotlin/rylween/engine`, `src/main/kotlin/rylween/save`, and
+  `src/main/kotlin/rylween/frontend/terminal`. It is source reference and
+  parity history only, not an active Gradle source set.
 
-The old Kotlin sessions may remain as reference implementation and parity
-oracle code while compiler-facing contracts are untangled, but they are not a
-playable product and are not the portable runtime contract. New host behavior
-should move into the standalone compiled consumer or the compiled VM/host
-boundary, not into an additional special case in the hybrid session graph.
+The active root `src/main/kotlin` tree now keeps the DSL/compiler, compiled
+bundle loader/emitter, and data-only runtime snapshot/VM diagnostic contracts.
+It must not grow new live wilderness/town/dungeon/castle/battle session code.
+New host behavior should move into the standalone compiled consumer or the
+compiled VM/host boundary, not into another special case in the archived hybrid
+session graph.
 
 ## Bundle Loading
 
