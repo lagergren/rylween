@@ -27,11 +27,13 @@ import rylween.dsl.FlagRef
 import rylween.dsl.FlagScope
 import rylween.dsl.FlagState
 import rylween.dsl.GameModel
+import rylween.dsl.GameProgressModel
 import rylween.dsl.GamePromptsModel
 import rylween.dsl.GridPoint
 import rylween.dsl.HuntRulesModel
 import rylween.dsl.InputBindingModel
 import rylween.dsl.IntAst
+import rylween.dsl.ItemRecordModel
 import rylween.dsl.JobTextModel
 import rylween.dsl.LevelingModel
 import rylween.dsl.MandatoryRunRule
@@ -44,6 +46,7 @@ import rylween.dsl.QuestionTopic
 import rylween.dsl.RealmContentModel
 import rylween.dsl.Resource
 import rylween.dsl.RylweenModel
+import rylween.dsl.SourceSpecialField
 import rylween.dsl.SpeakSystemModel
 import rylween.dsl.SpeakTextTablesModel
 import rylween.dsl.StandardBattleModel
@@ -244,11 +247,27 @@ data class ExternalRuntimeSystems(
     val commands: Map<String, List<ExternalRuntimeCommand>>,
     val realm: ExternalRuntimeRealm,
     val combat: ExternalRuntimeCombat,
+    val score: ExternalRuntimeScore,
     val dungeon: ExternalRuntimeDungeon,
     val castleRows: List<ExternalRuntimeCastle>,
     val speak: ExternalRuntimeSpeak?,
     val wilderness: ExternalWildernessRuntime,
     val presentation: ExternalRuntimePresentation,
+)
+
+/** Score and Hall-of-Heroes metadata exported for direct bundle runtimes. */
+data class ExternalRuntimeScore(
+    val completedBy: String?,
+    val hallOfHeroesEmptyText: String,
+    val hallOfHeroesEntryText: String,
+    val powerItems: List<ExternalRuntimeScorePowerItem>,
+)
+
+/** One milestone-backed score item row exported without the Kotlin runtime facade. */
+data class ExternalRuntimeScorePowerItem(
+    val milestone: String,
+    val itemName: String,
+    val sourceOrder: Int?,
 )
 
 /** One command binding row from the stable runtime-system section. */
@@ -925,18 +944,54 @@ private class ExternalBundleArtifactWriter {
 
     private fun runtimeSystemsJson(game: GameModel): JsonValue =
         jsonObject(
-            "schemaVersion" to JsonNumber("1"),
+            "schemaVersion" to JsonNumber("2"),
             "realm" to realmJson(game.realm),
             "prompts" to promptsJson(game.prompts),
             "presentation" to presentationJson(game),
             "commands" to commandsJson(game),
             "combat" to combatJson(game.combat, game.leveling),
+            "score" to scoreRuntimeJson(game.progress, game.itemCatalog),
             "wilderness" to wildernessJson(game.wilderness),
             "dungeon" to dungeonRuntimeJson(game.dungeons, game.prompts.dungeon),
             "town" to townRuntimeJson(game.townSystem),
             "speak" to speakRuntimeJson(game.speak),
             "castles" to JsonArray(game.castles.map(::castleJson)),
         )
+
+    private fun scoreRuntimeJson(
+        progress: GameProgressModel,
+        items: List<ItemRecordModel>,
+    ): JsonValue {
+        val itemRecords = items.associateBy(ItemRecordModel::id)
+        return jsonObject(
+            "completedBy" to
+                progress.win
+                    ?.completedBy
+                    ?.let { JsonString(it.slug) }
+                    .orJsonNull(),
+            "hallOfHeroesEmptyText" to
+                JsonString(progress.win?.hallOfHeroesEmptyText ?: "No party has completed the winning objective yet."),
+            "hallOfHeroesEntryText" to
+                JsonString(progress.win?.hallOfHeroesEntryText ?: "{party} completed the winning objective."),
+            "powerItems" to
+                JsonArray(
+                    progress.milestones.mapNotNull { milestone ->
+                        val item = milestone.specialInventoryItem ?: return@mapNotNull null
+                        jsonObject(
+                            "milestone" to JsonString(milestone.id.slug),
+                            "itemName" to JsonString(itemRecords[item]?.displayName ?: item.slug),
+                            "sourceOrder" to
+                                milestone
+                                    .sourceSpecial
+                                    ?.field
+                                    ?.scoreOrder()
+                                    ?.let { JsonNumber(it.toString()) }
+                                    .orJsonNull(),
+                        )
+                    },
+                ),
+        )
+    }
 
     private fun combatJson(
         combat: CombatSystemModel,
@@ -2068,6 +2123,7 @@ private class ExternalRuntimeSystemsReader(
             commands = commandGroups,
             realm = systems.requiredObject("realm").readRealm(),
             combat = systems.requiredObject("combat").readCombat(),
+            score = systems.requiredObject("score").readScore(),
             dungeon = systems.requiredObject("dungeon").readDungeon(),
             castleRows = castleRows,
             speak =
@@ -2080,6 +2136,22 @@ private class ExternalRuntimeSystemsReader(
             presentation = systems.requiredObject("presentation").readPresentation(),
         )
     }
+
+    private fun JsonObject.readScore(): ExternalRuntimeScore =
+        ExternalRuntimeScore(
+            completedBy = optionalNullableString("completedBy"),
+            hallOfHeroesEmptyText = requiredString("hallOfHeroesEmptyText"),
+            hallOfHeroesEntryText = requiredString("hallOfHeroesEntryText"),
+            powerItems =
+                requiredArray("powerItems").values.map { row ->
+                    val item = row.asObject("score power item")
+                    ExternalRuntimeScorePowerItem(
+                        milestone = item.requiredString("milestone"),
+                        itemName = item.requiredString("itemName"),
+                        sourceOrder = item.optionalNullableInt("sourceOrder"),
+                    )
+                },
+        )
 
     private fun JsonObject.readDungeon(): ExternalRuntimeDungeon =
         ExternalRuntimeDungeon(
@@ -2742,6 +2814,15 @@ private class ExternalRuntimeSystemsReader(
         }
     }
 }
+
+private fun SourceSpecialField.scoreOrder(): Int =
+    when (this) {
+        SourceSpecialField.Fireshield -> 1
+        SourceSpecialField.Bracelets -> 2
+        SourceSpecialField.Mastercrown -> 3
+        SourceSpecialField.Silverkey -> 4
+        SourceSpecialField.Jazzyfoot -> 5
+    }
 
 private data class ExternalBundleEnvelope(
     val format: String,

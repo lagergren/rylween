@@ -1357,6 +1357,7 @@ class RylweenCompiledGameLedgerTest {
                 "checkCompiledRuntimeTownScript",
                 "checkCompiledRuntimeDungeonScript",
                 "checkCompiledRuntimeCastleScript",
+                "checkCompiledRuntimeHeroesScreen",
             ).all { taskName -> taskName in compiledRuntimeBuild },
         ) {
             "standalone compiled runtime subproject must keep its own verification tasks"
@@ -1372,6 +1373,9 @@ class RylweenCompiledGameLedgerTest {
         }
         check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledSave.kt").isFile) {
             "standalone compiled runtime must own its direct save/load adapter"
+        }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneSaveCodec.kt").isFile) {
+            "standalone compiled runtime save escaping must stay in a persistence codec, not terminal input/color code"
         }
         check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandalonePartyPages.kt").isFile) {
             "standalone compiled runtime must own direct party and journal pages"
@@ -1409,6 +1413,7 @@ class RylweenCompiledGameLedgerTest {
             "CompiledOpcode.TellRumour",
             "CompiledOpcode.GrantReward",
             "CompiledOpcode.RandomItemOffer",
+            "StandaloneScriptContinuation",
             "executeSpeak",
             "tellRumour",
             "applyReward",
@@ -1421,7 +1426,7 @@ class RylweenCompiledGameLedgerTest {
         val dungeonRuntimeSource =
             File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneDungeonRuntime.kt")
                 .readText()
-        listOf("enterDungeon", "runDepthEvent", "CompiledDungeonRandomEvent", "dungeon_level").forEach { token ->
+        listOf("enterDungeon", "runDepthEvent", "CompiledDungeonRandomEvent", "dungeon_level", "postDungeon").forEach { token ->
             check(token in dungeonRuntimeSource) {
                 "standalone compiled dungeon runtime must implement $token directly from compiled rows"
             }
@@ -1443,7 +1448,14 @@ class RylweenCompiledGameLedgerTest {
             }
         }
         val externalRuntimeSystemsSource = File("src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt").readText()
-        listOf("ExternalRuntimeDungeon", "ExternalRuntimeCastle", "readCastle", "readDungeon").forEach { token ->
+        listOf(
+            "ExternalRuntimeDungeon",
+            "ExternalRuntimeCastle",
+            "ExternalRuntimeScore",
+            "readCastle",
+            "readDungeon",
+            "readScore",
+        ).forEach { token ->
             check(token in externalRuntimeSystemsSource) {
                 "runtimeSystems must expose typed dungeon/castle rows for direct runtimes: missing $token"
             }

@@ -57,6 +57,7 @@ internal object StandaloneCompiledSave {
                             .sortedBy(Map.Entry<Int, CompiledHandleRef>::key)
                             .joinToString(",") { (level, event) -> "$level:${content.slug(event)}" },
                     )
+                    dungeon.postDungeon?.let { continuation -> putPostDungeon(continuation, content) }
                 }
                 runtime.castle?.let { castle ->
                     put("castle.id", castle.castleId)
@@ -74,14 +75,7 @@ internal object StandaloneCompiledSave {
                 putParty(runtime.party, content)
             }
         file.parentFile?.mkdirs()
-        file.writeText(
-            values
-                .toSortedMap()
-                .entries
-                .joinToString(separator = "\n", postfix = "\n") { (key, value) ->
-                    "${escape(key)}=${escape(value)}"
-                },
-        )
+        file.writeText(StandaloneSaveCodec.encodeValues(values))
     }
 
     fun read(
@@ -153,6 +147,17 @@ internal object StandaloneCompiledSave {
         }
     }
 
+    private fun MutableMap<String, String>.putPostDungeon(
+        continuation: StandaloneScriptContinuation,
+        content: CompiledContentBundle,
+    ) {
+        put("dungeon.post.root", content.slug(continuation.root))
+        put("dungeon.post.frames", StandaloneSaveCodec.encodeFrames(continuation.frames))
+        put("dungeon.post.locals", StandaloneSaveCodec.encodeIntMap(continuation.locals))
+        put("dungeon.post.textBindings", StandaloneSaveCodec.encodeStringMap(continuation.textBindings))
+        put("dungeon.post.activeInventorySlot", continuation.activeInventorySlot?.toString().orEmpty())
+    }
+
     private fun Map<String, String>.readParty(
         base: StandaloneParty,
         content: CompiledContentBundle,
@@ -197,6 +202,20 @@ internal object StandaloneCompiledSave {
                         val parts = token.split(':')
                         parts[0].toInt() to content.ref(CompiledHandleKind.DungeonEvent, parts[1])
                     }.orEmpty(),
+            postDungeon = readPostDungeon(content),
+        )
+    }
+
+    private fun Map<String, String>.readPostDungeon(content: CompiledContentBundle): StandaloneScriptContinuation? {
+        val root = optionalHandle("dungeon.post.root", CompiledHandleKind.ScriptRoot, content) ?: return null
+        val frames = get("dungeon.post.frames")?.takeIf(String::isNotEmpty)?.let(StandaloneSaveCodec::decodeFrames).orEmpty()
+        if (frames.isEmpty()) return null
+        return StandaloneScriptContinuation(
+            root = root,
+            frames = frames,
+            locals = StandaloneSaveCodec.decodeIntMap(get("dungeon.post.locals").orEmpty()),
+            textBindings = StandaloneSaveCodec.decodeStringMap(get("dungeon.post.textBindings").orEmpty()),
+            activeInventorySlot = optionalInt("dungeon.post.activeInventorySlot"),
         )
     }
 
@@ -251,16 +270,7 @@ internal object StandaloneCompiledSave {
             )
         }
 
-    private fun File.readSaveValues(): Map<String, String> =
-        readLines()
-            .asSequence()
-            .map(String::trim)
-            .filter { line -> line.isNotEmpty() && !line.startsWith("#") }
-            .associate { line ->
-                val separator = line.indexOf('=')
-                require(separator > 0) { "invalid standalone compiled save line: $line" }
-                unescape(line.substring(0, separator)) to unescape(line.substring(separator + 1))
-            }
+    private fun File.readSaveValues(): Map<String, String> = StandaloneSaveCodec.decodeValues(readLines())
 
     private fun Map<String, String>.required(key: String): String = get(key) ?: error("compiled save missing $key")
 
@@ -311,39 +321,4 @@ internal object StandaloneCompiledSave {
             ?.filter(String::isNotEmpty)
             ?.map { slug -> content.ref(kind, slug) }
             ?: default
-
-    private fun escape(value: String): String =
-        buildString {
-            value.forEach { char ->
-                when (char) {
-                    '\\' -> append("\\\\")
-                    '\n' -> append("\\n")
-                    '\r' -> append("\\r")
-                    '=' -> append("\\=")
-                    else -> append(char)
-                }
-            }
-        }
-
-    private fun unescape(value: String): String {
-        val out = StringBuilder()
-        var escaped = false
-        value.forEach { char ->
-            if (escaped) {
-                when (char) {
-                    'n' -> out.append('\n')
-                    'r' -> out.append('\r')
-                    else -> out.append(char)
-                }
-                escaped = false
-            } else {
-                when (char) {
-                    '\\' -> escaped = true
-                    else -> out.append(char)
-                }
-            }
-        }
-        if (escaped) out.append('\\')
-        return out.toString()
-    }
 }

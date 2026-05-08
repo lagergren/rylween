@@ -363,7 +363,7 @@ internal class StandaloneCastleRuntime(
         sceneSlug: String,
     ): StandaloneRuntimeState {
         val program = sceneProgram(sceneSlug) ?: return runtime
-        return StandaloneScriptExecutor(content, systems, input, screen, runtime).execute(program.instructions)
+        return StandaloneScriptExecutor(content, systems, input, screen, runtime).execute(program)
     }
 
     private fun sceneProgram(sceneSlug: String): CompiledScriptProgram? =

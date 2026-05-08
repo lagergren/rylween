@@ -79,23 +79,84 @@ internal class StandaloneScriptExecutor(
     private val screen: CompiledAnsiScreen,
     initialRuntime: StandaloneRuntimeState,
     initialLocals: Map<String, Int> = emptyMap(),
-    private val activeInventorySlot: Int? = null,
+    activeInventorySlot: Int? = null,
 ) {
     private var runtime: StandaloneRuntimeState = initialRuntime
     private var locals: Map<String, Int> = initialLocals
     private var textBindings: Map<String, String> = emptyMap()
+    private var activeInventorySlot: Int? = activeInventorySlot
+
+    fun execute(program: CompiledScriptProgram): StandaloneRuntimeState {
+        executeBlock(
+            instructions = program.instructions,
+            context =
+                StandaloneScriptBlockContext(
+                    program = program,
+                    blockPath = emptyList(),
+                    parentFrames = emptyList(),
+                    insideLoop = false,
+                ),
+        )
+        return runtime
+    }
+
+    fun execute(continuation: StandaloneScriptContinuation): StandaloneRuntimeState {
+        val program =
+            content.scripts.roots.firstOrNull { root -> root.rootHandle == continuation.root }
+                ?: error("missing compiled script root ${content.slug(continuation.root)}")
+        locals = continuation.locals
+        textBindings = continuation.textBindings
+        activeInventorySlot = continuation.activeInventorySlot
+        executeFrames(program, continuation.frames)
+        return runtime
+    }
 
     fun execute(instructions: List<CompiledInstruction>): StandaloneRuntimeState {
-        executeBlock(instructions, insideLoop = false)
+        executeBlock(
+            instructions = instructions,
+            context =
+                StandaloneScriptBlockContext(
+                    program = null,
+                    blockPath = emptyList(),
+                    parentFrames = emptyList(),
+                    insideLoop = false,
+                ),
+        )
         return runtime
+    }
+
+    private fun executeFrames(
+        program: CompiledScriptProgram,
+        frames: List<StandaloneScriptFrame>,
+    ): StandaloneScriptSignal {
+        var pending = frames
+        while (pending.isNotEmpty()) {
+            val frame = pending.first()
+            val signal =
+                executeBlock(
+                    instructions = program.blockAt(frame.blockPath),
+                    context =
+                        StandaloneScriptBlockContext(
+                            program = program,
+                            blockPath = frame.blockPath,
+                            parentFrames = pending.drop(1),
+                            insideLoop = frame.insideLoop,
+                        ),
+                    startIndex = frame.nextIndex,
+                )
+            if (signal != StandaloneScriptSignal.Continue) return signal
+            pending = pending.drop(1)
+        }
+        return StandaloneScriptSignal.Continue
     }
 
     private fun executeBlock(
         instructions: List<CompiledInstruction>,
-        insideLoop: Boolean,
+        context: StandaloneScriptBlockContext,
+        startIndex: Int = 0,
     ): StandaloneScriptSignal {
-        instructions.forEach { instruction ->
-            val signal = execute(instruction, insideLoop)
+        for (index in startIndex until instructions.size) {
+            val signal = execute(instructions[index], context, index, instructions.size)
             if (signal != StandaloneScriptSignal.Continue) return signal
         }
         return StandaloneScriptSignal.Continue
@@ -103,7 +164,9 @@ internal class StandaloneScriptExecutor(
 
     private fun execute(
         instruction: CompiledInstruction,
-        insideLoop: Boolean,
+        context: StandaloneScriptBlockContext,
+        instructionIndex: Int,
+        instructionCount: Int,
     ): StandaloneScriptSignal =
         when (instruction.opcode) {
             CompiledOpcode.Screen -> continueAfter { screen.writeText(instruction.textBlockOperand(0).renderScriptLines()) }
@@ -156,25 +219,38 @@ internal class StandaloneScriptExecutor(
                     runtime = runtime.withParty(runtime.party.copy(journal = runtime.party.journal + entries))
                 }
             CompiledOpcode.If ->
-                executeBlock(
-                    instruction.instructionsOperand(if (bool(instruction.boolOperand(0))) 1 else 2),
-                    insideLoop = insideLoop,
-                )
-            CompiledOpcode.Loop -> executeLoop(instruction.instructionsOperand(0))
-            CompiledOpcode.Break -> instruction.scriptSignal(default = ScriptControlSignal.BreakNearestLoop).toStandalone(insideLoop)
-            CompiledOpcode.Stop -> instruction.scriptSignal(default = ScriptControlSignal.StopScript).toStandalone(insideLoop)
-            CompiledOpcode.Switch -> executeSwitch(instruction.switchCasesOperand(1), int(instruction.intOperand(0)), insideLoop)
-            CompiledOpcode.Menu -> executeMenu(instruction, insideLoop)
+                bool(instruction.boolOperand(0)).let { branch ->
+                    val operandIndex = if (branch) 1 else 2
+                    executeBlock(
+                        instructions = instruction.instructionsOperand(operandIndex),
+                        context =
+                            context.childContext(
+                                instructionIndex = instructionIndex,
+                                instructionCount = instructionCount,
+                                childPath = listOf(instructionIndex, operandIndex),
+                                insideLoop = context.insideLoop,
+                            ),
+                    )
+                }
+            CompiledOpcode.Loop -> executeLoop(instruction.instructionsOperand(0), context, instructionIndex, instructionCount)
+            CompiledOpcode.Break ->
+                instruction
+                    .scriptSignal(
+                        default = ScriptControlSignal.BreakNearestLoop,
+                    ).toStandalone(context.insideLoop)
+            CompiledOpcode.Stop -> instruction.scriptSignal(default = ScriptControlSignal.StopScript).toStandalone(context.insideLoop)
+            CompiledOpcode.Switch -> executeSwitch(instruction, int(instruction.intOperand(0)), context, instructionIndex, instructionCount)
+            CompiledOpcode.Menu -> executeMenu(instruction, context, instructionIndex, instructionCount)
             CompiledOpcode.AskKey -> executeAskKey(instruction)
             CompiledOpcode.AskMember -> executeAskMember(instruction)
             CompiledOpcode.AskInventorySlot -> executeAskInventorySlot(instruction)
-            CompiledOpcode.AskText -> executeAskText(instruction, insideLoop)
+            CompiledOpcode.AskText -> executeAskText(instruction, context, instructionIndex, instructionCount)
             CompiledOpcode.AskMonster -> continueAfter { locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to 0) }
-            CompiledOpcode.ForEachMember -> executeForEachMember(instruction, insideLoop)
+            CompiledOpcode.ForEachMember -> executeForEachMember(instruction, context, instructionIndex, instructionCount)
             CompiledOpcode.ForEachMonster -> StandaloneScriptSignal.Continue
-            CompiledOpcode.Speak -> executeSpeak(instruction.handleOperand(0), insideLoop)
+            CompiledOpcode.Speak -> executeSpeak(instruction.handleOperand(0), context.insideLoop)
             CompiledOpcode.TellRumour -> continueAfter { tellRumour(instruction.handleOperand(0)) }
-            CompiledOpcode.RunScene -> executeScene(instruction.handleOperand(0), insideLoop)
+            CompiledOpcode.RunScene -> executeScene(instruction.handleOperand(0), context.insideLoop)
             CompiledOpcode.Encounter -> executeEncounter(instruction.handleOperand(0))
             CompiledOpcode.EnterDungeon ->
                 stopAfter {
@@ -183,6 +259,7 @@ internal class StandaloneScriptExecutor(
                             content = content,
                             dungeon = instruction.handleOperand(0),
                             levels = instruction.integerOperand(1),
+                            postDungeon = context.continuationAfter(instructionIndex, instructionCount),
                         )
                 }
             CompiledOpcode.ConsumeActiveItem ->
@@ -235,6 +312,7 @@ internal class StandaloneScriptExecutor(
                                 content = content,
                                 dungeon = instruction.handleOperand(0),
                                 levels = int(instruction.intOperand(1)),
+                                postDungeon = context.continuationAfter(instructionIndex, instructionCount),
                             )
                 }
             CompiledOpcode.GrantReward -> continueAfter { runtime = runtime.withParty(applyReward(instruction.rewardOperand(0))) }
@@ -270,9 +348,21 @@ internal class StandaloneScriptExecutor(
         return StandaloneScriptSignal.StopScript
     }
 
-    private fun executeLoop(instructions: List<CompiledInstruction>): StandaloneScriptSignal {
+    private fun executeLoop(
+        instructions: List<CompiledInstruction>,
+        parentContext: StandaloneScriptBlockContext,
+        instructionIndex: Int,
+        instructionCount: Int,
+    ): StandaloneScriptSignal {
+        val context =
+            parentContext.childContext(
+                instructionIndex = instructionIndex,
+                instructionCount = instructionCount,
+                childPath = listOf(instructionIndex, 0),
+                insideLoop = true,
+            )
         while (true) {
-            when (val signal = executeBlock(instructions, insideLoop = true)) {
+            when (val signal = executeBlock(instructions, context)) {
                 StandaloneScriptSignal.Continue -> Unit
                 StandaloneScriptSignal.BreakNearestLoop -> return StandaloneScriptSignal.Continue
                 StandaloneScriptSignal.StopScript -> return signal
@@ -282,18 +372,32 @@ internal class StandaloneScriptExecutor(
     }
 
     private fun executeSwitch(
-        cases: List<CompiledSwitchCase>,
+        instruction: CompiledInstruction,
         value: Int,
-        insideLoop: Boolean,
-    ): StandaloneScriptSignal =
-        cases
-            .firstOrNull { case -> case.match == value || case.match == null }
-            ?.let { case -> executeBlock(case.body, insideLoop) }
-            ?: StandaloneScriptSignal.Continue
+        context: StandaloneScriptBlockContext,
+        instructionIndex: Int,
+        instructionCount: Int,
+    ): StandaloneScriptSignal {
+        val cases = instruction.switchCasesOperand(1)
+        val caseIndex = cases.indexOfFirst { case -> case.match == value || case.match == null }
+        if (caseIndex < 0) return StandaloneScriptSignal.Continue
+        return executeBlock(
+            instructions = cases[caseIndex].body,
+            context =
+                context.childContext(
+                    instructionIndex = instructionIndex,
+                    instructionCount = instructionCount,
+                    childPath = listOf(instructionIndex, 1, caseIndex),
+                    insideLoop = context.insideLoop,
+                ),
+        )
+    }
 
     private fun executeMenu(
         instruction: CompiledInstruction,
-        insideLoop: Boolean,
+        context: StandaloneScriptBlockContext,
+        instructionIndex: Int,
+        instructionCount: Int,
     ): StandaloneScriptSignal {
         val options = instruction.menuOptionsOperand(1)
         val lines =
@@ -305,8 +409,19 @@ internal class StandaloneScriptExecutor(
             }
         screen.writeText(lines)
         val choice = input.readCommand() ?: return StandaloneScriptSignal.StopScript
-        val option = options.firstOrNull { menu -> menu.binding.matchesStandalone(content, choice) }
-        return executeBlock(option?.body ?: instruction.instructionsOperand(2), insideLoop)
+        val optionIndex = options.indexOfFirst { menu -> menu.binding.matchesStandalone(content, choice) }
+        val selected = options.getOrNull(optionIndex)
+        val body = selected?.body ?: instruction.instructionsOperand(2)
+        return executeBlock(
+            instructions = body,
+            context =
+                context.childContext(
+                    instructionIndex = instructionIndex,
+                    instructionCount = instructionCount,
+                    childPath = selected?.let { listOf(instructionIndex, 1, optionIndex) } ?: listOf(instructionIndex, 2),
+                    insideLoop = context.insideLoop,
+                ),
+        )
     }
 
     private fun executeAskKey(instruction: CompiledInstruction): StandaloneScriptSignal {
@@ -342,26 +457,46 @@ internal class StandaloneScriptExecutor(
 
     private fun executeAskText(
         instruction: CompiledInstruction,
-        insideLoop: Boolean,
+        context: StandaloneScriptBlockContext,
+        instructionIndex: Int,
+        instructionCount: Int,
     ): StandaloneScriptSignal {
         val answer = instruction.textAnswerOperand(1)
         screen.writeText(instruction.textBlockOperand(0).renderScriptLines())
         val raw = input.readText(answer.maxLength) ?: return StandaloneScriptSignal.StopScript
-        val branch = if (answer.accepts(raw)) answer.matchOps else answer.missOps
-        return executeBlock(branch, insideLoop)
+        val accepted = answer.accepts(raw)
+        return executeBlock(
+            instructions = if (accepted) answer.matchOps else answer.missOps,
+            context =
+                context.childContext(
+                    instructionIndex = instructionIndex,
+                    instructionCount = instructionCount,
+                    childPath = listOf(instructionIndex, 1, if (accepted) 0 else 1),
+                    insideLoop = context.insideLoop,
+                ),
+        )
     }
 
     private fun executeForEachMember(
         instruction: CompiledInstruction,
-        insideLoop: Boolean,
+        context: StandaloneScriptBlockContext,
+        instructionIndex: Int,
+        instructionCount: Int,
     ): StandaloneScriptSignal {
         val name = content.strings.value(instruction.stringIdOperand(0))
         val includeDead = instruction.booleanOperand(1)
+        val bodyContext =
+            context.childContext(
+                instructionIndex = instructionIndex,
+                instructionCount = instructionCount,
+                childPath = listOf(instructionIndex, 2),
+                insideLoop = context.insideLoop,
+            )
         runtime.party.members.forEachIndexed { index, member ->
             if (includeDead || !member.dead) {
                 val previousLoopValue = locals[name]
                 locals = locals + (name to index + 1)
-                val signal = executeBlock(instruction.instructionsOperand(2), insideLoop)
+                val signal = executeBlock(instruction.instructionsOperand(2), bodyContext)
                 locals =
                     previousLoopValue
                         ?.let { value -> locals + (name to value) }
@@ -380,7 +515,7 @@ internal class StandaloneScriptExecutor(
             content.scripts.roots.firstOrNull { root ->
                 root.root.kind.name == "Scene" && root.root.slug == content.slug(scene)
             } ?: return StandaloneScriptSignal.Continue
-        return executeBlock(program.instructions, insideLoop)
+        return executeProgram(program, insideLoop)
     }
 
     private fun executeSpeak(
@@ -489,7 +624,17 @@ internal class StandaloneScriptExecutor(
     private fun executeProgram(
         program: CompiledScriptProgram,
         insideLoop: Boolean,
-    ): StandaloneScriptSignal = executeBlock(program.instructions, insideLoop)
+    ): StandaloneScriptSignal =
+        executeBlock(
+            instructions = program.instructions,
+            context =
+                StandaloneScriptBlockContext(
+                    program = program,
+                    blockPath = emptyList(),
+                    parentFrames = emptyList(),
+                    insideLoop = insideLoop,
+                ),
+        )
 
     private fun chitchat(
         speak: ExternalRuntimeSpeak,
@@ -1267,6 +1412,83 @@ internal class StandaloneScriptExecutor(
             ?.let(ScriptControlSignal::valueOf)
             ?: default
 
+    private fun StandaloneScriptBlockContext.continuationAfter(
+        instructionIndex: Int,
+        instructionCount: Int,
+    ): StandaloneScriptContinuation? {
+        val program = program ?: return null
+        val frames = framesAfter(instructionIndex, instructionCount)
+        if (frames.isEmpty()) return null
+        return StandaloneScriptContinuation(
+            root = program.rootHandle,
+            frames = frames,
+            locals = locals,
+            textBindings = textBindings,
+            activeInventorySlot = activeInventorySlot,
+        )
+    }
+
+    private fun StandaloneScriptBlockContext.childContext(
+        instructionIndex: Int,
+        instructionCount: Int,
+        childPath: List<Int>,
+        insideLoop: Boolean,
+    ): StandaloneScriptBlockContext =
+        StandaloneScriptBlockContext(
+            program = program,
+            blockPath = blockPath + childPath,
+            parentFrames = framesAfter(instructionIndex, instructionCount),
+            insideLoop = insideLoop,
+        )
+
+    private fun StandaloneScriptBlockContext.framesAfter(
+        instructionIndex: Int,
+        instructionCount: Int,
+    ): List<StandaloneScriptFrame> =
+        buildList {
+            if (instructionIndex + 1 < instructionCount) {
+                add(StandaloneScriptFrame(blockPath, instructionIndex + 1, insideLoop))
+            }
+            addAll(parentFrames)
+        }
+
+    private fun CompiledScriptProgram.blockAt(path: List<Int>): List<CompiledInstruction> {
+        var block = instructions
+        var cursor = 0
+        while (cursor < path.size) {
+            val instruction = block.getOrNull(path[cursor++]) ?: error("compiled continuation block path is out of range: $path")
+            val selector = path.getOrNull(cursor++) ?: error("compiled continuation block path is incomplete: $path")
+            block =
+                when (instruction.opcode) {
+                    CompiledOpcode.If,
+                    CompiledOpcode.Loop,
+                    CompiledOpcode.ForEachMember,
+                    -> instruction.instructionsOperand(selector)
+                    CompiledOpcode.Switch -> {
+                        val caseIndex = path.getOrNull(cursor++) ?: error("compiled switch continuation path is incomplete: $path")
+                        instruction.switchCasesOperand(selector).getOrNull(caseIndex)?.body
+                            ?: error("compiled switch continuation case is out of range: $path")
+                    }
+                    CompiledOpcode.Menu -> {
+                        if (selector == 2) {
+                            instruction.instructionsOperand(selector)
+                        } else {
+                            val optionIndex = path.getOrNull(cursor++) ?: error("compiled menu continuation path is incomplete: $path")
+                            instruction.menuOptionsOperand(selector).getOrNull(optionIndex)?.body
+                                ?: error("compiled menu continuation option is out of range: $path")
+                        }
+                    }
+                    CompiledOpcode.AskText -> {
+                        val branch = path.getOrNull(cursor++) ?: error("compiled text-answer continuation path is incomplete: $path")
+                        val answer = instruction.textAnswerOperand(selector)
+                        if (branch == 0) answer.matchOps else answer.missOps
+                    }
+                    else -> error("compiled continuation path cannot descend through ${instruction.opcode}: $path")
+                }
+        }
+        return block
+    }
+
     private fun CompiledInstruction.textBlockOperand(index: Int): CompiledTextBlock =
         (operands[index] as CompiledOperand.TextBlockValue).value
 
@@ -1326,6 +1548,13 @@ internal class StandaloneScriptExecutor(
 }
 
 private enum class StandaloneScriptSignal { Continue, BreakNearestLoop, StopScript }
+
+private data class StandaloneScriptBlockContext(
+    val program: CompiledScriptProgram?,
+    val blockPath: List<Int>,
+    val parentFrames: List<StandaloneScriptFrame>,
+    val insideLoop: Boolean,
+)
 
 private sealed interface StandaloneItemPlacement {
     data class Placed(

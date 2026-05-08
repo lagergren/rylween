@@ -157,7 +157,7 @@ internal fun String.screenSlug(): String =
 private fun CompiledRuntimeConfig.run() {
     val runtime = StandaloneCompiledRuntime.load(bundleFile)
     if (staticScreen != null) {
-        runtime.renderStaticScreen(staticScreen)
+        runtime.renderStaticScreen(staticScreen, stateSlug, loadFile)
         return
     }
     runtime.runWilderness(stateSlug, loadFile, saveFile, scriptedInput)
@@ -178,9 +178,22 @@ class StandaloneCompiledRuntime private constructor(
     private val content: CompiledContentBundle = bundle.content
 
     /** Renders a compiled static screen route from the bundle and returns. */
-    fun renderStaticScreen(screenSlug: String) {
+    fun renderStaticScreen(
+        screenSlug: String,
+        stateSlug: String,
+        loadFile: File?,
+    ) {
+        val runtime =
+            loadFile?.let { file ->
+                StandaloneCompiledSave.read(
+                    file = file,
+                    expectedBundleHash = bundleContentHash,
+                    content = content,
+                    stateLookup = ::stateBySlug,
+                )
+            } ?: StandaloneRuntimeState.from(stateBySlug(stateSlug), content)
         CompiledAnsiTerminals.stdout().use { terminal ->
-            CompiledAnsiScreen(terminal, bundle, systems).showStaticScreen(screenSlug)
+            CompiledAnsiScreen(terminal, bundle, systems).showStaticScreen(screenSlug, runtime)
         }
     }
 
@@ -480,7 +493,7 @@ class StandaloneCompiledRuntime private constructor(
             screen.writeText(listOf("No compiled scene program for $sceneSlug."))
             return runtime
         }
-        return StandaloneScriptExecutor(content, systems, input, screen, runtime).execute(program.instructions)
+        return StandaloneScriptExecutor(content, systems, input, screen, runtime).execute(program)
     }
 
     private fun stateBySlug(slug: String): CompiledStateImage {

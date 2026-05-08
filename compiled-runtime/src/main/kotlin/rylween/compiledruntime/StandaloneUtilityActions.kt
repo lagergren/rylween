@@ -79,7 +79,7 @@ internal class StandaloneUtilityActions(
             }
         val program = use?.scriptRoot?.let(::programByRef) ?: return prepared
         return StandaloneScriptExecutor(content, systems, input, screen, prepared, activeInventorySlot = slot)
-            .execute(program.instructions)
+            .execute(program)
     }
 
     fun castPriestSpell(runtime: StandaloneRuntimeState): StandaloneRuntimeState {
@@ -99,7 +99,7 @@ internal class StandaloneUtilityActions(
             screen = screen,
             initialRuntime = runtime,
             initialLocals = mapOf("caster_idx" to casterIndex + 1),
-        ).execute(program.instructions)
+        ).execute(program)
     }
 
     private fun readyEquipment(
