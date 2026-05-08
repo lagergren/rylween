@@ -13,6 +13,7 @@ import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInventorySlot
+import rylween.compiled.CompiledNpcVisit
 import rylween.compiled.CompiledPartyCounters
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledStateImage
@@ -111,6 +112,12 @@ internal object StandaloneCompiledSave {
         put("party.rngState", party.rngState?.toString().orEmpty())
         put("party.flags", party.flags.joinToString(",") { content.slug(it) })
         put("party.milestones", party.milestones.joinToString(",") { content.slug(it) })
+        put(
+            "party.visitedNpcs",
+            party.visitedNpcs
+                .filter(CompiledNpcVisit::visited)
+                .joinToString(",") { visit -> content.slug(visit.npc) },
+        )
         party.inventory.forEach { slot ->
             put("inventory.${slot.slot}", slot.item?.let(content::slug).orEmpty())
         }
@@ -146,10 +153,25 @@ internal object StandaloneCompiledSave {
                 ),
             flags = handleListOrDefault("party.flags", CompiledHandleKind.FlagState, content, base.flags),
             milestones = handleListOrDefault("party.milestones", CompiledHandleKind.Milestone, content, base.milestones),
+            visitedNpcs = readVisitedNpcs(base.visitedNpcs, content),
             inventory = readInventory(base.inventory, content),
             members = readMembers(base.members),
             rngState = optionalLong("party.rngState") ?: base.rngState,
         )
+
+    private fun Map<String, String>.readVisitedNpcs(
+        base: List<CompiledNpcVisit>,
+        content: CompiledContentBundle,
+    ): List<CompiledNpcVisit> {
+        if ("party.visitedNpcs" !in this) return base
+        val visited =
+            handleListOrDefault("party.visitedNpcs", CompiledHandleKind.Npc, content, emptyList())
+                .toSet()
+        val baseNpcs = base.map(CompiledNpcVisit::npc).toSet()
+        return (baseNpcs + visited)
+            .sortedBy(content::slug)
+            .map { npc -> CompiledNpcVisit(npc, npc in visited) }
+    }
 
     private fun Map<String, String>.readInventory(
         base: List<CompiledInventorySlot>,

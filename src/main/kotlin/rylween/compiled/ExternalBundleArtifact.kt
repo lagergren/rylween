@@ -12,6 +12,8 @@ import rylween.dsl.BoolAst
 import rylween.dsl.CampRulesModel
 import rylween.dsl.CastleContentModel
 import rylween.dsl.CastleTextModel
+import rylween.dsl.ChitchatPromptAudience
+import rylween.dsl.ChitchatSubject
 import rylween.dsl.ClassLevelUpModel
 import rylween.dsl.CombatActionKind
 import rylween.dsl.CombatActionModel
@@ -38,6 +40,7 @@ import rylween.dsl.MonsterRoundModel
 import rylween.dsl.NativeStringArg
 import rylween.dsl.PcClass
 import rylween.dsl.PlayerRoundModel
+import rylween.dsl.QuestionTopic
 import rylween.dsl.RealmContentModel
 import rylween.dsl.Resource
 import rylween.dsl.RylweenModel
@@ -241,6 +244,7 @@ data class ExternalRuntimeSystems(
     val commands: Map<String, List<ExternalRuntimeCommand>>,
     val realm: ExternalRuntimeRealm,
     val combat: ExternalRuntimeCombat,
+    val speak: ExternalRuntimeSpeak?,
     val wilderness: ExternalWildernessRuntime,
     val presentation: ExternalRuntimePresentation,
 )
@@ -249,6 +253,8 @@ data class ExternalRuntimeSystems(
 data class ExternalRuntimeCommand(
     val action: String,
     val binding: ExternalRuntimeInputBinding,
+    val label: String?,
+    val topic: String?,
 )
 
 /** Portable input binding row consumed by direct bundle runtimes. */
@@ -270,6 +276,104 @@ data class ExternalRuntimeRealm(
 data class ExternalRuntimeCombat(
     val standardBattle: ExternalStandardBattle?,
     val leveling: ExternalLevelingRules?,
+)
+
+/** Standard conversation data exported for direct compiled-bundle runtimes. */
+data class ExternalRuntimeSpeak(
+    val standardConversation: ExternalStandardConversation?,
+    val textTables: ExternalSpeakTextTables,
+    val questionActions: List<ExternalQuestionAction>,
+)
+
+/** Reusable standard conversation rules and prompts. */
+data class ExternalStandardConversation(
+    val npcSelection: String,
+    val visitPolicy: String,
+    val branchSelection: String,
+    val missionHints: String,
+    val chitchatSubjects: List<ChitchatSubject>,
+    val chitchatReplies: String,
+    val rumourUsage: String,
+    val rumourSource: String,
+    val prompts: ExternalConversationPrompts,
+    val nativeServices: List<ExternalEngineServiceUse>,
+)
+
+/** Prompt text blocks owned by the reusable standard conversation model. */
+data class ExternalConversationPrompts(
+    val chooseNpc: ExternalRuntimeTextBlock,
+    val mainMenu: ExternalRuntimeTextBlock,
+)
+
+/** Conversation text tables exported without the Kotlin runtime facade. */
+data class ExternalSpeakTextTables(
+    val screens: List<ExternalReusableScreen>,
+    val chitchatPrompts: List<ExternalChitchatPrompt>,
+    val chitchatReplies: List<ExternalChitchatReplies>,
+    val questionReplies: List<ExternalQuestionReplies>,
+    val rumourTables: List<ExternalRumourTable>,
+)
+
+/** Reusable conversation screen row keyed by text id. */
+data class ExternalReusableScreen(
+    val id: String,
+    val text: ExternalRuntimeTextBlock,
+)
+
+/** Subject-specific chitchat prompt variants. */
+data class ExternalChitchatPrompt(
+    val subject: ChitchatSubject,
+    val variants: List<ExternalChitchatPromptVariant>,
+)
+
+/** One chitchat prompt variant selected by leader gender. */
+data class ExternalChitchatPromptVariant(
+    val audience: ChitchatPromptAudience,
+    val text: ExternalRuntimeTextBlock,
+)
+
+/** NPC-job keyed replies for one chitchat subject. */
+data class ExternalChitchatReplies(
+    val subject: ChitchatSubject,
+    val replies: List<ExternalJobText>,
+)
+
+/** NPC-job keyed replies for one question topic. */
+data class ExternalQuestionReplies(
+    val topic: QuestionTopic,
+    val replies: List<ExternalJobText>,
+)
+
+/** Text selected by NPC job slug. */
+data class ExternalJobText(
+    val job: String,
+    val text: ExternalRuntimeTextBlock,
+)
+
+/** Authored rumour table row. */
+data class ExternalRumourTable(
+    val id: String,
+    val entries: List<ExternalRumourEntry>,
+)
+
+/** One authored rumour entry plus optional party-state exclusions. */
+data class ExternalRumourEntry(
+    val id: String?,
+    val text: ExternalRuntimeTextBlock,
+    val excludedBy: List<ExternalFlagStateRef>,
+)
+
+/** Stable flag-state reference in runtime-system JSON. */
+data class ExternalFlagStateRef(
+    val flag: String,
+    val native: String,
+)
+
+/** Script root reached from a reusable conversation question branch. */
+data class ExternalQuestionAction(
+    val topic: QuestionTopic,
+    val job: String,
+    val scriptRoot: String,
 )
 
 /** Standard battle contract exported without Kotlin runtime facade shapes. */
@@ -499,12 +603,15 @@ data class ExternalRuntimeTextBlock(
     val lines: List<List<ExternalRuntimeTextPart>>,
 ) {
     /** Renders this block with runtime token substitution. */
-    fun render(values: (String) -> String?): List<String> =
+    fun render(values: (String) -> String?): List<String> = renderParts { part -> values(part.kind) }
+
+    /** Renders this block with access to token attributes such as role/town ids. */
+    fun renderParts(values: (ExternalRuntimeTextPart.Runtime) -> String?): List<String> =
         lines.map { line ->
             line.joinToString(separator = "") { part ->
                 when (part) {
                     is ExternalRuntimeTextPart.Literal -> part.text
-                    is ExternalRuntimeTextPart.Runtime -> values(part.kind) ?: "{${part.kind}}"
+                    is ExternalRuntimeTextPart.Runtime -> values(part) ?: "{${part.kind}}"
                 }
             }
         }
@@ -518,6 +625,7 @@ sealed interface ExternalRuntimeTextPart {
 
     data class Runtime(
         val kind: String,
+        val args: Map<String, String> = emptyMap(),
     ) : ExternalRuntimeTextPart
 }
 
@@ -1852,6 +1960,12 @@ private class ExternalRuntimeSystemsReader(
             commands = commandGroups,
             realm = systems.requiredObject("realm").readRealm(),
             combat = systems.requiredObject("combat").readCombat(),
+            speak =
+                systems
+                    .optional("speak")
+                    ?.takeUnless { it is JsonNull }
+                    ?.asObject("speak")
+                    ?.readSpeak(),
             wilderness = systems.requiredObject("wilderness").readWilderness(),
             presentation = systems.requiredObject("presentation").readPresentation(),
         )
@@ -1866,6 +1980,8 @@ private class ExternalRuntimeSystemsReader(
                     ExternalRuntimeCommand(
                         action = obj.requiredString("action"),
                         binding = obj.requiredObject("binding").readBinding(),
+                        label = obj.optionalString("label"),
+                        topic = obj.optionalString("topic"),
                     )
                 }
             else -> error("expected command array for $name")
@@ -1882,6 +1998,128 @@ private class ExternalRuntimeSystemsReader(
         ExternalRuntimeCombat(
             standardBattle = optional("standardBattle")?.takeUnless { it is JsonNull }?.asObject("standard battle")?.readStandardBattle(),
             leveling = optional("leveling")?.takeUnless { it is JsonNull }?.asObject("leveling")?.readLeveling(),
+        )
+
+    private fun JsonObject.readSpeak(): ExternalRuntimeSpeak =
+        ExternalRuntimeSpeak(
+            standardConversation =
+                optional("standardConversation")
+                    ?.takeUnless { it is JsonNull }
+                    ?.asObject("standard conversation")
+                    ?.readStandardConversation(),
+            textTables = requiredObject("textTables").readSpeakTextTables(),
+            questionActions =
+                requiredArray("questionActions").values.map { row ->
+                    val action = row.asObject("question action")
+                    ExternalQuestionAction(
+                        topic = action.requiredEnum("topic"),
+                        job = action.requiredString("job"),
+                        scriptRoot = action.requiredString("scriptRoot"),
+                    )
+                },
+        )
+
+    private fun JsonObject.readStandardConversation(): ExternalStandardConversation =
+        ExternalStandardConversation(
+            npcSelection = requiredString("npcSelection"),
+            visitPolicy = requiredString("visitPolicy"),
+            branchSelection = requiredString("branchSelection"),
+            missionHints = requiredString("missionHints"),
+            chitchatSubjects =
+                requiredObject("chitchat")
+                    .requiredArray("subjects")
+                    .values
+                    .map { value -> enumValueOf<ChitchatSubject>(value.asString("chitchat subject")) },
+            chitchatReplies = requiredObject("chitchat").requiredString("replies"),
+            rumourUsage = requiredObject("rumour").requiredString("usage"),
+            rumourSource = requiredObject("rumour").requiredString("source"),
+            prompts =
+                requiredObject("prompts").let { prompts ->
+                    ExternalConversationPrompts(
+                        chooseNpc = prompts.required("chooseNpc").readTextBlock(),
+                        mainMenu = prompts.required("mainMenu").readTextBlock(),
+                    )
+                },
+            nativeServices = requiredArray("nativeServices").values.map { row -> row.asObject("native service").readNativeService() },
+        )
+
+    private fun JsonObject.readSpeakTextTables(): ExternalSpeakTextTables =
+        ExternalSpeakTextTables(
+            screens =
+                requiredArray("screens").values.map { row ->
+                    val screen = row.asObject("speak screen")
+                    ExternalReusableScreen(
+                        id = screen.requiredString("id"),
+                        text = screen.required("text").readTextBlock(),
+                    )
+                },
+            chitchatPrompts =
+                requiredArray("chitchatPrompts").values.map { row ->
+                    row.asObject("chitchat prompt").readChitchatPrompt()
+                },
+            chitchatReplies =
+                requiredArray("chitchatReplies").values.map { row ->
+                    val reply = row.asObject("chitchat replies")
+                    ExternalChitchatReplies(
+                        subject = reply.requiredEnum("subject"),
+                        replies = reply.requiredArray("replies").readJobTexts(),
+                    )
+                },
+            questionReplies =
+                requiredArray("questionReplies").values.map { row ->
+                    val reply = row.asObject("question replies")
+                    ExternalQuestionReplies(
+                        topic = reply.requiredEnum("topic"),
+                        replies = reply.requiredArray("replies").readJobTexts(),
+                    )
+                },
+            rumourTables =
+                requiredArray("rumourTables").values.map { row ->
+                    val table = row.asObject("rumour table")
+                    ExternalRumourTable(
+                        id = table.requiredString("id"),
+                        entries =
+                            table.requiredArray("entries").values.map { entry ->
+                                entry.asObject("rumour entry").readRumourEntry()
+                            },
+                    )
+                },
+        )
+
+    private fun JsonObject.readChitchatPrompt(): ExternalChitchatPrompt =
+        ExternalChitchatPrompt(
+            subject = requiredEnum("subject"),
+            variants =
+                requiredArray("variants").values.map { row ->
+                    val variant = row.asObject("chitchat prompt variant")
+                    ExternalChitchatPromptVariant(
+                        audience = variant.requiredEnum("audience"),
+                        text = variant.required("text").readTextBlock(),
+                    )
+                },
+        )
+
+    private fun JsonArray.readJobTexts(): List<ExternalJobText> =
+        values.map { row ->
+            val reply = row.asObject("job text")
+            ExternalJobText(
+                job = reply.requiredString("job"),
+                text = reply.required("text").readTextBlock(),
+            )
+        }
+
+    private fun JsonObject.readRumourEntry(): ExternalRumourEntry =
+        ExternalRumourEntry(
+            id = optionalNullableString("id"),
+            text = required("text").readTextBlock(),
+            excludedBy =
+                requiredArray("excludedBy").values.map { row ->
+                    val state = row.asObject("excluded rumour state")
+                    ExternalFlagStateRef(
+                        flag = state.requiredString("flag"),
+                        native = state.requiredString("native"),
+                    )
+                },
         )
 
     private fun JsonObject.readStandardBattle(): ExternalStandardBattle =
@@ -2162,6 +2400,21 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonValue.readTextPart(): ExternalRuntimeTextPart {
         val part = asObject("runtime text part")
+
+        fun runtime(kind: String): ExternalRuntimeTextPart.Runtime =
+            ExternalRuntimeTextPart.Runtime(
+                kind = kind,
+                args =
+                    part.entries
+                        .mapNotNull { (name, value) ->
+                            when {
+                                name == "kind" -> null
+                                value is JsonString -> name to value.value
+                                value is JsonNumber -> name to value.value
+                                else -> null
+                            }
+                        }.toMap(),
+            )
         return when (val kind = part.requiredString("kind")) {
             "literal" -> ExternalRuntimeTextPart.Literal(part.requiredString("text"))
             "intExpr",
@@ -2171,8 +2424,8 @@ private class ExternalRuntimeSystemsReader(
             "townName",
             "fuzzyTownLocation",
             "locationCoordinate",
-            -> ExternalRuntimeTextPart.Runtime(kind)
-            else -> ExternalRuntimeTextPart.Runtime(kind)
+            -> runtime(kind)
+            else -> runtime(kind)
         }
     }
 

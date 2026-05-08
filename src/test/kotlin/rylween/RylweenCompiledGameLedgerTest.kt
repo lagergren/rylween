@@ -1378,6 +1378,30 @@ class RylweenCompiledGameLedgerTest {
         check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledBattleRunner.kt").isFile) {
             "standalone compiled runtime must own a direct compiled standard-battle runner"
         }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneScriptExecutor.kt").isFile) {
+            "standalone compiled runtime must own a direct compiled-script executor for scene roots"
+        }
+        val scriptExecutorSource =
+            File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneScriptExecutor.kt")
+                .readText()
+        listOf(
+            "CompiledOpcode.If",
+            "CompiledOpcode.Loop",
+            "CompiledOpcode.ForEachMember",
+            "CompiledOpcode.SetFlag",
+            "CompiledOpcode.Speak",
+            "CompiledOpcode.TellRumour",
+            "CompiledOpcode.GrantReward",
+            "CompiledOpcode.RandomItemOffer",
+            "executeSpeak",
+            "tellRumour",
+            "applyReward",
+            "runRandomItemOffer",
+        ).forEach { token ->
+            check(token in scriptExecutorSource) {
+                "standalone compiled runtime script executor must handle $token directly"
+            }
+        }
         val battleRunnerSource =
             File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledBattleRunner.kt")
                 .readText()
@@ -1404,6 +1428,17 @@ class RylweenCompiledGameLedgerTest {
         check(battleNarrationOffenders.isEmpty()) {
             "standalone compiled runtime battle text must come from compiled standard-battle content: " +
                 battleNarrationOffenders.joinToString()
+        }
+        val statusTextOffenders =
+            sources.flatMap { file ->
+                val source = file.readText()
+                listOf("not implemented in standalone runtime", "host is not implemented")
+                    .filter { text -> text in source }
+                    .map { text -> "${file.invariantSeparatorsPath}: $text" }
+            }
+        check(statusTextOffenders.isEmpty()) {
+            "standalone compiled runtime must not leak implementation status text into player screens: " +
+                statusTextOffenders.joinToString()
         }
         val runtimeSpec = File("plans/compiled-vm-runtime-spec.md").readText()
         check(
