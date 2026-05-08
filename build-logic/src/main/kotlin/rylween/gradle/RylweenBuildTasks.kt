@@ -359,6 +359,9 @@ abstract class CheckRustMudBundleInspectTask : DefaultTask() {
     @get:InputFile
     abstract val bundleFile: RegularFileProperty
 
+    @get:InputFile
+    abstract val kotlinInspectionFile: RegularFileProperty
+
     @get:Input
     abstract val requireRust: Property<Boolean>
 
@@ -401,11 +404,24 @@ abstract class CheckRustMudBundleInspectTask : DefaultTask() {
             "format=rylween.compiled.bundle",
             "schemaVersion=3",
             "bundleContentHash=sha256:",
-            "status=experimental-k1.0-skeleton",
+            "status=experimental-k1.0",
         ).forEach { marker ->
             require(marker in text) {
                 "rylween-mud inspect output did not include '$marker':\n$text"
             }
+        }
+
+        val kotlinInspection = kotlinInspectionFile.get().asFile.readText()
+        val kotlinHash = kotlinInspection.hashValue(prefix = "bundleContentHash: ")
+        val rustHash = text.hashValue(prefix = "bundleContentHash=")
+        require(kotlinHash == rustHash) {
+            "rylween-mud bundle hash disagrees with Kotlin inspection: Kotlin=$kotlinHash Rust=$rustHash"
+        }
+
+        val kotlinSections = kotlinInspection.inspectionSections()
+        val rustSections = text.inspectionSections()
+        require(kotlinSections == rustSections) {
+            "rylween-mud section summaries disagree with Kotlin inspection:\nKotlin: $kotlinSections\nRust: $rustSections"
         }
     }
 
@@ -421,6 +437,37 @@ abstract class CheckRustMudBundleInspectTask : DefaultTask() {
             }.firstOrNull { file -> file.isFile && file.canExecute() }
 
     private val cargoExecutableNames: List<String> = listOf("cargo", "cargo.exe")
+
+    private fun String.hashValue(prefix: String): String =
+        lineSequence()
+            .firstOrNull { line -> line.startsWith(prefix) }
+            ?.removePrefix(prefix)
+            ?.trim()
+            ?: error("missing $prefix line")
+
+    private fun String.inspectionSections(): List<RustMudInspectionSection> =
+        lineSequence()
+            .mapNotNull { line -> inspectionSectionRegex.matchEntire(line)?.destructured }
+            .map { (name, rows, bytes, checksum) ->
+                RustMudInspectionSection(
+                    name = name,
+                    rows = rows.toInt(),
+                    bytes = bytes.toInt(),
+                    checksum = checksum,
+                )
+            }.toList()
+
+    private data class RustMudInspectionSection(
+        val name: String,
+        val rows: Int,
+        val bytes: Int,
+        val checksum: String,
+    )
+
+    companion object {
+        private val inspectionSectionRegex: Regex =
+            Regex("""  ([A-Za-z][A-Za-z0-9]*): rows=(\d+) bytes=(\d+) fnv1a32=([0-9a-f]{8})""")
+    }
 }
 
 /**

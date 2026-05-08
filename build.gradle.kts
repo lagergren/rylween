@@ -288,9 +288,11 @@ val checkRustMudBundleInspect: TaskProvider<CheckRustMudBundleInspectTask> by ta
     description = "Runs the experimental Rust MUD target over the deterministic JSON compiled bundle when Cargo is available."
 
     dependsOn(emitExternalCompiledBundle)
+    dependsOn(inspectExternalCompiledBundle)
     manifestFile.set(rustMudManifest)
     sourceDirectory.set(layout.projectDirectory.dir("rust/rylween-mud/src"))
     bundleFile.set(externalBundleArtifact)
+    kotlinInspectionFile.set(externalBundleInspection)
     requireRust.set(requireRustMud)
     outputFile.set(rustMudBundleInspection)
 }
