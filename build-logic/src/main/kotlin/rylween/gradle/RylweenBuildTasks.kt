@@ -16,6 +16,7 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import org.gradle.process.ExecOperations
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.net.ServerSocket
@@ -125,6 +126,13 @@ abstract class RunInstalledLauncherWithJavaTask
         @get:Optional
         abstract val saveFile: RegularFileProperty
 
+        @get:Input
+        abstract val expectedOutputContains: ListProperty<String>
+
+        init {
+            expectedOutputContains.convention(emptyList())
+        }
+
         @TaskAction
         fun run() {
             val javaHome = File(javaHomePath.get())
@@ -152,10 +160,35 @@ abstract class RunInstalledLauncherWithJavaTask
             if (saveFile.isPresent) {
                 launcherArgs += listOf("--save", saveFile.get().asFile.path)
             }
-            execOperations.exec {
-                environment("JAVA_HOME", javaHome.absolutePath)
-                environment("PATH", javaHome.resolve("bin").path + File.pathSeparator + inheritedPath.get())
-                commandLine(launcherArgs)
+            val expectedOutput = expectedOutputContains.get()
+            if (expectedOutput.isEmpty()) {
+                execOperations.exec {
+                    environment("JAVA_HOME", javaHome.absolutePath)
+                    environment("PATH", javaHome.resolve("bin").path + File.pathSeparator + inheritedPath.get())
+                    commandLine(launcherArgs)
+                }
+                return
+            }
+
+            val output = ByteArrayOutputStream()
+            val result =
+                execOperations.exec {
+                    isIgnoreExitValue = true
+                    standardOutput = output
+                    errorOutput = output
+                    environment("JAVA_HOME", javaHome.absolutePath)
+                    environment("PATH", javaHome.resolve("bin").path + File.pathSeparator + inheritedPath.get())
+                    commandLine(launcherArgs)
+                }
+            val text = output.toString(Charsets.UTF_8)
+            if (result.exitValue != 0) {
+                throw GradleException("launcher exited with ${result.exitValue}\n${text.takeLast(4000)}")
+            }
+            val missing = expectedOutput.filterNot(text::contains)
+            if (missing.isNotEmpty()) {
+                throw GradleException(
+                    "launcher output missed expected text ${missing.joinToString()}\n${text.takeLast(4000)}",
+                )
             }
         }
     }

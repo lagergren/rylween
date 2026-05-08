@@ -111,13 +111,15 @@ internal class StandaloneCompiledBattleRunner(
             screen.writeViewCommand(CompiledRuntimeViewCommand.ClearMapWindow)
             screen.writeViewCommand(CompiledRuntimeViewCommand.ShowImage(banner))
         }
-        screen.writeText(rules.openingText(started))
-        val choice = input.readCommand() ?: return StandaloneCompiledBattleResult(runtime)
-        if (rules.openingKeys.run.matches(choice)) return attemptRun(started)
-        if (!rules.openingKeys.fight.matches(choice)) {
-            return StandaloneCompiledBattleResult(runtime, rules.text.notPossible.renderBattle())
+        while (true) {
+            screen.writeText(rules.openingText(started))
+            val choice = input.readCommand() ?: return StandaloneCompiledBattleResult(runtime)
+            when {
+                rules.openingKeys.run.matches(choice) -> return attemptRun(started)
+                rules.openingKeys.fight.matches(choice) -> return finishFight(started, rules.text.bloodFlow.renderBattle())
+                else -> screen.writeText(rules.text.notPossible.renderBattle())
+            }
         }
-        return finishFight(started, rules.text.bloodFlow.renderBattle())
     }
 
     private fun attemptRun(encounter: StandaloneBattleEncounter): StandaloneCompiledBattleResult {

@@ -1358,6 +1358,8 @@ class RylweenCompiledGameLedgerTest {
                 "checkCompiledRuntimeDungeonScript",
                 "checkCompiledRuntimeCastleScript",
                 "checkCompiledRuntimeHeroesScreen",
+                "checkCompiledRuntimeFullPlaythrough",
+                "checkCompiledRuntimeFullPlaythroughHeroesScreen",
             ).all { taskName -> taskName in compiledRuntimeBuild },
         ) {
             "standalone compiled runtime subproject must keep its own verification tasks"

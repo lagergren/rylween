@@ -6943,10 +6943,10 @@ val nextRylween: RylweenModel = rylween {
 
             resources {
                 gold = 1000
-                torches = 5
-                food = 100
-                timeLeft = 25
-                restedHours = 6
+                torches = 40
+                food = 150
+                timeLeft = 200
+                restedHours = 14
             }
 
             flags {
@@ -6975,36 +6975,17 @@ val nextRylween: RylweenModel = rylween {
                 member("A") {
                     gender = Gender.Male
                     race = Race.Human
-                    klass = PcClass.Thief
-                    level = 1
-                    health = 68
-                    hitPoints = 68 of 68
-                    weaponSkill = 27
-                    wisdom = 27
-                    mana = 0 of 27
+                    klass = PcClass.Fighter
+                    level = 28
+                    health = 50000
+                    hitPoints = 50000 of 50000
+                    weaponSkill = 100
+                    wisdom = 70
+                    mana = 0 of 70
                     charisma = 49
                     equipped {
-                        weapon = Items.none
-                        armor = Items.none
-                    }
-                    experience = 0
-                    alive()
-                }
-
-                member("B") {
-                    gender = Gender.Male
-                    race = Race.Human
-                    klass = PcClass.Thief
-                    level = 1
-                    health = 46
-                    hitPoints = 46 of 46
-                    weaponSkill = 42
-                    wisdom = 48
-                    mana = 0 of 48
-                    charisma = 64
-                    equipped {
-                        weapon = Items.none
-                        armor = Items.none
+                        weapon = Items.deathBlade
+                        armor = Items.admtMail
                     }
                     experience = 0
                     alive()
