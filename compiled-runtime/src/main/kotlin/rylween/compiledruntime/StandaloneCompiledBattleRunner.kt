@@ -126,10 +126,15 @@ internal class StandaloneCompiledBattleRunner(
         val rules = encounter.rules
         val draw = encounter.runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
         val escaped = draw.value < rules.opening.fleeChancePercent
-        val runtime = encounter.runtime.withParty(draw.party).asWilderness()
+        val runtime = encounter.runtime.withParty(draw.party)
         return escaped
             .takeIf { it }
-            ?.let { StandaloneCompiledBattleResult(runtime, rules.text.runEscaped.renderBattle()) }
+            ?.let {
+                StandaloneCompiledBattleResult(
+                    encounter.copy(runtime = runtime).runtimeAfterBattle(),
+                    rules.text.runEscaped.renderBattle(),
+                )
+            }
             ?: finishFight(encounter.copy(runtime = runtime.withMode(RuntimeMode.Battle)), rules.text.runFailAway.renderBattle())
     }
 
@@ -423,7 +428,7 @@ internal class StandaloneCompiledBattleRunner(
                     runtime.copy(currentMode = RuntimeMode.GameOver),
                     rules.text.partyDefeated.renderBattle(),
                 )
-            monsterHasLivingMembers() -> StandaloneCompiledBattleResult(runtime.asWilderness(), rules.text.runFailAway.renderBattle())
+            monsterHasLivingMembers() -> StandaloneCompiledBattleResult(runtimeAfterBattle(), rules.text.runFailAway.renderBattle())
             else -> victory()
         }
 
@@ -472,7 +477,7 @@ internal class StandaloneCompiledBattleRunner(
                     )
                 }
             }
-        return StandaloneCompiledBattleResult(runtime.withParty(party).asWilderness(), messages)
+        return StandaloneCompiledBattleResult(runtimeAfterBattle(party), messages)
     }
 
     private fun startEncounter(
@@ -502,6 +507,8 @@ internal class StandaloneCompiledBattleRunner(
             }
         return StandaloneBattleEncounter(
             runtime = runtime.withParty(party).withMode(RuntimeMode.Battle),
+            returnMode = runtime.currentMode,
+            returnTown = runtime.currentTown,
             rules = rules,
             monster = monster,
             monsterCount = count,
@@ -680,9 +687,6 @@ internal class StandaloneCompiledBattleRunner(
         }
 
     private fun StandaloneRuntimeState.withMode(mode: RuntimeMode): StandaloneRuntimeState = copy(currentMode = mode, currentTown = null)
-
-    private fun StandaloneRuntimeState.asWilderness(): StandaloneRuntimeState =
-        copy(currentMode = RuntimeMode.Wilderness, currentTown = null)
 
     private fun StandaloneRuntimeState.withMember(
         index: Int,
@@ -1423,6 +1427,8 @@ internal class StandaloneCompiledBattleRunner(
 
 private data class StandaloneBattleEncounter(
     val runtime: StandaloneRuntimeState,
+    val returnMode: RuntimeMode,
+    val returnTown: CompiledHandleRef?,
     val rules: ExternalStandardBattle,
     val monster: CompiledMonster,
     val monsterCount: Int,
@@ -1437,7 +1443,10 @@ private data class StandaloneBattleEncounter(
     val partyConfused: Boolean = false,
     val actionRetry: Boolean = false,
     val bannerIndex: Int? = null,
-)
+) {
+    fun runtimeAfterBattle(party: StandaloneParty = runtime.party): StandaloneRuntimeState =
+        runtime.withParty(party).copy(currentMode = returnMode, currentTown = returnTown)
+}
 
 private data class BattleCastDecision(
     val value: Boolean,

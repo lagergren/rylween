@@ -25,6 +25,7 @@ import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.CompiledJournalEntry
+import rylween.compiled.CompiledLocationPlacement
 import rylween.compiled.CompiledNpcPlacement
 import rylween.compiled.CompiledNpcVisit
 import rylween.compiled.CompiledPartyCounters
@@ -221,6 +222,7 @@ class StandaloneCompiledRuntime private constructor(
             val actions =
                 StandaloneWildernessActions(
                     content = content,
+                    systems = systems,
                     realm = systems.realm,
                     combat = systems.combat,
                     wilderness = systems.wilderness,
@@ -528,12 +530,17 @@ internal data class StandaloneRuntimeState(
     val currentTown: CompiledHandleRef?,
     val lastTerrain: CompiledHandleRef?,
     val partyMemberMax: Int,
+    val locations: List<CompiledLocationPlacement>,
     val npcs: List<CompiledNpcPlacement>,
+    val completedMissions: List<CompiledHandleRef>,
     val dungeon: StandaloneDungeonState?,
     val castle: StandaloneCastleState?,
     val party: StandaloneParty,
 ) {
     fun withParty(party: StandaloneParty): StandaloneRuntimeState = copy(party = party)
+
+    fun withCompletedMission(mission: CompiledHandleRef): StandaloneRuntimeState =
+        copy(completedMissions = (completedMissions + mission).distinct())
 
     companion object {
         fun from(
@@ -551,7 +558,9 @@ internal data class StandaloneRuntimeState(
                 currentTown = state.realm.currentTown,
                 lastTerrain = state.realm.lastTerrain,
                 partyMemberMax = state.realm.partyMemberMax,
+                locations = state.locations,
                 npcs = state.npcs,
+                completedMissions = emptyList(),
                 dungeon =
                     (state.mode as? rylween.compiled.CompiledRuntimeModeImage.Dungeon)
                         ?.session
@@ -730,6 +739,17 @@ internal class StandaloneInput(
         val chars = scripted ?: return null
         while (chars.firstOrNull()?.isWhitespace() == true) {
             chars.removeFirst()
+        }
+        if (chars.firstOrNull() == '"') {
+            chars.removeFirst()
+            val quoted =
+                buildString {
+                    while (chars.isNotEmpty() && chars.first() != '"') {
+                        append(chars.removeFirst())
+                    }
+                }
+            if (chars.firstOrNull() == '"') chars.removeFirst()
+            return quoted
         }
         val value =
             buildString {

@@ -6913,6 +6913,118 @@ val nextRylween: RylweenModel = rylween {
         }
     }
 
+    // Standalone compiled-runtime acceptance fixture. It starts at the same
+    // wilderness point as a normal replay and has no castle power milestones,
+    // but it carries the known quest-location placements and prerequisite
+    // story state needed for a deterministic compiled-only power-item route.
+    stateFixture(States.acceptanceReplay) {
+        realm {
+            day = 14
+            hour = 9
+            activeParty = Parties.playtest
+            wilderness(Maps.wilderness)
+        }
+
+        locations {
+            Locations.silverKeyPit at xy(45, 13)
+            Locations.hobgoblinCave at xy(46, 13)
+            Locations.beastCave at xy(11, 23)
+            Locations.hermitDungeon at xy(45, 13)
+            Locations.thunTemple at xy(41, 30)
+            Locations.koboldVillage at xy(53, 10)
+            Locations.borinCamp at xy(47, 28)
+            Locations.nolrimCrypt at xy(11, 23)
+            Locations.masterCrownDungeon at xy(23, 32)
+        }
+
+        npcs {
+            Npcs.garth at Towns.thord.inn
+            Npcs.bernak at Towns.wilor.inn
+            Npcs.azaaza at Towns.ollk.inn
+        }
+
+        party(Parties.playtest) {
+            player = "playtest"
+            name = "Playtest"
+            position = Wilderness.xy(12, 9)
+            facing = Facing.North
+
+            resources {
+                gold = 50000
+                torches = 120
+                food = 500
+                timeLeft = 1200
+                restedHours = 500
+            }
+
+            flags {
+                mark(Story.hermit.trollTooth.delivered)
+                mark(Story.bracelets.thun.mapBought)
+                mark(Story.masterCrown.crownTold)
+                mark(Story.jazzy.ogre.accepted)
+                mark(Story.silverKey.caveLocated)
+            }
+
+            inventory {
+                slot(1).item(Items.redGem)
+                slot(2).item(Items.blueGem)
+                slot(3).item(Items.greenGem)
+                slot(4).item(Items.redGem)
+                slot(5).item(Items.blueGem)
+                slot(6).item(Items.fireWand)
+                slot(7).item(Items.staffOfHealing)
+                slot(8).item(Items.magicSword)
+                slot(9).item(Items.mithrilMail)
+                slot(10).item(Items.crossbow)
+                slot(11).item(Items.torch)
+                slot(12).item(Items.ration)
+            }
+
+            members {
+                member("Priest") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Priest
+                    level = 28
+                    health = 5000000
+                    hitPoints = 5000000 of 5000000
+                    weaponSkill = 100
+                    wisdom = 5000
+                    mana = 5000 of 5000
+                    charisma = 90
+                    equipped {
+                        weapon = Items.deathBlade
+                        armor = Items.admtMail
+                    }
+                    experience = 0
+                    alive()
+                }
+
+                member("Thief") {
+                    gender = Gender.Female
+                    race = Race.Halfling
+                    klass = PcClass.Thief
+                    level = 28
+                    health = 50000
+                    hitPoints = 0 of 50000
+                    weaponSkill = 100
+                    wisdom = 90
+                    mana = 0 of 90
+                    charisma = 90
+                    equipped {
+                        weapon = Items.deathBlade
+                        armor = Items.admtMail
+                    }
+                    experience = 0
+                    dead()
+                }
+            }
+
+            visited(Npcs.garth, Npcs.bernak)
+            journal { banditsCargoRecovered() }
+        }
+    }
+
     // Near-winning authored fixture: all required special milestones are present,
     // but the Ydarg completion marker is not.
     stateFixture(States.nearWinningReplay) {

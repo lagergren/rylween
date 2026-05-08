@@ -993,11 +993,16 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.missions.single { it.id == Missions.jazzyFoot }.trigger == Trigger.OnTerrain(Terrain.foothills))
         check(nextDsl.missions.single { it.id == Missions.silverKey }.trigger == Trigger.AtLocation(Locations.silverKeyPit))
         check(nextDsl.missions.single { it.id == Missions.hobgoblinCaravan }.trigger == Trigger.RandomStep(9))
-        check(nextRylween.states.size == 4)
+        check(nextRylween.states.size == 5)
 
         val freshParty =
             nextRylween.states
                 .single { it.id == States.freshReplay }
+                .parties
+                .single()
+        val acceptanceParty =
+            nextRylween.states
+                .single { it.id == States.acceptanceReplay }
                 .parties
                 .single()
         val strongParty =
@@ -1020,6 +1025,14 @@ class RylweenCompiledGameLedgerTest {
         check(freshParty.members.size == 2)
         check(specialInventoryItems(nextDsl, freshParty).isEmpty())
         check(!isWinningConfiguration(nextDsl, freshParty))
+        check(acceptanceParty.player == "playtest")
+        check(acceptanceParty.position == Wilderness.xy(12, 9))
+        check(acceptanceParty.members.size == 2)
+        check(acceptanceParty.members.first().pcClass == PcClass.Priest)
+        check(acceptanceParty.members.first().level == 28)
+        check(Story.silverKey.caveLocated in acceptanceParty.flags)
+        check(specialInventoryItems(nextDsl, acceptanceParty).isEmpty())
+        check(!isWinningConfiguration(nextDsl, acceptanceParty))
         check(strongParty.player == "playtest")
         check(strongParty.name == "Playtest")
         check(strongParty.position == Wilderness.xy(12, 9))
@@ -1360,6 +1373,8 @@ class RylweenCompiledGameLedgerTest {
                 "checkCompiledRuntimeHeroesScreen",
                 "checkCompiledRuntimeFullPlaythrough",
                 "checkCompiledRuntimeFullPlaythroughHeroesScreen",
+                "checkCompiledRuntimeAcceptancePlaythrough",
+                "checkCompiledRuntimeAcceptanceHeroesScreen",
             ).all { taskName -> taskName in compiledRuntimeBuild },
         ) {
             "standalone compiled runtime subproject must keep its own verification tasks"

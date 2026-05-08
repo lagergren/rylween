@@ -27,6 +27,7 @@ internal data class StandaloneDungeonState(
     val maxDepth: Int,
     val depth: Int,
     val levelEvents: Map<Int, CompiledHandleRef>,
+    val pendingMission: CompiledHandleRef? = null,
     val postDungeon: StandaloneScriptContinuation? = null,
 )
 
@@ -113,7 +114,8 @@ internal class StandaloneDungeonRuntime(
                     .renderDungeon(dungeon.depth),
             )
             val exited = runtime.copy(currentMode = RuntimeMode.Wilderness, currentTown = null, dungeon = null)
-            return dungeon.postDungeon?.let { continuation -> resumePostDungeon(exited, continuation) } ?: exited
+            val resumed = dungeon.postDungeon?.let { continuation -> resumePostDungeon(exited, continuation) } ?: exited
+            return dungeon.pendingMission?.let(resumed::withCompletedMission) ?: resumed
         }
         val nextDepth = dungeon.depth - 1
         val next = runtime.copy(dungeon = dungeon.copy(depth = nextDepth))
@@ -197,22 +199,24 @@ internal fun StandaloneRuntimeState.enterDungeon(
     dungeon: CompiledHandleRef,
     levels: Int,
     postDungeon: StandaloneScriptContinuation? = null,
+    pendingMission: CompiledHandleRef? = null,
 ): StandaloneRuntimeState {
     var plannedParty = party
     val maxDepth = levels.coerceAtLeast(1)
     val scenario = content.dungeonScenarios.firstOrNull { scenario -> scenario.dungeon == dungeon }
-    val randomEvents =
-        (1..maxDepth)
-            .mapNotNull { level ->
-                val draw = scenario?.randomEvents.orEmpty().drawDungeonEvent(plannedParty) ?: return@mapNotNull null
-                plannedParty = draw.party
-                level to draw.event
-            }.toMap()
     val fixedEvents =
         scenario
             ?.fixedLevelEvents
             .orEmpty()
             .filterKeys { level -> level in 1..maxDepth }
+    val randomEvents =
+        (1..maxDepth)
+            .filterNot { level -> level in fixedEvents }
+            .mapNotNull { level ->
+                val draw = scenario?.randomEvents.orEmpty().drawDungeonEvent(plannedParty) ?: return@mapNotNull null
+                plannedParty = draw.party
+                level to draw.event
+            }.toMap()
     return copy(
         currentMode = RuntimeMode.Dungeon,
         currentTown = null,
@@ -223,6 +227,7 @@ internal fun StandaloneRuntimeState.enterDungeon(
                 maxDepth = maxDepth,
                 depth = 1,
                 levelEvents = randomEvents + fixedEvents,
+                pendingMission = pendingMission,
                 postDungeon = postDungeon,
             ),
         castle = null,
@@ -245,6 +250,7 @@ private data class DungeonEventDraw(
 )
 
 private fun List<CompiledDungeonRandomEvent>.drawDungeonEvent(party: StandaloneParty): DungeonEventDraw? {
+    if (party.rngState == null) return null
     val totalWeight = sumOf(CompiledDungeonRandomEvent::weight)
     if (totalWeight <= 0) return null
     val draw = party.drawRandom(1, totalWeight)
