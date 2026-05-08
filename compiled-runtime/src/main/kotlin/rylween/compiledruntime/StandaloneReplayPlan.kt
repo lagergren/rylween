@@ -42,7 +42,7 @@ internal data class StandaloneReplayPlan(
                 val checkpointText =
                     component.checkpoints
                         .takeIf(List<String>::isNotEmpty)
-                        ?.joinToString(prefix = " checkpoints=", separator = ",")
+                        ?.let { checkpoints -> " checkpoints=${checkpoints.size}" }
                         .orEmpty()
                 add("compiled replay component ${index + 1}: ${component.name} commands=${component.commands.length}$checkpointText")
             }
@@ -57,9 +57,12 @@ internal object StandaloneCompiledReplayPlans {
     private const val TOWN_GARTH_REWARD_SMOKE = "town-garth-reward-smoke"
     private const val TOWN_MISSION_INTRO_ROUTE = "town-mission-intro-route"
     private const val TOWN_SILVER_KEY_CHAIN_ROUTE = "town-silver-key-chain-route"
+    private const val SILVER_KEY_DISCOVERY_ROUTE = "silver-key-discovery-route"
+    private const val HOBGOBLIN_CARAVAN_ROUTE = "hobgoblin-caravan-route"
     private const val FRESH_STATE = "fresh-replay"
     private const val TOWN_MISSION_STATE = "town-mission-replay"
     private const val TOWN_SILVER_KEY_STATE = "town-silver-key-replay"
+    private const val HOBGOBLIN_CARAVAN_STATE = "hobgoblin-caravan-replay"
 
     fun build(
         name: String,
@@ -73,8 +76,83 @@ internal object StandaloneCompiledReplayPlans {
             TOWN_GARTH_REWARD_SMOKE -> townGarthRewardSmoke(bundle, stateOverride ?: FRESH_STATE)
             TOWN_MISSION_INTRO_ROUTE -> townMissionIntroRoute(bundle, stateOverride ?: TOWN_MISSION_STATE)
             TOWN_SILVER_KEY_CHAIN_ROUTE -> townSilverKeyChainRoute(bundle, stateOverride ?: TOWN_SILVER_KEY_STATE)
+            SILVER_KEY_DISCOVERY_ROUTE -> silverKeyDiscoveryRoute(bundle, stateOverride ?: TOWN_MISSION_STATE)
+            HOBGOBLIN_CARAVAN_ROUTE -> hobgoblinCaravanRoute(bundle, stateOverride ?: HOBGOBLIN_CARAVAN_STATE)
             else -> error("unknown compiled replay plan $normalized")
         }
+
+    private fun silverKeyDiscoveryRoute(
+        bundle: CompiledGameBundle,
+        stateSlug: String,
+    ): StandaloneReplayPlan {
+        val content = bundle.content
+        val state = bundle.stateBySlug(stateSlug)
+        val world = ReplayWorldMap.from(state, content = content)
+        var point = state.startPoint()
+
+        fun moveTo(
+            name: String,
+            target: GridPoint,
+        ): StandaloneReplayComponent {
+            val route = world.routeTo(point, target)
+            point = route.end
+            return StandaloneReplayComponent(name, route.commands)
+        }
+
+        fun moveToTown(slug: String): StandaloneReplayComponent = moveTo("travel.to_$slug", content.townPoint(slug))
+
+        fun location(slug: String): GridPoint = state.locationPoint(content, slug)
+
+        return StandaloneReplayPlan(
+            name = SILVER_KEY_DISCOVERY_ROUTE,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    moveToTown("wilor"),
+                    StandaloneReplayComponent(
+                        name = "town.wilor_buy_silver_key_map",
+                        commands = "E3N" + speakNpc(1, "B") + "L",
+                        checkpoints = listOf("output:precious map", "state:silver_key.map_bought"),
+                    ),
+                    moveTo("travel.to_silver_sanctum", location("silver_key_pit")),
+                    StandaloneReplayComponent(
+                        name = "mission.silver_sanctum_note",
+                        commands = silverSanctumRoute(),
+                        checkpoints = listOf("output:This room shines like", "state:silver_key.note_found"),
+                    ),
+                    moveToTown("ollk"),
+                    StandaloneReplayComponent(
+                        name = "town.ollk_smith_confession",
+                        commands = "E3NS2BS1BLX",
+                        checkpoints = listOf("output:sold the Key", "state:silver_key.smith_confessed"),
+                    ),
+                ),
+        )
+    }
+
+    private fun hobgoblinCaravanRoute(
+        bundle: CompiledGameBundle,
+        stateSlug: String,
+    ): StandaloneReplayPlan {
+        bundle.stateBySlug(stateSlug)
+        return StandaloneReplayPlan(
+            name = HOBGOBLIN_CARAVAN_ROUTE,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    StandaloneReplayComponent(
+                        name = "mission.hobgoblin_caravan_random_step",
+                        commands = "6" + waitForInput(2) + battle() + waitForInput(2) + "X",
+                        checkpoints =
+                            listOf(
+                                "seed:first random-step draw below hobgoblin trigger",
+                                "output:caravan of hobgoblins",
+                                "state:silver_key.cave_located",
+                            ),
+                    ),
+                ),
+        )
+    }
 
     private fun townSilverKeyChainRoute(
         bundle: CompiledGameBundle,
@@ -96,7 +174,7 @@ internal object StandaloneCompiledReplayPlans {
                     ),
                     StandaloneReplayComponent(
                         name = "town.ollk_silver_key_chain",
-                        commands = "E3S2BS1BLX",
+                        commands = "E3NS2BS1BLX",
                         checkpoints =
                             listOf(
                                 "output:sold the Key",
@@ -216,13 +294,12 @@ internal object StandaloneCompiledReplayPlans {
                     ),
                     StandaloneReplayComponent(
                         name = "town.thord_service_social_circuit",
-                        commands = "E1BBA12PQBCPQS1YQLE4BBWN7PQLX",
+                        commands = "E4QLE3N",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
                                 "output:The smith welcomes you",
                                 "output:Welcome! Have a seat",
-                                "output:chooses you!",
                             ),
                     ),
                 ),
@@ -315,6 +392,13 @@ internal object StandaloneCompiledReplayPlans {
                     ),
             )
 
+    private fun silverSanctumRoute(): String =
+        "E" +
+            dungeonRoute(
+                levels = 20,
+                descendEvents = mapOf(20 to waitForInput(4)),
+            )
+
     private fun thunTempleRoute(): String =
         waitForInput(2) +
             "Y" +
@@ -395,7 +479,7 @@ internal object StandaloneCompiledReplayPlans {
     private fun castleStep(command: Char): String = command.toString() + battle()
 
     private fun thordMissionDialogueRoute(): String =
-        "E3" +
+        "E3N" +
             speakNpc(1) +
             speakNpc(3) +
             speakNpc(7) +
@@ -407,7 +491,7 @@ internal object StandaloneCompiledReplayPlans {
             "L"
 
     private fun wilorMissionDialogueRoute(): String =
-        "E3" +
+        "E3N" +
             speakNpc(1, "B") +
             speakNpc(4, "B") +
             speakNpc(2) +

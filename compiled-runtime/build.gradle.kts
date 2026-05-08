@@ -255,6 +255,67 @@ val checkCompiledRuntimeTownSilverKeyReplay: TaskProvider<RunInstalledLauncherWi
     )
 }
 
+val checkCompiledRuntimeSilverKeyDiscoveryReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs the Silver Key map, dungeon note, and smith confession chain through the standalone compiled runtime."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    replay.set("silver-key-discovery-route")
+    expectedOutputContains.set(
+        listOf(
+            "compiled replay: silver-key-discovery-route",
+            "compiled replay component 2: town.wilor_buy_silver_key_map",
+            "compiled replay component 4: mission.silver_sanctum_note",
+            "compiled replay component 6: town.ollk_smith_confession",
+            "precious map",
+            "This room shines like",
+            "Master Thief",
+            "sold the Key",
+            "Find them and",
+        ),
+    )
+}
+
+val checkCompiledRuntimeHobgoblinCaravanReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs the seeded hobgoblin caravan random-step mission through the standalone compiled runtime."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    replay.set("hobgoblin-caravan-route")
+    seed.set(21L)
+    expectedOutputContains.set(
+        listOf(
+            "compiled replay: hobgoblin-caravan-route",
+            "compiled replay component 1: mission.hobgoblin_caravan_random_step",
+            "caravan of hobgoblins",
+            "Boss has it",
+            "carotid artery",
+        ),
+    )
+}
+
 val checkCompiledRuntimeSaveScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
     RunInstalledLauncherWithJavaTask::class,
 ) {
@@ -511,6 +572,8 @@ tasks.check {
     dependsOn(checkCompiledRuntimeTownDialogueReplay)
     dependsOn(checkCompiledRuntimeTownMissionIntroReplay)
     dependsOn(checkCompiledRuntimeTownSilverKeyReplay)
+    dependsOn(checkCompiledRuntimeSilverKeyDiscoveryReplay)
+    dependsOn(checkCompiledRuntimeHobgoblinCaravanReplay)
     dependsOn(checkCompiledRuntimeLoadScript)
     dependsOn(checkCompiledRuntimePartyJournalScript)
     dependsOn(checkCompiledRuntimeWildernessActionsScript)
