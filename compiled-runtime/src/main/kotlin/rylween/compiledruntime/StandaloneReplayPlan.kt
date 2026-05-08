@@ -59,10 +59,12 @@ internal object StandaloneCompiledReplayPlans {
     private const val TOWN_SILVER_KEY_CHAIN_ROUTE = "town-silver-key-chain-route"
     private const val SILVER_KEY_DISCOVERY_ROUTE = "silver-key-discovery-route"
     private const val HOBGOBLIN_CARAVAN_ROUTE = "hobgoblin-caravan-route"
+    private const val MASTER_CROWN_DISCOVERY_ROUTE = "master-crown-discovery-route"
     private const val FRESH_STATE = "fresh-replay"
     private const val TOWN_MISSION_STATE = "town-mission-replay"
     private const val TOWN_SILVER_KEY_STATE = "town-silver-key-replay"
     private const val HOBGOBLIN_CARAVAN_STATE = "hobgoblin-caravan-replay"
+    private const val MASTER_CROWN_CHAIN_STATE = "master-crown-chain-replay"
 
     fun build(
         name: String,
@@ -78,8 +80,103 @@ internal object StandaloneCompiledReplayPlans {
             TOWN_SILVER_KEY_CHAIN_ROUTE -> townSilverKeyChainRoute(bundle, stateOverride ?: TOWN_SILVER_KEY_STATE)
             SILVER_KEY_DISCOVERY_ROUTE -> silverKeyDiscoveryRoute(bundle, stateOverride ?: TOWN_MISSION_STATE)
             HOBGOBLIN_CARAVAN_ROUTE -> hobgoblinCaravanRoute(bundle, stateOverride ?: HOBGOBLIN_CARAVAN_STATE)
+            MASTER_CROWN_DISCOVERY_ROUTE -> masterCrownDiscoveryRoute(bundle, stateOverride ?: MASTER_CROWN_CHAIN_STATE)
             else -> error("unknown compiled replay plan $normalized")
         }
+
+    private fun masterCrownDiscoveryRoute(
+        bundle: CompiledGameBundle,
+        stateSlug: String,
+    ): StandaloneReplayPlan {
+        val content = bundle.content
+        val state = bundle.stateBySlug(stateSlug)
+        val world = ReplayWorldMap.from(state, content = content)
+        var point = state.startPoint()
+
+        fun moveTo(
+            name: String,
+            target: GridPoint,
+        ): StandaloneReplayComponent {
+            val route = world.routeTo(point, target)
+            point = route.end
+            return StandaloneReplayComponent(name, route.commands)
+        }
+
+        fun moveToTown(slug: String): StandaloneReplayComponent = moveTo("travel.to_$slug", content.townPoint(slug))
+
+        fun moveToTerrain(
+            name: String,
+            terrainSlug: String,
+        ): StandaloneReplayComponent {
+            val route = world.routeToTerrain(point, terrainSlug)
+            point = route.end
+            return StandaloneReplayComponent(name, route.commands)
+        }
+
+        fun location(slug: String): GridPoint = state.locationPoint(content, slug)
+
+        return StandaloneReplayPlan(
+            name = MASTER_CROWN_DISCOVERY_ROUTE,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    moveToTown("wilor"),
+                    StandaloneReplayComponent(
+                        name = "town.wilor_master_crown_intro",
+                        commands = "E3N" + speakNpc(2) + speakNpc(5) + "L",
+                        checkpoints = listOf("output:You are better fit", "state:master_crown.task1_assigned"),
+                    ),
+                    moveTo("travel.to_kobold_village", location("kobold_village")),
+                    StandaloneReplayComponent(
+                        name = "mission.kobold_village",
+                        commands = koboldVillageRoute(),
+                        checkpoints = listOf("output:ugly pendant", "state:master_crown.task1_done"),
+                    ),
+                    moveToTown("wilor"),
+                    StandaloneReplayComponent(
+                        name = "town.wilor_master_crown_second_task",
+                        commands = "E3N" + speakNpc(5) + "L",
+                        checkpoints = listOf("output:second quest", "state:master_crown.task2_assigned"),
+                    ),
+                    moveToTerrain("travel.to_skullweed_swamp", "swamp"),
+                    StandaloneReplayComponent(
+                        name = "mission.skullweed",
+                        commands = waitForInput(),
+                        checkpoints = listOf("output:skullweed plant", "state:master_crown.task2_done"),
+                    ),
+                    moveToTown("wilor"),
+                    StandaloneReplayComponent(
+                        name = "town.wilor_master_crown_third_task",
+                        commands = "E3N" + speakNpc(5) + "L",
+                        checkpoints = listOf("output:DWARF STONE", "state:master_crown.task3_assigned"),
+                    ),
+                    moveTo("travel.to_borin_camp", location("borin_camp")),
+                    StandaloneReplayComponent(
+                        name = "mission.borin_meet",
+                        commands = waitForInput(6),
+                        checkpoints = listOf("output:Nolrim's crypt", "state:master_crown.borin_met"),
+                    ),
+                    moveTo("travel.to_nolrim_crypt", location("nolrim_crypt")),
+                    StandaloneReplayComponent(
+                        name = "mission.nolrim_crypt",
+                        commands = reebarTombRoute(),
+                        checkpoints = listOf("output:dagger you seek", "state:master_crown.dagger_taken"),
+                    ),
+                    moveTo("travel.to_borin_gift", location("borin_camp")),
+                    StandaloneReplayComponent(
+                        name = "mission.borin_gift",
+                        commands = waitForInput(2),
+                        checkpoints = listOf("output:purple dwarf stone", "state:master_crown.borin_paid"),
+                    ),
+                    moveToTown("wilor"),
+                    StandaloneReplayComponent(
+                        name = "town.wilor_master_crown_location",
+                        commands = "E3N" + speakNpc(5) + "LX",
+                        checkpoints = listOf("output:Master Crown is hidden", "state:master_crown.crown_told"),
+                    ),
+                ),
+        )
+    }
 
     private fun silverKeyDiscoveryRoute(
         bundle: CompiledGameBundle,
@@ -398,6 +495,34 @@ internal object StandaloneCompiledReplayPlans {
                 levels = 20,
                 descendEvents = mapOf(20 to waitForInput(4)),
             )
+
+    private fun koboldVillageRoute(): String =
+        "A" +
+            waitForInput() +
+            battle(attacks = 12) +
+            waitForInput() +
+            battle(attacks = 12) +
+            waitForInput() +
+            battle(attacks = 12) +
+            waitForInput()
+
+    private fun reebarTombRoute(): String =
+        "E" +
+            dungeonRoute(
+                levels = 20,
+                descendEvents = reebarDescendEvents(),
+                ascendRecurringEvents = reebarAscendEvents(),
+            )
+
+    private fun reebarDescendEvents(): Map<Int, String> =
+        mapOf(
+            12 to waitForInput(),
+            20 to waitForInput(),
+        ) + (13..19).associateWith(::colourRiddleRoute)
+
+    private fun reebarAscendEvents(): Map<Int, String> = mapOf(12 to waitForInput()) + (13..19).associateWith(::colourRiddleRoute)
+
+    private fun colourRiddleRoute(level: Int): String = waitForInput(2) + (20 - level) + waitForInput()
 
     private fun thunTempleRoute(): String =
         waitForInput(2) +

@@ -316,6 +316,43 @@ val checkCompiledRuntimeHobgoblinCaravanReplay: TaskProvider<RunInstalledLaunche
     )
 }
 
+val checkCompiledRuntimeMasterCrownDiscoveryReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs the Master Crown prerequisite chain through town dialogue, missions, and Nolrim's crypt."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    replay.set("master-crown-discovery-route")
+    expectedOutputContains.set(
+        listOf(
+            "compiled replay: master-crown-discovery-route",
+            "compiled replay component 2: town.wilor_master_crown_intro",
+            "compiled replay component 4: mission.kobold_village",
+            "compiled replay component 14: mission.nolrim_crypt",
+            "compiled replay component 18: town.wilor_master_crown_location",
+            "You are better fit",
+            "ugly pendant",
+            "grant you the second",
+            "skullweed plant",
+            "DWARF STONE",
+            "Nolrim's crypt",
+            "dagger you seek",
+            "purple dwarf stone",
+            "Master Crown is hidden",
+        ),
+    )
+}
+
 val checkCompiledRuntimeSaveScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
     RunInstalledLauncherWithJavaTask::class,
 ) {
@@ -574,6 +611,7 @@ tasks.check {
     dependsOn(checkCompiledRuntimeTownSilverKeyReplay)
     dependsOn(checkCompiledRuntimeSilverKeyDiscoveryReplay)
     dependsOn(checkCompiledRuntimeHobgoblinCaravanReplay)
+    dependsOn(checkCompiledRuntimeMasterCrownDiscoveryReplay)
     dependsOn(checkCompiledRuntimeLoadScript)
     dependsOn(checkCompiledRuntimePartyJournalScript)
     dependsOn(checkCompiledRuntimeWildernessActionsScript)

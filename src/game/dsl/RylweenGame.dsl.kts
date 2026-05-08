@@ -7139,6 +7139,82 @@ val nextRylween: RylweenModel = rylween {
         }
     }
 
+    // Long deterministic Master Crown chain fixture for the standalone
+    // compiled-runtime replay planner. It keeps the story clean but gives the
+    // party enough stamina, inventory room, and combat power to drive the
+    // kobold, skullweed, Borin, and Nolrim mission legs as one route.
+    stateFixture(States.masterCrownChainReplay) {
+        realm {
+            day = 14
+            hour = 20
+            activeParty = Parties.playtest
+            wilderness(Maps.wilderness)
+        }
+
+        locations {
+            Locations.koboldVillage at xy(53, 10)
+            Locations.borinCamp at xy(47, 28)
+            Locations.nolrimCrypt at xy(11, 23)
+            Locations.masterCrownDungeon at xy(23, 32)
+        }
+
+        npcs {
+            Npcs.bernak at Towns.wilor.inn
+            Npcs.tybalt at Towns.wilor.inn
+            Npcs.harry at Towns.wilor.inn
+            Npcs.broth at Towns.wilor.inn
+            Npcs.ron at Towns.wilor.inn
+            Npcs.ithienn at Towns.wilor.inn
+        }
+
+        party(Parties.playtest) {
+            player = "playtest"
+            name = "Playtest"
+            position = Wilderness.xy(12, 9)
+            facing = Facing.North
+
+            resources {
+                gold = 100000
+                torches = 80
+                food = 500
+                timeLeft = 1000
+                restedHours = 1000
+            }
+
+            inventory {
+                slot(1).item(Items.fireWand)
+                slot(2).empty()
+                slot(3).empty()
+                slot(4).empty()
+                slot(5).empty()
+                slot(6).empty()
+                slot(7).empty()
+                slot(8).empty()
+            }
+
+            members {
+                member("Fighter") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Fighter
+                    level = 28
+                    health = 50000
+                    hitPoints = 50000 of 50000
+                    weaponSkill = 100
+                    wisdom = 72
+                    mana = 0 of 72
+                    charisma = 90
+                    equipped {
+                        weapon = Items.deathBlade
+                        armor = Items.admtMail
+                    }
+                    experience = 0
+                    alive()
+                }
+            }
+        }
+    }
+
     // Standalone compiled-runtime acceptance fixture. It starts at the same
     // wilderness point as a normal replay and has no castle power milestones,
     // but it carries the known quest-location placements and prerequisite
