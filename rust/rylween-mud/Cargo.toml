@@ -1,0 +1,8 @@
+[package]
+name = "rylween-mud"
+version = "0.1.0"
+edition = "2024"
+description = "Experimental Rust server/MUD runtime target for Rylween compiled bundles"
+publish = false
+
+[dependencies]

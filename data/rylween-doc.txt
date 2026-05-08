@@ -518,6 +518,7 @@ Niklas Eriksson  - For constantly complaining.
 Jonathan Forbes  - For keeping my adrenalin level high. :-)
 Tommy Green      - For receiving all the complaints.
 Magnus Gustafson - For answering Marcus Hirt's letters.
+David Hartje     - For regstering, and for valuable feedback.
 Holger Hellebro  - My first beta tester.
 Marcus Hirt      - For cluttering up my msg bases with strange discussions.
 Bob Hurst        - For Hack&Slash. (It inspired me to create AOR).
@@ -528,8 +529,12 @@ Matias Larsson   - Graphics Wizard. The best of them all!
 Magnus Lilja     - For keeping my adrenalin level high. ;->
 H.P. Lovecraft   - For contributing to the atmosphere.
 Alex May         - Splooty! (And I believe you did some beta testing too?)
+Vicente Nicola   - For enthusiastic testing and bug reports in V2.
+Micke Persson    - For supporting my by registering early.
+Stephen Price    - For supporting me by registering early, from the other side of the world (this world)!
 Lars Siden       - Thanks for everything.
 Michael Sinz     - The creator of Enforcer.
+Mike Soucy       - Testing and bug reports.
 Karl Skagerberg  - Beta tester.
 Stefan Stark     - Another Rylween enthusiast.
 Oskar Sundberg   - For staying out of the way.
@@ -537,6 +542,5 @@ Oskar Sodergren  - For hints and transportation.
 Dalina Steneros  - For cheering me up.
 Ron Teague       - For great support, encouragement and beta testing.
 Peter Tidestrom  - For the beer.
+Per Wennerström  - For registering as the first paid user, and for lots of bug reports and feedback during testing.
 Nicolaus Wirth   - For designing the Pascal language... (JUST KIDDING!!!)
-
-----

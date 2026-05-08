@@ -93,7 +93,8 @@ class CompiledVmScriptRunner(
         runtime: RuntimeSessionState,
         locals: Map<String, Int> = emptyMap(),
         textBindings: Map<String, String> = emptyMap(),
-    ): CompiledVmResult = run(root, CompiledVmStart(runtime, locals, textBindings))
+        activeInventorySlot: Int? = null,
+    ): CompiledVmResult = run(root, CompiledVmStart(runtime, locals, textBindings, activeInventorySlot))
 
     /**
      * Runs [root] from a complete [CompiledVmStart] state.

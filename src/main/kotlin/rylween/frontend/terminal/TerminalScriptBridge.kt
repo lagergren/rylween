@@ -336,6 +336,7 @@ class CompiledVmTerminalScriptBridge(
                     root = root,
                     runtime = continuation.runtime,
                     locals = continuation.locals,
+                    activeInventorySlot = continuation.activeInventorySlot,
                 )
 
         repeat(512) {
@@ -817,7 +818,8 @@ class CompiledVmTerminalScriptBridge(
 fun KotlinHeadlessHost.compiledVmTerminalScriptBridge(
     terminal: TerminalPort,
     renderer: TerminalTextRenderer = TerminalTextRenderer(),
-    vmHost: RecordingCompiledVmHost = TerminalCompiledVmHost(renderer),
+    worldMap: WorldMapGrid? = null,
+    vmHost: RecordingCompiledVmHost = TerminalCompiledVmHost(renderer, worldMap),
 ): ScriptBridge =
     CompiledVmTerminalScriptBridge(
         terminal = terminal,
@@ -829,6 +831,7 @@ fun KotlinHeadlessHost.compiledVmTerminalScriptBridge(
 
 private class TerminalCompiledVmHost(
     private val renderer: TerminalTextRenderer,
+    private val worldMap: WorldMapGrid?,
 ) : RecordingCompiledVmHost() {
     override fun waitInputPrompt(
         reason: String?,
@@ -841,6 +844,12 @@ private class TerminalCompiledVmHost(
         val draw = runtime.drawRandom(range.first, range.last)
         return CompiledVmWaitInputPrompt(draw.runtime, renderer.pausePrompt(draw.value))
     }
+
+    override fun teleportParty(
+        runtime: RuntimeSessionState,
+        directionKey: Int,
+        distance: Int,
+    ): RuntimeSessionState = runtime.teleportParty(directionKey, distance, worldMap)
 }
 
 /** Full result of running an authored script continuation through terminal adapters. */

@@ -122,7 +122,9 @@ import rylween.runtime.scriptPartyScalar
 import rylween.runtime.scriptRealmScalar
 import rylween.runtime.scriptRuntimeFlag
 import rylween.runtime.wilderness.WildernessDungeonHandoff
+import rylween.runtime.wilderness.teleportParty
 import rylween.runtime.withFlagState
+import rylween.runtime.withInventoryItem
 import rylween.runtime.withJournalLines
 import rylween.runtime.withMilestone
 import rylween.runtime.withScriptMemberField
@@ -233,6 +235,19 @@ interface CompiledVmHost {
         text: TextBlock,
         runtime: RuntimeSessionState,
     ): List<String> = TerminalTextRenderer().lines(text, TerminalTextContext(runtime = runtime))
+
+    /**
+     * Applies wilderness teleport movement for a `TeleportParty` opcode.
+     *
+     * Hosts with a world map should override this so blocked terrain is
+     * respected. The default mirrors the authored service runner when no map
+     * was supplied: move through any destination.
+     */
+    fun teleportParty(
+        runtime: RuntimeSessionState,
+        directionKey: Int,
+        distance: Int,
+    ): RuntimeSessionState = runtime.teleportParty(directionKey, distance, worldMap = null)
 }
 
 /** Host-selected `WaitInput` prompt and any runtime state consumed while choosing it. */
@@ -279,6 +294,7 @@ data class CompiledVmStart(
     val runtime: RuntimeSessionState,
     val locals: Map<String, Int> = emptyMap(),
     val textBindings: Map<String, String> = emptyMap(),
+    val activeInventorySlot: Int? = null,
 )
 
 /**
@@ -579,6 +595,7 @@ data class CompiledVmContinuation(
     val textBindings: Map<String, String>,
     val frames: List<CompiledVmFrame>,
     val pending: CompiledVmPendingInput,
+    val activeInventorySlot: Int? = null,
 )
 
 /**
@@ -644,6 +661,7 @@ class CompiledVm(
                 runtime = start.runtime,
                 locals = start.locals.toMutableMap(),
                 textBindings = start.textBindings.toMutableMap(),
+                activeInventorySlot = start.activeInventorySlot,
             )
         return result(
             state,
@@ -715,6 +733,7 @@ class CompiledVm(
                 runtime = continuation.runtime,
                 locals = continuation.locals.toMutableMap(),
                 textBindings = continuation.textBindings.toMutableMap(),
+                activeInventorySlot = continuation.activeInventorySlot,
             )
         return result(state, executeFrames(state, program.instructions, continuation.frames))
     }
@@ -735,6 +754,7 @@ class CompiledVm(
                 runtime = continuation.runtime,
                 locals = continuation.locals.toMutableMap(),
                 textBindings = continuation.textBindings.toMutableMap(),
+                activeInventorySlot = continuation.activeInventorySlot,
             )
         val menuFrame = continuation.frames.firstOrNull()
         val branchFrame =
@@ -762,6 +782,7 @@ class CompiledVm(
                 runtime = input.completion.runtime,
                 locals = continuation.locals.toMutableMap(),
                 textBindings = continuation.textBindings.toMutableMap(),
+                activeInventorySlot = continuation.activeInventorySlot,
             )
         return result(state, executeFrames(state, program.instructions, continuation.frames))
     }
@@ -782,6 +803,7 @@ class CompiledVm(
                 runtime = continuation.runtime,
                 locals = continuation.locals.toMutableMap(),
                 textBindings = continuation.textBindings.toMutableMap(),
+                activeInventorySlot = continuation.activeInventorySlot,
             )
         state.locals[pending.localName] = binding.compiledVmPromptValue()
         return result(state, executeFrames(state, program.instructions, continuation.frames))
@@ -802,6 +824,7 @@ class CompiledVm(
                 runtime = continuation.runtime,
                 locals = continuation.locals.toMutableMap(),
                 textBindings = continuation.textBindings.toMutableMap(),
+                activeInventorySlot = continuation.activeInventorySlot,
             )
         state.locals[pending.localName] = input.memberNumber
         return result(state, executeFrames(state, program.instructions, continuation.frames))
@@ -822,6 +845,7 @@ class CompiledVm(
                 runtime = continuation.runtime,
                 locals = continuation.locals.toMutableMap(),
                 textBindings = continuation.textBindings.toMutableMap(),
+                activeInventorySlot = continuation.activeInventorySlot,
             )
         state.locals[pending.localName] = input.monsterIndex
         return result(state, executeFrames(state, program.instructions, continuation.frames))
@@ -843,6 +867,7 @@ class CompiledVm(
                 runtime = continuation.runtime,
                 locals = continuation.locals.toMutableMap(),
                 textBindings = continuation.textBindings.toMutableMap(),
+                activeInventorySlot = continuation.activeInventorySlot,
             )
         state.locals[pending.localName] = choice.slot
         return result(state, executeFrames(state, program.instructions, continuation.frames))
@@ -861,6 +886,7 @@ class CompiledVm(
                 runtime = continuation.runtime,
                 locals = continuation.locals.toMutableMap(),
                 textBindings = continuation.textBindings.toMutableMap(),
+                activeInventorySlot = continuation.activeInventorySlot,
             )
         val promptFrame = continuation.frames.firstOrNull()
         val branchFrame =
@@ -893,6 +919,7 @@ class CompiledVm(
                             textBindings = state.textBindings.toMap(),
                             frames = signal.frames,
                             pending = signal.pending,
+                            activeInventorySlot = state.activeInventorySlot,
                         ),
                 )
         }
@@ -1527,6 +1554,20 @@ class CompiledVm(
                     request = CompiledVmChildRequest.EnterDungeon(handoff),
                 )
             }
+            CompiledOpcode.ConsumeActiveItem -> {
+                state.activeInventorySlot?.let { slot ->
+                    state.party = state.party.withInventoryItem(slot, null)
+                }
+                ControlSignal.Continue
+            }
+            CompiledOpcode.ClearInventorySlot ->
+                evalInt(state, instruction.intExpr(0), location.child(0)).fold(
+                    ok = { slot ->
+                        state.party = state.party.withInventoryItem(slot, null)
+                        ControlSignal.Continue
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
             CompiledOpcode.ConsumeInventoryPool -> {
                 val pool = index.itemPool(instruction.handle(0))
                 val quantity = evalInt(state, instruction.intExpr(1), location.child(1))
@@ -1535,6 +1576,58 @@ class CompiledVm(
                         state.party = state.party.consumeInventoryItems(pool, value)
                         host.trace(EngineTraceEvent.ConsumeInventoryPool(pool, value))
                         ControlSignal.Continue
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
+            }
+            CompiledOpcode.ConsumeTorch -> {
+                host.trace(EngineTraceEvent.ConsumeTorch)
+                ControlSignal.Continue
+            }
+            CompiledOpcode.TeleportParty -> {
+                val directionKey = evalInt(state, instruction.intExpr(0), location.child(0))
+                val distance = evalInt(state, instruction.intExpr(1), location.child(1))
+                directionKey.zip(distance).fold(
+                    ok = { (directionKeyValue, distanceValue) ->
+                        state.runtime = host.teleportParty(state.runtime, directionKeyValue, distanceValue)
+                        state.party = state.runtime.activeParty
+                        host.trace(EngineTraceEvent.TeleportParty(directionKeyValue, distanceValue))
+                        ControlSignal.Continue
+                    },
+                    failed = { ControlSignal.Failed(it) },
+                )
+            }
+            CompiledOpcode.DiscoverCave -> {
+                val levels = evalInt(state, instruction.intExpr(1), location.child(1))
+                val moveCost = evalInt(state, instruction.intExpr(2), location.child(2))
+                levels.zip(moveCost).fold(
+                    ok = { (levelsValue, moveCostValue) ->
+                        val handoff = WildernessDungeonHandoff(DungeonId(index.slug(instruction.handle(0))), levelsValue)
+                        state.party =
+                            state.party.copy(
+                                resources =
+                                    state.party.resources.copy(
+                                        timeLeft = (state.party.resources.timeLeft - moveCostValue).coerceAtLeast(0),
+                                    ),
+                            )
+                        state.runtime =
+                            state.runtime.withRealm(
+                                state.runtime.realm.copy(
+                                    currentMode = RuntimeMode.Dungeon,
+                                    currentTown = null,
+                                ),
+                            )
+                        state.party = state.runtime.activeParty
+                        host.trace(EngineTraceEvent.DiscoverCave(handoff, moveCostValue))
+                        host.trace(EngineTraceEvent.DungeonHandoff(handoff))
+                        blockChildSession(
+                            location = location,
+                            insideLoop = insideLoop,
+                            blockKind = blockKind,
+                            enclosingInsideLoop = enclosingInsideLoop,
+                            parentFrames = parentFrames,
+                            request = CompiledVmChildRequest.EnterDungeon(handoff),
+                        )
                     },
                     failed = { ControlSignal.Failed(it) },
                 )
@@ -1610,16 +1703,6 @@ class CompiledVm(
                     failed = { ControlSignal.Failed(it) },
                 )
             }
-            else ->
-                ControlSignal.Failed(
-                    VmDiagnostic.UnsupportedHostService(
-                        root = location.root,
-                        instructionIndex = location.instructionIndex,
-                        operandPath = location.operandPath,
-                        service = instruction.opcode.name,
-                        reason = "Opcode is outside the J2.1 non-interactive VM slice",
-                    ),
-                )
         }
 
     private fun executeLoop(
@@ -2888,6 +2971,7 @@ private data class ExecutionState(
     var runtime: RuntimeSessionState,
     val locals: MutableMap<String, Int>,
     val textBindings: MutableMap<String, String>,
+    val activeInventorySlot: Int? = null,
 ) {
     var party: PartyState = runtime.activeParty
         set(value) {

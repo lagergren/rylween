@@ -33,6 +33,7 @@ import rylween.dsl.StateModel
 import rylween.dsl.TextPattern
 import rylween.dsl.Wilderness
 import rylween.dsl.declareFlag
+import rylween.dsl.dungeon
 import rylween.dsl.eq
 import rylween.dsl.inlineText
 import rylween.dsl.inputKey
@@ -60,8 +61,10 @@ import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScriptContinuation
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.hasFlagState
+import rylween.runtime.inventoryItem
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.vm.CompiledVm
+import rylween.runtime.vm.CompiledVmChildCompletion
 import rylween.runtime.vm.CompiledVmContinuation
 import rylween.runtime.vm.CompiledVmFrameKind
 import rylween.runtime.vm.CompiledVmInput
@@ -952,6 +955,88 @@ class RylweenCompiledVmTest {
     }
 
     @Test
+    fun compiledVmExecutesRemainingRuntimeMutationOpcodes() {
+        val model =
+            rylween {
+                content {
+                    scene(VmRuntimeMutationScene) {
+                        consumeActiveItem()
+                        val clearSlot = let("clear_slot", 2)
+                        party.inventory.clear(InventorySlotRef(clearSlot))
+                        consumeTorch()
+                        teleportParty(6, 2)
+                        stop("done")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmRuntimeMutationScene)
+        val host = RecordingCompiledVmHost()
+
+        val result =
+            CompiledVm(compiled.content, host)
+                .run(
+                    program,
+                    CompiledVmStart(
+                        runtime =
+                            RuntimeSessionState.singleParty(
+                                testParty(inventoryItems = mapOf(1 to VmGem, 2 to VmCoin)),
+                                hour = 12,
+                                currentTown = null,
+                            ),
+                        activeInventorySlot = 1,
+                    ),
+                )
+
+        val completed = assertIs<CompiledVmResult.Completed>(result)
+        assertNull(completed.runtime.activeParty.inventoryItem(1))
+        assertNull(completed.runtime.activeParty.inventoryItem(2))
+        assertEquals(Wilderness.xy(4, 0), completed.runtime.activeParty.position)
+        assertTrue(EngineTraceEvent.ConsumeTorch in host.events)
+        assertTrue(EngineTraceEvent.TeleportParty(directionKey = 6, distance = 2) in host.events)
+    }
+
+    @Test
+    fun compiledVmDiscoversCaveAndResumesAfterDungeonChildCompletion() {
+        val model =
+            rylween {
+                content {
+                    scene(VmDiscoverCaveScene) {
+                        discoverCave(levels = 3, dungeon = VmCave, moveCost = 4)
+                        screen("after cave")
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmDiscoverCaveScene)
+        val host = RecordingCompiledVmHost()
+        val vm = CompiledVm(compiled.content, host)
+
+        val blocked =
+            assertIs<CompiledVmResult.Blocked>(
+                vm.run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null))),
+            )
+        val pending = assertIs<CompiledVmPendingInput.ChildSession>(blocked.pending)
+        val request = assertIs<rylween.runtime.vm.CompiledVmChildRequest.EnterDungeon>(pending.request)
+        assertEquals(VmCave, request.handoff.dungeon)
+        assertEquals(3, request.handoff.levels)
+        assertEquals(RuntimeMode.Dungeon, blocked.continuation.runtime.realm.currentMode)
+        assertEquals(6, blocked.continuation.runtime.activeParty.resources.timeLeft)
+        assertTrue(EngineTraceEvent.DiscoverCave(request.handoff, moveCost = 4) in host.events)
+        assertTrue(EngineTraceEvent.DungeonHandoff(request.handoff) in host.events)
+
+        val resumed =
+            vm.resume(
+                program,
+                blocked.continuation,
+                CompiledVmInput.ChildSessionCompleted(
+                    CompiledVmChildCompletion(blocked.continuation.runtime),
+                ),
+            )
+        val completed = assertIs<CompiledVmResult.Completed>(resumed)
+        assertEquals(RuntimeMode.Dungeon, completed.runtime.realm.currentMode)
+        assertEquals(EngineTraceEvent.Screen(inlineText("after cave")), host.events.last())
+    }
+
+    @Test
     fun compiledVmUsesBattleExpressionHostHooks() {
         val model =
             rylween {
@@ -1354,9 +1439,12 @@ class RylweenCompiledVmTest {
         val VmExpressionScene = sceneId("vm.expressions")
         val VmBattleScene = sceneId("vm.battle_expr")
         val VmNestedExpressionScene = sceneId("vm.nested_expr")
+        val VmRuntimeMutationScene = sceneId("vm.runtime_mutations")
+        val VmDiscoverCaveScene = sceneId("vm.discover_cave")
         val VmGem = item("vm.gem")
         val VmCoin = item("vm.coin")
         val VmTreasurePool = itemPool("vm.treasure")
+        val VmCave = dungeon("vm.cave")
     }
 }
 
