@@ -2798,7 +2798,7 @@ class RylweenDslValidationTest {
         assertTrue("runtimeSystems: rows=1" in inspection)
 
         val runtimeSystems = artifact.readExternalRuntimeSystemsSummary()
-        assertEquals(1, runtimeSystems.schemaVersion)
+        assertEquals(2, runtimeSystems.schemaVersion)
         assertTrue("wilderness" in runtimeSystems.commandGroups)
         assertTrue("dungeon" in runtimeSystems.commandGroups)
         assertTrue("castle.ydarg.navigation" in runtimeSystems.commandGroups)

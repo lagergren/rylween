@@ -21,6 +21,7 @@ import rylween.compiled.ExternalScreenRegion
 import rylween.compiled.ExternalStaticScreen
 import rylween.compiled.ExternalTerminalTerrainStyle
 import rylween.dsl.GridPoint
+import rylween.dsl.PcClass
 import rylween.frontend.ansi.AnsiCodes
 import kotlin.math.max
 import kotlin.math.min
@@ -29,6 +30,10 @@ private const val TEXT_WINDOW = "text_window"
 private const val MAP_WINDOW = "map_window"
 private const val STATUSLINE_TOP = "statusline_top"
 private const val STATUSLINE_BOTTOM = "statusline_bottom"
+private const val SCORE_WIDTH = 76
+private const val SCORE_REPORT = "Score"
+private const val VERBOSE_SCORE_REPORT = "VerboseScore"
+private const val HALL_OF_HEROES_REPORT = "HallOfHeroes"
 
 /** ANSI screen model owned by the compiled runtime. */
 internal class CompiledAnsiScreen(
@@ -60,11 +65,15 @@ internal class CompiledAnsiScreen(
     }
 
     /** Renders a compiled static screen route and returns without waiting. */
-    fun showStaticScreen(screenSlug: String) {
+    fun showStaticScreen(
+        screenSlug: String,
+        runtime: StandaloneRuntimeState,
+    ) {
         classicFrameActive = false
         val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
         screen.image?.let(::renderImage)
         screen.resource?.let { resource -> writeFullScreenText(resourceText(resource).lines()) }
+        screen.runtimeReport?.let { report -> writeFullScreenText(runtime.runtimeReportLines(report)) }
         if (screen.commandHelp) {
             writeFullScreenText(listOf("Compiled command groups: ${systems.commandGroups.joinToString()}"))
         }
@@ -287,6 +296,120 @@ internal class CompiledAnsiScreen(
         terminal.flush()
     }
 
+    private fun StandaloneRuntimeState.runtimeReportLines(report: String): List<String> =
+        when (report) {
+            SCORE_REPORT -> scoreEntries().summaryScoreLines()
+            VERBOSE_SCORE_REPORT -> scoreEntries().verboseScoreLines()
+            HALL_OF_HEROES_REPORT -> hallOfHeroesLines()
+            else -> emptyList()
+        }
+
+    private fun StandaloneRuntimeState.scoreEntries(): List<StandaloneScoreEntry> =
+        listOf(
+            StandaloneScoreEntry(
+                rank = 1,
+                partyName = party.name,
+                leaderName =
+                    party.members
+                        .firstOrNull()
+                        ?.let { member -> content.strings.value(member.nameString) }
+                        .orEmpty(),
+                classes = party.members.map(CompiledPartyMember::pcClass),
+                kills = party.counters.kills,
+                averageExperience = party.members.averageOf(CompiledPartyMember::experience),
+                averageLevel = party.members.averageOf(CompiledPartyMember::level),
+                powerItems =
+                    systems.score.powerItems
+                        .filter { item -> party.milestones.any { milestone -> content.slug(milestone) == item.milestone } }
+                        .sortedWith(compareBy({ it.sourceOrder ?: Int.MAX_VALUE }, { it.itemName }))
+                        .map { item -> item.itemName },
+            ),
+        )
+
+    private fun List<StandaloneScoreEntry>.summaryScoreLines(): List<String> =
+        buildList {
+            addAll(scoreHeaderLines("ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES"))
+            add("")
+            add("        #     Party Name                    Experience       Level")
+            add("")
+            this@summaryScoreLines.forEach { entry ->
+                add(
+                    "        ${entry.rank.toString().padStart(2)}.    " +
+                        "${entry.partyName.padEnd(30)}  " +
+                        "${entry.averageExperience.toString().padStart(6)}          " +
+                        entry.averageLevel.toString().padStart(3),
+                )
+            }
+            add("")
+        }
+
+    private fun List<StandaloneScoreEntry>.verboseScoreLines(): List<String> =
+        buildList {
+            addAll(scoreHeaderLines("ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES"))
+            add("")
+            this@verboseScoreLines.forEach { entry ->
+                add("${entry.rank.toString().padStart(2)}. ${entry.partyName.padEnd(30)}")
+                add(" +${"-".repeat(SCORE_WIDTH - 2)}+")
+                add("  Leader             : ${entry.leaderName}")
+                add("  Classes            : ${entry.classes.joinToString(", ") { it.scoreName() }}")
+                add("  Confirmed Kills    : ${entry.kills.toString().padEnd(4)}")
+                add(
+                    "  Average Experience : ${entry.averageExperience.toString().padEnd(
+                        6,
+                    )} (level ${entry.averageLevel.toString().padEnd(3)})",
+                )
+                add("")
+                add("  Power Items        :")
+                add("")
+                if (entry.powerItems.isEmpty()) add("  None.") else entry.powerItems.forEach { item -> add("  $item") }
+                add(" +${"-".repeat(SCORE_WIDTH - 2)}+")
+                add("")
+            }
+        }
+
+    private fun StandaloneRuntimeState.hallOfHeroesLines(): List<String> =
+        buildList {
+            addAll(scoreHeaderLines("ADVENTURERS OF RYLWEEN - HALL OF NATIONAL HEROES"))
+            add("")
+            val completedBy = systems.score.completedBy
+            val hasCompleted = completedBy != null && party.milestones.any { milestone -> content.slug(milestone) == completedBy }
+            if (hasCompleted) {
+                add("  ${systems.score.hallOfHeroesEntryText.replace("{party}", party.name)}")
+            } else {
+                add("  ${systems.score.hallOfHeroesEmptyText}")
+            }
+            add("")
+        }
+
+    private fun scoreHeaderLines(title: String): List<String> =
+        listOf(
+            " +${"=".repeat(SCORE_WIDTH - 2)}+",
+            " I${title.centered(SCORE_WIDTH - 2)}I",
+            " +${"=".repeat(SCORE_WIDTH - 2)}+",
+        )
+
+    private fun List<CompiledPartyMember>.averageOf(value: (CompiledPartyMember) -> Int): Int {
+        val divisor = size.coerceAtLeast(1)
+        return sumOf(value) / divisor
+    }
+
+    private fun String.centered(width: Int): String {
+        if (length >= width) return take(width)
+        val left = (width - length) / 2
+        val right = width - length - left
+        return " ".repeat(left) + this + " ".repeat(right)
+    }
+
+    private fun PcClass.scoreName(): String =
+        when (this) {
+            PcClass.Fighter -> "Fighter"
+            PcClass.Thief -> "Thief"
+            PcClass.Mage -> "Mage"
+            PcClass.Priest -> "Priest"
+            PcClass.Bard -> "Bard"
+            PcClass.Ranger -> "Ranger"
+        }
+
     private fun renderAnsiAt(
         resource: String,
         x: Int,
@@ -361,6 +484,17 @@ internal sealed interface CompiledRuntimeViewCommand {
 internal data class CompiledRuntimeMapCell(
     val terrain: rylween.compiled.CompiledTerrain?,
     val center: Boolean,
+)
+
+private data class StandaloneScoreEntry(
+    val rank: Int,
+    val partyName: String,
+    val leaderName: String,
+    val classes: List<PcClass>,
+    val kills: Int,
+    val averageExperience: Int,
+    val averageLevel: Int,
+    val powerItems: List<String>,
 )
 
 internal fun StandaloneWorldMap.viewport(

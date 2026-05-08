@@ -333,6 +333,15 @@ Every saved continuation or game snapshot must include:
 
 A runtime must reject a save whose bundle hash or schema is incompatible.
 
+Do not treat "serialize the realm object graph" as the portable save contract.
+That captures implementation classes, transient service/session objects,
+collection ordering, and Kotlin-only enum/package names that are not part of
+the J1/J2 bundle. A save is a runtime-policy snapshot over bundle identities:
+handles/slugs, scalar realm fields, party state, RNG, active mode state, and
+explicit VM/script continuation frames when execution is suspended at an
+allowed boundary. The bundle plus the save then reconstructs runtime objects;
+the runtime objects are not themselves the cross-runtime format.
+
 ## Rendering And Input
 
 The VM contract is UI-neutral, but a playable ANSI runtime has additional
@@ -428,4 +437,6 @@ That file is not the cross-language save-file standard; it is the direct
 compiled runtime's first persistent adapter and shows the required policy:
 store portable runtime ids, bind the save to the verified bundle hash, and
 restore only at game-policy boundaries the runtime can complete without hidden
-session state.
+session state. Its line-format escaping lives in
+`compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneSaveCodec.kt`
+because it is persistence syntax, not ANSI/input character handling.

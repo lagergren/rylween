@@ -244,6 +244,26 @@ val checkCompiledRuntimeCastleScript: TaskProvider<RunInstalledLauncherWithJavaT
     script.set("2".repeat(21) + "66E")
 }
 
+val checkCompiledRuntimeHeroesScreen: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Renders the runtime-backed Hall-of-Heroes static screen from direct compiled state."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    stateSlug.set("winning-replay")
+    screen.set("heroes")
+}
+
 tasks.check {
     dependsOn(checkCompiledRuntimeBundleBoot)
     dependsOn(checkCompiledRuntimeTownScript)
@@ -252,4 +272,5 @@ tasks.check {
     dependsOn(checkCompiledRuntimeWildernessActionsScript)
     dependsOn(checkCompiledRuntimeDungeonScript)
     dependsOn(checkCompiledRuntimeCastleScript)
+    dependsOn(checkCompiledRuntimeHeroesScreen)
 }

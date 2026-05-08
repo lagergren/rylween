@@ -27,6 +27,7 @@ internal data class StandaloneDungeonState(
     val maxDepth: Int,
     val depth: Int,
     val levelEvents: Map<Int, CompiledHandleRef>,
+    val postDungeon: StandaloneScriptContinuation? = null,
 )
 
 /** Runs dungeon exploration directly from compiled content and runtime-system rows. */
@@ -111,7 +112,8 @@ internal class StandaloneDungeonRuntime(
                 systems.dungeon.prompts.leaveCavern
                     .renderDungeon(dungeon.depth),
             )
-            return runtime.copy(currentMode = RuntimeMode.Wilderness, currentTown = null, dungeon = null)
+            val exited = runtime.copy(currentMode = RuntimeMode.Wilderness, currentTown = null, dungeon = null)
+            return dungeon.postDungeon?.let { continuation -> resumePostDungeon(exited, continuation) } ?: exited
         }
         val nextDepth = dungeon.depth - 1
         val next = runtime.copy(dungeon = dungeon.copy(depth = nextDepth))
@@ -144,10 +146,17 @@ internal class StandaloneDungeonRuntime(
                     screen = screen,
                     initialRuntime = next,
                     initialLocals = mapOf("dungeon_level" to dungeon.depth),
-                ).execute(program.instructions)
+                ).execute(program)
             }
         return next.copy(dungeon = next.dungeon?.clearEventIfNeeded(event, next))
     }
+
+    private fun resumePostDungeon(
+        runtime: StandaloneRuntimeState,
+        continuation: StandaloneScriptContinuation,
+    ): StandaloneRuntimeState =
+        StandaloneScriptExecutor(content, systems, input, screen, runtime)
+            .execute(continuation)
 
     private fun StandaloneDungeonState.clearEventIfNeeded(
         event: CompiledDungeonEvent,
@@ -187,6 +196,7 @@ internal fun StandaloneRuntimeState.enterDungeon(
     content: CompiledContentBundle,
     dungeon: CompiledHandleRef,
     levels: Int,
+    postDungeon: StandaloneScriptContinuation? = null,
 ): StandaloneRuntimeState {
     var plannedParty = party
     val maxDepth = levels.coerceAtLeast(1)
@@ -213,6 +223,7 @@ internal fun StandaloneRuntimeState.enterDungeon(
                 maxDepth = maxDepth,
                 depth = 1,
                 levelEvents = randomEvents + fixedEvents,
+                postDungeon = postDungeon,
             ),
         castle = null,
     )

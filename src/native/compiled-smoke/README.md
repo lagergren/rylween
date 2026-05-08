@@ -151,11 +151,12 @@ does not use Kotlin reflective `_type` markers; entries use explicit `kind`,
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "realm": {},
   "prompts": {},
   "presentation": {},
   "commands": {},
+  "score": {},
   "wilderness": {},
   "dungeon": {},
   "town": {},
