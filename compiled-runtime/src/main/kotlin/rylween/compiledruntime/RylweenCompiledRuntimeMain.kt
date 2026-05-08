@@ -22,24 +22,30 @@ import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledGameBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
-import rylween.compiled.CompiledInputBinding
 import rylween.compiled.CompiledInstruction
+import rylween.compiled.CompiledIntExpr
+import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.CompiledMenuOption
 import rylween.compiled.CompiledOpcode
 import rylween.compiled.CompiledOperand
 import rylween.compiled.CompiledPartyImage
 import rylween.compiled.CompiledPartyMember
+import rylween.compiled.CompiledRuntimeTextPart
+import rylween.compiled.CompiledShopService
 import rylween.compiled.CompiledStateImage
+import rylween.compiled.CompiledStringExpr
 import rylween.compiled.CompiledTerrain
 import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledTextPart
 import rylween.compiled.CompiledViewCommand
 import rylween.compiled.CompiledWorldPosition
+import rylween.compiled.ExternalRuntimeRealm
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
 import rylween.dsl.GridPoint
 import rylween.dsl.PartyResources
+import rylween.dsl.Resource
 import java.io.File
 import kotlin.math.max
 import kotlin.system.exitProcess
@@ -167,7 +173,7 @@ class StandaloneCompiledRuntime private constructor(
         scriptedInput: String?,
     ) {
         val state = stateBySlug(stateSlug)
-        var party = StandaloneParty.from(state.activeParty(), content)
+        var party = StandaloneParty.from(state.activeParty(), content, state.realm.rngState)
         val world = StandaloneWorldMap.from(content, state.realm.currentMap)
         CompiledAnsiTerminals.open(scripted = scriptedInput != null).use { terminal ->
             val screen = CompiledAnsiScreen(terminal, bundle, systems)
@@ -193,7 +199,7 @@ class StandaloneCompiledRuntime private constructor(
                     ' ' -> party = party.passTurn()
                     '?' -> printHelp(screen)
                     'T' -> screen.showStaticScreen("title")
-                    'E' -> enterTown(party, input, screen)
+                    'E' -> party = enterTown(party, input, screen)
                     '\n' -> Unit
                     else -> screen.writeText(listOf("Unknown command '$command'.", "Press ? for commands."))
                 }
@@ -243,11 +249,11 @@ class StandaloneCompiledRuntime private constructor(
         party: StandaloneParty,
         input: StandaloneInput,
         screen: CompiledAnsiScreen,
-    ) {
+    ): StandaloneParty {
         val town = content.towns.firstOrNull { it.position == party.position }
         if (town == null) {
             screen.writeText(listOf("There is nothing to enter here."))
-            return
+            return party
         }
         val services =
             town.services.mapNotNull { building ->
@@ -255,7 +261,7 @@ class StandaloneCompiledRuntime private constructor(
             }
         if (services.isEmpty()) {
             screen.writeText(listOf("${string(town.nameString)} has no compiled services."))
-            return
+            return party
         }
         val menu =
             buildList {
@@ -267,31 +273,32 @@ class StandaloneCompiledRuntime private constructor(
                 add("L. Leave")
             }
         screen.writeText(menu)
-        val choice = input.readCommand() ?: return
-        if (choice == 'L') return
+        val choice = input.readCommand() ?: return party
+        if (choice == 'L') return party
         val index = choice.digitToIntOrNull()?.minus(1)
         val service = index?.let(services::getOrNull)
         if (service == null) {
             screen.writeText(listOf("No such service."))
-            return
+            return party
         }
-        runService(service, input, screen)
+        return runService(party, service, input, screen)
     }
 
     private fun runService(
+        party: StandaloneParty,
         service: CompiledBuildingService,
         input: StandaloneInput,
         screen: CompiledAnsiScreen,
-    ) {
+    ): StandaloneParty {
         val sceneSlug = slug(service.scene)
         val program =
             content.scripts.roots.firstOrNull { root -> root.root.kind.name == "Scene" && root.root.slug == sceneSlug }
         if (program == null) {
             screen.writeText(listOf("No compiled scene program for $sceneSlug."))
-            return
+            return party
         }
         screen.writeText(listOf("Running ${slug(service.building).readableSlug()}", "Scene: $sceneSlug"))
-        StandaloneScriptExecutor(content, input, screen).execute(program.instructions)
+        return StandaloneScriptExecutor(content, systems.realm, input, screen, party).execute(program.instructions)
     }
 
     private fun CompiledStateImage.activeParty(): CompiledPartyImage =
@@ -321,14 +328,60 @@ internal data class StandaloneParty(
     val name: String,
     val position: GridPoint,
     val resources: PartyResources,
+    val inventory: List<CompiledInventorySlot>,
     val members: List<CompiledPartyMember>,
+    val rngState: Long?,
 ) {
     fun passTurn(): StandaloneParty = copy(resources = resources.copy(timeLeft = max(0, resources.timeLeft - 1)))
+
+    fun withGold(value: Int): StandaloneParty = copy(resources = resources.copy(gold = value.coerceAtLeast(0)))
+
+    fun withResource(
+        resource: Resource,
+        amount: Int,
+    ): StandaloneParty =
+        when (resource) {
+            Resource.Food -> copy(resources = resources.copy(food = amount.coerceAtLeast(0)))
+            Resource.Torches -> copy(resources = resources.copy(torches = amount.coerceAtLeast(0)))
+        }
+
+    fun inventoryItem(slot: Int): CompiledHandleRef? = inventory.firstOrNull { current -> current.slot == slot }?.item
+
+    fun withInventoryItem(
+        slot: Int,
+        item: CompiledHandleRef?,
+    ): StandaloneParty =
+        copy(
+            inventory =
+                inventory.map { current ->
+                    if (current.slot == slot) current.copy(item = item) else current
+                },
+        )
+
+    fun drawRandom(
+        lo: Int,
+        hi: Int,
+    ): StandaloneRandomDraw {
+        require(lo <= hi) { "random range must be ascending: $lo..$hi" }
+        val seed = rngState ?: return StandaloneRandomDraw(lo, this)
+        var state = seed.takeUnless { it == 0L } ?: 1L
+        state = state xor (state ushr 12)
+        state = state xor (state shl 25)
+        state = state xor (state ushr 27)
+        val mixed = state * REFERENCE_RANDOM_MULTIPLIER
+        val span = hi.toLong() - lo.toLong() + 1L
+        val offset = java.lang.Long.remainderUnsigned(mixed, span)
+        return StandaloneRandomDraw(
+            value = (lo.toLong() + offset).toInt(),
+            party = copy(rngState = state),
+        )
+    }
 
     companion object {
         fun from(
             party: CompiledPartyImage,
             content: CompiledContentBundle,
+            rngState: Long?,
         ): StandaloneParty {
             val position =
                 when (val current = party.position) {
@@ -339,46 +392,117 @@ internal data class StandaloneParty(
                 name = content.strings.value(party.nameString),
                 position = position,
                 resources = party.resources,
+                inventory = party.inventory,
                 members = party.members,
+                rngState = rngState,
             )
         }
     }
 }
 
-private class StandaloneInput(
+internal data class StandaloneRandomDraw(
+    val value: Int,
+    val party: StandaloneParty,
+)
+
+private const val REFERENCE_RANDOM_MULTIPLIER: Long = 0x2545F4914F6CDD1DL
+
+internal class StandaloneInput(
     private val terminal: CompiledAnsiTerminal,
     scriptedInput: String?,
 ) {
-    private val scripted = scriptedInput?.iterator()
+    private val scripted = scriptedInput?.toList()?.let(::ArrayDeque)
 
-    val exhausted: Boolean get() = scripted != null && !scripted.hasNext()
+    val exhausted: Boolean get() = scripted != null && scripted.isEmpty()
 
     fun readCommand(): Char? {
-        scripted?.nextCommand()?.let { command ->
-            return command
-        }
+        val scriptedCommand = readScriptedCommand()
+        if (scriptedCommand != null) return scriptedCommand
+        if (scripted != null) return null
         return terminal.readKeyToken()?.firstOrNull()?.uppercaseChar()
     }
 
-    private fun CharIterator.nextCommand(): Char? {
-        while (hasNext()) {
-            val next = nextChar()
+    fun readInt(maxDigits: Int = 6): Int? {
+        val scriptedValue = readScriptedUnsignedInt()
+        if (scriptedValue != null) return scriptedValue
+        if (scripted != null) return null
+        return terminal.readTextLine(maxDigits)?.trim()?.toIntOrNull()
+    }
+
+    private fun readScriptedCommand(): Char? {
+        val chars = scripted ?: return null
+        while (chars.isNotEmpty()) {
+            val next = chars.removeFirst()
             if (!next.isWhitespace()) return next.uppercaseChar()
         }
         return null
     }
+
+    private fun readScriptedUnsignedInt(): Int? {
+        val chars = scripted ?: return null
+        while (chars.firstOrNull()?.isWhitespace() == true) {
+            chars.removeFirst()
+        }
+        val digits =
+            buildString {
+                while (chars.firstOrNull()?.isDigit() == true) {
+                    append(chars.removeFirst())
+                }
+            }
+        return digits.takeIf(String::isNotEmpty)?.toIntOrNull()
+    }
 }
+
+internal fun CompiledTextBlock.renderStandaloneLines(
+    content: CompiledContentBundle,
+    intValue: (CompiledIntExpr) -> String = { "[int]" },
+    stringValue: (CompiledStringExpr) -> String = { "[string]" },
+    runtimeValue: (CompiledRuntimeTextPart) -> String = { part -> "[${part.name}]" },
+): List<String> =
+    when (this) {
+        is CompiledTextBlock.Ref -> listOf("[text:${content.slug(text)}]")
+        is CompiledTextBlock.Inline -> lineStrings.map(content.strings::value)
+        is CompiledTextBlock.Structured ->
+            lines.map { line ->
+                line.parts.joinToString(separator = "") { part ->
+                    part.renderStandalone(content, intValue, stringValue, runtimeValue)
+                }
+            }
+    }
+
+private fun CompiledTextPart.renderStandalone(
+    content: CompiledContentBundle,
+    intValue: (CompiledIntExpr) -> String,
+    stringValue: (CompiledStringExpr) -> String,
+    runtimeValue: (CompiledRuntimeTextPart) -> String,
+): String =
+    when (this) {
+        is CompiledTextPart.Literal -> content.strings.value(string)
+        is CompiledTextPart.IntValue -> intValue(value)
+        is CompiledTextPart.StringValue -> stringValue(value)
+        is CompiledTextPart.RoleName -> "[role:${content.slug(role)}]"
+        is CompiledTextPart.RoleLocation -> "[role-location:${content.slug(role)}]"
+        is CompiledTextPart.TownName -> content.townName(town)
+        is CompiledTextPart.FuzzyTownLocation -> "${content.townName(town)} area"
+        is CompiledTextPart.LocationCoordinate -> "[location:${content.slug(location)}]"
+        is CompiledTextPart.Runtime -> runtimeValue(kind)
+    }
 
 private class StandaloneScriptExecutor(
     private val content: CompiledContentBundle,
+    private val realm: ExternalRuntimeRealm,
     private val input: StandaloneInput,
     private val screen: CompiledAnsiScreen,
+    initialParty: StandaloneParty,
 ) {
-    fun execute(instructions: List<CompiledInstruction>) {
+    private var party: StandaloneParty = initialParty
+
+    fun execute(instructions: List<CompiledInstruction>): StandaloneParty {
         instructions.forEach { instruction ->
             val stop = execute(instruction)
-            if (stop) return
+            if (stop) return party
         }
+        return party
     }
 
     private fun execute(instruction: CompiledInstruction): Boolean =
@@ -391,7 +515,10 @@ private class StandaloneScriptExecutor(
             CompiledOpcode.Stop,
             CompiledOpcode.Break,
             -> true
-            CompiledOpcode.ShopService -> false.also { screen.writeText(listOf("Shop service host is not implemented yet.")) }
+            CompiledOpcode.ShopService ->
+                false.also {
+                    party = StandaloneCompiledShopService(content, realm, input, screen).run(instruction.shopServiceOperand(0), party)
+                }
             CompiledOpcode.RandomItemOffer -> false.also { screen.writeText(listOf("Random item offer host is not implemented yet.")) }
             CompiledOpcode.GrantReward -> false.also { screen.writeText(listOf("Reward host is not implemented yet.")) }
             CompiledOpcode.Speak -> false.also { screen.writeText(listOf("Speak host is not implemented yet.")) }
@@ -415,18 +542,18 @@ private class StandaloneScriptExecutor(
             buildList {
                 addAll(instruction.textBlockOperand(0).renderLines())
                 options.forEach { option ->
-                    add("${option.binding.primaryLabel()}. ${content.strings.value(option.binding.labelString)}")
+                    add("${option.binding.primaryStandaloneLabel(content)}. ${content.strings.value(option.binding.labelString)}")
                 }
             }
         screen.writeText(lines)
         val choice = input.readCommand() ?: return true
-        val option = options.firstOrNull { menu -> menu.binding.matches(choice) }
+        val option = options.firstOrNull { menu -> menu.binding.matchesStandalone(content, choice) }
         if (option == null) {
             screen.writeText(listOf("No such choice."))
             execute(instruction.instructionsOperand(2))
             return false
         }
-        execute(option.body)
+        party = StandaloneScriptExecutor(content, realm, input, screen, party).execute(option.body)
         return false
     }
 
@@ -445,35 +572,11 @@ private class StandaloneScriptExecutor(
 
     private fun CompiledTextBlock.renderLines(): List<String> =
         when (this) {
-            is CompiledTextBlock.Ref -> listOf("[text:${content.slug(text)}]")
-            is CompiledTextBlock.Inline -> lineStrings.map(content.strings::value)
-            is CompiledTextBlock.Structured ->
-                lines.map { line ->
-                    line.parts.joinToString(separator = "") { part -> part.render() }
-                }
+            is CompiledTextBlock.Ref,
+            is CompiledTextBlock.Inline,
+            is CompiledTextBlock.Structured,
+            -> renderStandaloneLines(content)
         }
-
-    private fun CompiledTextPart.render(): String =
-        when (this) {
-            is CompiledTextPart.Literal -> content.strings.value(string)
-            is CompiledTextPart.IntValue -> "[int]"
-            is CompiledTextPart.StringValue -> "[string]"
-            is CompiledTextPart.RoleName -> "[role:${content.slug(role)}]"
-            is CompiledTextPart.RoleLocation -> "[role-location:${content.slug(role)}]"
-            is CompiledTextPart.TownName -> content.townName(town)
-            is CompiledTextPart.FuzzyTownLocation -> "${content.townName(town)} area"
-            is CompiledTextPart.LocationCoordinate -> "[location:${content.slug(location)}]"
-            is CompiledTextPart.Runtime -> "[${kind.name}]"
-        }
-
-    private fun CompiledInputBinding.matches(choice: Char): Boolean {
-        val accepted = listOf(primaryString) + aliasStrings
-        return accepted
-            .map(content.strings::value)
-            .any { value -> value.equals(choice.toString(), ignoreCase = true) }
-    }
-
-    private fun CompiledInputBinding.primaryLabel(): String = content.strings.value(primaryString)
 
     private fun CompiledInstruction.textBlockOperand(index: Int): CompiledTextBlock =
         (operands[index] as CompiledOperand.TextBlockValue).value
@@ -489,6 +592,9 @@ private class StandaloneScriptExecutor(
 
     private fun CompiledInstruction.instructionsOperand(index: Int): List<CompiledInstruction> =
         (operands[index] as CompiledOperand.Instructions).instructions
+
+    private fun CompiledInstruction.shopServiceOperand(index: Int): CompiledShopService =
+        (operands[index] as CompiledOperand.ShopService).service
 }
 
 internal class StandaloneWorldMap(

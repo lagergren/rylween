@@ -43,9 +43,9 @@ Before he was gone the royal guard heard him yell:
  Rylween.'
 
    He built a stronghold somewhere to the southwest, the evil castle Zadraz,
-in one night. The following weeks where chaotic. Strange and evil creatures
+in one night. The following weeks were chaotic. Strange and evil creatures
 started to appear in the realm, and many good merchant was slain on his trips
-through the forests. All citizens of Rylween where panicstricken. The
+through the forests. All citizens of Rylween where panic stricken. The
 warrior guilds, in the four cities of Rylween, started to search for veteran
 fighters, fit for protecting the realm. They failed.
 
@@ -90,7 +90,7 @@ greater than 75 for any skill.
   Health:
   =-=-=-=
   This is this character's hit point maximum. Each time he is wounded
-  his hit points decrease. If they drop below 0 the characted will die.
+  his hit points decrease. If they drop below 0 the character will die.
   A character can never get more hit points than his health, though.
 
   Wisdom:
@@ -302,15 +302,17 @@ Ollk lies in the Great Swamp in the northeastern part of the realm.
 Wilor - City of the Forest
 -=-=-=-=-=-=-=-=-=-=-=-=-=
 Wilor is the capital of Rylween. Wilor lies in the center of the realm, in
-the large forest Lonewood.
+the large forest known as Lonewood.
 
 Murn - City of the Desert
 -=-=-=-=-=-=-=-=-=-=-=-=-
-Murn lies somewhere in the southeastern desert. Not many travellers have
+Murn lies somewhere in the southeastern desert. Not many travelers have
 made it to this part of the land. It is about as far away as you can get
-from Thord.
+from Thord, and surrounding terrain is hostile.
 
-People in the taverns might tell you where the towns are more exact.
+Travelers you meet in inns and taverns, and on the road, may be able to tell
+you more exactly where the towns are located, and how to best prepare your
+travels.
 
 --------------
 
@@ -510,7 +512,7 @@ Zak Ashraf       - For calling my board from the UK just to play AOR!
 Magnus Andersson - For being the laziest co-sysop in the world.
 Mattias Bergvall - Well... er... hmm.... oops, fergot.
 Anders Blixt     - The first one to get hooked on AOR.
-Niklas Blomqvist - Creator of the original Rylween realm.
+Niklas Blomqvist - Creator of the original Rylween realm, and a very early version with STOS on the Atari ST.
 David Borin      - Have fun in Luleå, man.
 Martin Darsenius - For being the almost-perfect user!
 Per Eklund       - For being the perfect user!
@@ -521,8 +523,8 @@ Magnus Gustafson - For answering Marcus Hirt's letters.
 David Hartje     - For regstering, and for valuable feedback.
 Holger Hellebro  - My first beta tester.
 Marcus Hirt      - For cluttering up my msg bases with strange discussions.
-Bob Hurst        - For Hack&Slash. (It inspired me to create AOR).
-Patrik Jarnefelt - Beta tester. Solna-dweller.
+Bob Hurst        - For Hack & Slash. (It inspired me to create AOR).
+Patrik Järnefelt - Beta tester. Solna-dweller.
 Marcus Lagergren - For egocentricity :) - Otherwise I wouldn't have made it.
 Joakim Larsson   - Another Rylween-o-phile. (But he grew tired of it).
 Matias Larsson   - Graphics Wizard. The best of them all!

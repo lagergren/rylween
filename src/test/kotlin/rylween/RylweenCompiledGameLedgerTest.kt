@@ -1274,7 +1274,7 @@ class RylweenCompiledGameLedgerTest {
     @Test
     fun standaloneCompiledRuntimeDoesNotComposeOldKotlinSessions() {
         val sources =
-            File("src/compiledRuntime/kotlin")
+            File("compiled-runtime/src/main/kotlin")
                 .walkTopDown()
                 .filter { file -> file.isFile && file.extension == "kt" }
                 .toList()
@@ -1304,18 +1304,26 @@ class RylweenCompiledGameLedgerTest {
                     .map { token -> "${file.invariantSeparatorsPath}: $token" }
             }
         val build = File("build.gradle.kts").readText()
+        val settings = File("settings.gradle.kts").readText()
+        val compiledRuntimeBuild = File("compiled-runtime/build.gradle.kts").readText()
 
         check(sources.isNotEmpty()) {
-            "standalone compiled runtime source set must exist"
+            "standalone compiled runtime subproject source must exist"
         }
         check(offenders.isEmpty()) {
             "standalone compiled runtime must not compose old Kotlin session/runtime adapters: " +
                 offenders.joinToString()
         }
-        check("val compiledRuntime: SourceSet" in build && "checkCompiledRuntimeBundleBoot" in build) {
-            "standalone compiled runtime must stay wired into Gradle verification"
+        check("""include("compiled-runtime")""" in settings) {
+            "standalone compiled runtime must stay in a dedicated Gradle subproject"
         }
-        check(File("run-compiled.sh").readText().contains("installCompiledRuntime")) {
+        check("dependsOn(\":compiled-runtime:check\")" in build) {
+            "root check must keep the standalone compiled runtime subproject in verification"
+        }
+        check("checkCompiledRuntimeBundleBoot" in compiledRuntimeBuild && "checkCompiledRuntimeTownScript" in compiledRuntimeBuild) {
+            "standalone compiled runtime subproject must keep its own verification tasks"
+        }
+        check(File("run-compiled.sh").readText().contains(":compiled-runtime:installCompiledRuntime")) {
             "run-compiled.sh must launch the standalone compiled runtime"
         }
     }

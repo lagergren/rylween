@@ -1751,6 +1751,24 @@ fun validateScriptRewards(
                     check(page.entries.isNotEmpty()) {
                         "shop ${shop.building.slug} catalog ${catalog.title} page $pageIndex has no entries"
                     }
+                    page.navigation.previous?.let { binding ->
+                        validateInputChoiceBinding(
+                            binding,
+                            "shop ${shop.building.slug} catalog ${catalog.title} page $pageIndex previous key",
+                        )
+                        check(pageIndex > 0) {
+                            "shop ${shop.building.slug} catalog ${catalog.title} first page cannot have previous navigation"
+                        }
+                    }
+                    page.navigation.next?.let { binding ->
+                        validateInputChoiceBinding(
+                            binding,
+                            "shop ${shop.building.slug} catalog ${catalog.title} page $pageIndex next key",
+                        )
+                        check(pageIndex < catalog.pages.lastIndex) {
+                            "shop ${shop.building.slug} catalog ${catalog.title} last page cannot have next navigation"
+                        }
+                    }
                     page.entries.forEach { entry ->
                         validateInputChoiceBinding(
                             entry.binding,
@@ -1758,7 +1776,8 @@ fun validateScriptRewards(
                         )
                     }
                     checkUniqueBindings(
-                        page.entries.map { it.binding },
+                        page.entries.map { it.binding } +
+                            listOfNotNull(page.navigation.previous, page.navigation.next),
                         "shop ${shop.building.slug} catalog ${catalog.title} page $pageIndex",
                     )
                     page.footer?.let {

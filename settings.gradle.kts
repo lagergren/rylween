@@ -11,3 +11,5 @@ plugins {
 }
 
 rootProject.name = "rylween"
+
+include("compiled-runtime")
