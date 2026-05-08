@@ -289,10 +289,18 @@ internal class StandaloneScriptExecutor(
                 }
             CompiledOpcode.TeleportParty ->
                 continueAfter {
+                    val direction = teleportDelta(int(instruction.intOperand(0)))
+                    val steps = int(instruction.intOperand(1)).coerceIn(1, 9) * 2
+                    val destination =
+                        direction?.let { delta ->
+                            (1..steps).fold(runtime.party.position) { point, _ ->
+                                GridPoint(point.x + delta.x, point.y + delta.y)
+                            }
+                        } ?: runtime.party.position
                     runtime =
                         runtime.withParty(
                             runtime.party.copy(
-                                position = GridPoint(int(instruction.intOperand(0)), int(instruction.intOperand(1))),
+                                position = destination,
                             ),
                         )
                 }
@@ -1394,6 +1402,15 @@ internal class StandaloneScriptExecutor(
             CompiledComparisonOp.Lte -> this <= right
             CompiledComparisonOp.Gt -> this > right
             CompiledComparisonOp.Gte -> this >= right
+        }
+
+    private fun teleportDelta(directionKey: Int): GridPoint? =
+        when (directionKey) {
+            8 -> GridPoint(0, -1)
+            2 -> GridPoint(0, 1)
+            4 -> GridPoint(-1, 0)
+            6 -> GridPoint(1, 0)
+            else -> null
         }
 
     private fun ScriptControlSignal.toStandalone(insideLoop: Boolean): StandaloneScriptSignal =

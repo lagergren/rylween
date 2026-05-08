@@ -47,10 +47,12 @@ internal object StandaloneCompiledSave {
                 put("realm.currentTown", runtime.currentTown?.let(content::slug).orEmpty())
                 put("realm.lastTerrain", runtime.lastTerrain?.let(content::slug).orEmpty())
                 put("realm.partyMemberMax", runtime.partyMemberMax.toString())
+                put("missions.completed", runtime.completedMissions.joinToString(",") { content.slug(it) })
                 runtime.dungeon?.let { dungeon ->
                     put("dungeon.id", content.slug(dungeon.dungeon))
                     put("dungeon.maxDepth", dungeon.maxDepth.toString())
                     put("dungeon.depth", dungeon.depth.toString())
+                    put("dungeon.pendingMission", dungeon.pendingMission?.let(content::slug).orEmpty())
                     put(
                         "dungeon.levelEvents",
                         dungeon.levelEvents.entries
@@ -100,6 +102,8 @@ internal object StandaloneCompiledSave {
             currentTown = values.optionalHandle("realm.currentTown", CompiledHandleKind.Town, content) ?: baseState.currentTown,
             lastTerrain = values.optionalHandle("realm.lastTerrain", CompiledHandleKind.Terrain, content) ?: baseState.lastTerrain,
             partyMemberMax = values.intOrDefault("realm.partyMemberMax", baseState.partyMemberMax),
+            completedMissions =
+                values.handleListOrDefault("missions.completed", CompiledHandleKind.Mission, content, baseState.completedMissions),
             dungeon = values.readDungeon(content) ?: baseState.dungeon,
             castle = values.readCastle() ?: baseState.castle,
             party = values.readParty(baseState.party, content),
@@ -202,6 +206,7 @@ internal object StandaloneCompiledSave {
                         val parts = token.split(':')
                         parts[0].toInt() to content.ref(CompiledHandleKind.DungeonEvent, parts[1])
                     }.orEmpty(),
+            pendingMission = optionalHandle("dungeon.pendingMission", CompiledHandleKind.Mission, content),
             postDungeon = readPostDungeon(content),
         )
     }

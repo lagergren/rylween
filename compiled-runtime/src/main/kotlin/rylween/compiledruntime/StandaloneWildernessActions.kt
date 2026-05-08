@@ -9,15 +9,22 @@
 
 package rylween.compiledruntime
 
+import rylween.compiled.CompiledBinaryOp
+import rylween.compiled.CompiledBoolExpr
+import rylween.compiled.CompiledComparisonOp
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
+import rylween.compiled.CompiledIntExpr
+import rylween.compiled.CompiledMission
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledTerrain
+import rylween.compiled.CompiledTrigger
 import rylween.compiled.ExternalCampRules
 import rylween.compiled.ExternalHuntRules
 import rylween.compiled.ExternalRuntimeCombat
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeRealm
+import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalWildernessFatigueRule
 import rylween.compiled.ExternalWildernessRuntime
@@ -40,6 +47,7 @@ private val manaRegenerationClasses = setOf(PcClass.Mage, PcClass.Priest)
 /** Applies bundle-authored wilderness rules to standalone runtime state. */
 internal class StandaloneWildernessActions(
     private val content: CompiledContentBundle,
+    private val systems: ExternalRuntimeSystems,
     private val realm: ExternalRuntimeRealm,
     private val combat: ExternalRuntimeCombat,
     private val wilderness: ExternalWildernessRuntime,
@@ -138,10 +146,17 @@ internal class StandaloneWildernessActions(
         runtime: StandaloneRuntimeState,
         move: StandaloneMoveEvent,
     ): StandaloneWildernessActionResult {
-        if (runtime.party.rngState == null) return StandaloneWildernessActionResult(runtime)
         var current = runtime
         val messages = mutableListOf<String>()
         current = current.applyTerrainTransition(move, messages)
+
+        val mission = current.pollMission(move.toTerrain)
+        if (mission.mission != null) {
+            if (messages.isNotEmpty()) screen.writeText(messages)
+            return StandaloneWildernessActionResult(mission.runtime.runMission(mission.mission))
+        }
+
+        if (current.party.rngState == null) return StandaloneWildernessActionResult(current, messages)
 
         var party = current.party
         val eventDraw = party.drawRandom(0, 99)
@@ -162,6 +177,44 @@ internal class StandaloneWildernessActions(
         val tier = if (splitDraw.value < events.encounterSplitPercent) events.easyEncounterTier else events.hardEncounterTier
         val battle = battleRunner().runTier(current, tier)
         return StandaloneWildernessActionResult(battle.runtime, messages + battle.messages)
+    }
+
+    private fun StandaloneRuntimeState.pollMission(currentTerrain: CompiledTerrain?): StandaloneMissionTriggerResult {
+        var next = this
+        content.missions.forEach { mission ->
+            if (mission.id in next.completedMissions || mission.requires?.let { requirement -> next.party.matches(requirement) } == false) {
+                return@forEach
+            }
+            when (val trigger = mission.trigger) {
+                is CompiledTrigger.AtLocation -> {
+                    val point = locations.firstOrNull { location -> location.location == trigger.location }?.point
+                    if (point != null && party.position == point) return StandaloneMissionTriggerResult(next, mission)
+                }
+                is CompiledTrigger.AtPosition ->
+                    if (party.position == trigger.point) return StandaloneMissionTriggerResult(next, mission)
+                is CompiledTrigger.OnTerrain ->
+                    if (currentTerrain?.id == trigger.terrain) return StandaloneMissionTriggerResult(next, mission)
+                is CompiledTrigger.RandomStep -> {
+                    val draw = next.party.rngState?.let { next.party.drawRandom(0, 99) } ?: return@forEach
+                    next = next.withParty(draw.party)
+                    if (draw.value < trigger.percent) return StandaloneMissionTriggerResult(next, mission)
+                }
+            }
+        }
+        return StandaloneMissionTriggerResult(next)
+    }
+
+    private fun StandaloneRuntimeState.runMission(mission: CompiledMission): StandaloneRuntimeState {
+        val program =
+            content.scripts.roots.firstOrNull { root ->
+                root.root.kind.name == "Scene" && root.root.slug == content.slug(mission.action)
+            }
+                ?: error("missing compiled mission scene ${content.slug(mission.action)}")
+        val ran =
+            StandaloneScriptExecutor(content, systems, input, screen, this)
+                .execute(program)
+        if (ran.currentMode != RuntimeMode.Dungeon) return ran.withCompletedMission(mission.id)
+        return ran.copy(dungeon = ran.dungeon?.copy(pendingMission = mission.id))
     }
 
     private fun StandaloneInput.readCommandFromPrompt(lines: List<String>): Char? {
@@ -445,6 +498,103 @@ internal class StandaloneWildernessActions(
 
     private fun battleRunner(): StandaloneCompiledBattleRunner = StandaloneCompiledBattleRunner(content, combat, input, screen)
 
+    private fun StandaloneParty.matches(expr: CompiledBoolExpr): Boolean =
+        when (expr) {
+            is CompiledBoolExpr.Cmp -> int(expr.left).compare(expr.op, int(expr.right))
+            is CompiledBoolExpr.Not -> !matches(expr.expr)
+            is CompiledBoolExpr.And -> matches(expr.left) && matches(expr.right)
+            is CompiledBoolExpr.Or -> matches(expr.left) || matches(expr.right)
+            is CompiledBoolExpr.FlagIs -> expr.state in flags
+            is CompiledBoolExpr.MilestoneAchieved -> expr.milestone in milestones
+            is CompiledBoolExpr.MemberFlag,
+            is CompiledBoolExpr.MonsterFlag,
+            is CompiledBoolExpr.BattleFlag,
+            is CompiledBoolExpr.RuntimeFlag,
+            -> false
+        }
+
+    private fun StandaloneParty.int(expr: CompiledIntExpr): Int =
+        when (expr) {
+            is CompiledIntExpr.Literal -> expr.value
+            is CompiledIntExpr.Binary -> int(expr.left).applyBinary(expr.op, int(expr.right))
+            is CompiledIntExpr.If -> if (matches(expr.cond)) int(expr.thenValue) else int(expr.elseValue)
+            is CompiledIntExpr.PartyScalar -> partyScalar(content.strings.value(expr.nameString))
+            is CompiledIntExpr.InventoryPoolCount -> countInventoryPool(expr.pool)
+            is CompiledIntExpr.MemberField -> memberField(int(expr.member), content.strings.value(expr.fieldString))
+            is CompiledIntExpr.Local,
+            is CompiledIntExpr.Random,
+            is CompiledIntExpr.MonsterField,
+            is CompiledIntExpr.BattleFlag,
+            is CompiledIntExpr.BattleQuery,
+            is CompiledIntExpr.RealmScalar,
+            is CompiledIntExpr.InventorySlotCost,
+            is CompiledIntExpr.NativeInt,
+            -> 0
+        }
+
+    private fun Int.applyBinary(
+        op: CompiledBinaryOp,
+        right: Int,
+    ): Int =
+        when (op) {
+            CompiledBinaryOp.Add -> this + right
+            CompiledBinaryOp.Sub -> this - right
+            CompiledBinaryOp.Mul -> this * right
+            CompiledBinaryOp.Div -> if (right == 0) 0 else this / right
+            CompiledBinaryOp.Mod -> if (right == 0) 0 else this % right
+        }
+
+    private fun Int.compare(
+        op: CompiledComparisonOp,
+        right: Int,
+    ): Boolean =
+        when (op) {
+            CompiledComparisonOp.Eq -> this == right
+            CompiledComparisonOp.Ne -> this != right
+            CompiledComparisonOp.Lt -> this < right
+            CompiledComparisonOp.Lte -> this <= right
+            CompiledComparisonOp.Gt -> this > right
+            CompiledComparisonOp.Gte -> this >= right
+        }
+
+    private fun StandaloneParty.partyScalar(name: String): Int =
+        when (name) {
+            "gold" -> resources.gold
+            "torches" -> resources.torches
+            "food" -> resources.food
+            "time_left" -> resources.timeLeft
+            "member_count" -> counters.memberCount ?: members.count { member -> !member.dead }
+            else -> 0
+        }
+
+    private fun StandaloneParty.memberField(
+        memberNumber: Int,
+        field: String,
+    ): Int {
+        val member = members.getOrNull(memberNumber - 1) ?: return 0
+        return when (field) {
+            "level" -> member.level
+            "health" -> member.health
+            "hit_points" -> member.hitPoints.current
+            "wisdom" -> member.wisdom
+            "weapon_skill" -> member.weaponSkill
+            "mana" -> member.mana.current
+            "charisma" -> member.charisma
+            "experience" -> member.experience
+            else -> 0
+        }
+    }
+
+    private fun StandaloneParty.countInventoryPool(pool: rylween.compiled.CompiledHandleRef): Int {
+        val pooledItems =
+            content.itemPools
+                .firstOrNull { itemPool -> itemPool.id == pool }
+                ?.items
+                ?.toSet()
+                .orEmpty()
+        return inventory.count { slot -> slot.item in pooledItems }
+    }
+
     private fun ExternalRuntimeTextBlock.renderCamp(runtime: StandaloneRuntimeState): List<String> =
         render { kind ->
             when (kind) {
@@ -471,6 +621,11 @@ internal class StandaloneWildernessActions(
 
     private fun StandaloneParty.leaderLevel(): Int = members.firstOrNull()?.level ?: 0
 }
+
+private data class StandaloneMissionTriggerResult(
+    val runtime: StandaloneRuntimeState,
+    val mission: CompiledMission? = null,
+)
 
 private fun List<ExternalRuntimeCommand>.matches(
     action: String,
