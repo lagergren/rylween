@@ -48,6 +48,7 @@ internal object StandaloneCompiledSave {
                 put("realm.currentMode", runtime.currentMode.name)
                 put("realm.currentTown", runtime.currentTown?.let(content::slug).orEmpty())
                 put("realm.lastTerrain", runtime.lastTerrain?.let(content::slug).orEmpty())
+                put("realm.partyMemberMax", runtime.partyMemberMax.toString())
                 putParty(runtime.party, content)
             }
         file.parentFile?.mkdirs()
@@ -81,6 +82,7 @@ internal object StandaloneCompiledSave {
             currentMode = values["realm.currentMode"]?.let(RuntimeMode::valueOf) ?: baseState.currentMode,
             currentTown = values.optionalHandle("realm.currentTown", CompiledHandleKind.Town, content) ?: baseState.currentTown,
             lastTerrain = values.optionalHandle("realm.lastTerrain", CompiledHandleKind.Terrain, content) ?: baseState.lastTerrain,
+            partyMemberMax = values.intOrDefault("realm.partyMemberMax", baseState.partyMemberMax),
             party = values.readParty(baseState.party, content),
         )
     }

@@ -185,9 +185,29 @@ val checkCompiledRuntimePartyJournalScript: TaskProvider<RunInstalledLauncherWit
     script.set("VJX")
 }
 
+val checkCompiledRuntimeWildernessActionsScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs direct hunt, camp, and wilderness upkeep paths in the standalone compiled runtime."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    script.set("H1C2X")
+}
+
 tasks.check {
     dependsOn(checkCompiledRuntimeBundleBoot)
     dependsOn(checkCompiledRuntimeTownScript)
     dependsOn(checkCompiledRuntimeLoadScript)
     dependsOn(checkCompiledRuntimePartyJournalScript)
+    dependsOn(checkCompiledRuntimeWildernessActionsScript)
 }

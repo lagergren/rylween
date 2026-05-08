@@ -1359,6 +1359,9 @@ class RylweenCompiledGameLedgerTest {
         check("checkCompiledRuntimePartyJournalScript" in compiledRuntimeBuild) {
             "standalone compiled runtime subproject must verify direct party/journal views"
         }
+        check("checkCompiledRuntimeWildernessActionsScript" in compiledRuntimeBuild) {
+            "standalone compiled runtime subproject must verify direct hunt/camp/upkeep actions"
+        }
         check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledSave.kt").isFile) {
             "standalone compiled runtime must own its direct save/load adapter"
         }
@@ -1367,6 +1370,9 @@ class RylweenCompiledGameLedgerTest {
         }
         check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneWildernessCommands.kt").isFile) {
             "standalone compiled runtime must read wilderness commands from runtime systems"
+        }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneWildernessActions.kt").isFile) {
+            "standalone compiled runtime must own direct hunt, camp, and upkeep actions"
         }
         check(File("run-compiled.sh").readText().contains(":compiled-runtime:installCompiledRuntime")) {
             "run-compiled.sh must launch the standalone compiled runtime"
