@@ -6920,7 +6920,7 @@ val nextRylween: RylweenModel = rylween {
     stateFixture(States.townMissionReplay) {
         realm {
             day = 14
-            hour = 9
+            hour = 14
             activeParty = Parties.playtest
             wilderness(Maps.wilderness)
         }
@@ -6951,6 +6951,8 @@ val nextRylween: RylweenModel = rylween {
             Npcs.broth at Towns.wilor.inn
             Npcs.ron at Towns.wilor.inn
             Npcs.ithienn at Towns.wilor.inn
+            Npcs.gotharp at Towns.ollk.inn
+            Npcs.azaaza at Towns.ollk.inn
         }
 
         party(Parties.playtest) {
@@ -6964,12 +6966,14 @@ val nextRylween: RylweenModel = rylween {
                 torches = 40
                 food = 150
                 timeLeft = 500
-                restedHours = 14
+                restedHours = 500
             }
 
             inventory {
                 slot(1).item(Items.redGem)
                 slot(2).item(Items.fireWand)
+                slot(3).empty()
+                slot(4).empty()
             }
 
             members {
@@ -7019,7 +7023,7 @@ val nextRylween: RylweenModel = rylween {
     stateFixture(States.townSilverKeyReplay) {
         realm {
             day = 14
-            hour = 9
+            hour = 14
             activeParty = Parties.playtest
             wilderness(Maps.wilderness)
         }
@@ -7040,7 +7044,7 @@ val nextRylween: RylweenModel = rylween {
                 torches = 40
                 food = 150
                 timeLeft = 500
-                restedHours = 14
+                restedHours = 500
             }
 
             flags {
@@ -7066,6 +7070,67 @@ val nextRylween: RylweenModel = rylween {
                     equipped {
                         weapon = Items.magicSword
                         armor = Items.mithrilMail
+                    }
+                    experience = 0
+                    alive()
+                }
+            }
+        }
+    }
+
+    // Random-step mission fixture for the standalone compiled-runtime replay.
+    // The Gradle check supplies the seed explicitly so this fixture only states
+    // the authored story precondition: the smith has confessed where the key
+    // went, making the hobgoblin caravan eligible on the next wilderness step.
+    stateFixture(States.hobgoblinCaravanReplay) {
+        realm {
+            day = 14
+            hour = 9
+            activeParty = Parties.playtest
+            wilderness(Maps.wilderness)
+        }
+
+        locations {
+            Locations.hobgoblinCave at xy(46, 13)
+        }
+
+        party(Parties.playtest) {
+            player = "playtest"
+            name = "Playtest"
+            position = Wilderness.xy(12, 9)
+            facing = Facing.North
+
+            resources {
+                gold = 100000
+                torches = 40
+                food = 150
+                timeLeft = 500
+                restedHours = 14
+            }
+
+            flags {
+                mark(Story.silverKey.smithConfessed)
+            }
+
+            inventory {
+                slot(1).item(Items.fireWand)
+            }
+
+            members {
+                member("Fighter") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Fighter
+                    level = 28
+                    health = 50000
+                    hitPoints = 50000 of 50000
+                    weaponSkill = 100
+                    wisdom = 72
+                    mana = 0 of 72
+                    charisma = 90
+                    equipped {
+                        weapon = Items.deathBlade
+                        armor = Items.admtMail
                     }
                     experience = 0
                     alive()
