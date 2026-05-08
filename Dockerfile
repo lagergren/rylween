@@ -1,4 +1,4 @@
-# Self-contained Kotlin ANSI build of Rylween.
+# Self-contained compiled-bundle runtime build of Rylween.
 #
 # Builder produces the Gradle install-distribution; runtime stage carries
 # only the JRE plus the install dir.
@@ -20,7 +20,7 @@ COPY build-logic build-logic
 RUN ./gradlew --no-daemon --version
 
 COPY . .
-RUN ./gradlew --no-daemon installKotlinAnsi --console=plain
+RUN ./gradlew --no-daemon emitExternalCompiledBundle :compiled-runtime:installCompiledRuntime --console=plain
 
 # ---------------------------------------------------------------------
 # Stage 2: runtime — JRE plus the install distribution.
@@ -28,8 +28,9 @@ RUN ./gradlew --no-daemon installKotlinAnsi --console=plain
 FROM eclipse-temurin:25-jre AS runtime
 
 WORKDIR /app
-COPY --from=builder /src/build/install/rylween-kotlin /app/rylween-kotlin
+COPY --from=builder /src/build/compiled/rylween-bundle.json /app/rylween-bundle.json
+COPY --from=builder /src/compiled-runtime/build/install/rylween-compiled-runtime /app/rylween-compiled-runtime
 
-ENV PATH="/app/rylween-kotlin/bin:${PATH}"
-ENTRYPOINT ["/app/rylween-kotlin/bin/rylween-app"]
-CMD ["Player"]
+ENV PATH="/app/rylween-compiled-runtime/bin:${PATH}"
+ENTRYPOINT ["/app/rylween-compiled-runtime/bin/rylween-compiled", "--bundle", "/app/rylween-bundle.json"]
+CMD ["--screen", "title"]

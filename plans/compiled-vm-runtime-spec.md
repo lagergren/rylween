@@ -29,34 +29,34 @@ compiled tables and expose the services the VM requires.
 
 ## Current JVM Runtime Split
 
-There are currently two Kotlin runtime paths in the repository:
+There is currently one active playable Kotlin runtime path in the Gradle build,
+plus one archived historical path:
 
-- `run.sh` installs and runs `rylween-bundle`, whose entry point is
-  `ansi-runtime/src/main/kotlin/rylween/app/RylweenAnsiMain.kt`. This is the mature hybrid
-  ANSI product path. It requires the J1 JSON bundle, verifies the artifact, and
-  executes script roots through the J2 compiled VM, but it still materializes
-  the bundle into the Kotlin runtime-facing model and drives gameplay through
-  `RylweenKotlinEngine`, `src/main/kotlin/rylween/runtime/**`, shared terminal
-  rendering helpers, and the ANSI/session adapters in `ansi-runtime`. The
-  launcher/install/check tasks live in the `:ansi-runtime` Gradle subproject so
-  the classic host and standalone compiled consumer are not root source sets.
-- `run-compiled.sh` installs and runs `rylween-compiled`, whose entry point is
+- `run.sh` and `run-compiled.sh` install and run `rylween-compiled`, whose
+  entry point is
   `compiled-runtime/src/main/kotlin/rylween/compiledruntime/RylweenCompiledRuntimeMain.kt`.
-  This is the standalone compiled-bundle consumer under construction. It reads
+  This is now the active standalone compiled-bundle consumer. It reads
   `CompiledGameBundle` plus stable `runtimeSystems` rows directly and must not
   depend on `RylweenKotlinEngine`, old session classes such as
   `WildernessSession`/`ShopSession`, terminal adapters, generated game handles,
-  or authored `Op` execution. It currently owns direct wilderness state, direct
+  or authored `Op` execution. It owns direct wilderness state, direct
   party/journal pages, bundle-driven wilderness command bindings, direct
-  hunt/camp/upkeep rules from `runtimeSystems.realm`, and a standalone
-  wilderness save file that validates the compiled bundle hash before restoring
-  mutable runtime ids.
+  hunt/camp/upkeep rules from `runtimeSystems.realm`, direct service/dungeon/
+  castle/battle execution, and a standalone save file that validates the
+  compiled bundle hash before restoring mutable runtime ids.
+- `legacy/ansi-runtime` contains the old interpreted/hybrid ANSI product path.
+  It required the J1 JSON bundle, verified the artifact, and executed script
+  roots through the J2 compiled VM, but it still materialized the bundle into
+  the Kotlin runtime-facing model and drove gameplay through `RylweenKotlinEngine`,
+  `src/main/kotlin/rylween/runtime/**`, shared terminal rendering helpers, and
+  ANSI/session adapters. It is intentionally no longer included as an active
+  Gradle subproject.
 
-The old Kotlin sessions may remain as the reference implementation and parity
-oracle until the standalone consumer reaches full conformance. They are not the
-portable runtime contract. New host behavior should move into the standalone
-compiled consumer or the compiled VM/host boundary, not into an additional
-special case in the hybrid session graph.
+The old Kotlin sessions may remain as reference implementation and parity
+oracle code while compiler-facing contracts are untangled, but they are not a
+playable product and are not the portable runtime contract. New host behavior
+should move into the standalone compiled consumer or the compiled VM/host
+boundary, not into an additional special case in the hybrid session graph.
 
 ## Bundle Loading
 

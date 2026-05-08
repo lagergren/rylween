@@ -1172,7 +1172,6 @@ class RylweenCompiledGameLedgerTest {
             listOf(
                 "src/main/kotlin",
                 "ansi-terminal/src/main/kotlin",
-                "ansi-runtime/src/main/kotlin",
                 "compiled-runtime/src/main/kotlin",
                 "src/game/kotlin",
             )
@@ -1196,159 +1195,46 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
-    fun ansiRuntimeDoesNotDropScriptBridgeForScriptBearingChildAdapters() {
-        val source = File("ansi-runtime/src/main/kotlin/rylween/app/RylweenAnsiMain.kt").readText()
-        val forbiddenAdapterCalls =
-            mapOf(
-                "dungeon child adapter" to
-                    Regex(
-                        """DungeonSessionTerminalAdapter\([\s\S]*?postDungeon = step\.postDungeon,\s*\)""",
-                    ),
-                "castle child adapter" to
-                    Regex("""CastleSessionTerminalAdapter\(port,\s*renderer,\s*savePort\)"""),
-                "inventory item-use child adapter" to
-                    Regex("""InventoryItemUseTerminalAdapter\(port,\s*renderer\)\.runUntilBlocked"""),
-                "priest-spell child adapter" to
-                    Regex(
-                        """PriestSpellTerminalAdapter\(\s*port,\s*renderer,\s*content = session\.content,\s*worldMap = session\.worldMap,\s*\)""",
-                        setOf(RegexOption.DOT_MATCHES_ALL),
-                    ),
-            )
-        val offenders =
-            forbiddenAdapterCalls
-                .filterValues { pattern -> pattern.containsMatchIn(source) }
-                .keys
-
-        check(offenders.isEmpty()) {
-            "ANSI compiled-VM mode must pass the selected ScriptBridge into script-bearing child adapters: " +
-                offenders.joinToString()
-        }
-    }
-
-    @Test
-    fun reusableTerminalAdaptersDoNotConstructAuthoredScriptFallbacks() {
-        val forbidden = listOf("StatefulScriptBridge(", "StatefulScriptServiceRunner(", "serviceBridge ?:", "scriptBridge?.let")
-        val offenders =
-            listOf(
-                "ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalAdapters.kt",
-                "ansi-runtime/src/main/kotlin/rylween/frontend/terminal/CastleSessionTerminalAdapter.kt",
-            ).flatMap { path ->
-                val source = File(path).readText()
-                forbidden
-                    .filter { token -> token in source }
-                    .map { token -> "$path: $token" }
-            }
-
-        check(offenders.isEmpty()) {
-            "reusable terminal adapters must require explicit ScriptBridge composition instead of authored fallback: " +
-                offenders.joinToString()
-        }
-    }
-
-    @Test
-    fun lineTerminalRuntimeUsesCompiledVmOnly() {
-        val source = File("ansi-runtime/src/main/kotlin/rylween/app/TerminalMain.kt").readText()
-        val requiredTokens =
-            listOf(
-                "--script-vm",
-                "requireCompiledScriptVmMode",
-                "compiledVmTerminalScriptBridge",
-                "buildTerminalScriptBridge",
-                "authored Op execution is a test-only oracle",
-            )
-        val forbidden = listOf("StatefulScriptBridge", "TerminalScriptVmMode", "expected authored or compiled")
-        val missing = requiredTokens.filterNot { token -> token in source }
-        val offenders = forbidden.filter { token -> token in source }
-
-        check(missing.isEmpty()) {
-            "line-terminal runtime must keep the production script path on CompiledVm; missing: " +
-                missing.joinToString()
-        }
-        check(offenders.isEmpty()) {
-            "line-terminal runtime must not expose the authored interpreter as a production mode: " +
-                offenders.joinToString()
-        }
-    }
-
-    @Test
-    fun productionLaunchersDoNotComposeAuthoredInterpreter() {
-        val forbidden =
-            listOf(
-                "StatefulScriptBridge",
-                "StatefulScriptServiceRunner",
-                "ScriptVmMode.Authored",
-                "AnsiScriptVmMode.Authored",
-                "defaults to authored",
-                "authored|compiled",
-            )
-        val offenders =
-            listOf(
-                "ansi-runtime/src/main/kotlin/rylween/app/RylweenAnsiMain.kt",
-                "ansi-runtime/src/main/kotlin/rylween/app/TerminalMain.kt",
-                "build.gradle.kts",
-                "ansi-runtime/build.gradle.kts",
-            ).flatMap { path ->
-                val source = File(path).readText()
-                forbidden
-                    .filter { token -> token in source }
-                    .map { token -> "$path: $token" }
-            }
-
-        check(offenders.isEmpty()) {
-            "production launchers and CI checks must run compiled VM scripts, not authored-op fallbacks: " +
-                offenders.joinToString()
-        }
-    }
-
-    @Test
-    fun bundleAnsiRuntimeIsGeneratedGameFreeAtLauncherBoundary() {
-        val ansiSource = File("ansi-runtime/src/main/kotlin/rylween/app/RylweenAnsiMain.kt").readText()
+    fun legacyAnsiRuntimeIsArchivedOutsideActiveGradleProjects() {
         val rootBuild = File("build.gradle.kts").readText()
-        val ansiBuild = File("ansi-runtime/build.gradle.kts").readText()
         val settings = File("settings.gradle.kts").readText()
         val launcher = File("run.sh").readText()
-        val requiredBuildTokens =
-            listOf(
-                "val bundleApp: SourceSet",
-                "implementation(project(\":\"))",
-                "implementation(project(\":ansi-terminal\"))",
-                "rylween/frontend/terminal/**",
-                "archiveBaseName.set(\"rylween-bundle-ansi\")",
-                "val installBundleAnsi",
-                "val checkBundleAnsiBundleBoot",
-            )
-        val forbiddenAnsiTokens = listOf("import rylween.game", "RylweenCompiledGame")
-        val forbiddenBundleBuildTokens = listOf("rootGameSourceSet.output")
-        val missing = requiredBuildTokens.filterNot { token -> token in ansiBuild }
-        val offenders = forbiddenAnsiTokens.filter { token -> token in ansiSource }
-        val bundleSourceSetBlock = ansiBuild.substringAfter("val bundleApp: SourceSet").substringBefore("val bundleAppSourceSet")
-        val buildOffenders = forbiddenBundleBuildTokens.filter { token -> token in bundleSourceSetBlock }
 
-        check(missing.isEmpty()) {
-            "bundle-only ANSI runtime must keep its generated-game-free source-set/build boundary; missing: " +
-                missing.joinToString()
+        check(File("legacy/ansi-runtime/build.gradle.kts").isFile) {
+            "old interpreted ANSI runtime project must be archived under legacy/ansi-runtime"
+        }
+        check(File("legacy/old-runtime-tests/src/test/kotlin/rylween/ScenarioHarness.kt").isFile) {
+            "old interpreted/runtime-oracle tests must be archived under legacy/old-runtime-tests"
+        }
+        check(!File("ansi-runtime/build.gradle.kts").exists()) {
+            "old interpreted ANSI runtime must not remain as an active top-level project directory"
+        }
+        check(!File("src/test/kotlin/rylween/ScenarioHarness.kt").exists()) {
+            "old interpreted/runtime-oracle scenario harness must not remain in the active test source set"
         }
         check(
-            """include("ansi-runtime")""" in settings &&
-                """include("ansi-terminal")""" in settings &&
-                "dependsOn(\":ansi-runtime:check\")" in rootBuild &&
-                "dependsOn(\":ansi-terminal:check\")" in rootBuild,
+            """include("ansi-runtime")""" !in settings &&
+                "project(\":ansi-runtime\")" !in rootBuild &&
+                "dependsOn(\":ansi-runtime" !in rootBuild,
         ) {
-            "classic ANSI runtime and shared ANSI primitives must stay in dedicated Gradle subprojects and root check must verify them"
+            "legacy ANSI runtime must be outside the active Gradle graph"
         }
-        check(offenders.isEmpty()) {
-            "bundle-only ANSI launcher must load content only from the J1 JSON bundle, not generated game classes: " +
-                offenders.joinToString()
+        check(
+            """include("ansi-terminal")""" in settings &&
+                """include("compiled-runtime")""" in settings &&
+                "dependsOn(\":ansi-terminal:check\")" in rootBuild &&
+                "dependsOn(\":compiled-runtime:check\")" in rootBuild,
+        ) {
+            "active Gradle graph must keep only shared ANSI primitives and the standalone compiled runtime as runtime subprojects"
         }
-        check(buildOffenders.isEmpty()) {
-            "bundle-only ANSI source set must not compile against generated game output: " +
-                buildOffenders.joinToString()
+        check(
+            ":compiled-runtime:installCompiledRuntime" in launcher &&
+                "compiled-runtime/build/install/rylween-compiled-runtime/bin/rylween-compiled" in launcher,
+        ) {
+            "run.sh must launch the standalone compiled runtime"
         }
-        check("installBundleAnsi" in launcher && "build/compiled/rylween-bundle.json" in launcher) {
-            "run.sh must launch the bundle-only ANSI install with the emitted JSON bundle"
-        }
-        check("installKotlinAnsi" !in launcher) {
-            "run.sh must not fall back to the generated-game ANSI install"
+        check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in launcher }) {
+            "run.sh must not fall back to the archived interpreted ANSI runtime"
         }
     }
 
@@ -1614,15 +1500,6 @@ class RylweenCompiledGameLedgerTest {
                     listOf("annotation class AuthoredScriptOracleApi", "CompiledVm", "parity/oracle test suite"),
                 "src/main/kotlin/rylween/engine/ScriptTrace.kt" to
                     listOf("@AuthoredScriptOracleApi\nclass ScriptTraceRunner"),
-                "ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalScriptBridge.kt" to
-                    listOf(
-                        "@AuthoredScriptOracleApi\nclass StatefulScriptBridge",
-                        "@AuthoredScriptOracleApi\ndata class StatefulScriptResult",
-                        "@AuthoredScriptOracleApi\nclass StatefulScriptServiceRunner",
-                        "production launchers compose",
-                    ),
-                "ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalScriptTraceRunners.kt" to
-                    listOf("@file:rylween.runtime.AuthoredScriptOracleApi", "CompiledVmChildRequest"),
             )
         val missing =
             requiredMarkers.flatMap { (path, tokens) ->

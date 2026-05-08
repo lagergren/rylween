@@ -1,13 +1,13 @@
 # Adventurers of Rylween
 Old code archive and potential ports for Adventurers of Rylween, a MUD style games for BBSes that I wrote in 1992-1993.
 
-The current runnable ports are split by Gradle module: shared DSL/compiler and
-reference runtime contracts live under `src/main`, shared ANSI terminal
-protocol primitives under `ansi-terminal`, the authored game under `src/game`,
-the classic bundle-backed ANSI product under `ansi-runtime`, and the
-standalone compiled-bundle consumer under `compiled-runtime`. The
-historical C/JSON5 port and its replay fixtures live under `legacy/c-json5` for
-reference and parity checks.
+The current runnable Kotlin game is the standalone compiled-bundle consumer in
+`compiled-runtime`. Shared DSL/compiler and compiled-bundle contracts live under
+`src/main`, shared ANSI terminal protocol primitives live under `ansi-terminal`,
+and the authored game lives under `src/game`. The old interpreted Kotlin ANSI
+project is archived under `legacy/ansi-runtime` and is no longer an active
+Gradle project. The historical C/JSON5 port and replay fixtures remain under
+`legacy/c-json5` for reference and parity checks.
 
 ## Terminal compatibility
 
@@ -26,54 +26,23 @@ sized depends on the terminal:
 If you must run in `Terminal.app`, expect occasional one-cell drift in
 borders and decorative art. Gameplay text is unaffected.
 
-## Kotlin runtime commands
+## Compiled runtime commands
 
-Build the direct ANSI launcher first:
+Build and run the direct compiled-bundle runtime:
 
 ```sh
-./gradlew :ansi-runtime:installKotlinAnsi --console=plain
+./gradlew :compiled-runtime:installCompiledRuntime --console=plain
 ./run.sh --state fresh-replay --seed 1
 ./run.sh --build --state fresh-replay --seed 1
-ansi-runtime/build/install/rylween-kotlin/bin/rylween --state fresh-replay --seed 1
+compiled-runtime/build/install/rylween-compiled-runtime/bin/rylween-compiled --bundle build/compiled/rylween-bundle.json --state fresh-replay --seed 1
 ```
 
-The root `run.sh` wrapper and generated `ansi-runtime/build/install/rylween-kotlin/bin/rylween`
-script are the closest current equivalents to `rylween.exe`. Use them for interactive ANSI play; they run
-outside Gradle so Gradle progress output and key echo do not share the game
-screen. It loads the compiled DSL game, packaged `ansi/**` resources, the
-authored wilderness map, the classic screen frame, text/status/map regions, and
-the terminal terrain glyph table. Pass `--build` when you want to refresh the
-installed runtime with `./gradlew :ansi-runtime:installKotlinAnsi --console=plain` before
-launching; `run.sh` also bootstraps that install if the generated launcher is
-missing.
-
-The line-oriented shells are still useful for testing:
-
-```sh
-./gradlew :ansi-runtime:runKotlinGame --args="--state fresh-replay --seed 1"
-./gradlew :ansi-runtime:runKotlinTown --args="--town thord --hour 12 --seed 1"
-```
-
-Useful ANSI logging forms:
-
-```sh
-RYL_LOG=stderr ansi-runtime/build/install/rylween-kotlin/bin/rylween --state fresh-replay
-RYL_LOG=file:build/rylween.log ansi-runtime/build/install/rylween-kotlin/bin/rylween --state fresh-replay
-RYL_LOG=tcp:9999,file:build/rylween.log ansi-runtime/build/install/rylween-kotlin/bin/rylween --state fresh-replay
-RYL_LOG_LEVEL=debug RYL_LOG=file:build/rylween.log ./run.sh --state fresh-replay
-./run.sh --serve 127.0.0.1:2323 --state fresh-replay
-```
-
-`--serve [host:]port` waits for one socket/telnet client and renders the same
-ANSI UI to that socket instead of the local terminal. Logs still use `RYL_LOG`,
-so server diagnostics stay off the player render stream. `RYL_LOG_LEVEL=debug`
-adds formula-evaluation and authored-op execution traces.
-
-## Standalone compiled runtime commands
-
-The standalone compiled-bundle consumer is intentionally separate from the
-classic ANSI host. It reads `build/compiled/rylween-bundle.json` and owns its
-own runtime state under `compiled-runtime`.
+The root `run.sh` wrapper is now the closest current equivalent to
+`rylween.exe`. It builds `build/compiled/rylween-bundle.json` and
+`:compiled-runtime:installCompiledRuntime` when needed, injects the bundle path,
+and runs outside Gradle so Gradle progress output and key echo do not share the
+game screen. The older `run-compiled.sh` wrapper is retained as the same direct
+compiled-runtime entry point.
 
 ```sh
 ./run-compiled.sh --screen title
@@ -81,10 +50,7 @@ own runtime state under `compiled-runtime`.
 ./run-compiled.sh --load build/saves/compiled-runtime.rsave
 ```
 
-This runtime is still being completed. It currently boots directly from the
-compiled bundle, renders compiled static screens and wilderness frames, runs
-the direct wilderness loop, enters town services, handles compiled shop catalog
-buy/sell paging, renders direct party/journal pages, reads wilderness command
-bindings from the bundle, runs direct hunt/camp/upkeep rules from
-`runtimeSystems.realm`, and writes/loads its standalone wilderness save format
-with bundle-hash validation.
+The compiled runtime boots directly from the bundle, renders compiled static
+screens and wilderness frames, runs wilderness/town/services/battle/dungeon and
+castle flows from compiled tables, handles direct save/load with bundle-hash
+validation, and is verified by the `:compiled-runtime:check` replay suite.
