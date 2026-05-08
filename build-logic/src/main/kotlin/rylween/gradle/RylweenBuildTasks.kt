@@ -107,6 +107,10 @@ abstract class RunInstalledLauncherWithJavaTask
 
         @get:Input
         @get:Optional
+        abstract val stateSlug: Property<String>
+
+        @get:Input
+        @get:Optional
         abstract val screen: Property<String>
 
         @get:Input
@@ -135,6 +139,9 @@ abstract class RunInstalledLauncherWithJavaTask
                 )
             if (hasScreen) {
                 launcherArgs += listOf("--screen", screen.get())
+            }
+            if (stateSlug.isPresent) {
+                launcherArgs += listOf("--state", stateSlug.get())
             }
             if (hasScript) {
                 launcherArgs += listOf("--script", script.get())

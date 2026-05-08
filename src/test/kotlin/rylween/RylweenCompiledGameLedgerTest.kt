@@ -1351,7 +1351,14 @@ class RylweenCompiledGameLedgerTest {
         check("implementation(project(\":ansi-terminal\"))" in compiledRuntimeBuild) {
             "standalone compiled runtime may share ANSI primitives only through :ansi-terminal"
         }
-        check("checkCompiledRuntimeBundleBoot" in compiledRuntimeBuild && "checkCompiledRuntimeTownScript" in compiledRuntimeBuild) {
+        check(
+            listOf(
+                "checkCompiledRuntimeBundleBoot",
+                "checkCompiledRuntimeTownScript",
+                "checkCompiledRuntimeDungeonScript",
+                "checkCompiledRuntimeCastleScript",
+            ).all { taskName -> taskName in compiledRuntimeBuild },
+        ) {
             "standalone compiled runtime subproject must keep its own verification tasks"
         }
         check("checkCompiledRuntimeSaveScript" in compiledRuntimeBuild && "checkCompiledRuntimeLoadScript" in compiledRuntimeBuild) {
@@ -1381,6 +1388,15 @@ class RylweenCompiledGameLedgerTest {
         check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneScriptExecutor.kt").isFile) {
             "standalone compiled runtime must own a direct compiled-script executor for scene roots"
         }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneDungeonRuntime.kt").isFile) {
+            "standalone compiled runtime must own direct dungeon mode execution"
+        }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCastleRuntime.kt").isFile) {
+            "standalone compiled runtime must own generic direct castle mode execution"
+        }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneUtilityActions.kt").isFile) {
+            "standalone compiled runtime must own direct inventory/equipment/priest utility commands"
+        }
         val scriptExecutorSource =
             File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneScriptExecutor.kt")
                 .readText()
@@ -1400,6 +1416,36 @@ class RylweenCompiledGameLedgerTest {
         ).forEach { token ->
             check(token in scriptExecutorSource) {
                 "standalone compiled runtime script executor must handle $token directly"
+            }
+        }
+        val dungeonRuntimeSource =
+            File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneDungeonRuntime.kt")
+                .readText()
+        listOf("enterDungeon", "runDepthEvent", "CompiledDungeonRandomEvent", "dungeon_level").forEach { token ->
+            check(token in dungeonRuntimeSource) {
+                "standalone compiled dungeon runtime must implement $token directly from compiled rows"
+            }
+        }
+        val castleRuntimeSource =
+            File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCastleRuntime.kt")
+                .readText()
+        listOf("ExternalRuntimeCastle", "seedRooms", "completeCastle", "castle.${'$'}{castle.id}").forEach { token ->
+            check(token in castleRuntimeSource) {
+                "standalone compiled castle runtime must stay generic and runtime-system backed: missing $token"
+            }
+        }
+        val utilitySource =
+            File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneUtilityActions.kt")
+                .readText()
+        listOf("readyWeapon", "readyArmor", "quaff", "castPriestSpell", "ItemUseContext.Inventory").forEach { token ->
+            check(token in utilitySource) {
+                "standalone compiled utility commands must handle $token without old party sessions"
+            }
+        }
+        val externalRuntimeSystemsSource = File("src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt").readText()
+        listOf("ExternalRuntimeDungeon", "ExternalRuntimeCastle", "readCastle", "readDungeon").forEach { token ->
+            check(token in externalRuntimeSystemsSource) {
+                "runtimeSystems must expose typed dungeon/castle rows for direct runtimes: missing $token"
             }
         }
         val battleRunnerSource =

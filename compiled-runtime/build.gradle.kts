@@ -204,10 +204,52 @@ val checkCompiledRuntimeWildernessActionsScript: TaskProvider<RunInstalledLaunch
     script.set("H1C2X")
 }
 
+val checkCompiledRuntimeDungeonScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs direct priest-spell cave discovery into the standalone dungeon loop."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    stateSlug.set("strong-replay")
+    script.set("Z47ELAX")
+}
+
+val checkCompiledRuntimeCastleScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs direct wilderness entry into the generic compiled castle loop."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    stateSlug.set("near-winning-replay")
+    script.set("2".repeat(21) + "66E")
+}
+
 tasks.check {
     dependsOn(checkCompiledRuntimeBundleBoot)
     dependsOn(checkCompiledRuntimeTownScript)
     dependsOn(checkCompiledRuntimeLoadScript)
     dependsOn(checkCompiledRuntimePartyJournalScript)
     dependsOn(checkCompiledRuntimeWildernessActionsScript)
+    dependsOn(checkCompiledRuntimeDungeonScript)
+    dependsOn(checkCompiledRuntimeCastleScript)
 }

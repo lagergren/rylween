@@ -244,6 +244,8 @@ data class ExternalRuntimeSystems(
     val commands: Map<String, List<ExternalRuntimeCommand>>,
     val realm: ExternalRuntimeRealm,
     val combat: ExternalRuntimeCombat,
+    val dungeon: ExternalRuntimeDungeon,
+    val castleRows: List<ExternalRuntimeCastle>,
     val speak: ExternalRuntimeSpeak?,
     val wilderness: ExternalWildernessRuntime,
     val presentation: ExternalRuntimePresentation,
@@ -598,6 +600,25 @@ data class ExternalHuntText(
     val fails: ExternalRuntimeTextBlock,
 )
 
+/** Dungeon runtime-system rows consumed by direct bundle runtimes. */
+data class ExternalRuntimeDungeon(
+    val backdrop: String?,
+    val commandHint: ExternalRuntimeTextBlock,
+    val helpPages: List<ExternalRuntimeTextBlock>,
+    val prompts: ExternalDungeonPrompts,
+    val eventCount: Int,
+    val scenarioCount: Int,
+)
+
+/** Authored dungeon prompt text exported for standalone runtime loops. */
+data class ExternalDungeonPrompts(
+    val levelMenu: ExternalRuntimeTextBlock,
+    val enterLevel: ExternalRuntimeTextBlock,
+    val atMaxDepth: ExternalRuntimeTextBlock,
+    val noTorches: ExternalRuntimeTextBlock,
+    val leaveCavern: ExternalRuntimeTextBlock,
+)
+
 /** Portable text block in runtime-system JSON, rendered by direct runtimes. */
 data class ExternalRuntimeTextBlock(
     val lines: List<List<ExternalRuntimeTextPart>>,
@@ -662,6 +683,84 @@ data class ExternalTerrainTransitions(
 data class ExternalTerrainTransition(
     val terrain: String,
     val text: ExternalRuntimeTextBlock,
+)
+
+/** One stable generic grid-castle row from `runtimeSystems.castles`. */
+data class ExternalRuntimeCastle(
+    val id: String,
+    val kind: String,
+    val entry: GridPoint,
+    val image: String?,
+    val entryRequirement: String?,
+    val completionMilestone: String?,
+    val mapSize: Int,
+    val roomTypeMax: Int,
+    val roomEvents: Map<Int, String>,
+    val monsterTier: String,
+    val treasure: ExternalCastleTreasure,
+    val pitfall: ExternalCastlePitfall,
+    val stairs: ExternalCastleStairs,
+    val scripts: ExternalCastleScripts,
+    val text: ExternalCastleText,
+)
+
+/** Castle treasure generation rows exported for direct runtimes. */
+data class ExternalCastleTreasure(
+    val gateMax: Int,
+    val regularKinds: List<List<String>>,
+    val magic: List<String>,
+)
+
+/** Castle pitfall damage and narration rows exported for direct runtimes. */
+data class ExternalCastlePitfall(
+    val damageDivisor: Int,
+    val trapTypes: List<ExternalRuntimeTextBlock>,
+)
+
+/** Castle stair progression and item trade rows exported for direct runtimes. */
+data class ExternalCastleStairs(
+    val floorCount: Int,
+    val items: List<ExternalCastleStairItem>,
+)
+
+/** One milestone-backed item accepted by castle stairs. */
+data class ExternalCastleStairItem(
+    val digit: Int,
+    val milestone: String,
+    val itemName: String,
+    val reject: ExternalRuntimeTextBlock,
+)
+
+/** Optional lifecycle scripts attached to a castle. */
+data class ExternalCastleScripts(
+    val alreadyCompleted: String?,
+    val entryBlocked: String?,
+    val entered: String?,
+    val completed: String?,
+)
+
+/** Castle text prompts and narration exported without the Kotlin runtime facade. */
+data class ExternalCastleText(
+    val roomMonster: ExternalRuntimeTextBlock,
+    val trapTriesDisarmSuffix: ExternalRuntimeTextBlock,
+    val trapDisarmSucceed: ExternalRuntimeTextBlock,
+    val trapDisarmFail: ExternalRuntimeTextBlock,
+    val treasureMenu: ExternalRuntimeTextBlock,
+    val treasureFull: ExternalRuntimeTextBlock,
+    val treasureTaken: ExternalRuntimeTextBlock,
+    val moveNorth: ExternalRuntimeTextBlock,
+    val moveSouth: ExternalRuntimeTextBlock,
+    val moveEast: ExternalRuntimeTextBlock,
+    val moveWest: ExternalRuntimeTextBlock,
+    val stairsIntro: ExternalRuntimeTextBlock,
+    val stairsGuardianOffer: ExternalRuntimeTextBlock,
+    val stairsMenu: ExternalRuntimeTextBlock,
+    val stairsLeave: ExternalRuntimeTextBlock,
+    val teleportVortex: ExternalRuntimeTextBlock,
+    val teleportOutside: ExternalRuntimeTextBlock,
+    val giveMenu: ExternalRuntimeTextBlock,
+    val stairsGuardianGrateful: ExternalRuntimeTextBlock,
+    val floorNames: List<String>,
 )
 
 /** Terminal presentation data in the stable runtime-system section. */
@@ -833,7 +932,7 @@ private class ExternalBundleArtifactWriter {
             "commands" to commandsJson(game),
             "combat" to combatJson(game.combat, game.leveling),
             "wilderness" to wildernessJson(game.wilderness),
-            "dungeon" to dungeonRuntimeJson(game.dungeons),
+            "dungeon" to dungeonRuntimeJson(game.dungeons, game.prompts.dungeon),
             "town" to townRuntimeJson(game.townSystem),
             "speak" to speakRuntimeJson(game.speak),
             "castles" to JsonArray(game.castles.map(::castleJson)),
@@ -1391,10 +1490,22 @@ private class ExternalBundleArtifactWriter {
             )
         }
 
-    private fun dungeonRuntimeJson(dungeons: DungeonSystemModel): JsonValue =
+    private fun dungeonRuntimeJson(
+        dungeons: DungeonSystemModel,
+        prompts: rylween.dsl.DungeonPromptsModel,
+    ): JsonValue =
         jsonObject(
+            "backdrop" to dungeons.backdrop?.let { JsonString(it.slug) }.orJsonNull(),
             "commandHint" to textBlockJson(dungeons.keys.commandHint),
             "helpPages" to JsonArray(dungeons.keys.helpPages.map(::textBlockJson)),
+            "prompts" to
+                jsonObject(
+                    "levelMenu" to textBlockJson(prompts.levelMenu),
+                    "enterLevel" to textBlockJson(prompts.enterLevel),
+                    "atMaxDepth" to textBlockJson(prompts.atMaxDepth),
+                    "noTorches" to textBlockJson(prompts.noTorches),
+                    "leaveCavern" to textBlockJson(prompts.leaveCavern),
+                ),
             "eventCount" to JsonNumber(dungeons.events.size.toString()),
             "scenarioCount" to JsonNumber(dungeons.scenarios.size.toString()),
         )
@@ -1945,7 +2056,7 @@ private class ExternalRuntimeSystemsReader(
         val commands = systems.requiredObject("commands")
         val commandGroups = commands.entries.associate { (name, value) -> name to value.readCommandGroup(name) }
         val prompts = systems.requiredObject("prompts")
-        val castles = systems.requiredArray("castles")
+        val castleRows = systems.requiredArray("castles").values.map { castle -> castle.asObject("castle").readCastle() }
         return ExternalRuntimeSystems(
             schemaVersion = systems.requiredInt("schemaVersion"),
             commandGroups = commandGroups.keys.toList(),
@@ -1953,13 +2064,12 @@ private class ExternalRuntimeSystemsReader(
                 prompts.requiredArray("groups").values.map { group ->
                     group.asObject("prompt group").requiredString("group")
                 },
-            castles =
-                castles.values.map { castle ->
-                    castle.asObject("castle").requiredString("id")
-                },
+            castles = castleRows.map(ExternalRuntimeCastle::id),
             commands = commandGroups,
             realm = systems.requiredObject("realm").readRealm(),
             combat = systems.requiredObject("combat").readCombat(),
+            dungeon = systems.requiredObject("dungeon").readDungeon(),
+            castleRows = castleRows,
             speak =
                 systems
                     .optional("speak")
@@ -1970,6 +2080,111 @@ private class ExternalRuntimeSystemsReader(
             presentation = systems.requiredObject("presentation").readPresentation(),
         )
     }
+
+    private fun JsonObject.readDungeon(): ExternalRuntimeDungeon =
+        ExternalRuntimeDungeon(
+            backdrop = optionalNullableString("backdrop"),
+            commandHint = required("commandHint").readTextBlock(),
+            helpPages = requiredArray("helpPages").values.map { page -> page.readTextBlock() },
+            prompts =
+                requiredObject("prompts").let { prompts ->
+                    ExternalDungeonPrompts(
+                        levelMenu = prompts.required("levelMenu").readTextBlock(),
+                        enterLevel = prompts.required("enterLevel").readTextBlock(),
+                        atMaxDepth = prompts.required("atMaxDepth").readTextBlock(),
+                        noTorches = prompts.required("noTorches").readTextBlock(),
+                        leaveCavern = prompts.required("leaveCavern").readTextBlock(),
+                    )
+                },
+            eventCount = requiredInt("eventCount"),
+            scenarioCount = requiredInt("scenarioCount"),
+        )
+
+    private fun JsonObject.readCastle(): ExternalRuntimeCastle =
+        ExternalRuntimeCastle(
+            id = requiredString("id"),
+            kind = requiredString("kind"),
+            entry = requiredObject("entry").readGridPoint(),
+            image = optionalNullableString("image"),
+            entryRequirement = optionalNullableString("entryRequirement"),
+            completionMilestone = optionalNullableString("completionMilestone"),
+            mapSize = requiredInt("mapSize"),
+            roomTypeMax = requiredInt("roomTypeMax"),
+            roomEvents =
+                requiredArray("roomEvents").values.associate { row ->
+                    val event = row.asObject("castle room event")
+                    event.requiredInt("roll") to event.requiredString("event")
+                },
+            monsterTier = requiredString("monsterTier"),
+            treasure = requiredObject("treasure").readCastleTreasure(),
+            pitfall = requiredObject("pitfall").readCastlePitfall(),
+            stairs = requiredObject("stairs").readCastleStairs(),
+            scripts = requiredObject("scripts").readCastleScripts(),
+            text = requiredObject("text").readCastleText(),
+        )
+
+    private fun JsonObject.readCastleTreasure(): ExternalCastleTreasure =
+        ExternalCastleTreasure(
+            gateMax = requiredInt("gateMax"),
+            regularKinds =
+                requiredArray("regularKinds").values.map { table ->
+                    table.asArray("castle regular treasure table").values.map { item -> item.asString("castle treasure item") }
+                },
+            magic = requiredArray("magic").values.map { item -> item.asString("castle magic treasure item") },
+        )
+
+    private fun JsonObject.readCastlePitfall(): ExternalCastlePitfall =
+        ExternalCastlePitfall(
+            damageDivisor = requiredInt("damageDivisor"),
+            trapTypes = requiredArray("trapTypes").values.map { text -> text.readTextBlock() },
+        )
+
+    private fun JsonObject.readCastleStairs(): ExternalCastleStairs =
+        ExternalCastleStairs(
+            floorCount = requiredInt("floorCount"),
+            items =
+                requiredArray("items").values.map { row ->
+                    val item = row.asObject("castle stair item")
+                    ExternalCastleStairItem(
+                        digit = item.requiredInt("digit"),
+                        milestone = item.requiredString("milestone"),
+                        itemName = item.requiredString("itemName"),
+                        reject = item.required("reject").readTextBlock(),
+                    )
+                },
+        )
+
+    private fun JsonObject.readCastleScripts(): ExternalCastleScripts =
+        ExternalCastleScripts(
+            alreadyCompleted = optionalNullableString("alreadyCompleted"),
+            entryBlocked = optionalNullableString("entryBlocked"),
+            entered = optionalNullableString("entered"),
+            completed = optionalNullableString("completed"),
+        )
+
+    private fun JsonObject.readCastleText(): ExternalCastleText =
+        ExternalCastleText(
+            roomMonster = required("roomMonster").readTextBlock(),
+            trapTriesDisarmSuffix = required("trapTriesDisarmSuffix").readTextBlock(),
+            trapDisarmSucceed = required("trapDisarmSucceed").readTextBlock(),
+            trapDisarmFail = required("trapDisarmFail").readTextBlock(),
+            treasureMenu = required("treasureMenu").readTextBlock(),
+            treasureFull = required("treasureFull").readTextBlock(),
+            treasureTaken = required("treasureTaken").readTextBlock(),
+            moveNorth = required("moveNorth").readTextBlock(),
+            moveSouth = required("moveSouth").readTextBlock(),
+            moveEast = required("moveEast").readTextBlock(),
+            moveWest = required("moveWest").readTextBlock(),
+            stairsIntro = required("stairsIntro").readTextBlock(),
+            stairsGuardianOffer = required("stairsGuardianOffer").readTextBlock(),
+            stairsMenu = required("stairsMenu").readTextBlock(),
+            stairsLeave = required("stairsLeave").readTextBlock(),
+            teleportVortex = required("teleportVortex").readTextBlock(),
+            teleportOutside = required("teleportOutside").readTextBlock(),
+            giveMenu = required("giveMenu").readTextBlock(),
+            stairsGuardianGrateful = required("stairsGuardianGrateful").readTextBlock(),
+            floorNames = requiredArray("floorNames").values.map { value -> value.asString("castle floor name") },
+        )
 
     private fun JsonValue.readCommandGroup(name: String): List<ExternalRuntimeCommand> =
         when (this) {
@@ -2466,6 +2681,8 @@ private class ExternalRuntimeSystemsReader(
         )
 
     private fun JsonObject.readIntRange(): IntRange = requiredInt("first")..requiredInt("last")
+
+    private fun JsonObject.readGridPoint(): GridPoint = GridPoint(requiredInt("x"), requiredInt("y"))
 
     private fun JsonObject.readPresentation(): ExternalRuntimePresentation =
         ExternalRuntimePresentation(

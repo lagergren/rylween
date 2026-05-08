@@ -4,14 +4,14 @@
  * This package is the parallel implementation track for running Rylween from
  * the J1/J2 compiled bundle without composing the existing Kotlin
  * `engine`, `runtime`, `wilderness`, `town`, `dungeon`, `castle`, `battle`, or
- * terminal-adapter session classes. It reads direct compiled tables from
+ * terminal adapter classes. It reads direct compiled tables from
  * `compiled/CompiledBundle.kt` plus stable terminal presentation rows from
  * `compiled/ExternalBundleArtifact.kt`, then owns its own small runtime loop.
  *
  * The current slice proves the boundary with title/static-screen rendering and
  * direct wilderness movement. Full town, dungeon, castle, battle, persistence,
  * and compiled-script host services should be added here depth first instead
- * of calling back into the old session layer.
+ * of calling back into the legacy session layer.
  */
 @file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
 
@@ -205,10 +205,40 @@ class StandaloneCompiledRuntime private constructor(
             val screen = CompiledAnsiScreen(terminal, bundle, systems)
             val input = StandaloneInput(terminal, scriptedInput)
             val commands = StandaloneWildernessCommands.from(systems)
-            val actions = StandaloneWildernessActions(content, systems.realm, systems.combat, systems.wilderness, input, screen)
+            val actions =
+                StandaloneWildernessActions(
+                    content = content,
+                    realm = systems.realm,
+                    combat = systems.combat,
+                    wilderness = systems.wilderness,
+                    commands = systems.commands,
+                    input = input,
+                    screen = screen,
+                )
+            val utility = StandaloneUtilityActions(content, systems, input, screen)
             screen.bootFrame()
             screen.renderWilderness(runtime, world)
             while (true) {
+                when (runtime.currentMode) {
+                    RuntimeMode.Dungeon -> {
+                        runtime =
+                            StandaloneDungeonRuntime(content, systems, input, screen, saveFile, bundleContentHash)
+                                .run(runtime)
+                        if (runtime.currentMode == RuntimeMode.GameOver || input.exhausted) return
+                        screen.renderWilderness(runtime, world)
+                        continue
+                    }
+                    RuntimeMode.Castle -> {
+                        runtime =
+                            StandaloneCastleRuntime(content, systems, input, screen, saveFile, bundleContentHash)
+                                .run(runtime)
+                        if (runtime.currentMode == RuntimeMode.GameOver || input.exhausted) return
+                        screen.renderWilderness(runtime, world)
+                        continue
+                    }
+                    RuntimeMode.GameOver -> return
+                    else -> Unit
+                }
                 val command = input.readCommand()
                 var moveEvent: StandaloneMoveEvent? = null
                 val advanceTurn =
@@ -261,27 +291,27 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                         commands.matches("enter", command) -> {
-                            runtime = enterTown(runtime, input, screen)
+                            runtime = enterLocation(runtime, input, screen, saveFile)
                             true
                         }
                         commands.matches("readyWeapon", command) -> {
-                            screen.writeText(listOf("That command cannot be used here."))
+                            runtime = utility.readyWeapon(runtime)
                             false
                         }
                         commands.matches("readyArmor", command) -> {
-                            screen.writeText(listOf("That command cannot be used here."))
+                            runtime = utility.readyArmor(runtime)
                             false
                         }
                         commands.matches("removeWeapon", command) -> {
-                            screen.writeText(listOf("That command cannot be used here."))
+                            runtime = utility.removeWeapon(runtime)
                             false
                         }
                         commands.matches("removeArmor", command) -> {
-                            screen.writeText(listOf("That command cannot be used here."))
+                            runtime = utility.removeArmor(runtime)
                             false
                         }
                         commands.matches("drop", command) -> {
-                            screen.writeText(listOf("That command cannot be used here."))
+                            runtime = utility.drop(runtime)
                             false
                         }
                         commands.matches("camp", command) -> {
@@ -293,11 +323,11 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                         commands.matches("castSpell", command) -> {
-                            screen.writeText(listOf("That command cannot be used here."))
+                            runtime = utility.castPriestSpell(runtime)
                             false
                         }
                         commands.matches("quaff", command) -> {
-                            screen.writeText(listOf("That command cannot be used here."))
+                            runtime = utility.quaff(runtime)
                             false
                         }
                         command == '\n' -> false
@@ -384,16 +414,29 @@ class StandaloneCompiledRuntime private constructor(
         screen.writeText(listOf("Game saved.", saveFile.path))
     }
 
+    private fun enterLocation(
+        runtime: StandaloneRuntimeState,
+        input: StandaloneInput,
+        screen: CompiledAnsiScreen,
+        saveFile: File,
+    ): StandaloneRuntimeState {
+        val town = content.towns.firstOrNull { it.position == runtime.party.position }
+        if (town != null) return enterTown(runtime, input, screen, town)
+        val castle = systems.castleRows.firstOrNull { castle -> castle.entry == runtime.party.position }
+        if (castle != null) {
+            return StandaloneCastleRuntime(content, systems, input, screen, saveFile, bundleContentHash)
+                .startCastle(runtime, castle)
+        }
+        screen.writeText(listOf("There is nothing to enter here."))
+        return runtime
+    }
+
     private fun enterTown(
         runtime: StandaloneRuntimeState,
         input: StandaloneInput,
         screen: CompiledAnsiScreen,
+        town: rylween.compiled.CompiledTown,
     ): StandaloneRuntimeState {
-        val town = content.towns.firstOrNull { it.position == runtime.party.position }
-        if (town == null) {
-            screen.writeText(listOf("There is nothing to enter here."))
-            return runtime
-        }
         val services =
             town.services.mapNotNull { building ->
                 content.buildingServices.firstOrNull { service -> service.building == building }
@@ -472,6 +515,8 @@ internal data class StandaloneRuntimeState(
     val lastTerrain: CompiledHandleRef?,
     val partyMemberMax: Int,
     val npcs: List<CompiledNpcPlacement>,
+    val dungeon: StandaloneDungeonState?,
+    val castle: StandaloneCastleState?,
     val party: StandaloneParty,
 ) {
     fun withParty(party: StandaloneParty): StandaloneRuntimeState = copy(party = party)
@@ -493,6 +538,18 @@ internal data class StandaloneRuntimeState(
                 lastTerrain = state.realm.lastTerrain,
                 partyMemberMax = state.realm.partyMemberMax,
                 npcs = state.npcs,
+                dungeon =
+                    (state.mode as? rylween.compiled.CompiledRuntimeModeImage.Dungeon)
+                        ?.session
+                        ?.let { session ->
+                            StandaloneDungeonState(
+                                dungeon = session.dungeon,
+                                maxDepth = session.maxDepth,
+                                depth = session.depth,
+                                levelEvents = session.levelEvents,
+                            )
+                        },
+                castle = null,
                 party = StandaloneParty.from(content, state.activeParty(), state.realm.rngState),
             )
     }

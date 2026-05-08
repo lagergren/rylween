@@ -10,11 +10,13 @@
 package rylween.compiledruntime
 
 import rylween.compiled.CompiledContentBundle
+import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledTerrain
 import rylween.compiled.ExternalCampRules
 import rylween.compiled.ExternalHuntRules
 import rylween.compiled.ExternalRuntimeCombat
+import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeRealm
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalWildernessFatigueRule
@@ -41,6 +43,7 @@ internal class StandaloneWildernessActions(
     private val realm: ExternalRuntimeRealm,
     private val combat: ExternalRuntimeCombat,
     private val wilderness: ExternalWildernessRuntime,
+    private val commands: Map<String, List<ExternalRuntimeCommand>>,
     private val input: StandaloneInput,
     private val screen: CompiledAnsiScreen,
 ) {
@@ -146,8 +149,7 @@ internal class StandaloneWildernessActions(
         current = current.withParty(party)
         val events = wilderness.events
         if (eventDraw.value < events.caveChancePercent) {
-            val caveLines = events.caveFoundPrompt.renderStandalone()
-            return StandaloneWildernessActionResult(current, messages + caveLines)
+            return current.applyCaveDiscovery(messages)
         }
 
         val quietLimit = events.caveChancePercent + events.quietChancePercent
@@ -170,6 +172,34 @@ internal class StandaloneWildernessActions(
     private fun StandaloneInput.readIntFromPrompt(lines: List<String>): Int? {
         screen.writeText(lines)
         return readInt()
+    }
+
+    private fun StandaloneRuntimeState.applyCaveDiscovery(messages: List<String>): StandaloneWildernessActionResult {
+        if (messages.isNotEmpty()) screen.writeText(messages)
+        wilderness.events.caveImage?.let(screen::showImage)
+        screen.writeText(wilderness.events.caveFoundPrompt.renderStandalone())
+        val caveCommands = commands["wilderness.cave"].orEmpty()
+        val command = input.readCommand() ?: return StandaloneWildernessActionResult(this)
+        if (!caveCommands.matches("enter", command)) return StandaloneWildernessActionResult(this)
+        if (party.resources.timeLeft <= wilderness.events.caveEntryCost) {
+            screen.writeText(wilderness.events.caveNoMoves.renderStandalone())
+            return StandaloneWildernessActionResult(this)
+        }
+        val depth = party.drawRandom(wilderness.events.caveDepthRange.first, wilderness.events.caveDepthRange.last)
+        val next =
+            withParty(
+                depth.party.copy(
+                    resources =
+                        depth.party.resources.copy(
+                            timeLeft = (depth.party.resources.timeLeft - wilderness.events.caveEntryCost).coerceAtLeast(0),
+                        ),
+                ),
+            ).enterDungeon(
+                content = content,
+                dungeon = content.ref(CompiledHandleKind.Dungeon, wilderness.events.caveDungeon),
+                levels = depth.value,
+            )
+        return StandaloneWildernessActionResult(next)
     }
 
     private fun StandaloneRuntimeState.resolveHunt(
@@ -441,6 +471,15 @@ internal class StandaloneWildernessActions(
 
     private fun StandaloneParty.leaderLevel(): Int = members.firstOrNull()?.level ?: 0
 }
+
+private fun List<ExternalRuntimeCommand>.matches(
+    action: String,
+    command: Char,
+): Boolean =
+    firstOrNull { candidate -> candidate.action == action }
+        ?.binding
+        ?.matches(command)
+        ?: false
 
 private data class CampMutation(
     val runtime: StandaloneRuntimeState,
