@@ -5,7 +5,7 @@
  * `runtimeSystems.presentation` rows: image resources, screen regions, and
  * terminal terrain styles. It is the compiled-runtime counterpart to the old
  * ANSI screen code, but it remains in the `compiledRuntime` source set so the
- * product can evolve without old session or terminal-adapter dependencies.
+ * product can evolve without legacy session or adapter dependencies.
  */
 
 package rylween.compiledruntime
@@ -14,6 +14,7 @@ import rylween.compiled.CompiledGameBundle
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.ExternalImageAsset
+import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalScreenRegion
@@ -80,6 +81,48 @@ internal class CompiledAnsiScreen(
         writeText(wildernessContextLines(runtime, world) + systems.wilderness.commandHint.render(runtime))
     }
 
+    /** Renders the dungeon backdrop, status lines, and authored depth prompt. */
+    fun renderDungeon(runtime: StandaloneRuntimeState) {
+        ensureClassicFrame()
+        renderStatus(runtime)
+        systems.dungeon.backdrop?.let(::showImage)
+        val depth = runtime.dungeon?.depth ?: 1
+        writeText(
+            systems.dungeon.prompts.levelMenu
+                .renderDungeon(depth) + systems.dungeon.commandHint.renderDungeon(depth),
+        )
+    }
+
+    /** Renders the active castle backdrop, status lines, and navigation prompt. */
+    fun renderCastle(
+        runtime: StandaloneRuntimeState,
+        castle: ExternalRuntimeCastle,
+    ) {
+        ensureClassicFrame()
+        renderStatus(runtime)
+        castle.image?.let(::showImage)
+        val state = runtime.castle
+        val floorName =
+            state
+                ?.floor
+                ?.let { floor -> castle.text.floorNames.getOrNull(floor - 1) }
+                .orEmpty()
+        val lines =
+            buildList {
+                state?.let { current ->
+                    add("${current.point.x}x${current.point.y}")
+                    add(floorName)
+                    add("")
+                }
+                addAll(
+                    systems.commands["castle.${castle.id}.navigation"].orEmpty().take(7).map { command ->
+                        "${command.binding.primary}. ${command.label ?: command.binding.label}"
+                    },
+                )
+            }
+        writeText(lines.filter(String::isNotBlank))
+    }
+
     /** Clears the classic text window and writes the supplied lines inside it. */
     fun writeText(lines: List<String>) {
         ensureClassicFrame()
@@ -141,6 +184,14 @@ internal class CompiledAnsiScreen(
         render { kind ->
             when (kind) {
                 "partyMemberMax" -> runtime.partyMemberMax.toString()
+                else -> null
+            }
+        }
+
+    private fun ExternalRuntimeTextBlock.renderDungeon(depth: Int): List<String> =
+        render { kind ->
+            when (kind) {
+                "dungeonDepth" -> depth.toString()
                 else -> null
             }
         }

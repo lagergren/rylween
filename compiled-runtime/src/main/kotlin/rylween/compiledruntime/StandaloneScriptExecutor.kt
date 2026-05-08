@@ -78,9 +78,11 @@ internal class StandaloneScriptExecutor(
     private val input: StandaloneInput,
     private val screen: CompiledAnsiScreen,
     initialRuntime: StandaloneRuntimeState,
+    initialLocals: Map<String, Int> = emptyMap(),
+    private val activeInventorySlot: Int? = null,
 ) {
     private var runtime: StandaloneRuntimeState = initialRuntime
-    private var locals: Map<String, Int> = emptyMap()
+    private var locals: Map<String, Int> = initialLocals
     private var textBindings: Map<String, String> = emptyMap()
 
     fun execute(instructions: List<CompiledInstruction>): StandaloneRuntimeState {
@@ -173,10 +175,22 @@ internal class StandaloneScriptExecutor(
             CompiledOpcode.Speak -> executeSpeak(instruction.handleOperand(0), insideLoop)
             CompiledOpcode.TellRumour -> continueAfter { tellRumour(instruction.handleOperand(0)) }
             CompiledOpcode.RunScene -> executeScene(instruction.handleOperand(0), insideLoop)
-            CompiledOpcode.Encounter -> continueAfter { runEncounter(instruction.handleOperand(0)) }
+            CompiledOpcode.Encounter -> executeEncounter(instruction.handleOperand(0))
             CompiledOpcode.EnterDungeon ->
-                continueAfter { runtime = runtime.copy(currentMode = RuntimeMode.Dungeon, currentTown = null) }
-            CompiledOpcode.ConsumeActiveItem -> StandaloneScriptSignal.Continue
+                stopAfter {
+                    runtime =
+                        runtime.enterDungeon(
+                            content = content,
+                            dungeon = instruction.handleOperand(0),
+                            levels = instruction.integerOperand(1),
+                        )
+                }
+            CompiledOpcode.ConsumeActiveItem ->
+                continueAfter {
+                    activeInventorySlot?.let { slot ->
+                        runtime = runtime.withParty(runtime.party.withInventoryItem(slot, null))
+                    }
+                }
             CompiledOpcode.ClearInventorySlot ->
                 continueAfter { runtime = runtime.withParty(runtime.party.withInventoryItem(int(instruction.intOperand(0)), null)) }
             CompiledOpcode.ConsumeInventoryPool ->
@@ -205,7 +219,24 @@ internal class StandaloneScriptExecutor(
                             ),
                         )
                 }
-            CompiledOpcode.DiscoverCave -> continueAfter { runtime = runtime.copy(currentMode = RuntimeMode.Dungeon, currentTown = null) }
+            CompiledOpcode.DiscoverCave ->
+                stopAfter {
+                    val moveCost = int(instruction.intOperand(2))
+                    runtime =
+                        runtime
+                            .withParty(
+                                runtime.party.copy(
+                                    resources =
+                                        runtime.party.resources.copy(
+                                            timeLeft = (runtime.party.resources.timeLeft - moveCost).coerceAtLeast(0),
+                                        ),
+                                ),
+                            ).enterDungeon(
+                                content = content,
+                                dungeon = instruction.handleOperand(0),
+                                levels = int(instruction.intOperand(1)),
+                            )
+                }
             CompiledOpcode.GrantReward -> continueAfter { runtime = runtime.withParty(applyReward(instruction.rewardOperand(0))) }
             CompiledOpcode.RandomItemOffer ->
                 continueAfter {
@@ -232,6 +263,11 @@ internal class StandaloneScriptExecutor(
     private fun continueAfter(body: () -> Unit): StandaloneScriptSignal {
         body()
         return StandaloneScriptSignal.Continue
+    }
+
+    private fun stopAfter(body: () -> Unit): StandaloneScriptSignal {
+        body()
+        return StandaloneScriptSignal.StopScript
     }
 
     private fun executeLoop(instructions: List<CompiledInstruction>): StandaloneScriptSignal {
@@ -506,6 +542,11 @@ internal class StandaloneScriptExecutor(
         val battle = StandaloneCompiledBattleRunner(content, systems.combat, input, screen).runMonster(runtime, monster)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
+    }
+
+    private fun executeEncounter(monster: CompiledHandleRef): StandaloneScriptSignal {
+        runEncounter(monster)
+        return if (runtime.currentMode == RuntimeMode.GameOver) StandaloneScriptSignal.StopScript else StandaloneScriptSignal.Continue
     }
 
     private fun applyReward(reward: CompiledScriptReward): StandaloneParty {
@@ -1027,6 +1068,7 @@ internal class StandaloneScriptExecutor(
                     ?.let { tax -> runtime.party.resources.gold * tax / PERCENT_DENOMINATOR }
                     ?.toString()
                     .orEmpty()
+            CompiledRuntimeTextPart.DungeonDepth -> locals["dungeon_level"]?.toString().orEmpty()
             else -> "[${part.name}]"
         }
 

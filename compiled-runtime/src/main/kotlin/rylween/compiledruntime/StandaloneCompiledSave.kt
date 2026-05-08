@@ -33,9 +33,6 @@ internal object StandaloneCompiledSave {
         bundleHash: String,
         content: CompiledContentBundle,
     ) {
-        require(runtime.currentMode == RuntimeMode.Wilderness) {
-            "standalone compiled runtime currently saves only wilderness state"
-        }
         val values =
             buildMap {
                 put("format", SAVE_FORMAT)
@@ -50,6 +47,30 @@ internal object StandaloneCompiledSave {
                 put("realm.currentTown", runtime.currentTown?.let(content::slug).orEmpty())
                 put("realm.lastTerrain", runtime.lastTerrain?.let(content::slug).orEmpty())
                 put("realm.partyMemberMax", runtime.partyMemberMax.toString())
+                runtime.dungeon?.let { dungeon ->
+                    put("dungeon.id", content.slug(dungeon.dungeon))
+                    put("dungeon.maxDepth", dungeon.maxDepth.toString())
+                    put("dungeon.depth", dungeon.depth.toString())
+                    put(
+                        "dungeon.levelEvents",
+                        dungeon.levelEvents.entries
+                            .sortedBy(Map.Entry<Int, CompiledHandleRef>::key)
+                            .joinToString(",") { (level, event) -> "$level:${content.slug(event)}" },
+                    )
+                }
+                runtime.castle?.let { castle ->
+                    put("castle.id", castle.castleId)
+                    put("castle.floor", castle.floor.toString())
+                    put("castle.x", castle.point.x.toString())
+                    put("castle.y", castle.point.y.toString())
+                    put("castle.roomEntryPending", castle.roomEntryPending.toString())
+                    put(
+                        "castle.rooms",
+                        castle.rooms.entries
+                            .sortedWith(compareBy<Map.Entry<GridPoint, String>> { it.key.y }.thenBy { it.key.x })
+                            .joinToString(",") { (point, event) -> "${point.x}:${point.y}:$event" },
+                    )
+                }
                 putParty(runtime.party, content)
             }
         file.parentFile?.mkdirs()
@@ -75,15 +96,18 @@ internal object StandaloneCompiledSave {
         values.requireValue("bundleHash", expectedBundleHash)
 
         val baseState = StandaloneRuntimeState.from(stateLookup(values.required("state")), content)
+        val mode = values["realm.currentMode"]?.let(RuntimeMode::valueOf) ?: baseState.currentMode
         return baseState.copy(
             day = values.intOrDefault("realm.day", baseState.day),
             hour = values.intOrDefault("realm.hour", baseState.hour),
             minute = values.intOrDefault("realm.minute", baseState.minute),
             currentMap = values.handleOrDefault("realm.currentMap", CompiledHandleKind.WorldMap, content, baseState.currentMap),
-            currentMode = values["realm.currentMode"]?.let(RuntimeMode::valueOf) ?: baseState.currentMode,
+            currentMode = mode,
             currentTown = values.optionalHandle("realm.currentTown", CompiledHandleKind.Town, content) ?: baseState.currentTown,
             lastTerrain = values.optionalHandle("realm.lastTerrain", CompiledHandleKind.Terrain, content) ?: baseState.lastTerrain,
             partyMemberMax = values.intOrDefault("realm.partyMemberMax", baseState.partyMemberMax),
+            dungeon = values.readDungeon(content) ?: baseState.dungeon,
+            castle = values.readCastle() ?: baseState.castle,
             party = values.readParty(baseState.party, content),
         )
     }
@@ -158,6 +182,41 @@ internal object StandaloneCompiledSave {
             members = readMembers(base.members),
             rngState = optionalLong("party.rngState") ?: base.rngState,
         )
+
+    private fun Map<String, String>.readDungeon(content: CompiledContentBundle): StandaloneDungeonState? {
+        val dungeon = optionalHandle("dungeon.id", CompiledHandleKind.Dungeon, content) ?: return null
+        return StandaloneDungeonState(
+            dungeon = dungeon,
+            maxDepth = intOrDefault("dungeon.maxDepth", 1),
+            depth = intOrDefault("dungeon.depth", 1),
+            levelEvents =
+                get("dungeon.levelEvents")
+                    ?.takeIf(String::isNotEmpty)
+                    ?.split(',')
+                    ?.associate { token ->
+                        val parts = token.split(':')
+                        parts[0].toInt() to content.ref(CompiledHandleKind.DungeonEvent, parts[1])
+                    }.orEmpty(),
+        )
+    }
+
+    private fun Map<String, String>.readCastle(): StandaloneCastleState? {
+        val castleId = get("castle.id")?.takeIf(String::isNotEmpty) ?: return null
+        return StandaloneCastleState(
+            castleId = castleId,
+            floor = intOrDefault("castle.floor", 1),
+            point = GridPoint(intOrDefault("castle.x", 1), intOrDefault("castle.y", 1)),
+            roomEntryPending = booleanOrDefault("castle.roomEntryPending", false),
+            rooms =
+                get("castle.rooms")
+                    ?.takeIf(String::isNotEmpty)
+                    ?.split(',')
+                    ?.associate { token ->
+                        val parts = token.split(':')
+                        GridPoint(parts[0].toInt(), parts[1].toInt()) to parts[2]
+                    }.orEmpty(),
+        )
+    }
 
     private fun Map<String, String>.readVisitedNpcs(
         base: List<CompiledNpcVisit>,
