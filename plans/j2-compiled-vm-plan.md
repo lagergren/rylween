@@ -368,8 +368,9 @@ not become a playable runtime inside J2. A playable non-JVM target would have to
 own much more than opcode dispatch: frontend rendering, persistence,
 diagnostics, host services, conformance fixtures, and the full acceptance
 playthrough. That scope belongs in a separate product task with an explicit
-target such as the server/MUD path described in `plans/future-directions.md` or
-a native terminal runtime.
+target. The scoped target is now the Rust server/MUD runtime described in
+`plans/k1-rust-server-mud-plan.md`, which follows the server and multi-party
+path in `plans/future-directions.md`.
 
 If a non-JVM playable runtime is scheduled, create a new product task for that
 runtime. It must implement:
