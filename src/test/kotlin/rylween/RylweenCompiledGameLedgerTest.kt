@@ -993,7 +993,7 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.missions.single { it.id == Missions.jazzyFoot }.trigger == Trigger.OnTerrain(Terrain.foothills))
         check(nextDsl.missions.single { it.id == Missions.silverKey }.trigger == Trigger.AtLocation(Locations.silverKeyPit))
         check(nextDsl.missions.single { it.id == Missions.hobgoblinCaravan }.trigger == Trigger.RandomStep(9))
-        check(nextRylween.states.size == 8)
+        check(nextRylween.states.size == 9)
 
         val freshParty =
             nextRylween.states
@@ -1023,6 +1023,11 @@ class RylweenCompiledGameLedgerTest {
         val hobgoblinCaravanParty =
             nextRylween.states
                 .single { it.id == States.hobgoblinCaravanReplay }
+                .parties
+                .single()
+        val masterCrownChainParty =
+            nextRylween.states
+                .single { it.id == States.masterCrownChainReplay }
                 .parties
                 .single()
         val nearWinningParty =
@@ -1070,6 +1075,14 @@ class RylweenCompiledGameLedgerTest {
         check(hobgoblinCaravanParty.position == Wilderness.xy(12, 9))
         check(
             hobgoblinCaravanParty.members
+                .single()
+                .equipment.weapon == Items.deathBlade,
+        )
+        check(masterCrownChainParty.flags.isEmpty())
+        check(masterCrownChainParty.resources.torches == 80)
+        check(masterCrownChainParty.position == Wilderness.xy(12, 9))
+        check(
+            masterCrownChainParty.members
                 .single()
                 .equipment.weapon == Items.deathBlade,
         )
@@ -1400,6 +1413,7 @@ class RylweenCompiledGameLedgerTest {
                 "checkCompiledRuntimeTownSilverKeyReplay",
                 "checkCompiledRuntimeSilverKeyDiscoveryReplay",
                 "checkCompiledRuntimeHobgoblinCaravanReplay",
+                "checkCompiledRuntimeMasterCrownDiscoveryReplay",
                 "checkCompiledRuntimeDungeonScript",
                 "checkCompiledRuntimeCastleScript",
                 "checkCompiledRuntimeHeroesScreen",
@@ -1464,12 +1478,15 @@ class RylweenCompiledGameLedgerTest {
             "townSilverKeyChainRoute",
             "silverKeyDiscoveryRoute",
             "hobgoblinCaravanRoute",
+            "masterCrownDiscoveryRoute",
             "town.thord_garth_reward_dialogue",
             "town.thord_mission_dialogues",
             "town.wilor_mission_dialogues",
             "town.ollk_silver_key_chain",
             "mission.silver_sanctum_note",
             "mission.hobgoblin_caravan_random_step",
+            "mission.kobold_village",
+            "mission.nolrim_crypt",
             "routeToTerrain",
             "systems.castleRows.single().entry",
             "compiled replay component",
