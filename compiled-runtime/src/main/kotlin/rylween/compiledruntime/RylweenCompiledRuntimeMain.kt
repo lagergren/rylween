@@ -72,6 +72,8 @@ data class CompiledRuntimeConfig(
     val saveFile: File = File("build/saves/compiled-runtime.rsave"),
     val staticScreen: String? = null,
     val scriptedInput: String? = null,
+    val replayPlan: String? = null,
+    val seed: Long? = null,
 )
 
 private object CompiledRuntimeCli {
@@ -87,6 +89,8 @@ private object CompiledRuntimeCli {
         var saveFile = File("build/saves/compiled-runtime.rsave")
         var staticScreen: String? = null
         var scriptedInput: String? = null
+        var replayPlan: String? = null
+        var seed: Long? = null
         var index = 0
         while (index < args.size) {
             when (val arg = args[index]) {
@@ -114,8 +118,19 @@ private object CompiledRuntimeCli {
                     scriptedInput = args.valueAfter(index, arg)
                     index += 2
                 }
+                "--replay" -> {
+                    replayPlan = args.valueAfter(index, arg)
+                    index += 2
+                }
+                "--seed" -> {
+                    seed = args.valueAfter(index, arg).toLong()
+                    index += 2
+                }
                 else -> error("unknown argument $arg")
             }
+        }
+        check(listOf(staticScreen != null, scriptedInput != null, replayPlan != null).count { it } <= 1) {
+            "--screen, --script, and --replay are mutually exclusive"
         }
         return CompiledRuntimeConfig(
             bundleFile = checkNotNull(bundleFile) { "--bundle is required" },
@@ -124,6 +139,8 @@ private object CompiledRuntimeCli {
             saveFile = saveFile,
             staticScreen = staticScreen,
             scriptedInput = scriptedInput,
+            replayPlan = replayPlan,
+            seed = seed,
         )
     }
 
@@ -138,6 +155,8 @@ private object CompiledRuntimeCli {
             |  --save <file>     Save target for the S command, default build/saves/compiled-runtime.rsave.
             |  --screen <slug>   Render one compiled static screen and exit.
             |  --script <chars>  Feed command characters, useful for smoke tests.
+            |  --replay <name>   Run a named compiled-runtime replay plan.
+            |  --seed <long>     Override the active party RNG seed before play.
             """.trimMargin(),
         )
     }
@@ -161,7 +180,18 @@ private fun CompiledRuntimeConfig.run() {
         runtime.renderStaticScreen(staticScreen, stateSlug, loadFile)
         return
     }
-    runtime.runWilderness(stateSlug, loadFile, saveFile, scriptedInput)
+    val replay =
+        replayPlan?.let { plan ->
+            runtime.replayPlan(plan, stateSlug.takeUnless { it == "fresh-replay" })
+        }
+    replay?.summaryLines()?.forEach(System.err::println)
+    runtime.runWilderness(
+        stateSlug = replay?.stateSlug ?: stateSlug,
+        loadFile = loadFile,
+        saveFile = saveFile,
+        scriptedInput = replay?.script ?: scriptedInput,
+        seed = seed,
+    )
 }
 
 /**
@@ -204,6 +234,7 @@ class StandaloneCompiledRuntime private constructor(
         loadFile: File?,
         saveFile: File,
         scriptedInput: String?,
+        seed: Long? = null,
     ) {
         var runtime =
             loadFile?.let { file ->
@@ -214,6 +245,7 @@ class StandaloneCompiledRuntime private constructor(
                     stateLookup = ::stateBySlug,
                 )
             } ?: StandaloneRuntimeState.from(stateBySlug(stateSlug), content)
+        runtime = seed?.let(runtime::withSeed) ?: runtime
         val world = StandaloneWorldMap.from(content, runtime.currentMap)
         CompiledAnsiTerminals.open(scripted = scriptedInput != null).use { terminal ->
             val screen = CompiledAnsiScreen(terminal, bundle, systems)
@@ -504,6 +536,12 @@ class StandaloneCompiledRuntime private constructor(
         return bundle.states.firstOrNull { it.state == stateRef } ?: error("unknown compiled state $slug")
     }
 
+    /** Builds a named replay plan from compiled bundle tables. */
+    internal fun replayPlan(
+        name: String,
+        stateOverride: String?,
+    ): StandaloneReplayPlan = StandaloneCompiledReplayPlans.build(name, bundle, systems, stateOverride)
+
     private fun string(id: Int): String = content.strings.value(id)
 
     private fun slug(ref: CompiledHandleRef): String = content.slug(ref)
@@ -541,6 +579,8 @@ internal data class StandaloneRuntimeState(
 
     fun withCompletedMission(mission: CompiledHandleRef): StandaloneRuntimeState =
         copy(completedMissions = (completedMissions + mission).distinct())
+
+    fun withSeed(seed: Long): StandaloneRuntimeState = withParty(party.copy(rngState = seed))
 
     companion object {
         fun from(

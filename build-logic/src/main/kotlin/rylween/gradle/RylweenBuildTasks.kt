@@ -118,6 +118,14 @@ abstract class RunInstalledLauncherWithJavaTask
         @get:Optional
         abstract val script: Property<String>
 
+        @get:Input
+        @get:Optional
+        abstract val replay: Property<String>
+
+        @get:Input
+        @get:Optional
+        abstract val seed: Property<Long>
+
         @get:InputFile
         @get:Optional
         abstract val loadFile: RegularFileProperty
@@ -138,7 +146,10 @@ abstract class RunInstalledLauncherWithJavaTask
             val javaHome = File(javaHomePath.get())
             val hasScreen = screen.isPresent
             val hasScript = script.isPresent
-            check(hasScreen != hasScript) { "configure exactly one launcher smoke mode: screen or script" }
+            val hasReplay = replay.isPresent
+            check(listOf(hasScreen, hasScript, hasReplay).count { it } == 1) {
+                "configure exactly one launcher smoke mode: screen, script, or replay"
+            }
             val launcherArgs =
                 mutableListOf(
                     executableFile.get().asFile.path,
@@ -153,6 +164,12 @@ abstract class RunInstalledLauncherWithJavaTask
             }
             if (hasScript) {
                 launcherArgs += listOf("--script", script.get())
+            }
+            if (hasReplay) {
+                launcherArgs += listOf("--replay", replay.get())
+            }
+            if (seed.isPresent) {
+                launcherArgs += listOf("--seed", seed.get().toString())
             }
             if (loadFile.isPresent) {
                 launcherArgs += listOf("--load", loadFile.get().asFile.path)
