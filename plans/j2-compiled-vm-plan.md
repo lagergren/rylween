@@ -1,12 +1,13 @@
 # J2 Compiled VM Plan
 
 This plan describes the work needed to turn the J1 compiled JSON bundle from a
-validated data artifact into an executable script/runtime contract. Today the
+validated data artifact into an executable script/runtime contract. The current
 Kotlin ANSI and headless hosts read the J1 bundle, materialize the Kotlin
-runtime-facing model, and execute scripts through the existing authored `Op`
-interpreter plus reusable session state machines. J2 is the path where a host
-can instead execute compiled script programs from the bundle and honestly
-declare `RuntimeScriptExecutionStrategy.CompiledVm`.
+runtime-facing model, and execute production script roots through `CompiledVm`
+plus reusable session state machines. The authored `Op` interpreter remains as
+an annotated parity/test oracle, not as the production runtime contract.
+The formal portable-runtime contract lives in
+[compiled-vm-runtime-spec.md](compiled-vm-runtime-spec.md).
 
 ## Goal
 
@@ -52,7 +53,7 @@ Already in the repo:
 - a full acceptance playthrough that reaches Ydarg victory and renders
   score/heroes reports
 
-Missing:
+Closed J2 pieces now in the repo:
 
 - a compiled VM execution kernel
 - expression and lvalue evaluation over compiled operand records
@@ -60,7 +61,11 @@ Missing:
 - child-session handoffs from compiled instructions
 - compiled VM save/resume serialization
 - conformance mode that runs script roots through `CompiledVm`
-- any native executor beyond bundle validation
+- a bundle-only Kotlin ANSI install that has no generated-game fallback
+- a native executor probe beyond bundle validation
+
+Remaining product work belongs outside J2: K1 owns the real non-JVM Rust
+server/MUD runtime, while the C code remains a contract/probe implementation.
 
 ## Architecture Shape
 
@@ -302,6 +307,7 @@ Tasks:
 - add an ANSI `--script-vm compiled` flag or test-only host switch
 - route ANSI script roots through the same VM executor
 - run `checkKotlinAnsiBundleBoot`
+- run `checkBundleAnsiBundleBoot` against the generated-game-free bundle install
 - run targeted ANSI/script prompt regressions for town, tavern story, shops,
   dungeon events, and Ydarg-adjacent flows
 
@@ -457,5 +463,7 @@ Total for a fully playable native runtime: likely 2-3 months beyond the probe.
 - [x] Kotlin headless declares `CompiledVm` and passes J3 suites
 - [x] Kotlin ANSI production launchers run script roots through `CompiledVm`
 - [x] full acceptance playthrough passes in compiled-VM mode
+- [x] bundle-only Kotlin ANSI install boots from J1 JSON with no generated-game fallback
+- [x] remaining emitted runtime-mutation opcodes are implemented in `CompiledVm`
 - [x] C/native probe executes a narrow compiled scenario from the J1 bundle
 - [x] ledger distinguishes completed J2 pieces from optional native product work

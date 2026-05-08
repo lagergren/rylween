@@ -147,6 +147,12 @@ fun ByteArray.readExternalRuntimeSystemsSummary(): ExternalRuntimeSystemsSummary
 /** Reads the stable runtime-system summary from a strict JSON artifact file. */
 fun File.readExternalRuntimeSystemsSummary(): ExternalRuntimeSystemsSummary = readBytes().readExternalRuntimeSystemsSummary()
 
+/** Reads the stable runtime-system data needed by direct bundle runtimes. */
+fun ByteArray.readExternalRuntimeSystems(): ExternalRuntimeSystems = ExternalRuntimeSystemsReader(decodeToString()).readSystems()
+
+/** Reads the stable runtime-system data needed by direct bundle runtimes from a strict JSON artifact file. */
+fun File.readExternalRuntimeSystems(): ExternalRuntimeSystems = readBytes().readExternalRuntimeSystems()
+
 /** Renders a human-readable inspection report from strict JSON artifact bytes. */
 fun ByteArray.inspectExternalBundleArtifact(): String = readExternalBundleArtifact().renderExternalBundleInspection()
 
@@ -201,6 +207,56 @@ data class ExternalRuntimeSystemsSummary(
     val commandGroups: List<String>,
     val promptGroups: List<String>,
     val castles: List<String>,
+)
+
+/** Stable runtime-system section consumed by runtimes that do not use the Kotlin runtime facade. */
+data class ExternalRuntimeSystems(
+    val schemaVersion: Int,
+    val commandGroups: List<String>,
+    val promptGroups: List<String>,
+    val castles: List<String>,
+    val presentation: ExternalRuntimePresentation,
+)
+
+/** Terminal presentation data in the stable runtime-system section. */
+data class ExternalRuntimePresentation(
+    val terminalTerrain: List<ExternalTerminalTerrainStyle>,
+    val regions: List<ExternalScreenRegion>,
+    val images: List<ExternalImageAsset>,
+    val staticScreens: List<ExternalStaticScreen>,
+)
+
+/** Terminal glyph/color mapping for one terrain slug. */
+data class ExternalTerminalTerrainStyle(
+    val terrain: String,
+    val glyph: String,
+    val color: String,
+)
+
+/** Screen region row from the stable runtime-system presentation data. */
+data class ExternalScreenRegion(
+    val id: String,
+    val x: Int,
+    val y: Int,
+    val width: Int?,
+    val height: Int?,
+)
+
+/** ANSI or bitmap image resource row from the stable runtime-system presentation data. */
+data class ExternalImageAsset(
+    val id: String,
+    val kind: String,
+    val resource: String,
+    val placement: String,
+)
+
+/** Static screen route from the stable runtime-system presentation data. */
+data class ExternalStaticScreen(
+    val id: String,
+    val image: String?,
+    val resource: String?,
+    val commandHelp: Boolean,
+    val runtimeReport: String?,
 )
 
 /** Ordered section ids emitted by the strict JSON artifact. */
@@ -1272,6 +1328,16 @@ private class ExternalRuntimeSystemsReader(
     private val source: String,
 ) {
     fun read(): ExternalRuntimeSystemsSummary {
+        val systems = readSystems()
+        return ExternalRuntimeSystemsSummary(
+            schemaVersion = systems.schemaVersion,
+            commandGroups = systems.commandGroups,
+            promptGroups = systems.promptGroups,
+            castles = systems.castles,
+        )
+    }
+
+    fun readSystems(): ExternalRuntimeSystems {
         val systems =
             readExternalBundleEnvelope(source)
                 .sections
@@ -1280,7 +1346,7 @@ private class ExternalRuntimeSystemsReader(
         val commands = systems.requiredObject("commands")
         val prompts = systems.requiredObject("prompts")
         val castles = systems.requiredArray("castles")
-        return ExternalRuntimeSystemsSummary(
+        return ExternalRuntimeSystems(
             schemaVersion = systems.requiredInt("schemaVersion"),
             commandGroups = commands.entries.map { it.first },
             promptGroups =
@@ -1291,8 +1357,54 @@ private class ExternalRuntimeSystemsReader(
                 castles.values.map { castle ->
                     castle.asObject("castle").requiredString("id")
                 },
+            presentation = systems.requiredObject("presentation").readPresentation(),
         )
     }
+
+    private fun JsonObject.readPresentation(): ExternalRuntimePresentation =
+        ExternalRuntimePresentation(
+            terminalTerrain =
+                requiredArray("terminalTerrain").values.map { value ->
+                    val row = value.asObject("terminal terrain")
+                    ExternalTerminalTerrainStyle(
+                        terrain = row.requiredString("terrain"),
+                        glyph = row.requiredString("glyph"),
+                        color = row.requiredString("color"),
+                    )
+                },
+            regions =
+                requiredArray("regions").values.map { value ->
+                    val row = value.asObject("screen region")
+                    ExternalScreenRegion(
+                        id = row.requiredString("id"),
+                        x = row.requiredInt("x"),
+                        y = row.requiredInt("y"),
+                        width = row.optionalNullableInt("width"),
+                        height = row.optionalNullableInt("height"),
+                    )
+                },
+            images =
+                requiredArray("images").values.map { value ->
+                    val row = value.asObject("image")
+                    ExternalImageAsset(
+                        id = row.requiredString("id"),
+                        kind = row.requiredString("kind"),
+                        resource = row.requiredString("resource"),
+                        placement = row.requiredString("placement"),
+                    )
+                },
+            staticScreens =
+                requiredArray("staticScreens").values.map { value ->
+                    val row = value.asObject("static screen")
+                    ExternalStaticScreen(
+                        id = row.requiredString("id"),
+                        image = row.optionalNullableString("image"),
+                        resource = row.optionalNullableString("resource"),
+                        commandHelp = row.required("commandHelp").asBoolean("commandHelp"),
+                        runtimeReport = row.optionalNullableString("runtimeReport"),
+                    )
+                },
+        )
 
     private fun JsonValue.rejectReflectiveTypeMarkers(path: String) {
         when (this) {
@@ -2074,6 +2186,13 @@ private fun JsonObject.requiredInt(name: String): Int =
     (required(name) as? JsonNumber)?.value?.toIntOrNull() ?: error("expected integer for $name")
 
 private fun JsonObject.optionalString(name: String): String? = optional(name)?.asString(name)
+
+private fun JsonObject.optionalNullableString(name: String): String? = optional(name)?.takeUnless { it is JsonNull }?.asString(name)
+
+private fun JsonObject.optionalNullableInt(name: String): Int? {
+    val value = optional(name)?.takeUnless { it is JsonNull } ?: return null
+    return (value as? JsonNumber)?.value?.toIntOrNull() ?: error("expected integer for $name")
+}
 
 private inline fun <reified T : Enum<T>> JsonObject.requiredEnum(name: String): T = enumValueOf(requiredString(name))
 

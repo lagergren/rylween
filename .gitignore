@@ -11,6 +11,7 @@
 legacy/c-json5/rylween
 rylween-asan
 *.dSYM/
+rust/**/target/
 
 # Runtime-generated state (regenerated on boot)
 data/entry.dat

@@ -44,6 +44,7 @@ data class CompiledVmContinuationSnapshot(
     val root: ScriptRootRef,
     val locals: Map<String, Int> = emptyMap(),
     val textBindings: Map<String, String> = emptyMap(),
+    val activeInventorySlot: Int? = null,
     val frames: List<CompiledVmFrameSnapshot>,
     val pending: CompiledVmPendingInputSnapshot,
 ) {
@@ -317,6 +318,7 @@ fun CompiledVmContinuation.toSnapshot(): CompiledVmContinuationSnapshot =
         root = root,
         locals = locals.toSortedMap(),
         textBindings = textBindings.toSortedMap(),
+        activeInventorySlot = activeInventorySlot,
         frames = frames.map(CompiledVmFrame::toSnapshot),
         pending = pending.toSnapshot(),
     )
@@ -328,6 +330,7 @@ fun CompiledVmContinuationSnapshot.toContinuation(runtime: RuntimeSessionState):
         runtime = runtime,
         locals = locals.toSortedMap(),
         textBindings = textBindings.toSortedMap(),
+        activeInventorySlot = activeInventorySlot,
         frames = frames.map(CompiledVmFrameSnapshot::toFrame),
         pending = pending.toPendingInput(),
     )

@@ -1695,6 +1695,7 @@ private class RuntimeStateSnapshotParser(
         var root = ScriptRootRef.Unspecified
         var locals = emptyMap<String, Int>()
         var textBindings = emptyMap<String, String>()
+        var activeInventorySlot: Int? = null
         var frames = emptyList<CompiledVmFrameSnapshot>()
         var pending: CompiledVmPendingInputSnapshot? = null
         while (!matchSymbol('}')) {
@@ -1702,6 +1703,10 @@ private class RuntimeStateSnapshotParser(
                 "root" -> root = parseScriptRootBody()
                 "locals" -> locals = parseNamedIntMapBody()
                 "textBindings" -> textBindings = parseNamedStringMapBody()
+                "activeInventorySlot" -> {
+                    expectSymbol('=')
+                    activeInventorySlot = parseNullable(::parseInt)
+                }
                 "frames" -> frames = parseCompiledVmFramesBody()
                 "pending" -> pending = parseCompiledVmPendingBody()
                 else -> unexpected("compiled VM continuation field $field")
@@ -1711,6 +1716,7 @@ private class RuntimeStateSnapshotParser(
             root = root,
             locals = locals,
             textBindings = textBindings,
+            activeInventorySlot = activeInventorySlot,
             frames = frames,
             pending = checkNotNull(pending) { "compiled VM continuation requires pending input" },
         )
@@ -4131,6 +4137,7 @@ private class RuntimeStateSnapshotWriter {
             scriptRoot(continuation.root)
             namedIntMap("locals", continuation.locals)
             namedStringMap("textBindings", continuation.textBindings)
+            line("activeInventorySlot = ${continuation.activeInventorySlot ?: "null"}")
             line("frames {")
             indented {
                 continuation.frames.forEach(::compiledVmFrame)

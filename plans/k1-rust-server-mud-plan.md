@@ -213,3 +213,9 @@ Do not start by writing gameplay code. Start with K1.0:
    unavailable unless explicitly requested.
 4. Add a ledger regression that the Rust target stays classified as
    experimental until it passes the full J3 surface.
+
+Smallest viable K1.0 slice: land the workspace, an `inspect` command that
+validates the compiled-bundle envelope, and the optional Gradle smoke task
+first. The remaining K1.0 closeout work is canonical `sections` hash
+recomputation plus Kotlin/Rust count parity; do not mark K1.0 closed until
+those checks agree with the Kotlin inspector.

@@ -1239,6 +1239,88 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun bundleAnsiRuntimeIsGeneratedGameFreeAtLauncherBoundary() {
+        val ansiSource = File("src/app/kotlin/rylween/app/RylweenAnsiMain.kt").readText()
+        val build = File("build.gradle.kts").readText()
+        val launcher = File("run.sh").readText()
+        val requiredBuildTokens =
+            listOf(
+                "val bundleApp: SourceSet",
+                "compileClasspath += main.output",
+                "archiveBaseName.set(\"rylween-bundle-ansi\")",
+                "val installBundleAnsi",
+                "val checkBundleAnsiBundleBoot",
+            )
+        val forbiddenAnsiTokens = listOf("import rylween.game", "RylweenCompiledGame")
+        val missing = requiredBuildTokens.filterNot { token -> token in build }
+        val offenders = forbiddenAnsiTokens.filter { token -> token in ansiSource }
+
+        check(missing.isEmpty()) {
+            "bundle-only ANSI runtime must keep its generated-game-free source-set/build boundary; missing: " +
+                missing.joinToString()
+        }
+        check(offenders.isEmpty()) {
+            "bundle-only ANSI launcher must load content only from the J1 JSON bundle, not generated game classes: " +
+                offenders.joinToString()
+        }
+        check("installBundleAnsi" in launcher && "build/compiled/rylween-bundle.json" in launcher) {
+            "run.sh must launch the bundle-only ANSI install with the emitted JSON bundle"
+        }
+        check("installKotlinAnsi" !in launcher) {
+            "run.sh must not fall back to the generated-game ANSI install"
+        }
+    }
+
+    @Test
+    fun standaloneCompiledRuntimeDoesNotComposeOldKotlinSessions() {
+        val sources =
+            File("src/compiledRuntime/kotlin")
+                .walkTopDown()
+                .filter { file -> file.isFile && file.extension == "kt" }
+                .toList()
+        val forbidden =
+            listOf(
+                "import rylween.engine",
+                "import rylween.frontend.terminal",
+                "import rylween.runtime.wilderness",
+                "import rylween.runtime.town",
+                "import rylween.runtime.dungeon",
+                "import rylween.runtime.castle",
+                "import rylween.runtime.battle",
+                "readExternalRuntimeGame",
+                "RylweenKotlinEngine",
+                "WildernessSession",
+                "TownSession",
+                "DungeonSession",
+                "CastleSession",
+                "BattleSession",
+                "TerminalAdapter",
+            )
+        val offenders =
+            sources.flatMap { file ->
+                val source = file.readText()
+                forbidden
+                    .filter { token -> token in source }
+                    .map { token -> "${file.invariantSeparatorsPath}: $token" }
+            }
+        val build = File("build.gradle.kts").readText()
+
+        check(sources.isNotEmpty()) {
+            "standalone compiled runtime source set must exist"
+        }
+        check(offenders.isEmpty()) {
+            "standalone compiled runtime must not compose old Kotlin session/runtime adapters: " +
+                offenders.joinToString()
+        }
+        check("val compiledRuntime: SourceSet" in build && "checkCompiledRuntimeBundleBoot" in build) {
+            "standalone compiled runtime must stay wired into Gradle verification"
+        }
+        check(File("run-compiled.sh").readText().contains("installCompiledRuntime")) {
+            "run-compiled.sh must launch the standalone compiled runtime"
+        }
+    }
+
+    @Test
     fun authoredInterpreterApisAreMarkedAsOracleOnly() {
         val requiredMarkers =
             mapOf(
@@ -1294,6 +1376,33 @@ class RylweenCompiledGameLedgerTest {
         }
         check(missing.isEmpty()) {
             "script source analysis must keep native-path/source-map migration hooks visible; missing: " +
+                missing.joinToString()
+        }
+    }
+
+    @Test
+    fun rustMudTargetStaysExperimentalUntilConformanceCloseout() {
+        val ledger = File("dsl-improvements.md").readText()
+        val plan = File("plans/k1-rust-server-mud-plan.md").readText()
+        val build = File("build.gradle.kts").readText()
+        val manifest = File("rust/rylween-mud/Cargo.toml").readText()
+        val main = File("rust/rylween-mud/src/main.rs").readText()
+        val requiredMarkers =
+            listOf(
+                ledger to "not be called playable until it passes all J3 conformance suites",
+                ledger to "Remaining closeout: recompute the canonical `sections` SHA-256",
+                plan to "do not mark K1.0 closed until",
+                build to "checkRustMudBundleInspect",
+                manifest to "publish = false",
+                main to "status=experimental-k1.0-skeleton",
+            )
+        val missing =
+            requiredMarkers
+                .filterNot { (source, marker) -> marker in source }
+                .map { (_, marker) -> marker }
+
+        check(missing.isEmpty()) {
+            "Rust MUD target must stay visibly experimental until K1/J3 closeout; missing: " +
                 missing.joinToString()
         }
     }

@@ -1,10 +1,11 @@
 /**
- * ANSI terminal launcher for the playable Kotlin host.
+ * Bundle-backed ANSI terminal launcher for the playable Kotlin host.
  *
- * This is the user-facing app entry point for local terminal play. It shares
- * startup/save logic with `TerminalMain.kt`, boots from either generated content
- * or a J1 bundle artifact, and delegates gameplay to `engine/RylweenKotlinEngine`
- * plus terminal adapters.
+ * This is the user-facing app entry point for local terminal play. It loads the
+ * game model from a J1 JSON bundle artifact, verifies the artifact hash by
+ * round-tripping it through `compiled/ExternalBundleArtifact.kt`, and delegates
+ * gameplay to `engine/RylweenKotlinEngine` plus terminal adapters. Scripted
+ * actions enter the J2 compiled VM through `frontend/terminal/TerminalScriptBridge.kt`.
  */
 @file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
 
@@ -29,7 +30,6 @@ import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
 import org.jline.utils.NonBlockingReader
 import rylween.compiled.ExternalBundleArtifactSummary
-import rylween.compiled.readExternalBundleArtifact
 import rylween.compiled.readExternalRuntimeGame
 import rylween.compiled.readVerifiedExternalBundleArtifact
 import rylween.compiled.toExternalBundleArtifact
@@ -64,6 +64,8 @@ import rylween.dsl.layout
 import rylween.dsl.line
 import rylween.dsl.lines
 import rylween.dsl.matches
+import rylween.dsl.paletteColor
+import rylween.dsl.screenRegion
 import rylween.dsl.stateId
 import rylween.dsl.staticScreen
 import rylween.dsl.terrain
@@ -81,6 +83,8 @@ import rylween.engine.createInitialWorldSnapshot
 import rylween.engine.runtimeEvent
 import rylween.engine.selectStartupState
 import rylween.engine.validateStartupState
+import rylween.frontend.ansi.AnsiCodes
+import rylween.frontend.ansi.AnsiInput
 import rylween.frontend.terminal.BattleSessionTerminalAdapter
 import rylween.frontend.terminal.CampSessionTerminalAdapter
 import rylween.frontend.terminal.CastleSessionTerminalAdapter
@@ -108,13 +112,6 @@ import rylween.frontend.terminal.renderTerminalStaticScreen
 import rylween.frontend.terminal.staticScreenRequiresRuntimeState
 import rylween.frontend.terminal.terminalTextRenderer
 import rylween.frontend.terminal.writeScriptEvents
-import rylween.game.Buildings
-import rylween.game.Maps
-import rylween.game.PaletteColors
-import rylween.game.RylweenCompiledGame
-import rylween.game.ScreenRegions
-import rylween.game.States
-import rylween.game.StaticScreens
 import rylween.runtime.NpcPlacementRealizerConfig
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.RuntimeSnapshotModel
@@ -152,22 +149,44 @@ import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
 import java.nio.charset.StandardCharsets
 
-private const val ESC = "\u001B"
-private const val CSI = "$ESC["
-private const val RESET = "${CSI}0m"
+private const val ESC = AnsiCodes.ESC
+private const val CSI = AnsiCodes.CSI
+private const val RESET = AnsiCodes.RESET
 
 @Suppress("unused")
-private const val FG_BLACK = "${CSI}30m"
-private const val FG_GREEN = "${CSI}32m"
-private const val FG_WHITE = "${CSI}37m"
-private const val BG_BLACK = "${CSI}40m"
-private const val BG_BLUE = "${CSI}44m"
+private const val FG_BLACK = AnsiCodes.FG_BLACK
+private const val FG_GREEN = AnsiCodes.FG_GREEN
+private const val FG_WHITE = AnsiCodes.FG_WHITE
+private const val BG_BLACK = AnsiCodes.BG_BLACK
+private const val BG_BLUE = AnsiCodes.BG_BLUE
+
+private val wildernessMap = worldMap("wilderness")
+private val freshReplayState = stateId("fresh-replay")
+private val titleScreen = staticScreen("title")
+private val scoreScreen = staticScreen("score")
+private val verboseScoreScreen = staticScreen("verbose_score")
+private val heroesScreen = staticScreen("heroes")
+private val manualScreen = staticScreen("manual")
+private val frameScreen = staticScreen("frame")
+private val noneBuilding = building("none")
+private val textWindowRegion = screenRegion("text_window")
+private val mapWindowRegion = screenRegion("map_window")
+private val statuslineTopRegion = screenRegion("statusline_top")
+private val statuslineBottomRegion = screenRegion("statusline_bottom")
+private val blackPaletteColor = paletteColor("black")
+private val redPaletteColor = paletteColor("red")
+private val greenPaletteColor = paletteColor("green")
+private val yellowPaletteColor = paletteColor("yellow")
+private val bluePaletteColor = paletteColor("blue")
+private val magentaPaletteColor = paletteColor("magenta")
+private val cyanPaletteColor = paletteColor("cyan")
+private val whitePaletteColor = paletteColor("white")
 
 private data class AnsiRuntimeConfig(
     val state: StateId? = null,
     val seed: Long? = null,
     val hour: Int? = null,
-    val bundleFile: File? = null,
+    val bundleFile: File,
     val loadFile: File? = null,
     val savesDir: File = File("build/saves"),
     val saveFile: File = runtimeSaveSlotFile("main"),
@@ -211,17 +230,15 @@ object RylweenAnsiMain {
 private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
     runRylweenCli {
         val bundleFile = parsedConfig.bundleFile
-        val game = bundleFile?.readExternalRuntimeGame() ?: RylweenCompiledGame.nextRylween
+        val game = bundleFile.readExternalRuntimeGame()
         val config = resolveAnsiPlayerSlot(parsedConfig, game)
         val content = game.content
-        val bundleSummary = bundleFile?.readVerifiedExternalBundleArtifact(game)
-        val compiledBundleHash =
-            bundleSummary?.bundleContentHash
-                ?: game.toExternalBundleArtifact().readExternalBundleArtifact().bundleContentHash
+        val bundleSummary = bundleFile.readVerifiedExternalBundleArtifact(game)
+        val compiledBundleHash = bundleSummary.bundleContentHash
         val dumpBundle = config.dumpBundle
         val renderer = content.terminalTextRenderer()
         val worldMap =
-            content.worldMapGrid(Maps.wilderness)
+            content.worldMapGrid(wildernessMap)
                 ?: error("missing authored wilderness map")
         val engine =
             RylweenKotlinEngine(
@@ -232,7 +249,7 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
                     ),
             )
         config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
-            withConfiguredAnsiSession(config, bundleFile, bundleSummary, game.takeIf { dumpBundle }) { _, terminal ->
+            withConfiguredAnsiSession(config, bundleSummary, game.takeIf { dumpBundle }) { _, terminal ->
                 ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
                     .showStaticScreen(content, screenId, renderer)
             }
@@ -244,7 +261,7 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
                     config,
                     loadConfiguredOrSavedSnapshot(game, content, config, compiledBundleHash),
                 )
-            withConfiguredAnsiSession(config, bundleFile, bundleSummary, game.takeIf { dumpBundle }) { _, terminal ->
+            withConfiguredAnsiSession(config, bundleSummary, game.takeIf { dumpBundle }) { _, terminal ->
                 ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
                     .showStaticScreen(
                         content = content,
@@ -256,19 +273,18 @@ private fun runConfiguredAnsi(parsedConfig: AnsiRuntimeConfig): Unit =
             return@runRylweenCli
         }
 
-        withConfiguredAnsiSession(config, bundleFile, bundleSummary, game.takeIf { dumpBundle }) { log, terminal ->
+        withConfiguredAnsiSession(config, bundleSummary, game.takeIf { dumpBundle }) { log, terminal ->
             val scriptBridgeFactory =
                 buildAnsiScriptBridgeFactory(
                     mode = config.scriptVmMode,
                     bundleFile = bundleFile,
-                    game = game,
                     renderer = renderer,
                     log = log,
                 )
             if (config.newGame || config.loadFile != null || config.state != null) {
                 val snapshot =
                     if (config.newGame && config.loadFile == null && config.state == null) {
-                        createInitialWorldSnapshot(game, content, States.freshReplay, config.seed)
+                        createInitialWorldSnapshot(game, content, freshReplayState, config.seed)
                     } else {
                         loadConfiguredSnapshot(game, content, config, compiledBundleHash)
                     }
@@ -328,17 +344,14 @@ private fun openConfiguredAnsiTerminal(
 
 private inline fun withConfiguredAnsiSession(
     config: AnsiRuntimeConfig,
-    bundleFile: File?,
-    bundleSummary: ExternalBundleArtifactSummary?,
+    bundleSummary: ExternalBundleArtifactSummary,
     dumpGame: RylweenModel?,
     crossinline block: (RylweenLog, AnsiTerminal) -> Unit,
 ) {
     val effectiveSpec = config.logSpec.ifBlank { if (config.serve != null) "stderr" else "" }
     RylweenLog.open(spec = effectiveSpec, level = config.logLevel).use { log ->
         RuntimeEventScope.withSink(log) {
-            if (bundleFile != null && bundleSummary != null) {
-                log.audit("bundle", "verified ${bundleFile.path} ${bundleSummary.bundleContentHash}")
-            }
+            log.audit("bundle", "verified ${config.bundleFile.path} ${bundleSummary.bundleContentHash}")
             if (dumpGame != null) {
                 val pretty = dumpGame.toExternalBundleArtifact().decodeToString().trimEnd('\n')
                 log.emit(RuntimeEventLevel.Debug, "bundle", pretty)
@@ -373,7 +386,7 @@ private fun runAnsiTitleMenu(
     scriptBridgeFactory: AnsiScriptBridgeFactory,
 ) {
     val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
-    screen.showStaticScreen(content, StaticScreens.title, renderer)
+    screen.showStaticScreen(content, titleScreen, renderer)
     val savePort =
         FileRuntimeSavePort(
             file = config.saveFile,
@@ -394,7 +407,7 @@ private fun runAnsiTitleMenu(
                 val clean =
                     applyConfiguredHour(
                         config,
-                        createInitialWorldSnapshot(game, content, States.freshReplay, config.seed),
+                        createInitialWorldSnapshot(game, content, freshReplayState, config.seed),
                     )
                 val session =
                     bootAnsiWildernessSession(
@@ -446,7 +459,7 @@ private fun runAnsiTitleMenu(
             TitleMenuAction.Scores -> {
                 screen.showStaticScreen(
                     content = content,
-                    screenId = StaticScreens.score,
+                    screenId = scoreScreen,
                     renderer = renderer,
                     context = TerminalTextContext(runtime = snapshot.state.toRuntimeSessionState()),
                 )
@@ -455,7 +468,7 @@ private fun runAnsiTitleMenu(
                 if (readYesNoKey(terminal, screen) == true) {
                     screen.showStaticScreen(
                         content = content,
-                        screenId = StaticScreens.verboseScore,
+                        screenId = verboseScoreScreen,
                         renderer = renderer,
                         context = TerminalTextContext(runtime = snapshot.state.toRuntimeSessionState()),
                     )
@@ -464,13 +477,13 @@ private fun runAnsiTitleMenu(
             TitleMenuAction.Heroes -> {
                 screen.showStaticScreen(
                     content = content,
-                    screenId = StaticScreens.heroes,
+                    screenId = heroesScreen,
                     renderer = renderer,
                     context = TerminalTextContext(runtime = snapshot.state.toRuntimeSessionState()),
                 )
             }
             TitleMenuAction.Documentation -> {
-                screen.showStaticScreen(content, StaticScreens.manual, renderer)
+                screen.showStaticScreen(content, manualScreen, renderer)
             }
         }
     }
@@ -591,18 +604,17 @@ private fun interface AnsiScriptBridgeFactory {
 
 private fun buildAnsiScriptBridgeFactory(
     mode: ScriptVmMode,
-    bundleFile: File?,
-    game: RylweenModel,
+    bundleFile: File,
     renderer: TerminalTextRenderer,
     log: RylweenLog,
 ): AnsiScriptBridgeFactory {
     log.audit("scriptVm", "mode=${mode.cliName}")
     val host =
         KotlinHeadlessHost.fromExternalBundleCompiledVm(
-            bundleFile?.readBytes() ?: game.toExternalBundleArtifact(),
+            bundleFile.readBytes(),
         )
-    return AnsiScriptBridgeFactory { terminal, _, _ ->
-        host.compiledVmTerminalScriptBridge(terminal, renderer)
+    return AnsiScriptBridgeFactory { terminal, _, worldMap ->
+        host.compiledVmTerminalScriptBridge(terminal, renderer, worldMap)
     }
 }
 
@@ -691,7 +703,7 @@ private fun loadSavedOrInitialSnapshot(
             )
         }
     } else {
-        createInitialWorldSnapshot(game, content, States.freshReplay, config.seed)
+        createInitialWorldSnapshot(game, content, freshReplayState, config.seed)
     }
 
 private fun applyConfiguredHour(
@@ -1159,7 +1171,7 @@ private fun WildernessSessionInput.runtimeInputName(): String =
 
 private fun MissionModel.service(): BuildingServiceModel =
     BuildingServiceModel(
-        building = Buildings.none,
+        building = noneBuilding,
         action = keyAction("mission.${id.slug}"),
         scene = action,
         opensAt = null,
@@ -1237,10 +1249,10 @@ private class ClassicAnsiScreen(
 ) {
     private val regions = layout.regions.associateBy { it.id }
     private val terrain = TerrainGlyphs(presentation.terrain)
-    private val textWindow = regions.getValue(ScreenRegions.textWindow)
-    private val mapWindow = regions.getValue(ScreenRegions.mapWindow)
-    private val statusTop = regions.getValue(ScreenRegions.statuslineTop)
-    private val statusBottom = regions.getValue(ScreenRegions.statuslineBottom)
+    private val textWindow = regions.getValue(textWindowRegion)
+    private val mapWindow = regions.getValue(mapWindowRegion)
+    private val statusTop = regions.getValue(statuslineTopRegion)
+    private val statusBottom = regions.getValue(statuslineBottomRegion)
     private var lastWildernessSession: WildernessSession? = null
     private var terminalModalActive: Boolean = false
     private var terminalPendingLines: List<String> = emptyList()
@@ -1249,7 +1261,7 @@ private class ClassicAnsiScreen(
         terminalModalActive = false
         terminalPendingLines = emptyList()
         terminal.writeRaw("$CSI?25l")
-        val frame = visuals.staticScreens.singleOrNull { it.id == StaticScreens.frame }?.image
+        val frame = visuals.staticScreens.singleOrNull { it.id == frameScreen }?.image
         if (frame != null) {
             renderImage(frame)
         } else {
@@ -1487,9 +1499,9 @@ private class ClassicAnsiScreen(
         val food = party.resources.food.coerceAtLeast(0)
         val status =
             when {
-                food == 0 -> "${CSI}31mSTARVING$FG_GREEN "
-                food < party.members.count { !it.dead } * 3 -> "${CSI}35mHUNGRY  "
-                else -> "${CSI}33mOK    "
+                food == 0 -> "${AnsiCodes.FG_RED}STARVING$FG_GREEN "
+                food < party.members.count { !it.dead } * 3 -> "${AnsiCodes.FG_MAGENTA}HUNGRY  "
+                else -> "${AnsiCodes.FG_YELLOW}OK    "
             }
         val top =
             buildString {
@@ -1497,11 +1509,11 @@ private class ClassicAnsiScreen(
                 append(timeLabel(runtime.realm.hour))
                 append("ST: ")
                 append(status)
-                append("$FG_GREEN X: ${CSI}33m${point.x.toString().padStart(2)}   ")
-                append("$FG_GREEN Y: ${CSI}33m${point.y.toString().padStart(2)}$FG_GREEN     ")
-                append("FD: ${CSI}33m${food.toString().padStart(4)}$FG_GREEN  ")
-                append("MV: ${CSI}33m${party.resources.timeLeft.toString().padStart(3)}$FG_GREEN  ")
-                append("AU: ${CSI}33m${party.resources.gold.toString().padStart(6)}$FG_GREEN")
+                append("$FG_GREEN X: ${AnsiCodes.FG_YELLOW}${point.x.toString().padStart(2)}   ")
+                append("$FG_GREEN Y: ${AnsiCodes.FG_YELLOW}${point.y.toString().padStart(2)}$FG_GREEN     ")
+                append("FD: ${AnsiCodes.FG_YELLOW}${food.toString().padStart(4)}$FG_GREEN  ")
+                append("MV: ${AnsiCodes.FG_YELLOW}${party.resources.timeLeft.toString().padStart(3)}$FG_GREEN  ")
+                append("AU: ${AnsiCodes.FG_YELLOW}${party.resources.gold.toString().padStart(6)}$FG_GREEN")
             }
         val bottom =
             (0 until 4).joinToString("   ") { index ->
@@ -1509,7 +1521,7 @@ private class ClassicAnsiScreen(
                 if (member == null) {
                     "H${index + 1}:        "
                 } else {
-                    "H${index + 1}: ${CSI}33m${member.hitPoints.current.toString().padStart(3)}/" +
+                    "H${index + 1}: ${AnsiCodes.FG_YELLOW}${member.hitPoints.current.toString().padStart(3)}/" +
                         "${member.hitPoints.max.toString().padStart(3)}$FG_GREEN"
                 }
             }
@@ -1616,10 +1628,10 @@ private class ClassicAnsiScreen(
 
     private fun timeLabel(hour: Int): String =
         when (hour.mod(24)) {
-            in 6..11 -> "TIME: ${CSI}33mDAWN$FG_GREEN      "
-            in 12..17 -> "TIME: ${CSI}33mMIDDAY$FG_GREEN    "
-            in 18..23 -> "TIME: ${CSI}33mTWILIGHT$FG_GREEN  "
-            else -> "TIME: ${CSI}33mMIDNIGHT$FG_GREEN  "
+            in 6..11 -> "TIME: ${AnsiCodes.FG_YELLOW}DAWN$FG_GREEN      "
+            in 12..17 -> "TIME: ${AnsiCodes.FG_YELLOW}MIDDAY$FG_GREEN    "
+            in 18..23 -> "TIME: ${AnsiCodes.FG_YELLOW}TWILIGHT$FG_GREEN  "
+            else -> "TIME: ${AnsiCodes.FG_YELLOW}MIDNIGHT$FG_GREEN  "
         }
 }
 
@@ -1663,7 +1675,7 @@ private class TerrainGlyphs(
                 style.terrain.sourceMapCode?.let { it to TerrainGlyph(style.glyph, style.color.ansiForeground()) }
             }.toMap()
 
-    fun style(tile: Char?): TerrainGlyph = tile?.let(bySourceCode::get) ?: TerrainGlyph("  ", 36)
+    fun style(tile: Char?): TerrainGlyph = tile?.let(bySourceCode::get) ?: TerrainGlyph("  ", AnsiCodes.FG_CYAN_CODE)
 
     fun name(tile: Char?): String? = tile?.let(byTerrainCode::get)
 }
@@ -1675,15 +1687,15 @@ private fun String.readableSlug(): String =
 
 private fun PaletteColorId.ansiForeground(): Int =
     when (this) {
-        PaletteColors.black -> 30
-        PaletteColors.red -> 31
-        PaletteColors.green -> 32
-        PaletteColors.yellow -> 33
-        PaletteColors.blue -> 34
-        PaletteColors.magenta -> 35
-        PaletteColors.cyan -> 36
-        PaletteColors.white -> 37
-        else -> 36
+        blackPaletteColor -> AnsiCodes.FG_BLACK_CODE
+        redPaletteColor -> AnsiCodes.FG_RED_CODE
+        greenPaletteColor -> AnsiCodes.FG_GREEN_CODE
+        yellowPaletteColor -> AnsiCodes.FG_YELLOW_CODE
+        bluePaletteColor -> AnsiCodes.FG_BLUE_CODE
+        magentaPaletteColor -> AnsiCodes.FG_MAGENTA_CODE
+        cyanPaletteColor -> AnsiCodes.FG_CYAN_CODE
+        whitePaletteColor -> AnsiCodes.FG_WHITE_CODE
+        else -> AnsiCodes.FG_CYAN_CODE
     }
 
 private interface AnsiTerminal : Closeable {
@@ -1707,67 +1719,6 @@ private interface AnsiTerminal : Closeable {
     }
 }
 
-private fun decodeAnsiKeyToken(
-    readCode: (timeoutMs: Int?) -> Int,
-    consumeQueuedLf: () -> Unit = {},
-): String? {
-    val ch = readCode(null)
-    if (ch < 0) return null
-    if (ch == ESC.single().code) {
-        val b1 = readCode(50)
-        val b2 = if (b1 == '['.code) readCode(50) else -1
-        return when (b2) {
-            'A'.code -> "8"
-            'B'.code -> "2"
-            'C'.code -> "6"
-            'D'.code -> "4"
-            else -> ESC
-        }
-    }
-    return when (ch) {
-        '\u0003'.code, '\u0004'.code -> null
-        '\n'.code, '\r'.code -> {
-            consumeQueuedLf()
-            ""
-        }
-        else -> ch.toChar().toString()
-    }
-}
-
-private fun readAnsiTextLine(
-    maxLength: Int?,
-    readCode: (timeoutMs: Int?) -> Int,
-    consumeQueuedLf: () -> Unit,
-    writeRaw: (String) -> Unit,
-    flush: () -> Unit,
-): String? {
-    val out = StringBuilder()
-    while (true) {
-        when (val ch = readCode(null)) {
-            -1, '\u0003'.code, '\u0004'.code -> return null
-            '\n'.code, '\r'.code -> {
-                consumeQueuedLf()
-                return out.toString()
-            }
-            '\b'.code, '\u007F'.code ->
-                if (out.isNotEmpty()) {
-                    out.deleteCharAt(out.lastIndex)
-                    writeRaw("\b \b")
-                    flush()
-                }
-            else -> {
-                val cap = maxLength ?: Int.MAX_VALUE
-                if (out.length < cap && ch >= ' '.code) {
-                    val c = ch.toChar()
-                    out.append(c)
-                    writeRaw(c.toString())
-                    flush()
-                }
-            }
-        }
-    }
-}
-
 private class JLineAnsiTerminal private constructor(
     private val terminal: Terminal,
     private val savedAttributes: Attributes,
@@ -1784,9 +1735,9 @@ private class JLineAnsiTerminal private constructor(
         writer.flush()
     }
 
-    override fun readKeyToken(): String? = decodeAnsiKeyToken(::readCode)
+    override fun readKeyToken(): String? = AnsiInput.decodeKeyToken(::readCode)
 
-    override fun readTextLine(maxLength: Int?): String? = readAnsiTextLine(maxLength, ::readCode, {}, ::writeRaw, ::flush)
+    override fun readTextLine(maxLength: Int?): String? = AnsiInput.readTextLine(maxLength, ::readCode, {}, ::writeRaw, ::flush)
 
     private fun readCode(timeoutMs: Int?): Int = timeoutMs?.let { reader.read(it.toLong()) } ?: reader.read()
 
@@ -1834,10 +1785,10 @@ private class SocketAnsiTerminal private constructor(
         output.flush()
     }
 
-    override fun readKeyToken(): String? = decodeAnsiKeyToken(::readInputByte, ::consumeQueuedLf)
+    override fun readKeyToken(): String? = AnsiInput.decodeKeyToken(::readInputByte, ::consumeQueuedLf)
 
     override fun readTextLine(maxLength: Int?): String? =
-        readAnsiTextLine(maxLength, ::readInputByte, ::consumeQueuedLf, ::writeRaw, ::flush)
+        AnsiInput.readTextLine(maxLength, ::readInputByte, ::consumeQueuedLf, ::writeRaw, ::flush)
 
     override fun pause(ms: Int) {
         if (ms > 0) {
@@ -2147,15 +2098,14 @@ private fun resolveAnsiPlayerSlot(
 private const val ANSI_VERBOSE_HELP =
     """
 Examples:
-  rylween                          # Title menu, loads build/saves/main.kts if present
+  rylween --bundle build/compiled/rylween-bundle.json
+                                   # Title menu, loads build/saves/main.kts if present.
   rylween Player                   # Player-slot shortcut: loads build/saves/Player.kts or
                                    # boots a fixture whose active party player matches.
   rylween --new                    # Runs authored character creation, then plays new party.
   rylween --state strong-replay    # Boots the strong-party test fixture (skips title menu).
   rylween --state fresh-replay --seed 1
                                    # Deterministic boot from authored fixture.
-  rylween --bundle build/compiled/rylween-bundle.json
-                                   # Boots from compiled J1 bundle (hash-verified at startup).
   rylween --script-vm compiled --state strong-replay
                                    # Runs ANSI service scripts through the J2 compiled VM path.
   rylween --screen title           # Renders the authored title screen and exits.
@@ -2340,12 +2290,13 @@ private class RylweenAnsiCommand : CliktCommand(name = "rylween") {
             performReset(resolvedSaveFile)
             return
         }
+        val bundleFile = bundleFileOpt ?: error("--bundle is required for the bundle-backed ANSI runtime")
         var config =
             AnsiRuntimeConfig(
                 state = state,
                 seed = seed,
                 hour = hour,
-                bundleFile = bundleFileOpt,
+                bundleFile = bundleFile,
                 loadFile = effectiveLoadFile,
                 savesDir = savesDirOpt,
                 saveFile = resolvedSaveFile,
