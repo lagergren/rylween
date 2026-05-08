@@ -2322,7 +2322,7 @@ class CompiledVm(
                     if (left) EvalResult.Ok(true) else evalBool(state, expr.right, location)
                 }
             is CompiledBoolExpr.FlagIs ->
-                EvalResult.Ok(state.party.flags.any { it.flag.slug == index.slug(expr.flag) && it.native == index.flagNative(expr.state) })
+                EvalResult.Ok(state.party.matchesFlagState(index.slug(expr.flag), index.flagNative(expr.state)))
             is CompiledBoolExpr.MilestoneAchieved -> EvalResult.Ok(GameMilestoneId(index.slug(expr.milestone)) in state.party.milestones)
             is CompiledBoolExpr.MemberFlag ->
                 evalInt(state, expr.member, location).map { member ->
@@ -3026,6 +3026,15 @@ private class CompiledVmContentIndex(
 
     fun itemCost(item: ItemId): Int = itemCosts[item.slug] ?: 0
 }
+
+private fun PartyState.matchesFlagState(
+    flag: String,
+    native: String,
+): Boolean =
+    when (native) {
+        "none" -> flags.none { state -> state.flag.slug == flag }
+        else -> flags.any { state -> state.flag.slug == flag && state.native == native }
+    }
 
 private data class VmLocation(
     val root: rylween.runtime.ScriptRootRef,

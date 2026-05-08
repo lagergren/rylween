@@ -6913,6 +6913,167 @@ val nextRylween: RylweenModel = rylween {
         }
     }
 
+    // Deterministic town-dialogue fixture for the standalone compiled-runtime
+    // replay planner. It fixes role-bearing NPCs in known inn slots and leaves
+    // story flags unset so "none" dialogue branches are exercised through the
+    // compiled bundle instead of pre-seeding quest progress.
+    stateFixture(States.townMissionReplay) {
+        realm {
+            day = 14
+            hour = 9
+            activeParty = Parties.playtest
+            wilderness(Maps.wilderness)
+        }
+
+        locations {
+            Locations.silverKeyPit at xy(45, 13)
+            Locations.hobgoblinCave at xy(46, 13)
+            Locations.beastCave at xy(11, 23)
+            Locations.hermitDungeon at xy(45, 13)
+            Locations.thunTemple at xy(41, 30)
+            Locations.koboldVillage at xy(53, 10)
+            Locations.borinCamp at xy(47, 28)
+            Locations.nolrimCrypt at xy(11, 23)
+            Locations.masterCrownDungeon at xy(23, 32)
+        }
+
+        npcs {
+            Npcs.garth at Towns.thord.inn
+            Npcs.nrimTo at Towns.thord.inn
+            Npcs.areth at Towns.thord.inn
+            Npcs.nevaak at Towns.thord.inn
+            Npcs.gorm at Towns.thord.inn
+            Npcs.leander at Towns.thord.inn
+            Npcs.marraga at Towns.thord.inn
+            Npcs.bernak at Towns.wilor.inn
+            Npcs.tybalt at Towns.wilor.inn
+            Npcs.harry at Towns.wilor.inn
+            Npcs.broth at Towns.wilor.inn
+            Npcs.ron at Towns.wilor.inn
+            Npcs.ithienn at Towns.wilor.inn
+        }
+
+        party(Parties.playtest) {
+            player = "playtest"
+            name = "Playtest"
+            position = Wilderness.xy(12, 9)
+            facing = Facing.North
+
+            resources {
+                gold = 100000
+                torches = 40
+                food = 150
+                timeLeft = 500
+                restedHours = 14
+            }
+
+            inventory {
+                slot(1).item(Items.redGem)
+                slot(2).item(Items.fireWand)
+            }
+
+            members {
+                member("Fighter") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Fighter
+                    level = 8
+                    health = 188
+                    hitPoints = 188 of 188
+                    weaponSkill = 95
+                    wisdom = 72
+                    mana = 0 of 72
+                    charisma = 78
+                    equipped {
+                        weapon = Items.magicSword
+                        armor = Items.mithrilMail
+                    }
+                    experience = 0
+                    alive()
+                }
+
+                member("Ranger") {
+                    gender = Gender.Female
+                    race = Race.Elf
+                    klass = PcClass.Ranger
+                    level = 8
+                    health = 184
+                    hitPoints = 184 of 184
+                    weaponSkill = 88
+                    wisdom = 74
+                    mana = 0 of 74
+                    charisma = 86
+                    equipped {
+                        weapon = Items.crossbow
+                        armor = Items.elvinCloak
+                    }
+                    experience = 0
+                    alive()
+                }
+            }
+        }
+    }
+
+    // Follow-up town-dialogue fixture for the Silver Key chain after the
+    // Silver Sanctum note has been found.
+    stateFixture(States.townSilverKeyReplay) {
+        realm {
+            day = 14
+            hour = 9
+            activeParty = Parties.playtest
+            wilderness(Maps.wilderness)
+        }
+
+        npcs {
+            Npcs.gotharp at Towns.ollk.inn
+            Npcs.azaaza at Towns.ollk.inn
+        }
+
+        party(Parties.playtest) {
+            player = "playtest"
+            name = "Playtest"
+            position = Wilderness.xy(12, 9)
+            facing = Facing.North
+
+            resources {
+                gold = 100000
+                torches = 40
+                food = 150
+                timeLeft = 500
+                restedHours = 14
+            }
+
+            flags {
+                mark(Story.silverKey.noteFound)
+            }
+
+            inventory {
+                slot(1).item(Items.fireWand)
+            }
+
+            members {
+                member("Fighter") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Fighter
+                    level = 8
+                    health = 188
+                    hitPoints = 188 of 188
+                    weaponSkill = 95
+                    wisdom = 72
+                    mana = 0 of 72
+                    charisma = 78
+                    equipped {
+                        weapon = Items.magicSword
+                        armor = Items.mithrilMail
+                    }
+                    experience = 0
+                    alive()
+                }
+            }
+        }
+    }
+
     // Standalone compiled-runtime acceptance fixture. It starts at the same
     // wilderness point as a normal replay and has no castle power milestones,
     // but it carries the known quest-location placements and prerequisite

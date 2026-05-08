@@ -139,6 +139,48 @@ class RylweenCompiledVmTest {
     }
 
     @Test
+    fun compiledVmTreatsAbsentStoryFlagAsNoneState() {
+        val model =
+            rylween {
+                content {
+                    flags {
+                        story(VmStoryFlag) {
+                            states(VmStoryFlag.none, VmStoryFlag.ready)
+                        }
+                    }
+                    scene(VmNoneScene) {
+                        whenever(VmStoryFlag.none) {
+                            screen("none")
+                        } otherwise {
+                            screen("set")
+                        }
+                        mark(VmStoryFlag.ready)
+                        whenever(VmStoryFlag.none) {
+                            screen("still none")
+                        } otherwise {
+                            screen("ready")
+                        }
+                    }
+                }
+            }
+        val (compiled, program) = compiledScene(model, VmNoneScene)
+        val host = RecordingCompiledVmHost()
+
+        val result =
+            CompiledVm(
+                compiled.content,
+                host,
+            ).run(program, CompiledVmStart(RuntimeSessionState.singleParty(testParty(), 12, null)))
+
+        val completed = assertIs<CompiledVmResult.Completed>(result)
+        assertTrue(completed.runtime.activeParty.hasFlagState(VmStoryFlag.ready))
+        assertEquals(
+            listOf(inlineText("none"), inlineText("ready")),
+            host.events.filterIsInstance<EngineTraceEvent.Screen>().map { event -> event.text },
+        )
+    }
+
+    @Test
     fun compiledVmBlocksAndResumesWaitInputWithoutReplayingPriorEffects() {
         val model =
             rylween {
@@ -1426,6 +1468,7 @@ class RylweenCompiledVmTest {
         val VmPureScene = sceneId("vm.pure")
         val VmWaitScene = sceneId("vm.wait")
         val VmMenuScene = sceneId("vm.menu")
+        val VmNoneScene = sceneId("vm.none")
         val VmMenuDefaultScene = sceneId("vm.menu_default")
         val VmAskKeyScene = sceneId("vm.ask_key")
         val VmAskMemberScene = sceneId("vm.ask_member")
@@ -1449,6 +1492,7 @@ class RylweenCompiledVmTest {
 }
 
 private object VmStoryFlag : FlagRef("vm.story") {
+    val none = state("none")
     val ready = state("ready")
 }
 

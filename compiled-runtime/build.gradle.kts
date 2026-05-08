@@ -194,6 +194,67 @@ val checkCompiledRuntimeTownDialogueReplay: TaskProvider<RunInstalledLauncherWit
     )
 }
 
+val checkCompiledRuntimeTownMissionIntroReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs fixed NPC town mission-intro dialogue branches through the standalone compiled runtime."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    replay.set("town-mission-intro-route")
+    expectedOutputContains.set(
+        listOf(
+            "compiled replay: town-mission-intro-route",
+            "compiled replay component 2: town.thord_mission_dialogues",
+            "compiled replay component 4: town.wilor_mission_dialogues",
+            "In fact, I have a mission",
+            "You persuade him to",
+            "You take the blade.",
+            "- OH! A message from my",
+            "precious map",
+            "Ah, a seeker",
+            "Erethor's Lute",
+        ),
+    )
+}
+
+val checkCompiledRuntimeTownSilverKeyReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs the Silver Key post-note town dialogue chain through the standalone compiled runtime."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    replay.set("town-silver-key-chain-route")
+    expectedOutputContains.set(
+        listOf(
+            "compiled replay: town-silver-key-chain-route",
+            "compiled replay component 2: town.ollk_silver_key_chain",
+            "sold the Key",
+            "Nah, sorry",
+            "Find them and",
+        ),
+    )
+}
+
 val checkCompiledRuntimeSaveScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
     RunInstalledLauncherWithJavaTask::class,
 ) {
@@ -448,6 +509,8 @@ tasks.check {
     dependsOn(checkCompiledRuntimeBundleBoot)
     dependsOn(checkCompiledRuntimeTownScript)
     dependsOn(checkCompiledRuntimeTownDialogueReplay)
+    dependsOn(checkCompiledRuntimeTownMissionIntroReplay)
+    dependsOn(checkCompiledRuntimeTownSilverKeyReplay)
     dependsOn(checkCompiledRuntimeLoadScript)
     dependsOn(checkCompiledRuntimePartyJournalScript)
     dependsOn(checkCompiledRuntimeWildernessActionsScript)

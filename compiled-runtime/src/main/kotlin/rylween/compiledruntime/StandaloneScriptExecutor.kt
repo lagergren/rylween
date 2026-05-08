@@ -612,7 +612,7 @@ internal class StandaloneScriptExecutor(
         val root =
             dialogueRoots.firstOrNull { program ->
                 val branchState = program.root.slug.removePrefix(dialoguePrefix)
-                branchState != "default" && flagStateRef(branchState)?.let { state -> state in runtime.party.flags } == true
+                branchState != "default" && matchesBranchState(branchState)
             } ?: dialogueRoots.firstOrNull { program ->
                 program.root.slug == "${dialoguePrefix}default"
             }
@@ -680,7 +680,7 @@ internal class StandaloneScriptExecutor(
                 ?.entries
                 ?.filter { entry ->
                     entry.excludedBy.none { state ->
-                        flagStateRef("${state.flag}.${state.native}")?.let { ref -> ref in runtime.party.flags } == true
+                        flagStateRef("${state.flag}.${state.native}")?.let(::matchesFlagState) == true
                     }
                 }.orEmpty()
         val entry = entries.randomElementOrNull()
@@ -877,7 +877,7 @@ internal class StandaloneScriptExecutor(
             is CompiledBoolExpr.Not -> !bool(expr.expr)
             is CompiledBoolExpr.And -> bool(expr.left) && bool(expr.right)
             is CompiledBoolExpr.Or -> bool(expr.left) || bool(expr.right)
-            is CompiledBoolExpr.FlagIs -> expr.state in runtime.party.flags
+            is CompiledBoolExpr.FlagIs -> hasFlagState(expr.flag, expr.state)
             is CompiledBoolExpr.MilestoneAchieved -> expr.milestone in runtime.party.milestones
             is CompiledBoolExpr.MemberFlag -> memberFlag(int(expr.member), content.strings.value(expr.nameString))
             is CompiledBoolExpr.MonsterFlag,
@@ -1158,6 +1158,37 @@ internal class StandaloneScriptExecutor(
             .any { value -> value.equals(choice.toString(), ignoreCase = true) }
 
     private fun ExternalRuntimeCommand.topicName(): String? = topic
+
+    private fun matchesBranchState(slug: String): Boolean = flagStateRef(slug)?.let(::matchesFlagState) ?: false
+
+    private fun matchesFlagState(state: CompiledHandleRef): Boolean =
+        flagForState(state)?.let { flag -> hasFlagState(flag, state) } ?: false
+
+    private fun hasFlagState(
+        flag: CompiledHandleRef,
+        state: CompiledHandleRef,
+    ): Boolean {
+        if (state in runtime.party.flags) return true
+        return flagStateNative(state) == "none" && runtime.party.flags.none { current -> current in flagStates(flag) }
+    }
+
+    private fun flagStates(flag: CompiledHandleRef): Set<CompiledHandleRef> =
+        content.flags
+            .firstOrNull { current -> current.id == flag }
+            ?.states
+            ?.map { current -> current.id }
+            ?.toSet()
+            .orEmpty()
+
+    private fun flagForState(state: CompiledHandleRef): CompiledHandleRef? =
+        content.flags.firstOrNull { flag -> flag.states.any { current -> current.id == state } }?.id
+
+    private fun flagStateNative(state: CompiledHandleRef): String? =
+        content.flags
+            .asSequence()
+            .flatMap { flag -> flag.states.asSequence() }
+            .firstOrNull { current -> current.id == state }
+            ?.let { current -> content.strings.value(current.nativeString) }
 
     private fun flagStateRef(slug: String): CompiledHandleRef? = content.refOrNull(CompiledHandleKind.FlagState, slug)
 
