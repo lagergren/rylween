@@ -126,6 +126,11 @@ playable until all named J3 suites and the full acceptance playthrough pass.
 
 Exit: `rylween-mud --bundle ... inspect` matches Kotlin bundle counts and hash.
 
+Status: complete. The dependency-free Rust inspector now parses the J1 bundle,
+validates schema and section order, recomputes the canonical compact `sections`
+SHA-256, emits per-section row/byte/FNV summaries, and the Gradle smoke compares
+those summaries against the Kotlin inspector.
+
 ### K1.1 VM Parity Core
 
 - Port the J2 VM instruction model and operand schema.
@@ -214,8 +219,6 @@ Do not start by writing gameplay code. Start with K1.0:
 4. Add a ledger regression that the Rust target stays classified as
    experimental until it passes the full J3 surface.
 
-Smallest viable K1.0 slice: land the workspace, an `inspect` command that
-validates the compiled-bundle envelope, and the optional Gradle smoke task
-first. The remaining K1.0 closeout work is canonical `sections` hash
-recomputation plus Kotlin/Rust count parity; do not mark K1.0 closed until
-those checks agree with the Kotlin inspector.
+Smallest viable K1.0 slice: closed. The workspace, `inspect` command, optional
+Gradle smoke task, canonical `sections` hash recomputation, and Kotlin/Rust
+section-summary parity are in place. Continue with K1.1 VM parity core.

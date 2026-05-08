@@ -1671,16 +1671,19 @@ class RylweenCompiledGameLedgerTest {
         val ledger = File("dsl-improvements.md").readText()
         val plan = File("plans/k1-rust-server-mud-plan.md").readText()
         val build = File("build.gradle.kts").readText()
+        val buildLogic = File("build-logic/src/main/kotlin/rylween/gradle/RylweenBuildTasks.kt").readText()
         val manifest = File("rust/rylween-mud/Cargo.toml").readText()
-        val main = File("rust/rylween-mud/src/main.rs").readText()
+        val bundle = File("rust/rylween-mud/src/bundle.rs").readText()
         val requiredMarkers =
             listOf(
                 ledger to "not be called playable until it passes all J3 conformance suites",
-                ledger to "Remaining closeout: recompute the canonical `sections` SHA-256",
-                plan to "do not mark K1.0 closed until",
+                ledger to "[x] K1.0 Rust product skeleton",
+                ledger to "[ ] K1.1 Rust VM parity core",
+                plan to "Smallest viable K1.0 slice: closed",
                 build to "checkRustMudBundleInspect",
+                buildLogic to "section summaries disagree",
                 manifest to "publish = false",
-                main to "status=experimental-k1.0-skeleton",
+                bundle to "status=experimental-k1.0",
             )
         val missing =
             requiredMarkers
