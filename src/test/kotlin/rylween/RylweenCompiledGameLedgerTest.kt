@@ -1388,6 +1388,9 @@ class RylweenCompiledGameLedgerTest {
         check("checkCompiledRuntimeWildernessActionsScript" in compiledRuntimeBuild) {
             "standalone compiled runtime subproject must verify direct hunt/camp/upkeep actions"
         }
+        check("replay.set(\"acceptance-power-route\")" in compiledRuntimeBuild) {
+            "standalone compiled runtime acceptance route must use the named replay planner"
+        }
         check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledSave.kt").isFile) {
             "standalone compiled runtime must own its direct save/load adapter"
         }
@@ -1417,6 +1420,20 @@ class RylweenCompiledGameLedgerTest {
         }
         check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneUtilityActions.kt").isFile) {
             "standalone compiled runtime must own direct inventory/equipment/priest utility commands"
+        }
+        val replayPlanSource =
+            File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneReplayPlan.kt")
+                .readText()
+        listOf(
+            "StandaloneReplayComponent",
+            "acceptancePowerRoute",
+            "routeToTerrain",
+            "systems.castleRows.single().entry",
+            "compiled replay component",
+        ).forEach { token ->
+            check(token in replayPlanSource) {
+                "standalone compiled runtime must compose acceptance replays from named components: missing $token"
+            }
         }
         val scriptExecutorSource =
             File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneScriptExecutor.kt")
