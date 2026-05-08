@@ -46,7 +46,10 @@ There are currently two Kotlin runtime paths in the repository:
   `CompiledGameBundle` plus stable `runtimeSystems` rows directly and must not
   depend on `RylweenKotlinEngine`, old session classes such as
   `WildernessSession`/`ShopSession`, terminal adapters, generated game handles,
-  or authored `Op` execution.
+  or authored `Op` execution. It currently owns direct wilderness state, direct
+  party/journal pages, bundle-driven wilderness command bindings, and a
+  standalone wilderness save file that validates the compiled bundle hash before
+  restoring mutable runtime ids.
 
 The old Kotlin sessions may remain as the reference implementation and parity
 oracle until the standalone consumer reaches full conformance. They are not the
@@ -399,3 +402,11 @@ A standalone compiled runtime must not require:
 
 Those JVM pieces can remain as reference implementations and conformance
 oracles, but the bundle contract is the portable runtime API.
+
+The current standalone JVM consumer demonstrates this boundary with
+`compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledSave.kt`.
+That file is not the cross-language save-file standard; it is the direct
+compiled runtime's first persistent adapter and shows the required policy:
+store portable runtime ids, bind the save to the verified bundle hash, and
+restore only at game-policy boundaries the runtime can complete without hidden
+session state.

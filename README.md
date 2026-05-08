@@ -68,3 +68,22 @@ RYL_LOG_LEVEL=debug RYL_LOG=file:build/rylween.log ./run.sh --state fresh-replay
 ANSI UI to that socket instead of the local terminal. Logs still use `RYL_LOG`,
 so server diagnostics stay off the player render stream. `RYL_LOG_LEVEL=debug`
 adds formula-evaluation and authored-op execution traces.
+
+## Standalone compiled runtime commands
+
+The standalone compiled-bundle consumer is intentionally separate from the
+classic ANSI host. It reads `build/compiled/rylween-bundle.json` and owns its
+own runtime state under `compiled-runtime`.
+
+```sh
+./run-compiled.sh --screen title
+./run-compiled.sh --script 22SX --save build/saves/compiled-runtime.rsave
+./run-compiled.sh --load build/saves/compiled-runtime.rsave
+```
+
+This runtime is still being completed. It currently boots directly from the
+compiled bundle, renders compiled static screens and wilderness frames, runs
+the direct wilderness loop, enters town services, handles compiled shop catalog
+buy/sell paging, renders direct party/journal pages, reads wilderness command
+bindings from the bundle, and writes/loads its standalone wilderness save format
+with bundle-hash validation.

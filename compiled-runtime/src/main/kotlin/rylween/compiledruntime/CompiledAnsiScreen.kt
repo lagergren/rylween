@@ -13,7 +13,6 @@ package rylween.compiledruntime
 import rylween.compiled.CompiledGameBundle
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledPartyMember
-import rylween.compiled.CompiledStateImage
 import rylween.compiled.ExternalImageAsset
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalScreenRegion
@@ -75,14 +74,13 @@ internal class CompiledAnsiScreen(
 
     /** Renders wilderness HUD, map viewport, and text panel. */
     fun renderWilderness(
-        state: CompiledStateImage,
-        party: StandaloneParty,
+        runtime: StandaloneRuntimeState,
         world: StandaloneWorldMap,
     ) {
         ensureClassicFrame()
-        renderStatus(party, state)
-        renderMap(party.position, world)
-        writeText(wildernessContextLines(state, party, world))
+        renderStatus(runtime)
+        renderMap(runtime.party.position, world)
+        writeText(wildernessContextLines(runtime, world))
     }
 
     /** Clears the classic text window and writes the supplied lines inside it. */
@@ -130,14 +128,13 @@ internal class CompiledAnsiScreen(
     }
 
     private fun wildernessContextLines(
-        state: CompiledStateImage,
-        party: StandaloneParty,
+        runtime: StandaloneRuntimeState,
         world: StandaloneWorldMap,
     ): List<String> =
         buildList {
-            add("Wilderness ${content.slug(state.state)}")
-            world.terrainAt(party.position)?.let { terrain -> add("Terrain: ${content.slug(terrain.id).readableSlug()}") }
-            content.towns.firstOrNull { town -> town.position == party.position }?.let { town ->
+            add("Wilderness ${runtime.stateSlug}")
+            world.terrainAt(runtime.party.position)?.let { terrain -> add("Terrain: ${content.slug(terrain.id).readableSlug()}") }
+            content.towns.firstOrNull { town -> town.position == runtime.party.position }?.let { town ->
                 add("At: ${content.strings.value(town.nameString)}")
                 add("Press E to enter.")
             }
@@ -159,16 +156,14 @@ internal class CompiledAnsiScreen(
         terminal.writeRaw(resourceText(image.resource))
     }
 
-    private fun renderStatus(
-        party: StandaloneParty,
-        state: CompiledStateImage,
-    ) {
+    private fun renderStatus(runtime: StandaloneRuntimeState) {
+        val party = runtime.party
         val food = party.resources.food.coerceAtLeast(0)
         val status = foodStatus(food, party.members)
         val top =
             buildString {
                 append(AnsiCodes.FG_GREEN)
-                append(timeLabel(state.realm.hour))
+                append(timeLabel(runtime.hour))
                 append("ST: ")
                 append(status)
                 append("${AnsiCodes.FG_GREEN} X: ${AnsiCodes.FG_YELLOW}${party.position.x.toString().padStart(2)}   ")

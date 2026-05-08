@@ -938,7 +938,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             nextDsl.visuals.staticScreens
                 .single { it.id == StaticScreens.manual }
-                .resource == "rylween-doc.txt",
+                .resource == "adventurers-of-rylween.md",
         )
         check(
             nextDsl.visuals.staticScreens
@@ -1352,6 +1352,21 @@ class RylweenCompiledGameLedgerTest {
         }
         check("checkCompiledRuntimeBundleBoot" in compiledRuntimeBuild && "checkCompiledRuntimeTownScript" in compiledRuntimeBuild) {
             "standalone compiled runtime subproject must keep its own verification tasks"
+        }
+        check("checkCompiledRuntimeSaveScript" in compiledRuntimeBuild && "checkCompiledRuntimeLoadScript" in compiledRuntimeBuild) {
+            "standalone compiled runtime subproject must verify direct save/load"
+        }
+        check("checkCompiledRuntimePartyJournalScript" in compiledRuntimeBuild) {
+            "standalone compiled runtime subproject must verify direct party/journal views"
+        }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledSave.kt").isFile) {
+            "standalone compiled runtime must own its direct save/load adapter"
+        }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandalonePartyPages.kt").isFile) {
+            "standalone compiled runtime must own direct party and journal pages"
+        }
+        check(File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneWildernessCommands.kt").isFile) {
+            "standalone compiled runtime must read wilderness commands from runtime systems"
         }
         check(File("run-compiled.sh").readText().contains(":compiled-runtime:installCompiledRuntime")) {
             "run-compiled.sh must launch the standalone compiled runtime"

@@ -113,6 +113,14 @@ abstract class RunInstalledLauncherWithJavaTask
         @get:Optional
         abstract val script: Property<String>
 
+        @get:InputFile
+        @get:Optional
+        abstract val loadFile: RegularFileProperty
+
+        @get:OutputFile
+        @get:Optional
+        abstract val saveFile: RegularFileProperty
+
         @TaskAction
         fun run() {
             val javaHome = File(javaHomePath.get())
@@ -130,6 +138,12 @@ abstract class RunInstalledLauncherWithJavaTask
             }
             if (hasScript) {
                 launcherArgs += listOf("--script", script.get())
+            }
+            if (loadFile.isPresent) {
+                launcherArgs += listOf("--load", loadFile.get().asFile.path)
+            }
+            if (saveFile.isPresent) {
+                launcherArgs += listOf("--save", saveFile.get().asFile.path)
             }
             execOperations.exec {
                 environment("JAVA_HOME", javaHome.absolutePath)

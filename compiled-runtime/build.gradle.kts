@@ -27,7 +27,7 @@ dependencies {
 
 sourceSets.named("main") {
     resources.srcDir(rootProject.layout.projectDirectory.dir("data"))
-    resources.include("ansi/**", "tiles/**", "rylween-doc.txt", "ALTAIR.displayme")
+    resources.include("ansi/**", "tiles/**", "adventurers-of-rylween.md", "ALTAIR.displayme")
 }
 
 val javaToolchains: JavaToolchainService = extensions.getByType()
@@ -39,6 +39,8 @@ val externalBundleArtifact: Provider<RegularFile> =
     rootProject.layout.buildDirectory.file("compiled/rylween-bundle.json")
 val compiledRuntimeExecutable: Provider<RegularFile> =
     layout.buildDirectory.file("install/rylween-compiled-runtime/bin/rylween-compiled")
+val compiledRuntimeSaveFile: Provider<RegularFile> =
+    layout.buildDirectory.file("tmp/checkCompiledRuntimeSaveLoad/compiled-runtime.rsave")
 val compiledRuntimeJar: TaskProvider<Jar> = tasks.named<Jar>("jar")
 val compiledRuntimeJarFile: Provider<RegularFile> = compiledRuntimeJar.flatMap { it.archiveFile }
 val rootRuntimeJar: TaskProvider<Jar> = rootProject.tasks.named<Jar>("jar")
@@ -125,7 +127,67 @@ val checkCompiledRuntimeTownScript: TaskProvider<RunInstalledLauncherWithJavaTas
     script.set("22E1BBA12PQBCPQS1YQLE4BBWN7PQLX")
 }
 
+val checkCompiledRuntimeSaveScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Saves wilderness state from the standalone compiled runtime without old save/session code."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    script.set("22SX")
+    saveFile.set(compiledRuntimeSaveFile)
+}
+
+val checkCompiledRuntimeLoadScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Loads a standalone compiled-runtime save and boots the saved wilderness state."
+
+    dependsOn(checkCompiledRuntimeSaveScript)
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    script.set("X")
+    loadFile.set(compiledRuntimeSaveFile)
+}
+
+val checkCompiledRuntimePartyJournalScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Views direct party and journal pages through the standalone compiled runtime."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    script.set("VJX")
+}
+
 tasks.check {
     dependsOn(checkCompiledRuntimeBundleBoot)
     dependsOn(checkCompiledRuntimeTownScript)
+    dependsOn(checkCompiledRuntimeLoadScript)
+    dependsOn(checkCompiledRuntimePartyJournalScript)
 }
