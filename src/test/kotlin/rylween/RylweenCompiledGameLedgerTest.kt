@@ -27,6 +27,7 @@ import rylween.dsl.RumourUsagePolicy
 import rylween.dsl.ShopBargainBonusModel
 import rylween.dsl.ShopSellBargainModel
 import rylween.dsl.SpellId
+import rylween.dsl.StateKind
 import rylween.dsl.StaticScreenRuntimeReport
 import rylween.dsl.TemperatureBand
 import rylween.dsl.TemperatureBandRange
@@ -81,7 +82,6 @@ import rylween.game.StaticScreens
 import rylween.game.Story
 import rylween.game.Terrain
 import rylween.game.Towns
-import rylween.save.renderRuntimeStateSnapshot
 import java.io.File
 import kotlin.test.Test
 
@@ -1040,7 +1040,7 @@ class RylweenCompiledGameLedgerTest {
                 .single { it.id == States.winningReplay }
                 .parties
                 .single()
-        val winningSnapshotDsl = renderRuntimeStateSnapshot(nextRylween.states.single { it.id == States.winningReplay })
+        val winningState = nextRylween.states.single { it.id == States.winningReplay }
 
         check(freshParty.members.size == 2)
         check(specialInventoryItems(nextDsl, freshParty).isEmpty())
@@ -1135,9 +1135,9 @@ class RylweenCompiledGameLedgerTest {
         check(!isWinningConfiguration(nextDsl, nearWinningParty))
         check(specialInventoryItems(nextDsl, winningParty).size == 5)
         check(isWinningConfiguration(nextDsl, winningParty))
-        check(winningSnapshotDsl.contains("runtimeState(stateId(\"winning-replay\"))"))
-        check(winningSnapshotDsl.contains("slot(16).empty()"))
-        check(winningSnapshotDsl.contains("mark(runtimeFlagState(\"garth.bandits\", \"recovered\"))"))
+        check(winningState.kind == StateKind.RuntimeSnapshot)
+        check(winningParty.inventory.single { slot -> slot.slot == 16 }.item == null)
+        check(Story.garth.bandits.recovered in winningParty.flags)
         validateFlagCatalog(nextDsl.flags)
         validateAuthoredContent(nextDsl)
         validateGameProgress(nextDsl.progress, nextDsl.itemCatalog)
@@ -1496,10 +1496,19 @@ class RylweenCompiledGameLedgerTest {
     fun authoredInterpreterApisAreMarkedAsOracleOnly() {
         val requiredMarkers =
             mapOf(
-                "src/main/kotlin/rylween/runtime/AuthoredScriptOracleApi.kt" to
+                "legacy/reference-runtime/src/main/kotlin/rylween/runtime/AuthoredScriptOracleApi.kt" to
                     listOf("annotation class AuthoredScriptOracleApi", "CompiledVm", "parity/oracle test suite"),
-                "src/main/kotlin/rylween/engine/ScriptTrace.kt" to
+                "legacy/reference-runtime/src/main/kotlin/rylween/engine/ScriptTrace.kt" to
                     listOf("@AuthoredScriptOracleApi\nclass ScriptTraceRunner"),
+            )
+        val activeRuntimeFiles =
+            listOf(
+                "src/main/kotlin/rylween/runtime/AuthoredScriptOracleApi.kt",
+                "src/main/kotlin/rylween/engine/ScriptTrace.kt",
+                "src/main/kotlin/rylween/runtime/dungeon/DungeonCommands.kt",
+                "src/main/kotlin/rylween/runtime/dungeon/DungeonSession.kt",
+                "src/main/kotlin/rylween/runtime/town/TownSession.kt",
+                "src/main/kotlin/rylween/runtime/wilderness/WildernessSession.kt",
             )
         val missing =
             requiredMarkers.flatMap { (path, tokens) ->
@@ -1508,10 +1517,15 @@ class RylweenCompiledGameLedgerTest {
                     .filterNot { token -> token in source }
                     .map { token -> "$path: $token" }
             }
+        val stillActive = activeRuntimeFiles.filter { path -> File(path).exists() }
 
         check(missing.isEmpty()) {
             "authored interpreter/oracle APIs must stay visibly marked outside the production VM contract: " +
                 missing.joinToString()
+        }
+        check(stillActive.isEmpty()) {
+            "old live reference runtime files must stay under legacy/reference-runtime, not active source: " +
+                stillActive.joinToString()
         }
     }
 

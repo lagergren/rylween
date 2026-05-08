@@ -146,9 +146,6 @@ import rylween.runtime.RuntimeSnapshotMetadata
 import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.ScriptContinuationSnapshot
 import rylween.runtime.ScriptRootRef
-import rylween.runtime.facing
-import rylween.runtime.party
-import rylween.runtime.prompt
 import rylween.runtime.scriptRootCatalog
 
 /** Complete compiled J1 bundle: content tables plus save/start state images. */

@@ -1,9 +1,9 @@
 /**
  * Serializable runtime snapshot model used by save/load.
  *
- * `save/StateSnapshot.kt` renders and parses these records, while dungeon and
- * castle runtime sessions convert their nested progress into the mode-specific
- * snapshots declared here.
+ * The old Kotlin save renderer and live dungeon/castle sessions are archived
+ * under `legacy/reference-runtime`; active bundle code keeps these plain
+ * records as the portable save-state contract for compiled runtimes.
  */
 package rylween.runtime
 
@@ -16,7 +16,6 @@ import rylween.dsl.ItemId
 import rylween.dsl.MissionId
 import rylween.dsl.SceneId
 import rylween.dsl.StateModel
-import rylween.runtime.castle.CastleScriptContinuation
 
 /** Full saveable runtime image: world state plus optional mode/session state. */
 data class RuntimeSnapshotModel(
@@ -67,6 +66,12 @@ enum class CastleSavedStep {
     StairsMenu,
     StairGive,
     Script,
+}
+
+/** Continuation point after an authored castle hook script finishes. */
+enum class CastleScriptContinuation {
+    RoomEntry,
+    Finished,
 }
 
 /** Saveable state for a dungeon traversal. */
