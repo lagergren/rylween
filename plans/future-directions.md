@@ -187,6 +187,23 @@ Every step away from it (a separate world coordinator daemon, a database, a
 web frontend) is justifiable later but multiplies the operational surface.
 Keep the door open; don't walk through it yet.
 
+### Concrete non-JVM product target
+
+The scoped non-JVM target is a Rust ANSI TCP server/runtime, tracked in
+`plans/k1-rust-server-mud-plan.md`.
+
+This keeps the C code in its current role as a compact loader/VM boundary
+probe, while giving the server/MUD idea a real product surface: a static
+non-JVM binary that reads the J1 JSON bundle, executes scripts through the J2
+compiled VM, owns authentication and realm/party file locking, and passes the
+same J3 conformance suites as the Kotlin hosts before it is called playable.
+
+Rust is the right first product language because the server target needs
+long-running TCP sessions, safe parsing, structured diagnostics, concurrency,
+and file-locking discipline. A C terminal clone would prove less of the
+future-directions architecture and would be too easy to confuse with the
+existing native probe.
+
 ## 5. Persistent scoreboard / hall of heroes
 
 The current Kotlin runtime computes the score and Hall-of-Heroes screens
