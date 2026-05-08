@@ -1,9 +1,10 @@
 /**
  * Shared ANSI escape constants for terminal frontends.
  *
- * `app/RylweenAnsiMain.kt` and the standalone compiled-runtime launcher both
- * need cursor control and foreground/background colors. Keeping the escape
- * values here prevents each runtime from carrying its own numeric ANSI table.
+ * `ansi-runtime` and the standalone `compiled-runtime` launcher both need
+ * cursor control and foreground/background colors. Keeping the escape values in
+ * `:ansi-terminal` prevents each runtime from carrying its own numeric ANSI
+ * table.
  */
 package rylween.frontend.ansi
 

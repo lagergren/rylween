@@ -21,6 +21,7 @@ kotlin {
 
 dependencies {
     implementation(project(":"))
+    implementation(project(":ansi-terminal"))
     implementation(libs.jline)
 }
 

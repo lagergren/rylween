@@ -3,7 +3,8 @@
  *
  * The session drives NPC selection, visited bits, dialogue branches, menu
  * choices, question topics, chitchat, rumour selection, and rumour quiet-limit
- * behavior. Terminal rendering lives in `frontend/terminal/TerminalAdapters.kt`.
+ * behavior. Terminal rendering lives in
+ * `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalAdapters.kt`.
  */
 
 package rylween.runtime.town

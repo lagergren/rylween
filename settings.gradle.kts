@@ -13,3 +13,5 @@ plugins {
 rootProject.name = "rylween"
 
 include("compiled-runtime")
+include("ansi-runtime")
+include("ansi-terminal")

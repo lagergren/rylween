@@ -142,7 +142,8 @@ data class TerminalAdapterResult<S>(
     val status: TerminalRunStatus,
 )
 
-internal inline fun <S> continueOrBlock(
+/** Returns [updated] after a child step, or reports the blocking terminal status to [stop]. */
+inline fun <S> continueOrBlock(
     updated: S,
     status: TerminalRunStatus,
     stop: (TerminalAdapterResult<S>) -> Nothing,
@@ -153,7 +154,8 @@ internal inline fun <S> continueOrBlock(
         is TerminalRunStatus.Waiting -> stop(TerminalAdapterResult(updated, status))
     }
 
-internal inline fun <P, C> runChildOrBlock(
+/** Runs a nested terminal adapter and projects its blocking status back onto the parent session. */
+inline fun <P, C> runChildOrBlock(
     parent: P,
     child: C,
     run: (C) -> TerminalAdapterResult<C>,
@@ -165,7 +167,8 @@ internal inline fun <P, C> runChildOrBlock(
     return continueOrBlock(updated, result.status, stop)
 }
 
-internal fun bindingMenuLine(
+/** Formats one input binding as the conventional `(K)label` terminal menu line. */
+fun bindingMenuLine(
     binding: InputBindingModel,
     label: String,
 ): String {
@@ -423,7 +426,8 @@ class TerminalTextRenderer(
         }
 }
 
-internal class TerminalWorldTextResolver(
+/** Resolves world and character references while rendering dynamic terminal text. */
+class TerminalWorldTextResolver(
     private val towns: List<TownModel> = emptyList(),
     private val characters: List<CharacterModel> = emptyList(),
 ) {
@@ -625,7 +629,8 @@ fun <T, R> TerminalInput<T>.map(transform: (T) -> R): TerminalInput<R> =
         TerminalInput.Unavailable -> TerminalInput.Unavailable
     }
 
-internal inline fun <S, T> TerminalInput<T>.sessionOrWait(
+/** Applies a parsed input value to a session, or converts missing/rejected input into a wait result. */
+inline fun <S, T> TerminalInput<T>.sessionOrWait(
     current: S,
     stop: (TerminalAdapterResult<S>) -> Nothing,
     update: (T) -> S,

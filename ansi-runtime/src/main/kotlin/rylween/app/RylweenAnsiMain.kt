@@ -5,7 +5,8 @@
  * game model from a J1 JSON bundle artifact, verifies the artifact hash by
  * round-tripping it through `compiled/ExternalBundleArtifact.kt`, and delegates
  * gameplay to `engine/RylweenKotlinEngine` plus terminal adapters. Scripted
- * actions enter the J2 compiled VM through `frontend/terminal/TerminalScriptBridge.kt`.
+ * actions enter the J2 compiled VM through
+ * `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalScriptBridge.kt`.
  */
 @file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
 

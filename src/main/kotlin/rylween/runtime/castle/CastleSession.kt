@@ -3,7 +3,7 @@
  *
  * The session advances castle-room events, handles nested battle/party flows,
  * and serializes through `RuntimeSnapshotModel.kt`; terminal rendering is kept
- * in `frontend/terminal/CastleSessionTerminalAdapter.kt`.
+ * in `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/CastleSessionTerminalAdapter.kt`.
  */
 package rylween.runtime.castle
 

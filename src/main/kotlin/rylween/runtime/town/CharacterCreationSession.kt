@@ -2,7 +2,8 @@
  * Backend-neutral character creation state machine.
  *
  * `engine/Startup.kt` builds the pending runtime snapshot, this session gathers
- * party/member choices from a frontend, and `frontend/terminal/TerminalAdapters.kt`
+ * party/member choices from a frontend, and
+ * `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/TerminalAdapters.kt`
  * renders the prompts for the terminal host.
  */
 package rylween.runtime.town

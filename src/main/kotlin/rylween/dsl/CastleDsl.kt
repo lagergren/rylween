@@ -5,7 +5,7 @@
  * the castle whose authored entry matches the map tile, and
  * `runtime/castle/CastleSession.kt` consumes only this content model rather
  * than hard-coded game tables. Terminal presentation remains in
- * `frontend/terminal/CastleSessionTerminalAdapter.kt`.
+ * `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/CastleSessionTerminalAdapter.kt`.
  */
 @file:Suppress("unused", "MemberVisibilityCanBePrivate", "CanBeParameter", "KotlinExplicitApi")
 

@@ -1289,7 +1289,8 @@ class StatefulScriptServiceRunner(
         clear: () -> Unit,
         keepWaiting: (S) -> Unit,
     ) {
-        when (result.status) {
+        val status = result.status
+        when (status) {
             TerminalRunStatus.Finished -> {
                 clear()
                 advanceTop()
@@ -1300,7 +1301,7 @@ class StatefulScriptServiceRunner(
             }
             is TerminalRunStatus.Waiting -> {
                 keepWaiting(result.session)
-                wait(result.status.rejection)
+                wait(status.rejection)
             }
         }
     }
