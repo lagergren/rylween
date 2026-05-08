@@ -652,6 +652,8 @@ private class CompiledBundleValidator(
                 shopPurchase(offer.purchase)
             }
             page.footer?.let(::text)
+            page.navigation.previous?.let(::binding)
+            page.navigation.next?.let(::binding)
         }
     }
 

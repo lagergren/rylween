@@ -197,7 +197,7 @@ The current artifact layout is:
 
 ```text
 magic                  8 bytes, ASCII "RYLSMOKE"
-version                u32, currently 1
+version                u32, currently 2
 handleKindCount        u32, must match CompiledHandleKind.entries.size
 opcodeCount            u32, must match CompiledOpcode.entries.size
 runtimeTextPartCount   u32, must match CompiledRuntimeTextPart.entries.size
@@ -613,6 +613,8 @@ shopCatalog:
 shopCatalogPage:
     entries            list<shopItemOffer>
     footer             nullable<textBlock>
+    previousPageKey    nullable<inputBinding>
+    nextPageKey        nullable<inputBinding>
 
 shopItemOffer:
     binding            inputBinding

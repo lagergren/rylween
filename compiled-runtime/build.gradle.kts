@@ -1,0 +1,130 @@
+import org.gradle.jvm.application.tasks.CreateStartScripts
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainService
+import rylween.gradle.RunInstalledLauncherWithJavaTask
+
+plugins {
+    alias(libs.plugins.kotlin.jvm)
+    id("rylween.qa-conventions")
+}
+
+group = "org.rylween"
+version = rootProject.version
+
+repositories {
+    mavenCentral()
+}
+
+kotlin {
+    jvmToolchain(25)
+}
+
+dependencies {
+    implementation(project(":"))
+    implementation(libs.jline)
+}
+
+sourceSets.named("main") {
+    resources.srcDir(rootProject.layout.projectDirectory.dir("data"))
+    resources.include("ansi/**", "tiles/**", "rylween-doc.txt", "ALTAIR.displayme")
+}
+
+val javaToolchains: JavaToolchainService = extensions.getByType()
+val kotlinRuntimeJavaLauncher: Provider<JavaLauncher> =
+    javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(25))
+    }
+val externalBundleArtifact: Provider<RegularFile> =
+    rootProject.layout.buildDirectory.file("compiled/rylween-bundle.json")
+val compiledRuntimeExecutable: Provider<RegularFile> =
+    layout.buildDirectory.file("install/rylween-compiled-runtime/bin/rylween-compiled")
+val compiledRuntimeJar: TaskProvider<Jar> = tasks.named<Jar>("jar")
+val compiledRuntimeJarFile: Provider<RegularFile> = compiledRuntimeJar.flatMap { it.archiveFile }
+val rootRuntimeJar: TaskProvider<Jar> = rootProject.tasks.named<Jar>("jar")
+val rootRuntimeJarFile: Provider<RegularFile> = rootRuntimeJar.flatMap { it.archiveFile }
+val compiledRuntimeRuntimeClasspath: Configuration = configurations.runtimeClasspath.get()
+val compiledRuntimeRuntimeJars: FileCollection =
+    compiledRuntimeRuntimeClasspath.filter { file -> file.isFile && file.extension == "jar" }
+
+tasks.jar {
+    archiveBaseName.set("rylween-compiled-runtime")
+    manifest {
+        attributes["Main-Class"] = "rylween.compiledruntime.RylweenCompiledRuntimeMain"
+    }
+}
+
+val compiledRuntimeStartScripts: TaskProvider<CreateStartScripts> by tasks.registering(CreateStartScripts::class) {
+    group = "application"
+    description = "Generates direct start scripts for the standalone compiled-bundle runtime."
+
+    dependsOn(compiledRuntimeJar)
+    dependsOn(rootRuntimeJar)
+    applicationName = "rylween-compiled"
+    mainClass.set("rylween.compiledruntime.RylweenCompiledRuntimeMain")
+    outputDir =
+        layout.buildDirectory
+            .dir("scripts/compiledRuntimeApp")
+            .get()
+            .asFile
+    classpath = files(compiledRuntimeJarFile, rootRuntimeJarFile) + compiledRuntimeRuntimeJars
+}
+
+val installCompiledRuntime: TaskProvider<Sync> by tasks.registering(Sync::class) {
+    group = "application"
+    description = "Installs the standalone compiled-bundle runtime."
+
+    dependsOn(compiledRuntimeStartScripts)
+    into(layout.buildDirectory.dir("install/rylween-compiled-runtime"))
+    from(compiledRuntimeStartScripts) {
+        into("bin")
+        filePermissions {
+            unix("rwxr-xr-x")
+        }
+    }
+    from(files(compiledRuntimeJarFile, rootRuntimeJarFile) + compiledRuntimeRuntimeJars) {
+        into("lib")
+    }
+}
+
+val checkCompiledRuntimeBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Boots the standalone compiled-bundle runtime without old session composition."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    screen.set("title")
+}
+
+val checkCompiledRuntimeTownScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs the standalone compiled-bundle runtime through direct wilderness/town/service dispatch."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    script.set("22E1BBA12PQBCPQS1YQLE4BBWN7PQLX")
+}
+
+tasks.check {
+    dependsOn(checkCompiledRuntimeBundleBoot)
+    dependsOn(checkCompiledRuntimeTownScript)
+}

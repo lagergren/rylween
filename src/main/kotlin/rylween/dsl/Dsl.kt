@@ -1894,9 +1894,17 @@ data class ShopItemOfferModel(
     val key: Char get() = binding.primaryChar
 }
 
+/** One visible page of a shop catalog; [navigation] owns page-turn controls. */
 data class ShopCatalogPageModel(
     val entries: List<ShopItemOfferModel>,
     val footer: TextBlock?,
+    val navigation: ShopCatalogPageNavigationModel = ShopCatalogPageNavigationModel(),
+)
+
+/** Optional typed controls for moving between shop catalog pages. */
+data class ShopCatalogPageNavigationModel(
+    val previous: InputBindingModel? = null,
+    val next: InputBindingModel? = null,
 )
 
 data class ShopCatalogModel(
@@ -4283,12 +4291,37 @@ class ShopCatalogBuilder(
 @RylNextDsl
 class ShopCatalogPageBuilder : ShopItemSink {
     private val entries = mutableListOf<ShopItemOfferModel>()
+    private var navigation = ShopCatalogPageNavigationModel()
 
     override fun addShopItem(model: ShopItemOfferModel) {
         entries += model
     }
 
-    fun build(footer: TextBlock?): ShopCatalogPageModel = ShopCatalogPageModel(entries.toList(), footer)
+    /** Marks this page as accepting [binding] to move to the previous catalog page. */
+    fun previousPage(binding: InputBindingModel = inputKey('P', label = "Previous Page")) {
+        navigation = navigation.copy(previous = binding)
+    }
+
+    fun previousPage(
+        key: Char,
+        label: String = "Previous Page",
+    ) {
+        previousPage(inputKey(key, label = label))
+    }
+
+    /** Marks this page as accepting [binding] to move to the next catalog page. */
+    fun nextPage(binding: InputBindingModel = inputKey('N', label = "Next Page")) {
+        navigation = navigation.copy(next = binding)
+    }
+
+    fun nextPage(
+        key: Char,
+        label: String = "Next Page",
+    ) {
+        nextPage(inputKey(key, label = label))
+    }
+
+    fun build(footer: TextBlock?): ShopCatalogPageModel = ShopCatalogPageModel(entries.toList(), footer, navigation)
 }
 
 interface ShopItemSink {

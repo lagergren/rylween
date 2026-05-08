@@ -3872,7 +3872,8 @@ val nextRylween: RylweenModel = rylween {
 
                 catalog('W', "Weapons") {
                     intro("We have...", "")
-                    page("N. Next Page") {
+                    page {
+                        nextPage()
                         item('1', Items.sword, label = "Sword")
                         item('2', Items.axe, label = "Axe")
                         item('3', Items.bow, label = "Bow")
@@ -3880,7 +3881,8 @@ val nextRylween: RylweenModel = rylween {
                         item('5', Items.halbard, label = "Halbard")
                         item('6', Items.crossbow, label = "Crossbow")
                     }
-                    page("P. Previous Page") {
+                    page {
+                        previousPage()
                         item('7', Items.longsword, label = "Longsword")
                         item('8', Items.twoHandSword, label = "2h-Sword")
                         item('9', Items.poleArm, label = "Pole Arm")

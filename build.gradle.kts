@@ -79,18 +79,9 @@ val bundleApp: SourceSet by sourceSets.creating {
     runtimeClasspath += output + compileClasspath
 }
 
-val compiledRuntime: SourceSet by sourceSets.creating {
-    java.srcDir("src/compiledRuntime/kotlin")
-    resources.srcDir("data")
-    resources.include("ansi/**", "tiles/**", "rylween-doc.txt", "ALTAIR.displayme")
-    compileClasspath += main.output
-    runtimeClasspath += output + compileClasspath
-}
-
 val gameSourceSet: SourceSet = game
 val appSourceSet: SourceSet = app
 val bundleAppSourceSet: SourceSet = bundleApp
-val compiledRuntimeSourceSet: SourceSet = compiledRuntime
 
 val test: SourceSet by sourceSets.getting
 test.apply {
@@ -110,10 +101,6 @@ configurations.named(bundleAppSourceSet.implementationConfigurationName) {
     extendsFrom(configurations.implementation.get())
 }
 
-configurations.named(compiledRuntimeSourceSet.implementationConfigurationName) {
-    extendsFrom(configurations.implementation.get())
-}
-
 dependencies {
     implementation(kotlin("reflect"))
     testImplementation(kotlin("test"))
@@ -122,7 +109,6 @@ dependencies {
     add(appSourceSet.implementationConfigurationName, libs.clikt)
     add(bundleAppSourceSet.implementationConfigurationName, libs.jline)
     add(bundleAppSourceSet.implementationConfigurationName, libs.clikt)
-    add(compiledRuntimeSourceSet.implementationConfigurationName, libs.jline)
 }
 
 tasks.test {
@@ -230,8 +216,6 @@ val externalBundleInspectionPath: String = externalBundleInspection.get().asFile
 val kotlinAnsiExecutable: Provider<RegularFile> = layout.buildDirectory.file("install/rylween-kotlin/bin/rylween")
 val kotlinAnsiExecutablePath: String = kotlinAnsiExecutable.get().asFile.path
 val bundleAnsiExecutable: Provider<RegularFile> = layout.buildDirectory.file("install/rylween-bundle-ansi/bin/rylween-bundle")
-val compiledRuntimeExecutable: Provider<RegularFile> =
-    layout.buildDirectory.file("install/rylween-compiled-runtime/bin/rylween-compiled")
 
 fun registerNativeCExecutable(
     taskName: String,
@@ -484,55 +468,6 @@ val installBundleAnsi: TaskProvider<Sync> by tasks.registering(Sync::class) {
     }
 }
 
-val compiledRuntimeJar: TaskProvider<Jar> by tasks.registering(Jar::class) {
-    group = "build"
-    description = "Packages the standalone compiled-bundle runtime prototype."
-
-    dependsOn(tasks.named(compiledRuntimeSourceSet.classesTaskName))
-    archiveBaseName.set("rylween-compiled-runtime")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    from(main.output)
-    from(compiledRuntimeSourceSet.output)
-    manifest {
-        attributes["Main-Class"] = "rylween.compiledruntime.RylweenCompiledRuntimeMain"
-    }
-}
-
-val compiledRuntimeRuntimeJars: FileCollection =
-    compiledRuntimeSourceSet.runtimeClasspath.filter { it.isFile && it.extension == "jar" }
-
-val compiledRuntimeStartScripts: TaskProvider<CreateStartScripts> by tasks.registering(CreateStartScripts::class) {
-    group = "application"
-    description = "Generates direct start scripts for the standalone compiled-bundle runtime."
-
-    dependsOn(compiledRuntimeJar)
-    applicationName = "rylween-compiled"
-    mainClass.set("rylween.compiledruntime.RylweenCompiledRuntimeMain")
-    outputDir =
-        layout.buildDirectory
-            .dir("scripts/compiledRuntimeApp")
-            .get()
-            .asFile
-    classpath = files(compiledRuntimeJar) + compiledRuntimeRuntimeJars
-}
-
-val installCompiledRuntime: TaskProvider<Sync> by tasks.registering(Sync::class) {
-    group = "application"
-    description = "Installs the standalone compiled-bundle runtime prototype."
-
-    dependsOn(compiledRuntimeStartScripts)
-    into(layout.buildDirectory.dir("install/rylween-compiled-runtime"))
-    from(compiledRuntimeStartScripts) {
-        into("bin")
-        filePermissions {
-            unix("rwxr-xr-x")
-        }
-    }
-    from(files(compiledRuntimeJar) + compiledRuntimeRuntimeJars) {
-        into("lib")
-    }
-}
-
 val checkKotlinAnsiBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
     RunInstalledLauncherWithJavaTask::class,
 ) {
@@ -569,44 +504,6 @@ val checkBundleAnsiBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> by
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
     screen.set("title")
-}
-
-val checkCompiledRuntimeBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Boots the standalone compiled-bundle runtime without old session composition."
-
-    dependsOn(installCompiledRuntime)
-    dependsOn(emitExternalCompiledBundle)
-    executableFile.set(compiledRuntimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    screen.set("title")
-}
-
-val checkCompiledRuntimeTownScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs the standalone compiled-bundle runtime through direct wilderness/town/service dispatch."
-
-    dependsOn(installCompiledRuntime)
-    dependsOn(emitExternalCompiledBundle)
-    executableFile.set(compiledRuntimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    script.set("22E1X")
 }
 
 val checkKotlinAnsiServerBoot: TaskProvider<CheckAnsiServerLauncherTask> by tasks.registering(
@@ -684,8 +581,7 @@ tasks.check {
     dependsOn(checkRustMudBundleInspect)
     dependsOn(checkKotlinAnsiBundleBoot)
     dependsOn(checkBundleAnsiBundleBoot)
-    dependsOn(checkCompiledRuntimeBundleBoot)
-    dependsOn(checkCompiledRuntimeTownScript)
+    dependsOn(":compiled-runtime:check")
     dependsOn(checkKotlinAnsiServerBoot)
     dependsOn(checkKotlinAnsiCompiledVmServerBoot)
 }

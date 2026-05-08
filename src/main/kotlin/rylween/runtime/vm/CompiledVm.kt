@@ -88,6 +88,7 @@ import rylween.dsl.ScriptRewardModel
 import rylween.dsl.ShopBuyModel
 import rylween.dsl.ShopCatalogModel
 import rylween.dsl.ShopCatalogPageModel
+import rylween.dsl.ShopCatalogPageNavigationModel
 import rylween.dsl.ShopInterludeModel
 import rylween.dsl.ShopItemOfferModel
 import rylween.dsl.ShopMenuKeysModel
@@ -2628,6 +2629,11 @@ class CompiledVm(
         ShopCatalogPageModel(
             entries = page.entries.map(::shopItemOffer),
             footer = page.footer?.let(::traceTextBlock),
+            navigation =
+                ShopCatalogPageNavigationModel(
+                    previous = page.navigation.previous?.let(::inputBinding),
+                    next = page.navigation.next?.let(::inputBinding),
+                ),
         )
 
     private fun shopItemOffer(offer: CompiledShopItemOffer): ShopItemOfferModel =

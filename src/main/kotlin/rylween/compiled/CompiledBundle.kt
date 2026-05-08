@@ -1045,9 +1045,17 @@ data class CompiledShopCatalog(
     val pages: List<CompiledShopCatalogPage>,
 )
 
+/** One compiled shop catalog page plus typed controls for page navigation. */
 data class CompiledShopCatalogPage(
     val entries: List<CompiledShopItemOffer>,
     val footer: CompiledTextBlock?,
+    val navigation: CompiledShopCatalogPageNavigation = CompiledShopCatalogPageNavigation(),
+)
+
+/** Optional previous/next bindings consumed by standalone compiled runtimes. */
+data class CompiledShopCatalogPageNavigation(
+    val previous: CompiledInputBinding? = null,
+    val next: CompiledInputBinding? = null,
 )
 
 data class CompiledShopItemOffer(
@@ -1991,6 +1999,11 @@ private class CompiledBundleCompiler(
                     CompiledShopCatalogPage(
                         entries = page.entries.map(::shopItemOffer),
                         footer = page.footer?.let(::text),
+                        navigation =
+                            CompiledShopCatalogPageNavigation(
+                                previous = page.navigation.previous?.let(::binding),
+                                next = page.navigation.next?.let(::binding),
+                            ),
                     )
                 },
         )

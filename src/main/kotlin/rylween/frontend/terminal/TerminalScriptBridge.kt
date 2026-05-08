@@ -16,7 +16,6 @@ import rylween.dsl.IntAst
 import rylween.dsl.ItemPoolId
 import rylween.dsl.LValueAst
 import rylween.dsl.LocationId
-import rylween.dsl.MenuOption
 import rylween.dsl.NativeAllowlist
 import rylween.dsl.NativeStringArg
 import rylween.dsl.NpcJobId
@@ -30,27 +29,13 @@ import rylween.dsl.RuntimeMode
 import rylween.dsl.SceneModel
 import rylween.dsl.ScriptControlSignal
 import rylween.dsl.StrAst
-import rylween.dsl.SwitchCase
 import rylween.dsl.TextBlock
 import rylween.dsl.TextPart
-import rylween.dsl.building
-import rylween.dsl.dungeon
 import rylween.dsl.fallbackText
 import rylween.dsl.inputKey
-import rylween.dsl.item
-import rylween.dsl.line
-import rylween.dsl.lines
-import rylween.dsl.location
 import rylween.dsl.matches
-import rylween.dsl.milestone
-import rylween.dsl.monster
 import rylween.dsl.pronoun
-import rylween.dsl.rumour
 import rylween.dsl.runtimeContent
-import rylween.dsl.text
-import rylween.dsl.town
-import rylween.dsl.townNpcName
-import rylween.dsl.worldMap
 import rylween.engine.EngineRequest
 import rylween.engine.EngineTraceEvent
 import rylween.engine.KotlinHeadlessHost
@@ -71,8 +56,6 @@ import rylween.runtime.consumeInventoryItems
 import rylween.runtime.countInventoryItems
 import rylween.runtime.drawRandom
 import rylween.runtime.inventoryItem
-import rylween.runtime.party
-import rylween.runtime.prompt
 import rylween.runtime.reward.RandomItemOfferSession
 import rylween.runtime.reward.RewardGrantSession
 import rylween.runtime.scriptMemberField
@@ -290,7 +273,6 @@ class CompiledVmTerminalScriptBridge(
                 renderer = renderer,
                 runtime = runtime,
                 renderDungeonHandoff = false,
-                renderTownService = false,
             )
             writtenEventCount = vmHost.events.size
             return true
@@ -465,10 +447,7 @@ class CompiledVmTerminalScriptBridge(
         continuation: ScriptContinuation,
         resumeModeAfterBattle: RuntimeMode?,
     ): ChildSessionResult? {
-        val pending = blocked.pending as? CompiledVmPendingInput.ChildSession
-        if (pending == null) {
-            return null
-        }
+        val pending = blocked.pending as? CompiledVmPendingInput.ChildSession ?: return null
         val activeContinuation = continuation.takeIf { it.compiledVmContinuation?.pending.samePending(blocked.pending) }
         return when (val request = pending.request) {
             is CompiledVmChildRequest.Speak -> runSpeak(request, blocked, activeContinuation?.speakSession)
@@ -484,10 +463,7 @@ class CompiledVmTerminalScriptBridge(
     }
 
     private fun CompiledVmPendingInput?.samePending(other: CompiledVmPendingInput): Boolean {
-        val pending = this
-        if (pending == null) {
-            return false
-        }
+        val pending = this ?: return false
         return pending.root.sameRoot(other.root) &&
             pending.instructionIndex == other.instructionIndex &&
             pending.operandPath == other.operandPath
@@ -837,10 +813,7 @@ private class TerminalCompiledVmHost(
         reason: String?,
         runtime: RuntimeSessionState,
     ): CompiledVmWaitInputPrompt {
-        val range = renderer.pauseVerbIndexRange()
-        if (range == null) {
-            return CompiledVmWaitInputPrompt(runtime, renderer.pausePrompt())
-        }
+        val range = renderer.pauseVerbIndexRange() ?: return CompiledVmWaitInputPrompt(runtime, renderer.pausePrompt())
         val draw = runtime.drawRandom(range.first, range.last)
         return CompiledVmWaitInputPrompt(draw.runtime, renderer.pausePrompt(draw.value))
     }
@@ -1284,10 +1257,7 @@ class StatefulScriptServiceRunner(
     private fun currentRuntime(): RuntimeSessionState = runtime.withActiveParty(party)
 
     private fun RuntimeSessionState.afterScriptBattle(): RuntimeSessionState {
-        val mode = resumeModeAfterBattle
-        if (mode == null) {
-            return this
-        }
+        val mode = resumeModeAfterBattle ?: return this
         if (realm.currentMode == RuntimeMode.GameOver) {
             return this
         }

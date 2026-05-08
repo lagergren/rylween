@@ -30,7 +30,7 @@ import java.io.File
 import kotlin.enums.enumEntries
 
 private const val NATIVE_SMOKE_MAGIC = "RYLSMOKE"
-private const val NATIVE_SMOKE_VERSION = 1
+private const val NATIVE_SMOKE_VERSION = 2
 private const val NATIVE_SMOKE_FALSE = 0
 private const val NATIVE_SMOKE_TRUE = 1
 
@@ -575,6 +575,8 @@ private class NativeSmokeArtifactWriter {
     private fun shopCatalogPage(page: CompiledShopCatalogPage) {
         list(page.entries, ::shopItemOffer)
         nullable(page.footer, ::textBlock)
+        nullable(page.navigation.previous, ::inputBinding)
+        nullable(page.navigation.next, ::inputBinding)
     }
 
     private fun shopItemOffer(offer: CompiledShopItemOffer) {
@@ -1096,6 +1098,8 @@ private class NativeSmokeArtifactReader(
     private fun shopCatalogPage() {
         repeatCount(u32("shop catalog entry count")) { shopItemOffer() }
         optional { textBlock() }
+        optional { inputBinding() }
+        optional { inputBinding() }
     }
 
     private fun shopItemOffer() {

@@ -25,6 +25,7 @@ import rylween.dsl.IntAst
 import rylween.dsl.JobTextModel
 import rylween.dsl.NativeStringArg
 import rylween.dsl.RealmContentModel
+import rylween.dsl.Resource
 import rylween.dsl.RylweenModel
 import rylween.dsl.SpeakSystemModel
 import rylween.dsl.SpeakTextTablesModel
@@ -215,7 +216,13 @@ data class ExternalRuntimeSystems(
     val commandGroups: List<String>,
     val promptGroups: List<String>,
     val castles: List<String>,
+    val realm: ExternalRuntimeRealm,
     val presentation: ExternalRuntimePresentation,
+)
+
+/** Realm-wide runtime constants consumed by standalone bundle runtimes. */
+data class ExternalRuntimeRealm(
+    val baseResourceCapacity: Map<Resource, Int>,
 )
 
 /** Terminal presentation data in the stable runtime-system section. */
@@ -1357,9 +1364,21 @@ private class ExternalRuntimeSystemsReader(
                 castles.values.map { castle ->
                     castle.asObject("castle").requiredString("id")
                 },
+            realm = systems.requiredObject("realm").readRealm(),
             presentation = systems.requiredObject("presentation").readPresentation(),
         )
     }
+
+    private fun JsonObject.readRealm(): ExternalRuntimeRealm =
+        ExternalRuntimeRealm(
+            baseResourceCapacity =
+                requiredArray("baseResourceCapacity")
+                    .values
+                    .associate { row ->
+                        val entry = row.asObject("base resource capacity")
+                        enumValueOf<Resource>(entry.requiredString("resource")) to entry.requiredInt("capacity")
+                    },
+        )
 
     private fun JsonObject.readPresentation(): ExternalRuntimePresentation =
         ExternalRuntimePresentation(
