@@ -53,6 +53,9 @@ internal data class StandaloneReplayPlan(
 internal object StandaloneCompiledReplayPlans {
     private const val ACCEPTANCE_POWER_ROUTE = "acceptance-power-route"
     private const val ACCEPTANCE_STATE = "acceptance-replay"
+    private const val TOWN_SOCIAL_SMOKE = "town-social-smoke"
+    private const val TOWN_GARTH_REWARD_SMOKE = "town-garth-reward-smoke"
+    private const val FRESH_STATE = "fresh-replay"
 
     fun build(
         name: String,
@@ -62,8 +65,75 @@ internal object StandaloneCompiledReplayPlans {
     ): StandaloneReplayPlan =
         when (val normalized = name.lowercase().replace('_', '-')) {
             ACCEPTANCE_POWER_ROUTE -> acceptancePowerRoute(bundle, systems, stateOverride ?: ACCEPTANCE_STATE)
+            TOWN_SOCIAL_SMOKE -> townSocialSmoke(bundle, stateOverride ?: FRESH_STATE)
+            TOWN_GARTH_REWARD_SMOKE -> townGarthRewardSmoke(bundle, stateOverride ?: FRESH_STATE)
             else -> error("unknown compiled replay plan $normalized")
         }
+
+    private fun townGarthRewardSmoke(
+        bundle: CompiledGameBundle,
+        stateSlug: String,
+    ): StandaloneReplayPlan {
+        val content = bundle.content
+        val state = bundle.stateBySlug(stateSlug)
+        val world = ReplayWorldMap.from(state, content = content)
+        val route = world.routeTo(state.startPoint(), content.townPoint("thord"))
+        return StandaloneReplayPlan(
+            name = TOWN_GARTH_REWARD_SMOKE,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    StandaloneReplayComponent(
+                        name = "travel.to_thord",
+                        commands = route.commands,
+                        checkpoints = listOf("output:Terrain: Town", "position:thord"),
+                    ),
+                    StandaloneReplayComponent(
+                        name = "town.thord_garth_reward_dialogue",
+                        commands = "E3S1BLX",
+                        checkpoints =
+                            listOf(
+                                "output:Entering Thord",
+                                "output:The merchant is GRATEFUL!",
+                                "output:You pick up the gem.",
+                            ),
+                    ),
+                ),
+        )
+    }
+
+    private fun townSocialSmoke(
+        bundle: CompiledGameBundle,
+        stateSlug: String,
+    ): StandaloneReplayPlan {
+        val content = bundle.content
+        val state = bundle.stateBySlug(stateSlug)
+        val world = ReplayWorldMap.from(state, content = content)
+        val route = world.routeTo(state.startPoint(), content.townPoint("thord"))
+        return StandaloneReplayPlan(
+            name = TOWN_SOCIAL_SMOKE,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    StandaloneReplayComponent(
+                        name = "travel.to_thord",
+                        commands = route.commands,
+                        checkpoints = listOf("output:Terrain: Town", "position:thord"),
+                    ),
+                    StandaloneReplayComponent(
+                        name = "town.thord_service_social_circuit",
+                        commands = "E1BBA12PQBCPQS1YQLE4BBWN7PQLX",
+                        checkpoints =
+                            listOf(
+                                "output:Entering Thord",
+                                "output:The smith welcomes you",
+                                "output:Welcome! Have a seat",
+                                "output:chooses you!",
+                            ),
+                    ),
+                ),
+        )
+    }
 
     private fun acceptancePowerRoute(
         bundle: CompiledGameBundle,
@@ -363,6 +433,10 @@ private fun CompiledStateImage.locationPoint(
     val locationRef = locations.firstOrNull { location -> content.slug(location.location) == slug }
     return locationRef?.point ?: error("compiled replay location $slug not present in state")
 }
+
+private fun CompiledContentBundle.townPoint(slug: String): GridPoint =
+    towns.firstOrNull { town -> slug(town.id) == slug }?.position
+        ?: error("compiled replay town $slug not present in content")
 
 private fun CompiledStateImage.activeParty() =
     parties.firstOrNull { party -> party.id == realm.activeParty }

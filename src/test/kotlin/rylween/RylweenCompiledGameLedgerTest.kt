@@ -1368,6 +1368,7 @@ class RylweenCompiledGameLedgerTest {
             listOf(
                 "checkCompiledRuntimeBundleBoot",
                 "checkCompiledRuntimeTownScript",
+                "checkCompiledRuntimeTownDialogueReplay",
                 "checkCompiledRuntimeDungeonScript",
                 "checkCompiledRuntimeCastleScript",
                 "checkCompiledRuntimeHeroesScreen",
@@ -1427,6 +1428,8 @@ class RylweenCompiledGameLedgerTest {
         listOf(
             "StandaloneReplayComponent",
             "acceptancePowerRoute",
+            "townGarthRewardSmoke",
+            "town.thord_garth_reward_dialogue",
             "routeToTerrain",
             "systems.castleRows.single().entry",
             "compiled replay component",
