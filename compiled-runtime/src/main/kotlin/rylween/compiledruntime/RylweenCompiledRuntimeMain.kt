@@ -1194,6 +1194,8 @@ internal class StandaloneInput(
 ) {
     private val scripted = scriptedInput?.toList()?.let(::ArrayDeque)
 
+    val scriptedMode: Boolean get() = scripted != null
+
     val exhausted: Boolean get() = scripted != null && scripted.isEmpty()
 
     fun readCommand(): Char? {

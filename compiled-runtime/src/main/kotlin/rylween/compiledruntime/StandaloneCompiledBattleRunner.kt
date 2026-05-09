@@ -190,7 +190,7 @@ internal class StandaloneCompiledBattleRunner(
         if (messages.isEmpty()) return
         messages.chunked(BATTLE_MESSAGE_PAGE_LINES).forEach { page ->
             screen.writeText(page + pausePrompts.line())
-            input.readCommand()
+            if (!input.scriptedMode) input.readCommand()
         }
     }
 
