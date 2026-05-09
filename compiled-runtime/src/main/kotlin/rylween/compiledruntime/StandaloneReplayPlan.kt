@@ -391,11 +391,13 @@ internal object StandaloneCompiledReplayPlans {
                     ),
                     StandaloneReplayComponent(
                         name = "town.thord_service_social_circuit",
-                        commands = "E4QLE3N",
+                        commands = "E4QLE2!NNNLE3N",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
                                 "output:The smith welcomes you",
+                                "output:Do you want supper,",
+                                "output:The innkeeper leaves.",
                                 "output:Welcome! Have a seat",
                             ),
                     ),

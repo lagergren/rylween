@@ -753,7 +753,8 @@ val nextRylween: RylweenModel = rylween {
             }
             reroll = inlineText("Reroll (y/N) ")
             memberName {
-                line("Give Character ", memberNumber, " a name!")
+                line("Give Character ", memberNumber, " a name:")
+                line("")
             }
             gender {
                 line("What gender is")

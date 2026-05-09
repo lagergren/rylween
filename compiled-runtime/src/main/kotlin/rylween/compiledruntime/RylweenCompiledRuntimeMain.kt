@@ -66,6 +66,8 @@ private const val SCORE_SCREEN = "score"
 private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
 private const val TEXT_WINDOW_PAGE_LINES = 9
+private const val CREATION_REJECTION_DELAY_MS = 1_000
+private const val TOWN_MAINSTREET_IMAGE = "blitgfx.towne_mainstreet"
 
 /** CLI entry point for the standalone compiled-bundle runtime. */
 object RylweenCompiledRuntimeMain {
@@ -373,7 +375,10 @@ class StandaloneCompiledRuntime private constructor(
                             runtime = runtime.withParty(runtime.party.passTurn())
                             true
                         }
-                        commands.matches("redraw", command) -> true
+                        commands.matches("redraw", command) -> {
+                            screen.renderWilderness(runtime, world)
+                            false
+                        }
                         commands.matches("help", command) -> {
                             printHelp(screen, input, runtime, world)
                             false
@@ -609,6 +614,7 @@ class StandaloneCompiledRuntime private constructor(
                     "creation.class_rejected member=$memberNumber class=${pcClass.pcClass} required=${pcClass.requiredStat} minimum=${pcClass.minimum}",
                 )
                 screen.writeText(failure.renderCreation())
+                input.pause(CREATION_REJECTION_DELAY_MS)
             } else {
                 log.event("creation.member_accepted member=$memberNumber gender=$gender race=$race class=${pcClass.pcClass}")
                 members += runtime.creationMember(memberNumber, gender, race, pcClass.pcClass, statsResult.stats)
@@ -928,8 +934,13 @@ class StandaloneCompiledRuntime private constructor(
                 }
                 add("L. Leave")
             }
+        screen.showImage(TOWN_MAINSTREET_IMAGE)
         screen.writeText(menu)
-        val choice = input.readCommand() ?: return runtime
+        var choice = input.readCommand() ?: return runtime
+        while (choice == '!') {
+            screen.redrawCurrentView(menu)
+            choice = input.readCommand() ?: return runtime
+        }
         if (choice == 'L') return runtime
         val index = choice.digitToIntOrNull()?.minus(1)
         val service = index?.let(services::getOrNull)
@@ -1197,6 +1208,10 @@ internal class StandaloneInput(
     val scriptedMode: Boolean get() = scripted != null
 
     val exhausted: Boolean get() = scripted != null && scripted.isEmpty()
+
+    fun pause(ms: Int) {
+        if (scripted == null) terminal.pause(ms)
+    }
 
     fun readCommand(): Char? {
         val scriptedCommand = readScriptedCommand()
