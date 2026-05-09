@@ -55,6 +55,7 @@ import rylween.dsl.sourceId
 
 private const val RANDOM_PERCENT_MAX = 99
 private const val SPELL_ABORT_SLOT = 7
+private const val BATTLE_MESSAGE_DELAY_MS = 900
 
 private const val BATTLE_FOE_DISPLAY_NAME = "battleFoeDisplayName"
 private const val BATTLE_ATTACKER_NAME = "battleAttackerName"
@@ -65,7 +66,7 @@ private const val BATTLE_GOLD = "battleGold"
 private const val BATTLE_LOOT_NAME = "battleLootName"
 private const val BATTLE_LEVEL_MEMBER_NAME = "battleLevelMemberName"
 private const val BATTLE_LEVELS_GAINED = "battleLevelsGained"
-private const val BATTLE_MESSAGE_PAGE_LINES = 9
+private const val BATTLE_MESSAGE_PAGE_LINES = 4
 
 /** Result of a standalone compiled battle handoff. */
 internal data class StandaloneCompiledBattleResult(
@@ -185,15 +186,12 @@ internal class StandaloneCompiledBattleRunner(
         var round = 0
         while (round < encounter.rules.roundLimit && encounter.partyHasLivingMembers() && encounter.monsterHasLivingMembers()) {
             if (!encounter.partyHeld) {
-                val playerMessages = openingMessages.toMutableList()
+                val playerMessages = openingMessages
                 openingMessages = emptyList()
                 encounter = encounter.playerRound(playerMessages)
-                showBattleMessages(playerMessages)
             }
             if (encounter.monsterHasLivingMembers()) {
-                val monsterMessages = mutableListOf<String>()
-                encounter = encounter.monsterRound(monsterMessages)
-                showBattleMessages(monsterMessages)
+                encounter = encounter.monsterRound()
             }
             round++
         }
@@ -205,8 +203,8 @@ internal class StandaloneCompiledBattleRunner(
     private fun showBattleMessages(messages: List<String>) {
         if (messages.isEmpty()) return
         messages.chunked(BATTLE_MESSAGE_PAGE_LINES).forEach { page ->
-            screen.writeText(page + "" + pausePrompts.line())
-            if (!input.scriptedMode) input.readCommand()
+            screen.writeText(page)
+            input.pause(BATTLE_MESSAGE_DELAY_MS)
         }
     }
 
@@ -217,16 +215,20 @@ internal class StandaloneCompiledBattleRunner(
                 text.fight.renderBattle() +
                 text.run.renderBattle()
 
-    private fun StandaloneBattleEncounter.playerRound(messages: MutableList<String>): StandaloneBattleEncounter {
+    private fun StandaloneBattleEncounter.playerRound(openingMessages: List<String>): StandaloneBattleEncounter {
         var next = this
+        var pendingOpeningMessages = openingMessages
         runtime.party.members.forEachIndexed { index, member ->
             if (!member.dead && next.monsterHasLivingMembers()) {
                 var retry = true
                 var attempts = 0
                 while (retry && attempts < rules.roundLimit && next.monsterHasLivingMembers()) {
+                    val messages = pendingOpeningMessages.toMutableList()
+                    pendingOpeningMessages = emptyList()
                     next = next.playerAction(index, member, messages)
                     retry = next.actionRetry
                     next = next.copy(actionRetry = false)
+                    showBattleMessages(messages)
                     attempts++
                 }
             }
@@ -388,10 +390,11 @@ internal class StandaloneCompiledBattleRunner(
             )
     }
 
-    private fun StandaloneBattleEncounter.monsterRound(messages: MutableList<String>): StandaloneBattleEncounter {
+    private fun StandaloneBattleEncounter.monsterRound(): StandaloneBattleEncounter {
         var next = copy(partyHeld = false, partyConfused = false, actionRetry = false)
         monsterHp.forEachIndexed { index, hp ->
             if (hp > 0 && next.partyHasLivingMembers() && !next.monstersHeld) {
+                val messages = mutableListOf<String>()
                 val cast = next.shouldMonsterCast()
                 next = cast.encounter
                 next =
@@ -399,6 +402,7 @@ internal class StandaloneCompiledBattleRunner(
                         cast.value -> next.castMonsterSpell(index)
                         else -> next.monsterAttack(hp, messages)
                     }
+                showBattleMessages(messages)
             }
         }
         return next.afterMonsterRound()
@@ -857,25 +861,45 @@ internal class StandaloneCompiledBattleRunner(
     private fun combatItemUse(item: CompiledHandleRef): CompiledItemUse? =
         content.itemUses.firstOrNull { use -> use.item == item && ItemUseContext.Combat in use.contexts }
 
-    private fun mageSpells(): List<CompiledSpell> =
-        content.spells.filter { spell -> content.slug(spell.id).startsWith("mage.") }.sortedBy { spell -> spell.slot }
+    private fun mageSpells(): List<CompiledSpell> = spellsByPrefix("mage.")
 
     private fun monsterSpells(): List<CompiledSpell> =
-        content.spells
-            .filter { spell ->
-                val slug = content.slug(spell.id)
-                slug.startsWith("monster.") && slug != "monster.melee"
-            }.sortedBy { spell -> spell.slot }
+        spellsByPrefix("monster.")
+            .filter { spell -> content.slug(spell.id) != "monster.melee" }
+
+    private fun spellsByPrefix(prefix: String): List<CompiledSpell> =
+        buildList {
+            content.spells.forEach { spell ->
+                if (content.slug(spell.id).startsWith(prefix)) addBySlot(spell)
+            }
+        }
+
+    private fun MutableList<CompiledSpell>.addBySlot(spell: CompiledSpell) {
+        var index = 0
+        while (index < size && this[index].slot <= spell.slot) index++
+        add(index, spell)
+    }
 
     private fun StandaloneParty.inventoryChoiceLines(): List<String> =
-        inventory.sortedBy { slot -> slot.slot }.map { slot ->
-            val itemName =
-                slot.item
-                    ?.let { item ->
-                        content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) }
-                    }
-                    ?: "empty"
-            "${'A' + slot.slot - 1}. $itemName"
+        inventory
+            .sortedInventorySlots()
+            .map { slot ->
+                val itemName =
+                    slot.item
+                        ?.let { item ->
+                            content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) }
+                        }
+                        ?: "empty"
+                "${'A' + slot.slot - 1}. $itemName"
+            }
+
+    private fun List<rylween.compiled.CompiledInventorySlot>.sortedInventorySlots(): List<rylween.compiled.CompiledInventorySlot> =
+        buildList {
+            this@sortedInventorySlots.forEach { slot ->
+                var index = 0
+                while (index < size && this[index].slot <= slot.slot) index++
+                add(index, slot)
+            }
         }
 
     private fun spellChoiceLines(

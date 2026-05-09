@@ -25,11 +25,18 @@ internal class StandaloneWildernessCommands private constructor(
     ): Boolean = commands[action]?.binding?.matches(command) == true
 
     companion object {
-        fun from(systems: ExternalRuntimeSystems): StandaloneWildernessCommands =
+        fun from(
+            systems: ExternalRuntimeSystems,
+            group: String = WILDERNESS_COMMAND_GROUP,
+        ): StandaloneWildernessCommands =
             StandaloneWildernessCommands(
-                systems.commands
-                    .getValue(WILDERNESS_COMMAND_GROUP)
-                    .associateBy(ExternalRuntimeCommand::action),
+                (
+                    if (group == WILDERNESS_COMMAND_GROUP) {
+                        systems.commands.getValue(group)
+                    } else {
+                        systems.commands[group].orEmpty()
+                    }
+                ).associateBy(ExternalRuntimeCommand::action),
             )
     }
 }

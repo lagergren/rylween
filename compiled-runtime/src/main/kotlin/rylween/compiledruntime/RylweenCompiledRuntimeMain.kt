@@ -95,6 +95,7 @@ data class CompiledRuntimeConfig(
     val seed: Long? = null,
     val logFile: File = StandaloneRuntimeLog.defaultFile,
     val debugLogFlash: Boolean = false,
+    val debugSecrets: Boolean = false,
     val showTitleMenu: Boolean = false,
 )
 
@@ -116,6 +117,7 @@ private object CompiledRuntimeCli {
         var seed: Long? = null
         var logFile = StandaloneRuntimeLog.defaultFile
         var debugLogFlash = false
+        var debugSecrets = false
         var showTitleMenu = false
         var index = 0
         while (index < args.size) {
@@ -171,6 +173,11 @@ private object CompiledRuntimeCli {
                     index += 1
                 }
 
+                "--debug-secrets" -> {
+                    debugSecrets = true
+                    index += 1
+                }
+
                 "--title" -> {
                     showTitleMenu = true
                     index += 1
@@ -194,6 +201,7 @@ private object CompiledRuntimeCli {
             seed = seed,
             logFile = logFile,
             debugLogFlash = debugLogFlash,
+            debugSecrets = debugSecrets,
             showTitleMenu = showTitleMenu,
         )
     }
@@ -213,6 +221,7 @@ private object CompiledRuntimeCli {
             |  --seed <long>     Override the active party RNG seed before play.
             |  --log <file>      Runtime forensic log, default build/logs/compiled-runtime/latest.log.
             |  --debug-log       Flash each forensic log line below the game frame.
+            |  --debug-secrets   Enable hidden manual-test wilderness triggers.
             |  --title           Show title flow even with scripted input.
             """.trimMargin(),
         )
@@ -239,7 +248,7 @@ private fun CompiledRuntimeConfig.run() {
         log.event(
             "run.start bundle=${bundleFile.path} state=$stateSlug load=${loadFile?.path.orEmpty()} " +
                 "save=${saveFile.path} screen=${staticScreen.orEmpty()} script=${scriptedInput != null} " +
-                "replay=${replayPlan.orEmpty()} seed=${seed ?: ""} debugLogFlash=$debugLogFlash",
+                "replay=${replayPlan.orEmpty()} seed=${seed ?: ""} debugLogFlash=$debugLogFlash debugSecrets=$debugSecrets",
         )
         if (staticScreen != null) {
             runtime.renderStaticScreen(staticScreen, stateSlug, loadFile, log)
@@ -258,6 +267,7 @@ private fun CompiledRuntimeConfig.run() {
             seed = seed,
             showTitleMenu = replay == null && loadFile == null && (showTitleMenu || scriptedInput == null && !stateExplicit),
             debugLogFlash = debugLogFlash,
+            debugSecrets = debugSecrets,
             log = log,
         )
     }
@@ -308,6 +318,7 @@ class StandaloneCompiledRuntime private constructor(
         seed: Long? = null,
         showTitleMenu: Boolean = false,
         debugLogFlash: Boolean = false,
+        debugSecrets: Boolean = false,
         log: StandaloneRuntimeLog,
     ) {
         var runtime =
@@ -332,6 +343,7 @@ class StandaloneCompiledRuntime private constructor(
                     log.event("wilderness.title_selected position=${runtime.logPosition()} mode=${runtime.currentMode}")
                 }
                 val commands = StandaloneWildernessCommands.from(systems)
+                val debugCommands = StandaloneWildernessCommands.from(systems, "wilderness.debug")
                 val actions =
                     StandaloneWildernessActions(
                         content = content,
@@ -447,13 +459,11 @@ class StandaloneCompiledRuntime private constructor(
 
                             commands.matches("readyWeapon", command) -> {
                                 runtime = utility.readyWeapon(runtime)
-                                redrawWildernessIfCurrent(screen, runtime, world)
                                 false
                             }
 
                             commands.matches("readyArmor", command) -> {
                                 runtime = utility.readyArmor(runtime)
-                                redrawWildernessIfCurrent(screen, runtime, world)
                                 false
                             }
 
@@ -494,6 +504,16 @@ class StandaloneCompiledRuntime private constructor(
                             commands.matches("quaff", command) -> {
                                 runtime = utility.quaff(runtime)
                                 redrawWildernessIfCurrent(screen, runtime, world)
+                                false
+                            }
+
+                            debugSecrets && debugCommands.matches("forceCave", command) -> {
+                                runtime = applyAction(actions.forceCaveDiscovery(runtime), screen, world)
+                                false
+                            }
+
+                            debugSecrets && debugCommands.matches("forceEncounter", command) -> {
+                                runtime = applyAction(actions.forceEncounter(runtime), screen, world)
                                 false
                             }
 

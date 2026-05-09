@@ -47,11 +47,15 @@ Interactive runs without `--load`, `--script`, or `--replay` show the title
 flow first. Press any key at the splash screen, then `N` to create a new party.
 Each run writes a forensic log to `build/logs/compiled-runtime/latest.log`; use
 `--log <file>` to keep a named capture instead of replacing `latest.log`.
+For manual forensics, `--debug-log` flashes the latest log line below the game
+frame, and `--debug-secrets` enables hidden wilderness triggers: `[` forces a
+cave discovery and `]` forces a random encounter.
 
 ```sh
 ./run.sh --screen title
 ./run.sh --script 22SX --save build/saves/compiled-runtime.rsave
 ./run.sh --load build/saves/compiled-runtime.rsave
+./run.sh --state strong-replay --seed 1 --debug-log --debug-secrets
 ```
 
 The compiled runtime boots directly from the bundle, renders compiled static
