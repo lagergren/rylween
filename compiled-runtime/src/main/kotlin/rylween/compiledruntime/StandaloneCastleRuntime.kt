@@ -110,7 +110,7 @@ internal class StandaloneCastleRuntime(
             navigation.matches(
                 "viewParty",
                 command,
-            ) -> runtime.also { showCastlePage(it, castle, StandalonePartyPages.partyLines(content, it.party)) }
+            ) -> runtime.also { showCastlePages(it, castle, StandalonePartyPages.partyPages(content, it.party)) }
             navigation.matches("drop", command) -> utility.drop(runtime).also { redrawCastleIfCurrent(it, castle) }
             navigation.matches("removeArmor", command) -> utility.removeArmor(runtime).also { redrawCastleIfCurrent(it, castle) }
             navigation.matches("removeWeapon", command) -> utility.removeWeapon(runtime).also { redrawCastleIfCurrent(it, castle) }
@@ -304,13 +304,17 @@ internal class StandaloneCastleRuntime(
         input.readCommand()
     }
 
-    private fun showCastlePage(
+    private fun showCastlePages(
         runtime: StandaloneRuntimeState,
         castle: ExternalRuntimeCastle,
-        lines: List<String>,
+        pages: List<List<String>>,
     ) {
-        screen.writeText(lines)
-        if (input.readCommand() != null) redrawCastleIfCurrent(runtime, castle)
+        val pausePrompts = StandalonePausePrompts(systems.prompts)
+        for (page in pages) {
+            screen.writeText(page + "" + pausePrompts.line())
+            if (input.readCommand() == null) return
+        }
+        redrawCastleIfCurrent(runtime, castle)
     }
 
     private fun redrawCastleIfCurrent(

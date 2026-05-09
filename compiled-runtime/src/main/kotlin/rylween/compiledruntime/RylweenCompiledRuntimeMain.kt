@@ -388,7 +388,7 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                         commands.matches("viewParty", command) -> {
-                            showWildernessPage(screen, input, runtime, world, StandalonePartyPages.partyLines(content, runtime.party))
+                            showWildernessPages(screen, input, runtime, world, StandalonePartyPages.partyPages(content, runtime.party))
                             false
                         }
                         commands.matches("journal", command) -> {
@@ -841,12 +841,8 @@ class StandaloneCompiledRuntime private constructor(
         val pages =
             systems.wilderness.helpPages
                 .map { page -> page.render { null } }
-                .ifEmpty { listOf(generatedWildernessHelpLines()) }
-        pages.forEach { lines ->
-            screen.writeText(lines)
-            if (input.readCommand() == null) return
-        }
-        redrawWildernessIfCurrent(screen, runtime, world)
+                .ifEmpty { generatedWildernessHelpPages() }
+        showWildernessPages(screen, input, runtime, world, pages)
     }
 
     private fun showWildernessPage(
@@ -856,9 +852,19 @@ class StandaloneCompiledRuntime private constructor(
         world: StandaloneWorldMap,
         lines: List<String>,
     ) {
+        showWildernessPages(screen, input, runtime, world, lines.chunked(TEXT_WINDOW_PAGE_LINES))
+    }
+
+    private fun showWildernessPages(
+        screen: CompiledAnsiScreen,
+        input: StandaloneInput,
+        runtime: StandaloneRuntimeState,
+        world: StandaloneWorldMap,
+        pages: List<List<String>>,
+    ) {
         val pausePrompts = StandalonePausePrompts(systems.prompts)
-        for (page in lines.chunked(TEXT_WINDOW_PAGE_LINES)) {
-            screen.writeText(page + pausePrompts.line())
+        for (page in pages) {
+            screen.writeText(page.take(TEXT_WINDOW_PAGE_LINES) + "" + pausePrompts.line())
             if (input.readCommand() == null) return
         }
         redrawWildernessIfCurrent(screen, runtime, world)
@@ -872,12 +878,38 @@ class StandaloneCompiledRuntime private constructor(
         if (runtime.currentMode == RuntimeMode.Wilderness) screen.renderWilderness(runtime, world)
     }
 
-    private fun generatedWildernessHelpLines(): List<String> =
+    private fun generatedWildernessHelpPages(): List<List<String>> =
         systems.commands["wilderness"]
             .orEmpty()
-            .map { command -> "${command.binding.label}: ${command.action.readableSlug()}" }
-            .take(7)
-            .ifEmpty { listOf("Press ? for commands.") }
+            .map { command -> "${command.binding.label} = ${command.action.wildernessHelpText()}" }
+            .chunked(TEXT_WINDOW_PAGE_LINES)
+            .ifEmpty { listOf(listOf("Press ? for commands.")) }
+
+    private fun String.wildernessHelpText(): String =
+        when (this) {
+            "moveNorth" -> "Move North"
+            "moveSouth" -> "Move South"
+            "moveWest" -> "Move West"
+            "moveEast" -> "Move East"
+            "pass" -> "Pass"
+            "save" -> "Save Game"
+            "readyWeapon" -> "Wield Weapon"
+            "readyArmor" -> "Ready Armor"
+            "redraw" -> "Redraw Screen"
+            "journal" -> "View Journal"
+            "help" -> "View this help"
+            "hunt" -> "Hunt for Food"
+            "viewParty" -> "View Party"
+            "removeArmor" -> "Take off armor"
+            "removeWeapon" -> "Put down weapon"
+            "enter" -> "Enter"
+            "drop" -> "Leave (Discard) Item"
+            "camp" -> "Camp"
+            "castSpell" -> "Cast Spell"
+            "quaff" -> "Quaff Potion"
+            "quit" -> "Quit Game (No Save)"
+            else -> readableSlug()
+        }
 
     private fun saveRuntime(
         runtime: StandaloneRuntimeState,
