@@ -58,15 +58,15 @@ internal class StandaloneDungeonRuntime(
                     commands.matches(
                         "viewParty",
                         command,
-                    ) -> runtime.also { screen.writeText(StandalonePartyPages.partyLines(content, it.party)) }
+                    ) -> runtime.also { showDungeonPage(it, StandalonePartyPages.partyLines(content, it.party)) }
                     commands.matches("save", command) -> runtime.also { saveRuntime(it) }
-                    commands.matches("drop", command) -> utility.drop(runtime)
-                    commands.matches("removeArmor", command) -> utility.removeArmor(runtime)
-                    commands.matches("removeWeapon", command) -> utility.removeWeapon(runtime)
-                    commands.matches("readyWeapon", command) -> utility.readyWeapon(runtime)
-                    commands.matches("readyArmor", command) -> utility.readyArmor(runtime)
-                    commands.matches("quaff", command) -> utility.quaff(runtime)
-                    commands.matches("castSpell", command) -> utility.castPriestSpell(runtime)
+                    commands.matches("drop", command) -> utility.drop(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches("removeArmor", command) -> utility.removeArmor(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches("removeWeapon", command) -> utility.removeWeapon(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches("readyWeapon", command) -> utility.readyWeapon(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches("readyArmor", command) -> utility.readyArmor(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches("quaff", command) -> utility.quaff(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches("castSpell", command) -> utility.castPriestSpell(runtime).also(::redrawDungeonIfCurrent)
                     else -> runtime.also { screen.writeText(systems.dungeon.commandHint.renderDungeon(it.dungeon?.depth ?: 1)) }
                 }
             if (input.exhausted) return runtime
@@ -172,12 +172,27 @@ internal class StandaloneDungeonRuntime(
 
     private fun showHelp(runtime: StandaloneRuntimeState) {
         val depth = runtime.dungeon?.depth ?: 1
-        val help =
+        val pages =
             systems.dungeon.helpPages
-                .firstOrNull()
-                ?.renderDungeon(depth)
-                ?: commands.map { command -> "${command.binding.primary}. ${command.label ?: command.binding.label}" }
-        screen.writeText(help)
+                .map { page -> page.renderDungeon(depth) }
+                .ifEmpty { listOf(commands.map { command -> "${command.binding.primary}. ${command.label ?: command.binding.label}" }) }
+        pages.forEach { page ->
+            screen.writeText(page)
+            if (input.readCommand() == null) return
+        }
+        redrawDungeonIfCurrent(runtime)
+    }
+
+    private fun showDungeonPage(
+        runtime: StandaloneRuntimeState,
+        lines: List<String>,
+    ) {
+        screen.writeText(lines)
+        if (input.readCommand() != null) redrawDungeonIfCurrent(runtime)
+    }
+
+    private fun redrawDungeonIfCurrent(runtime: StandaloneRuntimeState) {
+        if (runtime.currentMode == RuntimeMode.Dungeon) screen.renderDungeon(runtime)
     }
 
     private fun saveRuntime(runtime: StandaloneRuntimeState) {

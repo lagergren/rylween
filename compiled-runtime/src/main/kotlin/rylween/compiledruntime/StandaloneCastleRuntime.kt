@@ -110,14 +110,14 @@ internal class StandaloneCastleRuntime(
             navigation.matches(
                 "viewParty",
                 command,
-            ) -> runtime.also { screen.writeText(StandalonePartyPages.partyLines(content, it.party)) }
-            navigation.matches("drop", command) -> utility.drop(runtime)
-            navigation.matches("removeArmor", command) -> utility.removeArmor(runtime)
-            navigation.matches("removeWeapon", command) -> utility.removeWeapon(runtime)
-            navigation.matches("readyWeapon", command) -> utility.readyWeapon(runtime)
-            navigation.matches("readyArmor", command) -> utility.readyArmor(runtime)
-            navigation.matches("quaff", command) -> utility.quaff(runtime)
-            navigation.matches("castSpell", command) -> utility.castPriestSpell(runtime)
+            ) -> runtime.also { showCastlePage(it, castle, StandalonePartyPages.partyLines(content, it.party)) }
+            navigation.matches("drop", command) -> utility.drop(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches("removeArmor", command) -> utility.removeArmor(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches("removeWeapon", command) -> utility.removeWeapon(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches("readyWeapon", command) -> utility.readyWeapon(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches("readyArmor", command) -> utility.readyArmor(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches("quaff", command) -> utility.quaff(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches("castSpell", command) -> utility.castPriestSpell(runtime).also { redrawCastleIfCurrent(it, castle) }
             else -> runtime
         }
     }
@@ -296,11 +296,28 @@ internal class StandaloneCastleRuntime(
     }
 
     private fun showNavigationHelp(castle: ExternalRuntimeCastle) {
-        screen.writeText(
+        val lines =
             systems.commands.getValue("castle.${castle.id}.navigation").map { command ->
                 "${command.binding.primary}. ${command.label ?: command.binding.label}"
-            },
-        )
+            }
+        screen.writeText(lines)
+        input.readCommand()
+    }
+
+    private fun showCastlePage(
+        runtime: StandaloneRuntimeState,
+        castle: ExternalRuntimeCastle,
+        lines: List<String>,
+    ) {
+        screen.writeText(lines)
+        if (input.readCommand() != null) redrawCastleIfCurrent(runtime, castle)
+    }
+
+    private fun redrawCastleIfCurrent(
+        runtime: StandaloneRuntimeState,
+        castle: ExternalRuntimeCastle,
+    ) {
+        if (runtime.currentMode == RuntimeMode.Castle) screen.renderCastle(runtime, castle)
     }
 
     private fun saveRuntime(runtime: StandaloneRuntimeState) {
