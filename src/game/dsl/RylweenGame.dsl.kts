@@ -4409,6 +4409,7 @@ val nextRylween: RylweenModel = rylween {
                                 screen("A bargirl tells you:", "")
                             }
                         }
+                        pause(600)
                         tellRumour()
                         waitInput("after tavern rumour")
                     }
@@ -6811,11 +6812,6 @@ val nextRylween: RylweenModel = rylween {
                 restedHours = 14
             }
 
-            flags {
-                mark(Story.garth.bandits.recovered)
-                mark(Story.silverKey.noteFound)
-            }
-
             inventory {
                 slot(1).item(Items.redPotion)
                 slot(2).item(Items.bluePotion)
@@ -6908,9 +6904,6 @@ val nextRylween: RylweenModel = rylween {
                     alive()
                 }
             }
-
-            visited(Npcs.garth, Npcs.bernak)
-            journal { banditsCargoRecovered() }
         }
     }
 

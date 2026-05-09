@@ -1056,6 +1056,9 @@ class RylweenCompiledGameLedgerTest {
         check(strongParty.player == "playtest")
         check(strongParty.name == "Playtest")
         check(strongParty.position == Wilderness.xy(12, 9))
+        check(strongParty.flags.isEmpty())
+        check(strongParty.journal.isEmpty())
+        check(strongParty.visitedNpcs.isEmpty())
         check(
             strongParty.resources ==
                 PartyResources(

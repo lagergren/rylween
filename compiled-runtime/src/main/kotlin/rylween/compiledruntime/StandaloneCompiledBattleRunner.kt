@@ -816,13 +816,15 @@ internal class StandaloneCompiledBattleRunner(
             }.sortedBy { spell -> spell.slot }
 
     private fun StandaloneParty.inventoryChoiceLines(): List<String> =
-        inventory.sortedBy { slot -> slot.slot }.map { slot ->
-            val itemName =
-                slot.item
-                    ?.let { item -> content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) } }
-                    ?: "empty"
-            "${'A' + slot.slot - 1}. $itemName"
-        }
+        inventoryMenuLines(
+            inventory.sortedBy { slot -> slot.slot }.map { slot ->
+                val itemName =
+                    slot.item
+                        ?.let { item -> content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) } }
+                        ?: ""
+                inventorySlotKey(slot.slot) to itemName
+            },
+        )
 
     private fun spellChoiceLines(
         member: CompiledPartyMember,
@@ -837,10 +839,7 @@ internal class StandaloneCompiledBattleRunner(
                 ?.renderBattle() ?: emptyList()
         )
 
-    private fun Char.inventorySlot(): Int? {
-        val slot = uppercaseChar() - 'A' + 1
-        return slot.takeIf { candidate -> candidate > 0 }
-    }
+    private fun Char.inventorySlot(): Int? = inventorySlotFromKey()
 
     private fun StandaloneBattleEncounter.monsterTargetLines(): List<String> =
         monsterHp.mapIndexed { index, hp ->

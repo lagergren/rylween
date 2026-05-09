@@ -236,18 +236,19 @@ internal class StandaloneCompiledShopService(
         party: StandaloneParty,
     ): Int? {
         if (buy.inventoryApplication.overflow != RewardOverflowPolicy.PromptDropThenPlace) return null
+        screen.writeText(buy.cantCarry.renderStandaloneLines(content) + "" + "Drop an item? (Y/N)")
+        val confirm = input.readCommand()?.uppercaseChar() ?: return null
+        if (confirm != 'Y') return null
         val lines =
             buildList {
-                addAll(buy.cantCarry.renderStandaloneLines(content))
-                add("Replace which slot?")
-                party.inventory.forEach { slot ->
-                    add("${slot.slot}. ${slot.item?.let(::itemName) ?: "-"}")
-                }
+                add("Drop which item?")
+                add("Other key cancels.")
+                addAll(inventoryLines(party))
             }
         screen.writeText(lines)
         val choice = input.readCommand() ?: return null
-        val slot = choice.digitToIntOrNull() ?: return null
-        return slot.takeIf { party.inventory.any { current -> current.slot == it } }
+        val slot = choice.inventorySlotFromKey() ?: return null
+        return slot.takeIf { party.inventoryItem(it) != null }
     }
 
     private fun buyResource(
@@ -273,7 +274,7 @@ internal class StandaloneCompiledShopService(
     ): StandaloneParty {
         screen.writeText(sellPromptLines(sell, party))
         val choice = input.readCommand() ?: return party
-        val slot = choice.digitToIntOrNull() ?: return party
+        val slot = choice.inventorySlotFromKey() ?: return party
         val item = party.inventoryItem(slot)
         if (item == null) {
             screen.writeText(listOf("That slot is empty."))
@@ -312,10 +313,15 @@ internal class StandaloneCompiledShopService(
     ): List<String> =
         buildList {
             addAll(sell.prompt.renderStandaloneLines(content))
-            party.inventory.forEach { slot ->
-                add("${slot.slot}. ${slot.item?.let(::itemName) ?: "-"}")
-            }
+            addAll(inventoryLines(party))
         }
+
+    private fun inventoryLines(party: StandaloneParty): List<String> =
+        inventoryMenuLines(
+            party.inventory.map { slot ->
+                inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
+            },
+        )
 
     private fun CompiledShopSell.accepts(item: CompiledHandleRef): Boolean {
         if (item in rejectedItems) return false

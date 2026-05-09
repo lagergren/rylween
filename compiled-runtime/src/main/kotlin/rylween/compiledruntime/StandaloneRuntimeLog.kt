@@ -9,9 +9,17 @@ class StandaloneRuntimeLog private constructor(
     private val writer: PrintWriter,
     val file: File,
 ) : Closeable {
+    private var mirror: ((String) -> Unit)? = null
+
+    fun mirrorTo(sink: ((String) -> Unit)?) {
+        mirror = sink
+    }
+
     fun event(message: String) {
-        writer.println("${Instant.now()} $message")
+        val line = "${Instant.now()} $message"
+        writer.println(line)
         writer.flush()
+        runCatching { mirror?.invoke(line) }
     }
 
     fun rngDraw(
