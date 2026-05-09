@@ -626,7 +626,12 @@ internal class StandaloneScriptExecutor(
                     ?: return StandaloneScriptSignal.StopScript
             val signal =
                 when (command.action) {
-                    "speak_chitchat" -> continueAfter { chitchat(speak, npc) }
+                    "speak_chitchat" ->
+                        continueAfter {
+                            chitchat(speak, npc)
+                            input.pause(1600)
+                        }
+
                     "speak_question" -> executeQuestionMenu(speak, npc, insideLoop)
                     "speak_rumour" ->
                         continueAfter {

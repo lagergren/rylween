@@ -165,7 +165,7 @@ internal class StandaloneCompiledShopService(
         if (quantity == null) return party
         if (quantity == 0 && offer.purchase.zeroQuantityRequiresNonZero()) {
             val purchase = offer.purchase as CompiledShopPurchase.Bulk
-            screen.writeText(purchase.tooMany.renderShopLines(carryCap = capacityLimit(party, purchase.cap)))
+            writeTextAndWait(purchase.tooMany.renderShopLines(carryCap = capacityLimit(party, purchase.cap)))
             return party
         }
 
@@ -200,7 +200,11 @@ internal class StandaloneCompiledShopService(
         screen.writeText(purchase.quantityPrompt.renderStandaloneLines(content))
         val requested = input.readInt() ?: return null
         val remaining = remainingCapacity(party, purchase.cap)
-        return minOf(requested, remaining)
+        if (requested > remaining) {
+            writeTextAndWait(purchase.tooMany.renderShopLines(carryCap = capacityLimit(party, purchase.cap)))
+            return null
+        }
+        return requested
     }
 
     private fun applyPurchase(

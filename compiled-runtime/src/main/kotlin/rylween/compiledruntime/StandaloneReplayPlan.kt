@@ -123,7 +123,7 @@ internal object StandaloneCompiledReplayPlans {
                     moveToTown("wilor"),
                     StandaloneReplayComponent(
                         name = "town.wilor_master_crown_intro",
-                        commands = "E3N" + speakNpc(2) + speakNpc(5) + "L",
+                        commands = "E3N" + speakNpc(2) + speakNpc(5) + "LL",
                         checkpoints = listOf("output:You are better fit", "state:master_crown.task1_assigned"),
                     ),
                     moveTo("travel.to_kobold_village", location("kobold_village")),
@@ -135,7 +135,7 @@ internal object StandaloneCompiledReplayPlans {
                     moveToTown("wilor"),
                     StandaloneReplayComponent(
                         name = "town.wilor_master_crown_second_task",
-                        commands = "E3N" + speakNpc(5) + "L",
+                        commands = "E3N" + speakNpc(5) + "LL",
                         checkpoints = listOf("output:second quest", "state:master_crown.task2_assigned"),
                     ),
                     moveToTerrain("travel.to_skullweed_swamp", "swamp"),
@@ -147,7 +147,7 @@ internal object StandaloneCompiledReplayPlans {
                     moveToTown("wilor"),
                     StandaloneReplayComponent(
                         name = "town.wilor_master_crown_third_task",
-                        commands = "E3N" + speakNpc(5) + "L",
+                        commands = "E3N" + speakNpc(5) + "LL",
                         checkpoints = listOf("output:DWARF STONE", "state:master_crown.task3_assigned"),
                     ),
                     moveTo("travel.to_borin_camp", location("borin_camp")),
@@ -171,7 +171,7 @@ internal object StandaloneCompiledReplayPlans {
                     moveToTown("wilor"),
                     StandaloneReplayComponent(
                         name = "town.wilor_master_crown_location",
-                        commands = "E3N" + speakNpc(5) + "LX",
+                        commands = "E3N" + speakNpc(5) + "LLX",
                         checkpoints = listOf("output:Master Crown is hidden", "state:master_crown.crown_told"),
                     ),
                 ),
@@ -208,7 +208,7 @@ internal object StandaloneCompiledReplayPlans {
                     moveToTown("wilor"),
                     StandaloneReplayComponent(
                         name = "town.wilor_buy_silver_key_map",
-                        commands = "E3N" + speakNpc(1, "B") + "L",
+                        commands = "E3N" + speakNpc(1, "B") + "LL",
                         checkpoints = listOf("output:precious map", "state:silver_key.map_bought"),
                     ),
                     moveTo("travel.to_silver_sanctum", location("silver_key_pit")),
@@ -220,7 +220,7 @@ internal object StandaloneCompiledReplayPlans {
                     moveToTown("ollk"),
                     StandaloneReplayComponent(
                         name = "town.ollk_smith_confession",
-                        commands = "E3NS2BS1BLX",
+                        commands = "E3NS2BS1BLLX",
                         checkpoints = listOf("output:sold the Key", "state:silver_key.smith_confessed"),
                     ),
                 ),
@@ -271,7 +271,7 @@ internal object StandaloneCompiledReplayPlans {
                     ),
                     StandaloneReplayComponent(
                         name = "town.ollk_silver_key_chain",
-                        commands = "E3NS2BS1BLX",
+                        commands = "E3NS2BS1BLLX",
                         checkpoints =
                             listOf(
                                 "output:sold the Key",
@@ -359,7 +359,7 @@ internal object StandaloneCompiledReplayPlans {
                     ),
                     StandaloneReplayComponent(
                         name = "town.thord_garth_reward_dialogue",
-                        commands = "E3S1BLX",
+                        commands = "E3S1BLLX",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
@@ -391,7 +391,7 @@ internal object StandaloneCompiledReplayPlans {
                     ),
                     StandaloneReplayComponent(
                         name = "town.thord_service_social_circuit",
-                        commands = "E4QLE2!NNNLE3N",
+                        commands = "E4L2!NNNL3N",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
@@ -615,7 +615,7 @@ internal object StandaloneCompiledReplayPlans {
             speakNpc(6) +
             speakNpc(2) +
             speakNpc(5, "AA") +
-            "L"
+            "LL"
 
     private fun wilorMissionDialogueRoute(): String =
         "E3N" +
@@ -625,7 +625,7 @@ internal object StandaloneCompiledReplayPlans {
             speakNpc(5) +
             speakNpc(6) +
             speakNpc(7) +
-            "LX"
+            "LLX"
 
     private fun speakNpc(
         index: Int,
