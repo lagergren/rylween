@@ -175,12 +175,14 @@ internal class StandaloneScriptExecutor(
                 continueAfter {
                     writeText(instruction.textBlockOperand(0).renderScriptLines())
                 }
+
             CompiledOpcode.Emit -> continueAfter { screen.writeText(listOf("[text:${content.slug(instruction.handleOperand(0))}]")) }
             CompiledOpcode.EmitIndexed ->
                 continueAfter {
                     val pattern = content.strings.value(instruction.stringIdOperand(0))
                     screen.writeText(listOf(pattern.replace("%d", int(instruction.intOperand(1)).toString())))
                 }
+
             CompiledOpcode.WaitInput -> continueAfter { input.readCommand() }
             CompiledOpcode.Pause -> continueAfter { input.pause(instruction.integerOperand(0)) }
             CompiledOpcode.View -> continueAfter { writeViewCommand(instruction.viewOperand(0).toRuntimeViewCommand()) }
@@ -188,32 +190,38 @@ internal class StandaloneScriptExecutor(
                 continueAfter {
                     locals = locals + (content.strings.value(instruction.stringIdOperand(0)) to int(instruction.intOperand(1)))
                 }
+
             CompiledOpcode.BindText ->
                 continueAfter {
                     textBindings =
                         textBindings + (content.strings.value(instruction.stringIdOperand(0)) to string(instruction.stringExprOperand(1)))
                 }
+
             CompiledOpcode.Set -> continueAfter { write(instruction.lvalueOperand(0), int(instruction.intOperand(1))) }
             CompiledOpcode.Add ->
                 continueAfter {
                     val target = instruction.lvalueOperand(0)
                     write(target, read(target) + int(instruction.intOperand(1)))
                 }
+
             CompiledOpcode.Sub ->
                 continueAfter {
                     val target = instruction.lvalueOperand(0)
                     write(target, read(target) - int(instruction.intOperand(1)))
                 }
+
             CompiledOpcode.AddClamped ->
                 continueAfter {
                     val target = instruction.lvalueOperand(0)
                     val next = read(target) + int(instruction.intOperand(1))
                     write(target, next.coerceAtMost(int(instruction.intOperand(2))))
                 }
+
             CompiledOpcode.SetFlag ->
                 continueAfter {
                     runtime = runtime.withParty(runtime.party.withFlagState(instruction.handleOperand(0), instruction.handleOperand(1)))
                 }
+
             CompiledOpcode.AppendJournal ->
                 continueAfter {
                     val entries =
@@ -223,6 +231,7 @@ internal class StandaloneScriptExecutor(
                             .mapNotNull { line -> content.strings.idOf(line)?.let(CompiledJournalEntry::Line) }
                     runtime = runtime.withParty(runtime.party.copy(journal = runtime.party.journal + entries))
                 }
+
             CompiledOpcode.If ->
                 bool(instruction.boolOperand(0)).let { branch ->
                     val operandIndex = if (branch) 1 else 2
@@ -237,12 +246,14 @@ internal class StandaloneScriptExecutor(
                             ),
                     )
                 }
+
             CompiledOpcode.Loop -> executeLoop(instruction.instructionsOperand(0), context, instructionIndex, instructionCount)
             CompiledOpcode.Break ->
                 instruction
                     .scriptSignal(
                         default = ScriptControlSignal.BreakNearestLoop,
                     ).toStandalone(context.insideLoop)
+
             CompiledOpcode.Stop -> instruction.scriptSignal(default = ScriptControlSignal.StopScript).toStandalone(context.insideLoop)
             CompiledOpcode.Switch -> executeSwitch(instruction, int(instruction.intOperand(0)), context, instructionIndex, instructionCount)
             CompiledOpcode.Menu -> executeMenu(instruction, context, instructionIndex, instructionCount)
@@ -267,14 +278,17 @@ internal class StandaloneScriptExecutor(
                             postDungeon = context.continuationAfter(instructionIndex, instructionCount),
                         )
                 }
+
             CompiledOpcode.ConsumeActiveItem ->
                 continueAfter {
                     activeInventorySlot?.let { slot ->
                         runtime = runtime.withParty(runtime.party.withInventoryItem(slot, null))
                     }
                 }
+
             CompiledOpcode.ClearInventorySlot ->
                 continueAfter { runtime = runtime.withParty(runtime.party.withInventoryItem(int(instruction.intOperand(0)), null)) }
+
             CompiledOpcode.ConsumeInventoryPool ->
                 continueAfter {
                     runtime =
@@ -285,6 +299,7 @@ internal class StandaloneScriptExecutor(
                             ),
                         )
                 }
+
             CompiledOpcode.ConsumeTorch ->
                 continueAfter {
                     runtime =
@@ -292,6 +307,7 @@ internal class StandaloneScriptExecutor(
                             runtime.party.withResource(Resource.Torches, runtime.party.resources.torches - 1),
                         )
                 }
+
             CompiledOpcode.TeleportParty ->
                 continueAfter {
                     val direction = teleportDelta(int(instruction.intOperand(0)))
@@ -309,6 +325,7 @@ internal class StandaloneScriptExecutor(
                             ),
                         )
                 }
+
             CompiledOpcode.DiscoverCave ->
                 stopAfter {
                     val moveCost = int(instruction.intOperand(2))
@@ -328,12 +345,14 @@ internal class StandaloneScriptExecutor(
                                 postDungeon = context.continuationAfter(instructionIndex, instructionCount),
                             )
                 }
+
             CompiledOpcode.GrantReward -> continueAfter { runtime = runtime.withParty(applyReward(instruction.rewardOperand(0))) }
             CompiledOpcode.RandomItemOffer ->
                 continueAfter {
                     runtime =
                         runtime.withParty(runRandomItemOffer(instruction.randomItemOfferOperand(0)))
                 }
+
             CompiledOpcode.ShopService ->
                 continueAfter {
                     runtime =
@@ -342,11 +361,13 @@ internal class StandaloneScriptExecutor(
                                 .run(instruction.shopServiceOperand(0), runtime.party),
                         )
                 }
+
             CompiledOpcode.AchieveMilestone ->
                 continueAfter {
                     val milestone = instruction.handleOperand(0)
                     runtime = runtime.withParty(runtime.party.copy(milestones = (runtime.party.milestones + milestone).distinct()))
                 }
+
             CompiledOpcode.NativeCall ->
                 error("compiled native effect ${content.strings.value(instruction.stringIdOperand(0))} has no standalone host binding")
         }
@@ -616,6 +637,7 @@ internal class StandaloneScriptExecutor(
                                 rumourTold = true
                             }
                         }
+
                     "speak_bye" -> return StandaloneScriptSignal.Continue
                     else -> StandaloneScriptSignal.Continue
                 }
@@ -779,10 +801,12 @@ internal class StandaloneScriptExecutor(
                 placed.party.also {
                     reward.messages.pickedUp?.let { text -> screen.writeText(text.renderRewardLines(item)) }
                 }
+
             StandaloneItemPlacement.Full ->
                 party.also {
                     reward.messages.cantCarry?.let { text -> screen.writeText(text.renderRewardLines(item)) }
                 }
+
             StandaloneItemPlacement.NeedsDropSlot ->
                 reward.messages.cantCarry
                     ?.let { prompt ->
@@ -810,17 +834,21 @@ internal class StandaloneScriptExecutor(
         return when {
             offer.decline.matchesStandalone(content, choice) ->
                 party.also { offer.declined?.let { text -> screen.writeText(text.renderRewardLines(item, price)) } }
+
             !offer.buy.matchesStandalone(content, choice) -> party
             party.resources.gold < price ->
                 party.also { screen.writeText(offer.broke.renderRewardLines(item, price)) }
+
             else -> {
                 when (val placed = party.placeItem(item, offer.application.overflow)) {
                     is StandaloneItemPlacement.Placed ->
                         placed.party
                             .withGold(party.resources.gold - price)
                             .also { screen.writeText(offer.deal.renderRewardLines(item, price)) }
+
                     StandaloneItemPlacement.Full ->
                         party.also { offer.messages.cantCarry?.let { text -> screen.writeText(text.renderRewardLines(item, price)) } }
+
                     StandaloneItemPlacement.NeedsDropSlot ->
                         offer.messages.cantCarry
                             ?.let { prompt ->
@@ -864,10 +892,12 @@ internal class StandaloneScriptExecutor(
                     CompiledRuntimeTextPart.OfferedItemName,
                     CompiledRuntimeTextPart.SelectedItemName,
                     CompiledRuntimeTextPart.BattleLootName,
-                    -> itemName(item)
+                        -> itemName(item)
+
                     CompiledRuntimeTextPart.OfferedItemPrice,
                     CompiledRuntimeTextPart.ShopPrice,
-                    -> price?.toString() ?: itemRecord(item).cost.toString()
+                        -> price?.toString() ?: itemRecord(item).cost.toString()
+
                     else -> runtimeText(part)
                 }
             },
@@ -889,7 +919,7 @@ internal class StandaloneScriptExecutor(
     }
 
     private fun inventoryReplaceLines(party: StandaloneParty): List<String> =
-        listOf("Drop which item?", "Other key cancels.") +
+        listOf("Drop which item?", "Any other key leaves.") +
             inventoryMenuLines(
                 party.inventory.map { slot ->
                     inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
@@ -924,12 +954,14 @@ internal class StandaloneScriptExecutor(
                     bool(expr.cond) -> int(expr.thenValue)
                     else -> int(expr.elseValue)
                 }
+
             is CompiledIntExpr.Random -> random(int(expr.lo), int(expr.hi))
             is CompiledIntExpr.MemberField -> memberField(int(expr.member), content.strings.value(expr.fieldString))
             is CompiledIntExpr.MonsterField,
             is CompiledIntExpr.BattleFlag,
             is CompiledIntExpr.BattleQuery,
-            -> 0
+                -> 0
+
             is CompiledIntExpr.RealmScalar -> realmScalar(content.strings.value(expr.nameString))
             is CompiledIntExpr.PartyScalar -> partyScalar(content.strings.value(expr.nameString))
             is CompiledIntExpr.InventoryPoolCount -> runtime.party.countInventoryPool(expr.pool)
@@ -938,6 +970,7 @@ internal class StandaloneScriptExecutor(
                     .inventoryItem(int(expr.slot))
                     ?.let(::itemRecord)
                     ?.cost ?: 0
+
             is CompiledIntExpr.NativeInt -> 0
         }
 
@@ -952,7 +985,8 @@ internal class StandaloneScriptExecutor(
             is CompiledBoolExpr.MemberFlag -> memberFlag(int(expr.member), content.strings.value(expr.nameString))
             is CompiledBoolExpr.MonsterFlag,
             is CompiledBoolExpr.BattleFlag,
-            -> false
+                -> false
+
             is CompiledBoolExpr.RuntimeFlag ->
                 content.strings.value(expr.nameString) == "in_dungeon" && runtime.currentMode == RuntimeMode.Dungeon
         }
@@ -973,7 +1007,7 @@ internal class StandaloneScriptExecutor(
             is CompiledLValue.MemberField -> memberField(int(target.member), content.strings.value(target.fieldString))
             is CompiledLValue.MonsterField,
             is CompiledLValue.BattleFlag,
-            -> 0
+                -> 0
         }
 
     private fun write(
@@ -986,7 +1020,7 @@ internal class StandaloneScriptExecutor(
             is CompiledLValue.MemberField -> writeMemberField(int(target.member), content.strings.value(target.fieldString), value)
             is CompiledLValue.MonsterField,
             is CompiledLValue.BattleFlag,
-            -> Unit
+                -> Unit
         }
     }
 
@@ -1034,6 +1068,7 @@ internal class StandaloneScriptExecutor(
                     "rested_hours" -> runtime.party.copy(resources = runtime.party.resources.copy(restedHours = value.coerceAtLeast(0)))
                     "member_count" ->
                         runtime.party.copy(counters = runtime.party.counters.copy(memberCount = value.coerceAtLeast(0)))
+
                     else -> runtime.party
                 },
             )
@@ -1086,6 +1121,7 @@ internal class StandaloneScriptExecutor(
                     value.coerceAtLeast(0).let { health ->
                         member.copy(health = health, hitPoints = member.hitPoints.copy(max = health))
                     }
+
                 "magic" -> member.copy(mana = member.mana.copy(current = value.coerceAtLeast(0)))
                 "magic_max" -> value.coerceAtLeast(0).let { max -> member.copy(mana = member.mana.current.coerceAtMost(max) of max) }
                 "level" -> member.copy(level = value.coerceAtLeast(1))
@@ -1318,18 +1354,21 @@ internal class StandaloneScriptExecutor(
         when (part) {
             CompiledRuntimeTextPart.CurrentTownName ->
                 runtime.currentTown?.let { town -> content.townName(town) }.orEmpty()
+
             CompiledRuntimeTextPart.PartyMemberMax -> runtime.partyMemberMax.toString()
             CompiledRuntimeTextPart.TownTaxPercent ->
                 runtime.currentTown
                     ?.let { town -> content.towns.firstOrNull { current -> current.id == town }?.taxPercent }
                     ?.toString()
                     .orEmpty()
+
             CompiledRuntimeTextPart.TownTaxAmount ->
                 runtime.currentTown
                     ?.let { town -> content.towns.firstOrNull { current -> current.id == town }?.taxPercent }
                     ?.let { tax -> runtime.party.resources.gold * tax / PERCENT_DENOMINATOR }
                     ?.toString()
                     .orEmpty()
+
             CompiledRuntimeTextPart.DungeonDepth -> locals["dungeon_level"]?.toString().orEmpty()
             else -> "[${part.name}]"
         }
@@ -1527,6 +1566,7 @@ internal class StandaloneScriptExecutor(
             ScriptControlSignal.Continue -> StandaloneScriptSignal.Continue
             ScriptControlSignal.BreakNearestLoop ->
                 StandaloneScriptSignal.BreakNearestLoop.takeIf { insideLoop } ?: StandaloneScriptSignal.StopScript
+
             ScriptControlSignal.StopScript -> StandaloneScriptSignal.StopScript
         }
 
@@ -1589,12 +1629,14 @@ internal class StandaloneScriptExecutor(
                     CompiledOpcode.If,
                     CompiledOpcode.Loop,
                     CompiledOpcode.ForEachMember,
-                    -> instruction.instructionsOperand(selector)
+                        -> instruction.instructionsOperand(selector)
+
                     CompiledOpcode.Switch -> {
                         val caseIndex = path.getOrNull(cursor++) ?: error("compiled switch continuation path is incomplete: $path")
                         instruction.switchCasesOperand(selector).getOrNull(caseIndex)?.body
                             ?: error("compiled switch continuation case is out of range: $path")
                     }
+
                     CompiledOpcode.Menu -> {
                         if (selector == 2) {
                             instruction.instructionsOperand(selector)
@@ -1604,11 +1646,13 @@ internal class StandaloneScriptExecutor(
                                 ?: error("compiled menu continuation option is out of range: $path")
                         }
                     }
+
                     CompiledOpcode.AskText -> {
                         val branch = path.getOrNull(cursor++) ?: error("compiled text-answer continuation path is incomplete: $path")
                         val answer = instruction.textAnswerOperand(selector)
                         if (branch == 0) answer.matchOps else answer.missOps
                     }
+
                     else -> error("compiled continuation path cannot descend through ${instruction.opcode}: $path")
                 }
         }

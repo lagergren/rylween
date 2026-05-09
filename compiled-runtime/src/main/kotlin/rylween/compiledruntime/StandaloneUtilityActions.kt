@@ -32,7 +32,9 @@ internal class StandaloneUtilityActions(
         val choices = runtime.party.inventory.filter { slot -> slot.item != null }
         if (choices.isEmpty()) return runtime
         screen.writeText(listOf("Drop which item?") + inventoryLines(choices))
-        val slot = input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } } ?: return runtime
+        val slot =
+            input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
+                ?: return runtime
         return runtime.withParty(runtime.party.withInventoryItem(slot, null))
     }
 
@@ -64,14 +66,18 @@ internal class StandaloneUtilityActions(
         val choices =
             runtime.party.inventory.mapNotNull { slot ->
                 val item = slot.item ?: return@mapNotNull null
-                val use = content.itemUses.firstOrNull { use -> use.item == item && ItemUseContext.Inventory in use.contexts }
+                val use =
+                    content.itemUses.firstOrNull { use -> use.item == item && ItemUseContext.Inventory in use.contexts }
                 slot.takeIf { use != null && itemRecord(item).kind == ItemKind.Potion }
             }
         if (choices.isEmpty()) return runtime
         screen.writeText(listOf("Quaff what?") + inventoryLines(choices))
-        val slot = input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } } ?: return runtime
+        val slot =
+            input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
+                ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
-        val use = content.itemUses.firstOrNull { candidate -> candidate.item == item && ItemUseContext.Inventory in candidate.contexts }
+        val use =
+            content.itemUses.firstOrNull { candidate -> candidate.item == item && ItemUseContext.Inventory in candidate.contexts }
         val prepared =
             when (use?.consume) {
                 ItemConsumePolicy.BeforeUse -> runtime.withParty(runtime.party.withInventoryItem(slot, null))
@@ -90,7 +96,8 @@ internal class StandaloneUtilityActions(
                 .sortedBy(CompiledSpell::slot)
         if (spells.isEmpty()) return runtime
         screen.writeText(spells.map { spell -> "${spell.slot}. ${content.strings.value(spell.nameString)}" })
-        val spell = input.readCommand()?.digitToIntOrNull()?.let { slot -> spells.firstOrNull { it.slot == slot } } ?: return runtime
+        val spell = input.readCommand()?.digitToIntOrNull()?.let { slot -> spells.firstOrNull { it.slot == slot } }
+            ?: return runtime
         val program = programByRef(spell.scriptRoot)
         return StandaloneScriptExecutor(
             content = content,
@@ -117,7 +124,9 @@ internal class StandaloneUtilityActions(
             }
         if (choices.isEmpty()) return runtime
         screen.writeText(listOf("Ready what?") + inventoryLines(choices))
-        val slot = input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } } ?: return runtime
+        val slot =
+            input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
+                ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
         return runtime.updateMember(memberIndex) { current -> equip(current, item) }
     }

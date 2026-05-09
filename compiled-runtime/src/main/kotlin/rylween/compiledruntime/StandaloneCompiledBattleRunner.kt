@@ -89,7 +89,10 @@ internal class StandaloneCompiledBattleRunner(
         tier: String,
     ): StandaloneCompiledBattleResult {
         val candidates = content.monsters.filter { monster -> monster.tier?.let(content::slug) == tier }
-        if (candidates.isEmpty()) return StandaloneCompiledBattleResult(runtime, listOf("No compiled monsters for tier $tier."))
+        if (candidates.isEmpty()) return StandaloneCompiledBattleResult(
+            runtime,
+            listOf("No compiled monsters for tier $tier.")
+        )
         val pick = runtime.party.drawRandom(0, candidates.lastIndex)
         log?.rngDraw(
             context = "battle.tier_monster",
@@ -111,7 +114,10 @@ internal class StandaloneCompiledBattleRunner(
     ): StandaloneCompiledBattleResult {
         val monster =
             content.monsters.firstOrNull { current -> current.id == monsterRef }
-                ?: return StandaloneCompiledBattleResult(runtime, listOf("Missing compiled monster ${content.slug(monsterRef)}."))
+                ?: return StandaloneCompiledBattleResult(
+                    runtime,
+                    listOf("Missing compiled monster ${content.slug(monsterRef)}.")
+                )
         return runMonster(runtime, monster)
     }
 
@@ -119,7 +125,10 @@ internal class StandaloneCompiledBattleRunner(
         runtime: StandaloneRuntimeState,
         monster: CompiledMonster,
     ): StandaloneCompiledBattleResult {
-        val rules = battle ?: return StandaloneCompiledBattleResult(runtime, listOf("Missing compiled standard-battle contract."))
+        val rules = battle ?: return StandaloneCompiledBattleResult(
+            runtime,
+            listOf("Missing compiled standard-battle contract.")
+        )
         val started = startEncounter(runtime, rules, monster)
         rules.opening.banners.getOrNull(started.bannerIndex ?: -1)?.let { banner ->
             screen.writeViewCommand(CompiledRuntimeViewCommand.ClearMapWindow)
@@ -130,7 +139,11 @@ internal class StandaloneCompiledBattleRunner(
             val choice = input.readCommand() ?: return StandaloneCompiledBattleResult(runtime)
             when {
                 rules.openingKeys.run.matches(choice) -> return attemptRun(started)
-                rules.openingKeys.fight.matches(choice) -> return finishFight(started, rules.text.bloodFlow.renderBattle())
+                rules.openingKeys.fight.matches(choice) -> return finishFight(
+                    started,
+                    rules.text.bloodFlow.renderBattle()
+                )
+
                 else -> screen.writeText(rules.text.notPossible.renderBattle())
             }
         }
@@ -157,7 +170,10 @@ internal class StandaloneCompiledBattleRunner(
                     rules.text.runEscaped.renderBattle(),
                 )
             }
-            ?: finishFight(encounter.copy(runtime = runtime.withMode(RuntimeMode.Battle)), rules.text.runFailAway.renderBattle())
+            ?: finishFight(
+                encounter.copy(runtime = runtime.withMode(RuntimeMode.Battle)),
+                rules.text.runFailAway.renderBattle()
+            )
     }
 
     private fun finishFight(
@@ -196,10 +212,10 @@ internal class StandaloneCompiledBattleRunner(
 
     private fun ExternalStandardBattle.openingText(encounter: StandaloneBattleEncounter): List<String> =
         text.encounterBanner.renderBattle() +
-            text.youFace.renderBattle() +
-            text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()) +
-            text.fight.renderBattle() +
-            text.run.renderBattle()
+                text.youFace.renderBattle() +
+                text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()) +
+                text.fight.renderBattle() +
+                text.run.renderBattle()
 
     private fun StandaloneBattleEncounter.playerRound(messages: MutableList<String>): StandaloneBattleEncounter {
         var next = this
@@ -257,9 +273,11 @@ internal class StandaloneCompiledBattleRunner(
         val damageDraw = hit.party.drawRandom(0, rules.playerRound.attack.damageSpreadMax)
         val damage =
             member.weaponDamage() +
-                damageDraw.value +
-                member.hitPoints.current / rules.playerRound.attack.hpDefenseDivisor
-        val nextHp = monsterHp.mapIndexed { index, hp -> hp.takeUnless { index == targetIndex } ?: (hp - damage).coerceAtLeast(0) }
+                    damageDraw.value +
+                    member.hitPoints.current / rules.playerRound.attack.hpDefenseDivisor
+        val nextHp = monsterHp.mapIndexed { index, hp ->
+            hp.takeUnless { index == targetIndex } ?: (hp - damage).coerceAtLeast(0)
+        }
         val killed = monsterHp[targetIndex] > 0 && nextHp[targetIndex] == 0
         messages +=
             rules.text.playerHit.renderBattle(
@@ -291,7 +309,11 @@ internal class StandaloneCompiledBattleRunner(
 
     private fun StandaloneBattleEncounter.battleCry(messages: MutableList<String>): StandaloneBattleEncounter {
         messages += rules.text.battleCry.renderBattle()
-        return copy(monsterWeaponSkill = (monsterWeaponSkill - rules.playerRound.battleCry.weaponSkillPenalty).coerceAtLeast(0))
+        return copy(
+            monsterWeaponSkill = (monsterWeaponSkill - rules.playerRound.battleCry.weaponSkillPenalty).coerceAtLeast(
+                0
+            )
+        )
     }
 
     private fun StandaloneBattleEncounter.useMagicItem(
@@ -313,10 +335,18 @@ internal class StandaloneCompiledBattleRunner(
         }
         val active =
             when (use.consume) {
-                ItemConsumePolicy.BeforeUse -> copy(runtime = runtime.withParty(runtime.party.withInventoryItem(slot, null)))
+                ItemConsumePolicy.BeforeUse -> copy(
+                    runtime = runtime.withParty(
+                        runtime.party.withInventoryItem(
+                            slot,
+                            null
+                        )
+                    )
+                )
+
                 ItemConsumePolicy.ScriptControlled,
                 ItemConsumePolicy.NeverConsumes,
-                -> this
+                    -> this
             }
         return active.runBattleScript(
             scriptRoot = use.scriptRoot,
@@ -414,7 +444,8 @@ internal class StandaloneCompiledBattleRunner(
     private fun StandaloneBattleEncounter.shouldMonsterCast(): BattleCastDecision {
         val options = monsterSpells()
         if (antimagic || monster.spellPower <= 0 || options.isEmpty()) return BattleCastDecision(false, this)
-        val chance = rules.monsterRound.spellChanceBasePercent + monster.spellPower / rules.monsterRound.spellPowerDivisor
+        val chance =
+            rules.monsterRound.spellChanceBasePercent + monster.spellPower / rules.monsterRound.spellPowerDivisor
         val draw = runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
         return BattleCastDecision(draw.value < chance, copy(runtime = runtime.withParty(draw.party)))
     }
@@ -465,7 +496,12 @@ internal class StandaloneCompiledBattleRunner(
                     runtime.copy(currentMode = RuntimeMode.GameOver),
                     rules.text.partyDefeated.renderBattle(),
                 )
-            monsterHasLivingMembers() -> StandaloneCompiledBattleResult(runtimeAfterBattle(), rules.text.runFailAway.renderBattle())
+
+            monsterHasLivingMembers() -> StandaloneCompiledBattleResult(
+                runtimeAfterBattle(),
+                rules.text.runFailAway.renderBattle()
+            )
+
             else -> victory()
         }
 
@@ -483,8 +519,11 @@ internal class StandaloneCompiledBattleRunner(
                 "monster_spell_power" to monster.spellPower,
             )
         var party = runtime.party
-        val experience = reward?.experience?.let { formula -> evalFormula(formula, party, bindings).also { party = it.party }.value } ?: 0
-        val gold = reward?.gold?.let { formula -> evalFormula(formula, party, bindings).also { party = it.party }.value } ?: 0
+        val experience =
+            reward?.experience?.let { formula -> evalFormula(formula, party, bindings).also { party = it.party }.value }
+                ?: 0
+        val gold =
+            reward?.gold?.let { formula -> evalFormula(formula, party, bindings).also { party = it.party }.value } ?: 0
         val loot = reward?.let { selectLoot(party, it).also { party = it.party }.item }
         party = party.applyBattleRewards(experience, gold, loot, monsterCount)
         val levelUps = party.applyLevelUps(combat.leveling)
@@ -494,15 +533,15 @@ internal class StandaloneCompiledBattleRunner(
                 addAll(rules.text.victoryBested.renderBattle())
                 addAll(
                     rules.text.victoryEachSurvivor.renderBattle() +
-                        rules.text.victoryReward.renderBattle(
-                            BATTLE_EXPERIENCE to experience.toString(),
-                            BATTLE_GOLD to gold.toString(),
-                        ),
+                            rules.text.victoryReward.renderBattle(
+                                BATTLE_EXPERIENCE to experience.toString(),
+                                BATTLE_GOLD to gold.toString(),
+                            ),
                 )
                 loot?.let { item ->
                     addAll(
                         rules.text.victoryFoundObject.renderBattle() +
-                            rules.text.victoryLoot.renderBattle(BATTLE_LOOT_NAME to item.displayName()),
+                                rules.text.victoryLoot.renderBattle(BATTLE_LOOT_NAME to item.displayName()),
                     )
                 }
                 levelUps.gains.forEach { gain ->
@@ -630,8 +669,12 @@ internal class StandaloneCompiledBattleRunner(
         val drop = party.drawRandom(0, RANDOM_PERCENT_MAX)
         if (drop.value >= reward.loot.dropChancePercent) return BattleLootSelection(drop.party, null)
         val treasure = drop.party.drawRandom(0, RANDOM_PERCENT_MAX)
-        val poolRef = reward.loot.treasure.takeIf { treasure.value < reward.loot.treasureChancePercent } ?: reward.loot.magic
-        val pool = content.itemPools.firstOrNull { itemPool -> itemPool.id == poolRef } ?: return BattleLootSelection(treasure.party, null)
+        val poolRef =
+            reward.loot.treasure.takeIf { treasure.value < reward.loot.treasureChancePercent } ?: reward.loot.magic
+        val pool = content.itemPools.firstOrNull { itemPool -> itemPool.id == poolRef } ?: return BattleLootSelection(
+            treasure.party,
+            null
+        )
         if (pool.items.isEmpty()) return BattleLootSelection(treasure.party, null)
         val item = treasure.party.drawRandom(0, pool.items.lastIndex)
         return BattleLootSelection(item.party, pool.items[item.value])
@@ -647,7 +690,8 @@ internal class StandaloneCompiledBattleRunner(
             members.map { member ->
                 member.takeIf { it.dead } ?: member.copy(experience = member.experience + experience)
             }
-        val withCounters = copy(counters = counters.copy(kills = counters.kills + defeatedCount), members = survivorExperience)
+        val withCounters =
+            copy(counters = counters.copy(kills = counters.kills + defeatedCount), members = survivorExperience)
         val withGold = withCounters.withGold(withCounters.resources.gold + gold)
         val freeSlot = withGold.inventory.firstOrNull { slot -> slot.item == null }?.slot
         return loot?.let { item -> freeSlot?.let { slot -> withGold.withInventoryItem(slot, item) } } ?: withGold
@@ -686,7 +730,11 @@ internal class StandaloneCompiledBattleRunner(
         bindings: Map<String, Int>,
     ): FormulaResult {
         val formula = content.formulas.firstOrNull { current -> current.id == formulaRef }
-        return evalFormula(checkNotNull(formula) { "missing compiled formula ${content.slug(formulaRef)}" }, party, bindings)
+        return evalFormula(
+            checkNotNull(formula) { "missing compiled formula ${content.slug(formulaRef)}" },
+            party,
+            bindings
+        )
     }
 
     private fun evalFormula(
@@ -758,7 +806,8 @@ internal class StandaloneCompiledBattleRunner(
             MemberChoiceFilter.SpellcasterOnly -> !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest)
         }
 
-    private fun StandaloneRuntimeState.withMode(mode: RuntimeMode): StandaloneRuntimeState = copy(currentMode = mode, currentTown = null)
+    private fun StandaloneRuntimeState.withMode(mode: RuntimeMode): StandaloneRuntimeState =
+        copy(currentMode = mode, currentTown = null)
 
     private fun StandaloneRuntimeState.withMember(
         index: Int,
@@ -789,16 +838,19 @@ internal class StandaloneCompiledBattleRunner(
             CombatActionRequirement.Mage -> member.pcClass == PcClass.Mage
         }
 
-    private fun ExternalRuntimeTextBlock.renderBattle(vararg values: Pair<String, String>): List<String> = renderBattle(values.toMap())
+    private fun ExternalRuntimeTextBlock.renderBattle(vararg values: Pair<String, String>): List<String> =
+        renderBattle(values.toMap())
 
-    private fun ExternalRuntimeTextBlock.renderBattle(values: Map<String, String> = emptyMap()): List<String> = render(values::get)
+    private fun ExternalRuntimeTextBlock.renderBattle(values: Map<String, String> = emptyMap()): List<String> =
+        render(values::get)
 
     private fun StandaloneBattleEncounter.foeDisplayName(): String =
         "$monsterCount ${monsterName()}${"s".takeIf { monsterCount > 1 }.orEmpty()}"
 
     private fun StandaloneBattleEncounter.monsterName(): String = content.strings.value(monster.nameString)
 
-    private fun StandaloneBattleEncounter.partyHasLivingMembers(): Boolean = runtime.party.members.any { member -> !member.dead }
+    private fun StandaloneBattleEncounter.partyHasLivingMembers(): Boolean =
+        runtime.party.members.any { member -> !member.dead }
 
     private fun StandaloneBattleEncounter.monsterHasLivingMembers(): Boolean = monsterHp.any { hp -> hp > 0 }
 
@@ -816,15 +868,15 @@ internal class StandaloneCompiledBattleRunner(
             }.sortedBy { spell -> spell.slot }
 
     private fun StandaloneParty.inventoryChoiceLines(): List<String> =
-        inventoryMenuLines(
-            inventory.sortedBy { slot -> slot.slot }.map { slot ->
-                val itemName =
-                    slot.item
-                        ?.let { item -> content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) } }
-                        ?: ""
-                inventorySlotKey(slot.slot) to itemName
-            },
-        )
+        inventory.sortedBy { slot -> slot.slot }.map { slot ->
+            val itemName =
+                slot.item
+                    ?.let { item ->
+                        content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) }
+                    }
+                    ?: "empty"
+            "${'A' + slot.slot - 1}. $itemName"
+        }
 
     private fun spellChoiceLines(
         member: CompiledPartyMember,
@@ -833,13 +885,16 @@ internal class StandaloneCompiledBattleRunner(
         spells.map { spell ->
             "${spell.slot}. ${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})"
         } + (
-            combat.standardBattle
-                ?.text
-                ?.spellAbort
-                ?.renderBattle() ?: emptyList()
-        )
+                combat.standardBattle
+                    ?.text
+                    ?.spellAbort
+                    ?.renderBattle() ?: emptyList()
+                )
 
-    private fun Char.inventorySlot(): Int? = inventorySlotFromKey()
+    private fun Char.inventorySlot(): Int? {
+        val slot = uppercaseChar() - 'A' + 1
+        return slot.takeIf { candidate -> candidate > 0 }
+    }
 
     private fun StandaloneBattleEncounter.monsterTargetLines(): List<String> =
         monsterHp.mapIndexed { index, hp ->
@@ -872,8 +927,26 @@ internal class StandaloneCompiledBattleRunner(
 
         private fun execute(instruction: CompiledInstruction): Boolean =
             when (instruction.opcode) {
-                CompiledOpcode.Screen -> false.also { screen.writeText(instruction.textBlockOperand(0).renderScriptLines()) }
-                CompiledOpcode.Emit -> false.also { screen.writeText(listOf("[text:${content.slug(instruction.handleOperand(0))}]")) }
+                CompiledOpcode.Screen -> false.also {
+                    screen.writeText(
+                        instruction.textBlockOperand(0).renderScriptLines()
+                    )
+                }
+
+                CompiledOpcode.Emit -> false.also {
+                    screen.writeText(
+                        listOf(
+                            "[text:${
+                                content.slug(
+                                    instruction.handleOperand(
+                                        0
+                                    )
+                                )
+                            }]"
+                        )
+                    )
+                }
+
                 CompiledOpcode.EmitIndexed ->
                     false.also {
                         screen.writeText(
@@ -885,13 +958,22 @@ internal class StandaloneCompiledBattleRunner(
                             ),
                         )
                     }
+
                 CompiledOpcode.WaitInput -> false.also { input.readCommand() }
                 CompiledOpcode.Pause -> false
-                CompiledOpcode.View -> false.also { screen.writeViewCommand(instruction.viewOperand(0).toRuntimeViewCommand()) }
+                CompiledOpcode.View -> false.also {
+                    screen.writeViewCommand(
+                        instruction.viewOperand(0).toRuntimeViewCommand()
+                    )
+                }
+
                 CompiledOpcode.LetInt ->
                     false.also {
-                        locals = locals + (content.strings.value(instruction.stringIdOperand(0)) to int(instruction.intOperand(1)))
+                        locals = locals + (content.strings.value(instruction.stringIdOperand(0)) to int(
+                            instruction.intOperand(1)
+                        ))
                     }
+
                 CompiledOpcode.BindText -> false
                 CompiledOpcode.Set -> false.also { write(instruction.lvalueOperand(0), int(instruction.intOperand(1))) }
                 CompiledOpcode.Add ->
@@ -901,6 +983,7 @@ internal class StandaloneCompiledBattleRunner(
                             read(instruction.lvalueOperand(0)) + int(instruction.intOperand(1)),
                         )
                     }
+
                 CompiledOpcode.Sub ->
                     false.also {
                         write(
@@ -908,13 +991,27 @@ internal class StandaloneCompiledBattleRunner(
                             read(instruction.lvalueOperand(0)) - int(instruction.intOperand(1)),
                         )
                     }
+
                 CompiledOpcode.AddClamped ->
                     false.also {
                         val target = instruction.lvalueOperand(0)
                         val next = read(target) + int(instruction.intOperand(1))
                         write(target, next.coerceAtMost(int(instruction.intOperand(2))))
                     }
-                CompiledOpcode.If -> false.also { execute(instruction.instructionsOperand(if (bool(instruction.boolOperand(0))) 1 else 2)) }
+
+                CompiledOpcode.If -> false.also {
+                    execute(
+                        instruction.instructionsOperand(
+                            if (bool(
+                                    instruction.boolOperand(
+                                        0
+                                    )
+                                )
+                            ) 1 else 2
+                        )
+                    )
+                }
+
                 CompiledOpcode.ForEachMonster ->
                     false.also {
                         val name = content.strings.value(instruction.stringIdOperand(0))
@@ -925,6 +1022,7 @@ internal class StandaloneCompiledBattleRunner(
                             }
                         }
                     }
+
                 CompiledOpcode.ForEachMember ->
                     false.also {
                         val name = content.strings.value(instruction.stringIdOperand(0))
@@ -938,17 +1036,23 @@ internal class StandaloneCompiledBattleRunner(
                             }
                         }
                     }
+
                 CompiledOpcode.AskMonster ->
                     false.also {
-                        screen.writeText(instruction.textBlockOperand(0).renderScriptLines() + encounter.monsterTargetLines())
+                        screen.writeText(
+                            instruction.textBlockOperand(0).renderScriptLines() + encounter.monsterTargetLines()
+                        )
                         val target = input.readCommand()?.uppercaseChar()?.let { key -> key - 'A' }
                         locals =
                             locals +
-                            (
-                                content.strings.value(instruction.stringIdOperand(1)) to
-                                    (target?.takeIf { encounter.monsterHp.getOrNull(it)?.let { hp -> hp > 0 } == true } ?: 0)
-                            )
+                                    (
+                                            content.strings.value(instruction.stringIdOperand(1)) to
+                                                    (target?.takeIf {
+                                                        encounter.monsterHp.getOrNull(it)?.let { hp -> hp > 0 } == true
+                                                    } ?: 0)
+                                            )
                     }
+
                 CompiledOpcode.AskMember ->
                     false.also {
                         screen.writeText(instruction.textBlockOperand(0).renderScriptLines())
@@ -959,23 +1063,40 @@ internal class StandaloneCompiledBattleRunner(
                                 encounter.runtime.party.members
                                     .getOrNull(index)
                                     ?.matchesCombatFilter(accepting) ==
-                                    true
+                                        true
                             }
                         locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to (accepted ?: 0))
                     }
+
                 CompiledOpcode.ConsumeActiveItem ->
                     false.also {
                         activeInventorySlot?.let { slot ->
                             encounter =
-                                encounter.copy(runtime = encounter.runtime.withParty(encounter.runtime.party.withInventoryItem(slot, null)))
+                                encounter.copy(
+                                    runtime = encounter.runtime.withParty(
+                                        encounter.runtime.party.withInventoryItem(
+                                            slot,
+                                            null
+                                        )
+                                    )
+                                )
                         }
                     }
+
                 CompiledOpcode.ClearInventorySlot ->
                     false.also {
                         val slot = int(instruction.intOperand(0))
                         encounter =
-                            encounter.copy(runtime = encounter.runtime.withParty(encounter.runtime.party.withInventoryItem(slot, null)))
+                            encounter.copy(
+                                runtime = encounter.runtime.withParty(
+                                    encounter.runtime.party.withInventoryItem(
+                                        slot,
+                                        null
+                                    )
+                                )
+                            )
                     }
+
                 CompiledOpcode.ConsumeInventoryPool ->
                     false.also {
                         encounter =
@@ -989,9 +1110,11 @@ internal class StandaloneCompiledBattleRunner(
                                     ),
                             )
                     }
+
                 CompiledOpcode.Break,
                 CompiledOpcode.Stop,
-                -> true
+                    -> true
+
                 else -> error("combat script opcode ${instruction.opcode.name} is not supported by standalone compiled battle")
             }
 
@@ -1013,8 +1136,16 @@ internal class StandaloneCompiledBattleRunner(
                 is CompiledIntExpr.Binary -> int(expr.left).applyBinary(expr.op, int(expr.right))
                 is CompiledIntExpr.If -> if (bool(expr.cond)) int(expr.thenValue) else int(expr.elseValue)
                 is CompiledIntExpr.Random -> random(int(expr.lo), int(expr.hi))
-                is CompiledIntExpr.MemberField -> readMemberField(int(expr.member), content.strings.value(expr.fieldString))
-                is CompiledIntExpr.MonsterField -> readMonsterField(int(expr.monster), content.strings.value(expr.fieldString))
+                is CompiledIntExpr.MemberField -> readMemberField(
+                    int(expr.member),
+                    content.strings.value(expr.fieldString)
+                )
+
+                is CompiledIntExpr.MonsterField -> readMonsterField(
+                    int(expr.monster),
+                    content.strings.value(expr.fieldString)
+                )
+
                 is CompiledIntExpr.BattleFlag -> readBattleFlag(content.strings.value(expr.nameString))
                 is CompiledIntExpr.BattleQuery -> readBattleQuery(content.strings.value(expr.nameString))
                 is CompiledIntExpr.RealmScalar -> readRealmScalar(content.strings.value(expr.nameString))
@@ -1023,6 +1154,7 @@ internal class StandaloneCompiledBattleRunner(
                 is CompiledIntExpr.InventorySlotCost ->
                     content.itemRecord(encounter.runtime.party.inventoryItem(int(expr.slot)) ?: return 0)?.cost
                         ?: 0
+
                 is CompiledIntExpr.NativeInt -> 0
             }
 
@@ -1034,12 +1166,20 @@ internal class StandaloneCompiledBattleRunner(
                 is CompiledBoolExpr.Or -> bool(expr.left) || bool(expr.right)
                 is CompiledBoolExpr.FlagIs -> expr.state in encounter.runtime.party.flags
                 is CompiledBoolExpr.MilestoneAchieved -> expr.milestone in encounter.runtime.party.milestones
-                is CompiledBoolExpr.MemberFlag -> readMemberFlag(int(expr.member), content.strings.value(expr.nameString))
-                is CompiledBoolExpr.MonsterFlag -> readMonsterFlag(int(expr.monster), content.strings.value(expr.nameString))
+                is CompiledBoolExpr.MemberFlag -> readMemberFlag(
+                    int(expr.member),
+                    content.strings.value(expr.nameString)
+                )
+
+                is CompiledBoolExpr.MonsterFlag -> readMonsterFlag(
+                    int(expr.monster),
+                    content.strings.value(expr.nameString)
+                )
+
                 is CompiledBoolExpr.BattleFlag -> readBattleFlag(content.strings.value(expr.nameString)) != 0
                 is CompiledBoolExpr.RuntimeFlag ->
                     content.strings.value(expr.nameString) == "in_dungeon" &&
-                        encounter.runtime.currentMode == RuntimeMode.Dungeon
+                            encounter.runtime.currentMode == RuntimeMode.Dungeon
             }
 
         private fun random(
@@ -1053,8 +1193,16 @@ internal class StandaloneCompiledBattleRunner(
 
         private fun read(target: CompiledLValue): Int =
             when (target) {
-                is CompiledLValue.MemberField -> readMemberField(int(target.member), content.strings.value(target.fieldString))
-                is CompiledLValue.MonsterField -> readMonsterField(int(target.monster), content.strings.value(target.fieldString))
+                is CompiledLValue.MemberField -> readMemberField(
+                    int(target.member),
+                    content.strings.value(target.fieldString)
+                )
+
+                is CompiledLValue.MonsterField -> readMonsterField(
+                    int(target.monster),
+                    content.strings.value(target.fieldString)
+                )
+
                 is CompiledLValue.BattleFlag -> readBattleFlag(content.strings.value(target.nameString))
                 is CompiledLValue.PartyScalar -> readPartyScalar(content.strings.value(target.nameString))
                 is CompiledLValue.RealmScalar -> readRealmScalar(content.strings.value(target.nameString))
@@ -1065,8 +1213,18 @@ internal class StandaloneCompiledBattleRunner(
             value: Int,
         ) {
             when (target) {
-                is CompiledLValue.MemberField -> writeMemberField(int(target.member), content.strings.value(target.fieldString), value)
-                is CompiledLValue.MonsterField -> writeMonsterField(int(target.monster), content.strings.value(target.fieldString), value)
+                is CompiledLValue.MemberField -> writeMemberField(
+                    int(target.member),
+                    content.strings.value(target.fieldString),
+                    value
+                )
+
+                is CompiledLValue.MonsterField -> writeMonsterField(
+                    int(target.monster),
+                    content.strings.value(target.fieldString),
+                    value
+                )
+
                 is CompiledLValue.BattleFlag -> writeBattleFlag(content.strings.value(target.nameString), value)
                 is CompiledLValue.PartyScalar -> writePartyScalar(content.strings.value(target.nameString), value)
                 is CompiledLValue.RealmScalar -> writeRealmScalar(content.strings.value(target.nameString), value)
@@ -1111,8 +1269,11 @@ internal class StandaloneCompiledBattleRunner(
                         value.coerceAtLeast(0).let { health ->
                             member.copy(health = health, hitPoints = member.hitPoints.copy(max = health))
                         }
+
                     "magic" -> member.copy(mana = member.mana.copy(current = value.coerceAtLeast(0)))
-                    "magic_max" -> value.coerceAtLeast(0).let { max -> member.copy(mana = member.mana.current.coerceAtMost(max) of max) }
+                    "magic_max" -> value.coerceAtLeast(0)
+                        .let { max -> member.copy(mana = member.mana.current.coerceAtMost(max) of max) }
+
                     "level" -> member.copy(level = value.coerceAtLeast(1))
                     "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
                     "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
@@ -1152,11 +1313,12 @@ internal class StandaloneCompiledBattleRunner(
                                 encounter.monsterHp.mapIndexed { monster, hp ->
                                     hp.takeUnless {
                                         monster ==
-                                            index
+                                                index
                                     }
                                         ?: value.coerceAtLeast(0)
                                 },
                         )
+
                     "dead" ->
                         value
                             .takeIf { it != 0 }
@@ -1166,13 +1328,14 @@ internal class StandaloneCompiledBattleRunner(
                                         encounter.monsterHp.mapIndexed { monster, hp ->
                                             hp.takeUnless {
                                                 monster ==
-                                                    index
+                                                        index
                                             }
                                                 ?: 0
                                         },
                                 )
                             }
                             ?: encounter
+
                     else -> error("unknown compiled battle monster field $field")
                 }
         }
@@ -1254,6 +1417,7 @@ internal class StandaloneCompiledBattleRunner(
                     encounter.runtime.party.counters.memberCount
                         ?: encounter.runtime.party.members
                             .count { member -> !member.dead }
+
                 else -> error("compiled battle scripts cannot read party scalar $name yet")
             }
 
@@ -1263,7 +1427,14 @@ internal class StandaloneCompiledBattleRunner(
         ) {
             encounter =
                 when (name) {
-                    "gold" -> encounter.copy(runtime = encounter.runtime.withParty(encounter.runtime.party.withGold(value)))
+                    "gold" -> encounter.copy(
+                        runtime = encounter.runtime.withParty(
+                            encounter.runtime.party.withGold(
+                                value
+                            )
+                        )
+                    )
+
                     "member_count" ->
                         encounter.copy(
                             runtime =
@@ -1275,6 +1446,7 @@ internal class StandaloneCompiledBattleRunner(
                                     ),
                                 ),
                         )
+
                     else -> error("compiled battle scripts cannot write party scalar $name yet")
                 }
         }
@@ -1306,10 +1478,23 @@ internal class StandaloneCompiledBattleRunner(
                                 .getOrNull(expr.args.single().stringArgInt())
                                 ?.let { member -> content.strings.value(member.nameString) }
                                 .orEmpty()
+
                         NativeAllowlist.combatMonsterName.path -> encounter.monsterName()
-                        NativeAllowlist.partyPronounSubject.path -> pronoun(expr.args.single().stringArgInt(), PronounCase.Subject)
-                        NativeAllowlist.partyPronounObject.path -> pronoun(expr.args.single().stringArgInt(), PronounCase.Object)
-                        NativeAllowlist.partyPronounPossessive.path -> pronoun(expr.args.single().stringArgInt(), PronounCase.Possessive)
+                        NativeAllowlist.partyPronounSubject.path -> pronoun(
+                            expr.args.single().stringArgInt(),
+                            PronounCase.Subject
+                        )
+
+                        NativeAllowlist.partyPronounObject.path -> pronoun(
+                            expr.args.single().stringArgInt(),
+                            PronounCase.Object
+                        )
+
+                        NativeAllowlist.partyPronounPossessive.path -> pronoun(
+                            expr.args.single().stringArgInt(),
+                            PronounCase.Possessive
+                        )
+
                         else -> "{${content.strings.value(expr.pathString)}}"
                     }
             }
@@ -1369,25 +1554,32 @@ internal class StandaloneCompiledBattleRunner(
         private fun CompiledInstruction.textBlockOperand(index: Int): CompiledTextBlock =
             (operands[index] as CompiledOperand.TextBlockValue).value
 
-        private fun CompiledInstruction.intOperand(index: Int): CompiledIntExpr = (operands[index] as CompiledOperand.IntExprValue).value
+        private fun CompiledInstruction.intOperand(index: Int): CompiledIntExpr =
+            (operands[index] as CompiledOperand.IntExprValue).value
 
-        private fun CompiledInstruction.boolOperand(index: Int): CompiledBoolExpr = (operands[index] as CompiledOperand.BoolExprValue).value
+        private fun CompiledInstruction.boolOperand(index: Int): CompiledBoolExpr =
+            (operands[index] as CompiledOperand.BoolExprValue).value
 
-        private fun CompiledInstruction.lvalueOperand(index: Int): CompiledLValue = (operands[index] as CompiledOperand.LValueValue).value
+        private fun CompiledInstruction.lvalueOperand(index: Int): CompiledLValue =
+            (operands[index] as CompiledOperand.LValueValue).value
 
         private fun CompiledInstruction.viewOperand(index: Int): CompiledViewCommand =
             (operands[index] as CompiledOperand.ViewCommandValue).value
 
-        private fun CompiledInstruction.handleOperand(index: Int): CompiledHandleRef = (operands[index] as CompiledOperand.Handle).ref
+        private fun CompiledInstruction.handleOperand(index: Int): CompiledHandleRef =
+            (operands[index] as CompiledOperand.Handle).ref
 
-        private fun CompiledInstruction.stringIdOperand(index: Int): Int = (operands[index] as CompiledOperand.StringId).id
+        private fun CompiledInstruction.stringIdOperand(index: Int): Int =
+            (operands[index] as CompiledOperand.StringId).id
 
-        private fun CompiledInstruction.booleanOperand(index: Int): Boolean = (operands[index] as CompiledOperand.BooleanValue).value
+        private fun CompiledInstruction.booleanOperand(index: Int): Boolean =
+            (operands[index] as CompiledOperand.BooleanValue).value
 
         private fun CompiledInstruction.instructionsOperand(index: Int): List<CompiledInstruction> =
             (operands[index] as CompiledOperand.Instructions).instructions
 
-        private fun CompiledInstruction.enumOperand(index: Int): String = (operands[index] as CompiledOperand.EnumName).name
+        private fun CompiledInstruction.enumOperand(index: Int): String =
+            (operands[index] as CompiledOperand.EnumName).name
     }
 
     private inner class StandaloneFormulaEvaluator(
@@ -1411,6 +1603,7 @@ internal class StandaloneCompiledBattleRunner(
                         bool(expr.cond) -> int(expr.thenValue)
                         else -> int(expr.elseValue)
                     }
+
                 is CompiledIntExpr.Random -> random(int(expr.lo), int(expr.hi))
                 is CompiledIntExpr.MemberField -> memberField(int(expr.member), content.strings.value(expr.fieldString))
                 is CompiledIntExpr.MonsterField,
@@ -1421,7 +1614,7 @@ internal class StandaloneCompiledBattleRunner(
                 is CompiledIntExpr.InventoryPoolCount,
                 is CompiledIntExpr.InventorySlotCost,
                 is CompiledIntExpr.NativeInt,
-                -> 0
+                    -> 0
             }
 
         private fun bool(expr: CompiledBoolExpr): Boolean =
@@ -1436,7 +1629,7 @@ internal class StandaloneCompiledBattleRunner(
                 is CompiledBoolExpr.MonsterFlag,
                 is CompiledBoolExpr.BattleFlag,
                 is CompiledBoolExpr.RuntimeFlag,
-                -> false
+                    -> false
             }
 
         private fun random(
