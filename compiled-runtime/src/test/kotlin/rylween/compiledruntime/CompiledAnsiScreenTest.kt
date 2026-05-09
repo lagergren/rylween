@@ -24,4 +24,22 @@ class CompiledAnsiScreenTest {
 
         assertEquals("${AnsiCodes.CSI}6;1H\r${AnsiCodes.CSI}9C", mapWindowCursorSequence(mapWindow, row = 0))
     }
+
+    @Test
+    fun fullScreenTextStartsAtBeginningInsteadOfTail() {
+        val lines = (1..30).map { index -> "line $index" }
+
+        assertEquals((1..24).map { index -> "line $index" }, fullScreenTextFirstPage(lines))
+    }
+
+    @Test
+    fun fullScreenPagingLeavesRoomForPrompt() {
+        val lines = (1..50).map { index -> "line $index" }
+
+        val pages = fullScreenTextPages(lines)
+
+        assertEquals(listOf(23, 23, 4), pages.map(List<String>::size))
+        assertEquals("line 1", pages.first().first())
+        assertEquals("line 50", pages.last().last())
+    }
 }

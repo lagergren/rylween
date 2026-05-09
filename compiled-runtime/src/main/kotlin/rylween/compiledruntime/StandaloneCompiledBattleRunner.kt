@@ -65,6 +65,7 @@ private const val BATTLE_GOLD = "battleGold"
 private const val BATTLE_LOOT_NAME = "battleLootName"
 private const val BATTLE_LEVEL_MEMBER_NAME = "battleLevelMemberName"
 private const val BATTLE_LEVELS_GAINED = "battleLevelsGained"
+private const val BATTLE_MESSAGE_PAGE_LINES = 9
 
 /** Result of a standalone compiled battle handoff. */
 internal data class StandaloneCompiledBattleResult(
@@ -78,6 +79,8 @@ internal class StandaloneCompiledBattleRunner(
     private val combat: ExternalRuntimeCombat,
     private val input: StandaloneInput,
     private val screen: CompiledAnsiScreen,
+    private val pausePrompts: StandalonePausePrompts,
+    private val log: StandaloneRuntimeLog? = null,
 ) {
     private val battle: ExternalStandardBattle? = combat.standardBattle
 
@@ -88,6 +91,17 @@ internal class StandaloneCompiledBattleRunner(
         val candidates = content.monsters.filter { monster -> monster.tier?.let(content::slug) == tier }
         if (candidates.isEmpty()) return StandaloneCompiledBattleResult(runtime, listOf("No compiled monsters for tier $tier."))
         val pick = runtime.party.drawRandom(0, candidates.lastIndex)
+        log?.rngDraw(
+            context = "battle.tier_monster",
+            lo = 0,
+            hi = candidates.lastIndex,
+            value = pick.value,
+            details =
+                mapOf(
+                    "tier" to tier,
+                    "monster" to content.slug(candidates[pick.value].id),
+                ),
+        )
         return runMonster(runtime.withParty(pick.party), candidates[pick.value])
     }
 
@@ -126,6 +140,14 @@ internal class StandaloneCompiledBattleRunner(
         val rules = encounter.rules
         val draw = encounter.runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
         val escaped = draw.value < rules.opening.fleeChancePercent
+        log?.rngDraw(
+            context = "battle.flee",
+            lo = 0,
+            hi = RANDOM_PERCENT_MAX,
+            value = draw.value,
+            hit = escaped,
+            details = mapOf("threshold_lt" to rules.opening.fleeChancePercent),
+        )
         val runtime = encounter.runtime.withParty(draw.party)
         return escaped
             .takeIf { it }
@@ -143,18 +165,33 @@ internal class StandaloneCompiledBattleRunner(
         initialMessages: List<String>,
     ): StandaloneCompiledBattleResult {
         var encounter = initial
-        val messages =
-            buildList {
-                addAll(initialMessages)
-                var round = 0
-                while (round < encounter.rules.roundLimit && encounter.partyHasLivingMembers() && encounter.monsterHasLivingMembers()) {
-                    if (!encounter.partyHeld) encounter = encounter.playerRound(this)
-                    if (encounter.monsterHasLivingMembers()) encounter = encounter.monsterRound(this)
-                    round++
-                }
+        var openingMessages = initialMessages
+        var round = 0
+        while (round < encounter.rules.roundLimit && encounter.partyHasLivingMembers() && encounter.monsterHasLivingMembers()) {
+            if (!encounter.partyHeld) {
+                val playerMessages = openingMessages.toMutableList()
+                openingMessages = emptyList()
+                encounter = encounter.playerRound(playerMessages)
+                showBattleMessages(playerMessages)
             }
+            if (encounter.monsterHasLivingMembers()) {
+                val monsterMessages = mutableListOf<String>()
+                encounter = encounter.monsterRound(monsterMessages)
+                showBattleMessages(monsterMessages)
+            }
+            round++
+        }
         val finished = encounter.finish()
-        return StandaloneCompiledBattleResult(finished.runtime, messages + finished.messages)
+        showBattleMessages(finished.messages)
+        return StandaloneCompiledBattleResult(finished.runtime)
+    }
+
+    private fun showBattleMessages(messages: List<String>) {
+        if (messages.isEmpty()) return
+        messages.chunked(BATTLE_MESSAGE_PAGE_LINES).forEach { page ->
+            screen.writeText(page + pausePrompts.line())
+            input.readCommand()
+        }
     }
 
     private fun ExternalStandardBattle.openingText(encounter: StandaloneBattleEncounter): List<String> =
@@ -492,16 +529,51 @@ internal class StandaloneCompiledBattleRunner(
             rules.opening.banners
                 .takeIf { banners -> banners.isNotEmpty() }
                 ?.let { banners -> party.drawRandom(0, banners.lastIndex) }
+        bannerDraw?.let { draw ->
+            log?.rngDraw(
+                context = "battle.encounter_banner",
+                lo = 0,
+                hi = rules.opening.banners.lastIndex,
+                value = draw.value,
+                details = mapOf("monster" to content.slug(monster.id)),
+            )
+        }
         party = bannerDraw?.party ?: party
         val countDraw = party.drawRandom(1, countMax.coerceAtLeast(1))
         party = countDraw.party
         val count = countDraw.value.coerceAtLeast(monster.count.first).coerceAtMost(rules.encounterFoeCountMax)
+        log?.rngDraw(
+            context = "battle.foe_count",
+            lo = 1,
+            hi = countMax.coerceAtLeast(1),
+            value = countDraw.value,
+            details =
+                mapOf(
+                    "monster" to content.slug(monster.id),
+                    "coerced" to count,
+                    "min" to monster.count.first,
+                    "max" to rules.encounterFoeCountMax,
+                ),
+        )
         val hpRange = scaledHitPointRange(monster, rules, party)
         val hitPoints =
             buildList {
-                repeat(count) {
+                repeat(count) { index ->
                     val hpDraw = party.drawRandom(1, hpRange.last)
                     party = hpDraw.party
+                    log?.rngDraw(
+                        context = "battle.foe_hp",
+                        lo = 1,
+                        hi = hpRange.last,
+                        value = hpDraw.value,
+                        details =
+                            mapOf(
+                                "monster" to content.slug(monster.id),
+                                "slot" to (index + 1),
+                                "coerced" to hpDraw.value.coerceAtLeast(hpRange.first),
+                                "min" to hpRange.first,
+                            ),
+                    )
                     add(hpDraw.value.coerceAtLeast(hpRange.first))
                 }
             }

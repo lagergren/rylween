@@ -32,6 +32,9 @@ private const val STATUSLINE_TOP = "statusline_top"
 private const val STATUSLINE_BOTTOM = "statusline_bottom"
 private const val WILDERNESS_MAP_TILES = 5
 private const val WILDERNESS_MAP_ROW_STRIDE = 2
+private const val FULL_SCREEN_WIDTH = 79
+private const val FULL_SCREEN_HEIGHT = 24
+private const val FULL_SCREEN_PAGE_LINES = FULL_SCREEN_HEIGHT - 1
 private const val SCORE_WIDTH = 76
 private const val SCORE_REPORT = "Score"
 private const val VERBOSE_SCORE_REPORT = "VerboseScore"
@@ -77,11 +80,25 @@ internal class CompiledAnsiScreen(
         log?.event("screen.static slug=$screenSlug")
         val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
         screen.image?.let(::renderImage)
-        screen.resource?.let { resource -> writeFullScreenText(resourceText(resource).lines()) }
-        screen.runtimeReport?.let { report -> writeFullScreenText(runtime.runtimeReportLines(report)) }
-        if (screen.commandHelp) {
-            writeFullScreenText(listOf("Compiled command groups: ${systems.commandGroups.joinToString()}"))
+        staticScreenText(screen, runtime).takeIf(List<String>::isNotEmpty)?.let(::writeFullScreenText)
+    }
+
+    /** Renders a compiled static screen route and pages long text with a key between pages. */
+    fun showPagedStaticScreen(
+        screenSlug: String,
+        runtime: StandaloneRuntimeState,
+        advance: () -> Char?,
+    ) {
+        classicFrameActive = false
+        log?.event("screen.static_paged slug=$screenSlug")
+        val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
+        screen.image?.let(::renderImage)
+        val lines = staticScreenText(screen, runtime)
+        if (lines.isEmpty()) {
+            advance()
+            return
         }
+        writePagedFullScreenText(lines, advance)
     }
 
     /** Renders wilderness HUD, map viewport, and text panel. */
@@ -302,12 +319,38 @@ internal class CompiledAnsiScreen(
 
     private fun writeFullScreenText(lines: List<String>) {
         terminal.writeRaw("${AnsiCodes.CSI}2J${AnsiCodes.CSI}1;1H")
-        lines.takeLast(24).forEachIndexed { index, line ->
+        fullScreenTextFirstPage(lines).forEachIndexed { index, line ->
             terminal.writeRaw("${AnsiCodes.CSI}${index + 1};1H")
-            terminal.writeRaw(line.take(79))
+            terminal.writeRaw(line.take(FULL_SCREEN_WIDTH))
         }
         terminal.flush()
     }
+
+    private fun writePagedFullScreenText(
+        lines: List<String>,
+        advance: () -> Char?,
+    ) {
+        val pages = fullScreenTextPages(lines)
+        for ((index, page) in pages.withIndex()) {
+            val lastPage = index == pages.lastIndex
+            val prompt = if (lastPage) "Press any key to return." else "Press any key for more."
+            log?.event("screen.more page=${index + 1}/${pages.size}")
+            writeFullScreenText(page + prompt)
+            if (advance() == null) return
+        }
+    }
+
+    private fun staticScreenText(
+        screen: ExternalStaticScreen,
+        runtime: StandaloneRuntimeState,
+    ): List<String> =
+        buildList {
+            screen.resource?.let { resource -> addAll(resourceText(resource).lines()) }
+            screen.runtimeReport?.let { report -> addAll(runtime.runtimeReportLines(report)) }
+            if (screen.commandHelp) {
+                add("Compiled command groups: ${systems.commandGroups.joinToString()}")
+            }
+        }
 
     private fun StandaloneRuntimeState.runtimeReportLines(report: String): List<String> =
         when (report) {
@@ -540,6 +583,13 @@ internal fun mapWindowCursorSequence(
     region: ExternalScreenRegion,
     row: Int,
 ): String = "${AnsiCodes.CSI}${mapWindowCursorRow(region, row)};1H\r${AnsiCodes.CSI}${region.x + 1}C"
+
+internal fun fullScreenTextFirstPage(lines: List<String>): List<String> = lines.take(FULL_SCREEN_HEIGHT)
+
+internal fun fullScreenTextPages(lines: List<String>): List<List<String>> =
+    lines
+        .ifEmpty { listOf("") }
+        .chunked(FULL_SCREEN_PAGE_LINES)
 
 internal fun String.readableSlug(): String =
     split('_', '-', '.')

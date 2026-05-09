@@ -55,6 +55,8 @@ private const val TITLE_SCREEN = "title"
 private const val SCORE_SCREEN = "score"
 private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
+private const val NEW_PARTY_TEMPLATE_STATE = "strong-replay"
+private const val TEXT_WINDOW_PAGE_LINES = 9
 
 /** CLI entry point for the standalone compiled-bundle runtime. */
 object RylweenCompiledRuntimeMain {
@@ -80,6 +82,7 @@ data class CompiledRuntimeConfig(
     val replayPlan: String? = null,
     val seed: Long? = null,
     val logFile: File = StandaloneRuntimeLog.defaultFile,
+    val showTitleMenu: Boolean = false,
 )
 
 private object CompiledRuntimeCli {
@@ -98,6 +101,7 @@ private object CompiledRuntimeCli {
         var replayPlan: String? = null
         var seed: Long? = null
         var logFile = StandaloneRuntimeLog.defaultFile
+        var showTitleMenu = false
         var index = 0
         while (index < args.size) {
             when (val arg = args[index]) {
@@ -137,6 +141,10 @@ private object CompiledRuntimeCli {
                     logFile = File(args.valueAfter(index, arg))
                     index += 2
                 }
+                "--title" -> {
+                    showTitleMenu = true
+                    index += 1
+                }
                 else -> error("unknown argument $arg")
             }
         }
@@ -153,6 +161,7 @@ private object CompiledRuntimeCli {
             replayPlan = replayPlan,
             seed = seed,
             logFile = logFile,
+            showTitleMenu = showTitleMenu,
         )
     }
 
@@ -170,6 +179,7 @@ private object CompiledRuntimeCli {
             |  --replay <name>   Run a named compiled-runtime replay plan.
             |  --seed <long>     Override the active party RNG seed before play.
             |  --log <file>      Runtime forensic log, default build/logs/compiled-runtime/latest.log.
+            |  --title           Show title flow even with scripted input.
             """.trimMargin(),
         )
     }
@@ -211,7 +221,7 @@ private fun CompiledRuntimeConfig.run() {
             saveFile = saveFile,
             scriptedInput = replay?.script ?: scriptedInput,
             seed = seed,
-            showTitleMenu = replay == null && scriptedInput == null && loadFile == null,
+            showTitleMenu = replay == null && loadFile == null && (showTitleMenu || scriptedInput == null),
             log = log,
         )
     }
@@ -293,6 +303,7 @@ class StandaloneCompiledRuntime private constructor(
                     commands = systems.commands,
                     input = input,
                     screen = screen,
+                    log = log,
                 )
             val utility = StandaloneUtilityActions(content, systems, input, screen)
             screen.bootFrame()
@@ -301,7 +312,7 @@ class StandaloneCompiledRuntime private constructor(
                 when (runtime.currentMode) {
                     RuntimeMode.Dungeon -> {
                         runtime =
-                            StandaloneDungeonRuntime(content, systems, input, screen, saveFile, bundleContentHash)
+                            StandaloneDungeonRuntime(content, systems, input, screen, saveFile, bundleContentHash, log)
                                 .run(runtime)
                         if (runtime.currentMode == RuntimeMode.GameOver || input.exhausted) return
                         screen.renderWilderness(runtime, world)
@@ -458,7 +469,7 @@ class StandaloneCompiledRuntime private constructor(
                 'N' if savedRuntime == null -> {
                     log.event("title.new state=$stateSlug")
                     val freshRuntime = StandaloneRuntimeState.from(stateBySlug(stateSlug), content)
-                    return seed?.let(freshRuntime::withSeed) ?: freshRuntime
+                    return runCharacterCreation(seed?.let(freshRuntime::withSeed) ?: freshRuntime, input, screen, log)
                 }
                 'C' if savedRuntime != null -> {
                     log.event("title.continue save=${saveFile.path}")
@@ -475,18 +486,15 @@ class StandaloneCompiledRuntime private constructor(
                 }
                 'S' -> {
                     log.event("title.score")
-                    screen.showStaticScreen(SCORE_SCREEN, savedRuntime ?: runtime)
-                    input.readCommand()
+                    screen.showPagedStaticScreen(SCORE_SCREEN, savedRuntime ?: runtime, input::readCommand)
                 }
                 'H' -> {
                     log.event("title.heroes")
-                    screen.showStaticScreen(HEROES_SCREEN, savedRuntime ?: runtime)
-                    input.readCommand()
+                    screen.showPagedStaticScreen(HEROES_SCREEN, savedRuntime ?: runtime, input::readCommand)
                 }
                 'D' -> {
                     log.event("title.manual")
-                    screen.showStaticScreen(MANUAL_SCREEN, savedRuntime ?: runtime)
-                    input.readCommand()
+                    screen.showPagedStaticScreen(MANUAL_SCREEN, savedRuntime ?: runtime, input::readCommand)
                 }
                 'X' -> {
                     log.event("title.exit")
@@ -533,6 +541,67 @@ class StandaloneCompiledRuntime private constructor(
             add("D. View Documentation")
             add("X. Exit")
         }
+
+    private fun runCharacterCreation(
+        baseRuntime: StandaloneRuntimeState,
+        input: StandaloneInput,
+        screen: CompiledAnsiScreen,
+        log: StandaloneRuntimeLog,
+    ): StandaloneRuntimeState? {
+        val prompts = systems.prompts.characterCreation
+        val template = StandaloneRuntimeState.from(stateBySlug(NEW_PARTY_TEMPLATE_STATE), content)
+        screen.bootFrame()
+        screen.writeText(prompts.header.render { null } + prompts.partyName.render { null })
+        val partyName = input.readText(24)?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        log.event("creation.party_name name=$partyName")
+        val runtime = baseRuntime.applyNewPartyTemplate(partyName, template)
+        screen.writeText(prompts.saving.render { null } + StandalonePausePrompts(systems.prompts).line())
+        input.readCommand()
+        return runtime
+    }
+
+    private fun StandaloneRuntimeState.applyNewPartyTemplate(
+        partyName: String,
+        template: StandaloneRuntimeState,
+    ): StandaloneRuntimeState {
+        val startPoint = party.position
+        val memberMax = partyMemberMax
+        val templateMembers = template.party.members.take(memberMax)
+        val templateNames = template.party.memberNames.take(memberMax)
+        val nextParty =
+            party.copy(
+                name = partyName,
+                position = startPoint,
+                facing = party.facing,
+                resources = party.resources,
+                counters =
+                    CompiledPartyCounters(
+                        memberCount = templateMembers.size,
+                        kills = 0,
+                        waitingMail = false,
+                        attacked = false,
+                        attackedToday = party.counters.attackedToday,
+                    ),
+                flags = emptyList(),
+                milestones = emptyList(),
+                inventory = template.party.inventory.map { slot -> slot.copy(item = null) },
+                members = templateMembers,
+                memberNames = templateNames,
+                visitedNpcs = party.visitedNpcs.map { visit -> visit.copy(visited = false) },
+                journal = emptyList(),
+            )
+        return copy(
+            hour = 9,
+            minute = 0,
+            currentMode = RuntimeMode.Wilderness,
+            currentTown = null,
+            partyMemberMax = memberMax,
+            completedMissions = emptyList(),
+            dungeon = null,
+            castle = null,
+            party = nextParty,
+        )
+    }
 
     private fun applyAction(
         result: StandaloneWildernessActionResult,
@@ -598,8 +667,12 @@ class StandaloneCompiledRuntime private constructor(
         world: StandaloneWorldMap,
         lines: List<String>,
     ) {
-        screen.writeText(lines)
-        if (input.readCommand() != null) redrawWildernessIfCurrent(screen, runtime, world)
+        val pausePrompts = StandalonePausePrompts(systems.prompts)
+        for (page in lines.chunked(TEXT_WINDOW_PAGE_LINES)) {
+            screen.writeText(page + pausePrompts.line())
+            if (input.readCommand() == null) return
+        }
+        redrawWildernessIfCurrent(screen, runtime, world)
     }
 
     private fun redrawWildernessIfCurrent(
@@ -802,6 +875,7 @@ internal data class StandaloneParty(
     val milestones: List<CompiledHandleRef>,
     val inventory: List<CompiledInventorySlot>,
     val members: List<CompiledPartyMember>,
+    val memberNames: List<String>,
     val visitedNpcs: List<CompiledNpcVisit>,
     val journal: List<CompiledJournalEntry>,
     val rngState: Long?,
@@ -874,6 +948,7 @@ internal data class StandaloneParty(
                 milestones = party.milestones,
                 inventory = party.inventory,
                 members = party.members,
+                memberNames = party.members.map { member -> content.strings.value(member.nameString) },
                 visitedNpcs = party.visitedNpcs,
                 journal = party.journal,
                 rngState = rngState,
@@ -881,6 +956,15 @@ internal data class StandaloneParty(
         }
     }
 }
+
+internal fun StandaloneParty.memberName(
+    content: CompiledContentBundle,
+    index: Int,
+): String =
+    memberNames
+        .getOrNull(index)
+        ?.takeIf(String::isNotBlank)
+        ?: members.getOrNull(index)?.let { member -> content.strings.value(member.nameString) }.orEmpty()
 
 internal data class StandaloneRandomDraw(
     val value: Int,
@@ -988,6 +1072,7 @@ internal fun CompiledTextBlock.renderStandaloneLines(
     content: CompiledContentBundle,
     intValue: (CompiledIntExpr) -> String = { "[int]" },
     stringValue: (CompiledStringExpr) -> String = { "[string]" },
+    locationValue: (CompiledHandleRef) -> String = { location -> "[location:${content.slug(location)}]" },
     runtimeValue: (CompiledRuntimeTextPart) -> String = { part -> "[${part.name}]" },
 ): List<String> =
     when (this) {
@@ -996,7 +1081,7 @@ internal fun CompiledTextBlock.renderStandaloneLines(
         is CompiledTextBlock.Structured ->
             lines.map { line ->
                 line.parts.joinToString(separator = "") { part ->
-                    part.renderStandalone(content, intValue, stringValue, runtimeValue)
+                    part.renderStandalone(content, intValue, stringValue, locationValue, runtimeValue)
                 }
             }
     }
@@ -1005,6 +1090,7 @@ private fun CompiledTextPart.renderStandalone(
     content: CompiledContentBundle,
     intValue: (CompiledIntExpr) -> String,
     stringValue: (CompiledStringExpr) -> String,
+    locationValue: (CompiledHandleRef) -> String,
     runtimeValue: (CompiledRuntimeTextPart) -> String,
 ): String =
     when (this) {
@@ -1015,7 +1101,7 @@ private fun CompiledTextPart.renderStandalone(
         is CompiledTextPart.RoleLocation -> "[role-location:${content.slug(role)}]"
         is CompiledTextPart.TownName -> content.townName(town)
         is CompiledTextPart.FuzzyTownLocation -> "${content.townName(town)} area"
-        is CompiledTextPart.LocationCoordinate -> "[location:${content.slug(location)}]"
+        is CompiledTextPart.LocationCoordinate -> locationValue(location)
         is CompiledTextPart.Runtime -> runtimeValue(kind)
     }
 

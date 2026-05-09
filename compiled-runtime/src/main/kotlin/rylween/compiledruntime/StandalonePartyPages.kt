@@ -24,11 +24,12 @@ internal object StandalonePartyPages {
     ): List<String> =
         buildList {
             add("Party: ${party.name}")
-            add("Gold ${party.resources.gold}  Food ${party.resources.food}  Torches ${party.resources.torches}")
-            add("Moves ${party.resources.timeLeft}  Rest ${party.resources.restedHours}  Kills ${party.counters.kills}")
+            add("Gold ${party.resources.gold}  Food ${party.resources.food}")
+            add("Torches ${party.resources.torches}  Moves ${party.resources.timeLeft}")
+            add("Rest ${party.resources.restedHours}  Kills ${party.counters.kills}")
             add("")
             party.members.forEachIndexed { index, member ->
-                add(memberSummary(content, index + 1, member))
+                addAll(memberSummary(content, party, index, member))
             }
             val inventory = inventoryLines(content, party)
             if (inventory.isNotEmpty()) {
@@ -54,16 +55,15 @@ internal object StandalonePartyPages {
 
     private fun memberSummary(
         content: CompiledContentBundle,
-        number: Int,
+        party: StandaloneParty,
+        index: Int,
         member: CompiledPartyMember,
-    ): String {
+    ): List<String> {
         val status = if (member.dead) "dead" else "alive"
-        val weapon = content.itemDisplayName(member.equipment.weapon)
-        val armor = content.itemDisplayName(member.equipment.armor)
-        return "$number. ${content.strings.value(member.nameString)} L${member.level} " +
-            "${member.race.name.readableSlug()} ${member.pcClass.name.readableSlug()} " +
-            "HP ${member.hitPoints.current}/${member.hitPoints.max} MP ${member.mana.current}/${member.mana.max} " +
-            "$status W:$weapon A:$armor"
+        return listOf(
+            "${index + 1}. ${party.memberName(content, index)} L${member.level} ${member.race.shortName()} ${member.pcClass.shortName()}",
+            "   HP ${member.hitPoints.current}/${member.hitPoints.max} MP ${member.mana.current}/${member.mana.max} $status",
+        )
     }
 
     private fun inventoryLines(
@@ -89,4 +89,22 @@ internal object StandalonePartyPages {
             .firstOrNull { record: CompiledItemRecord -> record.id == item }
             ?.let { record -> strings.value(record.displayNameString) }
             ?: slug(item).readableSlug()
+
+    private fun rylween.dsl.Race.shortName(): String =
+        when (this) {
+            rylween.dsl.Race.Human -> "Hum"
+            rylween.dsl.Race.Dwarf -> "Dwf"
+            rylween.dsl.Race.Elf -> "Elf"
+            rylween.dsl.Race.Halfling -> "Hlf"
+        }
+
+    private fun rylween.dsl.PcClass.shortName(): String =
+        when (this) {
+            rylween.dsl.PcClass.Fighter -> "Fgt"
+            rylween.dsl.PcClass.Priest -> "Pri"
+            rylween.dsl.PcClass.Mage -> "Mag"
+            rylween.dsl.PcClass.Thief -> "Thf"
+            rylween.dsl.PcClass.Bard -> "Brd"
+            rylween.dsl.PcClass.Ranger -> "Rgr"
+        }
 }

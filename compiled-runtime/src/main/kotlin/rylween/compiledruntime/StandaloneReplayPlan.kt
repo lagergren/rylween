@@ -239,7 +239,7 @@ internal object StandaloneCompiledReplayPlans {
                 listOf(
                     StandaloneReplayComponent(
                         name = "mission.hobgoblin_caravan_random_step",
-                        commands = "6" + waitForInput(2) + battle() + waitForInput(2) + "X",
+                        commands = "2" + waitForInput(2) + battle() + waitForInput(2) + "X",
                         checkpoints =
                             listOf(
                                 "seed:first random-step draw below hobgoblin trigger",

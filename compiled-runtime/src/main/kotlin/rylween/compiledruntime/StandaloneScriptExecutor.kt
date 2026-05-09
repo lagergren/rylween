@@ -697,7 +697,9 @@ internal class StandaloneScriptExecutor(
     }
 
     private fun runEncounter(monster: CompiledHandleRef) {
-        val battle = StandaloneCompiledBattleRunner(content, systems.combat, input, screen).runMonster(runtime, monster)
+        val battle =
+            StandaloneCompiledBattleRunner(content, systems.combat, input, screen, StandalonePausePrompts(systems.prompts))
+                .runMonster(runtime, monster)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
     }
@@ -1224,8 +1226,16 @@ internal class StandaloneScriptExecutor(
             content,
             intValue = { expr -> int(expr).toString() },
             stringValue = ::string,
+            locationValue = ::locationText,
             runtimeValue = ::runtimeText,
         )
+
+    private fun locationText(location: CompiledHandleRef): String =
+        runtime.locations
+            .firstOrNull { placement -> placement.location == location }
+            ?.point
+            ?.let(::pointText)
+            ?: content.slug(location)
 
     private fun string(expr: CompiledStringExpr): String =
         when (expr) {

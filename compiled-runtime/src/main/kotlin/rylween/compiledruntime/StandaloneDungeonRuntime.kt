@@ -39,6 +39,7 @@ internal class StandaloneDungeonRuntime(
     private val screen: CompiledAnsiScreen,
     private val saveFile: File,
     private val bundleContentHash: String,
+    private val log: StandaloneRuntimeLog? = null,
 ) {
     private val utility = StandaloneUtilityActions(content, systems, input, screen)
     private val commands = systems.commands.getValue(DUNGEON_COMMAND_GROUP)
@@ -134,7 +135,7 @@ internal class StandaloneDungeonRuntime(
         val randomEncounterTier = event.randomEncounterTier
         next =
             if (randomEncounterTier != null && program.instructions.isEmpty()) {
-                StandaloneCompiledBattleRunner(content, systems.combat, input, screen)
+                StandaloneCompiledBattleRunner(content, systems.combat, input, screen, StandalonePausePrompts(systems.prompts), log)
                     .runTier(next, content.slug(randomEncounterTier))
                     .let { battle ->
                         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
@@ -215,6 +216,7 @@ internal fun StandaloneRuntimeState.enterDungeon(
     levels: Int,
     postDungeon: StandaloneScriptContinuation? = null,
     pendingMission: CompiledHandleRef? = null,
+    log: StandaloneRuntimeLog? = null,
 ): StandaloneRuntimeState {
     var plannedParty = party
     val maxDepth = levels.coerceAtLeast(1)
@@ -228,7 +230,11 @@ internal fun StandaloneRuntimeState.enterDungeon(
         (1..maxDepth)
             .filterNot { level -> level in fixedEvents }
             .mapNotNull { level ->
-                val draw = scenario?.randomEvents.orEmpty().drawDungeonEvent(plannedParty) ?: return@mapNotNull null
+                val draw =
+                    scenario
+                        ?.randomEvents
+                        .orEmpty()
+                        .drawDungeonEvent(plannedParty, content, dungeon, level, log) ?: return@mapNotNull null
                 plannedParty = draw.party
                 level to draw.event
             }.toMap()
@@ -264,7 +270,13 @@ private data class DungeonEventDraw(
     val event: CompiledHandleRef,
 )
 
-private fun List<CompiledDungeonRandomEvent>.drawDungeonEvent(party: StandaloneParty): DungeonEventDraw? {
+private fun List<CompiledDungeonRandomEvent>.drawDungeonEvent(
+    party: StandaloneParty,
+    content: CompiledContentBundle,
+    dungeon: CompiledHandleRef,
+    level: Int,
+    log: StandaloneRuntimeLog?,
+): DungeonEventDraw? {
     if (party.rngState == null) return null
     val totalWeight = sumOf(CompiledDungeonRandomEvent::weight)
     if (totalWeight <= 0) return null
@@ -275,6 +287,18 @@ private fun List<CompiledDungeonRandomEvent>.drawDungeonEvent(party: StandaloneP
             running += random.weight
             draw.value <= running
         }.event
+    log?.rngDraw(
+        context = "dungeon.random_event",
+        lo = 1,
+        hi = totalWeight,
+        value = draw.value,
+        details =
+            mapOf(
+                "dungeon" to content.slug(dungeon),
+                "level" to level,
+                "event" to content.slug(event),
+            ),
+    )
     return DungeonEventDraw(draw.party, event)
 }
 

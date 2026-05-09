@@ -41,8 +41,7 @@ The root `run.sh` wrapper is now the closest current equivalent to
 `rylween.exe`. It builds `build/compiled/rylween-bundle.json` and
 `:compiled-runtime:installCompiledRuntime` when needed, injects the bundle path,
 and runs outside Gradle so Gradle progress output and key echo do not share the
-game screen. The older `run-compiled.sh` wrapper is retained as the same direct
-compiled-runtime entry point.
+game screen.
 
 Interactive runs without `--load`, `--script`, or `--replay` show the title
 flow first. Press any key at the splash screen, then `N` to create a new party.
@@ -50,9 +49,9 @@ Each run writes a forensic log to `build/logs/compiled-runtime/latest.log`; use
 `--log <file>` to keep a named capture instead of replacing `latest.log`.
 
 ```sh
-./run-compiled.sh --screen title
-./run-compiled.sh --script 22SX --save build/saves/compiled-runtime.rsave
-./run-compiled.sh --load build/saves/compiled-runtime.rsave
+./run.sh --screen title
+./run.sh --script 22SX --save build/saves/compiled-runtime.rsave
+./run.sh --load build/saves/compiled-runtime.rsave
 ```
 
 The compiled runtime boots directly from the bundle, renders compiled static

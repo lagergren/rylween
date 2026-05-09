@@ -1487,8 +1487,8 @@ class RylweenCompiledGameLedgerTest {
         ) {
             "compiled runtime spec must keep the battle host boundary explicit"
         }
-        check(File("run-compiled.sh").readText().contains(":compiled-runtime:installCompiledRuntime")) {
-            "run-compiled.sh must launch the standalone compiled runtime"
+        check(File("run.sh").readText().contains(":compiled-runtime:installCompiledRuntime")) {
+            "run.sh must launch the standalone compiled runtime"
         }
     }
 
