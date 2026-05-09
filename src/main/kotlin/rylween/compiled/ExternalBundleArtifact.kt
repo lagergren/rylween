@@ -12,6 +12,9 @@ import rylween.dsl.BoolAst
 import rylween.dsl.CampRulesModel
 import rylween.dsl.CastleContentModel
 import rylween.dsl.CastleTextModel
+import rylween.dsl.CharacterClassOptionModel
+import rylween.dsl.CharacterCreationModel
+import rylween.dsl.CharacterCreationStat
 import rylween.dsl.ChitchatPromptAudience
 import rylween.dsl.ChitchatSubject
 import rylween.dsl.ClassLevelUpModel
@@ -40,9 +43,11 @@ import rylween.dsl.MandatoryRunRule
 import rylween.dsl.MonsterMeleeRulesModel
 import rylween.dsl.MonsterRoundModel
 import rylween.dsl.NativeStringArg
+import rylween.dsl.PartyResources
 import rylween.dsl.PcClass
 import rylween.dsl.PlayerRoundModel
 import rylween.dsl.QuestionTopic
+import rylween.dsl.Race
 import rylween.dsl.RealmContentModel
 import rylween.dsl.Resource
 import rylween.dsl.RylweenModel
@@ -59,6 +64,7 @@ import rylween.dsl.TownSystemModel
 import rylween.dsl.WildernessFatigueMatch
 import rylween.dsl.WildernessSystemModel
 import rylween.dsl.WildernessUpkeepRules
+import rylween.dsl.WorldPosition
 import rylween.dsl.building
 import rylween.dsl.castle
 import rylween.dsl.dungeon
@@ -250,6 +256,7 @@ data class ExternalRuntimeSystems(
     val combat: ExternalRuntimeCombat,
     val score: ExternalRuntimeScore,
     val dungeon: ExternalRuntimeDungeon,
+    val characterCreation: ExternalRuntimeCharacterCreation?,
     val castleRows: List<ExternalRuntimeCastle>,
     val speak: ExternalRuntimeSpeak?,
     val wilderness: ExternalWildernessRuntime,
@@ -265,7 +272,50 @@ data class ExternalRuntimePrompts(
 data class ExternalCharacterCreationPrompts(
     val header: ExternalRuntimeTextBlock,
     val partyName: ExternalRuntimeTextBlock,
+    val statsPage: ExternalRuntimeTextBlock,
+    val reroll: ExternalRuntimeTextBlock,
+    val memberName: ExternalRuntimeTextBlock,
+    val gender: ExternalRuntimeTextBlock,
+    val genderMaleLabel: String,
+    val genderFemaleLabel: String,
+    val race: ExternalRuntimeTextBlock,
+    val classMenu: ExternalRuntimeTextBlock,
     val saving: ExternalRuntimeTextBlock,
+)
+
+data class ExternalRuntimeCharacterCreation(
+    val statRoll: ExternalCharacterCreationStatRoll,
+    val start: ExternalCharacterCreationStart,
+    val races: List<ExternalCharacterCreationRaceOption>,
+    val classes: List<ExternalCharacterCreationClassOption>,
+)
+
+data class ExternalCharacterCreationStatRoll(
+    val min: Int,
+    val max: Int,
+)
+
+data class ExternalCharacterCreationStart(
+    val map: String,
+    val position: GridPoint,
+    val facing: String?,
+    val resources: PartyResources,
+    val partyMemberMax: Int,
+    val level: Int,
+    val dailyTimeLeft: Int,
+)
+
+data class ExternalCharacterCreationRaceOption(
+    val race: Race,
+    val label: String,
+)
+
+data class ExternalCharacterCreationClassOption(
+    val pcClass: PcClass,
+    val label: String,
+    val requiredStat: CharacterCreationStat?,
+    val minimum: Int?,
+    val failureText: ExternalRuntimeTextBlock?,
 )
 
 /** Score and Hall-of-Heroes metadata exported for direct bundle runtimes. */
@@ -964,11 +1014,67 @@ private class ExternalBundleArtifactWriter {
             "commands" to commandsJson(game),
             "combat" to combatJson(game.combat, game.leveling),
             "score" to scoreRuntimeJson(game.progress, game.itemCatalog),
+            "characterCreation" to game.characterCreation?.let(::characterCreationJson).orJsonNull(),
             "wilderness" to wildernessJson(game.wilderness),
             "dungeon" to dungeonRuntimeJson(game.dungeons, game.prompts.dungeon),
             "town" to townRuntimeJson(game.townSystem),
             "speak" to speakRuntimeJson(game.speak),
             "castles" to JsonArray(game.castles.map(::castleJson)),
+        )
+
+    private fun characterCreationJson(characterCreation: CharacterCreationModel): JsonValue =
+        jsonObject(
+            "statRoll" to
+                jsonObject(
+                    "min" to JsonNumber(characterCreation.statRoll.min.toString()),
+                    "max" to JsonNumber(characterCreation.statRoll.max.toString()),
+                ),
+            "start" to characterCreationStartJson(characterCreation.start),
+            "races" to
+                JsonArray(
+                    characterCreation.races.map { option ->
+                        jsonObject(
+                            "race" to JsonString(option.race.name),
+                            "label" to JsonString(option.label),
+                        )
+                    },
+                ),
+            "classes" to JsonArray(characterCreation.classes.map(::characterCreationClassJson)),
+        )
+
+    private fun characterCreationStartJson(start: rylween.dsl.CharacterCreationStartModel): JsonValue {
+        val position =
+            when (val current = start.position) {
+                is WorldPosition.Wilderness -> current.point
+                is WorldPosition.Town -> error("runtimeSystems characterCreation start only supports wilderness positions")
+            }
+        return jsonObject(
+            "map" to JsonString(start.map.slug),
+            "position" to gridPointJson(position),
+            "facing" to start.facing?.let { JsonString(it.name) }.orJsonNull(),
+            "resources" to resourcesJson(start.resources),
+            "partyMemberMax" to JsonNumber(start.partyMemberMax.toString()),
+            "level" to JsonNumber(start.level.toString()),
+            "dailyTimeLeft" to JsonNumber(start.dailyTimeLeft.toString()),
+        )
+    }
+
+    private fun characterCreationClassJson(option: CharacterClassOptionModel): JsonValue =
+        jsonObject(
+            "pcClass" to JsonString(option.klass.name),
+            "label" to JsonString(option.label),
+            "requiredStat" to option.requiredStat?.let { JsonString(it.name) }.orJsonNull(),
+            "minimum" to option.minimum?.let { JsonNumber(it.toString()) }.orJsonNull(),
+            "failureText" to option.failureText?.let(::textBlockJson).orJsonNull(),
+        )
+
+    private fun resourcesJson(resources: PartyResources): JsonValue =
+        jsonObject(
+            "gold" to JsonNumber(resources.gold.toString()),
+            "torches" to JsonNumber(resources.torches.toString()),
+            "food" to JsonNumber(resources.food.toString()),
+            "timeLeft" to JsonNumber(resources.timeLeft.toString()),
+            "restedHours" to JsonNumber(resources.restedHours.toString()),
         )
 
     private fun scoreRuntimeJson(
@@ -2139,6 +2245,12 @@ private class ExternalRuntimeSystemsReader(
             combat = systems.requiredObject("combat").readCombat(),
             score = systems.requiredObject("score").readScore(),
             dungeon = systems.requiredObject("dungeon").readDungeon(),
+            characterCreation =
+                systems
+                    .optional("characterCreation")
+                    ?.takeUnless { it is JsonNull }
+                    ?.asObject("characterCreation")
+                    ?.readCharacterCreation(),
             castleRows = castleRows,
             speak =
                 systems
@@ -2160,6 +2272,14 @@ private class ExternalRuntimeSystemsReader(
                     ExternalCharacterCreationPrompts(
                         header = characterCreation.requiredTextPrompt("header"),
                         partyName = characterCreation.requiredTextPrompt("partyName"),
+                        statsPage = characterCreation.requiredTextPrompt("statsPage"),
+                        reroll = characterCreation.requiredTextPrompt("reroll"),
+                        memberName = characterCreation.requiredTextPrompt("memberName"),
+                        gender = characterCreation.requiredTextPrompt("gender"),
+                        genderMaleLabel = characterCreation.requiredStringPrompt("genderMaleLabel"),
+                        genderFemaleLabel = characterCreation.requiredStringPrompt("genderFemaleLabel"),
+                        race = characterCreation.requiredTextPrompt("race"),
+                        classMenu = characterCreation.requiredTextPrompt("classMenu"),
                         saving = characterCreation.requiredTextPrompt("saving"),
                     ),
             )
@@ -2181,6 +2301,65 @@ private class ExternalRuntimeSystemsReader(
         check(field.requiredString("kind") == "text") { "prompt field $name must be text" }
         return field.required("value").readTextBlock()
     }
+
+    private fun Map<String, JsonObject>.requiredStringPrompt(name: String): String {
+        val field = this[name] ?: error("missing prompt field $name")
+        check(field.requiredString("kind") == "string") { "prompt field $name must be string" }
+        return field.requiredString("value")
+    }
+
+    private fun JsonObject.readCharacterCreation(): ExternalRuntimeCharacterCreation =
+        ExternalRuntimeCharacterCreation(
+            statRoll =
+                requiredObject("statRoll").let { roll ->
+                    ExternalCharacterCreationStatRoll(
+                        min = roll.requiredInt("min"),
+                        max = roll.requiredInt("max"),
+                    )
+                },
+            start = requiredObject("start").readCharacterCreationStart(),
+            races =
+                requiredArray("races").values.map { value ->
+                    value.asObject("character creation race").let { option ->
+                        ExternalCharacterCreationRaceOption(
+                            race = option.requiredEnum("race"),
+                            label = option.requiredString("label"),
+                        )
+                    }
+                },
+            classes =
+                requiredArray("classes").values.map { value ->
+                    value.asObject("character creation class").let { option ->
+                        ExternalCharacterCreationClassOption(
+                            pcClass = option.requiredEnum("pcClass"),
+                            label = option.requiredString("label"),
+                            requiredStat = option.optionalNullableEnum("requiredStat"),
+                            minimum = option.optionalNullableInt("minimum"),
+                            failureText = option.optional("failureText")?.takeUnless { it is JsonNull }?.readTextBlock(),
+                        )
+                    }
+                },
+        )
+
+    private fun JsonObject.readCharacterCreationStart(): ExternalCharacterCreationStart =
+        ExternalCharacterCreationStart(
+            map = requiredString("map"),
+            position = requiredObject("position").readGridPoint(),
+            facing = optionalNullableString("facing"),
+            resources = requiredObject("resources").readResources(),
+            partyMemberMax = requiredInt("partyMemberMax"),
+            level = requiredInt("level"),
+            dailyTimeLeft = requiredInt("dailyTimeLeft"),
+        )
+
+    private fun JsonObject.readResources(): PartyResources =
+        PartyResources(
+            gold = requiredInt("gold"),
+            torches = requiredInt("torches"),
+            food = requiredInt("food"),
+            timeLeft = requiredInt("timeLeft"),
+            restedHours = requiredInt("restedHours"),
+        )
 
     private fun JsonObject.readScore(): ExternalRuntimeScore =
         ExternalRuntimeScore(
@@ -3644,6 +3823,9 @@ private fun JsonObject.optionalNullableInt(name: String): Int? {
 }
 
 private inline fun <reified T : Enum<T>> JsonObject.requiredEnum(name: String): T = enumValueOf(requiredString(name))
+
+private inline fun <reified T : Enum<T>> JsonObject.optionalNullableEnum(name: String): T? =
+    optionalNullableString(name)?.let(::enumValueOf)
 
 internal fun ByteArray.fnv1a32(): Int {
     var hash = 0x811c9dc5.toInt()

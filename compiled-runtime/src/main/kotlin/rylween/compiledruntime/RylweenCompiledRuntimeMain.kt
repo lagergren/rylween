@@ -19,6 +19,7 @@ package rylween.compiledruntime
 
 import rylween.compiled.CompiledBuildingService
 import rylween.compiled.CompiledContentBundle
+import rylween.compiled.CompiledEquipment
 import rylween.compiled.CompiledGameBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
@@ -38,15 +39,24 @@ import rylween.compiled.CompiledTerrain
 import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledTextPart
 import rylween.compiled.CompiledWorldPosition
+import rylween.compiled.ExternalCharacterCreationClassOption
+import rylween.compiled.ExternalCharacterCreationPrompts
+import rylween.compiled.ExternalCharacterCreationStatRoll
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
+import rylween.dsl.CharacterCreationStat
 import rylween.dsl.Facing
+import rylween.dsl.Gender
 import rylween.dsl.GridPoint
 import rylween.dsl.PartyResources
+import rylween.dsl.PcClass
+import rylween.dsl.Race
 import rylween.dsl.Resource
 import rylween.dsl.RuntimeMode
+import rylween.dsl.StatPool
 import java.io.File
 import kotlin.math.max
 import kotlin.system.exitProcess
@@ -55,7 +65,6 @@ private const val TITLE_SCREEN = "title"
 private const val SCORE_SCREEN = "score"
 private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
-private const val NEW_PARTY_TEMPLATE_STATE = "strong-replay"
 private const val TEXT_WINDOW_PAGE_LINES = 9
 
 /** CLI entry point for the standalone compiled-bundle runtime. */
@@ -548,51 +557,225 @@ class StandaloneCompiledRuntime private constructor(
         screen: CompiledAnsiScreen,
         log: StandaloneRuntimeLog,
     ): StandaloneRuntimeState? {
+        val rules = systems.characterCreation ?: error("compiled bundle has no character-creation rules")
         val prompts = systems.prompts.characterCreation
-        val template = StandaloneRuntimeState.from(stateBySlug(NEW_PARTY_TEMPLATE_STATE), content)
         screen.bootFrame()
-        screen.writeText(prompts.header.render { null } + prompts.partyName.render { null })
-        val partyName = input.readText(24)?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        screen.writeText(prompts.header.renderCreation() + prompts.partyName.renderCreation())
+        val partyName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
         log.event("creation.party_name name=$partyName")
-        val runtime = baseRuntime.applyNewPartyTemplate(partyName, template)
-        screen.writeText(prompts.saving.render { null } + StandalonePausePrompts(systems.prompts).line())
+        var runtime = baseRuntime
+        val members = mutableListOf<CompiledPartyMember>()
+        val memberNames = mutableListOf<String>()
+        while (members.size < rules.start.partyMemberMax) {
+            val memberNumber = members.size + 1
+            val statsResult = readAcceptedCreationStats(runtime, memberNumber, input, screen, log) ?: return null
+            runtime = statsResult.runtime
+            screen.writeText(prompts.memberName.renderCreation(memberNumber = memberNumber))
+            val memberName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
+            log.event("creation.member_name member=$memberNumber name=$memberName")
+            val gender =
+                readCreationChoice(
+                    screen,
+                    input,
+                    log,
+                    prompts.gender.renderCreation(memberName = memberName),
+                    creationGenderChoices(prompts),
+                    "gender",
+                )
+                    ?: return null
+            val race =
+                readCreationChoice(
+                    screen,
+                    input,
+                    log,
+                    prompts.race.renderCreation(memberName = memberName),
+                    rules.races.mapIndexed { index, option -> CreationChoice(index.digitChoiceKey(), option.label, option.race) },
+                    "race",
+                )
+                    ?: return null
+            val pcClass =
+                readCreationChoice(
+                    screen,
+                    input,
+                    log,
+                    prompts.classMenu.renderCreation(),
+                    rules.classes.mapIndexed { index, option -> CreationChoice(index.digitChoiceKey(), option.label, option) },
+                    "class",
+                )
+                    ?: return null
+            val failure = pcClass.failureFor(statsResult.stats)
+            if (failure != null) {
+                log.event(
+                    "creation.class_rejected member=$memberNumber class=${pcClass.pcClass} required=${pcClass.requiredStat} minimum=${pcClass.minimum}",
+                )
+                screen.writeText(failure.renderCreation())
+            } else {
+                log.event("creation.member_accepted member=$memberNumber gender=$gender race=$race class=${pcClass.pcClass}")
+                members += runtime.creationMember(memberNumber, gender, race, pcClass.pcClass, statsResult.stats)
+                memberNames += memberName
+            }
+        }
+        runtime = runtime.applyCreatedParty(partyName, members, memberNames)
+        screen.writeText(prompts.saving.renderCreation() + StandalonePausePrompts(systems.prompts).line())
         input.readCommand()
         return runtime
     }
 
-    private fun StandaloneRuntimeState.applyNewPartyTemplate(
+    private fun readAcceptedCreationStats(
+        runtime: StandaloneRuntimeState,
+        memberNumber: Int,
+        input: StandaloneInput,
+        screen: CompiledAnsiScreen,
+        log: StandaloneRuntimeLog,
+    ): StandaloneCreationStatsResult? {
+        var current = runtime
+        val prompts = systems.prompts.characterCreation
+        val roll = checkNotNull(systems.characterCreation).statRoll
+        while (true) {
+            val draw = current.drawCreationStats(roll, memberNumber, log)
+            current = draw.runtime
+            screen.writeText(
+                prompts.statsPage.renderCreation(memberNumber = memberNumber, stats = draw.stats) +
+                    prompts.reroll.renderCreation(),
+            )
+            val command = input.readCommand() ?: return null
+            val reroll = command == 'Y'
+            log.event("creation.reroll member=$memberNumber key=$command reroll=$reroll")
+            if (!reroll) return StandaloneCreationStatsResult(draw.stats, current)
+        }
+    }
+
+    private fun StandaloneRuntimeState.drawCreationStats(
+        roll: ExternalCharacterCreationStatRoll,
+        memberNumber: Int,
+        log: StandaloneRuntimeLog,
+    ): StandaloneCreationStatsResult {
+        var nextParty = party
+
+        fun draw(stat: String): Int {
+            val result = nextParty.drawRandom(roll.min, roll.max)
+            nextParty = result.party
+            log.event("rng.creation_stat member=$memberNumber stat=$stat range=${roll.min}..${roll.max} value=${result.value}")
+            return result.value
+        }
+        val stats =
+            StandaloneCreationStats(
+                weaponSkill = draw("weaponSkill"),
+                wisdom = draw("wisdom"),
+                health = draw("health"),
+                charisma = draw("charisma"),
+            )
+        return StandaloneCreationStatsResult(stats, withParty(nextParty))
+    }
+
+    private fun <T> readCreationChoice(
+        screen: CompiledAnsiScreen,
+        input: StandaloneInput,
+        log: StandaloneRuntimeLog,
+        prompt: List<String>,
+        choices: List<CreationChoice<T>>,
+        label: String,
+    ): T? {
+        while (true) {
+            screen.writeText(prompt + choices.menuLines())
+            val command = input.readCommand() ?: return null
+            val choice = choices.firstOrNull { choice -> choice.key == command }
+            if (choice != null) {
+                log.event("creation.choice kind=$label key=$command label=${choice.label}")
+                return choice.value
+            }
+            screen.writeText(listOf("Invalid input.", "Key: $command"))
+        }
+    }
+
+    private fun creationGenderChoices(prompts: ExternalCharacterCreationPrompts): List<CreationChoice<Gender>> =
+        listOf(
+            CreationChoice('1', prompts.genderMaleLabel, Gender.Male),
+            CreationChoice('2', prompts.genderFemaleLabel, Gender.Female),
+        )
+
+    private fun Int.digitChoiceKey(): Char = (this + 1).digitToChar()
+
+    private fun <T> List<CreationChoice<T>>.menuLines(): List<String> =
+        chunked(2).map { row -> row.joinToString("  ") { choice -> "${choice.key}. ${choice.label}".padEnd(12) }.trimEnd() }
+
+    private fun ExternalCharacterCreationClassOption.failureFor(stats: StandaloneCreationStats): ExternalRuntimeTextBlock? =
+        requiredStat?.let { stat -> minimum?.let { min -> failureText.takeIf { stats.value(stat) < min } } }
+
+    private fun StandaloneRuntimeState.creationMember(
+        memberNumber: Int,
+        gender: Gender,
+        race: Race,
+        pcClass: PcClass,
+        stats: StandaloneCreationStats,
+    ): CompiledPartyMember {
+        val blank = content.ref(CompiledHandleKind.Item, "blank")
+        return CompiledPartyMember(
+            nameString = party.members.getOrNull(memberNumber - 1)?.nameString ?: party.members.first().nameString,
+            gender = gender,
+            race = race,
+            pcClass = pcClass,
+            level = checkNotNull(systems.characterCreation).start.level,
+            health = stats.health,
+            hitPoints = StatPool(stats.health, stats.health),
+            weaponSkill = stats.weaponSkill,
+            wisdom = stats.wisdom,
+            mana = initialCreationMana(pcClass, stats.wisdom),
+            charisma = stats.charisma,
+            equipment = CompiledEquipment(blank, blank),
+            experience = 0,
+            dead = false,
+        )
+    }
+
+    private fun initialCreationMana(
+        pcClass: PcClass,
+        wisdom: Int,
+    ): StatPool =
+        when (pcClass) {
+            PcClass.Mage,
+            PcClass.Priest,
+            -> StatPool(wisdom, wisdom)
+            PcClass.Fighter,
+            PcClass.Thief,
+            PcClass.Bard,
+            PcClass.Ranger,
+            -> StatPool(0, wisdom)
+        }
+
+    private fun StandaloneRuntimeState.applyCreatedParty(
         partyName: String,
-        template: StandaloneRuntimeState,
+        members: List<CompiledPartyMember>,
+        memberNames: List<String>,
     ): StandaloneRuntimeState {
-        val startPoint = party.position
-        val memberMax = partyMemberMax
-        val templateMembers = template.party.members.take(memberMax)
-        val templateNames = template.party.memberNames.take(memberMax)
+        val rules = checkNotNull(systems.characterCreation).start
+        val memberMax = rules.partyMemberMax
         val nextParty =
             party.copy(
                 name = partyName,
-                position = startPoint,
-                facing = party.facing,
-                resources = party.resources,
+                position = rules.position,
+                facing = rules.facing?.let { facing -> enumValueOf<Facing>(facing) },
+                resources = rules.resources,
                 counters =
                     CompiledPartyCounters(
-                        memberCount = templateMembers.size,
+                        memberCount = members.size,
                         kills = 0,
                         waitingMail = false,
                         attacked = false,
-                        attackedToday = party.counters.attackedToday,
+                        attackedToday = emptyList(),
                     ),
                 flags = emptyList(),
                 milestones = emptyList(),
-                inventory = template.party.inventory.map { slot -> slot.copy(item = null) },
-                members = templateMembers,
-                memberNames = templateNames,
+                inventory = party.inventory.map { slot -> slot.copy(item = null) },
+                members = members,
+                memberNames = memberNames,
                 visitedNpcs = party.visitedNpcs.map { visit -> visit.copy(visited = false) },
                 journal = emptyList(),
             )
         return copy(
             hour = 9,
             minute = 0,
+            currentMap = content.ref(CompiledHandleKind.WorldMap, rules.map),
             currentMode = RuntimeMode.Wilderness,
             currentTown = null,
             partyMemberMax = memberMax,
@@ -971,6 +1154,32 @@ internal data class StandaloneRandomDraw(
     val party: StandaloneParty,
 )
 
+private data class StandaloneCreationStats(
+    val weaponSkill: Int,
+    val health: Int,
+    val wisdom: Int,
+    val charisma: Int,
+) {
+    fun value(stat: CharacterCreationStat): Int =
+        when (stat) {
+            CharacterCreationStat.WeaponSkill -> weaponSkill
+            CharacterCreationStat.Health -> health
+            CharacterCreationStat.Wisdom -> wisdom
+            CharacterCreationStat.Charisma -> charisma
+        }
+}
+
+private data class StandaloneCreationStatsResult(
+    val stats: StandaloneCreationStats,
+    val runtime: StandaloneRuntimeState,
+)
+
+private data class CreationChoice<T>(
+    val key: Char,
+    val label: String,
+    val value: T,
+)
+
 internal data class StandaloneMoveResult(
     val party: StandaloneParty,
     val event: StandaloneMoveEvent? = null,
@@ -1067,6 +1276,25 @@ internal class StandaloneInput(
 }
 
 private const val DEFAULT_TEXT_INPUT_LIMIT = 80
+
+private fun ExternalRuntimeTextBlock.renderCreation(
+    memberNumber: Int? = null,
+    memberName: String? = null,
+    stats: StandaloneCreationStats? = null,
+): List<String> =
+    render { kind ->
+        when (kind) {
+            "creationMemberNumber" -> memberNumber?.toString()
+            "creationMemberName" -> memberName
+            "creationWeaponSkill" -> stats?.weaponSkill?.toString()
+            "creationHealth" -> stats?.health?.toString()
+            "creationWisdom" -> stats?.wisdom?.toString()
+            "creationCharisma" -> stats?.charisma?.toString()
+            else -> null
+        }
+    }
+
+private fun String.normalizedCreationName(): String = trim().replaceFirstChar(Char::uppercaseChar)
 
 internal fun CompiledTextBlock.renderStandaloneLines(
     content: CompiledContentBundle,

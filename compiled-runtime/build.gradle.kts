@@ -51,6 +51,8 @@ val compiledRuntimeFullPlaythroughSaveFile: Provider<RegularFile> =
     layout.buildDirectory.file("tmp/checkCompiledRuntimeFullPlaythrough/compiled-runtime-win.rsave")
 val compiledRuntimeAcceptanceSaveFile: Provider<RegularFile> =
     layout.buildDirectory.file("tmp/checkCompiledRuntimeAcceptancePlaythrough/compiled-runtime-acceptance.rsave")
+val compiledRuntimeNewPartySaveFile: Provider<RegularFile> =
+    layout.buildDirectory.file("tmp/checkCompiledRuntimeNewPartyCreation/compiled-runtime-new-party.rsave")
 val compiledRuntimeJar: TaskProvider<Jar> = tasks.named<Jar>("jar")
 val compiledRuntimeJarFile: Provider<RegularFile> = compiledRuntimeJar.flatMap { it.archiveFile }
 val rootRuntimeJar: TaskProvider<Jar> = rootProject.tasks.named<Jar>("jar")
@@ -141,6 +143,73 @@ val checkCompiledRuntimeBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTas
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
     screen.set("title")
+}
+
+val checkCompiledRuntimeNewPartyCreation: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs title-menu party creation through reroll, gender, race, and class selection."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    script.set(
+        listOf(
+            "x",
+            "N",
+            "\"Debuggers\"",
+            "Y",
+            "Y",
+            "N",
+            "\"Ada\"",
+            "1",
+            "1",
+            "2",
+            "N",
+            "\"Bryn\"",
+            "2",
+            "2",
+            "6",
+            "N",
+            "\"Cato\"",
+            "1",
+            "3",
+            "2",
+            "N",
+            "\"Dina\"",
+            "2",
+            "4",
+            "6",
+            "Z",
+            "S",
+            "V",
+            "Z",
+        ).joinToString(" "),
+    )
+    title.set(true)
+    saveFile.set(compiledRuntimeNewPartySaveFile)
+    resetSaveFile.set(true)
+    expectedOutputContains.set(
+        listOf(
+            "Party Creation",
+            "Stats for char: 1",
+            "Give Character 4 a name!",
+            "1. Human",
+            "6. Ranger",
+            "Game saved.",
+            "Party: Debuggers",
+            "1. Ada L1 Hum Thf",
+            "4. Dina L1 Hlf Rgr",
+        ),
+    )
 }
 
 val checkCompiledRuntimeTownScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
@@ -611,6 +680,7 @@ val checkCompiledRuntimeAcceptanceHeroesScreen: TaskProvider<RunInstalledLaunche
 
 tasks.check {
     dependsOn(checkCompiledRuntimeBundleBoot)
+    dependsOn(checkCompiledRuntimeNewPartyCreation)
     dependsOn(checkCompiledRuntimeTownScript)
     dependsOn(checkCompiledRuntimeTownDialogueReplay)
     dependsOn(checkCompiledRuntimeTownMissionIntroReplay)
