@@ -86,6 +86,7 @@ object RylweenCompiledRuntimeMain {
 data class CompiledRuntimeConfig(
     val bundleFile: File,
     val stateSlug: String = "fresh-replay",
+    val stateExplicit: Boolean = false,
     val loadFile: File? = null,
     val saveFile: File = File("build/saves/compiled-runtime.rsave"),
     val staticScreen: String? = null,
@@ -106,6 +107,7 @@ private object CompiledRuntimeCli {
 
         var bundleFile: File? = null
         var stateSlug = "fresh-replay"
+        var stateExplicit = false
         var loadFile: File? = null
         var saveFile = File("build/saves/compiled-runtime.rsave")
         var staticScreen: String? = null
@@ -125,6 +127,7 @@ private object CompiledRuntimeCli {
 
                 "--state" -> {
                     stateSlug = args.valueAfter(index, arg)
+                    stateExplicit = true
                     index += 2
                 }
 
@@ -182,6 +185,7 @@ private object CompiledRuntimeCli {
         return CompiledRuntimeConfig(
             bundleFile = checkNotNull(bundleFile) { "--bundle is required" },
             stateSlug = stateSlug,
+            stateExplicit = stateExplicit,
             loadFile = loadFile,
             saveFile = saveFile,
             staticScreen = staticScreen,
@@ -200,7 +204,7 @@ private object CompiledRuntimeCli {
             |Usage: rylween-compiled --bundle build/compiled/rylween-bundle.json [options]
             |
             |Options:
-            |  --state <slug>    Boot compiled state image, default fresh-replay.
+            |  --state <slug>    Boot compiled state image directly, default fresh-replay.
             |  --load <file>     Load a standalone compiled-runtime save.
             |  --save <file>     Save target for the S command, default build/saves/compiled-runtime.rsave.
             |  --screen <slug>   Render one compiled static screen and exit.
@@ -252,7 +256,7 @@ private fun CompiledRuntimeConfig.run() {
             saveFile = saveFile,
             scriptedInput = replay?.script ?: scriptedInput,
             seed = seed,
-            showTitleMenu = replay == null && loadFile == null && (showTitleMenu || scriptedInput == null),
+            showTitleMenu = replay == null && loadFile == null && (showTitleMenu || scriptedInput == null && !stateExplicit),
             debugLogFlash = debugLogFlash,
             log = log,
         )
