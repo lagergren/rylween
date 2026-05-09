@@ -1120,6 +1120,7 @@ data class CompiledShopSell(
 data class CompiledShopSaleKeys(
     val accept: CompiledInputBinding,
     val decline: CompiledInputBinding,
+    val bargain: CompiledInputBinding,
 )
 
 data class CompiledShopInterlude(
@@ -1130,6 +1131,7 @@ data class CompiledShopInterlude(
     val accepted: List<CompiledTextBlock>,
     val declined: CompiledTextBlock,
     val runsRumourAfterAccept: Boolean,
+    val forceFirstUntil: CompiledHandleRef? = null,
 )
 
 data class CompiledStateImage(
@@ -2069,7 +2071,11 @@ private class CompiledBundleCompiler(
             sold = sell.sold?.let(::text),
             price = shopPrice(sell.price),
             bargain = sell.bargain,
-            saleKeys = CompiledShopSaleKeys(binding(sell.saleKeys.accept), binding(sell.saleKeys.decline)),
+            saleKeys = CompiledShopSaleKeys(
+                binding(sell.saleKeys.accept),
+                binding(sell.saleKeys.decline),
+                binding(sell.saleKeys.bargain),
+            ),
         )
 
     private fun shopInterlude(interlude: ShopInterludeModel): CompiledShopInterlude =
@@ -2081,6 +2087,7 @@ private class CompiledBundleCompiler(
             accepted = interlude.accepted.map(::text),
             declined = text(interlude.declined),
             runsRumourAfterAccept = interlude.runsRumourAfterAccept,
+            forceFirstUntil = interlude.forceFirstUntil?.let { state -> flagStateRef(state.flag.slug, state.native) },
         )
 
     private fun compileItem(item: ItemRecordModel): CompiledItemRecord =

@@ -357,7 +357,7 @@ internal class StandaloneScriptExecutor(
             CompiledOpcode.ShopService ->
                 continueAfter {
                     runtime =
-                        StandaloneCompiledShopService(content, systems.realm, input, screen, log)
+                        StandaloneCompiledShopService(content, systems, input, screen, log)
                             .run(instruction.shopServiceOperand(0), runtime)
                 }
 

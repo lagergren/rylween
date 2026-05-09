@@ -2035,6 +2035,7 @@ data class ShopInterludeModel(
     val accepted: List<TextBlock>,
     val declined: TextBlock,
     val runsRumourAfterAccept: Boolean,
+    val forceFirstUntil: FlagState?,
 ) {
     val acceptKey: Char get() = accept.primaryChar
     val declineKey: Char get() = decline.primaryChar
@@ -2054,6 +2055,7 @@ data class ShopPurchaseKeysModel(
 data class ShopSaleKeysModel(
     val accept: InputBindingModel = inputKey('Y'),
     val decline: InputBindingModel = inputKey('N'),
+    val bargain: InputBindingModel = inputKey('B', label = "Bargain"),
 )
 
 data class ShopServiceModel(
@@ -4079,6 +4081,7 @@ class ShopInterludeBuilder(
     private var acceptBinding: InputBindingModel = inputKey('A')
     private var declineBinding: InputBindingModel = inputKey('D')
     var runsRumourAfterAccept: Boolean = false
+    private var forceFirstUntilState: FlagState? = null
 
     var acceptKey: Char
         get() = acceptBinding.primaryChar
@@ -4097,6 +4100,10 @@ class ShopInterludeBuilder(
     ) {
         acceptBinding = accept
         declineBinding = decline
+    }
+
+    fun forceFirstUntil(state: FlagState) {
+        forceFirstUntilState = state
     }
 
     fun offer(vararg lines: String) {
@@ -4132,6 +4139,7 @@ class ShopInterludeBuilder(
             accepted = acceptedTexts.toList(),
             declined = requireNotNull(declinedText) { "shop interlude requires declined text" },
             runsRumourAfterAccept = runsRumourAfterAccept,
+            forceFirstUntil = forceFirstUntilState,
         )
 }
 
@@ -4565,8 +4573,9 @@ class ShopSaleKeysBuilder(
 ) {
     var accept: InputBindingModel = initial.accept
     var decline: InputBindingModel = initial.decline
+    var bargain: InputBindingModel = initial.bargain
 
-    fun build(): ShopSaleKeysModel = ShopSaleKeysModel(accept, decline)
+    fun build(): ShopSaleKeysModel = ShopSaleKeysModel(accept, decline, bargain)
 }
 
 class ElseBranch(

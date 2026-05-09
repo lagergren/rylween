@@ -400,11 +400,12 @@ internal object StandaloneCompiledReplayPlans {
                     ),
                     StandaloneReplayComponent(
                         name = "town.thord_service_social_circuit",
-                        commands = "E4L2!NNNL3N",
+                        commands = "E4DAL2!NNNL3N",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
                                 "output:The smith welcomes you",
+                                "output:The smith offers you some",
                                 "output:Do you want supper,",
                                 "output:The innkeeper leaves.",
                                 "output:Welcome! Have a seat",
@@ -436,14 +437,17 @@ internal object StandaloneCompiledReplayPlans {
                     ),
                     StandaloneReplayComponent(
                         name = "town.thord_smith_buy_sell_haggle",
-                        commands = "4BA1NBWN8PASBASCYALL",
+                        commands = "4DABA1NBWN8PASBASCYASDBYALL",
                         checkpoints =
                             listOf(
                                 "output:The smith welcomes you",
+                                "output:The smith offers you some",
+                                "output:The smith is disappointed.",
                                 "output:Armor or Weapon?",
                                 "output:2h-Sword",
                                 "output:Not weapon or armor.",
-                                "output:Ok! Give ya",
+                                "output:Ok! Give ya 2900!",
+                                "output:Ok! Give ya 450!",
                                 "rng:shop.sell.haggle",
                             ),
                     ),

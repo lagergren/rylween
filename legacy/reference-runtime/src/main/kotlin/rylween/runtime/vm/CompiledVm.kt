@@ -108,6 +108,7 @@ import rylween.dsl.ViewCommand
 import rylween.dsl.inputKey
 import rylween.dsl.matches
 import rylween.dsl.pronoun
+import rylween.dsl.runtimeFlagState
 import rylween.engine.EngineRequest
 import rylween.engine.EngineTraceEvent
 import rylween.frontend.terminal.TerminalTextContext
@@ -2685,10 +2686,16 @@ class CompiledVm(
             rejectedItems = sell.rejectedItems.map(index::item).toSet(),
             wrongKind = traceTextBlock(sell.wrongKind),
             offer = traceTextBlock(sell.offer),
+            declined = sell.declined?.let(::traceTextBlock),
             sold = sell.sold?.let(::traceTextBlock),
             price = shopPrice(sell.price),
             bargain = sell.bargain,
-            saleKeys = ShopSaleKeysModel(inputBinding(sell.saleKeys.accept), inputBinding(sell.saleKeys.decline)),
+            saleKeys =
+                ShopSaleKeysModel(
+                    inputBinding(sell.saleKeys.accept),
+                    inputBinding(sell.saleKeys.decline),
+                    inputBinding(sell.saleKeys.bargain),
+                ),
         )
 
     private fun shopInterlude(interlude: CompiledShopInterlude): ShopInterludeModel =
@@ -2700,6 +2707,10 @@ class CompiledVm(
             accepted = interlude.accepted.map(::traceTextBlock),
             declined = traceTextBlock(interlude.declined),
             runsRumourAfterAccept = interlude.runsRumourAfterAccept,
+            forceFirstUntil =
+                interlude.forceFirstUntil?.let { state ->
+                    runtimeFlagState(index.slug(state).substringBeforeLast('.'), index.flagNative(state))
+                },
         )
 
     private fun traceTextBlock(block: CompiledTextBlock): TextBlock =

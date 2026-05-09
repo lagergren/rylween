@@ -97,7 +97,7 @@ class RylweenCompiledGameLedgerTest {
         val townSystem = checkNotNull(nextDsl.townSystem)
         val castleContent = nextDsl.castles.single { it.id == Castles.ydarg }
 
-        check(nextDsl.flags.size == 13)
+        check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 13)
         check(nextDsl.itemCatalog.size == 63)
         check(nextDsl.itemCatalog.single { it.id == Items.redPotion }.kind == ItemKind.Potion)

@@ -1738,6 +1738,9 @@ fun validateScriptRewards(
                 validateTextBlock(text, "shop ${shop.building.slug} interlude accepted $index")
             }
             validateTextBlock(interlude.declined, "shop ${shop.building.slug} interlude declined")
+            interlude.forceFirstUntil?.let { state ->
+                flagStates?.requireKnown(state, "shop ${shop.building.slug} interlude first-offer flag")
+            }
         }
 
         shop.buy?.let { buy ->
@@ -1862,8 +1865,12 @@ fun validateScriptRewards(
             validateShopPrice(sell.price, "shop ${shop.building.slug} sell")
             validateInputChoiceBinding(sell.saleKeys.accept, "shop ${shop.building.slug} sale accept key")
             validateInputChoiceBinding(sell.saleKeys.decline, "shop ${shop.building.slug} sale decline key")
+            sell.bargain?.let {
+                validateInputChoiceBinding(sell.saleKeys.bargain, "shop ${shop.building.slug} sale bargain key")
+            }
             checkUniqueBindings(
-                listOf(sell.saleKeys.accept, sell.saleKeys.decline),
+                listOf(sell.saleKeys.accept, sell.saleKeys.decline) +
+                    listOfNotNull(sell.saleKeys.bargain.takeIf { sell.bargain != null }),
                 "shop ${shop.building.slug} sale confirmation",
             )
             check(sell.acceptedKinds.isNotEmpty() || sell.acceptedItems.isNotEmpty()) {

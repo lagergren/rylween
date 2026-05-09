@@ -71,6 +71,9 @@ val nextRylween: RylweenModel = rylween {
                 Story.church.donationOnce.yes,
             )
         }
+        story(Story.smith.beerOffer) {
+            states(Story.smith.beerOffer.offered)
+        }
         story(Story.silverKey) {
             states(
                 Story.silverKey.none,
@@ -3852,6 +3855,7 @@ val nextRylween: RylweenModel = rylween {
             goodbye("Well, bye then...")
 
             interlude(chancePercent = 9) {
+                forceFirstUntil(Story.smith.beerOffer.offered)
                 offer(
                     "The smith offers you some",
                     "beer, and the latest news",

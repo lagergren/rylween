@@ -30,7 +30,7 @@ import java.io.File
 import kotlin.enums.enumEntries
 
 private const val NATIVE_SMOKE_MAGIC = "RYLSMOKE"
-private const val NATIVE_SMOKE_VERSION = 2
+private const val NATIVE_SMOKE_VERSION = 3
 private const val NATIVE_SMOKE_FALSE = 0
 private const val NATIVE_SMOKE_TRUE = 1
 
@@ -644,6 +644,7 @@ private class NativeSmokeArtifactWriter {
         nullable(sell.bargain, ::shopBargain)
         inputBinding(sell.saleKeys.accept)
         inputBinding(sell.saleKeys.decline)
+        inputBinding(sell.saleKeys.bargain)
     }
 
     private fun shopBargain(bargain: ShopSellBargainModel) {
@@ -662,6 +663,7 @@ private class NativeSmokeArtifactWriter {
         list(interlude.accepted, ::textBlock)
         textBlock(interlude.declined)
         bool(interlude.runsRumourAfterAccept)
+        nullable(interlude.forceFirstUntil, ::handleRef)
     }
 
     private fun tag(

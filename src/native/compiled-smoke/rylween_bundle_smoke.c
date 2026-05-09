@@ -23,7 +23,7 @@ typedef struct {
 
 enum {
     SMOKE_INVALID_STRING_ID = 0U,
-    SMOKE_VERSION = 2U,
+    SMOKE_VERSION = 3U,
     SMOKE_FALSE = 0U,
     SMOKE_TRUE = 1U
 };
@@ -267,6 +267,12 @@ static void parse_optional_int(Reader *reader) {
 static void parse_optional_string_ref(Reader *reader) {
     if (read_optional_present(reader)) {
         read_string_ref(reader);
+    }
+}
+
+static void parse_optional_handle_ref(Reader *reader) {
+    if (read_optional_present(reader)) {
+        (void)read_handle_ref(reader);
     }
 }
 
@@ -686,8 +692,10 @@ static void parse_shop_sell(Reader *reader) {
     parse_text_block(reader);
     parse_text_block(reader);
     parse_optional_text_block(reader);
+    parse_optional_text_block(reader);
     parse_shop_price(reader);
     parse_optional_shop_bargain(reader);
+    parse_input_binding(reader);
     parse_input_binding(reader);
     parse_input_binding(reader);
 }
@@ -703,6 +711,7 @@ static void parse_shop_interlude(Reader *reader) {
     }
     parse_text_block(reader);
     read_bool(reader);
+    parse_optional_handle_ref(reader);
 }
 
 static void parse_optional_shop_buy(Reader *reader) {
