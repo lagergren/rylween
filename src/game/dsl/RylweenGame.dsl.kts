@@ -3690,44 +3690,43 @@ val nextRylween: RylweenModel = rylween {
                         }
                         pause(1200)
                         breakLoop("corpse exits the church service")
-                    }
-
-                    whenever(m.hp eq m.maxHp) {
-                        screen {
-                            line(pronoun(m, PronounCase.Subject), " needs no healing.")
-                        }
-                        pause(1000)
-                        stop("already fully healed")
-                    }
-
-                    val price = localInt((m.maxHp - m.hp) * 7)
-                    clearText()
-                    screen {
-                        line("- That'll be ", price)
-                        line("gold coins, please.")
-                        line("")
-                    }
-
-                    choice.payNoThanks(price,
-                        broke = {
+                    } otherwise {
+                        whenever(m.hp eq m.maxHp) {
                             screen {
-                                lines(
-                                    "You don't have enough",
-                                    "gold!",
-                                )
+                                line(partyName(m), " needs no healing.")
                             }
                             pause(1000)
-                        },
-                        paid = {
+                        } otherwise {
+                            val price = localInt((m.maxHp - m.hp) * 7)
                             clearText()
-                            m.hp set m.maxHp
                             screen {
-                                line("The priestess heals")
-                                line(pronoun(m, PronounCase.Object), " fully.")
+                                line("- That'll be ", price)
+                                line("gold coins, please.")
+                                line("")
                             }
-                            pause(1000)
-                        },
-                    )
+
+                            choice.payNoThanks(price,
+                                broke = {
+                                    screen {
+                                        lines(
+                                            "You don't have enough",
+                                            "gold!",
+                                        )
+                                    }
+                                    pause(1000)
+                                },
+                                paid = {
+                                    clearText()
+                                    m.hp set m.maxHp
+                                    screen {
+                                        line("The priestess heals")
+                                        line(pronoun(m, PronounCase.Object), " fully.")
+                                    }
+                                    pause(1000)
+                                },
+                            )
+                        }
+                    }
                 }
 
                 option('E') {
@@ -3742,48 +3741,46 @@ val nextRylween: RylweenModel = rylween {
                         clearText()
                         screen("Not a spellcaster!")
                         pause(1000)
-                        stop("not a spellcaster")
-                    }
-
-                    whenever(m.mp eq m.wisdom) {
-                        clearText()
-                        screen {
-                            lines(
-                                "That character needs",
-                                "no spell points",
-                                "to be restored.",
-                            )
-                        }
-                        pause(2000)
-                        stop("spell points already restored")
-                    }
-
-                    clearText()
-                    val price = localInt(m.level * (m.wisdom - m.mp) * 2)
-                    screen {
-                        line("- That will be ", price)
-                        line("gold coins, please.")
-                        line("")
-                    }
-
-                    choice.payNoThanks(price,
-                        broke = {
-                            clearText()
-                            screen("You don't have the gold!")
-                            pause(1000)
-                        },
-                        paid = {
-                            m.mp set m.wisdom
+                    } otherwise {
+                        whenever(m.mp eq m.wisdom) {
                             clearText()
                             screen {
                                 lines(
-                                    "The priestess",
-                                    "restores his energy.",
+                                    "That character needs",
+                                    "no spell points",
+                                    "to be restored.",
                                 )
                             }
-                            pause(1000)
-                        },
-                    )
+                            pause(2000)
+                        } otherwise {
+                            clearText()
+                            val price = localInt(m.level * (m.wisdom - m.mp) * 2)
+                            screen {
+                                line("- That will be ", price)
+                                line("gold coins, please.")
+                                line("")
+                            }
+
+                            choice.payNoThanks(price,
+                                broke = {
+                                    clearText()
+                                    screen("You don't have the gold!")
+                                    pause(1000)
+                                },
+                                paid = {
+                                    m.mp set m.wisdom
+                                    clearText()
+                                    screen {
+                                        lines(
+                                            "The priestess",
+                                            "restores his energy.",
+                                        )
+                                    }
+                                    pause(1000)
+                                },
+                            )
+                        }
+                    }
                 }
 
                 option('R') {
@@ -3801,35 +3798,34 @@ val nextRylween: RylweenModel = rylween {
                             line("at the moment.")
                         }
                         pause(1200)
-                        stop("already alive")
-                    }
+                    } otherwise {
+                        clearText()
+                        val price = localInt(m.level * 650)
+                        screen {
+                            line("- That will be ", price)
+                            line("gold coins, please.")
+                            line("")
+                        }
 
-                    clearText()
-                    val price = localInt(m.level * 650)
-                    screen {
-                        line("- That will be ", price)
-                        line("gold coins, please.")
-                        line("")
+                        choice.payNoThanks(price,
+                            broke = {
+                                clearText()
+                                screen("You don't have the gold!")
+                                pause(1000)
+                            },
+                            paid = {
+                                m.hp set 1
+                                m.dead set false
+                                party.memberCount += 1
+                                clearText()
+                                screen {
+                                    line("The priestess raises")
+                                    line(pronoun(m, PronounCase.Object), ".")
+                                }
+                                pause(1000)
+                            },
+                        )
                     }
-
-                    choice.payNoThanks(price,
-                        broke = {
-                            clearText()
-                            screen("You don't have the gold!")
-                            pause(1000)
-                        },
-                        paid = {
-                            m.hp set 1
-                            m.dead set false
-                            party.memberCount += 1
-                            clearText()
-                            screen {
-                                line("The priestess raises")
-                                line(pronoun(m, PronounCase.Object), ".")
-                            }
-                            pause(1000)
-                        },
-                    )
                 }
 
                 option('L') {
@@ -3932,6 +3928,7 @@ val nextRylween: RylweenModel = rylween {
                     line("Ok! Give ya ", price, "!")
                     line("")
                 }
+                declined("No thanks.")
                 bargain {
                     bonus(rollGreaterThan = 90, addCurrentDivisor = 4)
                     bonus(rollGreaterThan = 75, addCurrentDivisor = 6)
@@ -4264,6 +4261,7 @@ val nextRylween: RylweenModel = rylween {
                     line("- Ok. Give ya ", price, "!")
                     line("")
                 }
+                declined("No thanks.")
                 sold("Sold!")
             }
         }
@@ -6828,7 +6826,7 @@ val nextRylween: RylweenModel = rylween {
             }
 
             members {
-                member("Fighter") {
+                member("Aragorn") {
                     gender = Gender.Male
                     race = Race.Human
                     klass = PcClass.Fighter
@@ -6847,7 +6845,7 @@ val nextRylween: RylweenModel = rylween {
                     alive()
                 }
 
-                member("Ranger") {
+                member("Legolas") {
                     gender = Gender.Female
                     race = Race.Elf
                     klass = PcClass.Ranger
@@ -6866,7 +6864,7 @@ val nextRylween: RylweenModel = rylween {
                     alive()
                 }
 
-                member("Mage") {
+                member("Gandalf") {
                     gender = Gender.Male
                     race = Race.Elf
                     klass = PcClass.Mage
@@ -6885,7 +6883,124 @@ val nextRylween: RylweenModel = rylween {
                     alive()
                 }
 
-                member("Priest") {
+                member("Mira") {
+                    gender = Gender.Female
+                    race = Race.Human
+                    klass = PcClass.Priest
+                    level = 1
+                    health = 82
+                    hitPoints = 82 of 82
+                    weaponSkill = 74
+                    wisdom = 90
+                    mana = 90 of 90
+                    charisma = 80
+                    equipped {
+                        weapon = Items.magicAxe
+                        armor = Items.chainMail
+                    }
+                    experience = 0
+                    alive()
+                }
+            }
+        }
+    }
+
+    // Focused Thord fixture for compiled-runtime service coverage. It starts
+    // directly on the town tile so replay seeds are reserved for town systems
+    // such as smith haggling, tavern offers, rumours, and chitchat.
+    stateFixture(stateId("town-services-replay")) {
+        realm {
+            day = 14
+            hour = 9
+            rngState = 1L
+            activeParty = Parties.playtest
+            wilderness(Maps.wilderness)
+        }
+
+        party(Parties.playtest) {
+            player = "playtest"
+            name = "Playtest"
+            position = Wilderness.xy(12, 11)
+            facing = Facing.North
+
+            resources {
+                gold = 10000
+                torches = 40
+                food = 140
+                timeLeft = 200
+                restedHours = 14
+            }
+
+            inventory {
+                slot(1).item(Items.redPotion)
+                slot(2).item(Items.blanket)
+                slot(3).item(Items.mithrilMail)
+                slot(4).item(Items.crossbow)
+                slot(5).item(Items.fireWand)
+                slot(6).item(Items.ration)
+                slot(7).empty()
+                slot(8).empty()
+            }
+
+            members {
+                member("Aragorn") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Fighter
+                    level = 1
+                    health = 88
+                    hitPoints = 40 of 88
+                    weaponSkill = 95
+                    wisdom = 72
+                    mana = 0 of 72
+                    charisma = 78
+                    equipped {
+                        weapon = Items.magicSword
+                        armor = Items.mithrilMail
+                    }
+                    experience = 0
+                    alive()
+                }
+
+                member("Legolas") {
+                    gender = Gender.Female
+                    race = Race.Elf
+                    klass = PcClass.Ranger
+                    level = 1
+                    health = 84
+                    hitPoints = 0 of 84
+                    weaponSkill = 88
+                    wisdom = 74
+                    mana = 0 of 74
+                    charisma = 86
+                    equipped {
+                        weapon = Items.crossbow
+                        armor = Items.elvinCloak
+                    }
+                    experience = 0
+                    dead()
+                }
+
+                member("Gandalf") {
+                    gender = Gender.Male
+                    race = Race.Elf
+                    klass = PcClass.Mage
+                    level = 1
+                    health = 76
+                    hitPoints = 76 of 76
+                    weaponSkill = 72
+                    wisdom = 92
+                    mana = 10 of 92
+                    charisma = 74
+                    equipped {
+                        weapon = Items.magicDagger
+                        armor = Items.leather
+                    }
+                    experience = 0
+                    alive()
+                }
+
+                member("Mira") {
                     gender = Gender.Female
                     race = Race.Human
                     klass = PcClass.Priest

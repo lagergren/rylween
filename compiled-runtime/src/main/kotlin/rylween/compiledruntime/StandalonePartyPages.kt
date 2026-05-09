@@ -65,14 +65,14 @@ internal object StandalonePartyPages {
     ): List<String> =
         listOf(
             "${index + 1}. ${party.memberName(content, index)}",
-            "Class: ${member.pcClass.readableName()}",
-            "Race: ${member.race.readableName()}  ${member.gender.readableName()}",
-            "Level: ${member.level}  ${member.statusName()}",
-            "HP: ${member.hitPoints.current}/${member.hitPoints.max}  MP: ${member.mana.current}/${member.mana.max}",
-            "Health: ${member.health}  WS: ${member.weaponSkill}",
-            "Wisdom: ${member.wisdom}  CHA: ${member.charisma}",
+            "${member.race.readableName()} ${member.pcClass.readableName()}",
+            "Skill ${member.weaponSkill}  HP ${member.hitPoints.current}/${member.hitPoints.max}",
+            "Health ${member.health}  Wisdom ${member.wisdom}",
+            "Charisma ${member.charisma}  Magic ${member.mana.current}/${member.mana.max}",
+            "Level ${member.level}  XP ${member.experience}",
             "Weapon: ${content.itemDisplayName(member.equipment.weapon)}",
             "Armor: ${content.itemDisplayName(member.equipment.armor)}",
+            "Status: ${member.statusName()}",
         )
 
     private fun inventoryPages(

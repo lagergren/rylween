@@ -597,6 +597,7 @@ private class NativePathCollector {
         collect(sell.prompt)
         collect(sell.wrongKind)
         collect(sell.offer)
+        sell.declined?.let(::collect)
         sell.sold?.let(::collect)
     }
 }

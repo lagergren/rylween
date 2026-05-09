@@ -158,9 +158,10 @@ internal class StandaloneUtilityActions(
     ): Int? {
         if (indexes.isEmpty()) return null
         screen.writeText(
-            indexes.map { index ->
-                "${index + 1}. ${content.strings.value(runtime.party.members[index].nameString)}"
-            },
+            listOf("Who?", "") +
+                indexes.map { index ->
+                    "${index + 1}. ${runtime.party.memberName(content, index)}"
+                },
         )
         return input
             .readCommand()

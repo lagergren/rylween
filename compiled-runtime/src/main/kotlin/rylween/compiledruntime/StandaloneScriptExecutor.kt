@@ -81,6 +81,7 @@ internal class StandaloneScriptExecutor(
     initialRuntime: StandaloneRuntimeState,
     initialLocals: Map<String, Int> = emptyMap(),
     activeInventorySlot: Int? = null,
+    private val log: StandaloneRuntimeLog? = null,
 ) {
     private var runtime: StandaloneRuntimeState = initialRuntime
     private var locals: Map<String, Int> = initialLocals
@@ -356,10 +357,8 @@ internal class StandaloneScriptExecutor(
             CompiledOpcode.ShopService ->
                 continueAfter {
                     runtime =
-                        runtime.withParty(
-                            StandaloneCompiledShopService(content, systems.realm, input, screen)
-                                .run(instruction.shopServiceOperand(0), runtime.party),
-                        )
+                        StandaloneCompiledShopService(content, systems.realm, input, screen, log)
+                            .run(instruction.shopServiceOperand(0), runtime)
                 }
 
             CompiledOpcode.AchieveMilestone ->
@@ -448,8 +447,7 @@ internal class StandaloneScriptExecutor(
         val baseLines =
             when {
                 promptLines.onlyListMenuOptions(options) && currentTextLines.isNotEmpty() -> currentTextLines + promptLines
-                promptLines.alreadyListMenuOptions(options) -> promptLines
-                else -> promptLines + options.menuOptionLines()
+                else -> promptLines.withGeneratedMenuOptions(options)
             }
         writeText(baseLines)
         var choice = input.readCommand() ?: return StandaloneScriptSignal.StopScript
@@ -498,6 +496,9 @@ internal class StandaloneScriptExecutor(
             any { line -> "($key)" in line || "$key." in line }
         }
 
+    private fun List<String>.withGeneratedMenuOptions(options: List<CompiledMenuOption>): List<String> =
+        takeIf { lines -> lines.alreadyListMenuOptions(options) } ?: (this + options.menuOptionLines())
+
     private fun List<String>.onlyListMenuOptions(options: List<CompiledMenuOption>): Boolean {
         val nonBlank = filter(String::isNotBlank)
         if (nonBlank.isEmpty()) return false
@@ -512,7 +513,7 @@ internal class StandaloneScriptExecutor(
     private fun executeAskMember(instruction: CompiledInstruction): StandaloneScriptSignal {
         val accepting = enumValueOf<MemberChoiceFilter>(instruction.enumOperand(3))
         val choices = runtime.party.memberChoices(accepting)
-        screen.writeText(instruction.textBlockOperand(0).renderScriptLines() + memberChoiceLines(choices))
+        screen.writeText(instruction.textBlockOperand(0).renderScriptLines().withChoiceGap() + memberChoiceLines(choices))
         val member = input.readCommand()?.digitToIntOrNull()
         locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to (member?.takeIf { it in choices } ?: 0))
         return StandaloneScriptSignal.Continue
@@ -722,7 +723,7 @@ internal class StandaloneScriptExecutor(
         npc: CompiledCharacter,
     ) {
         val subjects = speak.standardConversation?.chitchatSubjects.orEmpty()
-        val subject = subjects.randomElementOrNull() ?: return
+        val subject = subjects.randomElementOrNull("speak.chitchat.subject") ?: return
         val prompt = speak.textTables.chitchatPrompts.firstOrNull { prompt -> prompt.subject == subject }
         val variants = prompt?.variants.orEmpty()
         val leaderGender =
@@ -762,7 +763,7 @@ internal class StandaloneScriptExecutor(
                         flagStateRef("${state.flag}.${state.native}")?.let(::matchesFlagState) == true
                     }
                 }.orEmpty()
-        val entry = entries.randomElementOrNull()
+        val entry = entries.randomElementOrNull("speak.rumour.entry")
         if (entry == null) {
             screen.writeText(speak.noRumourLines())
             return
@@ -833,26 +834,45 @@ internal class StandaloneScriptExecutor(
         val draw = runtime.party.drawRandom(0, items.lastIndex)
         val item = items[draw.value]
         val price = offer.priceOverride ?: itemRecord(item).cost
+        log?.rngDraw(
+            context = "script.random_item_offer.item",
+            lo = 0,
+            hi = items.lastIndex,
+            value = draw.value,
+            details = mapOf("pool" to content.slug(offer.pool), "item" to content.slug(item), "price" to price),
+        )
         var party = draw.party
         screen.writeText(offer.offer.renderRewardLines(item, price) + offer.choicePrompt.renderRewardLines(item, price))
         val choice = input.readCommand() ?: return party
         return when {
             offer.decline.matchesStandalone(content, choice) ->
-                party.also { offer.declined?.let { text -> screen.writeText(text.renderRewardLines(item, price)) } }
+                party.also {
+                    log?.event("script.random_item_offer.declined item=${content.slug(item)} price=$price")
+                    offer.declined?.let { text -> screen.writeText(text.renderRewardLines(item, price)) }
+                }
 
             !offer.buy.matchesStandalone(content, choice) -> party
             party.resources.gold < price ->
-                party.also { screen.writeText(offer.broke.renderRewardLines(item, price)) }
+                party.also {
+                    log?.event("script.random_item_offer.broke item=${content.slug(item)} price=$price gold=${party.resources.gold}")
+                    screen.writeText(offer.broke.renderRewardLines(item, price))
+                }
 
             else -> {
                 when (val placed = party.placeItem(item, offer.application.overflow)) {
                     is StandaloneItemPlacement.Placed ->
                         placed.party
                             .withGold(party.resources.gold - price)
-                            .also { screen.writeText(offer.deal.renderRewardLines(item, price)) }
+                            .also {
+                                log?.event("script.random_item_offer.bought item=${content.slug(item)} price=$price")
+                                screen.writeText(offer.deal.renderRewardLines(item, price))
+                            }
 
                     StandaloneItemPlacement.Full ->
-                        party.also { offer.messages.cantCarry?.let { text -> screen.writeText(text.renderRewardLines(item, price)) } }
+                        party.also {
+                            log?.event("script.random_item_offer.full item=${content.slug(item)}")
+                            offer.messages.cantCarry?.let { text -> screen.writeText(text.renderRewardLines(item, price)) }
+                        }
 
                     StandaloneItemPlacement.NeedsDropSlot ->
                         offer.messages.cantCarry
@@ -862,7 +882,13 @@ internal class StandaloneScriptExecutor(
                                         party
                                             .withInventoryItem(slot, item)
                                             .withGold(party.resources.gold - price)
-                                            .also { screen.writeText(offer.deal.renderRewardLines(item, price)) }
+                                            .also {
+                                                log?.event(
+                                                    "script.random_item_offer.bought " +
+                                                        "item=${content.slug(item)} price=$price droppedSlot=$slot",
+                                                )
+                                                screen.writeText(offer.deal.renderRewardLines(item, price))
+                                            }
                                     }
                             } ?: party
                 }
@@ -933,12 +959,7 @@ internal class StandaloneScriptExecutor(
 
     private fun memberChoiceLines(choices: List<Int>): List<String> =
         choices.map { member ->
-            val name =
-                runtime.party.members
-                    .getOrNull(member - 1)
-                    ?.let { content.strings.value(it.nameString) }
-                    .orEmpty()
-            "$member. $name"
+            "$member. ${runtime.party.memberName(content, member - 1)}"
         }
 
     private fun inventoryChoiceLines(choices: List<StandaloneInventorySlotChoice>): List<String> =
@@ -948,6 +969,8 @@ internal class StandaloneScriptExecutor(
                 choice.key to item
             },
         )
+
+    private fun List<String>.withChoiceGap(): List<String> = if (lastOrNull().isNullOrBlank()) this else this + ""
 
     private fun int(expr: CompiledIntExpr): Int =
         when (expr) {
@@ -981,7 +1004,7 @@ internal class StandaloneScriptExecutor(
 
     private fun bool(expr: CompiledBoolExpr): Boolean =
         when (expr) {
-            is CompiledBoolExpr.Cmp -> int(expr.left).compare(expr.op, int(expr.right))
+            is CompiledBoolExpr.Cmp -> compare(expr)
             is CompiledBoolExpr.Not -> !bool(expr.expr)
             is CompiledBoolExpr.And -> bool(expr.left) && bool(expr.right)
             is CompiledBoolExpr.Or -> bool(expr.left) || bool(expr.right)
@@ -1002,7 +1025,28 @@ internal class StandaloneScriptExecutor(
     ): Int {
         val draw = runtime.party.drawRandom(lo, hi)
         runtime = runtime.withParty(draw.party)
+        log?.rngDraw("script.random", lo, hi, draw.value)
         return draw.value
+    }
+
+    private fun compare(expr: CompiledBoolExpr.Cmp): Boolean {
+        val random = expr.left as? CompiledIntExpr.Random
+        if (random == null) return int(expr.left).compare(expr.op, int(expr.right))
+        val lo = int(random.lo)
+        val hi = int(random.hi)
+        val draw = runtime.party.drawRandom(lo, hi)
+        runtime = runtime.withParty(draw.party)
+        val right = int(expr.right)
+        val result = draw.value.compare(expr.op, right)
+        log?.rngDraw(
+            context = "script.chance",
+            lo = lo,
+            hi = hi,
+            value = draw.value,
+            hit = result,
+            details = mapOf("op" to expr.op, "threshold" to right),
+        )
+        return result
     }
 
     private fun read(target: CompiledLValue): Int =
@@ -1311,10 +1355,11 @@ internal class StandaloneScriptExecutor(
         return copy(visitedNpcs = visits.values.sortedBy { visit -> content.slug(visit.npc) })
     }
 
-    private fun <T> List<T>.randomElementOrNull(): T? {
+    private fun <T> List<T>.randomElementOrNull(context: String): T? {
         if (isEmpty()) return null
         val draw = runtime.party.drawRandom(0, lastIndex)
         runtime = runtime.withParty(draw.party)
+        log?.rngDraw(context, 0, lastIndex, draw.value)
         return this[draw.value]
     }
 

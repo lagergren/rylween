@@ -130,6 +130,10 @@ abstract class RunInstalledLauncherWithJavaTask
         @get:Optional
         abstract val seed: Property<Long>
 
+        @get:Input
+        @get:Optional
+        abstract val debugLog: Property<Boolean>
+
         @get:InputFile
         @get:Optional
         abstract val loadFile: RegularFileProperty
@@ -181,6 +185,9 @@ abstract class RunInstalledLauncherWithJavaTask
             }
             if (seed.isPresent) {
                 launcherArgs += listOf("--seed", seed.get().toString())
+            }
+            if (debugLog.orNull == true) {
+                launcherArgs += "--debug-log"
             }
             if (loadFile.isPresent) {
                 launcherArgs += listOf("--load", loadFile.get().asFile.path)
