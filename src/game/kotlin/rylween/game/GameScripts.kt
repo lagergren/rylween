@@ -361,7 +361,7 @@ fun ScriptScope.travellerStory() {
                     "",
                 )
             }
-            waitInput("after superb tavern story")
+            pause(2000)
             storyteller.charisma += 3
         }
         whenever((score gt 300) and (score lt 401)) {
@@ -372,16 +372,16 @@ fun ScriptScope.travellerStory() {
                     "",
                 )
             }
-            waitInput("after good tavern story")
+            pause(2000)
             storyteller.charisma += 1
         }
         whenever((score gt 150) and (score lt 301)) {
             screen("Nice story, Sir!", "")
-            waitInput("after nice tavern story")
+            pause(1600)
         }
         whenever((score gt 100) and (score lt 151)) {
             screen("The mob is bored.", "")
-            waitInput("after boring tavern story")
+            pause(1600)
             whenever(storyteller.charisma gt 0) {
                 storyteller.charisma -= 1
             }
@@ -395,7 +395,7 @@ fun ScriptScope.travellerStory() {
                     "",
                 )
             }
-            waitInput("after terrible tavern story")
+            pause(2000)
             whenever(storyteller.charisma gte 3) {
                 storyteller.charisma -= 3
             }
