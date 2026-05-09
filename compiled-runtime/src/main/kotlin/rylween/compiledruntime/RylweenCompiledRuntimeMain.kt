@@ -322,7 +322,7 @@ class StandaloneCompiledRuntime private constructor(
                         }
                         commands.matches("redraw", command) -> true
                         commands.matches("help", command) -> {
-                            printHelp(screen)
+                            printHelp(screen, input, runtime, world)
                             false
                         }
                         commands.matches("save", command) -> {
@@ -330,11 +330,11 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                         commands.matches("viewParty", command) -> {
-                            screen.writeText(StandalonePartyPages.partyLines(content, runtime.party))
+                            showWildernessPage(screen, input, runtime, world, StandalonePartyPages.partyLines(content, runtime.party))
                             false
                         }
                         commands.matches("journal", command) -> {
-                            screen.writeText(StandalonePartyPages.journalLines(content, runtime.party))
+                            showWildernessPage(screen, input, runtime, world, StandalonePartyPages.journalLines(content, runtime.party))
                             false
                         }
                         commands.matches("enter", command) -> {
@@ -344,22 +344,27 @@ class StandaloneCompiledRuntime private constructor(
                         }
                         commands.matches("readyWeapon", command) -> {
                             runtime = utility.readyWeapon(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
                         commands.matches("readyArmor", command) -> {
                             runtime = utility.readyArmor(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
                         commands.matches("removeWeapon", command) -> {
                             runtime = utility.removeWeapon(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
                         commands.matches("removeArmor", command) -> {
                             runtime = utility.removeArmor(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
                         commands.matches("drop", command) -> {
                             runtime = utility.drop(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
                         commands.matches("camp", command) -> {
@@ -372,10 +377,12 @@ class StandaloneCompiledRuntime private constructor(
                         }
                         commands.matches("castSpell", command) -> {
                             runtime = utility.castPriestSpell(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
                         commands.matches("quaff", command) -> {
                             runtime = utility.quaff(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
                         command == '\n' -> false
@@ -437,13 +444,40 @@ class StandaloneCompiledRuntime private constructor(
         )
     }
 
-    private fun printHelp(screen: CompiledAnsiScreen) {
-        val lines =
+    private fun printHelp(
+        screen: CompiledAnsiScreen,
+        input: StandaloneInput,
+        runtime: StandaloneRuntimeState,
+        world: StandaloneWorldMap,
+    ) {
+        val pages =
             systems.wilderness.helpPages
-                .firstOrNull()
-                ?.render { null }
-                ?: generatedWildernessHelpLines()
+                .map { page -> page.render { null } }
+                .ifEmpty { listOf(generatedWildernessHelpLines()) }
+        pages.forEach { lines ->
+            screen.writeText(lines)
+            if (input.readCommand() == null) return
+        }
+        redrawWildernessIfCurrent(screen, runtime, world)
+    }
+
+    private fun showWildernessPage(
+        screen: CompiledAnsiScreen,
+        input: StandaloneInput,
+        runtime: StandaloneRuntimeState,
+        world: StandaloneWorldMap,
+        lines: List<String>,
+    ) {
         screen.writeText(lines)
+        if (input.readCommand() != null) redrawWildernessIfCurrent(screen, runtime, world)
+    }
+
+    private fun redrawWildernessIfCurrent(
+        screen: CompiledAnsiScreen,
+        runtime: StandaloneRuntimeState,
+        world: StandaloneWorldMap,
+    ) {
+        if (runtime.currentMode == RuntimeMode.Wilderness) screen.renderWilderness(runtime, world)
     }
 
     private fun generatedWildernessHelpLines(): List<String> =

@@ -439,7 +439,7 @@ internal class CompiledAnsiScreen(
     }
 
     private fun gotoMapRow(row: Int) {
-        terminal.writeRaw("${AnsiCodes.CSI}${mapWindow.y + row * 2};1H\r${AnsiCodes.CSI}${mapWindow.x + 1}C")
+        terminal.writeRaw(mapWindowCursorSequence(mapWindow, row))
     }
 
     private fun goto(
@@ -517,6 +517,16 @@ internal fun StandaloneWorldMap.viewport(
 }
 
 internal fun ExternalTerminalTerrainStyle.ansiGlyph(): String = "${AnsiCodes.foreground(color)}$glyph${AnsiCodes.RESET}"
+
+internal fun mapWindowCursorRow(
+    region: ExternalScreenRegion,
+    row: Int,
+): Int = region.y + row
+
+internal fun mapWindowCursorSequence(
+    region: ExternalScreenRegion,
+    row: Int,
+): String = "${AnsiCodes.CSI}${mapWindowCursorRow(region, row)};1H\r${AnsiCodes.CSI}${region.x + 1}C"
 
 internal fun String.readableSlug(): String =
     split('_', '-', '.')

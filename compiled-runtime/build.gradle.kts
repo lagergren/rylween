@@ -23,6 +23,12 @@ dependencies {
     implementation(project(":"))
     implementation(project(":ansi-terminal"))
     implementation(libs.jline)
+    testImplementation(kotlin("test"))
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 sourceSets.named("main") {
@@ -408,7 +414,7 @@ val checkCompiledRuntimePartyJournalScript: TaskProvider<RunInstalledLauncherWit
         },
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    script.set("VJX")
+    script.set("V?J?X")
 }
 
 val checkCompiledRuntimeWildernessActionsScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(

@@ -25,6 +25,7 @@ import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledJournalEntry
 import rylween.compiled.CompiledLValue
+import rylween.compiled.CompiledMenuOption
 import rylween.compiled.CompiledNativeStringArg
 import rylween.compiled.CompiledNpcVisit
 import rylween.compiled.CompiledOpcode
@@ -408,13 +409,8 @@ internal class StandaloneScriptExecutor(
         instructionCount: Int,
     ): StandaloneScriptSignal {
         val options = instruction.menuOptionsOperand(1)
-        val lines =
-            buildList {
-                addAll(instruction.textBlockOperand(0).renderScriptLines())
-                options.forEach { option ->
-                    add("${option.binding.primaryStandaloneLabel(content)}. ${content.strings.value(option.binding.labelString)}")
-                }
-            }
+        val promptLines = instruction.textBlockOperand(0).renderScriptLines()
+        val lines = if (promptLines.alreadyListMenuOptions(options)) promptLines else promptLines + options.menuOptionLines()
         screen.writeText(lines)
         val choice = input.readCommand() ?: return StandaloneScriptSignal.StopScript
         val optionIndex = options.indexOfFirst { menu -> menu.binding.matchesStandalone(content, choice) }
@@ -441,6 +437,15 @@ internal class StandaloneScriptExecutor(
         locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to binding.promptValue())
         return StandaloneScriptSignal.Continue
     }
+
+    private fun List<CompiledMenuOption>.menuOptionLines(): List<String> =
+        map { option -> "${option.binding.primaryStandaloneLabel(content)}. ${content.strings.value(option.binding.labelString)}" }
+
+    private fun List<String>.alreadyListMenuOptions(options: List<CompiledMenuOption>): Boolean =
+        options.all { option ->
+            val key = option.binding.primaryStandaloneLabel(content)
+            any { line -> "($key)" in line || "$key." in line }
+        }
 
     private fun executeAskMember(instruction: CompiledInstruction): StandaloneScriptSignal {
         val accepting = enumValueOf<MemberChoiceFilter>(instruction.enumOperand(3))
