@@ -1293,6 +1293,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             listOf(
                 "checkCompiledRuntimeBundleBoot",
+                "checkCompiledRuntimeNewPartyCreation",
                 "checkCompiledRuntimeTownScript",
                 "checkCompiledRuntimeTownDialogueReplay",
                 "checkCompiledRuntimeTownMissionIntroReplay",

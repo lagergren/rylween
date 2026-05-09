@@ -120,6 +120,10 @@ abstract class RunInstalledLauncherWithJavaTask
 
         @get:Input
         @get:Optional
+        abstract val title: Property<Boolean>
+
+        @get:Input
+        @get:Optional
         abstract val replay: Property<String>
 
         @get:Input
@@ -133,6 +137,10 @@ abstract class RunInstalledLauncherWithJavaTask
         @get:OutputFile
         @get:Optional
         abstract val saveFile: RegularFileProperty
+
+        @get:Input
+        @get:Optional
+        abstract val resetSaveFile: Property<Boolean>
 
         @get:Input
         abstract val expectedOutputContains: ListProperty<String>
@@ -165,6 +173,9 @@ abstract class RunInstalledLauncherWithJavaTask
             if (hasScript) {
                 launcherArgs += listOf("--script", script.get())
             }
+            if (title.orNull == true) {
+                launcherArgs += "--title"
+            }
             if (hasReplay) {
                 launcherArgs += listOf("--replay", replay.get())
             }
@@ -175,6 +186,7 @@ abstract class RunInstalledLauncherWithJavaTask
                 launcherArgs += listOf("--load", loadFile.get().asFile.path)
             }
             if (saveFile.isPresent) {
+                if (resetSaveFile.orNull == true) saveFile.get().asFile.delete()
                 launcherArgs += listOf("--save", saveFile.get().asFile.path)
             }
             val expectedOutput = expectedOutputContains.get()

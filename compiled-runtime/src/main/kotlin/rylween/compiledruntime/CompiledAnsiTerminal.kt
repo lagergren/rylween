@@ -20,6 +20,9 @@ import rylween.frontend.ansi.AnsiInput
 import java.io.Closeable
 import java.io.PrintWriter
 
+private val TEXT_INPUT_CURSOR_ON = "${AnsiCodes.CSI}2 q${AnsiCodes.CSI}?25h"
+private val TEXT_INPUT_CURSOR_OFF = "${AnsiCodes.CSI}?25l"
+
 /** Minimal raw ANSI I/O contract used by [CompiledAnsiScreen]. */
 internal interface CompiledAnsiTerminal : Closeable {
     /** Writes raw text, including ANSI escape sequences, without adding a newline. */
@@ -64,8 +67,15 @@ private class StdoutCompiledAnsiTerminal : CompiledAnsiTerminal {
     override fun readKeyToken(): String? = readlnOrNull()?.firstOrNull()?.toString()
 
     override fun readTextLine(maxLength: Int?): String? {
-        val line = readlnOrNull() ?: return null
-        return maxLength?.let(line::take) ?: line
+        writeRaw(TEXT_INPUT_CURSOR_ON)
+        flush()
+        return try {
+            val line = readlnOrNull() ?: return null
+            maxLength?.let(line::take) ?: line
+        } finally {
+            writeRaw(TEXT_INPUT_CURSOR_OFF)
+            flush()
+        }
     }
 
     override fun pause(ms: Int) {
@@ -95,7 +105,16 @@ private class JLineCompiledAnsiTerminal private constructor(
 
     override fun readKeyToken(): String? = AnsiInput.decodeKeyToken(::readCode)
 
-    override fun readTextLine(maxLength: Int?): String? = AnsiInput.readTextLine(maxLength, ::readCode, {}, ::writeRaw, ::flush)
+    override fun readTextLine(maxLength: Int?): String? {
+        writeRaw(TEXT_INPUT_CURSOR_ON)
+        flush()
+        return try {
+            AnsiInput.readTextLine(maxLength, ::readCode, {}, ::writeRaw, ::flush)
+        } finally {
+            writeRaw(TEXT_INPUT_CURSOR_OFF)
+            flush()
+        }
+    }
 
     override fun pause(ms: Int) {
         if (ms > 0) Thread.sleep(ms.toLong())
