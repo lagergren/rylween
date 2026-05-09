@@ -196,7 +196,11 @@ val checkCompiledRuntimeNewPartyCreation: TaskProvider<RunInstalledLauncherWithJ
             "Z",
             "S",
             "V",
-            "Z",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
         ).joinToString(" "),
     )
     title.set(true)
@@ -212,8 +216,10 @@ val checkCompiledRuntimeNewPartyCreation: TaskProvider<RunInstalledLauncherWithJ
             "6. Ranger",
             "Game saved.",
             "Party: Debuggers",
-            "1. Ada L1 Hum Thf",
-            "4. Dina L1 Hlf Rgr",
+            "1. Ada",
+            "Class: Thief",
+            "4. Dina",
+            "Class: Ranger",
         ),
     )
 }

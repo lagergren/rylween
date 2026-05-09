@@ -211,6 +211,20 @@ internal class CompiledAnsiScreen(
         writeText(lines)
     }
 
+    /** Shows a one-line forensic log mirror below the classic 24-line frame. */
+    fun flashLogLine(line: String) {
+        val cleaned = line.replace(Regex("\\s+"), " ").take(FULL_SCREEN_WIDTH)
+        terminal.writeRaw(
+            "${AnsiCodes.CSI}s" +
+                "${AnsiCodes.CSI}${FULL_SCREEN_HEIGHT + 1};1H" +
+                "${AnsiCodes.RESET}${AnsiCodes.FG_CYAN}${AnsiCodes.BG_BLACK}" +
+                cleaned.padEnd(FULL_SCREEN_WIDTH) +
+                "${AnsiCodes.RESET}${AnsiCodes.FG_WHITE}${AnsiCodes.BG_BLACK}" +
+                "${AnsiCodes.CSI}u",
+        )
+        terminal.flush()
+    }
+
     private fun wildernessContextLines(
         runtime: StandaloneRuntimeState,
         world: StandaloneWorldMap,
@@ -307,6 +321,7 @@ internal class CompiledAnsiScreen(
         world: StandaloneWorldMap,
     ) {
         activeMapImage = null
+        clearRegion(mapWindow)
         val viewport = world.viewport(center, rows = WILDERNESS_MAP_TILES, columns = WILDERNESS_MAP_TILES)
         log?.event(
             "screen.render_map center=${center.x},${center.y} rows=${viewport.size} " +
@@ -501,10 +516,12 @@ internal class CompiledAnsiScreen(
     private fun clearRegion(region: ExternalScreenRegion) {
         val width = region.width ?: return
         val height = region.height ?: return
+        terminal.writeRaw("${AnsiCodes.FG_WHITE}${AnsiCodes.BG_BLACK}")
         repeat(height) { row ->
             goto(region, rowOffset = row)
             terminal.writeRaw(" ".repeat(width))
         }
+        terminal.writeRaw("${AnsiCodes.FG_WHITE}${AnsiCodes.BG_BLACK}")
     }
 
     private fun gotoTextRow(row: Int) {

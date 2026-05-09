@@ -31,8 +31,8 @@ internal class StandaloneUtilityActions(
     fun drop(runtime: StandaloneRuntimeState): StandaloneRuntimeState {
         val choices = runtime.party.inventory.filter { slot -> slot.item != null }
         if (choices.isEmpty()) return runtime
-        screen.writeText(choices.map { slot -> "${slot.slot}. ${slot.item?.let(::itemName).orEmpty()}" })
-        val slot = input.readCommand()?.digitToIntOrNull()?.takeIf { selected -> choices.any { it.slot == selected } } ?: return runtime
+        screen.writeText(listOf("Drop which item?") + inventoryLines(choices))
+        val slot = input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } } ?: return runtime
         return runtime.withParty(runtime.party.withInventoryItem(slot, null))
     }
 
@@ -68,8 +68,8 @@ internal class StandaloneUtilityActions(
                 slot.takeIf { use != null && itemRecord(item).kind == ItemKind.Potion }
             }
         if (choices.isEmpty()) return runtime
-        screen.writeText(choices.map { slot -> "${slot.slot}. ${slot.item?.let(::itemName).orEmpty()}" })
-        val slot = input.readCommand()?.digitToIntOrNull()?.takeIf { selected -> choices.any { it.slot == selected } } ?: return runtime
+        screen.writeText(listOf("Quaff what?") + inventoryLines(choices))
+        val slot = input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } } ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
         val use = content.itemUses.firstOrNull { candidate -> candidate.item == item && ItemUseContext.Inventory in candidate.contexts }
         val prepared =
@@ -116,11 +116,18 @@ internal class StandaloneUtilityActions(
                 slot.takeIf { record.kind == acceptedKind && member.pcClass in record.equippableBy }
             }
         if (choices.isEmpty()) return runtime
-        screen.writeText(choices.map { slot -> "${slot.slot}. ${slot.item?.let(::itemName).orEmpty()}" })
-        val slot = input.readCommand()?.digitToIntOrNull()?.takeIf { selected -> choices.any { it.slot == selected } } ?: return runtime
+        screen.writeText(listOf("Ready what?") + inventoryLines(choices))
+        val slot = input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } } ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
         return runtime.updateMember(memberIndex) { current -> equip(current, item) }
     }
+
+    private fun inventoryLines(choices: List<rylween.compiled.CompiledInventorySlot>): List<String> =
+        inventoryMenuLines(
+            choices.map { slot ->
+                inventorySlotKey(slot.slot) to slot.item?.let(::itemName).orEmpty()
+            },
+        )
 
     private fun chooseCaster(runtime: StandaloneRuntimeState): Int? {
         val choices =

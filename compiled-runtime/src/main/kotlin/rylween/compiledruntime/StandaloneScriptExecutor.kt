@@ -254,7 +254,7 @@ internal class StandaloneScriptExecutor(
             CompiledOpcode.ForEachMember -> executeForEachMember(instruction, context, instructionIndex, instructionCount)
             CompiledOpcode.ForEachMonster -> StandaloneScriptSignal.Continue
             CompiledOpcode.Speak -> executeSpeak(instruction.handleOperand(0), context.insideLoop)
-            CompiledOpcode.TellRumour -> continueAfter { tellRumour(instruction.handleOperand(0)) }
+            CompiledOpcode.TellRumour -> continueAfter { tellRumour(instruction.handleOperand(0), appendToCurrent = true) }
             CompiledOpcode.RunScene -> executeScene(instruction.handleOperand(0), context.insideLoop)
             CompiledOpcode.Encounter -> executeEncounter(instruction.handleOperand(0))
             CompiledOpcode.EnterDungeon ->
@@ -714,11 +714,17 @@ internal class StandaloneScriptExecutor(
         screen.writeText(promptVariant?.text?.renderExternal(npc).orEmpty() + reply?.renderExternal(npc).orEmpty())
     }
 
-    private fun tellRumour(table: CompiledHandleRef) {
-        tellRumourBySlug(content.slug(table))
+    private fun tellRumour(
+        table: CompiledHandleRef,
+        appendToCurrent: Boolean = false,
+    ) {
+        tellRumourBySlug(content.slug(table), appendToCurrent)
     }
 
-    private fun tellRumourBySlug(tableSlug: String) {
+    private fun tellRumourBySlug(
+        tableSlug: String,
+        appendToCurrent: Boolean = false,
+    ) {
         val speak = systems.speak ?: return
         val entries =
             speak.textTables.rumourTables
@@ -734,7 +740,12 @@ internal class StandaloneScriptExecutor(
             screen.writeText(speak.noRumourLines())
             return
         }
-        screen.writeText(entry.text.renderExternal())
+        val lines = entry.text.renderExternal()
+        if (appendToCurrent && currentTextLines.isNotEmpty()) {
+            writeText(currentTextLines + lines)
+        } else {
+            writeText(lines)
+        }
     }
 
     private fun runEncounter(monster: CompiledHandleRef) {
@@ -775,11 +786,7 @@ internal class StandaloneScriptExecutor(
             StandaloneItemPlacement.NeedsDropSlot ->
                 reward.messages.cantCarry
                     ?.let { prompt ->
-                        screen.writeText(prompt.renderRewardLines(item) + inventoryReplaceLines(party))
-                        input
-                            .readCommand()
-                            ?.digitToIntOrNull()
-                            ?.takeIf { slot -> party.inventory.any { current -> current.slot == slot } }
+                        chooseDropSlot(party, prompt.renderRewardLines(item))
                             ?.let { slot ->
                                 party
                                     .withInventoryItem(slot, item)
@@ -817,11 +824,7 @@ internal class StandaloneScriptExecutor(
                     StandaloneItemPlacement.NeedsDropSlot ->
                         offer.messages.cantCarry
                             ?.let { prompt ->
-                                screen.writeText(prompt.renderRewardLines(item, price) + inventoryReplaceLines(party))
-                                input
-                                    .readCommand()
-                                    ?.digitToIntOrNull()
-                                    ?.takeIf { slot -> party.inventory.any { current -> current.slot == slot } }
+                                chooseDropSlot(party, prompt.renderRewardLines(item, price))
                                     ?.let { slot ->
                                         party
                                             .withInventoryItem(slot, item)
@@ -832,6 +835,20 @@ internal class StandaloneScriptExecutor(
                 }
             }
         }
+    }
+
+    private fun chooseDropSlot(
+        party: StandaloneParty,
+        leadLines: List<String>,
+    ): Int? {
+        screen.writeText(leadLines + "" + "Drop an item? (Y/N)")
+        val confirm = input.readCommand()?.uppercaseChar() ?: return null
+        if (confirm != 'Y') return null
+        screen.writeText(inventoryReplaceLines(party))
+        return input
+            .readCommand()
+            ?.inventorySlotFromKey()
+            ?.takeIf { slot -> party.inventoryItem(slot) != null }
     }
 
     private fun CompiledTextBlock.renderRewardLines(
@@ -872,9 +889,12 @@ internal class StandaloneScriptExecutor(
     }
 
     private fun inventoryReplaceLines(party: StandaloneParty): List<String> =
-        party.inventory.map { slot ->
-            "${slot.slot}. ${slot.item?.let(::itemName) ?: "-"}"
-        }
+        listOf("Drop which item?", "Other key cancels.") +
+            inventoryMenuLines(
+                party.inventory.map { slot ->
+                    inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
+                },
+            )
 
     private fun memberChoiceLines(choices: List<Int>): List<String> =
         choices.map { member ->
@@ -887,10 +907,12 @@ internal class StandaloneScriptExecutor(
         }
 
     private fun inventoryChoiceLines(choices: List<StandaloneInventorySlotChoice>): List<String> =
-        choices.map { choice ->
-            val item = runtime.party.inventoryItem(choice.slot)?.let(::itemName) ?: "-"
-            "${choice.key}. $item"
-        }
+        inventoryMenuLines(
+            choices.map { choice ->
+                val item = runtime.party.inventoryItem(choice.slot)?.let(::itemName) ?: ""
+                choice.key to item
+            },
+        )
 
     private fun int(expr: CompiledIntExpr): Int =
         when (expr) {
