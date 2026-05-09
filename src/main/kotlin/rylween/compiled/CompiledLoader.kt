@@ -674,6 +674,7 @@ private class CompiledBundleValidator(
         sell.sold?.let(::text)
         binding(sell.saleKeys.accept)
         binding(sell.saleKeys.decline)
+        binding(sell.saleKeys.bargain)
     }
 
     private fun shopInterlude(interlude: CompiledShopInterlude) {
@@ -682,6 +683,7 @@ private class CompiledBundleValidator(
         binding(interlude.decline)
         interlude.accepted.forEach(::text)
         text(interlude.declined)
+        interlude.forceFirstUntil?.let { handle(it, "shop interlude first-offer flag") }
     }
 
     private fun state(state: CompiledStateImage) {
