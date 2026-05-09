@@ -442,9 +442,11 @@ internal class CompiledAnsiScreen(
                 add("  Classes            : ${entry.classes.joinToString(", ") { it.scoreName() }}")
                 add("  Confirmed Kills    : ${entry.kills.toString().padEnd(4)}")
                 add(
-                    "  Average Experience : ${entry.averageExperience.toString().padEnd(
-                        6,
-                    )} (level ${entry.averageLevel.toString().padEnd(3)})",
+                    "  Average Experience : ${
+                        entry.averageExperience.toString().padEnd(
+                            6,
+                        )
+                    } (level ${entry.averageLevel.toString().padEnd(3)})",
                 )
                 add("")
                 add("  Power Items        :")

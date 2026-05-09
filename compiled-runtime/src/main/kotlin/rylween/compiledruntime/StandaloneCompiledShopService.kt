@@ -244,7 +244,7 @@ internal class StandaloneCompiledShopService(
         val lines =
             buildList {
                 add("Drop which item?")
-                add("Other key cancels.")
+                add("Any other key leaves.")
                 addAll(inventoryLines(party))
             }
         screen.writeText(lines)
@@ -441,9 +441,11 @@ internal class StandaloneCompiledShopService(
                     CompiledRuntimeTextPart.OfferedItemName,
                     CompiledRuntimeTextPart.SelectedItemName,
                     -> item?.let(::itemName) ?: "[${part.name}]"
+
                     CompiledRuntimeTextPart.OfferedItemPrice,
                     CompiledRuntimeTextPart.ShopPrice,
                     -> price?.toString() ?: "[${part.name}]"
+
                     CompiledRuntimeTextPart.ShopCarryCap -> carryCap?.toString() ?: "[${part.name}]"
                     else -> "[${part.name}]"
                 }
