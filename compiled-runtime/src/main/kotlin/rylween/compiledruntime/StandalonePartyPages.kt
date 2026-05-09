@@ -18,25 +18,16 @@ import rylween.compiled.CompiledPartyMember
 
 /** Builds text-window pages for standalone compiled-runtime party state. */
 internal object StandalonePartyPages {
-    fun partyLines(
+    private const val TEXT_PAGE_LINES = 9
+
+    fun partyPages(
         content: CompiledContentBundle,
         party: StandaloneParty,
-    ): List<String> =
+    ): List<List<String>> =
         buildList {
-            add("Party: ${party.name}")
-            add("Gold ${party.resources.gold}  Food ${party.resources.food}")
-            add("Torches ${party.resources.torches}  Moves ${party.resources.timeLeft}")
-            add("Rest ${party.resources.restedHours}  Kills ${party.counters.kills}")
-            add("")
-            party.members.forEachIndexed { index, member ->
-                addAll(memberSummary(content, party, index, member))
-            }
-            val inventory = inventoryLines(content, party)
-            if (inventory.isNotEmpty()) {
-                add("")
-                add("Inventory:")
-                addAll(inventory)
-            }
+            add(partySummaryPage(party))
+            party.members.forEachIndexed { index, member -> add(memberPage(content, party, index, member)) }
+            addAll(inventoryPages(content, party))
         }
 
     fun journalLines(
@@ -53,17 +44,43 @@ internal object StandalonePartyPages {
             }
         }
 
-    private fun memberSummary(
+    private fun partySummaryPage(party: StandaloneParty): List<String> =
+        listOf(
+            "Party: ${party.name}",
+            "",
+            "Gold: ${party.resources.gold}",
+            "Food: ${party.resources.food}",
+            "Torches: ${party.resources.torches}",
+            "Moves: ${party.resources.timeLeft}",
+            "Rest: ${party.resources.restedHours}",
+            "Kills: ${party.counters.kills}",
+            "Members: ${party.members.size}",
+        )
+
+    private fun memberPage(
         content: CompiledContentBundle,
         party: StandaloneParty,
         index: Int,
         member: CompiledPartyMember,
-    ): List<String> {
-        val status = if (member.dead) "dead" else "alive"
-        return listOf(
-            "${index + 1}. ${party.memberName(content, index)} L${member.level} ${member.race.shortName()} ${member.pcClass.shortName()}",
-            "   HP ${member.hitPoints.current}/${member.hitPoints.max} MP ${member.mana.current}/${member.mana.max} $status",
+    ): List<String> =
+        listOf(
+            "${index + 1}. ${party.memberName(content, index)}",
+            "Class: ${member.pcClass.readableName()}",
+            "Race: ${member.race.readableName()}  ${member.gender.readableName()}",
+            "Level: ${member.level}  ${member.statusName()}",
+            "HP: ${member.hitPoints.current}/${member.hitPoints.max}  MP: ${member.mana.current}/${member.mana.max}",
+            "Health: ${member.health}  WS: ${member.weaponSkill}",
+            "Wisdom: ${member.wisdom}  CHA: ${member.charisma}",
+            "Weapon: ${content.itemDisplayName(member.equipment.weapon)}",
+            "Armor: ${content.itemDisplayName(member.equipment.armor)}",
         )
+
+    private fun inventoryPages(
+        content: CompiledContentBundle,
+        party: StandaloneParty,
+    ): List<List<String>> {
+        val inventory = inventoryLines(content, party)
+        return inventory.chunked(TEXT_PAGE_LINES - 1).map { page -> listOf("Inventory:") + page }
     }
 
     private fun inventoryLines(
@@ -90,21 +107,7 @@ internal object StandalonePartyPages {
             ?.let { record -> strings.value(record.displayNameString) }
             ?: slug(item).readableSlug()
 
-    private fun rylween.dsl.Race.shortName(): String =
-        when (this) {
-            rylween.dsl.Race.Human -> "Hum"
-            rylween.dsl.Race.Dwarf -> "Dwf"
-            rylween.dsl.Race.Elf -> "Elf"
-            rylween.dsl.Race.Halfling -> "Hlf"
-        }
+    private fun CompiledPartyMember.statusName(): String = if (dead) "Dead" else "Alive"
 
-    private fun rylween.dsl.PcClass.shortName(): String =
-        when (this) {
-            rylween.dsl.PcClass.Fighter -> "Fgt"
-            rylween.dsl.PcClass.Priest -> "Pri"
-            rylween.dsl.PcClass.Mage -> "Mag"
-            rylween.dsl.PcClass.Thief -> "Thf"
-            rylween.dsl.PcClass.Bard -> "Brd"
-            rylween.dsl.PcClass.Ranger -> "Rgr"
-        }
+    private fun Enum<*>.readableName(): String = name.readableSlug()
 }

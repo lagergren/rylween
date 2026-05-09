@@ -59,7 +59,7 @@ internal class StandaloneDungeonRuntime(
                     commands.matches(
                         "viewParty",
                         command,
-                    ) -> runtime.also { showDungeonPage(it, StandalonePartyPages.partyLines(content, it.party)) }
+                    ) -> runtime.also { showDungeonPages(it, StandalonePartyPages.partyPages(content, it.party)) }
                     commands.matches("save", command) -> runtime.also { saveRuntime(it) }
                     commands.matches("drop", command) -> utility.drop(runtime).also(::redrawDungeonIfCurrent)
                     commands.matches("removeArmor", command) -> utility.removeArmor(runtime).also(::redrawDungeonIfCurrent)
@@ -184,12 +184,16 @@ internal class StandaloneDungeonRuntime(
         redrawDungeonIfCurrent(runtime)
     }
 
-    private fun showDungeonPage(
+    private fun showDungeonPages(
         runtime: StandaloneRuntimeState,
-        lines: List<String>,
+        pages: List<List<String>>,
     ) {
-        screen.writeText(lines)
-        if (input.readCommand() != null) redrawDungeonIfCurrent(runtime)
+        val pausePrompts = StandalonePausePrompts(systems.prompts)
+        for (page in pages) {
+            screen.writeText(page + "" + pausePrompts.line())
+            if (input.readCommand() == null) return
+        }
+        redrawDungeonIfCurrent(runtime)
     }
 
     private fun redrawDungeonIfCurrent(runtime: StandaloneRuntimeState) {

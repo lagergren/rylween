@@ -491,7 +491,18 @@ val checkCompiledRuntimePartyJournalScript: TaskProvider<RunInstalledLauncherWit
         },
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    script.set("V?J?X")
+    stateSlug.set("strong-replay")
+    script.set("V1234567?123J1X")
+    expectedOutputContains.set(
+        listOf(
+            "Party: Playtest",
+            "1. Fighter",
+            "4. Priest",
+            "Space = Pass",
+            "Z = Cast Spell",
+            "Journal",
+        ),
+    )
 }
 
 val checkCompiledRuntimeWildernessActionsScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
