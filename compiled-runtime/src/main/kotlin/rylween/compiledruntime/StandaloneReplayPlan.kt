@@ -720,7 +720,7 @@ private class ReplayWorldMap(
 
     private fun terrainSlug(point: GridPoint): String? = terrainAt(point)?.let { terrain -> content.slug(terrain.id) }
 
-    private fun terrainAt(point: GridPoint): CompiledTerrain? = rows.getOrNull(point.y)?.getOrNull(point.x)?.let(terrainByCode::get)
+    private fun terrainAt(point: GridPoint): CompiledTerrain? = rows.getOrNull(point.y - 1)?.getOrNull(point.x)?.let(terrainByCode::get)
 
     companion object {
         fun from(

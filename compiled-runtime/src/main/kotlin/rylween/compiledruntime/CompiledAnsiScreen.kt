@@ -30,6 +30,8 @@ private const val TEXT_WINDOW = "text_window"
 private const val MAP_WINDOW = "map_window"
 private const val STATUSLINE_TOP = "statusline_top"
 private const val STATUSLINE_BOTTOM = "statusline_bottom"
+private const val WILDERNESS_MAP_TILES = 5
+private const val WILDERNESS_MAP_ROW_STRIDE = 2
 private const val SCORE_WIDTH = 76
 private const val SCORE_REPORT = "Score"
 private const val VERBOSE_SCORE_REPORT = "VerboseScore"
@@ -40,6 +42,7 @@ internal class CompiledAnsiScreen(
     private val terminal: CompiledAnsiTerminal,
     private val bundle: CompiledGameBundle,
     private val systems: ExternalRuntimeSystems,
+    private val log: StandaloneRuntimeLog? = null,
 ) {
     private val content = bundle.content
     private val regions: Map<String, ExternalScreenRegion> = systems.presentation.regions.associateBy { it.id }
@@ -57,6 +60,7 @@ internal class CompiledAnsiScreen(
     /** Clears the terminal and renders the compiled frame image, if present. */
     fun bootFrame() {
         classicFrameActive = true
+        log?.event("screen.boot_frame")
         terminal.writeRaw("${AnsiCodes.CSI}?25l")
         staticScreenById["frame"]?.image?.let(::renderImage)
             ?: terminal.writeRaw("${AnsiCodes.CSI}2J${AnsiCodes.CSI}1;1H")
@@ -70,6 +74,7 @@ internal class CompiledAnsiScreen(
         runtime: StandaloneRuntimeState,
     ) {
         classicFrameActive = false
+        log?.event("screen.static slug=$screenSlug")
         val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
         screen.image?.let(::renderImage)
         screen.resource?.let { resource -> writeFullScreenText(resourceText(resource).lines()) }
@@ -85,14 +90,16 @@ internal class CompiledAnsiScreen(
         world: StandaloneWorldMap,
     ) {
         ensureClassicFrame()
+        log?.event("screen.render_wilderness position=${runtime.party.position.x},${runtime.party.position.y}")
         renderStatus(runtime)
         renderMap(runtime.party.position, world)
-        writeText(wildernessContextLines(runtime, world) + systems.wilderness.commandHint.render(runtime))
+        writeText(wildernessContextLines(runtime, world) + "" + systems.wilderness.commandHint.render(runtime))
     }
 
     /** Renders the dungeon backdrop, status lines, and authored depth prompt. */
     fun renderDungeon(runtime: StandaloneRuntimeState) {
         ensureClassicFrame()
+        log?.event("screen.render_dungeon depth=${runtime.dungeon?.depth ?: 1}")
         renderStatus(runtime)
         systems.dungeon.backdrop?.let(::showImage)
         val depth = runtime.dungeon?.depth ?: 1
@@ -108,6 +115,7 @@ internal class CompiledAnsiScreen(
         castle: ExternalRuntimeCastle,
     ) {
         ensureClassicFrame()
+        log?.event("screen.render_castle castle=${castle.id} floor=${runtime.castle?.floor ?: 0}")
         renderStatus(runtime)
         castle.image?.let(::showImage)
         val state = runtime.castle
@@ -135,6 +143,7 @@ internal class CompiledAnsiScreen(
     /** Clears the classic text window and writes the supplied lines inside it. */
     fun writeText(lines: List<String>) {
         ensureClassicFrame()
+        log?.event("screen.write_text lines=${lines.size} first=${lines.firstOrNull().orEmpty().take(40)}")
         clearRegion(textWindow)
         lines.take(textWindow.height ?: lines.size).forEachIndexed { index, line ->
             gotoTextRow(index)
@@ -264,7 +273,11 @@ internal class CompiledAnsiScreen(
         center: GridPoint,
         world: StandaloneWorldMap,
     ) {
-        val viewport = world.viewport(center, rows = 9, columns = 9)
+        val viewport = world.viewport(center, rows = WILDERNESS_MAP_TILES, columns = WILDERNESS_MAP_TILES)
+        log?.event(
+            "screen.render_map center=${center.x},${center.y} rows=${viewport.size} " +
+                "columns=${viewport.firstOrNull()?.size ?: 0} region=${mapWindow.width}x${mapWindow.height} rowStride=$WILDERNESS_MAP_ROW_STRIDE",
+        )
         viewport.forEachIndexed { rowIndex, cells ->
             gotoMapRow(rowIndex)
             val row =
@@ -504,8 +517,8 @@ internal fun StandaloneWorldMap.viewport(
 ): List<List<CompiledRuntimeMapCell>> {
     val rowRadius = rows / 2
     val columnRadius = columns / 2
-    val minY = max(0, center.y - rowRadius)
-    val maxY = min(height - 1, minY + rows - 1)
+    val minY = max(1, center.y - rowRadius)
+    val maxY = min(height, minY + rows - 1)
     val minX = max(0, center.x - columnRadius)
     val maxX = min(width - 1, minX + columns - 1)
     return (minY..maxY).map { y ->
@@ -521,7 +534,7 @@ internal fun ExternalTerminalTerrainStyle.ansiGlyph(): String = "${AnsiCodes.for
 internal fun mapWindowCursorRow(
     region: ExternalScreenRegion,
     row: Int,
-): Int = region.y + row
+): Int = region.y + row * WILDERNESS_MAP_ROW_STRIDE
 
 internal fun mapWindowCursorSequence(
     region: ExternalScreenRegion,
