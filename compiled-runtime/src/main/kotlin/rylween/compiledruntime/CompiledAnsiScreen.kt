@@ -250,11 +250,13 @@ internal class CompiledAnsiScreen(
             clearRegion(mapWindow)
             renderAnsiAt(image.resource, mapWindow.x + 1, mapWindow.y)
             goto(textWindow)
+            terminal.flush()
             return
         }
         activeMapImage = null
         terminal.writeRaw("${AnsiCodes.CSI}2J${AnsiCodes.CSI}1;1H")
         terminal.writeRaw(resourceText(image.resource))
+        terminal.flush()
     }
 
     private fun renderStatus(runtime: StandaloneRuntimeState) {
