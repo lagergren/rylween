@@ -1857,6 +1857,7 @@ fun validateScriptRewards(
                 "shop ${shop.building.slug} sell offer",
                 allowedRuntimeBindings = ShopPriceTextBindings,
             )
+            sell.declined?.let { validateTextBlock(it, "shop ${shop.building.slug} sell declined") }
             sell.sold?.let { validateTextBlock(it, "shop ${shop.building.slug} sold") }
             validateShopPrice(sell.price, "shop ${shop.building.slug} sell")
             validateInputChoiceBinding(sell.saleKeys.accept, "shop ${shop.building.slug} sale accept key")

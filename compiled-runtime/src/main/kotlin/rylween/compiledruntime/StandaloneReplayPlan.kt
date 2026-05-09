@@ -54,6 +54,10 @@ internal object StandaloneCompiledReplayPlans {
     private const val ACCEPTANCE_POWER_ROUTE = "acceptance-power-route"
     private const val ACCEPTANCE_STATE = "acceptance-replay"
     private const val TOWN_SOCIAL_SMOKE = "town-social-smoke"
+    private const val TOWN_COMMERCE_PATHS = "town-commerce-paths"
+    private const val TOWN_CHURCH_PATHS = "town-church-paths"
+    private const val TOWN_SOCIAL_PATHS = "town-social-paths"
+    private const val TOWN_RANDOM_OFFER_PATH = "town-random-offer-path"
     private const val TOWN_GARTH_REWARD_SMOKE = "town-garth-reward-smoke"
     private const val TOWN_MISSION_INTRO_ROUTE = "town-mission-intro-route"
     private const val TOWN_SILVER_KEY_CHAIN_ROUTE = "town-silver-key-chain-route"
@@ -61,6 +65,7 @@ internal object StandaloneCompiledReplayPlans {
     private const val HOBGOBLIN_CARAVAN_ROUTE = "hobgoblin-caravan-route"
     private const val MASTER_CROWN_DISCOVERY_ROUTE = "master-crown-discovery-route"
     private const val FRESH_STATE = "fresh-replay"
+    private const val TOWN_SERVICES_STATE = "town-services-replay"
     private const val TOWN_MISSION_STATE = "town-mission-replay"
     private const val TOWN_SILVER_KEY_STATE = "town-silver-key-replay"
     private const val HOBGOBLIN_CARAVAN_STATE = "hobgoblin-caravan-replay"
@@ -75,6 +80,10 @@ internal object StandaloneCompiledReplayPlans {
         when (val normalized = name.lowercase().replace('_', '-')) {
             ACCEPTANCE_POWER_ROUTE -> acceptancePowerRoute(bundle, systems, stateOverride ?: ACCEPTANCE_STATE)
             TOWN_SOCIAL_SMOKE -> townSocialSmoke(bundle, stateOverride ?: FRESH_STATE)
+            TOWN_COMMERCE_PATHS -> townCommercePaths(stateOverride ?: TOWN_SERVICES_STATE)
+            TOWN_CHURCH_PATHS -> townChurchPaths(stateOverride ?: TOWN_SERVICES_STATE)
+            TOWN_SOCIAL_PATHS -> townSocialPaths(stateOverride ?: TOWN_SERVICES_STATE)
+            TOWN_RANDOM_OFFER_PATH -> townRandomOfferPath(stateOverride ?: TOWN_SERVICES_STATE)
             TOWN_GARTH_REWARD_SMOKE -> townGarthRewardSmoke(bundle, stateOverride ?: FRESH_STATE)
             TOWN_MISSION_INTRO_ROUTE -> townMissionIntroRoute(bundle, stateOverride ?: TOWN_MISSION_STATE)
             TOWN_SILVER_KEY_CHAIN_ROUTE -> townSilverKeyChainRoute(bundle, stateOverride ?: TOWN_SILVER_KEY_STATE)
@@ -404,6 +413,123 @@ internal object StandaloneCompiledReplayPlans {
                 ),
         )
     }
+
+    private fun townCommercePaths(stateSlug: String): StandaloneReplayPlan =
+        StandaloneReplayPlan(
+            name = TOWN_COMMERCE_PATHS,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    StandaloneReplayComponent(
+                        name = "town.thord_merchant_buy_sell_matrix",
+                        commands = "E1BA1PABB100000ABCNBCPASANASAYASDAL",
+                        checkpoints =
+                            listOf(
+                                "output:Merchant",
+                                "output:Deal!",
+                                "output:You can carry no",
+                                "output:Accept? (Y)es / (N)o",
+                                "output:No thanks.",
+                                "output:Sold!",
+                                "output:I don't deal",
+                            ),
+                    ),
+                    StandaloneReplayComponent(
+                        name = "town.thord_smith_buy_sell_haggle",
+                        commands = "4BA1NBWN8PASBASCYALL",
+                        checkpoints =
+                            listOf(
+                                "output:The smith welcomes you",
+                                "output:Armor or Weapon?",
+                                "output:2h-Sword",
+                                "output:Not weapon or armor.",
+                                "output:Ok! Give ya",
+                                "rng:shop.sell.haggle",
+                            ),
+                    ),
+                ),
+        )
+
+    private fun townChurchPaths(stateSlug: String): StandaloneReplayPlan =
+        StandaloneReplayPlan(
+            name = TOWN_CHURCH_PATHS,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    StandaloneReplayComponent(
+                        name = "town.thord_church_heal_raise_energy_matrix",
+                        commands = "E5H1PH4R2PE3PE1R1LL",
+                        checkpoints =
+                            listOf(
+                                "output:You enter the church",
+                                "output:Aragorn",
+                                "output:Mira needs no healing.",
+                                "output:The priestess raises",
+                                "output:The priestess",
+                                "output:Not a spellcaster!",
+                                "output:seems very alive",
+                            ),
+                    ),
+                ),
+        )
+
+    private fun townSocialPaths(stateSlug: String): StandaloneReplayPlan =
+        StandaloneReplayPlan(
+            name = TOWN_SOCIAL_PATHS,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    StandaloneReplayComponent(
+                        name = "town.thord_tavern_drinks_rumour_hassan_story",
+                        commands = "E3OAOBOCODOERAS2CBT1TL",
+                        checkpoints =
+                            listOf(
+                                "output:Welcome! Have a seat",
+                                "output:AAH!",
+                                "output:laughing",
+                                "output:After listening",
+                                "output:Chatting with",
+                                "output:Hassan",
+                                "output:TRAVELLER'S STORY",
+                            ),
+                    ),
+                    StandaloneReplayComponent(
+                        name = "town.thord_inn_bargirl_drinks_lodging",
+                        commands = "2NNNC1CBL2NYANL2NYBNL2NYCNL2NYDNL2NYENL2YANNL2NNYTAL",
+                        checkpoints =
+                            listOf(
+                                "output:Do you want supper",
+                                "output:Deanna",
+                                "output:Ahh...!",
+                                "output:The other guests giggle.",
+                                "output:You are served a well",
+                                "output:You go to bed",
+                                "output:You wake up",
+                            ),
+                    ),
+                ),
+        )
+
+    private fun townRandomOfferPath(stateSlug: String): StandaloneReplayPlan =
+        StandaloneReplayPlan(
+            name = TOWN_RANDOM_OFFER_PATH,
+            stateSlug = stateSlug,
+            components =
+                listOf(
+                    StandaloneReplayComponent(
+                        name = "town.thord_tavern_random_item_offer",
+                        commands = "E3BLL",
+                        checkpoints =
+                            listOf(
+                                "output:scruffy",
+                                "output:I will sell you this",
+                                "output:Deal!!!",
+                                "rng:script.chance",
+                                "rng:script.random_item_offer.item",
+                            ),
+                    ),
+                ),
+        )
 
     private fun acceptancePowerRoute(
         bundle: CompiledGameBundle,

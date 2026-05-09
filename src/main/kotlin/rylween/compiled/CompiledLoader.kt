@@ -670,6 +670,7 @@ private class CompiledBundleValidator(
         sell.rejectedItems.forEach { handle(it, "shop sell rejected item") }
         text(sell.wrongKind)
         text(sell.offer)
+        sell.declined?.let(::text)
         sell.sold?.let(::text)
         binding(sell.saleKeys.accept)
         binding(sell.saleKeys.decline)

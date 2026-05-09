@@ -36,35 +36,37 @@ internal class StandaloneCompiledShopService(
     private val realm: ExternalRuntimeRealm,
     private val input: StandaloneInput,
     private val screen: CompiledAnsiScreen,
+    private val log: StandaloneRuntimeLog? = null,
 ) {
     private val itemsById: Map<CompiledHandleRef, CompiledItemRecord> = content.items.associateBy { it.id }
 
     fun run(
         shop: CompiledShopService,
-        party: StandaloneParty,
-    ): StandaloneParty {
-        var currentParty = party
+        runtime: StandaloneRuntimeState,
+    ): StandaloneRuntimeState {
+        var current = runtime
         screen.showImage(content.slug(shop.image))
         val homeLines = shopHomeLines(shop)
 
         while (true) {
+            screen.updateStatus(current)
             screen.writeText(homeLines)
-            val choice = input.readCommand() ?: return currentParty
+            val choice = input.readCommand() ?: return current
             val buy = shop.buy
             val sell = shop.sell
             when {
                 shop.keys.leave.matchesStandalone(content, choice) -> {
-                    return currentParty
+                    return current
                 }
 
                 choice == '!' -> screen.redrawCurrentView(homeLines)
 
                 buy != null && shop.keys.buy.matchesStandalone(content, choice) -> {
-                    currentParty = runBuy(buy, currentParty)
+                    current = current.withParty(runBuy(buy, current.party))
                 }
 
                 sell != null && shop.keys.sell.matchesStandalone(content, choice) -> {
-                    currentParty = runSell(sell, currentParty)
+                    current = current.withParty(runSell(sell, current.party))
                 }
 
                 else -> writeTextAndWait(listOf("No such shop choice."))
@@ -86,15 +88,15 @@ internal class StandaloneCompiledShopService(
 
     private fun chooseCatalog(buy: CompiledShopBuy): CompiledShopCatalog? {
         if (buy.catalogs.size == 1) return buy.catalogs.single()
-        val lines =
+        val promptLines = buy.prompt.renderStandaloneLines(content)
+        val generatedLines =
             buildList {
-                addAll(buy.prompt.renderStandaloneLines(content))
                 buy.catalogs.forEach { catalog ->
                     add("${catalog.binding.primaryStandaloneLabel(content)}. ${content.strings.value(catalog.titleString)}")
                 }
                 add("${buy.paymentKeys.decline.primaryStandaloneLabel(content)}. Nothing")
             }
-        screen.writeText(lines)
+        screen.writeText(promptLines.withGeneratedChoices(generatedLines))
         val choice = input.readCommand() ?: return null
         if (buy.paymentKeys.decline.matchesStandalone(content, choice)) return null
         return buy.catalogs.firstOrNull { catalog -> catalog.binding.matchesStandalone(content, choice) }
@@ -174,7 +176,7 @@ internal class StandaloneCompiledShopService(
         val promptLines =
             buildList {
                 offer.description?.let { addAll(it.renderShopLines(item = offer.item, price = totalPrice)) }
-                addAll(purchasePriceLines(buy, offer, unitPrice, totalPrice))
+                addAll(purchasePriceLines(buy, offer, unitPrice, totalPrice).withChoiceGap())
                 addAll(buy.payPrompt.renderStandaloneLines(content))
             }
         screen.writeText(promptLines)
@@ -292,14 +294,24 @@ internal class StandaloneCompiledShopService(
         }
 
         val quote = sellQuote(sell, item, party)
-        val price = quote.price ?: return quote.party
+        val price =
+            quote.price
+                ?: return quote.party.also {
+                    writeTextAndWait(sell.declined?.renderStandaloneLines(content) ?: listOf("No thanks."))
+                }
         val offerLines = sell.offer.renderShopLines(item = item, price = price)
         screen.writeText(
-            offerLines +
-                "Accept? ${sell.saleKeys.accept.primaryStandaloneLabel(content)}/" +
-                sell.saleKeys.decline.primaryStandaloneLabel(content),
+            offerLines.withChoiceGap() +
+                listOf(
+                    "Accept? (${sell.saleKeys.accept.primaryStandaloneLabel(content)})es / " +
+                        "(${sell.saleKeys.decline.primaryStandaloneLabel(content)})o",
+                ),
         )
         val confirm = input.readCommand() ?: return quote.party
+        if (sell.saleKeys.decline.matchesStandalone(content, confirm)) {
+            writeTextAndWait(sell.declined?.renderStandaloneLines(content) ?: listOf("No thanks."))
+            return quote.party
+        }
         if (!sell.saleKeys.accept.matchesStandalone(content, confirm)) return quote.party
         val updated =
             quote.party
@@ -337,6 +349,14 @@ internal class StandaloneCompiledShopService(
         return itemRecord(item).kind in acceptedKinds
     }
 
+    private fun List<String>.withChoiceGap(): List<String> = if (lastOrNull().isNullOrBlank()) this else this + ""
+
+    private fun List<String>.withGeneratedChoices(generatedLines: List<String>): List<String> =
+        takeIf { lines -> lines.alreadyListChoices(generatedLines.map { line -> line.substringBefore('.') }) } ?: (this + generatedLines)
+
+    private fun List<String>.alreadyListChoices(keys: List<String>): Boolean =
+        keys.all { key -> any { line -> "($key)" in line || line.trimStart().startsWith("$key.") } }
+
     private fun purchasePriceLines(
         buy: CompiledShopBuy,
         offer: CompiledShopItemOffer,
@@ -370,13 +390,31 @@ internal class StandaloneCompiledShopService(
         val bargain = sell.bargain ?: return StandaloneSellQuote(current, party)
         val draw = party.drawRandom(0, 99)
         bargain.rejectRollBelow?.let { threshold ->
-            if (draw.value < threshold) return StandaloneSellQuote(price = null, party = draw.party)
+            if (draw.value < threshold) {
+                log?.rngDraw(
+                    context = "shop.sell.haggle",
+                    lo = 0,
+                    hi = 99,
+                    value = draw.value,
+                    hit = false,
+                    details = mapOf("threshold" to threshold, "price" to current),
+                )
+                return StandaloneSellQuote(price = null, party = draw.party)
+            }
         }
         bargain.bonuses.forEach { bonus ->
             if (draw.value > bonus.rollGreaterThan) {
                 current += current / max(1, bonus.addCurrentDivisor)
             }
         }
+        log?.rngDraw(
+            context = "shop.sell.haggle",
+            lo = 0,
+            hi = 99,
+            value = draw.value,
+            hit = true,
+            details = mapOf("price" to current),
+        )
         return StandaloneSellQuote(current, draw.party)
     }
 

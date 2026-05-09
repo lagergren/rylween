@@ -171,6 +171,12 @@ internal class CompiledAnsiScreen(
         terminal.flush()
     }
 
+    /** Rewrites just the status bar after service-side party mutations. */
+    fun updateStatus(runtime: StandaloneRuntimeState) {
+        ensureClassicFrame()
+        renderStatus(runtime)
+    }
+
     /** Applies one compiled view command to the ANSI screen. */
     fun writeViewCommand(command: CompiledRuntimeViewCommand) {
         when (command) {

@@ -638,6 +638,7 @@ private class NativeSmokeArtifactWriter {
         handleRefs(sell.rejectedItems)
         textBlock(sell.wrongKind)
         textBlock(sell.offer)
+        nullable(sell.declined, ::textBlock)
         nullable(sell.sold, ::textBlock)
         shopPrice(sell.price)
         nullable(sell.bargain, ::shopBargain)
@@ -1153,6 +1154,7 @@ private class NativeSmokeArtifactReader(
         handleRefList()
         textBlock()
         textBlock()
+        optional { textBlock() }
         optional { textBlock() }
         shopPrice()
         optional { shopBargain() }

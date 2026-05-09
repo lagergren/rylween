@@ -2020,6 +2020,7 @@ data class ShopSellModel(
     val rejectedItems: Set<ItemId>,
     val wrongKind: TextBlock,
     val offer: TextBlock,
+    val declined: TextBlock?,
     val sold: TextBlock?,
     val price: ShopPriceModel,
     val bargain: ShopSellBargainModel?,
@@ -4465,6 +4466,7 @@ class ShopSellBuilder {
     private val rejectedItemModels = mutableSetOf<ItemId>()
     private var wrongKindText: TextBlock = inlineText("Wrong kind.")
     private var offerText: TextBlock? = null
+    private var declinedText: TextBlock? = null
     private var soldText: TextBlock? = null
     var price: ShopPriceModel = ShopPriceModel.HalfItemCost
     private var bargainModel: ShopSellBargainModel? = null
@@ -4492,6 +4494,10 @@ class ShopSellBuilder {
 
     fun offer(body: ShopTextBuilder.() -> Unit) {
         offerText = ShopTextBuilder().apply(body).build()
+    }
+
+    fun declined(vararg lines: String) {
+        declinedText = inlineText(*lines)
     }
 
     fun sold(vararg lines: String) {
@@ -4522,6 +4528,7 @@ class ShopSellBuilder {
             rejectedItems = rejectedItemModels.toSet(),
             wrongKind = wrongKindText,
             offer = requireNotNull(offerText) { "shop sell section requires offer text" },
+            declined = declinedText,
             sold = soldText,
             price = price,
             bargain = bargainModel,

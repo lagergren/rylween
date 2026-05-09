@@ -1051,7 +1051,7 @@ class StandaloneCompiledRuntime private constructor(
                 continue
             }
             log.event("town.service town=${slug(town.id)} building=${slug(service.building)}")
-            current = runService(current.copy(currentMode = RuntimeMode.Town, currentTown = town.id), service, input, screen)
+            current = runService(current.copy(currentMode = RuntimeMode.Town, currentTown = town.id), service, input, screen, log)
             if (current.currentMode != RuntimeMode.Town || input.exhausted) return current
         }
     }
@@ -1061,6 +1061,7 @@ class StandaloneCompiledRuntime private constructor(
         service: CompiledBuildingService,
         input: StandaloneInput,
         screen: CompiledAnsiScreen,
+        log: StandaloneRuntimeLog,
     ): StandaloneRuntimeState {
         val sceneSlug = slug(service.scene)
         val program =
@@ -1069,7 +1070,7 @@ class StandaloneCompiledRuntime private constructor(
             screen.writeText(listOf("No compiled scene program for $sceneSlug."))
             return runtime
         }
-        return StandaloneScriptExecutor(content, systems, input, screen, runtime).execute(program)
+        return StandaloneScriptExecutor(content, systems, input, screen, runtime, log = log).execute(program)
     }
 
     private fun stateBySlug(slug: String): CompiledStateImage {
