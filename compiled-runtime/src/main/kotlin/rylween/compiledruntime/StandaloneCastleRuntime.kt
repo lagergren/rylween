@@ -156,7 +156,7 @@ internal class StandaloneCastleRuntime(
     ): StandaloneRuntimeState {
         screen.writeText(castle.text.roomMonster.renderCastle())
         val battle =
-            StandaloneCompiledBattleRunner(content, systems.combat, input, screen)
+            StandaloneCompiledBattleRunner(content, systems.combat, input, screen, StandalonePausePrompts(systems.prompts))
                 .runTier(runtime, castle.monsterTier)
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         return battle.runtime.copy(

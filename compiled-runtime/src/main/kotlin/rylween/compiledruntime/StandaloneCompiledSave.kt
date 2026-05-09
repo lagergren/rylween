@@ -115,6 +115,7 @@ internal object StandaloneCompiledSave {
         content: CompiledContentBundle,
     ) {
         put("party.id", content.slug(party.id))
+        put("party.name", party.name)
         put("party.x", party.position.x.toString())
         put("party.y", party.position.y.toString())
         put("party.gold", party.resources.gold.toString())
@@ -145,6 +146,7 @@ internal object StandaloneCompiledSave {
         }
         party.members.forEachIndexed { index, member ->
             val number = index + 1
+            put("member.$number.name", party.memberNames.getOrNull(index).orEmpty())
             put("member.$number.hitPoints", member.hitPoints.current.toString())
             put("member.$number.magic", member.mana.current.toString())
             put("member.$number.dead", member.dead.toString())
@@ -167,6 +169,7 @@ internal object StandaloneCompiledSave {
         content: CompiledContentBundle,
     ): StandaloneParty =
         base.copy(
+            name = get("party.name")?.takeIf(String::isNotEmpty) ?: base.name,
             position = GridPoint(intOrDefault("party.x", base.position.x), intOrDefault("party.y", base.position.y)),
             resources =
                 PartyResources(
@@ -189,6 +192,7 @@ internal object StandaloneCompiledSave {
             visitedNpcs = readVisitedNpcs(base.visitedNpcs, content),
             inventory = readInventory(base.inventory, content),
             members = readMembers(base.members),
+            memberNames = readMemberNames(base.memberNames),
             rngState = optionalLong("party.rngState") ?: base.rngState,
         )
 
@@ -273,6 +277,11 @@ internal object StandaloneCompiledSave {
                 mana = member.mana.copy(current = intOrDefault("member.$number.magic", member.mana.current)),
                 dead = booleanOrDefault("member.$number.dead", member.dead),
             )
+        }
+
+    private fun Map<String, String>.readMemberNames(base: List<String>): List<String> =
+        base.mapIndexed { index, name ->
+            get("member.${index + 1}.name")?.takeIf(String::isNotEmpty) ?: name
         }
 
     private fun File.readSaveValues(): Map<String, String> = StandaloneSaveCodec.decodeValues(readLines())

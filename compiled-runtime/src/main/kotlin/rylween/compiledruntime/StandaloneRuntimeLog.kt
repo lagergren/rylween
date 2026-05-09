@@ -14,6 +14,23 @@ class StandaloneRuntimeLog private constructor(
         writer.flush()
     }
 
+    fun rngDraw(
+        context: String,
+        lo: Int,
+        hi: Int,
+        value: Int,
+        hit: Boolean? = null,
+        details: Map<String, Any?> = emptyMap(),
+    ) {
+        val hitText = hit?.let { " hit=$it" }.orEmpty()
+        val detailText =
+            details
+                .filterValues { it != null }
+                .entries
+                .joinToString(separator = "") { (key, detail) -> " $key=$detail" }
+        event("rng.draw context=$context range=$lo..$hi value=$value$hitText$detailText")
+    }
+
     override fun close() {
         event("log.close")
         writer.close()

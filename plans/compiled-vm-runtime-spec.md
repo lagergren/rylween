@@ -32,7 +32,7 @@ compiled tables and expose the services the VM requires.
 There is currently one active playable Kotlin runtime path in the Gradle build,
 plus archived historical/reference paths:
 
-- `run.sh` and `run-compiled.sh` install and run `rylween-compiled`, whose
+- `run.sh` installs and runs `rylween-compiled`, whose
   entry point is
   `compiled-runtime/src/main/kotlin/rylween/compiledruntime/RylweenCompiledRuntimeMain.kt`.
   This is now the active standalone compiled-bundle consumer. It reads

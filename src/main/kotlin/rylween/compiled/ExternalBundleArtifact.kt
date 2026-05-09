@@ -245,6 +245,7 @@ data class ExternalRuntimeSystems(
     val promptGroups: List<String>,
     val castles: List<String>,
     val commands: Map<String, List<ExternalRuntimeCommand>>,
+    val prompts: ExternalRuntimePrompts,
     val realm: ExternalRuntimeRealm,
     val combat: ExternalRuntimeCombat,
     val score: ExternalRuntimeScore,
@@ -253,6 +254,18 @@ data class ExternalRuntimeSystems(
     val speak: ExternalRuntimeSpeak?,
     val wilderness: ExternalWildernessRuntime,
     val presentation: ExternalRuntimePresentation,
+)
+
+data class ExternalRuntimePrompts(
+    val pauseVerbs: List<String>,
+    val returnKeyName: String,
+    val characterCreation: ExternalCharacterCreationPrompts,
+)
+
+data class ExternalCharacterCreationPrompts(
+    val header: ExternalRuntimeTextBlock,
+    val partyName: ExternalRuntimeTextBlock,
+    val saving: ExternalRuntimeTextBlock,
 )
 
 /** Score and Hall-of-Heroes metadata exported for direct bundle runtimes. */
@@ -2121,6 +2134,7 @@ private class ExternalRuntimeSystemsReader(
                 },
             castles = castleRows.map(ExternalRuntimeCastle::id),
             commands = commandGroups,
+            prompts = prompts.readPrompts(),
             realm = systems.requiredObject("realm").readRealm(),
             combat = systems.requiredObject("combat").readCombat(),
             score = systems.requiredObject("score").readScore(),
@@ -2135,6 +2149,37 @@ private class ExternalRuntimeSystemsReader(
             wilderness = systems.requiredObject("wilderness").readWilderness(),
             presentation = systems.requiredObject("presentation").readPresentation(),
         )
+    }
+
+    private fun JsonObject.readPrompts(): ExternalRuntimePrompts =
+        promptGroupFields("characterCreation").let { characterCreation ->
+            ExternalRuntimePrompts(
+                pauseVerbs = requiredArray("pauseVerbs").values.map { verb -> verb.asString("pause verb") },
+                returnKeyName = requiredString("returnKeyName"),
+                characterCreation =
+                    ExternalCharacterCreationPrompts(
+                        header = characterCreation.requiredTextPrompt("header"),
+                        partyName = characterCreation.requiredTextPrompt("partyName"),
+                        saving = characterCreation.requiredTextPrompt("saving"),
+                    ),
+            )
+        }
+
+    private fun JsonObject.promptGroupFields(groupName: String): Map<String, JsonObject> =
+        requiredArray("groups")
+            .values
+            .map { group -> group.asObject("prompt group") }
+            .firstOrNull { group -> group.requiredString("group") == groupName }
+            ?.requiredArray("fields")
+            ?.values
+            ?.map { field -> field.asObject("prompt field") }
+            ?.associateBy { field -> field.requiredString("name") }
+            ?: error("missing prompt group $groupName")
+
+    private fun Map<String, JsonObject>.requiredTextPrompt(name: String): ExternalRuntimeTextBlock {
+        val field = this[name] ?: error("missing prompt field $name")
+        check(field.requiredString("kind") == "text") { "prompt field $name must be text" }
+        return field.required("value").readTextBlock()
     }
 
     private fun JsonObject.readScore(): ExternalRuntimeScore =

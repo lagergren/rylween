@@ -54,6 +54,7 @@ internal class StandaloneWildernessActions(
     private val commands: Map<String, List<ExternalRuntimeCommand>>,
     private val input: StandaloneInput,
     private val screen: CompiledAnsiScreen,
+    private val log: StandaloneRuntimeLog? = null,
 ) {
     fun applyTurnUpkeep(runtime: StandaloneRuntimeState): StandaloneWildernessActionResult {
         var party = runtime.party
@@ -156,18 +157,42 @@ internal class StandaloneWildernessActions(
             return StandaloneWildernessActionResult(mission.runtime.runMission(mission.mission))
         }
 
-        if (current.party.rngState == null) return StandaloneWildernessActionResult(current, messages)
+        if (current.party.rngState == null) {
+            log?.event("rng.skip context=wilderness.event_gate reason=no_seed")
+            return StandaloneWildernessActionResult(current, messages)
+        }
 
         var party = current.party
         val eventDraw = party.drawRandom(0, 99)
         party = eventDraw.party
         current = current.withParty(party)
         val events = wilderness.events
+        val quietLimit = events.caveChancePercent + events.quietChancePercent
+        val eventOutcome =
+            when {
+                eventDraw.value < events.caveChancePercent -> "cave"
+                eventDraw.value < quietLimit -> "quiet"
+                else -> "encounter"
+            }
+        log?.rngDraw(
+            context = "wilderness.event_gate",
+            lo = 0,
+            hi = 99,
+            value = eventDraw.value,
+            hit = eventOutcome != "quiet",
+            details =
+                mapOf(
+                    "cave_hit" to (eventDraw.value < events.caveChancePercent),
+                    "encounter_hit" to (eventDraw.value >= quietLimit),
+                    "cave_lt" to events.caveChancePercent,
+                    "quiet_lt" to quietLimit,
+                    "outcome" to eventOutcome,
+                ),
+        )
         if (eventDraw.value < events.caveChancePercent) {
             return current.applyCaveDiscovery(messages)
         }
 
-        val quietLimit = events.caveChancePercent + events.quietChancePercent
         if (eventDraw.value < quietLimit) {
             return StandaloneWildernessActionResult(current, messages)
         }
@@ -175,6 +200,18 @@ internal class StandaloneWildernessActions(
         val splitDraw = current.party.drawRandom(0, 99)
         current = current.withParty(splitDraw.party)
         val tier = if (splitDraw.value < events.encounterSplitPercent) events.easyEncounterTier else events.hardEncounterTier
+        log?.rngDraw(
+            context = "wilderness.encounter_split",
+            lo = 0,
+            hi = 99,
+            value = splitDraw.value,
+            hit = splitDraw.value < events.encounterSplitPercent,
+            details =
+                mapOf(
+                    "easy_lt" to events.encounterSplitPercent,
+                    "tier" to tier,
+                ),
+        )
         val battle = battleRunner().runTier(current, tier)
         return StandaloneWildernessActionResult(battle.runtime, messages + battle.messages)
     }
@@ -197,6 +234,18 @@ internal class StandaloneWildernessActions(
                 is CompiledTrigger.RandomStep -> {
                     val draw = next.party.rngState?.let { next.party.drawRandom(0, 99) } ?: return@forEach
                     next = next.withParty(draw.party)
+                    log?.rngDraw(
+                        context = "wilderness.mission_random_step",
+                        lo = 0,
+                        hi = 99,
+                        value = draw.value,
+                        hit = draw.value < trigger.percent,
+                        details =
+                            mapOf(
+                                "mission" to content.slug(mission.id),
+                                "threshold_lt" to trigger.percent,
+                            ),
+                    )
                     if (draw.value < trigger.percent) return StandaloneMissionTriggerResult(next, mission)
                 }
             }
@@ -239,6 +288,13 @@ internal class StandaloneWildernessActions(
             return StandaloneWildernessActionResult(this)
         }
         val depth = party.drawRandom(wilderness.events.caveDepthRange.first, wilderness.events.caveDepthRange.last)
+        log?.rngDraw(
+            context = "wilderness.cave_depth",
+            lo = wilderness.events.caveDepthRange.first,
+            hi = wilderness.events.caveDepthRange.last,
+            value = depth.value,
+            details = mapOf("dungeon" to content.slug(content.ref(CompiledHandleKind.Dungeon, wilderness.events.caveDungeon))),
+        )
         val next =
             withParty(
                 depth.party.copy(
@@ -251,6 +307,7 @@ internal class StandaloneWildernessActions(
                 content = content,
                 dungeon = content.ref(CompiledHandleKind.Dungeon, wilderness.events.caveDungeon),
                 levels = depth.value,
+                log = log,
             )
         return StandaloneWildernessActionResult(next)
     }
@@ -266,6 +323,18 @@ internal class StandaloneWildernessActions(
             )
         val chance = party.drawRandom(0, 99)
         party = chance.party
+        log?.rngDraw(
+            context = "wilderness.hunt_success",
+            lo = 0,
+            hi = 99,
+            value = chance.value,
+            hit = chance.value < rules.successChancePercent,
+            details =
+                mapOf(
+                    "member" to memberNumber,
+                    "threshold_lt" to rules.successChancePercent,
+                ),
+        )
         if (chance.value >= rules.successChancePercent) {
             return StandaloneWildernessActionResult(
                 withParty(party),
@@ -274,6 +343,13 @@ internal class StandaloneWildernessActions(
             )
         }
         val food = party.drawRandom(rules.foodMin, rules.foodMax)
+        log?.rngDraw(
+            context = "wilderness.hunt_food",
+            lo = rules.foodMin,
+            hi = rules.foodMax,
+            value = food.value,
+            details = mapOf("member" to memberNumber),
+        )
         val gained = food.value + party.leaderLevel()
         party =
             food.party.copy(
@@ -333,6 +409,14 @@ internal class StandaloneWildernessActions(
         val draw = party.drawRandom(1, rules.temperatureMax)
         val temperature = draw.value
         val activeBands = rules.temperatureBands.filter { band -> temperature in band.first..band.last }
+        log?.rngDraw(
+            context = "wilderness.camp_temperature",
+            lo = 1,
+            hi = rules.temperatureMax,
+            value = temperature,
+            hit = activeBands.isNotEmpty(),
+            details = mapOf("bands" to activeBands.joinToString(separator = "+") { band -> band.band.name }),
+        )
         if (activeBands.isEmpty()) return CampMutation(withParty(draw.party))
 
         val protectedBands = draw.party.campProtection()
@@ -374,6 +458,14 @@ internal class StandaloneWildernessActions(
         val ambushTier = rules.ambushTier
         if (rules.ambushChancePercent <= 0 || ambushTier == null) return CampMutation(this)
         val chance = party.drawRandom(0, 99)
+        log?.rngDraw(
+            context = "wilderness.camp_ambush",
+            lo = 0,
+            hi = 99,
+            value = chance.value,
+            hit = chance.value < rules.ambushChancePercent,
+            details = mapOf("threshold_lt" to rules.ambushChancePercent),
+        )
         if (chance.value >= rules.ambushChancePercent) return CampMutation(withParty(chance.party))
 
         var party = chance.party
@@ -384,6 +476,13 @@ internal class StandaloneWildernessActions(
             val aliveIndexes = party.members.mapIndexedNotNull { index, member -> index.takeUnless { member.dead } }
             val victim = party.drawRandom(0, aliveIndexes.lastIndex)
             val victimIndex = aliveIndexes[victim.value]
+            log?.rngDraw(
+                context = "wilderness.camp_surprise_victim",
+                lo = 0,
+                hi = aliveIndexes.lastIndex,
+                value = victim.value,
+                details = mapOf("member" to (victimIndex + 1)),
+            )
             party =
                 victim.party.copy(
                     members =
@@ -407,6 +506,19 @@ internal class StandaloneWildernessActions(
         if (from == null || to == null || from == to) return this
         val transition = wilderness.terrainTransitions.entries.firstOrNull { entry -> entry.terrain == to } ?: return this
         val draw = party.drawRandom(0, 99)
+        log?.rngDraw(
+            context = "wilderness.terrain_transition",
+            lo = 0,
+            hi = 99,
+            value = draw.value,
+            hit = draw.value < wilderness.terrainTransitions.chancePercent,
+            details =
+                mapOf(
+                    "from" to from,
+                    "to" to to,
+                    "threshold_lt" to wilderness.terrainTransitions.chancePercent,
+                ),
+        )
         if (draw.value < wilderness.terrainTransitions.chancePercent) {
             messages += transition.text.renderStandalone()
         }
@@ -416,10 +528,22 @@ internal class StandaloneWildernessActions(
     private fun StandaloneParty.regenerateMana(chancePercent: Int): StandaloneParty {
         var party = this
         val members =
-            members.map { member ->
-                if (member.pcClass !in manaRegenerationClasses || member.mana.current >= member.mana.max) return@map member
+            members.mapIndexed { index, member ->
+                if (member.pcClass !in manaRegenerationClasses || member.mana.current >= member.mana.max) return@mapIndexed member
                 val draw = party.drawRandom(0, 99)
                 party = draw.party
+                log?.rngDraw(
+                    context = "wilderness.upkeep_mana_regen",
+                    lo = 0,
+                    hi = 99,
+                    value = draw.value,
+                    hit = draw.value < chancePercent,
+                    details =
+                        mapOf(
+                            "member" to (index + 1),
+                            "threshold_lt" to chancePercent,
+                        ),
+                )
                 member.takeUnless { draw.value < chancePercent }
                     ?: member.copy(
                         mana = member.mana.copy(current = (member.mana.current + 1).coerceAtMost(member.mana.max)),
@@ -496,7 +620,8 @@ internal class StandaloneWildernessActions(
             }
         }
 
-    private fun battleRunner(): StandaloneCompiledBattleRunner = StandaloneCompiledBattleRunner(content, combat, input, screen)
+    private fun battleRunner(): StandaloneCompiledBattleRunner =
+        StandaloneCompiledBattleRunner(content, combat, input, screen, StandalonePausePrompts(systems.prompts), log)
 
     private fun StandaloneParty.matches(expr: CompiledBoolExpr): Boolean =
         when (expr) {
