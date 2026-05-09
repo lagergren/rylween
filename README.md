@@ -44,6 +44,11 @@ and runs outside Gradle so Gradle progress output and key echo do not share the
 game screen. The older `run-compiled.sh` wrapper is retained as the same direct
 compiled-runtime entry point.
 
+Interactive runs without `--load`, `--script`, or `--replay` show the title
+flow first. Press any key at the splash screen, then `N` to create a new party.
+Each run writes a forensic log to `build/logs/compiled-runtime/latest.log`; use
+`--log <file>` to keep a named capture instead of replacing `latest.log`.
+
 ```sh
 ./run-compiled.sh --screen title
 ./run-compiled.sh --script 22SX --save build/saves/compiled-runtime.rsave

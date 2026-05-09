@@ -51,6 +51,11 @@ import java.io.File
 import kotlin.math.max
 import kotlin.system.exitProcess
 
+private const val TITLE_SCREEN = "title"
+private const val SCORE_SCREEN = "score"
+private const val HEROES_SCREEN = "heroes"
+private const val MANUAL_SCREEN = "manual"
+
 /** CLI entry point for the standalone compiled-bundle runtime. */
 object RylweenCompiledRuntimeMain {
     @JvmStatic
@@ -74,6 +79,7 @@ data class CompiledRuntimeConfig(
     val scriptedInput: String? = null,
     val replayPlan: String? = null,
     val seed: Long? = null,
+    val logFile: File = StandaloneRuntimeLog.defaultFile,
 )
 
 private object CompiledRuntimeCli {
@@ -91,6 +97,7 @@ private object CompiledRuntimeCli {
         var scriptedInput: String? = null
         var replayPlan: String? = null
         var seed: Long? = null
+        var logFile = StandaloneRuntimeLog.defaultFile
         var index = 0
         while (index < args.size) {
             when (val arg = args[index]) {
@@ -126,6 +133,10 @@ private object CompiledRuntimeCli {
                     seed = args.valueAfter(index, arg).toLong()
                     index += 2
                 }
+                "--log" -> {
+                    logFile = File(args.valueAfter(index, arg))
+                    index += 2
+                }
                 else -> error("unknown argument $arg")
             }
         }
@@ -141,6 +152,7 @@ private object CompiledRuntimeCli {
             scriptedInput = scriptedInput,
             replayPlan = replayPlan,
             seed = seed,
+            logFile = logFile,
         )
     }
 
@@ -157,6 +169,7 @@ private object CompiledRuntimeCli {
             |  --script <chars>  Feed command characters, useful for smoke tests.
             |  --replay <name>   Run a named compiled-runtime replay plan.
             |  --seed <long>     Override the active party RNG seed before play.
+            |  --log <file>      Runtime forensic log, default build/logs/compiled-runtime/latest.log.
             """.trimMargin(),
         )
     }
@@ -174,24 +187,34 @@ internal fun String.screenSlug(): String =
         else -> normalized
     }
 
+private fun StandaloneRuntimeState.logPosition(): String = "${party.position.x},${party.position.y}"
+
 private fun CompiledRuntimeConfig.run() {
     val runtime = StandaloneCompiledRuntime.load(bundleFile)
-    if (staticScreen != null) {
-        runtime.renderStaticScreen(staticScreen, stateSlug, loadFile)
-        return
-    }
-    val replay =
-        replayPlan?.let { plan ->
-            runtime.replayPlan(plan, stateSlug.takeUnless { it == "fresh-replay" })
+    StandaloneRuntimeLog.open(logFile).use { log ->
+        log.event(
+            "run.start bundle=${bundleFile.path} state=$stateSlug load=${loadFile?.path.orEmpty()} " +
+                "save=${saveFile.path} screen=${staticScreen.orEmpty()} script=${scriptedInput != null} replay=${replayPlan.orEmpty()} seed=${seed ?: ""}",
+        )
+        if (staticScreen != null) {
+            runtime.renderStaticScreen(staticScreen, stateSlug, loadFile, log)
+            return
         }
-    replay?.summaryLines()?.forEach(System.err::println)
-    runtime.runWilderness(
-        stateSlug = replay?.stateSlug ?: stateSlug,
-        loadFile = loadFile,
-        saveFile = saveFile,
-        scriptedInput = replay?.script ?: scriptedInput,
-        seed = seed,
-    )
+        val replay =
+            replayPlan?.let { plan ->
+                runtime.replayPlan(plan, stateSlug.takeUnless { it == "fresh-replay" })
+            }
+        replay?.summaryLines()?.forEach(System.err::println)
+        runtime.runWilderness(
+            stateSlug = replay?.stateSlug ?: stateSlug,
+            loadFile = loadFile,
+            saveFile = saveFile,
+            scriptedInput = replay?.script ?: scriptedInput,
+            seed = seed,
+            showTitleMenu = replay == null && scriptedInput == null && loadFile == null,
+            log = log,
+        )
+    }
 }
 
 /**
@@ -213,7 +236,9 @@ class StandaloneCompiledRuntime private constructor(
         screenSlug: String,
         stateSlug: String,
         loadFile: File?,
+        log: StandaloneRuntimeLog,
     ) {
+        log.event("screen.static slug=$screenSlug state=$stateSlug load=${loadFile?.path.orEmpty()}")
         val runtime =
             loadFile?.let { file ->
                 StandaloneCompiledSave.read(
@@ -224,7 +249,7 @@ class StandaloneCompiledRuntime private constructor(
                 )
             } ?: StandaloneRuntimeState.from(stateBySlug(stateSlug), content)
         CompiledAnsiTerminals.stdout().use { terminal ->
-            CompiledAnsiScreen(terminal, bundle, systems).showStaticScreen(screenSlug, runtime)
+            CompiledAnsiScreen(terminal, bundle, systems, log).showStaticScreen(screenSlug, runtime)
         }
     }
 
@@ -235,6 +260,8 @@ class StandaloneCompiledRuntime private constructor(
         saveFile: File,
         scriptedInput: String?,
         seed: Long? = null,
+        showTitleMenu: Boolean = false,
+        log: StandaloneRuntimeLog,
     ) {
         var runtime =
             loadFile?.let { file ->
@@ -247,9 +274,14 @@ class StandaloneCompiledRuntime private constructor(
             } ?: StandaloneRuntimeState.from(stateBySlug(stateSlug), content)
         runtime = seed?.let(runtime::withSeed) ?: runtime
         val world = StandaloneWorldMap.from(content, runtime.currentMap)
+        log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
         CompiledAnsiTerminals.open(scripted = scriptedInput != null).use { terminal ->
-            val screen = CompiledAnsiScreen(terminal, bundle, systems)
-            val input = StandaloneInput(terminal, scriptedInput)
+            val screen = CompiledAnsiScreen(terminal, bundle, systems, log)
+            val input = StandaloneInput(terminal, scriptedInput, log)
+            if (showTitleMenu) {
+                runtime = runTitleMenu(runtime, stateSlug, seed, saveFile, input, screen, log) ?: return
+                log.event("wilderness.title_selected position=${runtime.logPosition()} mode=${runtime.currentMode}")
+            }
             val commands = StandaloneWildernessCommands.from(systems)
             val actions =
                 StandaloneWildernessActions(
@@ -287,6 +319,7 @@ class StandaloneCompiledRuntime private constructor(
                     else -> Unit
                 }
                 val command = input.readCommand()
+                log.event("wilderness.command key=${command ?: "null"} position=${runtime.logPosition()}")
                 var moveEvent: StandaloneMoveEvent? = null
                 val advanceTurn =
                     when {
@@ -338,7 +371,7 @@ class StandaloneCompiledRuntime private constructor(
                             false
                         }
                         commands.matches("enter", command) -> {
-                            val entered = enterLocation(runtime, input, screen, saveFile)
+                            val entered = enterLocation(runtime, input, screen, saveFile, log)
                             runtime = entered
                             entered.currentMode == RuntimeMode.Wilderness
                         }
@@ -403,6 +436,103 @@ class StandaloneCompiledRuntime private constructor(
             }
         }
     }
+
+    private fun runTitleMenu(
+        runtime: StandaloneRuntimeState,
+        stateSlug: String,
+        seed: Long?,
+        saveFile: File,
+        input: StandaloneInput,
+        screen: CompiledAnsiScreen,
+        log: StandaloneRuntimeLog,
+    ): StandaloneRuntimeState? {
+        screen.showStaticScreen(TITLE_SCREEN, runtime)
+        log.event("title.splash")
+        if (input.readCommand() == null) return null
+        while (true) {
+            val savedRuntime = loadSavedRuntimeOrNull(saveFile, log)
+            screen.bootFrame()
+            screen.writeText(titleMenuLines(hasSavedGame = savedRuntime != null))
+            when (val command = input.readCommand()) {
+                null -> return null
+                'N' if savedRuntime == null -> {
+                    log.event("title.new state=$stateSlug")
+                    val freshRuntime = StandaloneRuntimeState.from(stateBySlug(stateSlug), content)
+                    return seed?.let(freshRuntime::withSeed) ?: freshRuntime
+                }
+                'C' if savedRuntime != null -> {
+                    log.event("title.continue save=${saveFile.path}")
+                    return seed?.let(savedRuntime::withSeed) ?: savedRuntime
+                }
+                'T' if savedRuntime != null -> {
+                    screen.writeText(listOf("Terminate saved party?", "", "(Y)es", "(N)o"))
+                    if (input.readCommand() == 'Y') {
+                        val deleted = runCatching { !saveFile.exists() || saveFile.delete() }.getOrDefault(false)
+                        log.event("title.terminate save=${saveFile.path} deleted=$deleted")
+                        screen.writeText(listOf(if (deleted) "Saved party terminated." else "Could not delete saved party.", saveFile.path))
+                        input.readCommand()
+                    }
+                }
+                'S' -> {
+                    log.event("title.score")
+                    screen.showStaticScreen(SCORE_SCREEN, savedRuntime ?: runtime)
+                    input.readCommand()
+                }
+                'H' -> {
+                    log.event("title.heroes")
+                    screen.showStaticScreen(HEROES_SCREEN, savedRuntime ?: runtime)
+                    input.readCommand()
+                }
+                'D' -> {
+                    log.event("title.manual")
+                    screen.showStaticScreen(MANUAL_SCREEN, savedRuntime ?: runtime)
+                    input.readCommand()
+                }
+                'X' -> {
+                    log.event("title.exit")
+                    return null
+                }
+                else -> {
+                    log.event("title.invalid key=$command")
+                    screen.writeText(listOf("Invalid input.", "Key: $command", ""))
+                    input.readCommand()
+                }
+            }
+        }
+    }
+
+    private fun loadSavedRuntimeOrNull(
+        saveFile: File,
+        log: StandaloneRuntimeLog,
+    ): StandaloneRuntimeState? {
+        if (!saveFile.exists()) return null
+        return runCatching {
+            StandaloneCompiledSave.read(
+                file = saveFile,
+                expectedBundleHash = bundleContentHash,
+                content = content,
+                stateLookup = ::stateBySlug,
+            )
+        }.onFailure { error ->
+            log.event("title.save_load_failed save=${saveFile.path} error=${error.message.orEmpty()}")
+        }.getOrNull()
+    }
+
+    private fun titleMenuLines(hasSavedGame: Boolean): List<String> =
+        buildList {
+            add("Rylween")
+            add("")
+            if (hasSavedGame) {
+                add("C. Continue Saved Game")
+                add("T. Terminate Party")
+            } else {
+                add("N. Create New Party")
+            }
+            add("S. View Current Scores")
+            add("H. View Hall of Fame")
+            add("D. View Documentation")
+            add("X. Exit")
+        }
 
     private fun applyAction(
         result: StandaloneWildernessActionResult,
@@ -501,14 +631,18 @@ class StandaloneCompiledRuntime private constructor(
         input: StandaloneInput,
         screen: CompiledAnsiScreen,
         saveFile: File,
+        log: StandaloneRuntimeLog,
     ): StandaloneRuntimeState {
+        log.event("wilderness.enter position=${runtime.logPosition()}")
         val town = content.towns.firstOrNull { it.position == runtime.party.position }
-        if (town != null) return enterTown(runtime, input, screen, town)
+        if (town != null) return enterTown(runtime, input, screen, town, log)
         val castle = systems.castleRows.firstOrNull { castle -> castle.entry == runtime.party.position }
         if (castle != null) {
+            log.event("wilderness.enter_castle castle=${castle.id}")
             return StandaloneCastleRuntime(content, systems, input, screen, saveFile, bundleContentHash)
                 .startCastle(runtime, castle)
         }
+        log.event("wilderness.enter_none")
         screen.writeText(listOf("There is nothing to enter here."))
         return runtime
     }
@@ -518,7 +652,9 @@ class StandaloneCompiledRuntime private constructor(
         input: StandaloneInput,
         screen: CompiledAnsiScreen,
         town: rylween.compiled.CompiledTown,
+        log: StandaloneRuntimeLog,
     ): StandaloneRuntimeState {
+        log.event("town.enter town=${slug(town.id)}")
         val services =
             town.services.mapNotNull { building ->
                 content.buildingServices.firstOrNull { service -> service.building == building }
@@ -542,9 +678,11 @@ class StandaloneCompiledRuntime private constructor(
         val index = choice.digitToIntOrNull()?.minus(1)
         val service = index?.let(services::getOrNull)
         if (service == null) {
+            log.event("town.invalid_choice key=$choice")
             screen.writeText(listOf("No such service."))
             return runtime
         }
+        log.event("town.service town=${slug(town.id)} building=${slug(service.building)}")
         val serviceRuntime = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
         return runService(serviceRuntime, service, input, screen).copy(currentMode = RuntimeMode.Wilderness, currentTown = null)
     }
@@ -759,6 +897,7 @@ private const val REFERENCE_RANDOM_MULTIPLIER: Long = 0x2545F4914F6CDD1DL
 internal class StandaloneInput(
     private val terminal: CompiledAnsiTerminal,
     scriptedInput: String?,
+    private val log: StandaloneRuntimeLog? = null,
 ) {
     private val scripted = scriptedInput?.toList()?.let(::ArrayDeque)
 
@@ -766,10 +905,18 @@ internal class StandaloneInput(
 
     fun readCommand(): Char? {
         val scriptedCommand = readScriptedCommand()
-        if (scriptedCommand != null) return scriptedCommand
-        if (scripted != null) return null
+        if (scriptedCommand != null) {
+            log?.event("input.command key=$scriptedCommand scripted=true")
+            return scriptedCommand
+        }
+        if (scripted != null) {
+            log?.event("input.command eof scripted=true")
+            return null
+        }
         val token = terminal.readKeyToken() ?: return null
-        return token.firstOrNull()?.uppercaseChar() ?: '\n'
+        return (token.firstOrNull()?.uppercaseChar() ?: '\n').also { command ->
+            log?.event("input.command key=$command scripted=false")
+        }
     }
 
     fun readInt(maxDigits: Int = 6): Int? {
@@ -882,7 +1029,7 @@ internal class StandaloneWorldMap(
 
     fun terrainAt(point: GridPoint): CompiledTerrain? = tileAt(point)?.let(terrainByCode::get)
 
-    private fun tileAt(point: GridPoint): Char? = rows.getOrNull(point.y)?.getOrNull(point.x)
+    private fun tileAt(point: GridPoint): Char? = rows.getOrNull(point.y - 1)?.getOrNull(point.x)
 
     companion object {
         fun from(

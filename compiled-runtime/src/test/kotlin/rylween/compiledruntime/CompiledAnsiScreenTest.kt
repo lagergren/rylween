@@ -8,13 +8,13 @@ import kotlin.test.assertTrue
 
 class CompiledAnsiScreenTest {
     @Test
-    fun mapRowsUseConsecutiveDeclaredRegionRows() {
+    fun mapRowsUseLegacyFiveTileStrideInsideDeclaredRegion() {
         val mapWindow = ExternalScreenRegion(id = "map_window", x = 8, y = 6, width = 16, height = 9)
         val statusTop = ExternalScreenRegion(id = "statusline_top", x = 3, y = 21, width = null, height = null)
 
-        val rows = (0 until checkNotNull(mapWindow.height)).map { row -> mapWindowCursorRow(mapWindow, row) }
+        val rows = (0 until 5).map { row -> mapWindowCursorRow(mapWindow, row) }
 
-        assertEquals((6..14).toList(), rows)
+        assertEquals(listOf(6, 8, 10, 12, 14), rows)
         assertTrue(rows.last() < statusTop.y, "map window rows must not overlap the status line")
     }
 
