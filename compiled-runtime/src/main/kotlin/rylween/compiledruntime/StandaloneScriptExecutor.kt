@@ -86,6 +86,7 @@ internal class StandaloneScriptExecutor(
     private var locals: Map<String, Int> = initialLocals
     private var textBindings: Map<String, String> = emptyMap()
     private var activeInventorySlot: Int? = activeInventorySlot
+    private var currentTextLines: List<String> = emptyList()
 
     fun execute(program: CompiledScriptProgram): StandaloneRuntimeState {
         executeBlock(
@@ -170,7 +171,10 @@ internal class StandaloneScriptExecutor(
         instructionCount: Int,
     ): StandaloneScriptSignal =
         when (instruction.opcode) {
-            CompiledOpcode.Screen -> continueAfter { screen.writeText(instruction.textBlockOperand(0).renderScriptLines()) }
+            CompiledOpcode.Screen ->
+                continueAfter {
+                    writeText(instruction.textBlockOperand(0).renderScriptLines())
+                }
             CompiledOpcode.Emit -> continueAfter { screen.writeText(listOf("[text:${content.slug(instruction.handleOperand(0))}]")) }
             CompiledOpcode.EmitIndexed ->
                 continueAfter {
@@ -178,8 +182,8 @@ internal class StandaloneScriptExecutor(
                     screen.writeText(listOf(pattern.replace("%d", int(instruction.intOperand(1)).toString())))
                 }
             CompiledOpcode.WaitInput -> continueAfter { input.readCommand() }
-            CompiledOpcode.Pause -> StandaloneScriptSignal.Continue
-            CompiledOpcode.View -> continueAfter { screen.writeViewCommand(instruction.viewOperand(0).toRuntimeViewCommand()) }
+            CompiledOpcode.Pause -> continueAfter { input.pause(instruction.integerOperand(0)) }
+            CompiledOpcode.View -> continueAfter { writeViewCommand(instruction.viewOperand(0).toRuntimeViewCommand()) }
             CompiledOpcode.LetInt ->
                 continueAfter {
                     locals = locals + (content.strings.value(instruction.stringIdOperand(0)) to int(instruction.intOperand(1)))
@@ -357,6 +361,16 @@ internal class StandaloneScriptExecutor(
         return StandaloneScriptSignal.StopScript
     }
 
+    private fun writeText(lines: List<String>) {
+        currentTextLines = lines
+        screen.writeText(lines)
+    }
+
+    private fun writeViewCommand(command: CompiledRuntimeViewCommand) {
+        if (command == CompiledRuntimeViewCommand.ClearText) currentTextLines = emptyList()
+        screen.writeViewCommand(command)
+    }
+
     private fun executeLoop(
         instructions: List<CompiledInstruction>,
         parentContext: StandaloneScriptBlockContext,
@@ -410,9 +424,19 @@ internal class StandaloneScriptExecutor(
     ): StandaloneScriptSignal {
         val options = instruction.menuOptionsOperand(1)
         val promptLines = instruction.textBlockOperand(0).renderScriptLines()
-        val lines = if (promptLines.alreadyListMenuOptions(options)) promptLines else promptLines + options.menuOptionLines()
-        screen.writeText(lines)
-        val choice = input.readCommand() ?: return StandaloneScriptSignal.StopScript
+        val baseLines =
+            when {
+                promptLines.onlyListMenuOptions(options) && currentTextLines.isNotEmpty() -> currentTextLines + promptLines
+                promptLines.alreadyListMenuOptions(options) -> promptLines
+                else -> promptLines + options.menuOptionLines()
+            }
+        writeText(baseLines)
+        var choice = input.readCommand() ?: return StandaloneScriptSignal.StopScript
+        while (choice == '!') {
+            screen.redrawCurrentView(baseLines)
+            currentTextLines = baseLines
+            choice = input.readCommand() ?: return StandaloneScriptSignal.StopScript
+        }
         val optionIndex = options.indexOfFirst { menu -> menu.binding.matchesStandalone(content, choice) }
         val selected = options.getOrNull(optionIndex)
         val body = selected?.body ?: instruction.instructionsOperand(2)
@@ -430,8 +454,14 @@ internal class StandaloneScriptExecutor(
 
     private fun executeAskKey(instruction: CompiledInstruction): StandaloneScriptSignal {
         val bindings = instruction.inputBindingsOperand(2)
-        screen.writeText(instruction.textBlockOperand(0).renderScriptLines())
-        val choice = input.readCommand() ?: return StandaloneScriptSignal.StopScript
+        val lines = instruction.textBlockOperand(0).renderScriptLines()
+        writeText(lines)
+        var choice = input.readCommand() ?: return StandaloneScriptSignal.StopScript
+        while (choice == '!') {
+            screen.redrawCurrentView(lines)
+            currentTextLines = lines
+            choice = input.readCommand() ?: return StandaloneScriptSignal.StopScript
+        }
         val binding =
             bindings.firstOrNull { current -> current.matchesStandalone(content, choice) } ?: return StandaloneScriptSignal.Continue
         locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to binding.promptValue())
@@ -446,6 +476,17 @@ internal class StandaloneScriptExecutor(
             val key = option.binding.primaryStandaloneLabel(content)
             any { line -> "($key)" in line || "$key." in line }
         }
+
+    private fun List<String>.onlyListMenuOptions(options: List<CompiledMenuOption>): Boolean {
+        val nonBlank = filter(String::isNotBlank)
+        if (nonBlank.isEmpty()) return false
+        return nonBlank.all { line ->
+            options.any { option ->
+                val key = option.binding.primaryStandaloneLabel(content)
+                "($key)" in line || line.trimStart().startsWith("$key.")
+            }
+        }
+    }
 
     private fun executeAskMember(instruction: CompiledInstruction): StandaloneScriptSignal {
         val accepting = enumValueOf<MemberChoiceFilter>(instruction.enumOperand(3))

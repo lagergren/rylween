@@ -59,13 +59,15 @@ internal class CompiledAnsiScreen(
         systems.presentation.terminalTerrain.associateBy { it.terrain }
 
     private var classicFrameActive = false
+    private var activeMapImage: String? = null
 
     /** Clears the terminal and renders the compiled frame image, if present. */
     fun bootFrame() {
         classicFrameActive = true
+        activeMapImage = null
         log?.event("screen.boot_frame")
         terminal.writeRaw("${AnsiCodes.CSI}?25l")
-        staticScreenById["frame"]?.image?.let(::renderImage)
+        staticScreenById["frame"]?.image?.let { image -> renderImage(image) }
             ?: terminal.writeRaw("${AnsiCodes.CSI}2J${AnsiCodes.CSI}1;1H")
         terminal.writeRaw("${AnsiCodes.FG_WHITE}${AnsiCodes.BG_BLACK}")
         terminal.flush()
@@ -79,7 +81,7 @@ internal class CompiledAnsiScreen(
         classicFrameActive = false
         log?.event("screen.static slug=$screenSlug")
         val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
-        screen.image?.let(::renderImage)
+        screen.image?.let { image -> renderImage(image) }
         staticScreenText(screen, runtime).takeIf(List<String>::isNotEmpty)?.let(::writeFullScreenText)
     }
 
@@ -92,7 +94,7 @@ internal class CompiledAnsiScreen(
         classicFrameActive = false
         log?.event("screen.static_paged slug=$screenSlug")
         val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
-        screen.image?.let(::renderImage)
+        screen.image?.let { image -> renderImage(image) }
         val lines = staticScreenText(screen, runtime)
         if (lines.isEmpty()) {
             advance()
@@ -190,6 +192,7 @@ internal class CompiledAnsiScreen(
     /** Clears only the map/image region. */
     fun clearMapWindow() {
         ensureClassicFrame()
+        activeMapImage = null
         clearRegion(mapWindow)
         terminal.flush()
     }
@@ -197,9 +200,15 @@ internal class CompiledAnsiScreen(
     /** Renders a compiled image asset by slug. */
     fun showImage(imageSlug: String) {
         ensureClassicFrame()
-        renderImage(imageSlug)
+        renderImage(imageSlug, rememberMapImage = true)
         terminal.writeRaw("${AnsiCodes.FG_WHITE}${AnsiCodes.BG_BLACK}")
         terminal.flush()
+    }
+
+    /** Repaints the remembered map-window image and supplied text panel. */
+    fun redrawCurrentView(lines: List<String>) {
+        activeMapImage?.let { imageSlug -> renderImage(imageSlug, rememberMapImage = false) }
+        writeText(lines)
     }
 
     private fun wildernessContextLines(
@@ -231,14 +240,19 @@ internal class CompiledAnsiScreen(
             }
         }
 
-    private fun renderImage(imageSlug: String) {
+    private fun renderImage(
+        imageSlug: String,
+        rememberMapImage: Boolean = false,
+    ) {
         val image = imageById[imageSlug] ?: return
         if (image.placement == "MapWindow") {
+            if (rememberMapImage) activeMapImage = imageSlug
             clearRegion(mapWindow)
-            renderAnsiAt(image.resource, mapWindow.x, mapWindow.y)
+            renderAnsiAt(image.resource, mapWindow.x + 1, mapWindow.y)
             goto(textWindow)
             return
         }
+        activeMapImage = null
         terminal.writeRaw("${AnsiCodes.CSI}2J${AnsiCodes.CSI}1;1H")
         terminal.writeRaw(resourceText(image.resource))
     }
@@ -290,6 +304,7 @@ internal class CompiledAnsiScreen(
         center: GridPoint,
         world: StandaloneWorldMap,
     ) {
+        activeMapImage = null
         val viewport = world.viewport(center, rows = WILDERNESS_MAP_TILES, columns = WILDERNESS_MAP_TILES)
         log?.event(
             "screen.render_map center=${center.x},${center.y} rows=${viewport.size} " +
