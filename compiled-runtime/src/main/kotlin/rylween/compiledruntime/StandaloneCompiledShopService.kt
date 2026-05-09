@@ -45,31 +45,35 @@ internal class StandaloneCompiledShopService(
     ): StandaloneParty {
         var currentParty = party
         screen.showImage(content.slug(shop.image))
-        screen.writeText(shop.intro.renderStandaloneLines(content))
-        input.readCommand() ?: return currentParty
+        val homeLines = shopHomeLines(shop)
 
         while (true) {
-            screen.writeText(shopMenuLines(shop))
+            screen.writeText(homeLines)
             val choice = input.readCommand() ?: return currentParty
             val buy = shop.buy
             val sell = shop.sell
             when {
                 shop.keys.leave.matchesStandalone(content, choice) -> {
-                    screen.writeText(shop.goodbye.renderStandaloneLines(content))
                     return currentParty
                 }
+
+                choice == '!' -> screen.redrawCurrentView(homeLines)
+
                 buy != null && shop.keys.buy.matchesStandalone(content, choice) -> {
                     currentParty = runBuy(buy, currentParty)
                 }
+
                 sell != null && shop.keys.sell.matchesStandalone(content, choice) -> {
                     currentParty = runSell(sell, currentParty)
                 }
-                else -> screen.writeText(listOf("No such shop choice."))
+
+                else -> writeTextAndWait(listOf("No such shop choice."))
             }
         }
     }
 
-    private fun shopMenuLines(shop: CompiledShopService): List<String> = shop.menu.renderStandaloneLines(content)
+    private fun shopHomeLines(shop: CompiledShopService): List<String> =
+        shop.intro.renderStandaloneLines(content) + shop.menu.renderStandaloneLines(content)
 
     private fun runBuy(
         buy: CompiledShopBuy,
@@ -178,14 +182,12 @@ internal class StandaloneCompiledShopService(
         if (buy.paymentKeys.decline.matchesStandalone(content, choice)) return party
         if (!buy.paymentKeys.pay.matchesStandalone(content, choice)) return party
         if (party.resources.gold < totalPrice) {
-            screen.writeText(buy.tooExpensive.renderShopLines(item = offer.item, price = totalPrice))
-            input.readCommand()
+            writeTextAndWait(buy.tooExpensive.renderShopLines(item = offer.item, price = totalPrice))
             return party
         }
 
         val result = applyPurchase(buy, offer, party, quantity, totalPrice)
-        screen.writeText(result.lines)
-        input.readCommand()
+        writeTextAndWait(result.lines)
         return result.party
     }
 
@@ -277,13 +279,11 @@ internal class StandaloneCompiledShopService(
         val slot = choice.inventorySlotFromKey() ?: return party
         val item = party.inventoryItem(slot)
         if (item == null) {
-            screen.writeText(listOf("That slot is empty."))
-            input.readCommand()
+            writeTextAndWait(listOf("That slot is empty."))
             return party
         }
         if (!sell.accepts(item)) {
-            screen.writeText(sell.wrongKind.renderStandaloneLines(content))
-            input.readCommand()
+            writeTextAndWait(sell.wrongKind.renderStandaloneLines(content))
             return party
         }
 
@@ -302,9 +302,13 @@ internal class StandaloneCompiledShopService(
                 .withInventoryItem(slot, null)
                 .withGold(quote.party.resources.gold + price)
         val soldLines = sell.sold?.renderStandaloneLines(content) ?: listOf("Sold!")
-        screen.writeText(soldLines)
-        input.readCommand()
+        writeTextAndWait(soldLines)
         return updated
+    }
+
+    private fun writeTextAndWait(lines: List<String>) {
+        screen.writeText(lines + "" + "Press any key.")
+        input.readCommand()
     }
 
     private fun sellPromptLines(

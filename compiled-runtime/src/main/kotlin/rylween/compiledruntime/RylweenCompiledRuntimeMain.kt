@@ -985,33 +985,37 @@ class StandaloneCompiledRuntime private constructor(
             screen.writeText(listOf("${string(town.nameString)} has no compiled services."))
             return runtime
         }
-        val menu =
+
+        fun menuLines(): List<String> =
             buildList {
                 add("Entering ${string(town.nameString)}")
                 add("")
-                services.forEachIndexed { index, service ->
-                    add("${index + 1}. ${slug(service.building).readableSlug()}")
-                }
+                services.forEachIndexed { index, service -> add("${index + 1}. ${slug(service.building).readableSlug()}") }
                 add("L. Leave")
             }
-        screen.showImage(TOWN_MAINSTREET_IMAGE)
-        screen.writeText(menu)
-        var choice = input.readCommand() ?: return runtime
-        while (choice == '!') {
-            screen.redrawCurrentView(menu)
-            choice = input.readCommand() ?: return runtime
+        var current = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
+        while (true) {
+            val menu = menuLines()
+            screen.showImage(TOWN_MAINSTREET_IMAGE)
+            screen.writeText(menu)
+            var choice = input.readCommand() ?: return current
+            while (choice == '!') {
+                screen.redrawCurrentView(menu)
+                choice = input.readCommand() ?: return current
+            }
+            if (choice == 'L') return current.copy(currentMode = RuntimeMode.Wilderness, currentTown = null)
+            val index = choice.digitToIntOrNull()?.minus(1)
+            val service = index?.let(services::getOrNull)
+            if (service == null) {
+                log.event("town.invalid_choice key=$choice")
+                screen.writeText(listOf("No such service.", "", "Press any key."))
+                input.readCommand() ?: return current
+                continue
+            }
+            log.event("town.service town=${slug(town.id)} building=${slug(service.building)}")
+            current = runService(current.copy(currentMode = RuntimeMode.Town, currentTown = town.id), service, input, screen)
+            if (current.currentMode != RuntimeMode.Town || input.exhausted) return current
         }
-        if (choice == 'L') return runtime
-        val index = choice.digitToIntOrNull()?.minus(1)
-        val service = index?.let(services::getOrNull)
-        if (service == null) {
-            log.event("town.invalid_choice key=$choice")
-            screen.writeText(listOf("No such service."))
-            return runtime
-        }
-        log.event("town.service town=${slug(town.id)} building=${slug(service.building)}")
-        val serviceRuntime = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
-        return runService(serviceRuntime, service, input, screen).copy(currentMode = RuntimeMode.Wilderness, currentTown = null)
     }
 
     private fun runService(
