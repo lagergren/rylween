@@ -116,27 +116,43 @@ internal class StandaloneUtilityActions(
     ): StandaloneRuntimeState {
         val memberIndex = chooseMember(runtime) ?: return runtime
         val member = runtime.party.members.getOrNull(memberIndex) ?: return runtime
+        val equipmentName = acceptedKind.equipmentName()
         val choices =
             runtime.party.inventory.mapNotNull { slot ->
                 val item = slot.item ?: return@mapNotNull null
                 val record = itemRecord(item)
-                slot.takeIf { record.kind == acceptedKind && member.pcClass in record.equippableBy }
+                slot.takeIf {
+                    record.kind == acceptedKind &&
+                        (record.equippableBy.isEmpty() || member.pcClass in record.equippableBy)
+                }
             }
-        if (choices.isEmpty()) return runtime
+        if (choices.isEmpty()) {
+            screen.writeText(listOf("No $equipmentName available."))
+            return runtime
+        }
         screen.writeText(listOf("Ready what?") + inventoryLines(choices))
         val slot =
-            input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
+            input
+                .readCommand()
+                ?.inventorySlotFromKey()
+                ?.takeIf { selected -> choices.any { it.slot == selected } }
                 ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
+        screen.writeText(listOf("Equipped ${itemName(item)}."))
         return runtime.updateMember(memberIndex) { current -> equip(current, item) }
     }
 
+    private fun ItemKind.equipmentName(): String =
+        when (this) {
+            ItemKind.Weapon -> "weapon"
+            ItemKind.Armor -> "armor"
+            else -> "item"
+        }
+
     private fun inventoryLines(choices: List<rylween.compiled.CompiledInventorySlot>): List<String> =
-        inventoryMenuLines(
-            choices.map { slot ->
-                inventorySlotKey(slot.slot) to slot.item?.let(::itemName).orEmpty()
-            },
-        )
+        choices.map { slot ->
+            "${inventorySlotKey(slot.slot)}. ${slot.item?.let(::itemName).orEmpty()}"
+        }
 
     private fun chooseCaster(runtime: StandaloneRuntimeState): Int? {
         val choices =

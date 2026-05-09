@@ -2454,6 +2454,8 @@ data class WildernessKeysModel(
     val castSpell: InputBindingModel = inputKey("Z"),
     val quaff: InputBindingModel = inputKey("Q"),
     val quit: InputBindingModel = inputKey("X"),
+    val debugForceCave: InputBindingModel = inputKey("[", label = "["),
+    val debugForceEncounter: InputBindingModel = inputKey("]", label = "]"),
     val caveEnter: InputBindingModel = inputKey("E"),
     val caveLeave: InputBindingModel = inputKey("L"),
     val outOfMovesSave: InputBindingModel = inputKey("S"),
@@ -2488,6 +2490,8 @@ fun WildernessKeysModel.exploreKeys(): List<InputBindingModel> =
         quaff,
         quit,
     )
+
+fun WildernessKeysModel.debugKeys(): List<InputBindingModel> = listOf(debugForceCave, debugForceEncounter)
 
 fun WildernessKeysModel.caveKeys(): List<InputBindingModel> = listOf(caveEnter, caveLeave)
 
@@ -6547,6 +6551,8 @@ class WildernessKeysBuilder(
     var castSpell: InputBindingModel = initial.castSpell
     var quaff: InputBindingModel = initial.quaff
     var quit: InputBindingModel = initial.quit
+    var debugForceCave: InputBindingModel = initial.debugForceCave
+    var debugForceEncounter: InputBindingModel = initial.debugForceEncounter
     private var caveEnterKey = initial.caveEnter
     private var caveLeaveKey = initial.caveLeave
     private var outOfMovesSaveKey = initial.outOfMovesSave
@@ -6666,6 +6672,8 @@ class WildernessKeysBuilder(
             castSpell = castSpell,
             quaff = quaff,
             quit = quit,
+            debugForceCave = debugForceCave,
+            debugForceEncounter = debugForceEncounter,
             caveEnter = caveEnterKey,
             caveLeave = caveLeaveKey,
             outOfMovesSave = outOfMovesSaveKey,

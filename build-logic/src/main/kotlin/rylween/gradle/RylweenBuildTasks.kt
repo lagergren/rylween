@@ -134,6 +134,10 @@ abstract class RunInstalledLauncherWithJavaTask
         @get:Optional
         abstract val debugLog: Property<Boolean>
 
+        @get:Input
+        @get:Optional
+        abstract val debugSecrets: Property<Boolean>
+
         @get:InputFile
         @get:Optional
         abstract val loadFile: RegularFileProperty
@@ -188,6 +192,9 @@ abstract class RunInstalledLauncherWithJavaTask
             }
             if (debugLog.orNull == true) {
                 launcherArgs += "--debug-log"
+            }
+            if (debugSecrets.orNull == true) {
+                launcherArgs += "--debug-secrets"
             }
             if (loadFile.isPresent) {
                 launcherArgs += listOf("--load", loadFile.get().asFile.path)

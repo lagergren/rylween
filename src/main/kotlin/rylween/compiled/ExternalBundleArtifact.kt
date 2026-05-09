@@ -1516,6 +1516,11 @@ private class ExternalBundleArtifactWriter {
                     "quaff" to game.wilderness.keys.quaff,
                     "quit" to game.wilderness.keys.quit,
                 ),
+            "wilderness.debug" to
+                commandListJson(
+                    "forceCave" to game.wilderness.keys.debugForceCave,
+                    "forceEncounter" to game.wilderness.keys.debugForceEncounter,
+                ),
             "wilderness.cave" to
                 commandListJson(
                     "enter" to game.wilderness.keys.caveEnter,

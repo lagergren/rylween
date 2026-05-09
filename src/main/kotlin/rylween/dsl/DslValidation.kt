@@ -847,6 +847,8 @@ private fun validateWildernessKeys(keys: WildernessKeysModel) {
         "cast spell" to keys.castSpell,
         "quaff" to keys.quaff,
         "quit" to keys.quit,
+        "debug force cave" to keys.debugForceCave,
+        "debug force encounter" to keys.debugForceEncounter,
         "cave enter" to keys.caveEnter,
         "cave leave" to keys.caveLeave,
         "out-of-moves save" to keys.outOfMovesSave,
@@ -858,6 +860,7 @@ private fun validateWildernessKeys(keys: WildernessKeysModel) {
     }
 
     checkUniqueBindings(keys.exploreKeys(), "wilderness explore")
+    checkUniqueBindings(keys.exploreKeys() + keys.debugKeys(), "wilderness explore/debug")
     checkUniqueBindings(keys.caveKeys(), "wilderness cave")
     checkUniqueBindings(keys.outOfMovesKeys(), "wilderness out-of-moves")
     checkUniqueBindings(keys.quitConfirmKeys(), "wilderness quit-confirm")

@@ -709,6 +709,68 @@ val checkCompiledRuntimeWildernessActionsScript: TaskProvider<RunInstalledLaunch
     script.set("H1C2X")
 }
 
+val checkCompiledRuntimeWildernessEquipmentScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs wilderness ready-weapon and ready-armor utility pickers in the standalone compiled runtime."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    stateSlug.set("strong-replay")
+    script.set("W1HR1IX")
+    expectedOutputContains.set(
+        listOf(
+            "Who?",
+            "Ready what?",
+            "H. Magic Sword",
+            "Equipped Magic Sword.",
+            "I. Mithril Mail",
+            "Equipped Mithril Mail.",
+        ),
+    )
+}
+
+val checkCompiledRuntimeWildernessDebugSecretsScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
+    group = "verification"
+    description = "Runs hidden manual-test wilderness cave and encounter triggers in the standalone compiled runtime."
+
+    dependsOn(installCompiledRuntime)
+    dependsOn(":emitExternalCompiledBundle")
+    executableFile.set(compiledRuntimeExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(
+        kotlinRuntimeJavaLauncher.map { launcher ->
+            launcher.metadata.installationPath.asFile.absolutePath
+        },
+    )
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    stateSlug.set("strong-replay")
+    script.set("[L]" + compiledRuntimeBattleMacro() + "X")
+    seed.set(31)
+    debugLog.set(true)
+    debugSecrets.set(true)
+    expectedOutputContains.set(
+        listOf(
+            "debug.secret.force_cave",
+            "You find a cave!",
+            "debug.secret.force_encounter",
+            "rng.draw context=wilderness.encounter_split",
+            "ENCOUNTER!",
+        ),
+    )
+}
+
 val checkCompiledRuntimeDungeonScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
     RunInstalledLauncherWithJavaTask::class,
 ) {
@@ -900,6 +962,8 @@ tasks.check {
     dependsOn(checkCompiledRuntimeLoadScript)
     dependsOn(checkCompiledRuntimePartyJournalScript)
     dependsOn(checkCompiledRuntimeWildernessActionsScript)
+    dependsOn(checkCompiledRuntimeWildernessEquipmentScript)
+    dependsOn(checkCompiledRuntimeWildernessDebugSecretsScript)
     dependsOn(checkCompiledRuntimeDungeonScript)
     dependsOn(checkCompiledRuntimeCastleScript)
     dependsOn(checkCompiledRuntimeHeroesScreen)

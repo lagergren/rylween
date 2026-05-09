@@ -143,6 +143,16 @@ internal class StandaloneWildernessActions(
         return runtime.resolveCamp(rules, guardIndex, foodCost)
     }
 
+    fun forceCaveDiscovery(runtime: StandaloneRuntimeState): StandaloneWildernessActionResult {
+        log?.event("debug.secret.force_cave position=${runtime.party.position.x},${runtime.party.position.y}")
+        return runtime.applyCaveDiscovery(emptyList(), source = "debug_secret")
+    }
+
+    fun forceEncounter(runtime: StandaloneRuntimeState): StandaloneWildernessActionResult {
+        log?.event("debug.secret.force_encounter position=${runtime.party.position.x},${runtime.party.position.y}")
+        return runtime.applyEncounter(emptyList(), source = "debug_secret")
+    }
+
     fun applyMoveEvents(
         runtime: StandaloneRuntimeState,
         move: StandaloneMoveEvent,
@@ -189,31 +199,13 @@ internal class StandaloneWildernessActions(
                     "outcome" to eventOutcome,
                 ),
         )
-        if (eventDraw.value < events.caveChancePercent) {
-            return current.applyCaveDiscovery(messages)
-        }
+        if (eventDraw.value < events.caveChancePercent) return current.applyCaveDiscovery(messages, source = "event_gate")
 
         if (eventDraw.value < quietLimit) {
             return StandaloneWildernessActionResult(current, messages)
         }
 
-        val splitDraw = current.party.drawRandom(0, 99)
-        current = current.withParty(splitDraw.party)
-        val tier = if (splitDraw.value < events.encounterSplitPercent) events.easyEncounterTier else events.hardEncounterTier
-        log?.rngDraw(
-            context = "wilderness.encounter_split",
-            lo = 0,
-            hi = 99,
-            value = splitDraw.value,
-            hit = splitDraw.value < events.encounterSplitPercent,
-            details =
-                mapOf(
-                    "easy_lt" to events.encounterSplitPercent,
-                    "tier" to tier,
-                ),
-        )
-        val battle = battleRunner().runTier(current, tier)
-        return StandaloneWildernessActionResult(battle.runtime, messages + battle.messages)
+        return current.applyEncounter(messages, source = "event_gate")
     }
 
     private fun StandaloneRuntimeState.pollMission(currentTerrain: CompiledTerrain?): StandaloneMissionTriggerResult {
@@ -273,10 +265,14 @@ internal class StandaloneWildernessActions(
 
     private fun StandaloneInput.readIntFromPrompt(lines: List<String>): Int? {
         screen.writeText(lines)
-        return readInt()
+        return readCommand()?.digitToIntOrNull()
     }
 
-    private fun StandaloneRuntimeState.applyCaveDiscovery(messages: List<String>): StandaloneWildernessActionResult {
+    private fun StandaloneRuntimeState.applyCaveDiscovery(
+        messages: List<String>,
+        source: String,
+    ): StandaloneWildernessActionResult {
+        log?.event("wilderness.cave_discovery source=$source position=${party.position.x},${party.position.y}")
         if (messages.isNotEmpty()) screen.writeText(messages)
         wilderness.events.caveImage?.let(screen::showImage)
         screen.writeText(wilderness.events.caveFoundPrompt.renderStandalone())
@@ -293,7 +289,11 @@ internal class StandaloneWildernessActions(
             lo = wilderness.events.caveDepthRange.first,
             hi = wilderness.events.caveDepthRange.last,
             value = depth.value,
-            details = mapOf("dungeon" to content.slug(content.ref(CompiledHandleKind.Dungeon, wilderness.events.caveDungeon))),
+            details =
+                mapOf(
+                    "dungeon" to content.slug(content.ref(CompiledHandleKind.Dungeon, wilderness.events.caveDungeon)),
+                    "source" to source,
+                ),
         )
         val next =
             withParty(
@@ -310,6 +310,32 @@ internal class StandaloneWildernessActions(
                 log = log,
             )
         return StandaloneWildernessActionResult(next)
+    }
+
+    private fun StandaloneRuntimeState.applyEncounter(
+        messages: List<String>,
+        source: String,
+    ): StandaloneWildernessActionResult {
+        var current = this
+        val events = wilderness.events
+        val splitDraw = current.party.drawRandom(0, 99)
+        current = current.withParty(splitDraw.party)
+        val tier = if (splitDraw.value < events.encounterSplitPercent) events.easyEncounterTier else events.hardEncounterTier
+        log?.rngDraw(
+            context = "wilderness.encounter_split",
+            lo = 0,
+            hi = 99,
+            value = splitDraw.value,
+            hit = splitDraw.value < events.encounterSplitPercent,
+            details =
+                mapOf(
+                    "easy_lt" to events.encounterSplitPercent,
+                    "tier" to tier,
+                    "source" to source,
+                ),
+        )
+        val battle = battleRunner().runTier(current, tier)
+        return StandaloneWildernessActionResult(battle.runtime, messages + battle.messages)
     }
 
     private fun StandaloneRuntimeState.resolveHunt(
