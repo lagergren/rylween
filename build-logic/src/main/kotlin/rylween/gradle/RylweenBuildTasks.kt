@@ -1994,7 +1994,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
 /**
  * Generates the checked-in style wrapper script used by `run.sh`.
  */
-abstract class GenerateAnsiBuildWrapperTask : DefaultTask() {
+abstract class GenerateCompiledRuntimeBuildWrapperTask : DefaultTask() {
     @get:OutputFile
     abstract val outputFile: RegularFileProperty
 
@@ -2007,9 +2007,9 @@ abstract class GenerateAnsiBuildWrapperTask : DefaultTask() {
             |#!/usr/bin/env bash
             |set -euo pipefail
             |
-            |SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-            |APP_HOME="$(cd "$SCRIPT_DIR/.." && pwd -P)"
-            |PROJECT_DIR="$(cd "$APP_HOME/../../.." && pwd -P)"
+            |ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+            |LAUNCHER="$ROOT_DIR/compiled-runtime/build/install/rylween-compiled-runtime/bin/rylween-compiled"
+            |BUNDLE="$ROOT_DIR/build/compiled/rylween-bundle.json"
             |
             |build=false
             |args=()
@@ -2021,12 +2021,12 @@ abstract class GenerateAnsiBuildWrapperTask : DefaultTask() {
             |  fi
             |done
             |
-            |if [[ "$build" == true ]]; then
-            |  if [[ ! -x "$PROJECT_DIR/gradlew" ]]; then
-            |    echo "rylween: cannot find Gradle wrapper at $PROJECT_DIR/gradlew" >&2
+            |if [[ "$build" == true || ! -x "$LAUNCHER" || ! -f "$BUNDLE" ]]; then
+            |  if [[ ! -x "$ROOT_DIR/gradlew" ]]; then
+            |    echo "rylween: cannot find Gradle wrapper at $ROOT_DIR/gradlew" >&2
             |    exit 1
             |  fi
-            |  (cd "$PROJECT_DIR" && ./gradlew emitExternalCompiledBundle installKotlinAnsi --console=plain)
+            |  (cd "$ROOT_DIR" && ./gradlew emitExternalCompiledBundle :compiled-runtime:installCompiledRuntime --console=plain)
             |fi
             |
             |bundle_seen=false
@@ -2036,10 +2036,10 @@ abstract class GenerateAnsiBuildWrapperTask : DefaultTask() {
             |  fi
             |done
             |if [[ "$bundle_seen" == false ]]; then
-            |  args=("--bundle" "$PROJECT_DIR/build/compiled/rylween-bundle.json" "${args[@]}")
+            |  args=("--bundle" "$BUNDLE" "${args[@]}")
             |fi
             |
-            |exec "$APP_HOME/bin/rylween-app" "${args[@]}"
+            |exec "$LAUNCHER" "${args[@]}"
             """.trimMargin() + "\n",
         )
         output.setExecutable(true, false)

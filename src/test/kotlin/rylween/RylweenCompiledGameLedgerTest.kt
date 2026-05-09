@@ -1202,6 +1202,8 @@ class RylweenCompiledGameLedgerTest {
         val rootBuild = File("build.gradle.kts").readText()
         val settings = File("settings.gradle.kts").readText()
         val launcher = File("run.sh").readText()
+        val buildWrapperTask =
+            File("build-logic/src/main/kotlin/rylween/gradle/RylweenBuildTasks.kt").readText()
 
         check(File("legacy/ansi-runtime/build.gradle.kts").isFile) {
             "old interpreted ANSI runtime project must be archived under legacy/ansi-runtime"
@@ -1238,6 +1240,15 @@ class RylweenCompiledGameLedgerTest {
         }
         check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in launcher }) {
             "run.sh must not fall back to the archived interpreted ANSI runtime"
+        }
+        check(
+            ":compiled-runtime:installCompiledRuntime" in buildWrapperTask &&
+                "compiled-runtime/build/install/rylween-compiled-runtime/bin/rylween-compiled" in buildWrapperTask,
+        ) {
+            "generated wrapper task must launch the standalone compiled runtime"
+        }
+        check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in buildWrapperTask }) {
+            "generated wrapper task must not fall back to the archived interpreted ANSI runtime"
         }
     }
 
