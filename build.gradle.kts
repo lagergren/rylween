@@ -41,9 +41,13 @@ val gameDslModuleFiles: ConfigurableFileCollection =
         }
     }
 val gameDslSourceLabel: String = gameDslSourceFile.asFile.relativeTo(projectDir).invariantSeparatorsPath
+val rylweenJvmToolchainVersion: Int =
+    libs.versions.jdk
+        .get()
+        .toInt()
 
 kotlin {
-    jvmToolchain(25)
+    jvmToolchain(rylweenJvmToolchainVersion)
 }
 
 val main: SourceSet by sourceSets.getting

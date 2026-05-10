@@ -15,8 +15,13 @@ repositories {
     mavenCentral()
 }
 
+val rylweenJvmToolchainVersion: Int =
+    libs.versions.jdk
+        .get()
+        .toInt()
+
 kotlin {
-    jvmToolchain(25)
+    jvmToolchain(rylweenJvmToolchainVersion)
 }
 
 dependencies {
@@ -39,7 +44,7 @@ sourceSets.named("main") {
 val javaToolchains: JavaToolchainService = extensions.getByType()
 val kotlinRuntimeJavaLauncher: Provider<JavaLauncher> =
     javaToolchains.launcherFor {
-        languageVersion.set(JavaLanguageVersion.of(25))
+        languageVersion.set(JavaLanguageVersion.of(rylweenJvmToolchainVersion))
     }
 val externalBundleArtifact: Provider<RegularFile> =
     rootProject.layout.buildDirectory.file("compiled/rylween-bundle.json")

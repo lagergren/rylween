@@ -10,8 +10,13 @@ repositories {
     mavenCentral()
 }
 
+val rylweenJvmToolchainVersion: Int =
+    libs.versions.jdk
+        .get()
+        .toInt()
+
 kotlin {
-    jvmToolchain(25)
+    jvmToolchain(rylweenJvmToolchainVersion)
 }
 
 dependencies {
