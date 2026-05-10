@@ -2,8 +2,7 @@
 //
 // This file should contain game declarations: flags, progress milestones,
 // monsters, missions, and scripts. DSL implementation code belongs in
-// src/main/kotlin/rylween; reusable current-game script helpers belong in
-// src/game/kotlin/rylween/game/GameScripts.kt.
+// src/main/kotlin/rylween.
 //
 // Validate with:
 //
@@ -1226,7 +1225,7 @@ var nextRylween: RylweenModel = rylween {
                     run { line("(R)un") }
                     bloodFlow { line("Blood shall flow!") }
                     whatNow { lines("What now?", "") }
-                    targetMonsterPrompt()
+                    targetPrompt { lines("Who?", "") }
                     useWhat { lines("Use what?", "") }
                     spellAbort { line("7. Abort") }
                     runCoward { lines("Coward. You won't get", "any EXP for this battle.") }
@@ -1265,7 +1264,7 @@ var nextRylween: RylweenModel = rylween {
                         line("Blow misses!")
                     }
                     memberDeath { line(BattleText.targetName, " DIES!!!") }
-                    monsterKilledLine()
+                    killed { line("...KILLED!") }
                     partyHeld { line("PARTY IS HELD!") }
                     partyDefeated { line("The party has fallen.") }
                     victoryBested { lines("Thou hast bested", "thy foes.", "") }
@@ -1512,7 +1511,14 @@ var nextRylween: RylweenModel = rylween {
             event(DungeonEvents.findObject) {
                 recurring()
                 run {
-                    findDungeonObject()
+                    randomDungeonItemFind(
+                        commonPools = listOf(
+                            ItemPools.dungeonWeaponFinds,
+                            ItemPools.dungeonPotionGemFinds,
+                            ItemPools.dungeonTreasureFinds,
+                        ),
+                        rarePool = ItemPools.magicItems,
+                    )
                 }
             }
 
@@ -1602,7 +1608,7 @@ var nextRylween: RylweenModel = rylween {
 
             event(DungeonEvents.thunRiddle1) {
                 run {
-                    thunRiddle(
+                    riddleGate(
                         intro = textLines(
                             "You stand before a",
                             "mage dressed entirenly",
@@ -1622,13 +1628,20 @@ var nextRylween: RylweenModel = rylween {
                         ),
                         answers = listOf("water"),
                         guardian = Monsters.norker,
+                        success = textLines("- Well done. Pass.", ""),
+                        failure = textLines(
+                            "- FOOLS! Meet thy doom!",
+                            "at a gesture from him,",
+                            "something evil appears.",
+                            "",
+                        ),
                     )
                 }
             }
 
             event(DungeonEvents.thunRiddle2) {
                 run {
-                    thunRiddle(
+                    riddleGate(
                         intro = textLines(
                             "You stand before a",
                             "mage dressed entirenly",
@@ -1648,13 +1661,20 @@ var nextRylween: RylweenModel = rylween {
                         ),
                         answers = listOf("night", "darkness"),
                         guardian = Monsters.voodooLord,
+                        success = textLines("- Well done. Pass.", ""),
+                        failure = textLines(
+                            "- FOOLS! Meet thy doom!",
+                            "at a gesture from him,",
+                            "something evil appears.",
+                            "",
+                        ),
                     )
                 }
             }
 
             event(DungeonEvents.thunRiddle3) {
                 run {
-                    thunRiddle(
+                    riddleGate(
                         intro = textLines(
                             "You stand before a",
                             "mage dressed entirenly",
@@ -1674,6 +1694,13 @@ var nextRylween: RylweenModel = rylween {
                         ),
                         answers = listOf("well", "a well"),
                         guardian = Monsters.archdevil,
+                        success = textLines("- Well done. Pass.", ""),
+                        failure = textLines(
+                            "- FOOLS! Meet thy doom!",
+                            "at a gesture from him,",
+                            "something evil appears.",
+                            "",
+                        ),
                     )
                 }
             }
@@ -2092,13 +2119,31 @@ var nextRylween: RylweenModel = rylween {
 
             scenario(Dungeons.randomCave) {
                 name("Random Cave")
-                standardDungeonEvents()
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
             }
 
             scenario(Dungeons.fireShieldCave) {
                 name("Fire Shield Cave")
                 levels(20)
-                standardDungeonEvents()
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
                 level(19, DungeonEvents.fireShieldGuardian)
                 level(20, DungeonEvents.fireShield)
             }
@@ -2106,7 +2151,16 @@ var nextRylween: RylweenModel = rylween {
             scenario(Dungeons.thunTemple) {
                 name("Thun Temple")
                 levels(18)
-                standardDungeonEvents()
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
                 level(4, DungeonEvents.thunRiddle1)
                 level(8, DungeonEvents.thunRiddle2)
                 level(12, DungeonEvents.thunRiddle3)
@@ -2116,7 +2170,16 @@ var nextRylween: RylweenModel = rylween {
             scenario(Dungeons.reebarTomb) {
                 name("Reebar Tomb")
                 levels(20)
-                standardDungeonEvents()
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
                 level(12, DungeonEvents.spectrumMessage)
                 level(13, DungeonEvents.colorRiddle)
                 level(14, DungeonEvents.colorRiddle)
@@ -2131,21 +2194,48 @@ var nextRylween: RylweenModel = rylween {
             scenario(Dungeons.masterCrownDungeon) {
                 name("Master Crown Dungeon")
                 levels(10)
-                standardDungeonEvents()
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
                 level(10, DungeonEvents.masterCrown)
             }
 
             scenario(Dungeons.silverSanctum) {
                 name("Silver Sanctum")
                 levels(20)
-                standardDungeonEvents()
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
                 level(20, DungeonEvents.silverSanctum)
             }
 
             scenario(Dungeons.hobgoblinStronghold) {
                 name("Hobgoblin Stronghold")
                 levels(22)
-                standardDungeonEvents()
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
                 level(3, DungeonEvents.hobgoblinPatrol)
                 level(6, DungeonEvents.hobgoblinPatrol)
                 level(9, DungeonEvents.hobgoblinPatrol)
@@ -2160,7 +2250,16 @@ var nextRylween: RylweenModel = rylween {
             scenario(Dungeons.ogreCave) {
                 name("Ogre Cave")
                 levels(7)
-                standardDungeonEvents()
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
                 level(6, DungeonEvents.orcNest)
                 level(7, DungeonEvents.tammysPrison)
             }
@@ -2168,7 +2267,16 @@ var nextRylween: RylweenModel = rylween {
             scenario(Dungeons.erethorTemple) {
                 name("Erethor Temple")
                 levels(12)
-                standardDungeonEvents()
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
                 level(3, DungeonEvents.erethorPriests)
                 level(7, DungeonEvents.erethorPriests)
                 level(12, DungeonEvents.luteChamber)
@@ -4350,7 +4458,132 @@ var nextRylween: RylweenModel = rylween {
                     }
 
                     option('T') {
-                        travelerStory()
+                        clearText()
+                        val maxMembers = realm.partyMemberMax
+                        val storyteller =
+                            choice.member(
+                                structuredText {
+                                    line("Who wants to tell")
+                                    line("a story? (1-", maxMembers, ")")
+                                },
+                                filter = MemberChoiceFilter.AliveOnly,
+                                accepting = MemberChoiceFilter.Any,
+                            )
+
+                        whenever(storyteller.dead) {
+                            clearText()
+                            screen {
+                                lines(
+                                    "Dead men",
+                                    "tell no",
+                                    "stories...",
+                                )
+                            }
+                            pause(2000)
+                        } otherwise {
+                            clearText()
+                            screen {
+                                line(partyName(storyteller), " stands up")
+                                line("and screams:")
+                                line("- ANYONE WHO WANNA HEAR")
+                                line("  A TRAVELER'S STORY?")
+                                line("")
+                            }
+                            pause(2000)
+
+                            screen("- YEAAH! Roars the crowd!", "")
+                            pause(2000)
+
+                            val isBoast = localInt(0)
+                            menu("(T)rue story", "(B)oast") {
+                                option('T') {}
+                                option('B') {
+                                    isBoast set 1
+                                }
+                            }
+
+                            val score = localInt(0)
+                            whenever(isBoast eq 1) {
+                                score += 100
+                            }
+                            whenever(storyteller.isClass(PcClass.Bard)) {
+                                score += 100
+                            }
+                            whenever(storyteller.charisma gt 90) {
+                                score += 50
+                            }
+                            whenever(storyteller.charisma gt 70) {
+                                score += 50
+                            }
+                            score += random(1..150)
+
+                            whenever(isBoast eq 1) {
+                                whenever(random(0..99) gt storyteller.charisma) {
+                                    clearText()
+                                    screen("- Out with the liar!")
+                                    pause(2000)
+                                    screen("You are thrown out.")
+                                    whenever(storyteller.charisma gte 10) {
+                                        storyteller.charisma -= 10
+                                    } otherwise {
+                                        storyteller.charisma set 0
+                                    }
+                                    clearMapWindow()
+                                    breakLoop("liar thrown out of tavern")
+                                }
+                            }
+
+                            clearText()
+                            whenever(score gt 400) {
+                                screen {
+                                    lines(
+                                        "Superb Story! Let's",
+                                        "give 'em some ale, lads!",
+                                        "You are given a whole",
+                                        "tray of ale!",
+                                        "",
+                                    )
+                                }
+                                pause(2000)
+                                storyteller.charisma += 3
+                            }
+                            whenever((score gt 300) and (score lt 401)) {
+                                screen {
+                                    lines(
+                                        "Very good! You've been",
+                                        "through much!",
+                                        "",
+                                    )
+                                }
+                                pause(2000)
+                                storyteller.charisma += 1
+                            }
+                            whenever((score gt 150) and (score lt 301)) {
+                                screen("Nice story, Sir!", "")
+                                pause(1600)
+                            }
+                            whenever((score gt 100) and (score lt 151)) {
+                                screen("The mob is bored.", "")
+                                pause(1600)
+                                whenever(storyteller.charisma gt 0) {
+                                    storyteller.charisma -= 1
+                                }
+                            }
+                            whenever(score lt 101) {
+                                screen {
+                                    lines(
+                                        "Most of the crowd",
+                                        "falls asleep. The rest",
+                                        "beg you to stop.",
+                                        "",
+                                    )
+                                }
+                                pause(2000)
+                                whenever(storyteller.charisma gte 3) {
+                                    storyteller.charisma -= 3
+                                }
+                            }
+                        }
                     }
 
                     option('R') {
@@ -4576,7 +4809,7 @@ var nextRylween: RylweenModel = rylween {
         // declare this game's spell and combat-item effects.
         spell(Spells.Mage.frost, slot = 1, baseCost = 8, name = "Frost Finger") {
             val caster = currentCaster
-            val target = askAliveBattleMonster()
+            val target = ask.monsterAlive(textLines("Who?", ""))
             val damage = localInt(caster.level * random(2..8))
 
             clearText()
@@ -4592,7 +4825,7 @@ var nextRylween: RylweenModel = rylween {
             whenever(target.hp lte 0) {
                 target.hp set 0
                 target.dead set true
-                showBattleKilled()
+                screen("...KILLED!")
                 pause(600)
             }
         }
@@ -4615,7 +4848,7 @@ var nextRylween: RylweenModel = rylween {
 
                     whenever(foe.hp lte 0) {
                         foe.hp set 0
-                        showBattleKilled()
+                        screen("...KILLED!")
                         pause(600)
                         foe.dead set true
                     }
@@ -4641,7 +4874,7 @@ var nextRylween: RylweenModel = rylween {
         }
 
         spell(Spells.Mage.death, slot = 4, baseCost = 78, name = "Death Strike") {
-            val target = askAliveBattleMonster()
+            val target = ask.monsterAlive(textLines("Who?", ""))
 
             clearText()
             whenever(random(0..199) lt target.hp) {
@@ -4926,9 +5159,9 @@ var nextRylween: RylweenModel = rylween {
                         pause(1500)
                         clearText()
                         choose(random(0..2)) {
-                            case(0) { offerDungeonFind(ItemPools.dungeonWeaponFinds) }
-                            case(1) { offerDungeonFind(ItemPools.dungeonPotionGemFinds) }
-                            case(2) { offerDungeonFind(ItemPools.magicItems) }
+                            case(0) { dungeonItemFind(ItemPools.dungeonWeaponFinds) }
+                            case(1) { dungeonItemFind(ItemPools.dungeonPotionGemFinds) }
+                            case(2) { dungeonItemFind(ItemPools.magicItems) }
                         }
                     }
                 } otherwise {
@@ -4944,7 +5177,57 @@ var nextRylween: RylweenModel = rylween {
         }
 
         spell(Spells.Priest.teleport, slot = 6, baseCost = 35, name = "Teleport") {
-            priestTeleport(currentCaster)
+            val caster = currentCaster
+            val cost = lit(35) + caster.level
+
+            whenever(caster.mp gte cost) {
+                caster.mp -= cost
+                clearText()
+                screen {
+                    line(partyName(caster), " carefully")
+                    lines("prepares the ritual of")
+                    line("Teleportation. ", pronoun(caster, PronounCase.Subject), " spends")
+                    lines("an hour chanting mantras", "and burning blue candles.", "")
+                }
+                realm.hour += 1
+                waitInput("after teleport ritual")
+                clearText()
+                screen {
+                    line(pronoun(caster, PronounCase.Subject), " picks up a stone slab")
+                    line("from ", pronoun(caster, PronounCase.Possessive), " satchel and")
+                    lines(
+                        "uses a special instrument",
+                        "to scratch the direction",
+                    )
+                    line(pronoun(caster, PronounCase.Subject), " wants you to teleport")
+                    lines("to.", "")
+                }
+                waitInput("after teleport slab")
+                clearText()
+                val direction =
+                    ask.wildernessDirection(
+                        textLines(
+                            "Teleport :",
+                            "",
+                            "   8",
+                            " 4-+-6",
+                            "   2",
+                            "",
+                            "(or arrow keys)",
+                        ),
+                    )
+                clearText()
+                val distance = ask.digit(textLines("How many miles do you", "want to travel? (1-9)"), 1..9)
+                teleportParty(direction, distance)
+                screen("You appear to be", "somewhere else.")
+                renderMap()
+                pause(1200)
+                clearText()
+            } otherwise {
+                screen("Not enough spell pts!")
+                pause(1000)
+                clearText()
+            }
         }
 
         spell(Spells.Priest.earthquake, slot = 7, baseCost = 55, name = "Earthquake") {
@@ -5091,7 +5374,7 @@ var nextRylween: RylweenModel = rylween {
 
                 whenever(target.hp lte 0) {
                     target.hp set 0
-                    showBattleKilled()
+                    screen("...KILLED!")
                     pause(600)
                     target.dead set true
                 }
@@ -5121,7 +5404,7 @@ var nextRylween: RylweenModel = rylween {
 
                         whenever(foe.hp lte 0) {
                             foe.hp set 0
-                            showBattleKilled()
+                            screen("...KILLED!")
                             pause(600)
                             foe.dead set true
                         }
@@ -5198,7 +5481,7 @@ var nextRylween: RylweenModel = rylween {
                     line("away...")
                 }
                 pause(2000)
-                showBattleKilled()
+                screen("...KILLED!")
                 pause(600)
                 target.dead set true
                 target.hp set 0
@@ -5428,11 +5711,22 @@ var nextRylween: RylweenModel = rylween {
 
         scene(Scenes.Missions.bandits) {
             clearText()
-            readBanditsApproach()
+            readScreen(
+                "You come across the",
+                "camp of the bandits.",
+                "One of them spots you",
+                "and they attack!",
+                "",
+            )
             encounter(Monsters.bandit, mandatory = true)
             renderMap()
             clearText()
-            readBanditsCargoRecovered()
+            readScreen(
+                "You find the cargo",
+                "the merchant wanted",
+                "you to bring him.",
+                "",
+            )
             mark(Story.garth.bandits.recovered)
         }
 

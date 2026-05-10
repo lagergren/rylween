@@ -6,7 +6,7 @@ plugins {
 
 private val ktlintToolVersion = "1.6.0"
 private val pmdVersion = "7.13.0"
-private val kotlinSourceDirs = listOf("src/main/kotlin", "src/game/kotlin", "src/app/kotlin", "src/test/kotlin")
+private val kotlinSourceDirs = listOf("src/main/kotlin", "src/app/kotlin", "src/test/kotlin")
 
 ktlint {
     version.set(ktlintToolVersion)

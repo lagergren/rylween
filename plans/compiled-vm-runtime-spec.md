@@ -430,7 +430,7 @@ A runtime boot should follow this shape:
 
 A standalone compiled runtime must not require:
 
-- `src/game/kotlin` generated handles.
+- generated game-catalog handles or authored Kotlin source.
 - authored Kotlin `Op` instances.
 - the old Kotlin runtime/session classes.
 - Kotlin-specific enum names as save identity.

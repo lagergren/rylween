@@ -4,9 +4,8 @@
  * This file is implementation/compiler scaffolding: typed handles, immutable
  * models, builders, and recorded script ASTs. Current-game handles are
  * generated from `RylweenGame.dsl.kts` by the Gradle content-generation task.
- * Game-specific content belongs in `RylweenGame.dsl.kts`, reusable game-script
- * helpers live in `game/GameScripts.kt`, validation helpers live in
- * `DslValidation.kt`, and compiled J1 emission lives in
+ * Game-specific content belongs in `RylweenGame.dsl.kts`, validation helpers
+ * live in `DslValidation.kt`, and compiled J1 emission lives in
  * `compiled/CompiledBundle.kt`.
  *
  * Authoring goals:
@@ -3857,6 +3856,20 @@ class ScriptScope(
 
     fun screen(body: StructuredTextBlockBuilder.() -> Unit): Unit = screen(structuredText(body))
 
+    fun readScreen(vararg lines: String) {
+        readScreen(textLines(*lines))
+    }
+
+    fun readScreen(text: TextBlock) {
+        screen(text)
+        waitInput()
+        clearText()
+    }
+
+    fun readScreen(body: StructuredTextBlockBuilder.() -> Unit) {
+        readScreen(structuredText(body))
+    }
+
     fun say(text: TextBlock): Unit = screen(text)
 
     fun say(id: TextId): Unit = screen(id)
@@ -4070,6 +4083,87 @@ class ScriptScope(
         levels: Int,
     ) {
         record(Op.EnterDungeon(dungeon, levels))
+    }
+
+    fun dungeonEntrance(
+        dungeon: DungeonId,
+        levels: Int,
+        leaveClearsText: Boolean = true,
+        prompt: StructuredTextBlockBuilder.() -> Unit,
+    ) {
+        clearText()
+        choice.enterOrLeave(
+            structuredText(prompt),
+            enter = {
+                enterDungeon(dungeon, levels)
+                clearMapWindow()
+                renderMap()
+            },
+            leave = {
+                if (leaveClearsText) clearText()
+            },
+        )
+    }
+
+    fun dungeonItemFind(pool: ItemPoolId) {
+        choice.randomItemOffer(pool) {
+            free()
+            choiceKeys(buy = inputKey("T"), decline = inputKey("L"))
+            offer {
+                line("You find a")
+                line(itemName, ".")
+                line("")
+            }
+            choicePrompt("(T)ake it", "(L)eave it")
+            broke("No gold changes hands.")
+            full("You can't carry more.")
+            exactFullInventoryReject()
+            deal("", "Ok.")
+        }
+    }
+
+    fun randomDungeonItemFind(
+        commonPools: List<ItemPoolId>,
+        rarePool: ItemPoolId,
+        rareRoll: IntRange = 0..4,
+        rareValue: Int = 0,
+    ) {
+        require(commonPools.isNotEmpty()) { "random dungeon item find needs at least one common item pool" }
+        val roll = localInt(random(rareRoll))
+        whenever(roll eq rareValue) {
+            dungeonItemFind(rarePool)
+        } otherwise {
+            choose(random(0 until commonPools.size)) {
+                commonPools.forEachIndexed { index, pool ->
+                    case(index) { dungeonItemFind(pool) }
+                }
+            }
+        }
+    }
+
+    fun riddleGate(
+        intro: TextBlock,
+        riddle: TextBlock,
+        answers: List<String>,
+        guardian: MonsterId,
+        success: TextBlock,
+        failure: TextBlock,
+    ) {
+        readScreen(intro)
+        screen(riddle)
+        choice.textAnswer(
+            prompt = "Answer: ",
+            accepting = answers,
+            maxLength = 15,
+            match = {
+                readScreen(success)
+            },
+            miss = {
+                readScreen(failure)
+                encounter(guardian, mandatory = true)
+            },
+        )
+        clearText()
     }
 
     fun teleportParty(
@@ -7235,6 +7329,14 @@ class DungeonScenarioBuilder(
 
     fun randomEvents(body: DungeonRandomEventPoolBuilder.() -> Unit) {
         randomEvents += DungeonRandomEventPoolBuilder().apply(body).build()
+    }
+
+    fun randomEvents(vararg events: Pair<DungeonEventId, Int>) {
+        randomEvents {
+            events.forEach { (eventId, weight) ->
+                event(eventId, weight)
+            }
+        }
     }
 
     fun build(): DungeonScenarioModel =

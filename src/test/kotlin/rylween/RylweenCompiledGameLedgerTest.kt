@@ -1182,7 +1182,6 @@ class RylweenCompiledGameLedgerTest {
                 "src/main/kotlin",
                 "ansi-terminal/src/main/kotlin",
                 "compiled-runtime/src/main/kotlin",
-                "src/game/kotlin",
             )
         val offenders =
             runtimeSourceRoots.flatMap { root ->
