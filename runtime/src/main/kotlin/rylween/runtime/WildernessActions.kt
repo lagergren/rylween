@@ -54,6 +54,10 @@ internal class WildernessActions(
     private val screen: RuntimeScreen,
     private val log: RuntimeLog? = null,
 ) {
+    private companion object {
+        const val CAMP_MESSAGE_DELAY_MS = 1_300
+    }
+
     fun applyTurnUpkeep(runtime: RuntimeState): WildernessActionResult {
         var party = runtime.party
         val messages = mutableListOf<String>()
@@ -419,19 +423,23 @@ internal class WildernessActions(
                     },
             )
         var runtime = copy(hour = (hour + rules.hoursAdvanced).positiveMod(24), party = party)
-        val messages =
-            buildList {
-                if (guardIndex != null) addAll(rules.text.standsGuard.renderCamp(runtime))
-                addAll(rules.text.sleeping.renderCamp(runtime))
-                val temperature = runtime.applyTemperature(rules)
-                runtime = temperature.runtime
-                addAll(temperature.messages)
-                val ambush = runtime.applyCampAmbush(rules, guardIndex)
-                runtime = ambush.runtime
-                addAll(ambush.messages)
-                if (!ambush.triggered) addAll(rules.text.rested.renderCamp(runtime))
-            }
-        return WildernessActionResult(runtime, messages)
+        if (guardIndex != null) showCampBeat(rules.text.standsGuard.renderCamp(runtime))
+        showCampBeat(rules.text.sleeping.renderCamp(runtime))
+
+        val temperature = runtime.applyTemperature(rules)
+        runtime = temperature.runtime
+        showCampBeat(temperature.messages)
+
+        val ambush = runtime.applyCampAmbush(rules, guardIndex)
+        runtime = ambush.runtime
+        if (!ambush.triggered) showCampBeat(rules.text.rested.renderCamp(runtime))
+        return WildernessActionResult(runtime)
+    }
+
+    private fun showCampBeat(lines: List<String>) {
+        if (lines.isEmpty()) return
+        screen.writeText(lines)
+        input.pause(CAMP_MESSAGE_DELAY_MS)
     }
 
     private fun RuntimeState.applyTemperature(rules: ExternalCampRules): CampMutation {
@@ -499,8 +507,7 @@ internal class WildernessActions(
         if (chance.value >= rules.ambushChancePercent) return CampMutation(withParty(chance.party))
 
         var party = chance.party
-        val messages = mutableListOf<String>()
-        messages += rules.text.ambush.renderCamp(this)
+        showCampBeat(rules.text.ambush.renderCamp(this))
         val surprise = guardIndex == null && party.members.count { member -> !member.dead } > 1
         if (surprise) {
             val aliveIndexes = party.members.mapIndexedNotNull { index, member -> index.takeUnless { member.dead } }
@@ -521,10 +528,11 @@ internal class WildernessActions(
                                 ?: member.copy(hitPoints = member.hitPoints.copy(current = 0), dead = true)
                         },
                 )
-            messages += rules.text.surpriseKill.renderCamp(withParty(party))
+            showCampBeat(rules.text.surpriseKill.renderCamp(withParty(party)))
         }
         val battle = battleRunner().runTier(withParty(party), ambushTier)
-        return CampMutation(battle.runtime, messages + battle.messages, triggered = true)
+        showCampBeat(battle.messages)
+        return CampMutation(battle.runtime, triggered = true)
     }
 
     private fun RuntimeState.applyTerrainTransition(

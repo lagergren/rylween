@@ -18,6 +18,8 @@
 package rylween.runtime
 
 import rylween.compiled.CompiledBuildingService
+import rylween.compiled.CompiledCharacter
+import rylween.compiled.CompiledCharacterPlacement
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledEquipment
 import rylween.compiled.CompiledGameBundle
@@ -70,6 +72,7 @@ private const val MANUAL_SCREEN = "manual"
 private const val TEXT_WINDOW_PAGE_LINES = 9
 private const val CREATION_REJECTION_DELAY_MS = 1_000
 private const val TOWN_MAINSTREET_IMAGE = "blitgfx.towne_mainstreet"
+private const val WILDERNESS_MESSAGE_DELAY_MS = 1_200
 
 /** CLI entry point for the runtime. */
 object RylweenRuntimeMain {
@@ -341,6 +344,7 @@ class GameRuntime private constructor(
             if (debugLogFlash) log.mirrorTo(screen::flashLogLine)
             try {
                 log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
+                logNpcPlacements(runtime, log)
                 val input = RuntimeInput(terminal, scriptedInput, log)
                 if (showTitleMenu) {
                     runtime = runTitleMenu(runtime, stateSlug, seed, saveFile, input, screen, log) ?: return
@@ -451,7 +455,7 @@ class GameRuntime private constructor(
                             }
 
                             commands.matches("journal", command) -> {
-                                showWildernessPage(screen, input, runtime, world, PartyPages.journalLines(content, runtime.party))
+                                showWildernessPage(screen, input, runtime, world, PartyPages.journalLines(runtime.party))
                                 false
                             }
 
@@ -490,12 +494,12 @@ class GameRuntime private constructor(
                             }
 
                             commands.matches("camp", command) -> {
-                                runtime = applyAction(actions.camp(runtime), screen, world)
+                                runtime = applyAction(actions.camp(runtime), input, screen, world)
                                 false
                             }
 
                             commands.matches("hunt", command) -> {
-                                runtime = applyAction(actions.hunt(runtime), screen, world)
+                                runtime = applyAction(actions.hunt(runtime), input, screen, world)
                                 false
                             }
 
@@ -512,12 +516,12 @@ class GameRuntime private constructor(
                             }
 
                             debugSecrets && debugCommands.matches("forceCave", command) -> {
-                                runtime = applyAction(actions.forceCaveDiscovery(runtime), screen, world)
+                                runtime = applyAction(actions.forceCaveDiscovery(runtime), input, screen, world)
                                 false
                             }
 
                             debugSecrets && debugCommands.matches("forceEncounter", command) -> {
-                                runtime = applyAction(actions.forceEncounter(runtime), screen, world)
+                                runtime = applyAction(actions.forceEncounter(runtime), input, screen, world)
                                 false
                             }
 
@@ -528,10 +532,10 @@ class GameRuntime private constructor(
                             }
                         }
                     if (advanceTurn) {
-                        runtime = applyAction(actions.applyTurnUpkeep(runtime), screen, world)
+                        runtime = applyAction(actions.applyTurnUpkeep(runtime), input, screen, world)
                         if (runtime.currentMode == RuntimeMode.GameOver) return
                         moveEvent?.let { event ->
-                            runtime = applyAction(actions.applyMoveEvents(runtime, event), screen, world)
+                            runtime = applyAction(actions.applyMoveEvents(runtime, event), input, screen, world)
                             if (runtime.currentMode == RuntimeMode.GameOver) return
                         }
                     }
@@ -884,12 +888,14 @@ class GameRuntime private constructor(
 
     private fun applyAction(
         result: WildernessActionResult,
+        input: RuntimeInput,
         screen: RuntimeScreen,
         world: WorldMap,
     ): RuntimeState {
         screen.renderWilderness(result.runtime, world)
         if (result.messages.isNotEmpty()) {
             screen.writeText(result.messages)
+            input.pause(WILDERNESS_MESSAGE_DELAY_MS)
         }
         return result.runtime
     }
@@ -1103,6 +1109,60 @@ class GameRuntime private constructor(
         return bundle.states.firstOrNull { it.state == stateRef } ?: error("unknown compiled state $slug")
     }
 
+    private fun logNpcPlacements(
+        runtime: RuntimeState,
+        log: RuntimeLog,
+    ) {
+        val rows =
+            content.characters.mapNotNull { character ->
+                val position = character.effectivePosition(runtime)
+                if (position == null) {
+                    log.event(
+                        "npc.placement.missing npc=${slug(character.id)} " +
+                            "name=${logValue(string(character.nameString))} job=${slug(character.job)}",
+                    )
+                    return@mapNotNull null
+                }
+                NpcPlacementLogRow(
+                    id = character.id,
+                    name = string(character.nameString),
+                    job = slug(character.job),
+                    location = position.logLocation(),
+                )
+            }
+        val locationSummary =
+            rows
+                .groupingBy(NpcPlacementLogRow::location)
+                .eachCount()
+                .entries
+                .sortedBy(Map.Entry<String, Int>::key)
+                .joinToString(separator = ",") { (location, count) -> "$location:$count" }
+        log.event(
+            "npc.placement.summary placed=${rows.size} total=${content.characters.size} " +
+                "missing=${content.characters.size - rows.size} locations=$locationSummary",
+        )
+        rows
+            .sortedWith(compareBy(NpcPlacementLogRow::location, NpcPlacementLogRow::job, NpcPlacementLogRow::name))
+            .forEach { row ->
+                log.event(
+                    "npc.placement npc=${slug(row.id)} name=${logValue(row.name)} " +
+                        "job=${row.job} location=${row.location}",
+                )
+            }
+    }
+
+    private fun CompiledCharacter.effectivePosition(runtime: RuntimeState): CompiledWorldPosition? =
+        runtime.npcs.firstOrNull { placement -> placement.npc == id }?.position
+            ?: (placement as? CompiledCharacterPlacement.Fixed)?.position
+
+    private fun CompiledWorldPosition.logLocation(): String =
+        when (this) {
+            is CompiledWorldPosition.Town -> "town.${slug(town)}.${slug(building)}"
+            is CompiledWorldPosition.Wilderness -> "wilderness.${point.x},${point.y}"
+        }
+
+    private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
     private fun string(id: Int): String = content.strings.value(id)
 
     private fun slug(ref: CompiledHandleRef): String = content.slug(ref)
@@ -1117,6 +1177,13 @@ class GameRuntime private constructor(
             )
     }
 }
+
+private data class NpcPlacementLogRow(
+    val id: CompiledHandleRef,
+    val name: String,
+    val job: String,
+    val location: String,
+)
 
 internal data class RuntimeState(
     val stateSlug: String,
@@ -1192,7 +1259,7 @@ internal data class PartyState(
     val members: List<CompiledPartyMember>,
     val memberNames: List<String>,
     val visitedNpcs: List<CompiledNpcVisit>,
-    val journal: List<CompiledJournalEntry>,
+    val journal: List<String>,
     val rngState: Long?,
 ) {
     fun passTurn(): PartyState = copy(resources = resources.copy(timeLeft = max(0, resources.timeLeft - 1)))
@@ -1265,7 +1332,7 @@ internal data class PartyState(
                 members = party.members,
                 memberNames = party.members.map { member -> content.strings.value(member.nameString) },
                 visitedNpcs = party.visitedNpcs,
-                journal = party.journal,
+                journal = party.journal.map { entry -> content.journalEntryText(entry) },
                 rngState = rngState,
             )
         }
@@ -1280,6 +1347,12 @@ internal fun PartyState.memberName(
         .getOrNull(index)
         ?.takeIf(String::isNotBlank)
         ?: members.getOrNull(index)?.let { member -> content.strings.value(member.nameString) }.orEmpty()
+
+private fun CompiledContentBundle.journalEntryText(entry: CompiledJournalEntry): String =
+    when (entry) {
+        is CompiledJournalEntry.Line -> strings.value(entry.textString)
+        is CompiledJournalEntry.Text -> slug(entry.text).readableSlug()
+    }
 
 internal data class RandomDraw(
     val value: Int,
@@ -1436,6 +1509,8 @@ internal fun CompiledTextBlock.renderTextLines(
     content: CompiledContentBundle,
     intValue: (CompiledIntExpr) -> String = { "[int]" },
     stringValue: (CompiledStringExpr) -> String = { "[string]" },
+    roleNameValue: (CompiledHandleRef) -> String = { role -> "[role:${content.slug(role)}]" },
+    roleLocationValue: (CompiledHandleRef) -> String = { role -> "[role-location:${content.slug(role)}]" },
     locationValue: (CompiledHandleRef) -> String = { location -> "[location:${content.slug(location)}]" },
     runtimeValue: (CompiledRuntimeTextPart) -> String = { part -> "[${part.name}]" },
 ): List<String> =
@@ -1445,7 +1520,7 @@ internal fun CompiledTextBlock.renderTextLines(
         is CompiledTextBlock.Structured ->
             lines.map { line ->
                 line.parts.joinToString(separator = "") { part ->
-                    part.renderText(content, intValue, stringValue, locationValue, runtimeValue)
+                    part.renderText(content, intValue, stringValue, roleNameValue, roleLocationValue, locationValue, runtimeValue)
                 }
             }
     }
@@ -1454,6 +1529,8 @@ private fun CompiledTextPart.renderText(
     content: CompiledContentBundle,
     intValue: (CompiledIntExpr) -> String,
     stringValue: (CompiledStringExpr) -> String,
+    roleNameValue: (CompiledHandleRef) -> String,
+    roleLocationValue: (CompiledHandleRef) -> String,
     locationValue: (CompiledHandleRef) -> String,
     runtimeValue: (CompiledRuntimeTextPart) -> String,
 ): String =
@@ -1461,8 +1538,8 @@ private fun CompiledTextPart.renderText(
         is CompiledTextPart.Literal -> content.strings.value(string)
         is CompiledTextPart.IntValue -> intValue(value)
         is CompiledTextPart.StringValue -> stringValue(value)
-        is CompiledTextPart.RoleName -> "[role:${content.slug(role)}]"
-        is CompiledTextPart.RoleLocation -> "[role-location:${content.slug(role)}]"
+        is CompiledTextPart.RoleName -> roleNameValue(role)
+        is CompiledTextPart.RoleLocation -> roleLocationValue(role)
         is CompiledTextPart.TownName -> content.townName(town)
         is CompiledTextPart.FuzzyTownLocation -> "${content.townName(town)} area"
         is CompiledTextPart.LocationCoordinate -> locationValue(location)

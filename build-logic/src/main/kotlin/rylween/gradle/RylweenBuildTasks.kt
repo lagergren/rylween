@@ -1758,7 +1758,8 @@ abstract class GenerateRuntimeBuildWrapperTask : DefaultTask() {
             |set -euo pipefail
             |
             |ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-            |LAUNCHER="$ROOT_DIR/runtime/build/install/rylween/bin/rylween"
+            |INSTALL_HOME="$ROOT_DIR/runtime/build/install/rylween"
+            |LAUNCHER="$INSTALL_HOME/bin/rylween"
             |BUNDLE="$ROOT_DIR/build/compiled/rylween-bundle.json"
             |
             |build=false
@@ -1801,7 +1802,20 @@ abstract class GenerateRuntimeBuildWrapperTask : DefaultTask() {
             |  args=("--title" "${args[@]}")
             |fi
             |
-            |exec "$LAUNCHER" "${args[@]}"
+            |RUN_PARENT="$(mktemp -d "${TMPDIR:-/tmp}/rylween-run.XXXXXX")"
+            |cleanup() {
+            |  rm -rf "$RUN_PARENT"
+            |}
+            |trap cleanup EXIT
+            |
+            |# Run from a private copy so Gradle rebuilds/tests cannot rewrite jars under
+            |# an active game process and trigger lazy classpath ZipFile failures.
+            |cp -R "$INSTALL_HOME" "$RUN_PARENT/"
+            |RUN_LAUNCHER="$RUN_PARENT/rylween/bin/rylween"
+            |
+            |status=0
+            |"$RUN_LAUNCHER" "${args[@]}" || status=$?
+            |exit "$status"
             """.trimMargin() + "\n",
         )
         output.setExecutable(true, false)

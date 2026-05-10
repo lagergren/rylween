@@ -281,9 +281,11 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.ollk_silver_key_chain",
-                        commands = enterInnGuestChat() + speakInnNpc(2) + speakInnNpc(1) + "LLX",
+                        commands = "E3LL2NNN" + speakInnNpc(2) + speakInnNpc(1) + "LLX",
                         checkpoints =
                             listOf(
+                                "output:Tokawa, the keeper",
+                                "output:Luqas, Innkeeper",
                                 "output:sold the Key",
                                 "output:Nah, sorry",
                                 "output:Find them and take it back",
@@ -369,7 +371,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_garth_reward_dialogue",
-                        commands = enterInnGuestChat() + speakInnNpc(1) + "LLX",
+                        commands = enterInnGuestChat() + speakInnNpc(1, "A") + "LLX",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
@@ -502,7 +504,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_inn_drinks_lodging_and_hassan_questions",
-                        commands = "2YAYEYTA2NNNC2QLBL",
+                        commands = "2YYEYTA2NNNC2QLBL",
                         checkpoints =
                             listOf(
                                 "output:Do you want supper",
@@ -740,13 +742,13 @@ internal object ReplayPlans {
 
     private fun thordMissionDialogueRoute(): String =
         enterInnGuestChat() +
+            speakInnNpc(2, "AA") +
             speakInnNpc(1) +
             speakInnNpc(3) +
             speakInnNpc(7) +
-            speakInnNpc(1) +
+            speakInnNpc(2, "A") +
             speakInnNpc(8) +
             speakInnNpc(6) +
-            speakInnNpc(2) +
             speakInnNpc(5, "AA") +
             "LL"
 

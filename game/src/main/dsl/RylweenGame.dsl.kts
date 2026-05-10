@@ -4084,7 +4084,7 @@ var nextRylween: RylweenModel = rylween {
                                 )
                             }
                             healLivingMembers(6)
-                            waitInput("after inn supper")
+                            pause(2000)
                         }
                     },
                 )
@@ -6263,13 +6263,16 @@ var nextRylween: RylweenModel = rylween {
         dialogue {
             npc(Npcs.garth) {
                 whenState(Story.garth.bandits.none) {
-                    say(
+                    screen(
                         "In fact, I have a mission",
                         "for you. It will bring",
                         "you much gold!",
                         "",
+                        "Press any key.",
                     )
-                    say(
+                    waitInput("after garth mission offer")
+                    clearText()
+                    screen(
                         "I was robbed by bandits",
                         "just to the east of here.",
                         "If you find these bandits,",
@@ -6278,17 +6281,35 @@ var nextRylween: RylweenModel = rylween {
                         "you 2000 gold and a ruby",
                         "my grandfather gave me.",
                         "",
+                        "Press any key.",
                     )
+                    waitInput("after garth bandits story")
+                    clearText()
                     mark(Story.garth.bandits.accepted)
                 }
 
+                whenState(Story.garth.bandits.accepted) {
+                    screen(
+                        "Find those bandits and",
+                        "bring my cargo back",
+                        "here. Then I'll pay you.",
+                        "",
+                        "Press any key.",
+                    )
+                    waitInput("after garth accepted reminder")
+                    clearText()
+                }
+
                 whenState(Story.garth.bandits.recovered) {
-                    say(
+                    screen(
                         "The merchant is GRATEFUL!",
                         "He pays you 2000 gold and",
                         "hands you a red gem.",
                         "",
+                        "Press any key.",
                     )
+                    waitInput("after garth reward intro")
+                    clearText()
                     reward {
                         gold(2000)
                         items(Items.redGem)

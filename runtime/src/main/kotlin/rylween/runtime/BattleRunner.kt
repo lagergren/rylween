@@ -54,6 +54,8 @@ import rylween.dsl.sourceId
 private const val RANDOM_PERCENT_MAX = 99
 private const val SPELL_ABORT_SLOT = 7
 private const val BATTLE_MESSAGE_DELAY_MS = 900
+private const val BATTLE_OPENING_DELAY_MS = 1_200
+private const val BATTLE_VICTORY_DELAY_MS = 4_000
 
 private const val BATTLE_FOE_DISPLAY_NAME = "battleFoeDisplayName"
 private const val BATTLE_ATTACKER_NAME = "battleAttackerName"
@@ -65,6 +67,7 @@ private const val BATTLE_LOOT_NAME = "battleLootName"
 private const val BATTLE_LEVEL_MEMBER_NAME = "battleLevelMemberName"
 private const val BATTLE_LEVELS_GAINED = "battleLevelsGained"
 private const val BATTLE_MESSAGE_PAGE_LINES = 4
+private const val BATTLE_VICTORY_PAGE_LINES = 9
 
 /** Result of a battle handoff. */
 internal data class BattleResult(
@@ -111,6 +114,7 @@ internal class BattleRunner(
     fun runMonster(
         runtime: RuntimeState,
         monsterRef: CompiledHandleRef,
+        mandatory: Boolean = false,
     ): BattleResult {
         val monster =
             content.monsters.firstOrNull { current -> current.id == monsterRef }
@@ -118,12 +122,13 @@ internal class BattleRunner(
                     runtime,
                     listOf("Missing compiled monster ${content.slug(monsterRef)}."),
                 )
-        return runMonster(runtime, monster)
+        return runMonster(runtime, monster, mandatory)
     }
 
     private fun runMonster(
         runtime: RuntimeState,
         monster: CompiledMonster,
+        mandatory: Boolean = false,
     ): BattleResult {
         val rules =
             battle ?: return BattleResult(
@@ -139,7 +144,13 @@ internal class BattleRunner(
             screen.writeText(rules.openingText(started))
             val choice = input.readCommand() ?: return BattleResult(runtime)
             when {
-                rules.openingKeys.run.matches(choice) -> return attemptRun(started)
+                rules.openingKeys.run.matches(choice) ->
+                    return if (mandatory) {
+                        finishFight(started, rules.text.runFailAway.renderBattle())
+                    } else {
+                        attemptRun(started)
+                    }
+
                 rules.openingKeys.fight.matches(choice) -> return finishFight(
                     started,
                     rules.text.bloodFlow.renderBattle(),
@@ -181,13 +192,14 @@ internal class BattleRunner(
         initialMessages: List<String>,
     ): BattleResult {
         var encounter = initial
-        var openingMessages = initialMessages
+        if (initialMessages.isNotEmpty()) {
+            showBattleMessages(initialMessages, delayMs = BATTLE_OPENING_DELAY_MS)
+            screen.writeViewCommand(RuntimeViewCommand.ClearText)
+        }
         var round = 0
         while (round < encounter.rules.roundLimit && encounter.partyHasLivingMembers() && encounter.monsterHasLivingMembers()) {
             if (!encounter.partyHeld) {
-                val playerMessages = openingMessages
-                openingMessages = emptyList()
-                encounter = encounter.playerRound(playerMessages)
+                encounter = encounter.playerRound()
             }
             if (encounter.monsterHasLivingMembers()) {
                 encounter = encounter.monsterRound()
@@ -195,15 +207,23 @@ internal class BattleRunner(
             round++
         }
         val finished = encounter.finish()
-        showBattleMessages(finished.messages)
+        showBattleMessages(
+            messages = finished.messages,
+            pageLines = BATTLE_VICTORY_PAGE_LINES,
+            delayMs = BATTLE_VICTORY_DELAY_MS,
+        )
         return BattleResult(finished.runtime)
     }
 
-    private fun showBattleMessages(messages: List<String>) {
+    private fun showBattleMessages(
+        messages: List<String>,
+        pageLines: Int = BATTLE_MESSAGE_PAGE_LINES,
+        delayMs: Int = BATTLE_MESSAGE_DELAY_MS,
+    ) {
         if (messages.isEmpty()) return
-        messages.chunked(BATTLE_MESSAGE_PAGE_LINES).forEach { page ->
+        messages.chunked(pageLines).forEach { page ->
             screen.writeText(page)
-            input.pause(BATTLE_MESSAGE_DELAY_MS)
+            input.pause(delayMs)
         }
     }
 
@@ -214,16 +234,14 @@ internal class BattleRunner(
             text.fight.renderBattle() +
             text.run.renderBattle()
 
-    private fun BattleEncounter.playerRound(openingMessages: List<String>): BattleEncounter {
+    private fun BattleEncounter.playerRound(): BattleEncounter {
         var next = this
-        var pendingOpeningMessages = openingMessages
         runtime.party.members.forEachIndexed { index, member ->
             if (!member.dead && next.monsterHasLivingMembers()) {
                 var retry = true
                 var attempts = 0
                 while (retry && attempts < rules.roundLimit && next.monsterHasLivingMembers()) {
-                    val messages = pendingOpeningMessages.toMutableList()
-                    pendingOpeningMessages = emptyList()
+                    val messages = mutableListOf<String>()
                     next = next.playerAction(index, member, messages)
                     retry = next.actionRetry
                     next = next.copy(actionRetry = false)
