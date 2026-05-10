@@ -1,11 +1,12 @@
 # J2 Compiled VM Plan
 
 This plan describes the work needed to turn the J1 compiled JSON bundle from a
-validated data artifact into an executable script/runtime contract. The current
-Kotlin ANSI and headless hosts read the J1 bundle, materialize the Kotlin
-runtime-facing model, and execute production script roots through `CompiledVm`
-plus reusable session state machines. The authored `Op` interpreter remains as
-an annotated parity/test oracle, not as the production runtime contract.
+validated data artifact into an executable script/runtime contract. That work
+has been completed for the active Kotlin product path: the standalone
+`:compiled-runtime` host reads the J1 bundle and executes production script
+roots from compiled tables. The older Kotlin ANSI/headless session hosts and
+authored `Op` oracle are no longer active source; their final tree is preserved
+inside `scratch/legacy-archive.zip`.
 The formal portable-runtime contract lives in
 [compiled-vm-runtime-spec.md](compiled-vm-runtime-spec.md).
 
@@ -45,11 +46,10 @@ Already in the repo:
   operands in `src/main/kotlin/rylween/compiled/CompiledBundle.kt`
 - strict deterministic J1 JSON emission and Kotlin/C readers
 - native smoke validation for opcode and operand shapes
-- `RuntimeHostContract` with `CompiledVm` as an explicit script execution
-  strategy
-- playable Kotlin ANSI and Kotlin headless hosts using the J1 bundle
-- conformance suites for bundle boot, static screens, wilderness, town,
-  dungeon, castle/Ydarg, battle, save/load, and view commands
+- the standalone compiled runtime in `:compiled-runtime`
+- installed-launcher replay checks for bundle boot, static screens,
+  wilderness, town, dungeon, castle/Ydarg, battle, save/load, and
+  Hall-of-Heroes/reporting paths
 - a full acceptance playthrough that reaches Ydarg victory and renders
   score/heroes reports
 
@@ -60,8 +60,7 @@ Closed J2 pieces now in the repo:
 - blocking input and continuation frame support for compiled instructions
 - child-session handoffs from compiled instructions
 - compiled VM save/resume serialization
-- conformance mode that runs script roots through `CompiledVm`
-- a bundle-only Kotlin ANSI install that has no generated-game fallback
+- standalone compiled-runtime execution with no generated-game fallback
 - a native executor probe beyond bundle validation
 
 Remaining product work belongs outside J2: K1 owns the real non-JVM Rust
@@ -71,8 +70,9 @@ server/MUD runtime, while the C code remains a contract/probe implementation.
 
 ### VM Kernel
 
-Introduce a backend-neutral compiled script executor in `rylween.runtime` or a
-focused sibling package such as `rylween.runtime.vm`.
+The backend-neutral compiled script executor contracts now live under
+`src/main/kotlin/rylween/runtime/vm`, while the active production host lives in
+`compiled-runtime/src/main/kotlin/rylween/compiledruntime`.
 
 Core model:
 

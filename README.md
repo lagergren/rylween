@@ -1,12 +1,13 @@
 # Adventurers of Rylween
-Old code archive and potential ports for Adventurers of Rylween, a MUD style games for BBSes that I wrote in 1992-1993.
+Kotlin port and compiled-runtime workspace for Adventurers of Rylween, a MUD
+style game for BBSes that I wrote in 1992-1993.
 
 The current runnable Kotlin game is the standalone compiled-bundle consumer in
 `compiled-runtime`. Shared DSL/compiler and compiled-bundle contracts live under
 `src/main`, shared ANSI terminal protocol primitives live under `ansi-terminal`,
 and the authored game lives under `src/game`. The old interpreted Kotlin ANSI
 project and historical C/JSON5 port are removed from the active checkout; their
-final tree is zipped under `scratch/`.
+final tree is zipped at `scratch/legacy-archive.zip`.
 
 ## Terminal compatibility
 
@@ -31,8 +32,8 @@ Build and run the direct compiled-bundle runtime:
 
 ```sh
 ./gradlew :compiled-runtime:installCompiledRuntime --console=plain
-./run.sh --state fresh-replay --seed 1
-./run.sh --build --state fresh-replay --seed 1
+./run.sh --build --seed 1
+./run.sh --no-title --state strong-replay --seed 1
 compiled-runtime/build/install/rylween-compiled-runtime/bin/rylween-compiled --bundle build/compiled/rylween-bundle.json --state fresh-replay --seed 1
 ```
 
@@ -42,8 +43,9 @@ The root `run.sh` wrapper is now the closest current equivalent to
 and runs outside Gradle so Gradle progress output and key echo do not share the
 game screen.
 
-Interactive runs without `--load`, `--script`, or `--replay` show the title
-flow first. Press any key at the splash screen, then `N` to create a new party.
+`run.sh` shows the title flow by default. Press any key at the splash screen,
+then `N` to create a new party. Use `--no-title` only when you intentionally
+want to boot a state, script, or replay directly.
 Each run writes a forensic log to `build/logs/compiled-runtime/latest.log`; use
 `--log <file>` to keep a named capture instead of replacing `latest.log`.
 For manual forensics, `--debug-log` flashes the latest log line below the game
@@ -52,9 +54,9 @@ cave discovery and `]` forces a random encounter.
 
 ```sh
 ./run.sh --screen title
-./run.sh --script 22SX --save build/saves/compiled-runtime.rsave
+./run.sh --no-title --script 22SX --save build/saves/compiled-runtime.rsave
 ./run.sh --load build/saves/compiled-runtime.rsave
-./run.sh --state strong-replay --seed 1 --debug-log --debug-secrets
+./run.sh --no-title --state strong-replay --seed 1 --debug-log --debug-secrets
 ```
 
 The compiled runtime boots directly from the bundle, renders compiled static
