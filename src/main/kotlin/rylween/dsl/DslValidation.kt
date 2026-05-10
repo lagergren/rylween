@@ -155,7 +155,7 @@ private val RandomItemOfferTextBindings: Set<TextPart> =
 private val SelectedItemTextBindings: Set<TextPart> = setOf(TextPart.SelectedItemName)
 private val ShopPriceTextBindings: Set<TextPart> = setOf(TextPart.ShopPrice)
 private val ShopCapacityTextBindings: Set<TextPart> = setOf(TextPart.ShopCarryCap)
-private val WildernessDungeonHandoffTextBindings: Set<TextPart> =
+private val WildernessDungeonEntryTextBindings: Set<TextPart> =
     setOf(
         TextPart.WildernessDungeonName,
         TextPart.WildernessDungeonLevels,
@@ -2685,7 +2685,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(
         prompts.wilderness.dungeonHandoff,
         "wilderness dungeon-handoff prompt",
-        allowedRuntimeBindings = WildernessDungeonHandoffTextBindings,
+        allowedRuntimeBindings = WildernessDungeonEntryTextBindings,
     )
     validateTextBlock(prompts.dungeon.levelMenu, "dungeon level-menu prompt", allowedRuntimeBindings = DungeonDepthTextBindings)
     validateTextBlock(prompts.dungeon.enterLevel, "dungeon enter-level prompt", allowedRuntimeBindings = DungeonDepthTextBindings)

@@ -1536,6 +1536,7 @@ class RylweenCompiledGameLedgerTest {
                 "src/main/kotlin/rylween/runtime/town/ShopServiceSessionSnapshot.kt",
                 "src/main/kotlin/rylween/runtime/town/SpeakSessionSnapshot.kt",
                 "src/main/kotlin/rylween/runtime/vm/CompiledVmContinuationSnapshot.kt",
+                "src/main/kotlin/rylween/runtime/wilderness/WildernessDungeonHandoff.kt",
             )
         val missing =
             requiredMarkers.flatMap { (path, tokens) ->

@@ -6373,8 +6373,8 @@ class WildernessPromptsBuilder(
     var quitConfirm: TextBlock = initial.quitConfirm
     private var dungeonHandoffText: TextBlock = initial.dungeonHandoff
 
-    fun dungeonHandoff(body: WildernessDungeonHandoffPromptBuilder.() -> Unit) {
-        dungeonHandoffText = WildernessDungeonHandoffPromptBuilder().apply(body).build()
+    fun dungeonHandoff(body: WildernessDungeonEntryPromptBuilder.() -> Unit) {
+        dungeonHandoffText = WildernessDungeonEntryPromptBuilder().apply(body).build()
     }
 
     fun build(): WildernessPromptsModel =
@@ -6418,7 +6418,7 @@ class DungeonPromptsBuilder(
 }
 
 @RylNextDsl
-class WildernessDungeonHandoffPromptBuilder : TextLineSink {
+class WildernessDungeonEntryPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
 
     val dungeonName: TextPart = TextPart.WildernessDungeonName
