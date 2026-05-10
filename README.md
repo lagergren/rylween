@@ -47,7 +47,7 @@ game screen.
 
 `run.sh` shows the title flow by default. Press any key at the splash screen,
 then `N` to create a new party. Use `--no-title` only when you intentionally
-want to boot a state, script, or replay directly.
+want to boot a state or feed a direct script.
 Each run writes a forensic log to `build/logs/runtime/latest.log`; use
 `--log <file>` to keep a named capture instead of replacing `latest.log`.
 For manual forensics, `--debug-log` flashes the latest log line below the game
@@ -64,7 +64,9 @@ cave discovery and `]` forces a random encounter.
 The runtime boots directly from the compiled bundle, renders static screens and
 wilderness frames, runs wilderness/town/services/battle/dungeon and castle flows
 from compiled tables, handles direct save/load with bundle-hash validation, and
-is verified by the `:runtime:check` replay suite.
+is verified by `:runtime:check`. Long acceptance routes are generated from
+test-only replay plans and fed to the installed runtime through `--script`;
+the shipped launcher does not expose a replay-planning mode.
 
 ## Cleanup
 

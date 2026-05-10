@@ -5,9 +5,8 @@ the Kotlin-authored game: the J0 VM smoke artifact in this directory and the
 active J1 strict JSON artifact emitted under `build/compiled`.
 
 The producer is `CompiledGameBundle.writeNativeSmokeArtifact(...)` in
-`core/src/main/kotlin/rylween/compiled/NativeSmokeArtifact.kt`. The same file
-also contains the Kotlin smoke reader used by tests, and the C reader is
-`rylween_bundle_smoke.c`. Gradle wires the C check through:
+`core/src/main/kotlin/rylween/compiled/NativeSmokeArtifact.kt`, and the C reader
+is `rylween_bundle_smoke.c`. Gradle wires the C check through:
 
 ```sh
 ./gradlew :tools:checkNativeSmokeBundle --console=plain
@@ -47,11 +46,10 @@ launcher has been removed from the active checkout and preserved only inside
 it validates cross-table references and builds string, handle, and script lookup
 maps from an already-materialized `CompiledGameBundle`.
 
-`ByteArray.readNativeSmokeArtifact()` is the Kotlin binary parser for this
-`.rsmoke` artifact. The C smoke loader parses the same emitted bytes. Their job
-is to catch schema/API boundary outages: bad magic/version, bad enum ranges, bad
-string ids, bad handle refs, malformed nested operands, and unsupported VM
-operand shapes.
+`NativeSmokeArtifact.kt` defines the writer and the enum tag constants mirrored
+by the C loader. The C smoke loader parses the emitted `.rsmoke` bytes to catch
+schema/API boundary outages: bad magic/version, bad enum ranges, bad string ids,
+bad handle refs, malformed nested operands, and unsupported VM operand shapes.
 
 J1 is closed for the current artifact-backed runtime target. Kotlin emits,
 reads, hashes, inspects, validates, and boots from the strict JSON artifact.

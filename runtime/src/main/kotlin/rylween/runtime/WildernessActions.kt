@@ -9,9 +9,7 @@
 
 package rylween.runtime
 
-import rylween.compiled.CompiledBinaryOp
 import rylween.compiled.CompiledBoolExpr
-import rylween.compiled.CompiledComparisonOp
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledIntExpr
@@ -99,16 +97,19 @@ internal class WildernessActions(
         return when {
             member == null || member.dead ->
                 WildernessActionResult(runtime, rules.text.dead.renderHunt(runtime, memberNumber = memberNumber))
+
             member.pcClass != PcClass.Ranger ->
                 WildernessActionResult(
                     runtime,
                     rules.text.notRanger.renderHunt(runtime, memberNumber = memberNumber, member = member),
                 )
+
             runtime.party.resources.timeLeft < rules.timeCost ->
                 WildernessActionResult(
                     runtime,
                     rules.text.tooFewMoves.renderHunt(runtime, memberNumber = memberNumber),
                 )
+
             else -> runtime.resolveHunt(rules, memberNumber, member)
         }
     }
@@ -219,10 +220,13 @@ internal class WildernessActions(
                     val point = locations.firstOrNull { location -> location.location == trigger.location }?.point
                     if (point != null && party.position == point) return MissionTriggerResult(next, mission)
                 }
+
                 is CompiledTrigger.AtPosition ->
                     if (party.position == trigger.point) return MissionTriggerResult(next, mission)
+
                 is CompiledTrigger.OnTerrain ->
                     if (currentTerrain?.id == trigger.terrain) return MissionTriggerResult(next, mission)
+
                 is CompiledTrigger.RandomStep -> {
                     val draw = next.party.rngState?.let { next.party.drawRandom(0, 99) } ?: return@forEach
                     next = next.withParty(draw.party)
@@ -646,12 +650,11 @@ internal class WildernessActions(
             }
         }
 
-    private fun battleRunner(): BattleRunner =
-        BattleRunner(content, combat, input, screen, PausePrompts(systems.prompts), log)
+    private fun battleRunner(): BattleRunner = BattleRunner(content, combat, input, screen, log)
 
     private fun PartyState.matches(expr: CompiledBoolExpr): Boolean =
         when (expr) {
-            is CompiledBoolExpr.Cmp -> int(expr.left).compare(expr.op, int(expr.right))
+            is CompiledBoolExpr.Cmp -> int(expr.left).compareCompiled(expr.op, int(expr.right))
             is CompiledBoolExpr.Not -> !matches(expr.expr)
             is CompiledBoolExpr.And -> matches(expr.left) && matches(expr.right)
             is CompiledBoolExpr.Or -> matches(expr.left) || matches(expr.right)
@@ -667,7 +670,7 @@ internal class WildernessActions(
     private fun PartyState.int(expr: CompiledIntExpr): Int =
         when (expr) {
             is CompiledIntExpr.Literal -> expr.value
-            is CompiledIntExpr.Binary -> int(expr.left).applyBinary(expr.op, int(expr.right))
+            is CompiledIntExpr.Binary -> int(expr.left).applyCompiledBinary(expr.op, int(expr.right))
             is CompiledIntExpr.If -> if (matches(expr.cond)) int(expr.thenValue) else int(expr.elseValue)
             is CompiledIntExpr.PartyScalar -> partyScalar(content.strings.value(expr.nameString))
             is CompiledIntExpr.InventoryPoolCount -> countInventoryPool(expr.pool)
@@ -681,31 +684,6 @@ internal class WildernessActions(
             is CompiledIntExpr.InventorySlotCost,
             is CompiledIntExpr.NativeInt,
             -> 0
-        }
-
-    private fun Int.applyBinary(
-        op: CompiledBinaryOp,
-        right: Int,
-    ): Int =
-        when (op) {
-            CompiledBinaryOp.Add -> this + right
-            CompiledBinaryOp.Sub -> this - right
-            CompiledBinaryOp.Mul -> this * right
-            CompiledBinaryOp.Div -> if (right == 0) 0 else this / right
-            CompiledBinaryOp.Mod -> if (right == 0) 0 else this % right
-        }
-
-    private fun Int.compare(
-        op: CompiledComparisonOp,
-        right: Int,
-    ): Boolean =
-        when (op) {
-            CompiledComparisonOp.Eq -> this == right
-            CompiledComparisonOp.Ne -> this != right
-            CompiledComparisonOp.Lt -> this < right
-            CompiledComparisonOp.Lte -> this <= right
-            CompiledComparisonOp.Gt -> this > right
-            CompiledComparisonOp.Gte -> this >= right
         }
 
     private fun PartyState.partyScalar(name: String): Int =

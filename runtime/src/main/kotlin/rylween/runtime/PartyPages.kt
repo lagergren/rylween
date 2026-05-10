@@ -4,7 +4,7 @@
  * These views render only direct compiled rows: party/member snapshots, item
  * records, journal entries, and the shared string/handle tables. They are kept
  * separate from `RylweenRuntimeMain.kt` because they are reusable
- * wilderness commands and should stay independent from the old terminal
+ * wilderness commands and should stay independent of the old terminal
  * adapter/session implementation.
  */
 

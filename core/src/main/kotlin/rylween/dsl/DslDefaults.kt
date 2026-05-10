@@ -43,14 +43,14 @@ internal object DslDefaultDungeons {
 
 /** Built-in building handles used by runtime adapters when no authored building handle is active. */
 object DslDefaultBuildings {
-    val none = building("none")
-    val inn = building("inn")
-    val tavern = building("tavern")
-    val church = building("church")
-    val smith = building("smith")
-    val merchant = building("merchant")
-    val guild = building("guild")
-    val hut = building("hut")
+    val none: BuildingId = building("none")
+    val inn: BuildingId = building("inn")
+    val tavern: BuildingId = building("tavern")
+    val church: BuildingId = building("church")
+    val smith: BuildingId = building("smith")
+    val merchant: BuildingId = building("merchant")
+    val guild: BuildingId = building("guild")
+    val hut: BuildingId = building("hut")
 }
 
 internal object DslDefaultKeyActions {
@@ -98,21 +98,8 @@ internal object DslDefaultRewards {
     val standardBattle = rewardBundle("standard_battle")
 }
 
-internal object DslDefaultSpells {
-    object Monster {
-        val melee = spellId("monster.melee")
-    }
-}
-
 internal object DslDefaultRumorTables {
     val standardTown = rumorTable("standard_town")
-}
-
-internal object DslDefaultText {
-    object Speak {
-        val noNpc = text("speak.no_npc")
-        val noRumor = text("speak.no_rumor")
-    }
 }
 
 internal object DslDefaultImages {

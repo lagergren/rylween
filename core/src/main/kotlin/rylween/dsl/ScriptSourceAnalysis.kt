@@ -173,16 +173,6 @@ fun analyzeScriptSources(model: GameModel): ScriptSourceAnalysis {
 }
 
 /**
- * Returns native-service paths referenced by authored script sources.
- *
- * Prefer [analyzeScriptSources] for new code so diagnostics can retain the
- * source root/formula that produced a path. This compatibility helper exists
- * while older tests and validation code are folded into the source-analysis
- * boundary.
- */
-fun nativePathsIn(model: GameModel): Set<String> = analyzeScriptSources(model).nativePaths
-
-/**
  * One authored operation with source-map style context produced by [visitScriptOps].
  *
  * [path] is intentionally numeric so it can line up with VM diagnostics and

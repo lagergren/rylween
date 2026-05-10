@@ -23,16 +23,6 @@ class RylweenValidationException(
         diagnostics.joinToString(separator = "\n") { it.toString() },
     )
 
-/** Adds [prefix] to each diagnostic path while preserving all messages. */
-fun RylweenValidationException.withDiagnosticPathPrefix(prefix: String): RylweenValidationException =
-    RylweenValidationException(
-        diagnostics.map { diagnostic ->
-            diagnostic.copy(
-                path = if (diagnostic.path.isBlank()) prefix else "$prefix.${diagnostic.path}",
-            )
-        },
-    )
-
 private inline fun MutableList<ValidationDiagnostic>.captureValidation(
     path: String,
     block: () -> Unit,

@@ -1,5 +1,5 @@
 /**
- * Saveable compiled-script continuation records for the runtime.
+ * Savable compiled-script continuation records for the runtime.
  *
  * `ScriptExecutor.kt` creates these records when an authored script
  * hands control to a dungeon. `DungeonRuntime.kt` stores the record

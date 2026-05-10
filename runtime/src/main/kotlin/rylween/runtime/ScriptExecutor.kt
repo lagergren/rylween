@@ -11,11 +11,9 @@
 
 package rylween.runtime
 
-import rylween.compiled.CompiledBinaryOp
 import rylween.compiled.CompiledBoolExpr
 import rylween.compiled.CompiledCharacter
 import rylween.compiled.CompiledCharacterPlacement
-import rylween.compiled.CompiledComparisonOp
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
@@ -80,13 +78,12 @@ internal class ScriptExecutor(
     private val screen: RuntimeScreen,
     initialRuntime: RuntimeState,
     initialLocals: Map<String, Int> = emptyMap(),
-    activeInventorySlot: Int? = null,
+    private var activeInventorySlot: Int? = null,
     private val log: RuntimeLog? = null,
 ) {
     private var runtime: RuntimeState = initialRuntime
     private var locals: Map<String, Int> = initialLocals
     private var textBindings: Map<String, String> = emptyMap()
-    private var activeInventorySlot: Int? = activeInventorySlot
     private var currentTextLines: List<String> = emptyList()
 
     fun execute(program: CompiledScriptProgram): RuntimeState {
@@ -111,20 +108,6 @@ internal class ScriptExecutor(
         textBindings = continuation.textBindings
         activeInventorySlot = continuation.activeInventorySlot
         executeFrames(program, continuation.frames)
-        return runtime
-    }
-
-    fun execute(instructions: List<CompiledInstruction>): RuntimeState {
-        executeBlock(
-            instructions = instructions,
-            context =
-                ScriptBlockContext(
-                    program = null,
-                    blockPath = emptyList(),
-                    parentFrames = emptyList(),
-                    insideLoop = false,
-                ),
-        )
         return runtime
     }
 
@@ -501,12 +484,13 @@ internal class ScriptExecutor(
 
     private fun List<String>.onlyListMenuOptions(options: List<CompiledMenuOption>): Boolean {
         val nonBlank = filter(String::isNotBlank)
-        return nonBlank.isNotEmpty() && nonBlank.all { line ->
-            options.any { option ->
-                val key = option.binding.primaryInputLabel(content)
-                "($key)" in line || line.trimStart().startsWith("$key.")
+        return nonBlank.isNotEmpty() &&
+            nonBlank.all { line ->
+                options.any { option ->
+                    val key = option.binding.primaryInputLabel(content)
+                    "($key)" in line || line.trimStart().startsWith("$key.")
+                }
             }
-        }
     }
 
     private fun executeAskMember(instruction: CompiledInstruction): ScriptSignal {
@@ -618,7 +602,7 @@ internal class ScriptExecutor(
 
         var rumorTold = false
         while (true) {
-            screen.writeText(conversation.prompts.mainMenu.renderExternal(npc) + systems.commands.menuLines(SPEAK_COMMAND_GROUP))
+            screen.writeText(conversation.prompts.mainMenu.renderExternal(npc) + systems.commands.mnemonicMenuLines(SPEAK_COMMAND_GROUP))
             val command =
                 input
                     .readCommand()
@@ -641,6 +625,7 @@ internal class ScriptExecutor(
                                 tellRumorBySlug(STANDARD_TOWN_RUMOR_TABLE)
                                 rumorTold = true
                             }
+                            input.pause(1600)
                         }
 
                     "speak_bye" -> return ScriptSignal.Continue
@@ -655,20 +640,21 @@ internal class ScriptExecutor(
         npc: CompiledCharacter,
         insideLoop: Boolean,
     ): ScriptSignal {
-        screen.writeText(systems.commands.menuLines(SPEAK_QUESTION_COMMAND_GROUP))
+        screen.writeText(systems.commands.mnemonicMenuLines(SPEAK_QUESTION_COMMAND_GROUP))
         val command =
             input
                 .readCommand()
                 ?.let { choice -> systems.commands.commandFor(SPEAK_QUESTION_COMMAND_GROUP, choice) }
                 ?: return ScriptSignal.StopScript
-        val topic = command.topicName()?.let(QuestionTopic::valueOf) ?: return ScriptSignal.Continue
+        val topic = command.questionTopic() ?: return ScriptSignal.Continue
         if (topic == QuestionTopic.Nothing) return ScriptSignal.Continue
         val action =
             speak.questionActions.firstOrNull { candidate ->
                 candidate.topic == topic && candidate.job == content.slug(npc.job)
             }
-        if (action != null) return executeScriptRoot(SCRIPT_ROOT_KIND_QUESTION_ACTION, action.scriptRoot, insideLoop)
+        if (action != null) return executeQuestionAction(action.scriptRoot, insideLoop)
         screen.writeText(speak.questionReply(topic, npc)?.renderExternal(npc) ?: speak.noRumorLines())
+        input.pause(1600)
         return ScriptSignal.Continue
     }
 
@@ -692,14 +678,14 @@ internal class ScriptExecutor(
         return root?.let { program -> executeProgram(program, insideLoop) } ?: ScriptSignal.Continue
     }
 
-    private fun executeScriptRoot(
-        kind: String,
+    private fun executeQuestionAction(
         slug: String,
         insideLoop: Boolean,
     ): ScriptSignal =
         content.scripts.roots
-            .firstOrNull { program -> program.root.kind.name == kind && program.root.slug == slug }
-            ?.let { program -> executeProgram(program, insideLoop) }
+            .firstOrNull { program ->
+                program.root.kind.name == SCRIPT_ROOT_KIND_QUESTION_ACTION && program.root.slug == slug
+            }?.let { program -> executeProgram(program, insideLoop) }
             ?: ScriptSignal.Continue
 
     private fun executeProgram(
@@ -738,7 +724,11 @@ internal class ScriptExecutor(
                 ?.replies
                 ?.firstOrNull { reply -> reply.job == content.slug(npc.job) }
                 ?.text
-        screen.writeText(promptVariant?.text?.renderExternal(npc).orEmpty() + reply?.renderExternal(npc).orEmpty())
+        val promptLines = promptVariant?.text?.renderExternal(npc).orEmpty()
+        val replyLines = reply?.renderExternal(npc).orEmpty()
+        screen.writeText(promptLines + "")
+        input.pause(650)
+        screen.writeText(promptLines + "" + replyLines)
     }
 
     private fun tellRumor(
@@ -777,7 +767,7 @@ internal class ScriptExecutor(
 
     private fun runEncounter(monster: CompiledHandleRef) {
         val battle =
-            BattleRunner(content, systems.combat, input, screen, PausePrompts(systems.prompts))
+            BattleRunner(content, systems.combat, input, screen)
                 .runMonster(runtime, monster)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
@@ -922,11 +912,11 @@ internal class ScriptExecutor(
                     CompiledRuntimeTextPart.OfferedItemName,
                     CompiledRuntimeTextPart.SelectedItemName,
                     CompiledRuntimeTextPart.BattleLootName,
-                        -> itemName(item)
+                    -> itemName(item)
 
                     CompiledRuntimeTextPart.OfferedItemPrice,
                     CompiledRuntimeTextPart.ShopPrice,
-                        -> price?.toString() ?: itemRecord(item).cost.toString()
+                    -> price?.toString() ?: itemRecord(item).cost.toString()
 
                     else -> runtimeText(part)
                 }
@@ -975,7 +965,7 @@ internal class ScriptExecutor(
         when (expr) {
             is CompiledIntExpr.Literal -> expr.value
             is CompiledIntExpr.Local -> locals[content.strings.value(expr.nameString)] ?: 0
-            is CompiledIntExpr.Binary -> int(expr.left).applyBinary(expr.op, int(expr.right))
+            is CompiledIntExpr.Binary -> int(expr.left).applyCompiledBinary(expr.op, int(expr.right))
             is CompiledIntExpr.If ->
                 when {
                     bool(expr.cond) -> int(expr.thenValue)
@@ -987,7 +977,7 @@ internal class ScriptExecutor(
             is CompiledIntExpr.MonsterField,
             is CompiledIntExpr.BattleFlag,
             is CompiledIntExpr.BattleQuery,
-                -> 0
+            -> 0
 
             is CompiledIntExpr.RealmScalar -> realmScalar(content.strings.value(expr.nameString))
             is CompiledIntExpr.PartyScalar -> partyScalar(content.strings.value(expr.nameString))
@@ -1012,7 +1002,7 @@ internal class ScriptExecutor(
             is CompiledBoolExpr.MemberFlag -> memberFlag(int(expr.member), content.strings.value(expr.nameString))
             is CompiledBoolExpr.MonsterFlag,
             is CompiledBoolExpr.BattleFlag,
-                -> false
+            -> false
 
             is CompiledBoolExpr.RuntimeFlag ->
                 content.strings.value(expr.nameString) == "in_dungeon" && runtime.currentMode == RuntimeMode.Dungeon
@@ -1029,13 +1019,13 @@ internal class ScriptExecutor(
     }
 
     private fun compare(expr: CompiledBoolExpr.Cmp): Boolean {
-        val random = expr.left as? CompiledIntExpr.Random ?: return int(expr.left).compare(expr.op, int(expr.right))
+        val random = expr.left as? CompiledIntExpr.Random ?: return int(expr.left).compareCompiled(expr.op, int(expr.right))
         val lo = int(random.lo)
         val hi = int(random.hi)
         val draw = runtime.party.drawRandom(lo, hi)
         runtime = runtime.withParty(draw.party)
         val right = int(expr.right)
-        val result = draw.value.compare(expr.op, right)
+        val result = draw.value.compareCompiled(expr.op, right)
         log?.rngDraw(
             context = "script.chance",
             lo = lo,
@@ -1054,7 +1044,7 @@ internal class ScriptExecutor(
             is CompiledLValue.MemberField -> memberField(int(target.member), content.strings.value(target.fieldString))
             is CompiledLValue.MonsterField,
             is CompiledLValue.BattleFlag,
-                -> 0
+            -> 0
         }
 
     private fun write(
@@ -1067,7 +1057,7 @@ internal class ScriptExecutor(
             is CompiledLValue.MemberField -> writeMemberField(int(target.member), content.strings.value(target.fieldString), value)
             is CompiledLValue.MonsterField,
             is CompiledLValue.BattleFlag,
-                -> Unit
+            -> Unit
         }
     }
 
@@ -1301,6 +1291,9 @@ internal class ScriptExecutor(
             "${command.binding.primary}. ${command.label ?: command.binding.label}"
         }
 
+    private fun Map<String, List<ExternalRuntimeCommand>>.mnemonicMenuLines(group: String): List<String> =
+        get(group).orEmpty().map { command -> command.mnemonicLine() }
+
     private fun Map<String, List<ExternalRuntimeCommand>>.commandFor(
         group: String,
         choice: Char,
@@ -1310,7 +1303,22 @@ internal class ScriptExecutor(
         (listOf(binding.primary) + binding.aliases)
             .any { value -> value.equals(choice.toString(), ignoreCase = true) }
 
-    private fun ExternalRuntimeCommand.topicName(): String? = topic
+    private fun ExternalRuntimeCommand.mnemonicLine(): String {
+        val text = label ?: binding.label
+        val primary = binding.primary.uppercase()
+        val suffix = text.removePrefix(primary, ignoreCase = true)
+        return suffix?.let { "($primary)$it" } ?: "($primary) $text"
+    }
+
+    private fun ExternalRuntimeCommand.questionTopic(): QuestionTopic? =
+        topic?.let { value ->
+            QuestionTopic.entries.firstOrNull { topic -> topic.name.equals(value, ignoreCase = true) }
+        }
+
+    private fun String.removePrefix(
+        prefix: String,
+        ignoreCase: Boolean,
+    ): String? = takeIf { startsWith(prefix, ignoreCase) }?.drop(prefix.length)
 
     private fun matchesBranchState(slug: String): Boolean = flagStateRef(slug)?.let(::matchesFlagState) ?: false
 
@@ -1320,9 +1328,15 @@ internal class ScriptExecutor(
     private fun hasFlagState(
         flag: CompiledHandleRef,
         state: CompiledHandleRef,
-    ): Boolean {
-        return state in runtime.party.flags || flagStateNative(state) == "none" && runtime.party.flags.none { current -> current in flagStates(flag) }
-    }
+    ): Boolean =
+        state in runtime.party.flags ||
+            flagStateNative(state) == "none" &&
+            runtime.party.flags.none { current ->
+                current in
+                    flagStates(
+                        flag,
+                    )
+            }
 
     private fun flagStates(flag: CompiledHandleRef): Set<CompiledHandleRef> =
         content.flags
@@ -1574,31 +1588,6 @@ internal class ScriptExecutor(
             is CompiledViewCommand.ShowImage -> RuntimeViewCommand.ShowImage(content.slug(image))
         }
 
-    private fun Int.applyBinary(
-        op: CompiledBinaryOp,
-        right: Int,
-    ): Int =
-        when (op) {
-            CompiledBinaryOp.Add -> this + right
-            CompiledBinaryOp.Sub -> this - right
-            CompiledBinaryOp.Mul -> this * right
-            CompiledBinaryOp.Div -> this / (right.takeUnless { it == 0 } ?: 1)
-            CompiledBinaryOp.Mod -> this % (right.takeUnless { it == 0 } ?: 1)
-        }
-
-    private fun Int.compare(
-        op: CompiledComparisonOp,
-        right: Int,
-    ): Boolean =
-        when (op) {
-            CompiledComparisonOp.Eq -> this == right
-            CompiledComparisonOp.Ne -> this != right
-            CompiledComparisonOp.Lt -> this < right
-            CompiledComparisonOp.Lte -> this <= right
-            CompiledComparisonOp.Gt -> this > right
-            CompiledComparisonOp.Gte -> this >= right
-        }
-
     private fun teleportDelta(directionKey: Int): GridPoint? =
         when (directionKey) {
             8 -> GridPoint(0, -1)
@@ -1676,7 +1665,7 @@ internal class ScriptExecutor(
                     CompiledOpcode.If,
                     CompiledOpcode.Loop,
                     CompiledOpcode.ForEachMember,
-                        -> instruction.instructionsOperand(selector)
+                    -> instruction.instructionsOperand(selector)
 
                     CompiledOpcode.Switch -> {
                         val caseIndex = path.getOrNull(cursor++) ?: error("compiled switch continuation path is incomplete: $path")

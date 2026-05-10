@@ -1,12 +1,12 @@
 /**
  * Named replay plans for the runtime acceptance checks.
  *
- * The Gradle smoke tasks should select these plans by name instead of embedding
- * long opaque command strings in build logic. Each plan is assembled from small
- * components with explicit route and content-purpose names, using only compiled
- * bundle tables plus stable `runtimeSystems` data. That makes the current
- * acceptance route reproducible and gives later full-game playthrough work a
- * natural place to insert conversation, shop, mission, and checkpoint pieces.
+ * Runtime tests select these plans by name and feed the installed product
+ * launcher with the resulting `--script` stream. Each plan is assembled from
+ * small components with explicit route and content-purpose names, using only
+ * compiled bundle tables plus stable `runtimeSystems` data. That keeps the
+ * current acceptance route reproducible without shipping replay planning code
+ * in the runtime main source set.
  */
 
 package rylween.runtime
@@ -133,7 +133,7 @@ internal object ReplayPlans {
                     moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_intro",
-                        commands = "E3N" + speakNpc(2) + speakNpc(5) + "LL",
+                        commands = enterInnGuestChat() + speakInnNpc(2) + speakInnNpc(5) + "LL",
                         checkpoints = listOf("output:suited for this than I am", "state:master_crown.task1_assigned"),
                     ),
                     moveTo("travel.to_kobold_village", location("kobold_village")),
@@ -145,7 +145,7 @@ internal object ReplayPlans {
                     moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_second_task",
-                        commands = "E3N" + speakNpc(5) + "LL",
+                        commands = enterInnGuestChat() + speakInnNpc(5) + "LL",
                         checkpoints = listOf("output:second quest", "state:master_crown.task2_assigned"),
                     ),
                     moveToTerrain("travel.to_skullweed_swamp", "swamp"),
@@ -157,7 +157,7 @@ internal object ReplayPlans {
                     moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_third_task",
-                        commands = "E3N" + speakNpc(5) + "LL",
+                        commands = enterInnGuestChat() + speakInnNpc(5) + "LL",
                         checkpoints = listOf("output:DWARF STONE", "state:master_crown.task3_assigned"),
                     ),
                     moveTo("travel.to_borin_camp", location("borin_camp")),
@@ -181,7 +181,7 @@ internal object ReplayPlans {
                     moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_location",
-                        commands = "E3N" + speakNpc(5) + "LLX",
+                        commands = enterInnGuestChat() + speakInnNpc(5) + "LLX",
                         checkpoints = listOf("output:Master Crown is hidden", "state:master_crown.crown_told"),
                     ),
                 ),
@@ -218,7 +218,7 @@ internal object ReplayPlans {
                     moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_buy_silver_key_map",
-                        commands = "E3N" + speakNpc(1, "B") + "LL",
+                        commands = enterInnGuestChat() + speakInnNpc(1, "B") + "LL",
                         checkpoints = listOf("output:precious map", "state:silver_key.map_bought"),
                     ),
                     moveTo("travel.to_silver_sanctum", location("silver_key_pit")),
@@ -230,7 +230,7 @@ internal object ReplayPlans {
                     moveToTown("ollk"),
                     ReplayComponent(
                         name = "town.ollk_smith_confession",
-                        commands = "E3NS2BS1BLLX",
+                        commands = enterInnGuestChat() + speakInnNpc(2) + speakInnNpc(1) + "LLX",
                         checkpoints = listOf("output:sold the Key", "state:silver_key.smith_confessed"),
                     ),
                 ),
@@ -281,7 +281,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.ollk_silver_key_chain",
-                        commands = "E3NS2BS1BLLX",
+                        commands = enterInnGuestChat() + speakInnNpc(2) + speakInnNpc(1) + "LLX",
                         checkpoints =
                             listOf(
                                 "output:sold the Key",
@@ -369,7 +369,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_garth_reward_dialogue",
-                        commands = "E3S1BLLX",
+                        commands = enterInnGuestChat() + speakInnNpc(1) + "LLX",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
@@ -485,8 +485,8 @@ internal object ReplayPlans {
             components =
                 listOf(
                     ReplayComponent(
-                        name = "town.thord_tavern_drinks_rumor_hassan_story",
-                        commands = "E3OAOBOCODOERAS2CBT1TL",
+                        name = "town.thord_tavern_drinks_rumor_niklas_story",
+                        commands = "E3OAOBOCODOERAS2CBS1QLYBT1TL",
                         checkpoints =
                             listOf(
                                 "output:Welcome! Have a seat",
@@ -494,19 +494,21 @@ internal object ReplayPlans {
                                 "output:laughing",
                                 "output:After listening",
                                 "output:Chatting with",
-                                "output:Hassan",
+                                "output:Niklas",
+                                "output:Deanna",
+                                "output:exhausting hour",
                                 "output:TRAVELER'S STORY",
                             ),
                     ),
                     ReplayComponent(
-                        name = "town.thord_inn_bargirl_drinks_lodging",
-                        commands = "2NNNC1CBL2NYANL2NYBNL2NYCNL2NYDNL2NYENL2YANNL2NNYTAL",
+                        name = "town.thord_inn_drinks_lodging_and_hassan_questions",
+                        commands = "2YAYEYTA2NNNC2QLBL",
                         checkpoints =
                             listOf(
                                 "output:Do you want supper",
-                                "output:Deanna",
-                                "output:Ahh...!",
                                 "output:The other guests giggle.",
+                                "output:Hassan",
+                                "output:Well. My inn is the",
                                 "output:You are served a well",
                                 "output:You go to bed",
                                 "output:You wake up",
@@ -691,8 +693,8 @@ internal object ReplayPlans {
                         14 to hobgoblinPatrolRoute(),
                         17 to hobgoblinPatrolRoute(),
                         19 to hobgoblinPatrolRoute(),
-                        20 to waitForInput() + battle(attacks = 5),
-                        21 to waitForInput() + battle(attacks = 5),
+                        20 to waitForInput() + battle(),
+                        21 to waitForInput() + battle(),
                         22 to hobgoblinChiefRoute(),
                     ),
                 ascendRecurringEvents =
@@ -737,31 +739,33 @@ internal object ReplayPlans {
     private fun castleStep(command: Char): String = command.toString() + battle()
 
     private fun thordMissionDialogueRoute(): String =
-        "E3N" +
-            speakNpc(1) +
-            speakNpc(3) +
-            speakNpc(7) +
-            speakNpc(1) +
-            speakNpc(8) +
-            speakNpc(6) +
-            speakNpc(2) +
-            speakNpc(5, "AA") +
+        enterInnGuestChat() +
+            speakInnNpc(1) +
+            speakInnNpc(3) +
+            speakInnNpc(7) +
+            speakInnNpc(1) +
+            speakInnNpc(8) +
+            speakInnNpc(6) +
+            speakInnNpc(2) +
+            speakInnNpc(5, "AA") +
             "LL"
 
     private fun wilorMissionDialogueRoute(): String =
-        "E3N" +
-            speakNpc(1, "B") +
-            speakNpc(4, "B") +
-            speakNpc(2) +
-            speakNpc(5) +
-            speakNpc(6) +
-            speakNpc(7) +
+        enterInnGuestChat() +
+            speakInnNpc(1, "B") +
+            speakInnNpc(4, "B") +
+            speakInnNpc(2) +
+            speakInnNpc(5) +
+            speakInnNpc(6) +
+            speakInnNpc(7) +
             "LLX"
 
-    private fun speakNpc(
+    private fun enterInnGuestChat(): String = "E2NNN"
+
+    private fun speakInnNpc(
         index: Int,
         branchInput: String = "",
-    ): String = "S$index${branchInput}B"
+    ): String = "C$index${branchInput}B"
 
     private fun dungeonRoute(
         levels: Int,

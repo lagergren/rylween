@@ -2795,6 +2795,7 @@ var nextRylween: RylweenModel = rylween {
                     yes = {
                         whenever(party.gold lt price) {
                             screen("- No money, eh?", "  don't bother", "  to come back!")
+                            pause(1600)
                         } otherwise {
                             party.gold -= price
                             forEachMember {
@@ -2803,6 +2804,7 @@ var nextRylween: RylweenModel = rylween {
                                 }
                             }
                             screen("You spend a very", "exhausting hour", "upstairs.", "(PERVERT!) ;-)", "")
+                            pause(2000)
                         }
                     },
                 )
@@ -4088,7 +4090,7 @@ var nextRylween: RylweenModel = rylween {
                 )
 
                 clearText()
-                choice.yesNo("Anything to drink?", "",
+                choice.yesNo("Anything to drink?", "", "(Y)es", "(N)o",
                     yes = {
                         clearText()
                         menu(
@@ -4180,7 +4182,7 @@ var nextRylween: RylweenModel = rylween {
                 )
 
                 clearText()
-                choice.yesNo("Are you in need", "of lodging?", "",
+                choice.yesNo("Are you in need", "of lodging?", "", "(Y)es", "(N)o",
                     yes = {
                         clearText()
                         screen {
@@ -4243,7 +4245,7 @@ var nextRylween: RylweenModel = rylween {
                             screen("The innkeeper leaves.", "")
                             menu("(C)hitchat with guests", "(L)eave") {
                                 option('C') {
-                                    speak(Buildings.tavern)
+                                    speak(Buildings.inn)
                                 }
                                 option('L') {
                                     clearText()
@@ -4454,7 +4456,7 @@ var nextRylween: RylweenModel = rylween {
                     }
 
                     option('S') {
-                        speak(Buildings.inn)
+                        speak(Buildings.tavern)
                     }
 
                     option('T') {

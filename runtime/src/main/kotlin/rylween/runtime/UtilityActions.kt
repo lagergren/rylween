@@ -96,8 +96,9 @@ internal class UtilityActions(
                 .sortedBy(CompiledSpell::slot)
         if (spells.isEmpty()) return runtime
         screen.writeText(spells.map { spell -> "${spell.slot}. ${content.strings.value(spell.nameString)}" })
-        val spell = input.readCommand()?.digitToIntOrNull()?.let { slot -> spells.firstOrNull { it.slot == slot } }
-            ?: return runtime
+        val spell =
+            input.readCommand()?.digitToIntOrNull()?.let { slot -> spells.firstOrNull { it.slot == slot } }
+                ?: return runtime
         val program = programByRef(spell.scriptRoot)
         return ScriptExecutor(
             content = content,

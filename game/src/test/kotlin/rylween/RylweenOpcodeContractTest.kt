@@ -25,7 +25,7 @@ class RylweenOpcodeContractTest {
         val missing = CompiledOpcodeContract.validateAll()
         assertTrue(
             missing.isEmpty(),
-            "CompiledOpcodeContract.schemas is missing entries for: $missing. " +
+            "CompiledOpcodeContract is missing schema entries for: $missing. " +
                 "Add schemas for new opcodes before they ship in a bundle.",
         )
     }

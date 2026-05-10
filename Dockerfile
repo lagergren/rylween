@@ -21,6 +21,13 @@ COPY build-logic build-logic
 RUN ./gradlew --no-daemon --version
 
 COPY . .
+# Produces two runtime artifacts:
+#   /src/build/compiled/rylween-bundle.json
+#     The compiled game data bundle emitted from the Kotlin DSL.
+#   /src/runtime/build/install/rylween/
+#     A Gradle install image for the Kotlin runtime. Its bin/rylween file is a
+#     generated JVM start script whose main class is rylween.runtime.RylweenRuntimeMain;
+#     the Kotlin runtime jar and dependencies live beside it under lib/.
 RUN ./gradlew --no-daemon :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain
 
 # ---------------------------------------------------------------------
@@ -29,7 +36,10 @@ RUN ./gradlew --no-daemon :tools:emitExternalCompiledBundle :runtime:installRunt
 FROM eclipse-temurin:25-jre AS runtime
 
 WORKDIR /app
+# Copy the compiled data bundle consumed by the runtime at startup.
 COPY --from=builder /src/build/compiled/rylween-bundle.json /app/rylween-bundle.json
+# Copy the installed Kotlin runtime distribution. /app/rylween/bin/rylween is
+# the generated launcher script, not a native binary or the old ANSI/Rust path.
 COPY --from=builder /src/runtime/build/install/rylween /app/rylween
 
 ENV PATH="/app/rylween/bin:${PATH}"

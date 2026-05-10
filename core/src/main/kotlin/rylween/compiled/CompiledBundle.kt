@@ -116,29 +116,10 @@ import rylween.dsl.TownKind
 import rylween.dsl.TownModel
 import rylween.dsl.Trigger
 import rylween.dsl.ViewCommand
-import rylween.dsl.Wilderness
 import rylween.dsl.WorldMapId
 import rylween.dsl.WorldMapModel
 import rylween.dsl.WorldPosition
-import rylween.dsl.building
-import rylween.dsl.character
-import rylween.dsl.dungeon
-import rylween.dsl.dungeonEvent
-import rylween.dsl.formula
-import rylween.dsl.image
-import rylween.dsl.item
-import rylween.dsl.line
-import rylween.dsl.lines
-import rylween.dsl.location
-import rylween.dsl.lootTable
-import rylween.dsl.milestone
-import rylween.dsl.monster
-import rylween.dsl.npc
-import rylween.dsl.rumor
 import rylween.dsl.runtimeContent
-import rylween.dsl.terrain
-import rylween.dsl.text
-import rylween.dsl.town
 import rylween.runtime.CastleSessionSnapshot
 import rylween.runtime.DungeonSavedStep
 import rylween.runtime.RuntimeModeSnapshot
@@ -1279,8 +1260,6 @@ data class CompiledMissionPostDungeonImage(
 
 fun RylweenModel.toCompiledGameBundle(): CompiledGameBundle = CompiledBundleCompiler(content, states).compile()
 
-fun GameModel.toCompiledContentBundle(): CompiledContentBundle = CompiledBundleCompiler(this, emptyList()).compile().content
-
 private class CompiledBundleCompiler(
     private val game: GameModel,
     private val states: List<StateModel>,
@@ -1532,33 +1511,34 @@ private class CompiledBundleCompiler(
 
         fun rootHandle(root: ScriptRootRef): CompiledHandleRef = handles.ref(CompiledHandleKind.ScriptRoot, scriptRootSlug(root))
 
+        fun MutableList<CompiledScriptProgram>.addProgram(
+            root: ScriptRootRef,
+            ops: List<Op>,
+        ) {
+            add(CompiledScriptProgram(root, rootHandle(root), compileOps(ops)))
+        }
+
         return CompiledScriptBundle(
             buildList {
                 game.scenes.forEach { scene ->
-                    val root = catalog.rootFor(ScriptRootRef.scene(scene.id))
-                    add(CompiledScriptProgram(root, rootHandle(root), compileOps(scene.ops)))
+                    addProgram(catalog.rootFor(ScriptRootRef.scene(scene.id)), scene.ops)
                 }
                 game.dungeons.events.forEach { event ->
-                    val root = catalog.rootFor(ScriptRootRef.dungeonEvent(event.id))
-                    add(CompiledScriptProgram(root, rootHandle(root), compileOps(event.ops)))
+                    addProgram(catalog.rootFor(ScriptRootRef.dungeonEvent(event.id)), event.ops)
                 }
                 game.spells.forEach { spell ->
-                    val root = catalog.rootFor(ScriptRootRef.spell(spell.id))
-                    add(CompiledScriptProgram(root, rootHandle(root), compileOps(spell.ops)))
+                    addProgram(catalog.rootFor(ScriptRootRef.spell(spell.id)), spell.ops)
                 }
                 game.itemUses.forEach { use ->
-                    val root = catalog.rootFor(ScriptRootRef.itemUse(use.id))
-                    add(CompiledScriptProgram(root, rootHandle(root), compileOps(use.ops)))
+                    addProgram(catalog.rootFor(ScriptRootRef.itemUse(use.id)), use.ops)
                 }
                 game.dialogue.forEach { dialogue ->
                     dialogue.branches.forEach { branch ->
-                        val root = catalog.rootFor(ScriptRootRef.dialogueBranch(dialogue.npc, branch))
-                        add(CompiledScriptProgram(root, rootHandle(root), compileOps(branch.ops)))
+                        addProgram(catalog.rootFor(ScriptRootRef.dialogueBranch(dialogue.npc, branch)), branch.ops)
                     }
                 }
                 game.speak.questionActions.forEach { action ->
-                    val root = catalog.rootFor(ScriptRootRef.questionAction(action))
-                    add(CompiledScriptProgram(root, rootHandle(root), compileOps(action.ops)))
+                    addProgram(catalog.rootFor(ScriptRootRef.questionAction(action)), action.ops)
                 }
             },
         )
@@ -1576,6 +1556,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.StringId(strings.id(op.pattern.pattern)),
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                 )
+
             is Op.WaitInput -> instruction(CompiledOpcode.WaitInput, op.reason?.let { CompiledOperand.StringId(strings.id(it)) })
             is Op.Pause -> instruction(CompiledOpcode.Pause, CompiledOperand.Integer(op.millis))
             is Op.View -> instruction(CompiledOpcode.View, CompiledOperand.ViewCommandValue(viewCommand(op.command)))
@@ -1585,30 +1566,35 @@ private class CompiledBundleCompiler(
                     CompiledOperand.StringId(strings.id(op.name)),
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                 )
+
             is Op.BindText ->
                 instruction(
                     CompiledOpcode.BindText,
                     CompiledOperand.StringId(strings.id(op.name)),
                     CompiledOperand.StringExprValue(stringExpr(op.value)),
                 )
+
             is Op.Set ->
                 instruction(
                     CompiledOpcode.Set,
                     CompiledOperand.LValueValue(lvalue(op.target)),
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                 )
+
             is Op.Add ->
                 instruction(
                     CompiledOpcode.Add,
                     CompiledOperand.LValueValue(lvalue(op.target)),
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                 )
+
             is Op.Sub ->
                 instruction(
                     CompiledOpcode.Sub,
                     CompiledOperand.LValueValue(lvalue(op.target)),
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                 )
+
             is Op.AddClamped ->
                 instruction(
                     CompiledOpcode.AddClamped,
@@ -1616,12 +1602,14 @@ private class CompiledBundleCompiler(
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                     CompiledOperand.IntExprValue(intExpr(op.max)),
                 )
+
             is Op.SetFlag ->
                 instruction(
                     CompiledOpcode.SetFlag,
                     CompiledOperand.Handle(flagRef(op.slug)),
                     CompiledOperand.Handle(flagStateRef(op.slug, op.nativeValue)),
                 )
+
             is Op.AppendJournal -> instruction(CompiledOpcode.AppendJournal, CompiledOperand.TextBlockValue(text(op.text)))
             is Op.If ->
                 instruction(
@@ -1630,25 +1618,21 @@ private class CompiledBundleCompiler(
                     CompiledOperand.Instructions(compileOps(op.thenOps)),
                     CompiledOperand.Instructions(compileOps(op.elseOps)),
                 )
+
             is Op.Loop -> instruction(CompiledOpcode.Loop, CompiledOperand.Instructions(compileOps(op.body)))
             is Op.Break ->
-                instruction(
-                    CompiledOpcode.Break,
-                    op.reason?.let { CompiledOperand.StringId(strings.id(it)) },
-                    CompiledOperand.EnumName(op.signal.name),
-                )
+                signalInstruction(CompiledOpcode.Break, op.reason, op.signal.name)
+
             is Op.Stop ->
-                instruction(
-                    CompiledOpcode.Stop,
-                    op.reason?.let { CompiledOperand.StringId(strings.id(it)) },
-                    CompiledOperand.EnumName(op.signal.name),
-                )
+                signalInstruction(CompiledOpcode.Stop, op.reason, op.signal.name)
+
             is Op.Switch ->
                 instruction(
                     CompiledOpcode.Switch,
                     CompiledOperand.IntExprValue(intExpr(op.expr)),
                     CompiledOperand.SwitchCases(op.cases.map { case -> CompiledSwitchCase(case.match, compileOps(case.body)) }),
                 )
+
             is Op.Menu ->
                 instruction(
                     CompiledOpcode.Menu,
@@ -1660,6 +1644,7 @@ private class CompiledBundleCompiler(
                     ),
                     CompiledOperand.Instructions(compileOps(op.defaultOps)),
                 )
+
             is Op.AskKey ->
                 instruction(
                     CompiledOpcode.AskKey,
@@ -1667,6 +1652,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.StringId(strings.id(op.varName)),
                     CompiledOperand.InputBindings(op.bindings.map(::binding)),
                 )
+
             is Op.AskMember ->
                 instruction(
                     CompiledOpcode.AskMember,
@@ -1675,6 +1661,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.EnumName(op.filter.name),
                     CompiledOperand.EnumName(op.accepting.name),
                 )
+
             is Op.AskInventorySlot ->
                 instruction(
                     CompiledOpcode.AskInventorySlot,
@@ -1685,6 +1672,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.Integer(op.slots.last),
                     CompiledOperand.EnumName(op.filter.name),
                 )
+
             is Op.AskText ->
                 instruction(
                     CompiledOpcode.AskText,
@@ -1700,26 +1688,20 @@ private class CompiledBundleCompiler(
                         ),
                     ),
                 )
+
             is Op.AskMonster ->
                 instruction(
                     CompiledOpcode.AskMonster,
                     CompiledOperand.TextBlockValue(text(op.prompt)),
                     CompiledOperand.StringId(strings.id(op.varName)),
                 )
+
             is Op.ForEachMember ->
-                instruction(
-                    CompiledOpcode.ForEachMember,
-                    CompiledOperand.StringId(strings.id(op.varName)),
-                    CompiledOperand.BooleanValue(op.includeDead),
-                    CompiledOperand.Instructions(compileOps(op.body)),
-                )
+                forEachInstruction(CompiledOpcode.ForEachMember, op.varName, op.includeDead, op.body)
+
             is Op.ForEachMonster ->
-                instruction(
-                    CompiledOpcode.ForEachMonster,
-                    CompiledOperand.StringId(strings.id(op.varName)),
-                    CompiledOperand.BooleanValue(op.includeDead),
-                    CompiledOperand.Instructions(compileOps(op.body)),
-                )
+                forEachInstruction(CompiledOpcode.ForEachMonster, op.varName, op.includeDead, op.body)
+
             is Op.Speak -> instruction(CompiledOpcode.Speak, CompiledOperand.Handle(buildingRef(op.building)))
             is Op.TellRumor -> instruction(CompiledOpcode.TellRumor, CompiledOperand.Handle(rumorTableRef(op.table)))
             is Op.RunScene ->
@@ -1728,6 +1710,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.Handle(sceneRef(op.scene)),
                     CompiledOperand.StringIdList(op.bindings.flatMap { (key, value) -> listOf(strings.id(key), strings.id(value)) }),
                 )
+
             is Op.Encounter ->
                 instruction(
                     CompiledOpcode.Encounter,
@@ -1735,24 +1718,28 @@ private class CompiledBundleCompiler(
                     CompiledOperand.BooleanValue(op.mandatory),
                     op.tier?.let { CompiledOperand.Handle(encounterTierRef(it)) },
                 )
+
             is Op.EnterDungeon ->
                 instruction(
                     CompiledOpcode.EnterDungeon,
                     CompiledOperand.Handle(dungeonRef(op.dungeon)),
                     CompiledOperand.Integer(op.levels),
                 )
+
             Op.ConsumeActiveItem -> instruction(CompiledOpcode.ConsumeActiveItem)
             is Op.ClearInventorySlot ->
                 instruction(
                     CompiledOpcode.ClearInventorySlot,
                     CompiledOperand.IntExprValue(intExpr(op.slot)),
                 )
+
             is Op.ConsumeInventoryPool ->
                 instruction(
                     CompiledOpcode.ConsumeInventoryPool,
                     CompiledOperand.Handle(itemPoolRef(op.pool)),
                     CompiledOperand.IntExprValue(intExpr(op.quantity)),
                 )
+
             Op.ConsumeTorch -> instruction(CompiledOpcode.ConsumeTorch)
             is Op.TeleportParty ->
                 instruction(
@@ -1760,6 +1747,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.IntExprValue(intExpr(op.directionKey)),
                     CompiledOperand.IntExprValue(intExpr(op.distance)),
                 )
+
             is Op.DiscoverCave ->
                 instruction(
                     CompiledOpcode.DiscoverCave,
@@ -1767,18 +1755,21 @@ private class CompiledBundleCompiler(
                     CompiledOperand.IntExprValue(intExpr(op.levels)),
                     CompiledOperand.IntExprValue(intExpr(op.moveCost)),
                 )
+
             is Op.GrantReward -> instruction(CompiledOpcode.GrantReward, CompiledOperand.Reward(reward(op.reward)))
             is Op.RandomItemOffer ->
                 instruction(
                     CompiledOpcode.RandomItemOffer,
                     CompiledOperand.RandomItemOffer(randomItemOffer(op.offer)),
                 )
+
             is Op.ShopService -> instruction(CompiledOpcode.ShopService, CompiledOperand.ShopService(shopService(op.shop)))
             is Op.AchieveMilestone ->
                 instruction(
                     CompiledOpcode.AchieveMilestone,
                     CompiledOperand.Handle(milestoneRef(op.milestone)),
                 )
+
             is Op.NativeCall ->
                 instruction(
                     CompiledOpcode.NativeCall,
@@ -1791,6 +1782,30 @@ private class CompiledBundleCompiler(
         opcode: CompiledOpcode,
         vararg operands: CompiledOperand?,
     ): CompiledInstruction = CompiledInstruction(opcode, operands.filterNotNull())
+
+    private fun signalInstruction(
+        opcode: CompiledOpcode,
+        reason: String?,
+        signal: String,
+    ): CompiledInstruction =
+        instruction(
+            opcode,
+            reason?.let { CompiledOperand.StringId(strings.id(it)) },
+            CompiledOperand.EnumName(signal),
+        )
+
+    private fun forEachInstruction(
+        opcode: CompiledOpcode,
+        varName: String,
+        includeDead: Boolean,
+        body: List<Op>,
+    ): CompiledInstruction =
+        instruction(
+            opcode,
+            CompiledOperand.StringId(strings.id(varName)),
+            CompiledOperand.BooleanValue(includeDead),
+            CompiledOperand.Instructions(compileOps(body)),
+        )
 
     private fun intExpr(expr: IntAst): CompiledIntExpr =
         when (expr) {
@@ -2071,11 +2086,12 @@ private class CompiledBundleCompiler(
             sold = sell.sold?.let(::text),
             price = shopPrice(sell.price),
             bargain = sell.bargain,
-            saleKeys = CompiledShopSaleKeys(
-                binding(sell.saleKeys.accept),
-                binding(sell.saleKeys.decline),
-                binding(sell.saleKeys.bargain),
-            ),
+            saleKeys =
+                CompiledShopSaleKeys(
+                    binding(sell.saleKeys.accept),
+                    binding(sell.saleKeys.decline),
+                    binding(sell.saleKeys.bargain),
+                ),
         )
 
     private fun shopInterlude(interlude: ShopInterludeModel): CompiledShopInterlude =
@@ -2486,6 +2502,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                 is TextBlock.Ref,
                 is TextBlock.Inline,
                 -> Unit
+
                 is TextBlock.Structured ->
                     block.lines.forEach { line ->
                         line.parts.forEach { part ->
@@ -2504,6 +2521,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                         collectOps(op.thenOps)
                         collectOps(op.elseOps)
                     }
+
                     is Op.Loop -> collectOps(op.body)
                     is Op.Switch -> op.cases.forEach { collectOps(it.body) }
                     is Op.Menu -> {
@@ -2511,6 +2529,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                         op.options.forEach { collectOps(it.body) }
                         collectOps(op.defaultOps)
                     }
+
                     is Op.AskKey -> collectText(op.prompt)
                     is Op.AskMember -> collectText(op.prompt)
                     is Op.AskInventorySlot -> collectText(op.prompt)
@@ -2519,6 +2538,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                         collectOps(op.matchOps)
                         collectOps(op.missOps)
                     }
+
                     is Op.AskMonster -> collectText(op.prompt)
                     is Op.ForEachMember -> collectOps(op.body)
                     is Op.ForEachMonster -> collectOps(op.body)
@@ -2528,6 +2548,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                         op.reward.messages.pickedUp
                             ?.let(::collectText)
                     }
+
                     is Op.RandomItemOffer -> {
                         collectText(op.offer.offer)
                         collectText(op.offer.choicePrompt)
@@ -2535,6 +2556,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                         collectText(op.offer.deal)
                         op.offer.declined?.let(::collectText)
                     }
+
                     else -> Unit
                 }
             }

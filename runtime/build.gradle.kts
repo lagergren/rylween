@@ -49,8 +49,6 @@ val runtimeSaveFile: Provider<RegularFile> =
     layout.buildDirectory.file("tmp/checkRuntimeSaveLoad/runtime.rsave")
 val runtimeFullPlaythroughSaveFile: Provider<RegularFile> =
     layout.buildDirectory.file("tmp/checkRuntimeFullPlaythrough/runtime-win.rsave")
-val runtimeAcceptanceSaveFile: Provider<RegularFile> =
-    layout.buildDirectory.file("tmp/checkRuntimeAcceptancePlaythrough/runtime-acceptance.rsave")
 val runtimeNewPartySaveFile: Provider<RegularFile> =
     layout.buildDirectory.file("tmp/checkRuntimeNewPartyCreation/runtime-new-party.rsave")
 val runtimeJar: TaskProvider<Jar> = tasks.named<Jar>("jar")
@@ -121,6 +119,30 @@ val installRuntime: TaskProvider<Sync> by tasks.registering(Sync::class) {
     from(files(runtimeJarFile) + runtimeJars) {
         into("lib")
     }
+}
+
+tasks.test {
+    dependsOn(installRuntime)
+    dependsOn(":tools:emitExternalCompiledBundle")
+    systemProperty("rylween.runtime.executable", runtimeExecutable.get().asFile.path)
+    systemProperty("rylween.runtime.bundle", externalBundleArtifact.get().asFile.path)
+    systemProperty(
+        "rylween.runtime.javaHome",
+        kotlinRuntimeJavaLauncher
+            .get()
+            .metadata
+            .installationPath
+            .asFile
+            .absolutePath,
+    )
+    systemProperty(
+        "rylween.runtime.testTmp",
+        layout.buildDirectory
+            .dir("tmp/runtimeReplayTests")
+            .get()
+            .asFile
+            .path,
+    )
 }
 
 val checkRuntimeBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
@@ -222,226 +244,6 @@ val checkRuntimeNewPartyCreation: TaskProvider<RunInstalledLauncherWithJavaTask>
     )
 }
 
-val checkRuntimeTownScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs the runtime through direct wilderness/town/service dispatch."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("town-social-smoke")
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: town-social-smoke",
-            "runtime replay component 1: travel.to_thord",
-            "runtime replay component 2: town.thord_service_social_circuit",
-            "Entering Thord",
-            "The smith welcomes you",
-            "The smith offers you some",
-            "Do you want supper,",
-            "The innkeeper leaves.",
-            "Welcome! Have a seat",
-        ),
-    )
-}
-
-val checkRuntimeTownDialogueReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs a named runtime replay through Thord tavern NPC dialogue and reward scripting."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("town-garth-reward-smoke")
-    seed.set(2L)
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: town-garth-reward-smoke",
-            "runtime replay component 1: travel.to_thord",
-            "runtime replay component 2: town.thord_garth_reward_dialogue",
-            "The merchant is GRATEFUL!",
-            "You pick up the gem.",
-        ),
-    )
-}
-
-val checkRuntimeTownMissionIntroReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs fixed NPC town mission-intro dialogue branches through the runtime."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("town-mission-intro-route")
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: town-mission-intro-route",
-            "runtime replay component 2: town.thord_mission_dialogues",
-            "runtime replay component 4: town.wilor_mission_dialogues",
-            "In fact, I have a mission",
-            "You persuade him to",
-            "You take the blade.",
-            "- OH! A message from my",
-            "precious map",
-            "Ah, a seeker",
-            "Erethor's Lute",
-        ),
-    )
-}
-
-val checkRuntimeTownSilverKeyReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs the Silver Key post-note town dialogue chain through the runtime."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("town-silver-key-chain-route")
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: town-silver-key-chain-route",
-            "runtime replay component 2: town.ollk_silver_key_chain",
-            "sold the Key",
-            "Nah, sorry",
-            "Find them and",
-        ),
-    )
-}
-
-val checkRuntimeSilverKeyDiscoveryReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs the Silver Key map, dungeon note, and smith confession chain through the runtime."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("silver-key-discovery-route")
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: silver-key-discovery-route",
-            "runtime replay component 2: town.wilor_buy_silver_key_map",
-            "runtime replay component 4: mission.silver_sanctum_note",
-            "runtime replay component 6: town.ollk_smith_confession",
-            "precious map",
-            "This room shines like",
-            "Master Thief",
-            "sold the Key",
-            "Find them and",
-        ),
-    )
-}
-
-val checkRuntimeHobgoblinCaravanReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs the seeded hobgoblin caravan random-step mission through the runtime."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("hobgoblin-caravan-route")
-    seed.set(21L)
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: hobgoblin-caravan-route",
-            "runtime replay component 1: mission.hobgoblin_caravan_random_step",
-            "caravan of hobgoblins",
-            "Boss has it",
-            "carotid artery",
-        ),
-    )
-}
-
-val checkRuntimeMasterCrownDiscoveryReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs the Master Crown prerequisite chain through town dialogue, missions, and Nolrim's crypt."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("master-crown-discovery-route")
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: master-crown-discovery-route",
-            "runtime replay component 2: town.wilor_master_crown_intro",
-            "runtime replay component 4: mission.kobold_village",
-            "runtime replay component 14: mission.nolrim_crypt",
-            "runtime replay component 18: town.wilor_master_crown_location",
-            "suited for this than I am",
-            "ugly pendant",
-            "grant you the second",
-            "skullweed plant",
-            "DWARF STONE",
-            "Nolrim's crypt",
-            "dagger you seek",
-            "purple dwarf stone",
-            "Master Crown is hidden",
-        ),
-    )
-}
-
 val checkRuntimeSaveScript: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
     RunInstalledLauncherWithJavaTask::class,
 ) {
@@ -536,155 +338,6 @@ val checkRuntimeTownPromptScript: TaskProvider<RunInstalledLauncherWithJavaTask>
             "Who? (1-4)",
             "2. Legolas",
             "Legolas needs no healing.",
-        ),
-    )
-}
-
-val checkRuntimeTownCommerceReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs Thord merchant and smith buy/sell paths, including deterministic smith haggling."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("town-commerce-paths")
-    seed.set(3)
-    debugLog.set(true)
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: town-commerce-paths",
-            "runtime replay component 1: town.thord_merchant_buy_sell_matrix",
-            "runtime replay component 2: town.thord_smith_buy_sell_haggle",
-            "Merchant",
-            "You can carry no",
-            "Accept? (Y)es / (N)o",
-            "No thanks.",
-            "Sold!",
-            "- I don't deal in that",
-            "The smith welcomes you",
-            "The smith offers you some",
-            "The smith is disappointed.",
-            "Armor or Weapon?",
-            "2h-Sword",
-            "Not weapon or armor.",
-            "Ok! Give ya 2900!",
-            "Ok! Give ya 450!",
-            "rng.draw context=shop.sell.haggle",
-        ),
-    )
-}
-
-val checkRuntimeTownChurchReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs Thord church healing, no-need, raise-dead, energize, and invalid target paths."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("town-church-paths")
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: town-church-paths",
-            "You enter the church",
-            "Who? (1-4)",
-            "1. Aragorn",
-            "Mira needs no healing.",
-            "The priestess raises",
-            "The priestess",
-            "Not a spellcaster!",
-            "seems very alive",
-        ),
-    )
-}
-
-val checkRuntimeTownSocialReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs Thord tavern and inn drinks, rumors, chitchat, bargirl, story, supper, and lodging paths."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("town-social-paths")
-    seed.set(20)
-    debugLog.set(true)
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: town-social-paths",
-            "runtime replay component 1: town.thord_tavern_drinks_rumor_hassan_story",
-            "runtime replay component 2: town.thord_inn_bargirl_drinks_lodging",
-            "Welcome! Have a seat",
-            "AAH!",
-            "laughing",
-            "After listening",
-            "Chatting with",
-            "Hassan",
-            "TRAVELER'S STORY",
-            "Deanna",
-            "Ahh...!",
-            "The other guests giggle.",
-            "You are served a well",
-            "You go to bed",
-            "You wake up",
-            "rng.draw context=speak.chitchat.subject",
-        ),
-    )
-}
-
-val checkRuntimeTownRandomOfferReplay: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs a seeded Thord tavern random-item offer path with debug-log flash enabled."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("town-random-offer-path")
-    seed.set(21)
-    debugLog.set(true)
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: town-random-offer-path",
-            "scruffy",
-            "I will sell you this",
-            "Deal!!!",
-            "rng.draw context=script.chance",
-            "rng.draw context=script.random_item_offer.item",
-            "script.random_item_offer.bought",
         ),
     )
 }
@@ -884,80 +537,10 @@ val checkRuntimeFullPlaythroughHeroesScreen: TaskProvider<RunInstalledLauncherWi
     )
 }
 
-val checkRuntimeAcceptancePlaythrough: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Runs a normal-start runtime route through the power-item dungeons and castle victory."
-
-    dependsOn(installRuntime)
-    dependsOn(":tools:emitExternalCompiledBundle")
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    replay.set("acceptance-power-route")
-    saveFile.set(runtimeAcceptanceSaveFile)
-    expectedOutputContains.set(
-        listOf(
-            "runtime replay: acceptance-power-route",
-            "runtime replay component",
-            "FIRE SHIELD",
-            "Bracelets of Thun",
-            "Master Crown",
-            "Today, you have killed",
-            "precious Silver Key",
-            "CONGRATULATIONS!",
-            "You have banished Ydarg",
-            "Game saved.",
-        ),
-    )
-}
-
-val checkRuntimeAcceptanceHeroesScreen: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
-    RunInstalledLauncherWithJavaTask::class,
-) {
-    group = "verification"
-    description = "Loads the runtime acceptance save into Hall-of-Heroes."
-
-    dependsOn(checkRuntimeAcceptancePlaythrough)
-    executableFile.set(runtimeExecutable)
-    bundleFile.set(externalBundleArtifact)
-    javaHomePath.set(
-        kotlinRuntimeJavaLauncher.map { launcher ->
-            launcher.metadata.installationPath.asFile.absolutePath
-        },
-    )
-    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    screen.set("heroes")
-    loadFile.set(runtimeAcceptanceSaveFile)
-    expectedOutputContains.set(
-        listOf(
-            "HALL OF NATIONAL HEROES",
-            "Playtest defeated Baron Ydarg",
-        ),
-    )
-}
-
 tasks.check {
     dependsOn(checkRuntimeBundleBoot)
     dependsOn(checkRuntimeNewPartyCreation)
-    dependsOn(checkRuntimeTownScript)
-    dependsOn(checkRuntimeTownDialogueReplay)
-    dependsOn(checkRuntimeTownMissionIntroReplay)
     dependsOn(checkRuntimeTownPromptScript)
-    dependsOn(checkRuntimeTownCommerceReplay)
-    dependsOn(checkRuntimeTownChurchReplay)
-    dependsOn(checkRuntimeTownSocialReplay)
-    dependsOn(checkRuntimeTownRandomOfferReplay)
-    dependsOn(checkRuntimeTownSilverKeyReplay)
-    dependsOn(checkRuntimeSilverKeyDiscoveryReplay)
-    dependsOn(checkRuntimeHobgoblinCaravanReplay)
-    dependsOn(checkRuntimeMasterCrownDiscoveryReplay)
     dependsOn(checkRuntimeLoadScript)
     dependsOn(checkRuntimePartyJournalScript)
     dependsOn(checkRuntimeWildernessActionsScript)
@@ -967,5 +550,4 @@ tasks.check {
     dependsOn(checkRuntimeCastleScript)
     dependsOn(checkRuntimeHeroesScreen)
     dependsOn(checkRuntimeFullPlaythroughHeroesScreen)
-    dependsOn(checkRuntimeAcceptanceHeroesScreen)
 }

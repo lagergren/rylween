@@ -93,7 +93,6 @@ data class RuntimeConfig(
     val saveFile: File = File("build/saves/runtime.rsave"),
     val staticScreen: String? = null,
     val scriptedInput: String? = null,
-    val replayPlan: String? = null,
     val seed: Long? = null,
     val logFile: File = RuntimeLog.defaultFile,
     val debugLogFlash: Boolean = false,
@@ -116,7 +115,6 @@ private object RuntimeCli {
         var saveFile = File("build/saves/runtime.rsave")
         var staticScreen: String? = null
         var scriptedInput: String? = null
-        var replayPlan: String? = null
         var seed: Long? = null
         var logFile = RuntimeLog.defaultFile
         var debugLogFlash = false
@@ -157,11 +155,6 @@ private object RuntimeCli {
                     index += 2
                 }
 
-                "--replay" -> {
-                    replayPlan = args.valueAfter(index, arg)
-                    index += 2
-                }
-
                 "--seed" -> {
                     seed = args.valueAfter(index, arg).toLong()
                     index += 2
@@ -195,8 +188,8 @@ private object RuntimeCli {
                 else -> error("unknown argument $arg")
             }
         }
-        check(listOf(staticScreen != null, scriptedInput != null, replayPlan != null).count { it } <= 1) {
-            "--screen, --script, and --replay are mutually exclusive"
+        check(listOf(staticScreen != null, scriptedInput != null).count { it } <= 1) {
+            "--screen and --script are mutually exclusive"
         }
         check(!(showTitleMenu && skipTitleMenu)) {
             "--title and --no-title are mutually exclusive"
@@ -209,7 +202,6 @@ private object RuntimeCli {
             saveFile = saveFile,
             staticScreen = staticScreen,
             scriptedInput = scriptedInput,
-            replayPlan = replayPlan,
             seed = seed,
             logFile = logFile,
             debugLogFlash = debugLogFlash,
@@ -230,7 +222,6 @@ private object RuntimeCli {
             |  --save <file>     Save target for the S command, default build/saves/runtime.rsave.
             |  --screen <slug>   Render one compiled static screen and exit.
             |  --script <chars>  Feed command characters, useful for smoke tests.
-            |  --replay <name>   Run a named runtime replay plan.
             |  --seed <long>     Override the active party RNG seed before play.
             |  --log <file>      Runtime forensic log, default build/logs/runtime/latest.log.
             |  --debug-log       Flash each forensic log line below the game frame.
@@ -262,27 +253,21 @@ private fun RuntimeConfig.run() {
         log.event(
             "run.start bundle=${bundleFile.path} state=$stateSlug load=${loadFile?.path.orEmpty()} " +
                 "save=${saveFile.path} screen=${staticScreen.orEmpty()} script=${scriptedInput != null} " +
-                "replay=${replayPlan.orEmpty()} seed=${seed ?: ""} title=$showTitleMenu noTitle=$skipTitleMenu " +
-                "debugLogFlash=$debugLogFlash debugSecrets=$debugSecrets",
+                "seed=${seed ?: ""} title=$showTitleMenu noTitle=$skipTitleMenu debugLogFlash=$debugLogFlash " +
+                "debugSecrets=$debugSecrets",
         )
         if (staticScreen != null) {
             runtime.renderStaticScreen(staticScreen, stateSlug, loadFile, log)
             return
         }
-        val replay =
-            replayPlan?.let { plan ->
-                runtime.replayPlan(plan, stateSlug.takeUnless { it == "fresh-replay" })
-            }
-        replay?.summaryLines()?.forEach(System.err::println)
         runtime.runWilderness(
-            stateSlug = replay?.stateSlug ?: stateSlug,
+            stateSlug = stateSlug,
             loadFile = loadFile,
             saveFile = saveFile,
-            scriptedInput = replay?.script ?: scriptedInput,
+            scriptedInput = scriptedInput,
             seed = seed,
             showTitleMenu =
-                replay == null &&
-                    loadFile == null &&
+                loadFile == null &&
                     !skipTitleMenu &&
                     (showTitleMenu || scriptedInput == null && !stateExplicit),
             debugLogFlash = debugLogFlash,
@@ -1070,6 +1055,7 @@ class GameRuntime private constructor(
                 services.forEachIndexed { index, service -> add("${index + 1}. ${slug(service.building).readableSlug()}") }
                 add("L. Leave")
             }
+
         var current = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
         while (true) {
             val menu = menuLines()
@@ -1117,12 +1103,6 @@ class GameRuntime private constructor(
         return bundle.states.firstOrNull { it.state == stateRef } ?: error("unknown compiled state $slug")
     }
 
-    /** Builds a named replay plan from compiled bundle tables. */
-    internal fun replayPlan(
-        name: String,
-        stateOverride: String?,
-    ): ReplayPlan = ReplayPlans.build(name, bundle, systems, stateOverride)
-
     private fun string(id: Int): String = content.strings.value(id)
 
     private fun slug(ref: CompiledHandleRef): String = content.slug(ref)
@@ -1158,8 +1138,7 @@ internal data class RuntimeState(
 ) {
     fun withParty(party: PartyState): RuntimeState = copy(party = party)
 
-    fun withCompletedMission(mission: CompiledHandleRef): RuntimeState =
-        copy(completedMissions = (completedMissions + mission).distinct())
+    fun withCompletedMission(mission: CompiledHandleRef): RuntimeState = copy(completedMissions = (completedMissions + mission).distinct())
 
     fun withSeed(seed: Long): RuntimeState = withParty(party.copy(rngState = seed))
 
@@ -1347,8 +1326,6 @@ internal class RuntimeInput(
 ) {
     private val scripted = scriptedInput?.toList()?.let(::ArrayDeque)
 
-    val scriptedMode: Boolean get() = scripted != null
-
     val exhausted: Boolean get() = scripted != null && scripted.isEmpty()
 
     fun pause(ms: Int) {
@@ -1493,7 +1470,6 @@ private fun CompiledTextPart.renderText(
     }
 
 internal class WorldMap(
-    private val content: CompiledContentBundle,
     private val rows: List<String>,
     private val terrainByCode: Map<Char, CompiledTerrain>,
 ) {
@@ -1514,7 +1490,6 @@ internal class WorldMap(
                     ?: error("missing compiled world map ${content.slug(mapRef)}")
             val layer = map.layers.firstOrNull() ?: error("world map ${content.slug(mapRef)} has no layers")
             return WorldMap(
-                content = content,
                 rows = layer.rowStrings.map(content.strings::value),
                 terrainByCode = content.terrain.associateBy { it.mapCode },
             )

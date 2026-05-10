@@ -109,10 +109,6 @@ abstract class RunInstalledLauncherWithJavaTask
 
         @get:Input
         @get:Optional
-        abstract val replay: Property<String>
-
-        @get:Input
-        @get:Optional
         abstract val seed: Property<Long>
 
         @get:Input
@@ -147,9 +143,8 @@ abstract class RunInstalledLauncherWithJavaTask
             val javaHome = File(javaHomePath.get())
             val hasScreen = screen.isPresent
             val hasScript = script.isPresent
-            val hasReplay = replay.isPresent
-            check(listOf(hasScreen, hasScript, hasReplay).count { it } == 1) {
-                "configure exactly one launcher smoke mode: screen, script, or replay"
+            check(listOf(hasScreen, hasScript).count { it } == 1) {
+                "configure exactly one launcher smoke mode: screen or script"
             }
             val launcherArgs =
                 mutableListOf(
@@ -168,9 +163,6 @@ abstract class RunInstalledLauncherWithJavaTask
             }
             if (title.orNull == true) {
                 launcherArgs += "--title"
-            }
-            if (hasReplay) {
-                launcherArgs += listOf("--replay", replay.get())
             }
             if (seed.isPresent) {
                 launcherArgs += listOf("--seed", seed.get().toString())
