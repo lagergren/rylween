@@ -834,7 +834,11 @@ nextRylween = nextRylween.withStateModule {
             }
 
             visited(Npcs.garth, Npcs.bernak)
-            journal { banditsCargoRecovered() }
+            journal {
+                line("You find the cargo")
+                line("the merchant wanted")
+                line("you to bring him.")
+            }
         }
     }
 
@@ -975,7 +979,11 @@ nextRylween = nextRylween.withStateModule {
             }
 
             visited(Npcs.garth, Npcs.bernak)
-            journal { banditsCargoRecovered() }
+            journal {
+                line("You find the cargo")
+                line("the merchant wanted")
+                line("you to bring him.")
+            }
         }
     }
 
@@ -1153,7 +1161,9 @@ nextRylween = nextRylween.withStateModule {
             }
 
             journal {
-                banditsCargoRecovered()
+                line("You find the cargo")
+                line("the merchant wanted")
+                line("you to bring him.")
                 line("Castle Ydarg has fallen.")
             }
         }

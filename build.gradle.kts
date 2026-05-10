@@ -53,7 +53,6 @@ kotlin {
 val main: SourceSet by sourceSets.getting
 
 val game: SourceSet by sourceSets.creating {
-    java.srcDir("src/game/kotlin")
     java.srcDir(generatedGameHarnessDir)
     java.srcDir(generatedGameCatalogDir)
     compileClasspath += main.output
