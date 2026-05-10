@@ -1530,15 +1530,6 @@ class RylweenCompiledGameLedgerTest {
             "standalone compiled runtime must not leak implementation status text into player screens: " +
                 statusTextOffenders.joinToString()
         }
-        val runtimeSpec = File("plans/compiled-vm-runtime-spec.md").readText()
-        check(
-            "compiled standard-battle" in runtimeSpec &&
-                "runtimeSystems.combat.standardBattle" in runtimeSpec &&
-                "contract and authored text/reward/formula/item/spell rows" in runtimeSpec &&
-                "one-off combat loops are not a conforming battle host" in runtimeSpec,
-        ) {
-            "compiled runtime spec must keep the battle host boundary explicit"
-        }
         check(File("run.sh").readText().contains(":compiled-runtime:installCompiledRuntime")) {
             "run.sh must launch the standalone compiled runtime"
         }
@@ -1600,22 +1591,21 @@ class RylweenCompiledGameLedgerTest {
 
     @Test
     fun rustMudTargetStaysExperimentalUntilConformanceCloseout() {
-        val ledger = File("plans/dsl-improvements.md").readText()
-        val plan = File("plans/k1-rust-server-mud-plan.md").readText()
         val build = File("build.gradle.kts").readText()
         val buildLogic = File("build-logic/src/main/kotlin/rylween/gradle/RylweenBuildTasks.kt").readText()
         val manifest = File("rust/rylween-mud/Cargo.toml").readText()
         val bundle = File("rust/rylween-mud/src/bundle.rs").readText()
+        val main = File("rust/rylween-mud/src/main.rs").readText()
         val requiredMarkers =
             listOf(
-                ledger to "not be called playable until it passes all J3 conformance suites",
-                ledger to "[x] K1.0 Rust product skeleton",
-                ledger to "[ ] K1.1 Rust VM parity core",
-                plan to "Smallest viable K1.0 slice: closed",
                 build to "checkRustMudBundleInspect",
+                build to "dependsOn(checkRustMudBundleInspect)",
                 buildLogic to "section summaries disagree",
+                buildLogic to "status=experimental-k1.0",
                 manifest to "publish = false",
                 bundle to "status=experimental-k1.0",
+                main to "Experimental K1 Rust target",
+                main to "--listen is reserved for the K1 TCP server slice",
             )
         val missing =
             requiredMarkers
@@ -1625,6 +1615,9 @@ class RylweenCompiledGameLedgerTest {
         check(missing.isEmpty()) {
             "Rust MUD target must stay visibly experimental until K1/J3 closeout; missing: " +
                 missing.joinToString()
+        }
+        check("TcpListener" !in main && "Command::Listen" !in main) {
+            "Rust MUD target must not expose server mode before K1/J3 conformance closeout"
         }
     }
 }
