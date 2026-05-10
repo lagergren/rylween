@@ -1208,6 +1208,8 @@ class RylweenCompiledGameLedgerTest {
         val rootBuild = File("build.gradle.kts").readText()
         val settings = File("settings.gradle.kts").readText()
         val launcher = File("run.sh").readText()
+        val compiledRuntimeMain =
+            File("compiled-runtime/src/main/kotlin/rylween/compiledruntime/RylweenCompiledRuntimeMain.kt").readText()
         val buildWrapperTask =
             File("build-logic/src/main/kotlin/rylween/gradle/RylweenBuildTasks.kt").readText()
 
@@ -1244,6 +1246,12 @@ class RylweenCompiledGameLedgerTest {
         check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in launcher }) {
             "run.sh must not fall back to the archived interpreted ANSI runtime"
         }
+        check("--title" in launcher && "--no-title" in launcher && "title_seen=false" in launcher) {
+            "run.sh must show the title screen by default and require --no-title to skip it"
+        }
+        check("--no-title" in compiledRuntimeMain && "skipTitleMenu" in compiledRuntimeMain && "!skipTitleMenu" in compiledRuntimeMain) {
+            "compiled runtime must support an explicit --no-title title-screen skip"
+        }
         check(
             ":compiled-runtime:installCompiledRuntime" in buildWrapperTask &&
                 "compiled-runtime/build/install/rylween-compiled-runtime/bin/rylween-compiled" in buildWrapperTask,
@@ -1252,6 +1260,32 @@ class RylweenCompiledGameLedgerTest {
         }
         check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in buildWrapperTask }) {
             "generated wrapper task must not fall back to the archived interpreted ANSI runtime"
+        }
+    }
+
+    @Test
+    fun jvmToolchainVersionComesFromVersionCatalog() {
+        val catalog = File("gradle/libs.versions.toml").readText()
+        val gradleFiles =
+            listOf(
+                "build.gradle.kts",
+                "ansi-terminal/build.gradle.kts",
+                "compiled-runtime/build.gradle.kts",
+            )
+        val hardcodedVersion = Regex("""(jvmToolchain|JavaLanguageVersion\.of)\(\s*\d+\s*\)""")
+        val offenders =
+            gradleFiles.flatMap { path ->
+                hardcodedVersion
+                    .findAll(File(path).readText())
+                    .map { match -> "$path: ${match.value}" }
+                    .toList()
+            }
+
+        check("jdk = \"25\"" in catalog) {
+            "Gradle JVM toolchain version must live in gradle/libs.versions.toml"
+        }
+        check(offenders.isEmpty()) {
+            "Gradle JVM toolchain version must not be hard-coded: ${offenders.joinToString()}"
         }
     }
 

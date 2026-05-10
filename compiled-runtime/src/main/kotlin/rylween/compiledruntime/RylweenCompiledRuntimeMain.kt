@@ -97,6 +97,7 @@ data class CompiledRuntimeConfig(
     val debugLogFlash: Boolean = false,
     val debugSecrets: Boolean = false,
     val showTitleMenu: Boolean = false,
+    val skipTitleMenu: Boolean = false,
 )
 
 private object CompiledRuntimeCli {
@@ -119,6 +120,7 @@ private object CompiledRuntimeCli {
         var debugLogFlash = false
         var debugSecrets = false
         var showTitleMenu = false
+        var skipTitleMenu = false
         var index = 0
         while (index < args.size) {
             when (val arg = args[index]) {
@@ -183,11 +185,19 @@ private object CompiledRuntimeCli {
                     index += 1
                 }
 
+                "--no-title" -> {
+                    skipTitleMenu = true
+                    index += 1
+                }
+
                 else -> error("unknown argument $arg")
             }
         }
         check(listOf(staticScreen != null, scriptedInput != null, replayPlan != null).count { it } <= 1) {
             "--screen, --script, and --replay are mutually exclusive"
+        }
+        check(!(showTitleMenu && skipTitleMenu)) {
+            "--title and --no-title are mutually exclusive"
         }
         return CompiledRuntimeConfig(
             bundleFile = checkNotNull(bundleFile) { "--bundle is required" },
@@ -203,6 +213,7 @@ private object CompiledRuntimeCli {
             debugLogFlash = debugLogFlash,
             debugSecrets = debugSecrets,
             showTitleMenu = showTitleMenu,
+            skipTitleMenu = skipTitleMenu,
         )
     }
 
@@ -222,7 +233,8 @@ private object CompiledRuntimeCli {
             |  --log <file>      Runtime forensic log, default build/logs/compiled-runtime/latest.log.
             |  --debug-log       Flash each forensic log line below the game frame.
             |  --debug-secrets   Enable hidden manual-test wilderness triggers.
-            |  --title           Show title flow even with scripted input.
+            |  --title           Show title flow even when direct boot would skip it.
+            |  --no-title        Skip title flow and boot directly.
             """.trimMargin(),
         )
     }
@@ -248,7 +260,8 @@ private fun CompiledRuntimeConfig.run() {
         log.event(
             "run.start bundle=${bundleFile.path} state=$stateSlug load=${loadFile?.path.orEmpty()} " +
                 "save=${saveFile.path} screen=${staticScreen.orEmpty()} script=${scriptedInput != null} " +
-                "replay=${replayPlan.orEmpty()} seed=${seed ?: ""} debugLogFlash=$debugLogFlash debugSecrets=$debugSecrets",
+                "replay=${replayPlan.orEmpty()} seed=${seed ?: ""} title=$showTitleMenu noTitle=$skipTitleMenu " +
+                "debugLogFlash=$debugLogFlash debugSecrets=$debugSecrets",
         )
         if (staticScreen != null) {
             runtime.renderStaticScreen(staticScreen, stateSlug, loadFile, log)
@@ -265,7 +278,11 @@ private fun CompiledRuntimeConfig.run() {
             saveFile = saveFile,
             scriptedInput = replay?.script ?: scriptedInput,
             seed = seed,
-            showTitleMenu = replay == null && loadFile == null && (showTitleMenu || scriptedInput == null && !stateExplicit),
+            showTitleMenu =
+                replay == null &&
+                    loadFile == null &&
+                    !skipTitleMenu &&
+                    (showTitleMenu || scriptedInput == null && !stateExplicit),
             debugLogFlash = debugLogFlash,
             debugSecrets = debugSecrets,
             log = log,
