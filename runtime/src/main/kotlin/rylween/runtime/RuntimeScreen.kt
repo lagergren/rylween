@@ -215,7 +215,7 @@ internal class RuntimeScreen(
 
     /** Repaints the remembered map-window image and supplied text panel. */
     fun redrawCurrentView(lines: List<String>) {
-        activeMapImage?.let { imageSlug -> renderImage(imageSlug, rememberMapImage = false) }
+        activeMapImage?.let { imageSlug -> renderImage(imageSlug) }
         writeText(lines)
     }
 
