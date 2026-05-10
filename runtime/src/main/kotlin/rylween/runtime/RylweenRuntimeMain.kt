@@ -44,6 +44,8 @@ import rylween.compiled.CompiledWorldPosition
 import rylween.compiled.ExternalCharacterCreationClassOption
 import rylween.compiled.ExternalCharacterCreationPrompts
 import rylween.compiled.ExternalCharacterCreationStatRoll
+import rylween.compiled.ExternalRuntimeCommand
+import rylween.compiled.ExternalRuntimeInputBinding
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.readExternalCompiledBundleContentHash
@@ -72,6 +74,8 @@ private const val MANUAL_SCREEN = "manual"
 private const val TEXT_WINDOW_PAGE_LINES = 9
 private const val CREATION_REJECTION_DELAY_MS = 1_000
 private const val TOWN_MAINSTREET_IMAGE = "blitgfx.towne_mainstreet"
+private const val TOWN_COMMAND_GROUP = "town"
+private const val TOWN_LEAVE_ACTION = "leave_town"
 private const val WILDERNESS_MESSAGE_DELAY_MS = 1_200
 
 /** CLI entry point for the runtime. */
@@ -1053,13 +1057,25 @@ class GameRuntime private constructor(
             screen.writeText(listOf("${string(town.nameString)} has no compiled services."))
             return runtime
         }
+        val townCommands = systems.commands.getValue(TOWN_COMMAND_GROUP)
+        val serviceEntries =
+            services.mapNotNull { service ->
+                townCommands
+                    .firstOrNull { command -> command.action == slug(service.action) }
+                    ?.let { command -> TownMenuEntry(command, service, slug(service.building).readableSlug()) }
+            }
+        val leaveCommand = townCommands.firstOrNull { command -> command.action == TOWN_LEAVE_ACTION }
+        if (serviceEntries.isEmpty()) {
+            screen.writeText(listOf("${string(town.nameString)} has no compiled service commands."))
+            return runtime
+        }
 
         fun menuLines(): List<String> =
             buildList {
                 add("Entering ${string(town.nameString)}")
                 add("")
-                services.forEachIndexed { index, service -> add("${index + 1}. ${slug(service.building).readableSlug()}") }
-                add("L. Leave")
+                serviceEntries.forEach { entry -> add(entry.menuLine()) }
+                leaveCommand?.let { command -> add(command.binding.mnemonicLine("Leave")) }
             }
 
         var current = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
@@ -1072,15 +1088,13 @@ class GameRuntime private constructor(
                 screen.redrawCurrentView(menu)
                 choice = input.readCommand() ?: return current
             }
-            if (choice == 'L') return current.copy(currentMode = RuntimeMode.Wilderness, currentTown = null)
-            val index = choice.digitToIntOrNull()?.minus(1)
-            val service = index?.let(services::getOrNull)
-            if (service == null) {
+            val command = townCommands.firstOrNull { candidate -> candidate.binding.matches(choice) }
+            if (command == null) {
                 log.event("town.invalid_choice key=$choice")
-                screen.writeText(listOf("No such service.", "", "Press any key."))
-                input.readCommand() ?: return current
                 continue
             }
+            if (command.action == TOWN_LEAVE_ACTION) return current.copy(currentMode = RuntimeMode.Wilderness, currentTown = null)
+            val service = serviceEntries.firstOrNull { entry -> entry.command.action == command.action }?.service ?: continue
             log.event("town.service town=${slug(town.id)} building=${slug(service.building)}")
             current = runService(current.copy(currentMode = RuntimeMode.Town, currentTown = town.id), service, input, screen, log)
             if (current.currentMode != RuntimeMode.Town || input.exhausted) return current
@@ -1384,6 +1398,21 @@ private data class CreationChoice<T>(
     val label: String,
     val value: T,
 )
+
+private data class TownMenuEntry(
+    val command: ExternalRuntimeCommand,
+    val service: CompiledBuildingService,
+    val label: String,
+) {
+    fun menuLine(): String = command.binding.mnemonicLine(label)
+}
+
+private fun ExternalRuntimeInputBinding.mnemonicLine(text: String): String = "(${primary.uppercase()})${text.afterMnemonic(primary)}"
+
+private fun String.afterMnemonic(key: String): String =
+    removePrefix(key)
+        .removePrefix(key.uppercase())
+        .removePrefix(key.lowercase())
 
 internal data class MoveResult(
     val party: PartyState,

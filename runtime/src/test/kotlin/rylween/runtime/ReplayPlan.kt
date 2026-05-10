@@ -281,7 +281,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.ollk_silver_key_chain",
-                        commands = "E3LL2NNN" + speakInnNpc(2) + speakInnNpc(1) + "LLX",
+                        commands = "ETLLINNN" + speakInnNpc(2) + speakInnNpc(1) + "LLX",
                         checkpoints =
                             listOf(
                                 "output:Tokawa, the keeper",
@@ -403,7 +403,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_service_social_circuit",
-                        commands = "E4DAL2!NNNL3N",
+                        commands = "ESDALI!NNNLTN",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
@@ -426,7 +426,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_merchant_buy_sell_matrix",
-                        commands = "E1BA1PABB100000ABCNBCPASANASAYASDAL",
+                        commands = "EMBA1PABB100000ABCNBCPASANASAYASDAL",
                         checkpoints =
                             listOf(
                                 "output:Merchant",
@@ -440,7 +440,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_smith_buy_sell_haggle",
-                        commands = "4DABA1NBWN8PASBASCYASDBYALL",
+                        commands = "SDABA1NBWN8PASBASCYASDBYALL",
                         checkpoints =
                             listOf(
                                 "output:The smith welcomes you",
@@ -465,7 +465,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_church_heal_raise_energy_matrix",
-                        commands = "E5H1PH4R2PE3PE1R1LL",
+                        commands = "ECH1PH4R2PE3PE1R1LL",
                         checkpoints =
                             listOf(
                                 "output:You enter the church",
@@ -488,7 +488,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_tavern_drinks_rumor_niklas_story",
-                        commands = "E3OAOBOCODOERAS2CBS1QLYBT1TL",
+                        commands = "ETOAOBOCODOERAS2CBS1QLYBT1TL",
                         checkpoints =
                             listOf(
                                 "output:Welcome! Have a seat",
@@ -504,7 +504,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_inn_drinks_lodging_and_hassan_questions",
-                        commands = "2YYEYTA2NNNC2QLBL",
+                        commands = "IYYEYTAINNNC2QLBL",
                         checkpoints =
                             listOf(
                                 "output:Do you want supper",
@@ -527,7 +527,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_tavern_random_item_offer",
-                        commands = "E3BLL",
+                        commands = "ETBLL",
                         checkpoints =
                             listOf(
                                 "output:scruffy",
@@ -762,7 +762,7 @@ internal object ReplayPlans {
             speakInnNpc(7) +
             "LLX"
 
-    private fun enterInnGuestChat(): String = "E2NNN"
+    private fun enterInnGuestChat(): String = "EINNN"
 
     private fun speakInnNpc(
         index: Int,

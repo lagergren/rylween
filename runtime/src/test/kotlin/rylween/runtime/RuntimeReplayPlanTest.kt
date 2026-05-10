@@ -24,12 +24,20 @@ class RuntimeReplayPlanTest {
             expected =
                 listOf(
                     "Entering Thord",
+                    "(M)erchant",
+                    "(I)nn",
+                    "(T)avern",
+                    "(S)mith",
+                    "(C)hurch",
+                    "(G)uild",
+                    "(L)eave",
                     "The smith welcomes you",
                     "The smith offers you some",
                     "Do you want supper,",
                     "The innkeeper leaves.",
                     "Welcome! Have a seat",
                 ),
+            forbidden = listOf("No such service.", "1. Merchant", "2. Inn", "3. Tavern", "4. Smith"),
         )
         runReplay(
             "town-garth-reward-smoke",
@@ -133,6 +141,7 @@ class RuntimeReplayPlanTest {
                     "Ok! Give ya 450!",
                     "rng.draw context=shop.sell.haggle",
                 ),
+            forbidden = listOf("No such shop choice."),
         )
         runReplay(
             "town-church-paths",

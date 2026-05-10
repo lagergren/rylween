@@ -16,3 +16,18 @@ internal class PausePrompts(
         return "($verb $returnKeyName)"
     }
 }
+
+internal fun List<String>.withPausePrompt(pausePrompts: PausePrompts): List<String> =
+    withoutAuthoredAnyKeyPrompt() + "" + pausePrompts.line()
+
+private fun List<String>.withoutAuthoredAnyKeyPrompt(): List<String> {
+    var lines = this
+    while (lines.lastOrNull()?.isBlank() == true) lines = lines.dropLast(1)
+    return if (lines.lastOrNull()?.trim() in authoredAnyKeyPrompts) {
+        lines.dropLast(1)
+    } else {
+        lines
+    }
+}
+
+private val authoredAnyKeyPrompts = setOf("Press any key.", "Press any key")

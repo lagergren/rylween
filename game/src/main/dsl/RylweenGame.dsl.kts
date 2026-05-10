@@ -3902,7 +3902,7 @@ var nextRylween: RylweenModel = rylween {
                         whenever(!m.dead) {
                             clearText()
                             screen {
-                                line("- ", pronoun(m, PronounCase.Subject), " seems very alive")
+                                line("- ", partyName(m), " seems very alive")
                                 line("at the moment.")
                             }
                             pause(1200)

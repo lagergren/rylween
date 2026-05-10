@@ -157,7 +157,7 @@ internal class CastleRuntime(
     ): RuntimeState {
         screen.writeText(castle.text.roomMonster.renderCastle())
         val battle =
-            BattleRunner(content, systems.combat, input, screen)
+            BattleRunner(content, systems.combat, input, screen, pausePrompts = PausePrompts(systems.prompts))
                 .runTier(runtime, castle.monsterTier)
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         return battle.runtime.copy(
@@ -301,7 +301,7 @@ internal class CastleRuntime(
             systems.commands.getValue("castle.${castle.id}.navigation").map { command ->
                 "${command.binding.primary}. ${command.label ?: command.binding.label}"
             }
-        screen.writeText(lines)
+        screen.writeText(lines.withPausePrompt(PausePrompts(systems.prompts)))
         input.readCommand()
     }
 
