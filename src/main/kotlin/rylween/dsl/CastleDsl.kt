@@ -3,9 +3,8 @@
  *
  * Authors declare `castle(id) { ... }` blocks, the wilderness runtime enters
  * the castle whose authored entry matches the map tile, and
- * `runtime/castle/CastleSession.kt` consumes only this content model rather
- * than hard-coded game tables. Terminal presentation remains in
- * `ansi-runtime/src/main/kotlin/rylween/frontend/terminal/CastleSessionTerminalAdapter.kt`.
+ * the standalone compiled runtime consumes only this content model rather than
+ * hard-coded game tables.
  */
 @file:Suppress("unused", "MemberVisibilityCanBePrivate", "CanBeParameter", "KotlinExplicitApi")
 

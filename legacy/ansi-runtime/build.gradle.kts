@@ -1,14 +1,164 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.TaskAction
 import org.gradle.jvm.application.tasks.CreateStartScripts
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import rylween.gradle.AnsiScriptVmMode
-import rylween.gradle.CheckAnsiServerLauncherTask
 import rylween.gradle.RunInstalledLauncherWithJavaTask
+import java.io.File
+import java.io.InputStream
+import java.net.ServerSocket
+import java.net.Socket
+import java.net.SocketTimeoutException
+import java.util.concurrent.TimeUnit
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
     id("rylween.qa-conventions")
+}
+
+enum class AnsiScriptVmMode(
+    val cliArgument: String,
+) {
+    Compiled("compiled"),
+}
+
+/**
+ * Archived ANSI socket launcher smoke task kept with the legacy runtime.
+ */
+abstract class CheckAnsiServerLauncherTask : DefaultTask() {
+    @get:InputFile
+    abstract val executableFile: RegularFileProperty
+
+    @get:InputFile
+    abstract val bundleFile: RegularFileProperty
+
+    @get:Input
+    abstract val javaHomePath: Property<String>
+
+    @get:Input
+    abstract val inheritedPath: Property<String>
+
+    @get:Input
+    abstract val stateSlug: Property<String>
+
+    @get:Input
+    abstract val scriptVmMode: Property<AnsiScriptVmMode>
+
+    @get:Input
+    abstract val workingDirectoryPath: Property<String>
+
+    @get:OutputFile
+    abstract val logFile: RegularFileProperty
+
+    @TaskAction
+    fun run() {
+        val port = freeTcpPort()
+        val javaHome = File(javaHomePath.get())
+        val log = logFile.get().asFile.apply { parentFile.mkdirs() }
+        val process =
+            ProcessBuilder(
+                executableFile.get().asFile.path,
+                "--bundle",
+                bundleFile.get().asFile.path,
+                "--serve",
+                "127.0.0.1:$port",
+                "--state",
+                stateSlug.get(),
+                "--script-vm",
+                scriptVmMode.get().cliArgument,
+            ).directory(File(workingDirectoryPath.get()))
+                .redirectErrorStream(true)
+                .apply {
+                    environment()["JAVA_HOME"] = javaHome.absolutePath
+                    environment()["PATH"] = javaHome.resolve("bin").path + File.pathSeparator + inheritedPath.get()
+                    environment()["RYL_LOG"] = "file:${log.path}"
+                    environment()["RYL_LOG_LEVEL"] = "debug"
+                }.start()
+        try {
+            val socket = connectWithRetry(port)
+            socket.use { client ->
+                client.soTimeout = 10_000
+                val input = client.getInputStream()
+                val output = client.getOutputStream()
+                val firstScreen = readUntil(input, "Wilderness", maxBytes = 64 * 1024)
+                require("Wilderness" in firstScreen) {
+                    "ANSI server did not render the wilderness screen"
+                }
+                output.write("22ESBW1PLLXY".toByteArray(Charsets.UTF_8))
+                output.flush()
+                val playthrough = readUntil(input, "Fare thee well.", maxBytes = 512 * 1024)
+                listOf(
+                    "Village of Thord",
+                    "Armor or Weapon?",
+                    "(1) Sword",
+                    "Deal!",
+                    "Fare thee well.",
+                ).forEach { fragment ->
+                    require(fragment in playthrough) {
+                        "ANSI server playthrough did not render '$fragment'"
+                    }
+                }
+            }
+            require(process.waitFor(15, TimeUnit.SECONDS)) {
+                "ANSI server did not exit after quit input"
+            }
+            require(process.exitValue() == 0) {
+                "ANSI server exited with ${process.exitValue()}"
+            }
+            require(log.readText().contains("[AUD][server] client connected")) {
+                "ANSI server log did not record a client connection"
+            }
+            require("status=EnteredTown" in log.readText() && "town=thord" in log.readText()) {
+                "ANSI server log did not record the Thord handoff"
+            }
+            require("mode=${scriptVmMode.get().cliArgument}" in log.readText()) {
+                "ANSI server log did not record the ${scriptVmMode.get().cliArgument} script VM mode"
+            }
+        } finally {
+            if (process.isAlive) process.destroyForcibly()
+        }
+    }
+
+    private fun freeTcpPort(): Int = ServerSocket(0).use { server -> server.localPort }
+
+    private fun connectWithRetry(port: Int): Socket {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15)
+        var lastError: Exception? = null
+        while (System.nanoTime() < deadline) {
+            try {
+                return Socket("127.0.0.1", port)
+            } catch (error: Exception) {
+                lastError = error
+                Thread.sleep(100)
+            }
+        }
+        throw IllegalStateException("could not connect to ANSI server on port $port", lastError)
+    }
+
+    private fun readUntil(
+        input: InputStream,
+        needle: String,
+        maxBytes: Int,
+    ): String {
+        val buffer = StringBuilder()
+        while (buffer.length < maxBytes && needle !in buffer) {
+            val value =
+                try {
+                    input.read()
+                } catch (_: SocketTimeoutException) {
+                    -1
+                }
+            if (value < 0) break
+            buffer.append(value.toChar())
+        }
+        return buffer.toString()
+    }
 }
 
 group = "org.rylween"
