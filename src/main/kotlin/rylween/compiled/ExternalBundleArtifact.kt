@@ -77,7 +77,7 @@ import rylween.dsl.milestone
 import rylween.dsl.monster
 import rylween.dsl.partyName
 import rylween.dsl.render
-import rylween.dsl.rumour
+import rylween.dsl.rumor
 import rylween.dsl.terrain
 import rylween.dsl.text
 import rylween.dsl.town
@@ -377,8 +377,8 @@ data class ExternalStandardConversation(
     val missionHints: String,
     val chitchatSubjects: List<ChitchatSubject>,
     val chitchatReplies: String,
-    val rumourUsage: String,
-    val rumourSource: String,
+    val rumorUsage: String,
+    val rumorSource: String,
     val prompts: ExternalConversationPrompts,
     val nativeServices: List<ExternalEngineServiceUse>,
 )
@@ -395,7 +395,7 @@ data class ExternalSpeakTextTables(
     val chitchatPrompts: List<ExternalChitchatPrompt>,
     val chitchatReplies: List<ExternalChitchatReplies>,
     val questionReplies: List<ExternalQuestionReplies>,
-    val rumourTables: List<ExternalRumourTable>,
+    val rumorTables: List<ExternalRumorTable>,
 )
 
 /** Reusable conversation screen row keyed by text id. */
@@ -434,14 +434,14 @@ data class ExternalJobText(
     val text: ExternalRuntimeTextBlock,
 )
 
-/** Authored rumour table row. */
-data class ExternalRumourTable(
+/** Authored rumor table row. */
+data class ExternalRumorTable(
     val id: String,
-    val entries: List<ExternalRumourEntry>,
+    val entries: List<ExternalRumorEntry>,
 )
 
-/** One authored rumour entry plus optional party-state exclusions. */
-data class ExternalRumourEntry(
+/** One authored rumor entry plus optional party-state exclusions. */
+data class ExternalRumorEntry(
     val id: String?,
     val text: ExternalRuntimeTextBlock,
     val excludedBy: List<ExternalFlagStateRef>,
@@ -1744,10 +1744,10 @@ private class ExternalBundleArtifactWriter {
                     "subjects" to JsonArray(conversation.chitchat.subjects.map { JsonString(it.name) }),
                     "replies" to JsonString(conversation.chitchat.replies.name),
                 ),
-            "rumour" to
+            "rumor" to
                 jsonObject(
-                    "usage" to JsonString(conversation.rumour.usage.name),
-                    "source" to JsonString(conversation.rumour.source.name),
+                    "usage" to JsonString(conversation.rumor.usage.name),
+                    "source" to JsonString(conversation.rumor.source.name),
                 ),
             "prompts" to
                 jsonObject(
@@ -1800,9 +1800,9 @@ private class ExternalBundleArtifactWriter {
                         )
                     },
                 ),
-            "rumourTables" to
+            "rumorTables" to
                 JsonArray(
-                    tables.rumourTables.map { table ->
+                    tables.rumorTables.map { table ->
                         jsonObject(
                             "id" to JsonString(table.id.slug),
                             "entries" to
@@ -2547,8 +2547,8 @@ private class ExternalRuntimeSystemsReader(
                     .values
                     .map { value -> enumValueOf<ChitchatSubject>(value.asString("chitchat subject")) },
             chitchatReplies = requiredObject("chitchat").requiredString("replies"),
-            rumourUsage = requiredObject("rumour").requiredString("usage"),
-            rumourSource = requiredObject("rumour").requiredString("source"),
+            rumorUsage = requiredObject("rumor").requiredString("usage"),
+            rumorSource = requiredObject("rumor").requiredString("source"),
             prompts =
                 requiredObject("prompts").let { prompts ->
                     ExternalConversationPrompts(
@@ -2589,14 +2589,14 @@ private class ExternalRuntimeSystemsReader(
                         replies = reply.requiredArray("replies").readJobTexts(),
                     )
                 },
-            rumourTables =
-                requiredArray("rumourTables").values.map { row ->
-                    val table = row.asObject("rumour table")
-                    ExternalRumourTable(
+            rumorTables =
+                requiredArray("rumorTables").values.map { row ->
+                    val table = row.asObject("rumor table")
+                    ExternalRumorTable(
                         id = table.requiredString("id"),
                         entries =
                             table.requiredArray("entries").values.map { entry ->
-                                entry.asObject("rumour entry").readRumourEntry()
+                                entry.asObject("rumor entry").readRumorEntry()
                             },
                     )
                 },
@@ -2624,13 +2624,13 @@ private class ExternalRuntimeSystemsReader(
             )
         }
 
-    private fun JsonObject.readRumourEntry(): ExternalRumourEntry =
-        ExternalRumourEntry(
+    private fun JsonObject.readRumorEntry(): ExternalRumorEntry =
+        ExternalRumorEntry(
             id = optionalNullableString("id"),
             text = required("text").readTextBlock(),
             excludedBy =
                 requiredArray("excludedBy").values.map { row ->
-                    val state = row.asObject("excluded rumour state")
+                    val state = row.asObject("excluded rumor state")
                     ExternalFlagStateRef(
                         flag = state.requiredString("flag"),
                         native = state.requiredString("native"),

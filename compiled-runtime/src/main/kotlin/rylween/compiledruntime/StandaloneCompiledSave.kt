@@ -24,6 +24,8 @@ import java.io.File
 
 private const val SAVE_FORMAT = "rylween-compiled-runtime-save"
 private const val SAVE_VERSION = "1"
+private const val PARTY_MEMBER_RECORD_COUNT = "party.members"
+private val MEMBER_FIELD_KEY = Regex("""^member\.(\d+)\.""")
 
 /** Reads and writes standalone compiled-runtime wilderness saves. */
 internal object StandaloneCompiledSave {
@@ -92,6 +94,7 @@ internal object StandaloneCompiledSave {
         values.requireValue("bundleHash", expectedBundleHash)
 
         val baseState = StandaloneRuntimeState.from(stateLookup(values.required("state")), content)
+        validateSavedPartyMemberCount(values, baseState.partyMemberMax)
         val mode = values["realm.currentMode"]?.let(RuntimeMode::valueOf) ?: baseState.currentMode
         return baseState.copy(
             day = values.intOrDefault("realm.day", baseState.day),
@@ -129,6 +132,7 @@ internal object StandaloneCompiledSave {
                 ?.toString()
                 .orEmpty(),
         )
+        put(PARTY_MEMBER_RECORD_COUNT, party.members.size.toString())
         put("party.kills", party.counters.kills.toString())
         put("party.waitingMail", party.counters.waitingMail.toString())
         put("party.attacked", party.counters.attacked.toString())
@@ -150,6 +154,31 @@ internal object StandaloneCompiledSave {
             put("member.$number.hitPoints", member.hitPoints.current.toString())
             put("member.$number.magic", member.mana.current.toString())
             put("member.$number.dead", member.dead.toString())
+        }
+    }
+
+    internal fun validateSavedPartyMemberCount(
+        values: Map<String, String>,
+        requiredPartyMemberCount: Int,
+    ) {
+        require(requiredPartyMemberCount > 0) { "DSL party member minimum must be positive" }
+
+        val explicitCount = values.optionalInt(PARTY_MEMBER_RECORD_COUNT)
+        val memberRecordCount = values.savedMemberSlots().size.takeIf { count -> count > 0 }
+        if (explicitCount != null && memberRecordCount != null) {
+            require(explicitCount == memberRecordCount) {
+                "compiled save party member count mismatch: $PARTY_MEMBER_RECORD_COUNT=$explicitCount, " +
+                    "member records=$memberRecordCount"
+            }
+        }
+
+        val savedCount =
+            explicitCount
+                ?: memberRecordCount
+                ?: values.optionalInt("party.memberCount")
+                ?: requiredPartyMemberCount
+        require(savedCount >= requiredPartyMemberCount) {
+            "compiled save party member count $savedCount is below DSL minimum $requiredPartyMemberCount"
         }
     }
 
@@ -285,6 +314,9 @@ internal object StandaloneCompiledSave {
         }
 
     private fun File.readSaveValues(): Map<String, String> = StandaloneSaveCodec.decodeValues(readLines())
+
+    private fun Map<String, String>.savedMemberSlots(): Set<Int> =
+        keys.mapNotNull { key -> MEMBER_FIELD_KEY.find(key)?.groupValues?.get(1)?.toIntOrNull() }.toSet()
 
     private fun Map<String, String>.required(key: String): String = get(key) ?: error("compiled save missing $key")
 

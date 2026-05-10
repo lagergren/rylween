@@ -11,7 +11,7 @@ Gradle project. The historical C/JSON5 port and replay fixtures remain under
 
 ## Terminal compatibility
 
-The game streams ANSI escape codes (colour, cursor positioning) and uses
+The game streams ANSI escape codes (color, cursor positioning) and uses
 ambiguous-width Unicode characters in some art. How those characters are
 sized depends on the terminal:
 

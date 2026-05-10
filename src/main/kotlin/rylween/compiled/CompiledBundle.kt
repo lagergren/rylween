@@ -77,7 +77,7 @@ import rylween.dsl.RewardApplicationModel
 import rylween.dsl.RewardBundleId
 import rylween.dsl.RewardBundleModel
 import rylween.dsl.RewardMessageModel
-import rylween.dsl.RumourTableId
+import rylween.dsl.RumorTableId
 import rylween.dsl.RuntimeMode
 import rylween.dsl.RylweenModel
 import rylween.dsl.SceneId
@@ -134,7 +134,7 @@ import rylween.dsl.lootTable
 import rylween.dsl.milestone
 import rylween.dsl.monster
 import rylween.dsl.npc
-import rylween.dsl.rumour
+import rylween.dsl.rumor
 import rylween.dsl.runtimeContent
 import rylween.dsl.terrain
 import rylween.dsl.text
@@ -245,8 +245,8 @@ enum class CompiledHandleKind {
     Party,
     RewardBundle,
     Role,
-    Rumour,
-    RumourTable,
+    Rumor,
+    RumorTable,
     Scene,
     ScreenRegion,
     ScriptRoot,
@@ -571,7 +571,7 @@ enum class CompiledOpcode {
     ForEachMember,
     ForEachMonster,
     Speak,
-    TellRumour,
+    TellRumor,
     RunScene,
     Encounter,
     EnterDungeon,
@@ -1130,7 +1130,7 @@ data class CompiledShopInterlude(
     val decline: CompiledInputBinding,
     val accepted: List<CompiledTextBlock>,
     val declined: CompiledTextBlock,
-    val runsRumourAfterAccept: Boolean,
+    val runsRumorAfterAccept: Boolean,
     val forceFirstUntil: CompiledHandleRef? = null,
 )
 
@@ -1453,10 +1453,10 @@ private class CompiledBundleCompiler(
             handles.add(CompiledHandleKind.Npc, dialogue.npc.slug)
             dialogue.branches.forEach { branch -> branch.whenState?.let(::declareFlagState) }
         }
-        game.speak.textTables.rumourTables.forEach { table ->
-            handles.add(CompiledHandleKind.RumourTable, table.id.slug)
-            table.entries.mapNotNull { rumour -> rumour.id }.forEach { rumour ->
-                handles.add(CompiledHandleKind.Rumour, rumour.slug)
+        game.speak.textTables.rumorTables.forEach { table ->
+            handles.add(CompiledHandleKind.RumorTable, table.id.slug)
+            table.entries.mapNotNull { rumor -> rumor.id }.forEach { rumor ->
+                handles.add(CompiledHandleKind.Rumor, rumor.slug)
             }
         }
         game.speak.questionActions.forEach { action -> handles.add(CompiledHandleKind.NpcJob, action.job.slug) }
@@ -1721,7 +1721,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.Instructions(compileOps(op.body)),
                 )
             is Op.Speak -> instruction(CompiledOpcode.Speak, CompiledOperand.Handle(buildingRef(op.building)))
-            is Op.TellRumour -> instruction(CompiledOpcode.TellRumour, CompiledOperand.Handle(rumourTableRef(op.table)))
+            is Op.TellRumor -> instruction(CompiledOpcode.TellRumor, CompiledOperand.Handle(rumorTableRef(op.table)))
             is Op.RunScene ->
                 instruction(
                     CompiledOpcode.RunScene,
@@ -2086,7 +2086,7 @@ private class CompiledBundleCompiler(
             decline = binding(interlude.decline),
             accepted = interlude.accepted.map(::text),
             declined = text(interlude.declined),
-            runsRumourAfterAccept = interlude.runsRumourAfterAccept,
+            runsRumorAfterAccept = interlude.runsRumorAfterAccept,
             forceFirstUntil = interlude.forceFirstUntil?.let { state -> flagStateRef(state.flag.slug, state.native) },
         )
 
@@ -2461,7 +2461,7 @@ private class CompiledBundleCompiler(
 
     private fun milestoneRef(id: GameMilestoneId): CompiledHandleRef = handles.ref(CompiledHandleKind.Milestone, id.slug)
 
-    private fun rumourTableRef(id: RumourTableId): CompiledHandleRef = handles.ref(CompiledHandleKind.RumourTable, id.slug)
+    private fun rumorTableRef(id: RumorTableId): CompiledHandleRef = handles.ref(CompiledHandleKind.RumorTable, id.slug)
 
     private fun textRef(id: String): CompiledHandleRef = handles.ref(CompiledHandleKind.Text, id)
 

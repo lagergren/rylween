@@ -148,7 +148,7 @@ object CompiledOpcodeContract {
             CompiledOpcode.ForEachMember to Schema.of(Slot.StringId, Slot.BooleanValue, Slot.Instructions),
             CompiledOpcode.ForEachMonster to Schema.of(Slot.StringId, Slot.BooleanValue, Slot.Instructions),
             CompiledOpcode.Speak to Schema.of(Slot.Handle),
-            CompiledOpcode.TellRumour to Schema.of(Slot.Handle),
+            CompiledOpcode.TellRumor to Schema.of(Slot.Handle),
             CompiledOpcode.RunScene to Schema.of(Slot.Handle, Slot.StringIdList),
             CompiledOpcode.Encounter to
                 Schema.ofAny(

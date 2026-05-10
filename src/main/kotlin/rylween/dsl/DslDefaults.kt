@@ -69,7 +69,7 @@ internal object DslDefaultKeyActions {
     val castSpell = keyAction("cast_spell")
     val speakChitchat = keyAction("speak_chitchat")
     val speakQuestion = keyAction("speak_question")
-    val speakRumour = keyAction("speak_rumour")
+    val speakRumor = keyAction("speak_rumor")
     val speakBye = keyAction("speak_bye")
     val questionLodging = keyAction("question_lodging")
     val questionMagic = keyAction("question_magic")
@@ -104,14 +104,14 @@ internal object DslDefaultSpells {
     }
 }
 
-internal object DslDefaultRumourTables {
-    val standardTown = rumourTable("standard_town")
+internal object DslDefaultRumorTables {
+    val standardTown = rumorTable("standard_town")
 }
 
 internal object DslDefaultText {
     object Speak {
         val noNpc = text("speak.no_npc")
-        val noRumour = text("speak.no_rumour")
+        val noRumor = text("speak.no_rumor")
     }
 }
 

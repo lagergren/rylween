@@ -23,7 +23,7 @@ import rylween.dsl.PcClass
 import rylween.dsl.QuestionTopic
 import rylween.dsl.Race
 import rylween.dsl.RewardOverflowPolicy
-import rylween.dsl.RumourUsagePolicy
+import rylween.dsl.RumorUsagePolicy
 import rylween.dsl.ShopBargainBonusModel
 import rylween.dsl.ShopSellBargainModel
 import rylween.dsl.SpellId
@@ -71,8 +71,8 @@ import rylween.game.NpcRoles
 import rylween.game.Npcs
 import rylween.game.Rewards
 import rylween.game.Roles
-import rylween.game.RumourTables
-import rylween.game.Rumours
+import rylween.game.RumorTables
+import rylween.game.Rumors
 import rylween.game.RylweenCompiledGame
 import rylween.game.Scenes
 import rylween.game.ScreenRegions
@@ -98,7 +98,7 @@ class RylweenCompiledGameLedgerTest {
         val castleContent = nextDsl.castles.single { it.id == Castles.ydarg }
 
         check(nextDsl.flags.size == 14)
-        check(nextDsl.authoredFlags.size == 13)
+        check(nextDsl.authoredFlags.size == 14)
         check(nextDsl.itemCatalog.size == 63)
         check(nextDsl.itemCatalog.single { it.id == Items.redPotion }.kind == ItemKind.Potion)
         check(nextDsl.itemPools.size == 7)
@@ -177,7 +177,7 @@ class RylweenCompiledGameLedgerTest {
         check(standardConversation.menu.actions.map { it.key } == listOf('C', 'Q', 'R', 'B'))
         check(standardConversation.menu.questions.map { it.key } == listOf('L', 'M', 'P', 'N'))
         check(standardConversation.branchSelection == DialogueBranchSelection.FirstMatchingStateThenDefault)
-        check(standardConversation.rumour.usage == RumourUsagePolicy.OncePerConversationThenFallback)
+        check(standardConversation.rumor.usage == RumorUsagePolicy.OncePerConversationThenFallback)
         check(nextDsl.speak.textTables.screens.size == 2)
         check(nextDsl.speak.questionActions.size == 1)
         check(
@@ -213,28 +213,28 @@ class RylweenCompiledGameLedgerTest {
                 .replies.size == NpcJobs.all.size - 1,
         )
         check(
-            nextDsl.speak.textTables.rumourTables
-                .single { it.id == RumourTables.standardTown }
+            nextDsl.speak.textTables.rumorTables
+                .single { it.id == RumorTables.standardTown }
                 .entries.size == 33,
         )
         check(
-            nextDsl.speak.textTables.rumourTables
+            nextDsl.speak.textTables.rumorTables
                 .single()
                 .entries
                 .count { it.id == null } == 29,
         )
         check(
-            nextDsl.speak.textTables.rumourTables
+            nextDsl.speak.textTables.rumorTables
                 .single()
                 .entries
-                .any { it.id == Rumours.crownSeer },
+                .any { it.id == Rumors.crownSeer },
         )
         check(
-            nextDsl.speak.textTables.rumourTables
+            nextDsl.speak.textTables.rumorTables
                 .single()
                 .entries
                 .single {
-                    it.id == Rumours.banditsQuestGiver
+                    it.id == Rumors.banditsQuestGiver
                 }.excludedBy == listOf(Story.garth.bandits.recovered, Story.garth.bandits.closed),
         )
         check(nextDsl.dialogue.size == NpcRoles.all.size)
@@ -390,7 +390,7 @@ class RylweenCompiledGameLedgerTest {
                     Monsters.hillGiant,
                     Monsters.wizard,
                     Monsters.druid,
-                    Monsters.sabreToothTiger,
+                    Monsters.saberToothTiger,
                     Monsters.headHunter,
                     Monsters.skeleton,
                     Monsters.vampireBat,
@@ -678,7 +678,7 @@ class RylweenCompiledGameLedgerTest {
                     Items.staffOfCuring,
                     Items.gemOfResurrection,
                     Items.kaelsAxe,
-                    Items.holyHandgrenade,
+                    Items.holyHandGrenade,
                     Items.fluteOfMadness,
                 ),
         )
@@ -825,7 +825,7 @@ class RylweenCompiledGameLedgerTest {
         )
         check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.thunTemple }.fixedLevelEvents[4] == DungeonEvents.thunRiddle1)
         check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.thunTemple }.fixedLevelEvents[12] == DungeonEvents.thunRiddle3)
-        check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.reebarTomb }.fixedLevelEvents[19] == DungeonEvents.colourRiddle)
+        check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.reebarTomb }.fixedLevelEvents[19] == DungeonEvents.colorRiddle)
         check(
             dungeonSystem.scenarios.single { it.dungeon == Dungeons.hobgoblinStronghold }.fixedLevelEvents[22] ==
                 DungeonEvents.hobgoblinChief,
@@ -993,7 +993,7 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.missions.single { it.id == Missions.jazzyFoot }.trigger == Trigger.OnTerrain(Terrain.foothills))
         check(nextDsl.missions.single { it.id == Missions.silverKey }.trigger == Trigger.AtLocation(Locations.silverKeyPit))
         check(nextDsl.missions.single { it.id == Missions.hobgoblinCaravan }.trigger == Trigger.RandomStep(9))
-        check(nextRylween.states.size == 9)
+        check(nextRylween.states.size == 10)
 
         val freshParty =
             nextRylween.states
@@ -1042,14 +1042,20 @@ class RylweenCompiledGameLedgerTest {
                 .single()
         val winningState = nextRylween.states.single { it.id == States.winningReplay }
 
-        check(freshParty.members.size == 2)
+        check(freshParty.members.size == 4)
+        check(freshParty.members.map { it.name } == listOf("Aragorn", "Legolas", "Gandalf", "Mira"))
+        check(freshParty.members.map { it.pcClass } == listOf(PcClass.Fighter, PcClass.Ranger, PcClass.Mage, PcClass.Priest))
+        check(freshParty.flags.isEmpty())
+        check(freshParty.journal.isEmpty())
+        check(freshParty.visitedNpcs.isEmpty())
         check(specialInventoryItems(nextDsl, freshParty).isEmpty())
         check(!isWinningConfiguration(nextDsl, freshParty))
         check(acceptanceParty.player == "playtest")
         check(acceptanceParty.position == Wilderness.xy(12, 9))
-        check(acceptanceParty.members.size == 2)
+        check(acceptanceParty.members.size == 4)
         check(acceptanceParty.members.first().pcClass == PcClass.Priest)
         check(acceptanceParty.members.first().level == 28)
+        check(acceptanceParty.members.count { it.dead } == 3)
         check(Story.silverKey.caveLocated in acceptanceParty.flags)
         check(specialInventoryItems(nextDsl, acceptanceParty).isEmpty())
         check(!isWinningConfiguration(nextDsl, acceptanceParty))
@@ -1164,7 +1170,7 @@ class RylweenCompiledGameLedgerTest {
                 "RYL_FORCE_YDARG_EASY_ROOMS",
                 "RYL_FORCE_PARTY_WP",
                 "RYL_FORCE_PARTY_HP_FULL",
-                "RYL_REPLAY_RUMOUR",
+                "RYL_REPLAY_RUMOR",
                 "RYL_PARTY_MEMBER_MAX",
                 "RYL_FAKE_EPOCH",
                 "RYL_FAKE_SEED",
@@ -1405,12 +1411,12 @@ class RylweenCompiledGameLedgerTest {
             "CompiledOpcode.ForEachMember",
             "CompiledOpcode.SetFlag",
             "CompiledOpcode.Speak",
-            "CompiledOpcode.TellRumour",
+            "CompiledOpcode.TellRumor",
             "CompiledOpcode.GrantReward",
             "CompiledOpcode.RandomItemOffer",
             "StandaloneScriptContinuation",
             "executeSpeak",
-            "tellRumour",
+            "tellRumor",
             "applyReward",
             "runRandomItemOffer",
         ).forEach { token ->

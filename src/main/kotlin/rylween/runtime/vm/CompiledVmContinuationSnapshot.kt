@@ -25,7 +25,7 @@ import rylween.dsl.InputBindingModel
 import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.MonsterId
-import rylween.dsl.RumourTableId
+import rylween.dsl.RumorTableId
 import rylween.dsl.TextBlock
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.wilderness.WildernessDungeonHandoff
@@ -259,12 +259,12 @@ sealed interface CompiledVmChildRequestSnapshot {
         }
     }
 
-    /** Saveable rumour request emitted by a compiled `TellRumour` opcode. */
-    data class TellRumour(
-        val table: RumourTableId,
+    /** Saveable rumor request emitted by a compiled `TellRumor` opcode. */
+    data class TellRumor(
+        val table: RumorTableId,
     ) : CompiledVmChildRequestSnapshot {
         init {
-            require(table.slug.isNotBlank()) { "compiled VM rumour snapshot requires a table slug" }
+            require(table.slug.isNotBlank()) { "compiled VM rumor snapshot requires a table slug" }
         }
     }
 

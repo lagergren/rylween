@@ -662,7 +662,7 @@ private class NativeSmokeArtifactWriter {
         inputBinding(interlude.decline)
         list(interlude.accepted, ::textBlock)
         textBlock(interlude.declined)
-        bool(interlude.runsRumourAfterAccept)
+        bool(interlude.runsRumorAfterAccept)
         nullable(interlude.forceFirstUntil, ::handleRef)
     }
 

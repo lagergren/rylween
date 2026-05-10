@@ -17,7 +17,7 @@ import rylween.dsl.MissionId
 import rylween.dsl.SceneId
 import rylween.dsl.StateModel
 
-/** Full saveable runtime image: world state plus optional mode/session state. */
+/** Full savable runtime image: world state plus optional mode/session state. */
 data class RuntimeSnapshotModel(
     val state: StateModel,
     val mode: RuntimeModeSnapshot? = null,
