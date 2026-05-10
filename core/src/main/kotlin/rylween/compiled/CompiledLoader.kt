@@ -48,18 +48,6 @@ data class LoadedCompiledContent(
     /** Resolves a compiled handle ref through the loaded handle table. */
     fun handle(ref: CompiledHandleRef): CompiledHandle = handles.handle(ref)
 
-    /**
-     * Finds a handle by [kind] and slug text.
-     *
-     * This is the runtime counterpart to the compiler-side handle interning in
-     * `CompiledBundle.kt`; it returns `null` instead of throwing so hosts can
-     * report diagnostics for optional lookups.
-     */
-    fun resolveHandle(
-        kind: CompiledHandleKind,
-        slug: String,
-    ): CompiledHandleRef? = strings.idOf(slug)?.let { slugString -> handles.refOrNull(kind, slugString) }
-
     /** Returns a compiled script program by root handle, or `null` if absent. */
     fun script(root: CompiledHandleRef): CompiledScriptProgram? = scripts[root]
 }
@@ -137,27 +125,50 @@ private class CompiledBundleValidator(
         string(content.universe.nameString, "universe name")
         string(content.universe.versionString, "universe version")
         string(content.universe.compatibilityIdString, "universe compatibility id")
-        content.flags.forEach(::flag)
-        content.items.forEach(::item)
-        content.itemPools.forEach(::itemPool)
-        content.formulas.forEach(::formula)
-        content.rewards.forEach(::rewardBundle)
-        content.terrain.forEach(::terrain)
-        content.worldMaps.forEach(::worldMap)
-        content.images.forEach(::image)
-        content.staticScreens.forEach(::staticScreen)
-        content.screenRegions.forEach { handle(it.id, "screen region") }
-        content.towns.forEach(::town)
-        content.buildingServices.forEach(::buildingService)
-        content.characters.forEach(::character)
-        content.monsters.forEach(::monster)
-        content.missions.forEach(::mission)
-        content.spells.forEach(::spell)
-        content.itemUses.forEach(::itemUse)
-        content.dungeonEvents.forEach(::dungeonEvent)
-        content.dungeonScenarios.forEach(::dungeonScenario)
-        content.scripts.roots.forEach(::script)
-        bundle.states.forEach(::state)
+        validateCatalogTables()
+        validatePresentationTables()
+        validateTownAndCharacterTables()
+        validateScriptedGameplayTables()
+        validateEach(bundle.states, ::state)
+    }
+
+    private fun <T> validateEach(
+        values: Iterable<T>,
+        validate: (T) -> Unit,
+    ) {
+        values.forEach(validate)
+    }
+
+    private fun validateCatalogTables() {
+        validateEach(content.flags, ::flag)
+        validateEach(content.items, ::item)
+        validateEach(content.itemPools, ::itemPool)
+        validateEach(content.formulas, ::formula)
+        validateEach(content.rewards, ::rewardBundle)
+    }
+
+    private fun validatePresentationTables() {
+        validateEach(content.terrain, ::terrain)
+        validateEach(content.worldMaps, ::worldMap)
+        validateEach(content.images, ::image)
+        validateEach(content.staticScreens, ::staticScreen)
+        validateEach(content.screenRegions) { handle(it.id, "screen region") }
+    }
+
+    private fun validateTownAndCharacterTables() {
+        validateEach(content.towns, ::town)
+        validateEach(content.buildingServices, ::buildingService)
+        validateEach(content.characters, ::character)
+        validateEach(content.monsters, ::monster)
+        validateEach(content.missions, ::mission)
+    }
+
+    private fun validateScriptedGameplayTables() {
+        validateEach(content.spells, ::spell)
+        validateEach(content.itemUses, ::itemUse)
+        validateEach(content.dungeonEvents, ::dungeonEvent)
+        validateEach(content.dungeonScenarios, ::dungeonScenario)
+        validateEach(content.scripts.roots, ::script)
     }
 
     private fun flag(flag: CompiledFlag) {
@@ -335,6 +346,7 @@ private class CompiledBundleValidator(
                         reason = "UnknownOpcode",
                     ),
                 )
+
             is CompiledOpcodeContract.Validation.WrongShape ->
                 fail(
                     VmDiagnostic.BadOperand(
@@ -427,11 +439,13 @@ private class CompiledBundleValidator(
                 operand.cases.forEachIndexed { caseIndex, case ->
                     instructions(root, case.body, operandPath + caseIndex)
                 }
+
             is CompiledOperand.MenuOptions ->
                 operand.options.forEachIndexed { optionIndex, option ->
                     binding(option.binding)
                     instructions(root, option.body, operandPath + optionIndex)
                 }
+
             is CompiledOperand.InputBindings -> operand.bindings.forEach(::binding)
             is CompiledOperand.TextAnswer -> textAnswer(root, operandPath, operand.answer)
             is CompiledOperand.Reward -> scriptReward(operand.reward)
@@ -493,23 +507,28 @@ private class CompiledBundleValidator(
                 intExpr(expr.left)
                 intExpr(expr.right)
             }
+
             is CompiledIntExpr.If -> {
                 boolExpr(expr.cond)
                 intExpr(expr.thenValue)
                 intExpr(expr.elseValue)
             }
+
             is CompiledIntExpr.Random -> {
                 intExpr(expr.lo)
                 intExpr(expr.hi)
             }
+
             is CompiledIntExpr.MemberField -> {
                 intExpr(expr.member)
                 string(expr.fieldString, "member field")
             }
+
             is CompiledIntExpr.MonsterField -> {
                 intExpr(expr.monster)
                 string(expr.fieldString, "monster field")
             }
+
             is CompiledIntExpr.BattleFlag -> string(expr.nameString, "battle flag")
             is CompiledIntExpr.BattleQuery -> string(expr.nameString, "battle query")
             is CompiledIntExpr.RealmScalar -> string(expr.nameString, "realm scalar")
@@ -520,6 +539,7 @@ private class CompiledBundleValidator(
                 string(expr.pathString, "native int path")
                 expr.argStrings.forEach { string(it, "native int arg") }
             }
+
             is CompiledIntExpr.Literal -> Unit
         }
     }
@@ -530,28 +550,26 @@ private class CompiledBundleValidator(
                 intExpr(expr.left)
                 intExpr(expr.right)
             }
+
             is CompiledBoolExpr.Not -> boolExpr(expr.expr)
             is CompiledBoolExpr.And -> {
                 boolExpr(expr.left)
                 boolExpr(expr.right)
             }
+
             is CompiledBoolExpr.Or -> {
                 boolExpr(expr.left)
                 boolExpr(expr.right)
             }
+
             is CompiledBoolExpr.FlagIs -> {
                 handle(expr.flag, "flag expr")
                 handle(expr.state, "flag state expr")
             }
+
             is CompiledBoolExpr.MilestoneAchieved -> handle(expr.milestone, "milestone expr")
-            is CompiledBoolExpr.MemberFlag -> {
-                intExpr(expr.member)
-                string(expr.nameString, "member flag")
-            }
-            is CompiledBoolExpr.MonsterFlag -> {
-                intExpr(expr.monster)
-                string(expr.nameString, "monster flag")
-            }
+            is CompiledBoolExpr.MemberFlag -> indexedName(expr.member, expr.nameString, "member flag")
+            is CompiledBoolExpr.MonsterFlag -> indexedName(expr.monster, expr.nameString, "monster flag")
             is CompiledBoolExpr.BattleFlag -> string(expr.nameString, "battle bool flag")
             is CompiledBoolExpr.RuntimeFlag -> string(expr.nameString, "runtime flag")
         }
@@ -575,20 +593,23 @@ private class CompiledBundleValidator(
         when (value) {
             is CompiledLValue.RealmScalar -> string(value.nameString, "realm lvalue")
             is CompiledLValue.PartyScalar -> string(value.nameString, "party lvalue")
-            is CompiledLValue.MemberField -> {
-                intExpr(value.member)
-                string(value.fieldString, "member lvalue")
-            }
-            is CompiledLValue.MonsterField -> {
-                intExpr(value.monster)
-                string(value.fieldString, "monster lvalue")
-            }
+            is CompiledLValue.MemberField -> indexedName(value.member, value.fieldString, "member lvalue")
+            is CompiledLValue.MonsterField -> indexedName(value.monster, value.fieldString, "monster lvalue")
             is CompiledLValue.BattleFlag -> string(value.nameString, "battle flag lvalue")
         }
     }
 
     private fun view(command: CompiledViewCommand) {
         if (command is CompiledViewCommand.ShowImage) handle(command.image, "view image")
+    }
+
+    private fun indexedName(
+        index: CompiledIntExpr,
+        nameString: Int,
+        owner: String,
+    ) {
+        intExpr(index)
+        string(nameString, owner)
     }
 
     private fun scriptReward(reward: CompiledScriptReward) {
@@ -705,6 +726,7 @@ private class CompiledBundleValidator(
                     handle(post.scene, "post dungeon scene")
                 }
             }
+
             is CompiledRuntimeModeImage.Castle,
             null,
             -> Unit

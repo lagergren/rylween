@@ -45,7 +45,7 @@ private const val HALL_OF_HEROES_REPORT = "HallOfHeroes"
 /** Screen model owned by the runtime. */
 internal class RuntimeScreen(
     private val terminal: AnsiTerminal,
-    private val bundle: CompiledGameBundle,
+    bundle: CompiledGameBundle,
     private val systems: ExternalRuntimeSystems,
     private val log: RuntimeLog? = null,
 ) {
@@ -191,14 +191,14 @@ internal class RuntimeScreen(
     }
 
     /** Clears only the text window region. */
-    fun clearText() {
+    private fun clearText() {
         ensureClassicFrame()
         clearRegion(textWindow)
         terminal.flush()
     }
 
     /** Clears only the map/image region. */
-    fun clearMapWindow() {
+    private fun clearMapWindow() {
         ensureClassicFrame()
         activeMapImage = null
         clearRegion(mapWindow)

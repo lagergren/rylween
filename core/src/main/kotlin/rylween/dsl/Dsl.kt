@@ -3664,7 +3664,8 @@ class NativeAllowlistRefs {
     val inventoryAdd: NativeEffectSpec = effect(NativeOps.inventoryAdd, "inventory slot mutation")
     val townEnterService: NativeEffectSpec = effect(NativeOps.townEnterService, "town building-service trampoline")
 
-    val inputKeyUpper: NativeIntSpec = int(NativeOps.inputKeyUpper, "keyboard input normalization")
+    val inputKeyUpper: NativeIntSpec =
+        NativeIntSpec(NativeOps.inputKeyUpper, "keyboard input normalization")
 
     val partyMemberName: NativeStringSpec = string(NativeOps.partyMemberName, "party-member display name binding")
     val combatMonsterName: NativeStringSpec = string(NativeOps.combatMonsterName, "combat monster display name binding")
@@ -3700,11 +3701,6 @@ class NativeAllowlistRefs {
         id: NativeOpId,
         reason: String,
     ) = NativeEffectSpec(id, reason)
-
-    private fun int(
-        id: NativeOpId,
-        reason: String,
-    ) = NativeIntSpec(id, reason)
 
     private fun string(
         id: NativeOpId,
@@ -3973,12 +3969,6 @@ class ScriptScope(
         return ElseBranch(ctx) { elseOps -> ops[index] = Op.If(cond.ast, thenOps, elseOps) }
     }
 
-    @Deprecated("Use whenever(...) in author-facing script blocks.")
-    fun when_(
-        cond: BoolExpr,
-        then: ScriptScope.() -> Unit,
-    ): ElseBranch = whenever(cond, then)
-
     fun stop(reason: String? = null): Unit = record(Op.Stop(reason))
 
     fun breakLoop(reason: String? = null): Unit = record(Op.Break(reason))
@@ -4133,7 +4123,7 @@ class ScriptScope(
         whenever(roll eq rareValue) {
             dungeonItemFind(rarePool)
         } otherwise {
-            choose(random(0 until commonPools.size)) {
+            choose(random(commonPools.indices)) {
                 commonPools.forEachIndexed { index, pool ->
                     case(index) { dungeonItemFind(pool) }
                 }

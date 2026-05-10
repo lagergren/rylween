@@ -1,8 +1,8 @@
 /**
  * Declarative operand-schema contract for compiled script opcodes.
  *
- * The compiler in [CompiledBundle.kt] emits [CompiledInstruction] values,
- * `CompiledLoader.kt` enforces this contract when loading J1 artifacts, and
+ * The compiled bundle writer emits [CompiledInstruction] values,
+ * [CompiledBundleLoader] enforces this contract when loading J1 artifacts, and
  * `runtime/vm/VmDiagnostic.kt` supplies typed diagnostics for future VM use.
  */
 package rylween.compiled
@@ -14,14 +14,14 @@ package rylween.compiled
  * J2.0 ("contract freeze") needs an executable spec for opcode arity and
  * operand kinds before the compiled-VM kernel starts caring about
  * malformed input. Today the schema is implicit in the compiler at
- * `CompiledBundle.kt:1528+`; one slip there silently produces a bundle
+ * the compiled bundle writer; one slip there silently produces a bundle
  * the executor can't reason about. This object lifts that schema out so
  * that:
  *
  *   - the test suite can assert every opcode is covered;
  *   - the test suite can walk a real bundle and refuse any instruction
  *     that doesn't match its schema;
- *   - a future loader-side validator can call [validate] directly.
+ *   - the loader-side validator can call [validateInstruction] directly.
  *
  * Adding a new opcode without an entry here will fail [validateAll];
  * changing an opcode's operand shape without updating the entry will
@@ -105,7 +105,7 @@ object CompiledOpcodeContract {
     }
 
     /** Operand schemas for every opcode emitted by the compiled bundle writer. */
-    val schemas: Map<CompiledOpcode, Schema> =
+    private val schemas: Map<CompiledOpcode, Schema> =
         mapOf(
             CompiledOpcode.Screen to Schema.of(Slot.TextBlockValue),
             CompiledOpcode.Emit to Schema.of(Slot.Handle),

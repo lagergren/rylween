@@ -22,7 +22,7 @@ import rylween.dsl.PcClass
 import rylween.dsl.RuntimeMode
 import java.io.File
 
-/** Saveable castle state. */
+/** Savable castle state. */
 internal data class CastleState(
     val castleId: String,
     val floor: Int,
@@ -111,6 +111,7 @@ internal class CastleRuntime(
                 "viewParty",
                 command,
             ) -> runtime.also { showCastlePages(it, castle, PartyPages.partyPages(content, it.party)) }
+
             navigation.matches("drop", command) -> utility.drop(runtime).also { redrawCastleIfCurrent(it, castle) }
             navigation.matches("removeArmor", command) -> utility.removeArmor(runtime).also { redrawCastleIfCurrent(it, castle) }
             navigation.matches("removeWeapon", command) -> utility.removeWeapon(runtime).also { redrawCastleIfCurrent(it, castle) }
@@ -156,7 +157,7 @@ internal class CastleRuntime(
     ): RuntimeState {
         screen.writeText(castle.text.roomMonster.renderCastle())
         val battle =
-            BattleRunner(content, systems.combat, input, screen, PausePrompts(systems.prompts))
+            BattleRunner(content, systems.combat, input, screen)
                 .runTier(runtime, castle.monsterTier)
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         return battle.runtime.copy(
@@ -400,8 +401,7 @@ internal class CastleRuntime(
 internal fun RuntimeState.asWildernessCastle(): RuntimeState =
     copy(currentMode = RuntimeMode.Wilderness, currentTown = null, castle = null, dungeon = null)
 
-private fun RuntimeState.finishCastleRuntime(): RuntimeState =
-    if (currentMode == RuntimeMode.GameOver) this else asWildernessCastle()
+private fun RuntimeState.finishCastleRuntime(): RuntimeState = if (currentMode == RuntimeMode.GameOver) this else asWildernessCastle()
 
 private fun RuntimeState.clearRoomEntry(): RuntimeState = copy(castle = castle?.copy(roomEntryPending = false))
 

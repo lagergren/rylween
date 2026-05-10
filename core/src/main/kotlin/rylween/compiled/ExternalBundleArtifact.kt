@@ -65,22 +65,6 @@ import rylween.dsl.WildernessFatigueMatch
 import rylween.dsl.WildernessSystemModel
 import rylween.dsl.WildernessUpkeepRules
 import rylween.dsl.WorldPosition
-import rylween.dsl.building
-import rylween.dsl.castle
-import rylween.dsl.dungeon
-import rylween.dsl.image
-import rylween.dsl.item
-import rylween.dsl.line
-import rylween.dsl.lines
-import rylween.dsl.location
-import rylween.dsl.milestone
-import rylween.dsl.monster
-import rylween.dsl.partyName
-import rylween.dsl.render
-import rylween.dsl.rumor
-import rylween.dsl.terrain
-import rylween.dsl.text
-import rylween.dsl.town
 import java.io.File
 import java.lang.reflect.Array
 import java.lang.reflect.Modifier
@@ -110,29 +94,6 @@ fun ByteArray.readExternalBundleArtifact(): ExternalBundleArtifactSummary = Exte
 
 /** Reads only the artifact summary and section metadata from a strict JSON file. */
 fun File.readExternalBundleArtifact(): ExternalBundleArtifactSummary = readBytes().readExternalBundleArtifact()
-
-/**
- * Artifact startup drift guard used by the current ANSI `--bundle` flag.
- *
- * The launcher reads the JSON bundle into a runtime facade and verifies that
- * re-emitting that loaded model would produce the same hash and section summary.
- * This catches corrupt or nondeterministic bundle files before any runtime
- * session is started.
- */
-fun File.readVerifiedExternalBundleArtifact(expected: RylweenModel): ExternalBundleArtifactSummary {
-    val actual = readExternalBundleArtifact()
-    val expectedSummary = expected.toExternalBundleArtifact().readExternalBundleArtifact()
-    if (actual.bundleContentHash != expectedSummary.bundleContentHash) {
-        error(
-            "compiled bundle artifact $path does not match current compiled game content: " +
-                "expected ${expectedSummary.bundleContentHash}, found ${actual.bundleContentHash}",
-        )
-    }
-    if (actual.sections != expectedSummary.sections) {
-        error("compiled bundle artifact $path section summaries do not match current compiled game content")
-    }
-    return actual
-}
 
 /**
  * Reads the J1 strict JSON artifact back into the typed compiled bundle model.
@@ -527,14 +488,14 @@ data class ExternalBattleCryRules(
     val weaponSkillPenalty: Int,
 )
 
-/** Monster-side spell and melee rules. */
+/** Monster-side spell and mêlée rules. */
 data class ExternalMonsterRoundRules(
     val spellChanceBasePercent: Int,
     val spellPowerDivisor: Int,
     val melee: ExternalMonsterMeleeRules,
 )
 
-/** Monster melee hit and damage tuning. */
+/** Monster mêlée hit and damage tuning. */
 data class ExternalMonsterMeleeRules(
     val hitBonus: Int,
     val damageDivisor: Int,
@@ -2698,9 +2659,7 @@ private class ExternalRuntimeSystemsReader(
                     )
                 },
             battleCry =
-                requiredObject("battleCry").let { battleCry ->
-                    ExternalBattleCryRules(weaponSkillPenalty = battleCry.requiredInt("weaponSkillPenalty"))
-                },
+                ExternalBattleCryRules(weaponSkillPenalty = requiredObject("battleCry").requiredInt("weaponSkillPenalty")),
         )
 
     private fun JsonObject.readMonsterRound(): ExternalMonsterRoundRules =
@@ -3690,8 +3649,7 @@ private class JsonParser(
         expect('"')
         return buildString {
             while (pos < source.length) {
-                val ch = source[pos++]
-                when (ch) {
+                when (val ch = source[pos++]) {
                     '"' -> return@buildString
                     '\\' -> append(escape())
                     else -> {

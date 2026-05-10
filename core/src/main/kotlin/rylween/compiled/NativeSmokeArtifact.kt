@@ -8,23 +8,9 @@
  */
 package rylween.compiled
 
-import rylween.dsl.BoolExpr
-import rylween.dsl.IntExpr
 import rylween.dsl.RewardApplicationModel
 import rylween.dsl.ShopQuantityCap
 import rylween.dsl.ShopSellBargainModel
-import rylween.dsl.TextBlock
-import rylween.dsl.ViewCommand
-import rylween.dsl.building
-import rylween.dsl.image
-import rylween.dsl.item
-import rylween.dsl.line
-import rylween.dsl.lines
-import rylween.dsl.location
-import rylween.dsl.milestone
-import rylween.dsl.monster
-import rylween.dsl.text
-import rylween.dsl.town
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.enums.enumEntries
@@ -43,13 +29,8 @@ fun CompiledGameBundle.writeNativeSmokeArtifact(file: File) {
     file.writeBytes(toNativeSmokeArtifact())
 }
 
-/** Reads the summary from native smoke-test artifact bytes. */
-fun ByteArray.readNativeSmokeArtifact(): NativeSmokeArtifactSummary = NativeSmokeArtifactReader(this).read()
-
-/** Reads the summary from a native smoke-test artifact file. */
-fun File.readNativeSmokeArtifact(): NativeSmokeArtifactSummary = readBytes().readNativeSmokeArtifact()
-
 /** Summary counts extracted by the native smoke-test artifact reader. */
+@Suppress("unused")
 data class NativeSmokeArtifactSummary(
     val version: Int,
     val stringCount: Int,
@@ -746,6 +727,7 @@ private data class NativeSmokeHandleRef(
     val id: Int,
 )
 
+@Suppress("unused")
 private class NativeSmokeArtifactReader(
     private val data: ByteArray,
 ) {

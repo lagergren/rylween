@@ -21,7 +21,7 @@ import rylween.dsl.Resource
 import rylween.dsl.RuntimeMode
 import java.io.File
 
-/** Saveable dungeon state. */
+/** Savable dungeon state. */
 internal data class DungeonState(
     val dungeon: CompiledHandleRef,
     val maxDepth: Int,
@@ -135,7 +135,7 @@ internal class DungeonRuntime(
         val randomEncounterTier = event.randomEncounterTier
         next =
             if (randomEncounterTier != null && program.instructions.isEmpty()) {
-                BattleRunner(content, systems.combat, input, screen, PausePrompts(systems.prompts), log)
+                BattleRunner(content, systems.combat, input, screen, log)
                     .runTier(next, content.slug(randomEncounterTier))
                     .let { battle ->
                         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)

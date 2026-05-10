@@ -552,30 +552,25 @@ internal class ShopService(
                 "currentTownName" -> runtime.currentTown?.let(::townName)
                 "townName" -> part.args["town"]?.let(::townNameBySlug)
                 "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
-                "roleName" -> part.args["role"]?.let { role -> roleName(role, runtime) }
+                "roleName" -> part.args["role"]?.let(::roleName)
                 "roleLocation" -> part.args["role"]?.let { role -> roleLocation(role, runtime) }
                 "locationCoordinate" -> null
                 else -> null
             }
         }
 
-    private fun roleName(
-        roleSlug: String,
-        runtime: RuntimeState,
-    ): String? = roleCharacter(roleSlug, runtime)?.let { character -> content.strings.value(character.nameString) }
+    private fun roleName(roleSlug: String): String? =
+        roleCharacter(roleSlug)?.let { character -> content.strings.value(character.nameString) }
 
     private fun roleLocation(
         roleSlug: String,
         runtime: RuntimeState,
     ): String? =
-        roleCharacter(roleSlug, runtime)
+        roleCharacter(roleSlug)
             ?.position(runtime)
             ?.let(::positionText)
 
-    private fun roleCharacter(
-        roleSlug: String,
-        runtime: RuntimeState,
-    ): CompiledCharacter? {
+    private fun roleCharacter(roleSlug: String): CompiledCharacter? {
         val role = refOrNull(CompiledHandleKind.Role, roleSlug) ?: return null
         return content.characters.firstOrNull { character -> role in character.roles }
     }

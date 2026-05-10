@@ -316,7 +316,14 @@ internal object SaveFile {
     private fun File.readSaveValues(): Map<String, String> = SaveCodec.decodeValues(readLines())
 
     private fun Map<String, String>.savedMemberSlots(): Set<Int> =
-        keys.mapNotNull { key -> MEMBER_FIELD_KEY.find(key)?.groupValues?.get(1)?.toIntOrNull() }.toSet()
+        keys
+            .mapNotNull { key ->
+                MEMBER_FIELD_KEY
+                    .find(key)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toIntOrNull()
+            }.toSet()
 
     private fun Map<String, String>.required(key: String): String = get(key) ?: error("compiled save missing $key")
 

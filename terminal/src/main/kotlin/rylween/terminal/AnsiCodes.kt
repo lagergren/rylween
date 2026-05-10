@@ -14,22 +14,25 @@ object AnsiCodes {
     const val CSI: String = "$ESC["
     const val RESET: String = "${CSI}0m"
 
-    const val FG_BLACK_CODE: Int = 30
-    const val FG_RED_CODE: Int = 31
-    const val FG_GREEN_CODE: Int = 32
-    const val FG_YELLOW_CODE: Int = 33
-    const val FG_BLUE_CODE: Int = 34
-    const val FG_MAGENTA_CODE: Int = 35
-    const val FG_CYAN_CODE: Int = 36
-    const val FG_WHITE_CODE: Int = 37
+    private const val FG_BLACK_CODE: Int = 30
+    private const val FG_RED_CODE: Int = 31
+    private const val FG_GREEN_CODE: Int = 32
+    private const val FG_YELLOW_CODE: Int = 33
+    private const val FG_BLUE_CODE: Int = 34
+    private const val FG_MAGENTA_CODE: Int = 35
+    private const val FG_CYAN_CODE: Int = 36
+    private const val FG_WHITE_CODE: Int = 37
 
-    const val BG_BLACK_CODE: Int = 40
-    const val BG_BLUE_CODE: Int = 44
+    private const val BG_BLACK_CODE: Int = 40
+    private const val BG_BLUE_CODE: Int = 44
 
+    @Suppress("unused")
     const val FG_BLACK: String = "${CSI}${FG_BLACK_CODE}m"
     const val FG_RED: String = "${CSI}${FG_RED_CODE}m"
     const val FG_GREEN: String = "${CSI}${FG_GREEN_CODE}m"
     const val FG_YELLOW: String = "${CSI}${FG_YELLOW_CODE}m"
+
+    @Suppress("unused")
     const val FG_BLUE: String = "${CSI}${FG_BLUE_CODE}m"
     const val FG_MAGENTA: String = "${CSI}${FG_MAGENTA_CODE}m"
     const val FG_CYAN: String = "${CSI}${FG_CYAN_CODE}m"
@@ -47,7 +50,7 @@ object AnsiCodes {
     private const val COLOR_WHITE = "white"
 
     /** Returns the foreground SGR code for a stable color slug. */
-    fun foregroundCode(
+    private fun foregroundCode(
         colorSlug: String,
         defaultCode: Int = FG_WHITE_CODE,
     ): Int =
