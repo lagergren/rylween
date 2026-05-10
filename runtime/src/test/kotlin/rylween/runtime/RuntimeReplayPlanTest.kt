@@ -46,7 +46,7 @@ class RuntimeReplayPlanTest {
                 listOf(
                     "In fact, I have a mission",
                     "You persuade him to",
-                    "You take the blade.",
+                    "You take the sword.",
                     "- OH! A message from my",
                     "precious map",
                     "Ah, a seeker",
@@ -57,6 +57,8 @@ class RuntimeReplayPlanTest {
             "town-silver-key-chain-route",
             expected =
                 listOf(
+                    "Tokawa, the keeper",
+                    "Luqas, Innkeeper",
                     "sold the Key",
                     "Nah, sorry",
                     "Find them and",
@@ -85,6 +87,9 @@ class RuntimeReplayPlanTest {
                     "caravan of hobgoblins",
                     "Boss has it",
                     "carotid artery",
+                    "Thou hast bested",
+                    "Each survivor gets",
+                    "experience pts",
                 ),
         )
         runReplay(

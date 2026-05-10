@@ -849,7 +849,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             nextDsl.dialogue
                 .single { it.npc == Npcs.garth }
-                .branches.size == 2,
+                .branches.size == 3,
         )
         check(
             nextDsl.dialogue.single { it.npc == Npcs.garth }.branches.any { branch ->
@@ -1263,7 +1263,8 @@ class RylweenCompiledGameLedgerTest {
         }
         check(
             ":runtime:installRuntime" in launcher &&
-                "runtime/build/install/rylween/bin/rylween" in launcher,
+                "runtime/build/install/rylween" in launcher &&
+                "RUN_LAUNCHER" in launcher,
         ) {
             "run.sh must launch the runtime"
         }
@@ -1288,7 +1289,8 @@ class RylweenCompiledGameLedgerTest {
         }
         check(
             ":runtime:installRuntime" in buildWrapperTask &&
-                "runtime/build/install/rylween/bin/rylween" in buildWrapperTask,
+                "runtime/build/install/rylween" in buildWrapperTask &&
+                "RUN_LAUNCHER" in buildWrapperTask,
         ) {
             "generated wrapper task must launch the runtime"
         }

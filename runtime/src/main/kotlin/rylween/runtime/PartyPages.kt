@@ -13,7 +13,6 @@ package rylween.runtime
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledItemRecord
-import rylween.compiled.CompiledJournalEntry
 import rylween.compiled.CompiledPartyMember
 
 /** Builds text-window pages for runtime party state. */
@@ -30,17 +29,14 @@ internal object PartyPages {
             addAll(inventoryPages(content, party))
         }
 
-    fun journalLines(
-        content: CompiledContentBundle,
-        party: PartyState,
-    ): List<String> =
+    fun journalLines(party: PartyState): List<String> =
         buildList {
             add("Journal")
             add("")
             if (party.journal.isEmpty()) {
                 add("No journal entries.")
             } else {
-                party.journal.forEach { entry -> add(journalLine(content, entry)) }
+                addAll(party.journal)
             }
         }
 
@@ -91,15 +87,6 @@ internal object PartyPages {
             .mapNotNull { slot ->
                 slot.item?.let { item -> "${slot.slot}. ${content.itemDisplayName(item)}" }
             }
-
-    private fun journalLine(
-        content: CompiledContentBundle,
-        entry: CompiledJournalEntry,
-    ): String =
-        when (entry) {
-            is CompiledJournalEntry.Line -> content.strings.value(entry.textString)
-            is CompiledJournalEntry.Text -> content.slug(entry.text).readableSlug()
-        }
 
     private fun CompiledContentBundle.itemDisplayName(item: CompiledHandleRef): String =
         items

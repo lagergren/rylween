@@ -145,6 +145,10 @@ internal object SaveFile {
                 .filter(CompiledNpcVisit::visited)
                 .joinToString(",") { visit -> content.slug(visit.npc) },
         )
+        put("party.journal.count", party.journal.size.toString())
+        party.journal.forEachIndexed { index, line ->
+            put("party.journal.${index + 1}", line)
+        }
         party.inventory.forEach { slot ->
             put("inventory.${slot.slot}", slot.item?.let(content::slug).orEmpty())
         }
@@ -219,6 +223,7 @@ internal object SaveFile {
             flags = handleListOrDefault("party.flags", CompiledHandleKind.FlagState, content, base.flags),
             milestones = handleListOrDefault("party.milestones", CompiledHandleKind.Milestone, content, base.milestones),
             visitedNpcs = readVisitedNpcs(base.visitedNpcs, content),
+            journal = readJournal(base.journal),
             inventory = readInventory(base.inventory, content),
             members = readMembers(base.members),
             memberNames = readMemberNames(base.memberNames),
@@ -312,6 +317,11 @@ internal object SaveFile {
         base.mapIndexed { index, name ->
             get("member.${index + 1}.name")?.takeIf(String::isNotEmpty) ?: name
         }
+
+    private fun Map<String, String>.readJournal(base: List<String>): List<String> {
+        val count = optionalInt("party.journal.count") ?: return base
+        return (1..count).mapNotNull { index -> get("party.journal.$index")?.takeIf(String::isNotEmpty) }
+    }
 
     private fun File.readSaveValues(): Map<String, String> = SaveCodec.decodeValues(readLines())
 

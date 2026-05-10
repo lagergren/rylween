@@ -21,7 +21,6 @@ import rylween.compiled.CompiledInputBinding
 import rylween.compiled.CompiledInstruction
 import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledItemRecord
-import rylween.compiled.CompiledJournalEntry
 import rylween.compiled.CompiledLValue
 import rylween.compiled.CompiledMenuOption
 import rylween.compiled.CompiledNativeStringArg
@@ -39,10 +38,12 @@ import rylween.compiled.CompiledTextAnswer
 import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledViewCommand
 import rylween.compiled.CompiledWorldPosition
+import rylween.compiled.ExternalRumorEntry
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeSpeak
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.compiled.ExternalRuntimeTextPart
 import rylween.dsl.ChitchatPromptAudience
 import rylween.dsl.Gender
 import rylween.dsl.GridPoint
@@ -208,12 +209,12 @@ internal class ScriptExecutor(
 
             CompiledOpcode.AppendJournal ->
                 continueAfter {
-                    val entries =
-                        instruction
-                            .textBlockOperand(0)
-                            .renderScriptLines()
-                            .mapNotNull { line -> content.strings.idOf(line)?.let(CompiledJournalEntry::Line) }
-                    runtime = runtime.withParty(runtime.party.copy(journal = runtime.party.journal + entries))
+                    runtime =
+                        runtime.withParty(
+                            runtime.party.copy(
+                                journal = runtime.party.journal + instruction.textBlockOperand(0).renderJournalLines(),
+                            ),
+                        )
                 }
 
             CompiledOpcode.If ->
@@ -251,7 +252,7 @@ internal class ScriptExecutor(
             CompiledOpcode.Speak -> executeSpeak(instruction.handleOperand(0), context.insideLoop)
             CompiledOpcode.TellRumor -> continueAfter { tellRumor(instruction.handleOperand(0), appendToCurrent = true) }
             CompiledOpcode.RunScene -> executeScene(instruction.handleOperand(0), context.insideLoop)
-            CompiledOpcode.Encounter -> executeEncounter(instruction.handleOperand(0))
+            CompiledOpcode.Encounter -> executeEncounter(instruction.handleOperand(0), instruction.booleanOperand(1))
             CompiledOpcode.EnterDungeon ->
                 stopAfter {
                     runtime =
@@ -758,6 +759,7 @@ internal class ScriptExecutor(
             return
         }
         val lines = entry.text.renderExternal()
+        appendRumorJournalHint(entry)
         if (appendToCurrent && currentTextLines.isNotEmpty()) {
             writeText(currentTextLines + lines)
         } else {
@@ -765,16 +767,35 @@ internal class ScriptExecutor(
         }
     }
 
-    private fun runEncounter(monster: CompiledHandleRef) {
+    private fun appendRumorJournalHint(entry: ExternalRumorEntry) {
+        if (!entry.text.hasExactJournalLocation()) return
+        val journalLine =
+            entry.text
+                .renderExternalForJournal()
+                .joinToString(separator = " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+        if (journalLine.isNotBlank() && journalLine !in runtime.party.journal) {
+            runtime = runtime.withParty(runtime.party.copy(journal = runtime.party.journal + journalLine))
+        }
+    }
+
+    private fun runEncounter(
+        monster: CompiledHandleRef,
+        mandatory: Boolean,
+    ) {
         val battle =
             BattleRunner(content, systems.combat, input, screen)
-                .runMonster(runtime, monster)
+                .runMonster(runtime, monster, mandatory = mandatory)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
     }
 
-    private fun executeEncounter(monster: CompiledHandleRef): ScriptSignal {
-        runEncounter(monster)
+    private fun executeEncounter(
+        monster: CompiledHandleRef,
+        mandatory: Boolean,
+    ): ScriptSignal {
+        runEncounter(monster, mandatory)
         return if (runtime.currentMode == RuntimeMode.GameOver) ScriptSignal.StopScript else ScriptSignal.Continue
     }
 
@@ -838,6 +859,7 @@ internal class ScriptExecutor(
                 party.also {
                     log?.event("script.random_item_offer.declined item=${content.slug(item)} price=$price")
                     offer.declined?.let { text -> screen.writeText(text.renderRewardLines(item, price)) }
+                    input.pause(offer.pauseMillis.declined)
                 }
 
             !offer.buy.matchesInput(content, choice) -> party
@@ -845,6 +867,7 @@ internal class ScriptExecutor(
                 party.also {
                     log?.event("script.random_item_offer.broke item=${content.slug(item)} price=$price gold=${party.resources.gold}")
                     screen.writeText(offer.broke.renderRewardLines(item, price))
+                    input.pause(offer.pauseMillis.broke)
                 }
 
             else -> {
@@ -854,13 +877,16 @@ internal class ScriptExecutor(
                             .withGold(party.resources.gold - price)
                             .also {
                                 log?.event("script.random_item_offer.bought item=${content.slug(item)} price=$price")
+                                screen.updateStatus(runtime.withParty(it))
                                 screen.writeText(offer.deal.renderRewardLines(item, price))
+                                input.pause(offer.pauseMillis.deal)
                             }
 
                     ItemPlacement.Full ->
                         party.also {
                             log?.event("script.random_item_offer.full item=${content.slug(item)}")
                             offer.messages.cantCarry?.let { text -> screen.writeText(text.renderRewardLines(item, price)) }
+                            input.pause(offer.pauseMillis.full)
                         }
 
                     ItemPlacement.NeedsDropSlot ->
@@ -876,7 +902,9 @@ internal class ScriptExecutor(
                                                     "script.random_item_offer.bought " +
                                                         "item=${content.slug(item)} price=$price droppedSlot=$slot",
                                                 )
+                                                screen.updateStatus(runtime.withParty(it))
                                                 screen.writeText(offer.deal.renderRewardLines(item, price))
+                                                input.pause(offer.pauseMillis.deal)
                                             }
                                     }
                             } ?: party
@@ -1216,32 +1244,83 @@ internal class ScriptExecutor(
             ?.text
 
     private fun ExternalRuntimeTextBlock.renderExternal(npc: CompiledCharacter? = null): List<String> =
-        renderParts { part ->
-            when (part.kind) {
-                "conversationNpcName" -> npc?.let { content.strings.value(it.nameString) }
-                "partyMemberMax" -> runtime.partyMemberMax.toString()
-                "currentTownName" -> runtime.currentTown?.let { town -> content.townName(town) }
-                "townName" -> part.args["town"]?.let(::townNameBySlug)
-                "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
-                "roleName" -> part.args["role"]?.let(::roleName)
-                "roleLocation" -> part.args["role"]?.let(::roleLocation)
-                "locationCoordinate" -> null
-                else -> null
-            }
+        renderParts { part -> externalTextValue(part, npc, journal = false) }
+
+    private fun ExternalRuntimeTextBlock.renderExternalForJournal(): List<String> =
+        renderParts { part -> externalTextValue(part, npc = null, journal = true) }
+
+    private fun externalTextValue(
+        part: ExternalRuntimeTextPart.Runtime,
+        npc: CompiledCharacter?,
+        journal: Boolean,
+    ): String? =
+        when (part.kind) {
+            "conversationNpcName" -> npc?.let { content.strings.value(it.nameString) }
+            "partyMemberMax" -> runtime.partyMemberMax.toString()
+            "currentTownName" -> runtime.currentTown?.let { town -> content.townName(town) }
+            "townName" -> part.args["town"]?.let(::townNameBySlug)
+            "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
+            "roleName" -> part.args["role"]?.let(::roleName)
+            "roleLocation" -> part.args["role"]?.let { role -> if (journal) roleJournalLocation(role) else roleLocation(role) }
+            "locationCoordinate" -> part.args["location"]?.let(::locationTextBySlug)
+            else -> null
         }
+
+    private fun ExternalRuntimeTextBlock.hasExactJournalLocation(): Boolean =
+        lines
+            .flatten()
+            .filterIsInstance<ExternalRuntimeTextPart.Runtime>()
+            .any { part ->
+                when (part.kind) {
+                    "roleLocation" ->
+                        part.args["role"]
+                            ?.let(::roleCharacter)
+                            ?.position()
+                            ?.hasExactJournalCoordinate() == true
+
+                    "fuzzyTownLocation" -> part.args["radius"]?.toIntOrNull() == 0
+                    "locationCoordinate" -> true
+                    else -> false
+                }
+            }
 
     private fun roleName(roleSlug: String): String? =
         roleCharacter(roleSlug)?.let { character -> content.strings.value(character.nameString) }
+
+    private fun roleName(role: CompiledHandleRef): String =
+        roleCharacter(role)
+            ?.let { character -> content.strings.value(character.nameString) }
+            ?: content.slug(role)
 
     private fun roleLocation(roleSlug: String): String? =
         roleCharacter(roleSlug)
             ?.position()
             ?.let(::positionText)
 
+    private fun roleJournalLocation(roleSlug: String): String? =
+        roleCharacter(roleSlug)
+            ?.position()
+            ?.let(::journalPositionText)
+
+    private fun roleLocation(role: CompiledHandleRef): String =
+        roleCharacter(role)
+            ?.position()
+            ?.let(::positionText)
+            ?: content.slug(role)
+
+    private fun roleJournalLocation(role: CompiledHandleRef): String =
+        roleCharacter(role)
+            ?.position()
+            ?.let(::journalPositionText)
+            ?: content.slug(role)
+
     private fun roleCharacter(roleSlug: String): CompiledCharacter? {
         val role = content.refOrNull(CompiledHandleKind.Role, roleSlug) ?: return null
-        return content.characters.firstOrNull { character -> role in character.roles }
+        return roleCharacter(role)
     }
+
+    private fun roleCharacter(role: CompiledHandleRef): CompiledCharacter? =
+        content.characters.firstOrNull { character -> role in character.roles }
 
     private fun townNameBySlug(townSlug: String): String =
         content.refOrNull(CompiledHandleKind.Town, townSlug)?.let { town -> content.townName(town) } ?: townSlug
@@ -1255,9 +1334,33 @@ internal class ScriptExecutor(
         return pointText(fuzzyPoint(position, townSlug, radius))
     }
 
+    private fun locationTextBySlug(locationSlug: String): String? =
+        content.refOrNull(CompiledHandleKind.Location, locationSlug)?.let(::locationText)
+
     private fun positionText(position: CompiledWorldPosition): String =
         when (position) {
             is CompiledWorldPosition.Town -> "in ${content.townName(position.town)}"
+            is CompiledWorldPosition.Wilderness -> "at ${pointText(position.point)}"
+        }
+
+    private fun CompiledWorldPosition.hasExactJournalCoordinate(): Boolean =
+        when (this) {
+            is CompiledWorldPosition.Town -> content.towns.any { town -> town.id == this.town }
+            is CompiledWorldPosition.Wilderness -> true
+        }
+
+    private fun journalPositionText(position: CompiledWorldPosition): String =
+        when (position) {
+            is CompiledWorldPosition.Town -> {
+                val townName = content.townName(position.town)
+                val coordinate =
+                    content.towns
+                        .firstOrNull { town -> town.id == position.town }
+                        ?.position
+                        ?.let(::pointText)
+                coordinate?.let { "in $townName at $it" } ?: "in $townName"
+            }
+
             is CompiledWorldPosition.Wilderness -> "at ${pointText(position.point)}"
         }
 
@@ -1386,6 +1489,19 @@ internal class ScriptExecutor(
             content,
             intValue = { expr -> int(expr).toString() },
             stringValue = ::string,
+            roleNameValue = ::roleName,
+            roleLocationValue = ::roleLocation,
+            locationValue = ::locationText,
+            runtimeValue = ::runtimeText,
+        )
+
+    private fun CompiledTextBlock.renderJournalLines(): List<String> =
+        renderTextLines(
+            content,
+            intValue = { expr -> int(expr).toString() },
+            stringValue = ::string,
+            roleNameValue = ::roleName,
+            roleLocationValue = ::roleJournalLocation,
             locationValue = ::locationText,
             runtimeValue = ::runtimeText,
         )
@@ -1463,8 +1579,15 @@ internal class ScriptExecutor(
                 is CompiledNativeStringArg.IntValue -> int(arg.value).toString()
             }
         val job = content.refOrNull(CompiledHandleKind.NpcJob, jobSlug)
-        return content.characters
-            .firstOrNull { character -> character.job == job }
+        val currentTown = runtime.currentTown
+        val townCharacter =
+            currentTown?.let { town ->
+                content.characters.firstOrNull { character ->
+                    character.job == job &&
+                        (character.position() as? CompiledWorldPosition.Town)?.town == town
+                }
+            }
+        return (townCharacter ?: content.characters.firstOrNull { character -> character.job == job })
             ?.let { character -> content.strings.value(character.nameString) }
             .orEmpty()
     }
