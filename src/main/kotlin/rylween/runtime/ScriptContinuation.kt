@@ -4,8 +4,7 @@
  * This file is intentionally data-only. The old live authored-script
  * continuation implementation lives under `legacy/reference-runtime`; active
  * compilers and bundle readers keep only the stable root identities, block
- * paths, and nested child-session snapshot shapes needed for serialization and
- * cross-runtime diagnostics.
+ * paths, and scalar state needed for serialization and cross-runtime diagnostics.
  */
 package rylween.runtime
 
@@ -17,12 +16,6 @@ import rylween.dsl.QuestionActionScriptModel
 import rylween.dsl.RuntimeContent
 import rylween.dsl.SceneId
 import rylween.dsl.SpellId
-import rylween.runtime.battle.BattleSessionSnapshot
-import rylween.runtime.reward.RandomItemOfferSessionSnapshot
-import rylween.runtime.reward.RewardGrantSessionSnapshot
-import rylween.runtime.town.ShopServiceSessionSnapshot
-import rylween.runtime.town.SpeakSessionSnapshot
-import rylween.runtime.vm.CompiledVmContinuationSnapshot
 
 /** Authored script-root categories used by compiled bundles and save diagnostics. */
 enum class ScriptRootKind {
@@ -207,7 +200,7 @@ data class ScriptFrame(
  *
  * This record is deliberately independent from the old Kotlin session graph.
  * New runtimes should deserialize it as data, validate the referenced compiled
- * root and child snapshot, and resume with their own implementation.
+ * root, and resume with their own implementation.
  */
 data class ScriptContinuationSnapshot(
     val root: ScriptRootRef = ScriptRootRef.Unspecified,
@@ -215,10 +208,4 @@ data class ScriptContinuationSnapshot(
     val realmScalars: Map<String, Int> = emptyMap(),
     val stack: List<ScriptFrame>,
     val activeInventorySlot: Int? = null,
-    val speakSession: SpeakSessionSnapshot? = null,
-    val battleSession: BattleSessionSnapshot? = null,
-    val randomItemOfferSession: RandomItemOfferSessionSnapshot? = null,
-    val rewardGrantSession: RewardGrantSessionSnapshot? = null,
-    val shopServiceSession: ShopServiceSessionSnapshot? = null,
-    val compiledVmContinuation: CompiledVmContinuationSnapshot? = null,
 )

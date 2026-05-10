@@ -25,26 +25,22 @@ Kotlin JSON reader and inspection check through:
 ```sh
 ./gradlew checkExternalCompiledBundle --console=plain
 ./gradlew inspectExternalCompiledBundle --console=plain
-./gradlew checkKotlinAnsiBundleBoot --console=plain
+./gradlew :compiled-runtime:checkCompiledRuntimeBundleBoot --console=plain
 ./gradlew checkNativeJsonBundle --console=plain
 ```
 
-`check` depends on these JSON checks. `checkKotlinAnsiBundleBoot` emits the JSON
-bundle, installs the ANSI launcher, and runs the title screen through
-`RylweenAnsiMain --bundle <file>` after the launcher has built its runtime model
+`check` depends on these JSON checks. `checkCompiledRuntimeBundleBoot` emits the
+JSON bundle, installs the standalone compiled runtime, and runs the title screen
 from that bundle. `checkNativeJsonBundle` compiles a small C reader that reuses
 the legacy `json5.c` parser source with a compatibility shim, then validates the
 same JSON artifact structurally.
 
 ## Current Runtime Status
 
-The Kotlin ANSI runtime accepts `--bundle <file>`, materializes the J1 JSON into
-the runtime-facing `RylweenModel`, validates that the embedded runtime facade
-recompiles to the same typed `CompiledGameBundle` sections, verifies the
-artifact hash/section summary, and then boots from the loaded model. Gameplay
-still runs through the backend-neutral Kotlin session state machines and
-authored `Op` interpreter. That closes the Kotlin artifact-backed boot path, but
-it is not a compiled-VM execution path.
+The standalone compiled runtime accepts `--bundle <file>`, validates the J1 JSON,
+builds its compiled lookup tables, and boots from compiled state images. Gameplay
+now runs through the compiled-runtime host rather than the archived interpreted
+terminal launcher.
 
 `CompiledGameBundle.loadCompiledGame()` is a Kotlin in-memory loader/validator:
 it validates cross-table references and builds string, handle, and script lookup
@@ -57,7 +53,7 @@ string ids, bad handle refs, malformed nested operands, and unsupported VM
 operand shapes.
 
 J1 is closed for the current artifact-backed runtime target. Kotlin emits,
-reads, hashes, inspects, materializes, and boots from the strict JSON artifact.
+reads, hashes, inspects, validates, and boots from the strict JSON artifact.
 Schema version 3 also contains `runtimeSystems`, a stable non-reflective section
 for the first runtime-facing systems a non-Kotlin loader should consume
 directly: realm balance, reusable prompts, terminal/layout/static presentation,
@@ -66,12 +62,11 @@ a `castles[]` entry. The native C reader validates schema version, section
 order, canonical `sections` SHA-256, core row counts, and the `runtimeSystems`
 command/prompt/castle contract.
 
-The Kotlin `runtimeFacade` remains intentionally Kotlin-shaped because it is the
-complete model consumed by the Kotlin ANSI and headless hosts. Do not duplicate
-that whole object graph into another "stable" section speculatively. Add a new
-schema-versioned direct section only when a real non-Kotlin playable runtime
-needs data that is not already represented by `runtimeSystems` or the typed
-compiled table sections.
+The Kotlin `runtimeFacade` remains intentionally Kotlin-shaped for compiler and
+fixture compatibility. Do not duplicate that whole object graph into another
+"stable" section speculatively. Add a new schema-versioned direct section only
+when a real non-Kotlin playable runtime needs data that is not already
+represented by `runtimeSystems` or the typed compiled table sections.
 
 J2 is the separate task for executing compiled ops in a standalone VM. Its
 tests should reuse the same kind of playthrough/scenario inputs as the Kotlin
