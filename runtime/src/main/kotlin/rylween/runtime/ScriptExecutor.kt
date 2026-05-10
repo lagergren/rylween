@@ -86,6 +86,7 @@ internal class ScriptExecutor(
     private var locals: Map<String, Int> = initialLocals
     private var textBindings: Map<String, String> = emptyMap()
     private var currentTextLines: List<String> = emptyList()
+    private val pausePrompts = PausePrompts(systems.prompts)
 
     fun execute(program: CompiledScriptProgram): RuntimeState {
         executeBlock(
@@ -168,7 +169,10 @@ internal class ScriptExecutor(
                     screen.writeText(listOf(pattern.replace("%d", int(instruction.intOperand(1)).toString())))
                 }
 
-            CompiledOpcode.WaitInput -> continueAfter { input.readCommand() }
+            CompiledOpcode.WaitInput ->
+                continueAfter {
+                    waitForCurrentText()
+                }
             CompiledOpcode.Pause -> continueAfter { input.pause(instruction.integerOperand(0)) }
             CompiledOpcode.View -> continueAfter { writeViewCommand(instruction.viewOperand(0).toRuntimeViewCommand()) }
             CompiledOpcode.LetInt ->
@@ -368,6 +372,11 @@ internal class ScriptExecutor(
     private fun writeText(lines: List<String>) {
         currentTextLines = lines
         screen.writeText(lines)
+    }
+
+    private fun waitForCurrentText() {
+        screen.writeText(currentTextLines.withPausePrompt(pausePrompts))
+        input.readCommand()
     }
 
     private fun writeViewCommand(command: RuntimeViewCommand) {
@@ -621,12 +630,12 @@ internal class ScriptExecutor(
                     "speak_rumor" ->
                         continueAfter {
                             if (rumorTold) {
-                                screen.writeText(speak.noRumorLines())
+                                writeText(speak.noRumorLines())
                             } else {
                                 tellRumorBySlug(STANDARD_TOWN_RUMOR_TABLE)
                                 rumorTold = true
                             }
-                            input.pause(1600)
+                            waitForCurrentText()
                         }
 
                     "speak_bye" -> return ScriptSignal.Continue
@@ -755,7 +764,7 @@ internal class ScriptExecutor(
                 }.orEmpty()
         val entry = entries.randomElementOrNull("speak.rumor.entry")
         if (entry == null) {
-            screen.writeText(speak.noRumorLines())
+            writeText(speak.noRumorLines())
             return
         }
         val lines = entry.text.renderExternal()
@@ -785,7 +794,7 @@ internal class ScriptExecutor(
         mandatory: Boolean,
     ) {
         val battle =
-            BattleRunner(content, systems.combat, input, screen)
+            BattleRunner(content, systems.combat, input, screen, pausePrompts = pausePrompts)
                 .runMonster(runtime, monster, mandatory = mandatory)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)

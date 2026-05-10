@@ -135,7 +135,7 @@ internal class DungeonRuntime(
         val randomEncounterTier = event.randomEncounterTier
         next =
             if (randomEncounterTier != null && program.instructions.isEmpty()) {
-                BattleRunner(content, systems.combat, input, screen, log)
+                BattleRunner(content, systems.combat, input, screen, log, PausePrompts(systems.prompts))
                     .runTier(next, content.slug(randomEncounterTier))
                     .let { battle ->
                         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
@@ -177,8 +177,9 @@ internal class DungeonRuntime(
             systems.dungeon.helpPages
                 .map { page -> page.renderDungeon(depth) }
                 .ifEmpty { listOf(commands.map { command -> "${command.binding.primary}. ${command.label ?: command.binding.label}" }) }
+        val pausePrompts = PausePrompts(systems.prompts)
         pages.forEach { page ->
-            screen.writeText(page)
+            screen.writeText(page.withPausePrompt(pausePrompts))
             if (input.readCommand() == null) return
         }
         redrawDungeonIfCurrent(runtime)

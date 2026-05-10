@@ -46,6 +46,7 @@ internal class ShopService(
 ) {
     private val realm = systems.realm
     private val itemsById: Map<CompiledHandleRef, CompiledItemRecord> = content.items.associateBy { it.id }
+    private val pausePrompts = PausePrompts(systems.prompts)
 
     fun run(
         shop: CompiledShopService,
@@ -77,7 +78,9 @@ internal class ShopService(
                     current = runSell(sell, current)
                 }
 
-                else -> writeTextAndWait(listOf("No such shop choice."))
+                else -> {
+                    log?.event("shop.invalid_choice building=${content.slug(shop.building)} key=$choice")
+                }
             }
         }
     }
@@ -141,8 +144,11 @@ internal class ShopService(
             return runtime
         }
 
+        var acceptedLines = emptyList<String>()
         interlude.accepted.forEach { text ->
-            screen.writeText(text.renderTextLines(content))
+            if (acceptedLines.isNotEmpty()) acceptedLines += ""
+            acceptedLines += text.renderTextLines(content)
+            screen.writeText(acceptedLines)
             input.pause(SHOP_INTERLUDE_DELAY_MS)
         }
         if (!interlude.runsRumorAfterAccept) return runtime
@@ -171,10 +177,12 @@ internal class ShopService(
                 }
                 add("${buy.paymentKeys.decline.primaryInputLabel(content)}. Nothing")
             }
-        screen.writeText(promptLines.withGeneratedChoices(generatedLines))
-        val choice = input.readCommand() ?: return null
-        if (buy.paymentKeys.decline.matchesInput(content, choice)) return null
-        return buy.catalogs.firstOrNull { catalog -> catalog.binding.matchesInput(content, choice) }
+        while (true) {
+            screen.writeText(promptLines.withGeneratedChoices(generatedLines))
+            val choice = input.readCommand() ?: return null
+            if (buy.paymentKeys.decline.matchesInput(content, choice)) return null
+            buy.catalogs.firstOrNull { catalog -> catalog.binding.matchesInput(content, choice) }?.let { return it }
+        }
     }
 
     private fun chooseOffer(
@@ -196,7 +204,6 @@ internal class ShopService(
             page.entries
                 .firstOrNull { item -> item.binding.matchesInput(content, choice) }
                 ?.let { return it }
-            screen.writeText(listOf("That item is not sold here."))
         }
     }
 
@@ -254,10 +261,12 @@ internal class ShopService(
                 addAll(purchasePriceLines(buy, offer, unitPrice, totalPrice).withChoiceGap())
                 addAll(buy.payPrompt.renderTextLines(content))
             }
-        screen.writeText(promptLines)
-        val choice = input.readCommand() ?: return party
-        if (buy.paymentKeys.decline.matchesInput(content, choice)) return party
-        if (!buy.paymentKeys.pay.matchesInput(content, choice)) return party
+        var choice: Char
+        do {
+            screen.writeText(promptLines)
+            choice = input.readCommand() ?: return party
+            if (buy.paymentKeys.decline.matchesInput(content, choice)) return party
+        } while (!buy.paymentKeys.pay.matchesInput(content, choice))
         if (party.resources.gold < totalPrice) {
             writeTextAndWait(buy.tooExpensive.renderShopLines(item = offer.item, price = totalPrice))
             return party
@@ -400,7 +409,7 @@ internal class ShopService(
                 current = current.withParty(quote.party)
                 continue
             }
-            if (!sell.saleKeys.accept.matchesInput(content, confirm)) return current
+            if (!sell.saleKeys.accept.matchesInput(content, confirm)) continue
             val updated =
                 current.party
                     .withInventoryItem(slot, null)
@@ -422,7 +431,7 @@ internal class ShopService(
         }
 
     private fun writeTextAndWait(lines: List<String>) {
-        screen.writeText(lines + "" + "Press any key.")
+        screen.writeText(lines.withPausePrompt(pausePrompts))
         input.readCommand()
     }
 

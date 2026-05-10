@@ -82,6 +82,7 @@ internal class BattleRunner(
     private val input: RuntimeInput,
     private val screen: RuntimeScreen,
     private val log: RuntimeLog? = null,
+    private val pausePrompts: PausePrompts? = null,
 ) {
     private val battle: ExternalStandardBattle? = combat.standardBattle
 
@@ -950,6 +951,7 @@ internal class BattleRunner(
     ) {
         private var encounter = initialEncounter
         private var locals = emptyMap<String, Int>()
+        private var currentTextLines: List<String> = emptyList()
 
         fun run(
             instructions: List<CompiledInstruction>,
@@ -958,6 +960,11 @@ internal class BattleRunner(
             locals = initialLocals
             execute(instructions)
             return encounter
+        }
+
+        private fun writeText(lines: List<String>) {
+            currentTextLines = lines
+            screen.writeText(lines)
         }
 
         private fun execute(instructions: List<CompiledInstruction>) {
@@ -970,29 +977,19 @@ internal class BattleRunner(
             when (instruction.opcode) {
                 CompiledOpcode.Screen ->
                     false.also {
-                        screen.writeText(
-                            instruction.textBlockOperand(0).renderScriptLines(),
-                        )
+                        writeText(instruction.textBlockOperand(0).renderScriptLines())
                     }
 
                 CompiledOpcode.Emit ->
                     false.also {
-                        screen.writeText(
-                            listOf(
-                                "[text:${
-                                    content.slug(
-                                        instruction.handleOperand(
-                                            0,
-                                        ),
-                                    )
-                                }]",
-                            ),
+                        writeText(
+                            listOf("[text:${content.slug(instruction.handleOperand(0))}]"),
                         )
                     }
 
                 CompiledOpcode.EmitIndexed ->
                     false.also {
-                        screen.writeText(
+                        writeText(
                             listOf(
                                 content.strings
                                     .value(
@@ -1002,7 +999,11 @@ internal class BattleRunner(
                         )
                     }
 
-                CompiledOpcode.WaitInput -> false.also { input.readCommand() }
+                CompiledOpcode.WaitInput ->
+                    false.also {
+                        pausePrompts?.let { prompts -> screen.writeText(currentTextLines.withPausePrompt(prompts)) }
+                        input.readCommand()
+                    }
                 CompiledOpcode.Pause -> false
                 CompiledOpcode.View ->
                     false.also {

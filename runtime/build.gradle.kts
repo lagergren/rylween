@@ -330,7 +330,7 @@ val checkRuntimeTownPromptScript: TaskProvider<RunInstalledLauncherWithJavaTask>
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
     stateSlug.set("strong-replay")
-    script.set("22E1SANXL5H2LL")
+    script.set("22EMSANXLCH2LL")
     expectedOutputContains.set(
         listOf(
             "Accept? (Y)es / (N)o",
