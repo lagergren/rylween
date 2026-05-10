@@ -1,9 +1,8 @@
 /**
  * Serializable runtime snapshot model used by save/load.
  *
- * The old Kotlin save renderer and live dungeon/castle sessions are archived
- * under `legacy/reference-runtime`; active bundle code keeps these plain
- * records as the portable save-state contract for compiled runtimes.
+ * Active bundle code keeps these plain records as the portable save-state
+ * contract for compiled runtimes.
  */
 package rylween.runtime
 

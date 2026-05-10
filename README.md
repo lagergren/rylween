@@ -5,9 +5,8 @@ The current runnable Kotlin game is the standalone compiled-bundle consumer in
 `compiled-runtime`. Shared DSL/compiler and compiled-bundle contracts live under
 `src/main`, shared ANSI terminal protocol primitives live under `ansi-terminal`,
 and the authored game lives under `src/game`. The old interpreted Kotlin ANSI
-project is archived under `legacy/ansi-runtime` and is no longer an active
-Gradle project. The historical C/JSON5 port and replay fixtures remain under
-`legacy/c-json5` for reference and parity checks.
+project and historical C/JSON5 port are removed from the active checkout; their
+final tree is zipped under `scratch/`.
 
 ## Terminal compatibility
 
