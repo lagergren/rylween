@@ -8,12 +8,12 @@ tasks tracked in [dsl-improvements.md](dsl-improvements.md).
 The compiled bundle is the runtime product. A conforming runtime must not need
 the authored Kotlin `Op` tree, generated Kotlin game catalog, or old JVM session
 classes to run game content. JVM runtimes may keep those implementations as
-test or comparison oracles, but a standalone runtime is expected to boot from
+test or comparison oracles, but a runtime is expected to boot from
 the bundle plus its own host implementation.
 
 ## Runtime Responsibilities
 
-A compiled-bundle runtime has five responsibilities:
+A runtime has five responsibilities:
 
 1. Load and validate the bundle before execution.
 2. Resolve bundle tables into runtime handles without relying on source names.
@@ -33,17 +33,17 @@ There is currently one active playable Kotlin runtime path in the Gradle build.
 Historical/reference paths were removed from the active checkout and preserved
 inside `scratch/legacy-archive.zip`:
 
-- `run.sh` installs and runs `rylween-compiled`, whose
+- `run.sh` installs and runs `rylween`, whose
   entry point is
-  `compiled-runtime/src/main/kotlin/rylween/compiledruntime/RylweenCompiledRuntimeMain.kt`.
-  This is now the active standalone compiled-bundle consumer. It reads
+  `runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt`.
+  This is now the active runtime. It reads
   `CompiledGameBundle` plus stable `runtimeSystems` rows directly and must not
   depend on `RylweenKotlinEngine`, old session classes such as
   `WildernessSession`/`ShopSession`, terminal adapters, generated game handles,
   or authored `Op` execution. It owns direct wilderness state, direct
   party/journal pages, bundle-driven wilderness command bindings, direct
   hunt/camp/upkeep rules from `runtimeSystems.realm`, direct service/dungeon/
-  castle/battle execution, and a standalone save file that validates the
+  castle/battle execution, and a save file that validates the
   compiled bundle hash before restoring mutable runtime ids.
 - `legacy/ansi-runtime` in the archive is the old interpreted/hybrid ANSI
   product path. It required the J1 JSON bundle, verified the artifact, and
@@ -55,15 +55,14 @@ inside `scratch/legacy-archive.zip`:
 - `legacy/reference-runtime` in the archive is the old live JVM session graph,
   engine facade, save renderer/parser, stateful authored-script oracle, and
   terminal session helpers that used to live under
-  `src/main/kotlin/rylween/runtime`, `src/main/kotlin/rylween/engine`,
-  `src/main/kotlin/rylween/save`, and
-  `src/main/kotlin/rylween/frontend/terminal`. It is source reference and
+  the old root `src/main/kotlin` runtime, engine, save, and terminal packages.
+  It is source reference and
   parity history only, not an active Gradle source set.
 
-The active root `src/main/kotlin` tree now keeps the DSL/compiler, compiled
-bundle loader/emitter, and data-only runtime snapshot/VM diagnostic contracts.
-It must not grow new live wilderness/town/dungeon/castle/battle session code.
-New host behavior should move into the standalone compiled consumer or the
+The active `:core` project now keeps the DSL/compiler, compiled bundle
+loader/emitter, and data-only runtime snapshot/VM diagnostic contracts under
+`core/src/main/kotlin`. It must not grow new live wilderness/town/dungeon/
+castle/battle session code. New host behavior should move into the runtime or the
 compiled VM/host boundary, not into another special case in the archived hybrid
 session graph.
 
@@ -89,10 +88,10 @@ Required loader checks:
 
 The JVM reference pieces for this are:
 
-- `src/main/kotlin/rylween/compiled/CompiledBundle.kt`
-- `src/main/kotlin/rylween/compiled/CompiledLoader.kt`
-- `src/main/kotlin/rylween/compiled/CompiledOpcodeContract.kt`
-- `src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt`
+- `core/src/main/kotlin/rylween/compiled/CompiledBundle.kt`
+- `core/src/main/kotlin/rylween/compiled/CompiledLoader.kt`
+- `core/src/main/kotlin/rylween/compiled/CompiledOpcodeContract.kt`
+- `core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt`
 
 Non-JVM runtimes should mirror the observable checks, not the Kotlin class
 layout.
@@ -140,12 +139,12 @@ events.
 
 The JVM reference VM is:
 
-- `src/main/kotlin/rylween/runtime/vm/CompiledVm.kt`
-- `src/main/kotlin/rylween/runtime/vm/CompiledVmScriptRunner.kt`
-- `src/main/kotlin/rylween/runtime/vm/CompiledVmContinuationSnapshot.kt`
-- `src/main/kotlin/rylween/runtime/vm/VmDiagnostic.kt`
+- `core/src/main/kotlin/rylween/runtime/vm/CompiledVm.kt`
+- `core/src/main/kotlin/rylween/runtime/vm/CompiledVmScriptRunner.kt`
+- `core/src/main/kotlin/rylween/runtime/vm/CompiledVmContinuationSnapshot.kt`
+- `core/src/main/kotlin/rylween/runtime/vm/VmDiagnostic.kt`
 
-Standalone runtimes do not need to copy the JVM state classes, but they must
+Runtimes do not need to copy the JVM state classes, but they must
 implement equivalent semantics.
 
 ## Host Services
@@ -319,7 +318,7 @@ Implement:
 
 Only after all checklist sections pass may a runtime be described as a full
 compiled-bundle game runtime. Partial implementations should be called boundary
-probes, VM probes, or standalone runtime slices according to the conformance
+probes, VM probes, or runtime slices according to the conformance
 level they actually satisfy.
 
 ## Snapshots And Saves
@@ -366,10 +365,10 @@ requirements:
 
 The current JVM ANSI helpers live in:
 
-- `ansi-terminal/src/main/kotlin/rylween/frontend/ansi/AnsiCodes.kt`
-- `ansi-terminal/src/main/kotlin/rylween/frontend/ansi/AnsiInput.kt`
-- `compiled-runtime/src/main/kotlin/rylween/compiledruntime/CompiledAnsiScreen.kt`
-- `compiled-runtime/src/main/kotlin/rylween/compiledruntime/CompiledAnsiTerminal.kt`
+- `terminal/src/main/kotlin/rylween/terminal/AnsiCodes.kt`
+- `terminal/src/main/kotlin/rylween/terminal/AnsiInput.kt`
+- `terminal/src/main/kotlin/rylween/terminal/AnsiTerminal.kt`
+- `runtime/src/main/kotlin/rylween/runtime/RuntimeScreen.kt`
 
 Other runtimes may implement their own terminal layer, but the same commands
 and presentation tables must drive the game.
@@ -402,13 +401,13 @@ The practical implementation levels are:
 - interactive VM: support input, menus, text answers, and continuations.
 - hosted script runtime: run all service, mission, dungeon, castle, and battle
   scripts through compiled programs.
-- standalone playable runtime: implement all game shell systems directly from
+- playable runtime: implement all game shell systems directly from
   compiled tables with no authored-op or old-session fallback.
-- non-JVM runtime: repeat the standalone contract in another language and pass
+- non-JVM runtime: repeat the same runtime contract in another language and pass
   the same bundle/hash/diagnostic checks.
 
-The current target is the standalone playable runtime, then a small real
-non-JVM target after the contract is proven.
+The current target is the playable Kotlin runtime, then a small real non-JVM
+target after the contract is proven.
 
 ## Minimal Boot Sequence
 
@@ -428,7 +427,7 @@ A runtime boot should follow this shape:
 
 ## Things A Runtime Must Not Depend On
 
-A standalone compiled runtime must not require:
+A runtime must not require:
 
 - generated game-catalog handles or authored Kotlin source.
 - authored Kotlin `Op` instances.
@@ -440,12 +439,12 @@ A standalone compiled runtime must not require:
 Those JVM pieces can remain as reference implementations and conformance
 oracles, but the bundle contract is the portable runtime API.
 
-The current standalone JVM consumer demonstrates this boundary with
-`compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneCompiledSave.kt`.
+The current JVM runtime demonstrates this boundary with
+`runtime/src/main/kotlin/rylween/runtime/SaveFile.kt`.
 That file is not the cross-language save-file standard; it is the direct
-compiled runtime's first persistent adapter and shows the required policy:
+runtime's first persistent adapter and shows the required policy:
 store portable runtime ids, bind the save to the verified bundle hash, and
 restore only at game-policy boundaries the runtime can complete without hidden
 session state. Its line-format escaping lives in
-`compiled-runtime/src/main/kotlin/rylween/compiledruntime/StandaloneSaveCodec.kt`
+`runtime/src/main/kotlin/rylween/runtime/SaveCodec.kt`
 because it is persistence syntax, not ANSI/input character handling.

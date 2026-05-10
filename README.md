@@ -1,13 +1,15 @@
 # Adventurers of Rylween
-Kotlin port and compiled-runtime workspace for Adventurers of Rylween, a MUD
+Kotlin port and runtime workspace for Adventurers of Rylween, a MUD
 style game for BBSes that I wrote in 1992-1993.
 
-The current runnable Kotlin game is the standalone compiled-bundle consumer in
-`compiled-runtime`. Shared DSL/compiler and compiled-bundle contracts live under
-`src/main`, shared ANSI terminal protocol primitives live under `ansi-terminal`,
-and the authored game lives under `src/game`. The old interpreted Kotlin ANSI
-project and historical C/JSON5 port are removed from the active checkout; their
-final tree is zipped at `scratch/legacy-archive.zip`.
+The current runnable Kotlin game is the `:runtime` project. Shared
+DSL/compiler and compiled-bundle contracts live under `:core`, authored game
+DSL and resources live under `:game`, bundle emitters and native probes live
+under `:tools`, and terminal transport/protocol code lives under `:terminal`.
+
+The old interpreted Kotlin ANSI project and historical C/JSON5 port are
+removed from the active checkout; their final tree is zipped at
+`scratch/legacy-archive.zip`.
 
 ## Terminal compatibility
 
@@ -26,27 +28,27 @@ sized depends on the terminal:
 If you must run in `Terminal.app`, expect occasional one-cell drift in
 borders and decorative art. Gameplay text is unaffected.
 
-## Compiled runtime commands
+## Runtime commands
 
-Build and run the direct compiled-bundle runtime:
+Build and run the direct runtime:
 
 ```sh
-./gradlew :compiled-runtime:installCompiledRuntime --console=plain
+./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain
 ./run.sh --build --seed 1
 ./run.sh --no-title --state strong-replay --seed 1
-compiled-runtime/build/install/rylween-compiled-runtime/bin/rylween-compiled --bundle build/compiled/rylween-bundle.json --state fresh-replay --seed 1
+runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --state fresh-replay --seed 1
 ```
 
 The root `run.sh` wrapper is now the closest current equivalent to
 `rylween.exe`. It builds `build/compiled/rylween-bundle.json` and
-`:compiled-runtime:installCompiledRuntime` when needed, injects the bundle path,
+`:runtime:installRuntime` when needed, injects the bundle path,
 and runs outside Gradle so Gradle progress output and key echo do not share the
 game screen.
 
 `run.sh` shows the title flow by default. Press any key at the splash screen,
 then `N` to create a new party. Use `--no-title` only when you intentionally
 want to boot a state, script, or replay directly.
-Each run writes a forensic log to `build/logs/compiled-runtime/latest.log`; use
+Each run writes a forensic log to `build/logs/runtime/latest.log`; use
 `--log <file>` to keep a named capture instead of replacing `latest.log`.
 For manual forensics, `--debug-log` flashes the latest log line below the game
 frame, and `--debug-secrets` enables hidden wilderness triggers: `[` forces a
@@ -54,12 +56,24 @@ cave discovery and `]` forces a random encounter.
 
 ```sh
 ./run.sh --screen title
-./run.sh --no-title --script 22SX --save build/saves/compiled-runtime.rsave
-./run.sh --load build/saves/compiled-runtime.rsave
+./run.sh --no-title --script 22SX --save build/saves/runtime.rsave
+./run.sh --load build/saves/runtime.rsave
 ./run.sh --no-title --state strong-replay --seed 1 --debug-log --debug-secrets
 ```
 
-The compiled runtime boots directly from the bundle, renders compiled static
-screens and wilderness frames, runs wilderness/town/services/battle/dungeon and
-castle flows from compiled tables, handles direct save/load with bundle-hash
-validation, and is verified by the `:compiled-runtime:check` replay suite.
+The runtime boots directly from the compiled bundle, renders static screens and
+wilderness frames, runs wilderness/town/services/battle/dungeon and castle flows
+from compiled tables, handles direct save/load with bundle-hash validation, and
+is verified by the `:runtime:check` replay suite.
+
+## Cleanup
+
+Generated files are confined to Gradle build output, local Kotlin compiler
+caches, and runtime save/log directories under `build/`. From the repo root:
+
+```sh
+./gradlew clean --console=plain
+```
+
+This removes project build directories, the included `build-logic/build`
+directory, and regenerated local `.kotlin` session/error caches.

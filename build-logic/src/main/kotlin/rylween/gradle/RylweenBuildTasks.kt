@@ -3,7 +3,6 @@ package rylween.gradle
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
-import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
@@ -23,9 +22,9 @@ import javax.inject.Inject
 /**
  * Compiles the small native C probes that validate the emitted bundle contract.
  *
- * The root build wires this task to `src/native/compiled-smoke` and
- * `src/native/bundle-json`; the task type lives in build logic so
- * `build.gradle.kts` stays focused on project wiring.
+ * The tools project wires this task to `tools/src/main/c/compiled-smoke` and
+ * `tools/src/main/c/bundle-json`; the task type lives in build logic so
+ * project build files stay focused on project wiring.
  */
 abstract class CompileNativeCExecutableTask
     @Inject
@@ -72,7 +71,7 @@ abstract class CompileNativeCExecutableTask
 /**
  * Runs an installed launcher against a compiled bundle with a known Java home.
  *
- * Active builds use this for standalone compiled-runtime smoke checks after
+ * Active builds use this for runtime smoke checks after
  * install tasks have produced scripts.
  */
 abstract class RunInstalledLauncherWithJavaTask
@@ -223,133 +222,6 @@ abstract class RunInstalledLauncherWithJavaTask
     }
 
 /**
- * Runs the experimental Rust MUD inspector when Cargo is available.
- *
- * Cargo absence is a skip by default so normal JVM development does not require
- * the non-JVM prototype toolchain unless `rylween.requireRust` opts into it.
- */
-abstract class CheckRustMudBundleInspectTask : DefaultTask() {
-    @get:InputFile
-    abstract val manifestFile: RegularFileProperty
-
-    @get:InputDirectory
-    abstract val sourceDirectory: DirectoryProperty
-
-    @get:InputFile
-    abstract val bundleFile: RegularFileProperty
-
-    @get:InputFile
-    abstract val kotlinInspectionFile: RegularFileProperty
-
-    @get:Input
-    abstract val requireRust: Property<Boolean>
-
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
-
-    @TaskAction
-    fun run() {
-        val output = outputFile.get().asFile.apply { parentFile.mkdirs() }
-        val cargo = findCargo()
-        if (cargo == null) {
-            if (requireRust.get()) {
-                error("Cargo is required by rylween.requireRust/RYL_REQUIRE_RUST but was not found on PATH")
-            }
-            logger.lifecycle("Skipping $name because Cargo is not available")
-            output.writeText("skipped: cargo unavailable\n")
-            return
-        }
-
-        val process =
-            ProcessBuilder(
-                cargo.path,
-                "run",
-                "--quiet",
-                "--manifest-path",
-                manifestFile.get().asFile.path,
-                "--",
-                "--bundle",
-                bundleFile.get().asFile.path,
-                "inspect",
-            ).redirectErrorStream(true)
-                .start()
-        val text = process.inputStream.bufferedReader().readText()
-        output.writeText(text)
-        val exitCode = process.waitFor()
-        require(exitCode == 0) {
-            "rylween-mud inspect failed with exit code $exitCode:\n$text"
-        }
-        listOf(
-            "format=rylween.compiled.bundle",
-            "schemaVersion=3",
-            "bundleContentHash=sha256:",
-            "status=experimental-k1.0",
-        ).forEach { marker ->
-            require(marker in text) {
-                "rylween-mud inspect output did not include '$marker':\n$text"
-            }
-        }
-
-        val kotlinInspection = kotlinInspectionFile.get().asFile.readText()
-        val kotlinHash = kotlinInspection.hashValue(prefix = "bundleContentHash: ")
-        val rustHash = text.hashValue(prefix = "bundleContentHash=")
-        require(kotlinHash == rustHash) {
-            "rylween-mud bundle hash disagrees with Kotlin inspection: Kotlin=$kotlinHash Rust=$rustHash"
-        }
-
-        val kotlinSections = kotlinInspection.inspectionSections()
-        val rustSections = text.inspectionSections()
-        require(kotlinSections == rustSections) {
-            "rylween-mud section summaries disagree with Kotlin inspection:\nKotlin: $kotlinSections\nRust: $rustSections"
-        }
-    }
-
-    private fun findCargo(): File? =
-        System
-            .getenv("PATH")
-            .orEmpty()
-            .split(File.pathSeparator)
-            .asSequence()
-            .filter { path -> path.isNotBlank() }
-            .flatMap { path ->
-                cargoExecutableNames.asSequence().map { executable -> File(path, executable) }
-            }.firstOrNull { file -> file.isFile && file.canExecute() }
-
-    private val cargoExecutableNames: List<String> = listOf("cargo", "cargo.exe")
-
-    private fun String.hashValue(prefix: String): String =
-        lineSequence()
-            .firstOrNull { line -> line.startsWith(prefix) }
-            ?.removePrefix(prefix)
-            ?.trim()
-            ?: error("missing $prefix line")
-
-    private fun String.inspectionSections(): List<RustMudInspectionSection> =
-        lineSequence()
-            .mapNotNull { line -> inspectionSectionRegex.matchEntire(line)?.destructured }
-            .map { (name, rows, bytes, checksum) ->
-                RustMudInspectionSection(
-                    name = name,
-                    rows = rows.toInt(),
-                    bytes = bytes.toInt(),
-                    checksum = checksum,
-                )
-            }.toList()
-
-    private data class RustMudInspectionSection(
-        val name: String,
-        val rows: Int,
-        val bytes: Int,
-        val checksum: String,
-    )
-
-    companion object {
-        private val inspectionSectionRegex: Regex =
-            Regex("""  ([A-Za-z][A-Za-z0-9]*): rows=(\d+) bytes=(\d+) fnv1a32=([0-9a-f]{8})""")
-    }
-}
-
-/**
  * Wraps the authored game DSL script in a generated Kotlin object for tests.
  */
 abstract class GenerateCompiledGameHarnessTask : DefaultTask() {
@@ -424,7 +296,7 @@ private fun orderedGameSources(
         .sortedWith(compareBy<File> { it.canonicalFile != mainSource.canonicalFile }.thenBy { it.name })
 
 /**
- * Generates typed current-game handles from `src/game/dsl/RylweenGame.dsl.kts`.
+ * Generates typed current-game handles from `game/src/main/dsl/RylweenGame.dsl.kts`.
  *
  * This is intentionally build logic rather than game runtime code: it gives
  * authored Kotlin helper sources typed handles while keeping the compiled JSON
@@ -1880,7 +1752,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
 /**
  * Generates the checked-in style wrapper script used by `run.sh`.
  */
-abstract class GenerateCompiledRuntimeBuildWrapperTask : DefaultTask() {
+abstract class GenerateRuntimeBuildWrapperTask : DefaultTask() {
     @get:OutputFile
     abstract val outputFile: RegularFileProperty
 
@@ -1894,17 +1766,25 @@ abstract class GenerateCompiledRuntimeBuildWrapperTask : DefaultTask() {
             |set -euo pipefail
             |
             |ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-            |LAUNCHER="$ROOT_DIR/compiled-runtime/build/install/rylween-compiled-runtime/bin/rylween-compiled"
+            |LAUNCHER="$ROOT_DIR/runtime/build/install/rylween/bin/rylween"
             |BUNDLE="$ROOT_DIR/build/compiled/rylween-bundle.json"
             |
             |build=false
+            |title_seen=false
             |args=()
             |for arg in "$@"; do
-            |  if [[ "$arg" == "--build" ]]; then
-            |    build=true
-            |  else
-            |    args+=("$arg")
-            |  fi
+            |  case "$arg" in
+            |    --build)
+            |      build=true
+            |      ;;
+            |    --title|--no-title)
+            |      title_seen=true
+            |      args+=("$arg")
+            |      ;;
+            |    *)
+            |      args+=("$arg")
+            |      ;;
+            |  esac
             |done
             |
             |if [[ "$build" == true || ! -x "$LAUNCHER" || ! -f "$BUNDLE" ]]; then
@@ -1912,7 +1792,7 @@ abstract class GenerateCompiledRuntimeBuildWrapperTask : DefaultTask() {
             |    echo "rylween: cannot find Gradle wrapper at $ROOT_DIR/gradlew" >&2
             |    exit 1
             |  fi
-            |  (cd "$ROOT_DIR" && ./gradlew emitExternalCompiledBundle :compiled-runtime:installCompiledRuntime --console=plain)
+            |  (cd "$ROOT_DIR" && ./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain)
             |fi
             |
             |bundle_seen=false
@@ -1923,6 +1803,10 @@ abstract class GenerateCompiledRuntimeBuildWrapperTask : DefaultTask() {
             |done
             |if [[ "$bundle_seen" == false ]]; then
             |  args=("--bundle" "$BUNDLE" "${args[@]}")
+            |fi
+            |
+            |if [[ "$title_seen" == false ]]; then
+            |  args=("--title" "${args[@]}")
             |fi
             |
             |exec "$LAUNCHER" "${args[@]}"

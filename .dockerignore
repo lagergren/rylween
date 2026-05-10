@@ -1,27 +1,22 @@
-# Build artefacts — regenerated inside the image.
+# Build artifacts are regenerated inside the image.
+.gradle/
+.kotlin/
+build/
+**/build/
 *.o
 *.d
-rylween
-rylween-asan
 *.dSYM/
 
-# Runtime-generated state (regenerated on boot).
-data/entry.dat
-data/npc.dat
-data/realm.dat
-data/rylween.log
-data/score.txt
-data/vscore.txt
-data/current-world.json5
+tmp-sample-save/
 
 # Editor / local tool state.
 .DS_Store
-.vscode
-.idea/
 .claude/
+.idea/
+.vscode/
 *~
 
-# Git tree itself; the image only needs source + data.
-.git
+# Local repo and scratch state.
+.git/
 .gitignore
-.git-blame-ignore-revs
+scratch/

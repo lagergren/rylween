@@ -2,8 +2,8 @@
 
 This plan describes the work needed to turn the J1 compiled JSON bundle from a
 validated data artifact into an executable script/runtime contract. That work
-has been completed for the active Kotlin product path: the standalone
-`:compiled-runtime` host reads the J1 bundle and executes production script
+has been completed for the active Kotlin product path: the `:runtime` host
+reads the J1 bundle and executes production script
 roots from compiled tables. The older Kotlin ANSI/headless session hosts and
 authored `Op` oracle are no longer active source; their final tree is preserved
 inside `scratch/legacy-archive.zip`.
@@ -43,10 +43,10 @@ as a focused probe after the Kotlin compiled VM path is green.
 Already in the repo:
 
 - `CompiledScriptProgram`, `CompiledInstruction`, `CompiledOpcode`, and typed
-  operands in `src/main/kotlin/rylween/compiled/CompiledBundle.kt`
+  operands in `core/src/main/kotlin/rylween/compiled/CompiledBundle.kt`
 - strict deterministic J1 JSON emission and Kotlin/C readers
 - native smoke validation for opcode and operand shapes
-- the standalone compiled runtime in `:compiled-runtime`
+- the runtime in `:runtime`
 - installed-launcher replay checks for bundle boot, static screens,
   wilderness, town, dungeon, castle/Ydarg, battle, save/load, and
   Hall-of-Heroes/reporting paths
@@ -60,19 +60,20 @@ Closed J2 pieces now in the repo:
 - blocking input and continuation frame support for compiled instructions
 - child-session handoffs from compiled instructions
 - compiled VM save/resume serialization
-- standalone compiled-runtime execution with no generated-game fallback
+- runtime execution with no generated-game fallback
 - a native executor probe beyond bundle validation
 
-Remaining product work belongs outside J2: K1 owns the real non-JVM Rust
-server/MUD runtime, while the C code remains a contract/probe implementation.
+Remaining product work belongs outside J2. The C code remains a contract/probe
+implementation; any future non-JVM server/MUD runtime should restart as a new
+product plan.
 
 ## Architecture Shape
 
 ### VM Kernel
 
 The backend-neutral compiled script executor contracts now live under
-`src/main/kotlin/rylween/runtime/vm`, while the active production host lives in
-`compiled-runtime/src/main/kotlin/rylween/compiledruntime`.
+`core/src/main/kotlin/rylween/runtime/vm`, while the active production host
+lives in `runtime/src/main/kotlin/rylween/runtime`.
 
 Core model:
 
@@ -374,9 +375,9 @@ not become a playable runtime inside J2. A playable non-JVM target would have to
 own much more than opcode dispatch: frontend rendering, persistence,
 diagnostics, host services, conformance fixtures, and the full acceptance
 playthrough. That scope belongs in a separate product task with an explicit
-target. The scoped target is now the Rust server/MUD runtime described in
-`plans/k1-rust-server-mud-plan.md`, which follows the server and multi-party
-path in `plans/future-directions.md`.
+target. The previous Rust server/MUD skeleton has been deferred and removed
+from the active checkout; a future server/MUD runtime should start from
+`plans/future-directions.md` when it becomes the next priority.
 
 If a non-JVM playable runtime is scheduled, create a new product task for that
 runtime. It must implement:
