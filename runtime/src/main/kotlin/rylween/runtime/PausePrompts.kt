@@ -10,10 +10,11 @@ internal class PausePrompts(
 
     constructor(prompts: ExternalRuntimePrompts) : this(prompts.pauseVerbs, prompts.returnKeyName)
 
-    fun line(): String {
+    fun line(action: String? = null): String {
         val verb = verbs.getOrNull(index.mod(verbs.size)) ?: "Press"
         index++
-        return "($verb $returnKeyName)"
+        return listOfNotNull(verb, returnKeyName, action)
+            .joinToString(separator = " ", prefix = "(", postfix = ")")
     }
 }
 
