@@ -1,5 +1,0 @@
-// Common prompt atoms reused across menus.
-{
-  yes: ['(Y)es'],
-  no:  ['(N)o'],
-}

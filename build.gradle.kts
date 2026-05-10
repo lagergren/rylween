@@ -146,10 +146,10 @@ val nativeSmokeSource: RegularFile = layout.projectDirectory.file("src/native/co
 val nativeSmokeExecutable: Provider<RegularFile> = layout.buildDirectory.file("native/compiled-smoke/rylween-bundle-smoke")
 val nativeJsonSource: RegularFile = layout.projectDirectory.file("src/native/bundle-json/rylween_bundle_json.c")
 val nativeJsonShimSource: RegularFile = layout.projectDirectory.file("src/native/bundle-json/json5_compat.c")
-val legacyJson5Source: RegularFile = layout.projectDirectory.file("legacy/c-json5/src/json5.c")
-val legacyJson5IncludeDir: String =
+val nativeJson5Source: RegularFile = layout.projectDirectory.file("src/native/json5/json5.c")
+val nativeJson5IncludeDir: String =
     layout.projectDirectory
-        .dir("legacy/c-json5/src")
+        .dir("src/native/json5")
         .asFile.path
 val nativeJsonExecutable: Provider<RegularFile> = layout.buildDirectory.file("native/bundle-json/rylween-bundle-json")
 val externalBundleArtifact: Provider<RegularFile> = layout.buildDirectory.file("compiled/rylween-bundle.json")
@@ -214,8 +214,8 @@ val compileNativeJsonBundleReader: TaskProvider<CompileNativeCExecutableTask> =
         source = nativeJsonSource,
         executable = nativeJsonExecutable,
     ) {
-        includeDirs.add(legacyJson5IncludeDir)
-        additionalSourceFiles.from(nativeJsonShimSource, legacyJson5Source)
+        includeDirs.add(nativeJson5IncludeDir)
+        additionalSourceFiles.from(nativeJsonShimSource, nativeJson5Source)
     }
 
 val checkNativeSmokeBundle: TaskProvider<Exec> by tasks.registering(Exec::class) {

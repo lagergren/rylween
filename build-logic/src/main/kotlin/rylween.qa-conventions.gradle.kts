@@ -18,10 +18,6 @@ ktlint {
     filter {
         // Skip generated catalog/harness sources (we don't author those).
         exclude { entry -> entry.file.toString().contains("${File.separator}build${File.separator}generated${File.separator}") }
-        // Skip legacy/: frozen Amiga snapshot, prior DSL prototypes, retired
-        // port-plan docs. Anything under legacy/ is dead code we deliberately
-        // do not maintain to current style; ktlint findings there are noise.
-        exclude { entry -> entry.file.toString().contains("${File.separator}legacy${File.separator}") }
     }
 }
 

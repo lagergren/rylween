@@ -32,7 +32,7 @@ Kotlin JSON reader and inspection check through:
 `check` depends on these JSON checks. `checkCompiledRuntimeBundleBoot` emits the
 JSON bundle, installs the standalone compiled runtime, and runs the title screen
 from that bundle. `checkNativeJsonBundle` compiles a small C reader that reuses
-the legacy `json5.c` parser source with a compatibility shim, then validates the
+the vendored `src/native/json5` parser source with a compatibility shim, then validates the
 same JSON artifact structurally.
 
 ## Current Runtime Status

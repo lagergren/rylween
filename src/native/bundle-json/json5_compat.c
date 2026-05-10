@@ -30,5 +30,5 @@ void res_map_path(char *out, size_t out_sz) {
 }
 
 void res_data_path(const char *leaf, char *out, size_t out_sz) {
-    snprintf(out, out_sz, "legacy/c-json5/data/%s", leaf ? leaf : "");
+    snprintf(out, out_sz, "data/%s", leaf ? leaf : "");
 }

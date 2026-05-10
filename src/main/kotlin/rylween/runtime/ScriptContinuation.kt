@@ -1,10 +1,9 @@
 /**
  * Portable script-root and continuation snapshot records for compiled bundles.
  *
- * This file is intentionally data-only. The old live authored-script
- * continuation implementation lives under `legacy/reference-runtime`; active
- * compilers and bundle readers keep only the stable root identities, block
- * paths, and scalar state needed for serialization and cross-runtime diagnostics.
+ * This file is intentionally data-only. Active compilers and bundle readers
+ * keep only the stable root identities, block paths, and scalar state needed
+ * for serialization and cross-runtime diagnostics.
  */
 package rylween.runtime
 

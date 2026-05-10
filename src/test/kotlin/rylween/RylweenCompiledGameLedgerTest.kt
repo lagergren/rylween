@@ -1204,18 +1204,15 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
-    fun legacyAnsiRuntimeIsArchivedOutsideActiveGradleProjects() {
+    fun retiredAnsiRuntimeIsAbsentFromActiveGradleProjects() {
         val rootBuild = File("build.gradle.kts").readText()
         val settings = File("settings.gradle.kts").readText()
         val launcher = File("run.sh").readText()
         val buildWrapperTask =
             File("build-logic/src/main/kotlin/rylween/gradle/RylweenBuildTasks.kt").readText()
 
-        check(File("legacy/ansi-runtime/build.gradle.kts").isFile) {
-            "old interpreted ANSI runtime project must be archived under legacy/ansi-runtime"
-        }
-        check(File("legacy/old-runtime-tests/src/test/kotlin/rylween/ScenarioHarness.kt").isFile) {
-            "old interpreted/runtime-oracle tests must be archived under legacy/old-runtime-tests"
+        check(!File("legacy").exists()) {
+            "legacy source tree must not remain in the active repository checkout"
         }
         check(!File("ansi-runtime/build.gradle.kts").exists()) {
             "old interpreted ANSI runtime must not remain as an active top-level project directory"
@@ -1514,14 +1511,7 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
-    fun authoredInterpreterApisAreMarkedAsOracleOnly() {
-        val requiredMarkers =
-            mapOf(
-                "legacy/reference-runtime/src/main/kotlin/rylween/runtime/AuthoredScriptOracleApi.kt" to
-                    listOf("annotation class AuthoredScriptOracleApi", "CompiledVm", "parity/oracle test suite"),
-                "legacy/reference-runtime/src/main/kotlin/rylween/engine/ScriptTrace.kt" to
-                    listOf("@AuthoredScriptOracleApi\nclass ScriptTraceRunner"),
-            )
+    fun authoredInterpreterApisStayOutOfActiveSources() {
         val activeRuntimeFiles =
             listOf(
                 "src/main/kotlin/rylween/runtime/AuthoredScriptOracleApi.kt",
@@ -1538,21 +1528,10 @@ class RylweenCompiledGameLedgerTest {
                 "src/main/kotlin/rylween/runtime/vm/CompiledVmContinuationSnapshot.kt",
                 "src/main/kotlin/rylween/runtime/wilderness/WildernessDungeonHandoff.kt",
             )
-        val missing =
-            requiredMarkers.flatMap { (path, tokens) ->
-                val source = File(path).readText()
-                tokens
-                    .filterNot { token -> token in source }
-                    .map { token -> "$path: $token" }
-            }
         val stillActive = activeRuntimeFiles.filter { path -> File(path).exists() }
 
-        check(missing.isEmpty()) {
-            "authored interpreter/oracle APIs must stay visibly marked outside the production VM contract: " +
-                missing.joinToString()
-        }
         check(stillActive.isEmpty()) {
-            "old live reference runtime files must stay under legacy/reference-runtime, not active source: " +
+            "old live reference runtime files must not return to active source: " +
                 stillActive.joinToString()
         }
     }
