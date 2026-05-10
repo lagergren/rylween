@@ -501,8 +501,7 @@ internal class ScriptExecutor(
 
     private fun List<String>.onlyListMenuOptions(options: List<CompiledMenuOption>): Boolean {
         val nonBlank = filter(String::isNotBlank)
-        if (nonBlank.isEmpty()) return false
-        return nonBlank.all { line ->
+        return nonBlank.isNotEmpty() && nonBlank.all { line ->
             options.any { option ->
                 val key = option.binding.primaryInputLabel(content)
                 "($key)" in line || line.trimStart().startsWith("$key.")
@@ -576,7 +575,7 @@ internal class ScriptExecutor(
                 locals =
                     previousLoopValue
                         ?.let { value -> locals + (name to value) }
-                        ?: locals - name
+                        ?: (locals - name)
                 if (signal != ScriptSignal.Continue) return signal
             }
         }
@@ -841,7 +840,7 @@ internal class ScriptExecutor(
             value = draw.value,
             details = mapOf("pool" to content.slug(offer.pool), "item" to content.slug(item), "price" to price),
         )
-        var party = draw.party
+        val party = draw.party
         screen.writeText(offer.offer.renderRewardLines(item, price) + offer.choicePrompt.renderRewardLines(item, price))
         val choice = input.readCommand() ?: return party
         return when {
@@ -1030,8 +1029,7 @@ internal class ScriptExecutor(
     }
 
     private fun compare(expr: CompiledBoolExpr.Cmp): Boolean {
-        val random = expr.left as? CompiledIntExpr.Random
-        if (random == null) return int(expr.left).compare(expr.op, int(expr.right))
+        val random = expr.left as? CompiledIntExpr.Random ?: return int(expr.left).compare(expr.op, int(expr.right))
         val lo = int(random.lo)
         val hi = int(random.hi)
         val draw = runtime.party.drawRandom(lo, hi)
@@ -1323,8 +1321,7 @@ internal class ScriptExecutor(
         flag: CompiledHandleRef,
         state: CompiledHandleRef,
     ): Boolean {
-        if (state in runtime.party.flags) return true
-        return flagStateNative(state) == "none" && runtime.party.flags.none { current -> current in flagStates(flag) }
+        return state in runtime.party.flags || flagStateNative(state) == "none" && runtime.party.flags.none { current -> current in flagStates(flag) }
     }
 
     private fun flagStates(flag: CompiledHandleRef): Set<CompiledHandleRef> =
