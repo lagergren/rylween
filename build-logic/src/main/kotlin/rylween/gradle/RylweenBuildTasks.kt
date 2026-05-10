@@ -503,6 +503,9 @@ abstract class GenerateCompiledGameHarnessTask : DefaultTask() {
     @get:InputFile
     abstract val gameSource: RegularFileProperty
 
+    @get:InputFiles
+    abstract val gameSources: ConfigurableFileCollection
+
     @get:Input
     abstract val sourceLabel: Property<String>
 
@@ -512,7 +515,8 @@ abstract class GenerateCompiledGameHarnessTask : DefaultTask() {
     @TaskAction
     fun generate() {
         val sourcePath = sourceLabel.get()
-        val gameLines = gameSource.get().asFile.readLines()
+        val sourceFiles = orderedGameSources(gameSource.get().asFile, gameSources.files)
+        val gameLines = sourceFiles.flatMap { file -> file.readLines() }
         val importLines = gameLines.filter { it.trimStart().startsWith("import ") }
         val bodyLines = gameLines.filterNot { it.trimStart().startsWith("import ") }
         val indentedGame =
@@ -559,6 +563,13 @@ abstract class GenerateCompiledGameHarnessTask : DefaultTask() {
     }
 }
 
+private fun orderedGameSources(
+    mainSource: File,
+    moduleSources: Set<File>,
+): List<File> =
+    (setOf(mainSource) + moduleSources)
+        .sortedWith(compareBy<File> { it.canonicalFile != mainSource.canonicalFile }.thenBy { it.name })
+
 /**
  * Generates typed current-game handles from `src/game/dsl/RylweenGame.dsl.kts`.
  *
@@ -569,6 +580,9 @@ abstract class GenerateCompiledGameHarnessTask : DefaultTask() {
 abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
     @get:InputFile
     abstract val gameSource: RegularFileProperty
+
+    @get:InputFiles
+    abstract val gameSources: ConfigurableFileCollection
 
     @get:Input
     abstract val sourceLabel: Property<String>
@@ -581,7 +595,9 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
     @TaskAction
     fun generate() {
         val sourcePath = sourceLabel.get()
-        val source = gameSource.get().asFile.readText()
+        val source =
+            orderedGameSources(gameSource.get().asFile, gameSources.files)
+                .joinToString(separator = "\n") { file -> file.readText() }
         activeSource = source
         val buildingNames = buildingNames(source)
         val townNames = townNames(source)
@@ -617,7 +633,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
                     "thunRiddle1",
                     "thunRiddle2",
                     "thunRiddle3",
-                    "colourRiddle",
+                    "colorRiddle",
                     "fireShieldGuardian",
                     "fireShield",
                     "bracelets",
@@ -733,18 +749,18 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
                     alias = "Roles",
                 ),
                 generateRefsClass(
-                    className = "RumourTableRefs",
-                    objectName = "RumourTables",
-                    typeName = "RumourTableId",
-                    factoryName = "rumourTable",
-                    names = handleNames(source, "RumourTables"),
+                    className = "RumorTableRefs",
+                    objectName = "RumorTables",
+                    typeName = "RumorTableId",
+                    factoryName = "rumorTable",
+                    names = handleNames(source, "RumorTables"),
                 ),
                 generateRefsClass(
-                    className = "RumourHandleRefs",
-                    objectName = "Rumours",
-                    typeName = "RumourId",
-                    factoryName = "rumour",
-                    names = handleNames(source, "Rumours"),
+                    className = "RumorHandleRefs",
+                    objectName = "Rumors",
+                    typeName = "RumorId",
+                    factoryName = "rumor",
+                    names = handleNames(source, "Rumors"),
                     allList = true,
                 ),
                 generateRefsClass(
@@ -789,6 +805,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
                     factoryName = "stateId",
                     names = stateNames(source),
                     slugOverrides = stateNames(source).associateWith { it.toKebab() },
+                    allowEmpty = true,
                 ),
                 generateRefsClass(
                     className = "PartyRefs",
@@ -797,6 +814,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
                     factoryName = "partyId",
                     names = partyNames(source),
                     slugOverrides = partyNames(source).associateWith { it.toKebab() },
+                    allowEmpty = true,
                 ),
                 generateRefsClass(
                     className = "GameMilestoneRefs",
@@ -1366,7 +1384,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
             sourceFailure(
                 source,
                 flatSceneMatch.groupOffset(1),
-                "scene handles must use grouped names such as Scenes.Towne.rumour.",
+                "scene handles must use grouped names such as Scenes.Towne.rumor.",
             )
         }
         val groupedNames =
@@ -1546,8 +1564,9 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
         slugOverrides: Map<String, String> = emptyMap(),
         allList: Boolean = false,
         alias: String? = null,
+        allowEmpty: Boolean = false,
     ): String {
-        if (names.isEmpty()) {
+        if (names.isEmpty() && !allowEmpty) {
             sourceFailure(activeSource, 0, "No $objectName handles were found in the game source.")
         }
         val lines =
@@ -2001,7 +2020,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
 
     private val textPatternOverrides =
         mapOf(
-            "Towne.Rumour.indexed" to "towne.rumour.r{}",
+            "Towne.Rumor.indexed" to "towne.rumor.r{}",
         )
 }
 

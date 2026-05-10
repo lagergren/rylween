@@ -17,7 +17,7 @@ import rylween.runtime.ScriptRootRef
 data class SpeakSessionSnapshot(
     val building: BuildingId,
     val selectedNpc: NpcId? = null,
-    val rumourTold: Boolean = false,
+    val rumorTold: Boolean = false,
     val step: SpeakSavedStep,
 )
 

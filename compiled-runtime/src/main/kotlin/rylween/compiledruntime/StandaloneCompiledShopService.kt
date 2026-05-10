@@ -145,10 +145,10 @@ internal class StandaloneCompiledShopService(
             screen.writeText(text.renderStandaloneLines(content))
             input.pause(SHOP_INTERLUDE_DELAY_MS)
         }
-        if (!interlude.runsRumourAfterAccept) return runtime
-        val rumour = rumourLines(runtime)
-        writeTextAndWait(rumour.lines)
-        return rumour.runtime
+        if (!interlude.runsRumorAfterAccept) return runtime
+        val rumor = rumorLines(runtime)
+        writeTextAndWait(rumor.lines)
+        return rumor.runtime
     }
 
     private fun runBuy(
@@ -519,11 +519,11 @@ internal class StandaloneCompiledShopService(
         return StandaloneSellQuote(current, draw.party)
     }
 
-    private fun rumourLines(runtime: StandaloneRuntimeState): StandaloneRumourResult {
-        val speak = systems.speak ?: return StandaloneRumourResult(runtime, listOf("No rumour."))
+    private fun rumorLines(runtime: StandaloneRuntimeState): StandaloneRumorResult {
+        val speak = systems.speak ?: return StandaloneRumorResult(runtime, listOf("No rumor."))
         val entries =
-            speak.textTables.rumourTables
-                .firstOrNull { table -> table.id == STANDARD_TOWN_RUMOUR_TABLE }
+            speak.textTables.rumorTables
+                .firstOrNull { table -> table.id == STANDARD_TOWN_RUMOR_TABLE }
                 ?.entries
                 ?.filter { entry ->
                     entry.excludedBy.none { state ->
@@ -531,19 +531,19 @@ internal class StandaloneCompiledShopService(
                     }
                 }.orEmpty()
         if (entries.isEmpty()) {
-            return StandaloneRumourResult(
+            return StandaloneRumorResult(
                 runtime,
                 speak.textTables.screens
-                    .firstOrNull { screen -> screen.id == SPEAK_NO_RUMOUR_SCREEN }
+                    .firstOrNull { screen -> screen.id == SPEAK_NO_RUMOR_SCREEN }
                     ?.text
                     ?.renderExternal(runtime)
                     .orEmpty(),
             )
         }
         val draw = runtime.party.drawRandom(0, entries.lastIndex)
-        log?.rngDraw("speak.rumour.entry", 0, entries.lastIndex, draw.value)
+        log?.rngDraw("speak.rumor.entry", 0, entries.lastIndex, draw.value)
         val current = runtime.withParty(draw.party)
-        return StandaloneRumourResult(current, entries[draw.value].text.renderExternal(current))
+        return StandaloneRumorResult(current, entries[draw.value].text.renderExternal(current))
     }
 
     private fun ExternalRuntimeTextBlock.renderExternal(runtime: StandaloneRuntimeState): List<String> =
@@ -716,15 +716,15 @@ internal class StandaloneCompiledShopService(
 }
 
 private const val SHOP_INTERLUDE_DELAY_MS = 2_000
-private const val STANDARD_TOWN_RUMOUR_TABLE = "standard_town"
-private const val SPEAK_NO_RUMOUR_SCREEN = "speak.no_rumour"
+private const val STANDARD_TOWN_RUMOR_TABLE = "standard_town"
+private const val SPEAK_NO_RUMOR_SCREEN = "speak.no_rumor"
 
 private data class StandaloneInterludeResult(
     val runtime: StandaloneRuntimeState,
     val ran: Boolean,
 )
 
-private data class StandaloneRumourResult(
+private data class StandaloneRumorResult(
     val runtime: StandaloneRuntimeState,
     val lines: List<String>,
 )

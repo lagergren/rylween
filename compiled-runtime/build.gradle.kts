@@ -211,7 +211,8 @@ val checkCompiledRuntimeNewPartyCreation: TaskProvider<RunInstalledLauncherWithJ
             "Party Creation",
             "Stats for char: 1",
             "Give Character 4 a name:",
-            "Wisdom must be > 50.",
+            "Wisdom must be",
+            "at least 50.",
             "1. Human",
             "6. Ranger",
             "Game saved.",
@@ -273,6 +274,7 @@ val checkCompiledRuntimeTownDialogueReplay: TaskProvider<RunInstalledLauncherWit
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
     replay.set("town-garth-reward-smoke")
+    seed.set(2L)
     expectedOutputContains.set(
         listOf(
             "compiled replay: town-garth-reward-smoke",
@@ -430,7 +432,7 @@ val checkCompiledRuntimeMasterCrownDiscoveryReplay: TaskProvider<RunInstalledLau
             "compiled replay component 4: mission.kobold_village",
             "compiled replay component 14: mission.nolrim_crypt",
             "compiled replay component 18: town.wilor_master_crown_location",
-            "You are better fit",
+            "suited for this than I am",
             "ugly pendant",
             "grant you the second",
             "skullweed plant",
@@ -620,7 +622,7 @@ val checkCompiledRuntimeTownSocialReplay: TaskProvider<RunInstalledLauncherWithJ
     RunInstalledLauncherWithJavaTask::class,
 ) {
     group = "verification"
-    description = "Runs Thord tavern and inn drinks, rumours, chitchat, bargirl, story, supper, and lodging paths."
+    description = "Runs Thord tavern and inn drinks, rumors, chitchat, bargirl, story, supper, and lodging paths."
 
     dependsOn(installCompiledRuntime)
     dependsOn(":emitExternalCompiledBundle")
@@ -638,7 +640,7 @@ val checkCompiledRuntimeTownSocialReplay: TaskProvider<RunInstalledLauncherWithJ
     expectedOutputContains.set(
         listOf(
             "compiled replay: town-social-paths",
-            "compiled replay component 1: town.thord_tavern_drinks_rumour_hassan_story",
+            "compiled replay component 1: town.thord_tavern_drinks_rumor_hassan_story",
             "compiled replay component 2: town.thord_inn_bargirl_drinks_lodging",
             "Welcome! Have a seat",
             "AAH!",
@@ -646,7 +648,7 @@ val checkCompiledRuntimeTownSocialReplay: TaskProvider<RunInstalledLauncherWithJ
             "After listening",
             "Chatting with",
             "Hassan",
-            "TRAVELLER'S STORY",
+            "TRAVELER'S STORY",
             "Deanna",
             "Ahh...!",
             "The other guests giggle.",

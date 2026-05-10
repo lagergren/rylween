@@ -243,8 +243,8 @@ fun ScriptScope.priestTeleport(caster: MemberRef) {
         clearText()
         screen {
             line(pronoun(caster, PronounCase.Subject), " picks up a stone slab")
+            line("from ", pronoun(caster, PronounCase.Possessive), " satchel and")
             lines(
-                "from his satchel and",
                 "uses a special instrument",
                 "to scratch the direction",
             )
@@ -262,6 +262,7 @@ fun ScriptScope.priestTeleport(caster: MemberRef) {
                     " 4-+-6",
                     "   2",
                     "",
+                    "(or arrow keys)",
                 ),
             )
         clearText()
@@ -274,7 +275,7 @@ fun ScriptScope.priestTeleport(caster: MemberRef) {
     }
 }
 
-fun ScriptScope.travellerStory() {
+fun ScriptScope.travelerStory() {
     clearText()
     val maxMembers = realm.partyMemberMax
     val storyteller =
@@ -291,8 +292,8 @@ fun ScriptScope.travellerStory() {
         clearText()
         screen {
             lines(
-                "Dead men do not",
-                "tell any great",
+                "Dead men",
+                "tell no",
                 "stories...",
             )
         }
@@ -303,7 +304,7 @@ fun ScriptScope.travellerStory() {
             line(partyName(storyteller), " stands up")
             line("and screams:")
             line("- ANYONE WHO WANNA HEAR")
-            line("  A TRAVELLER'S STORY?")
+            line("  A TRAVELER'S STORY?")
             line("")
         }
         pause(2000)

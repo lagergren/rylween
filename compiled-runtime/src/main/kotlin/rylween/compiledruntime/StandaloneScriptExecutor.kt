@@ -64,11 +64,11 @@ import rylween.dsl.pronoun
 import rylween.dsl.sourceId
 
 private const val PERCENT_DENOMINATOR = 100
-private const val STANDARD_TOWN_RUMOUR_TABLE = "standard_town"
+private const val STANDARD_TOWN_RUMOR_TABLE = "standard_town"
 private const val SPEAK_COMMAND_GROUP = "speak"
 private const val SPEAK_QUESTION_COMMAND_GROUP = "speak.questions"
 private const val SPEAK_NO_NPC_SCREEN = "speak.no_npc"
-private const val SPEAK_NO_RUMOUR_SCREEN = "speak.no_rumour"
+private const val SPEAK_NO_RUMOR_SCREEN = "speak.no_rumor"
 private const val SCRIPT_ROOT_KIND_DIALOGUE_BRANCH = "DialogueBranch"
 private const val SCRIPT_ROOT_KIND_QUESTION_ACTION = "QuestionAction"
 
@@ -266,7 +266,7 @@ internal class StandaloneScriptExecutor(
             CompiledOpcode.ForEachMember -> executeForEachMember(instruction, context, instructionIndex, instructionCount)
             CompiledOpcode.ForEachMonster -> StandaloneScriptSignal.Continue
             CompiledOpcode.Speak -> executeSpeak(instruction.handleOperand(0), context.insideLoop)
-            CompiledOpcode.TellRumour -> continueAfter { tellRumour(instruction.handleOperand(0), appendToCurrent = true) }
+            CompiledOpcode.TellRumor -> continueAfter { tellRumor(instruction.handleOperand(0), appendToCurrent = true) }
             CompiledOpcode.RunScene -> executeScene(instruction.handleOperand(0), context.insideLoop)
             CompiledOpcode.Encounter -> executeEncounter(instruction.handleOperand(0))
             CompiledOpcode.EnterDungeon ->
@@ -617,7 +617,7 @@ internal class StandaloneScriptExecutor(
         val branchSignal = executeDialogueBranch(npc, insideLoop)
         if (branchSignal != StandaloneScriptSignal.Continue) return branchSignal
 
-        var rumourTold = false
+        var rumorTold = false
         while (true) {
             screen.writeText(conversation.prompts.mainMenu.renderExternal(npc) + systems.commands.menuLines(SPEAK_COMMAND_GROUP))
             val command =
@@ -634,13 +634,13 @@ internal class StandaloneScriptExecutor(
                         }
 
                     "speak_question" -> executeQuestionMenu(speak, npc, insideLoop)
-                    "speak_rumour" ->
+                    "speak_rumor" ->
                         continueAfter {
-                            if (rumourTold) {
-                                screen.writeText(speak.noRumourLines())
+                            if (rumorTold) {
+                                screen.writeText(speak.noRumorLines())
                             } else {
-                                tellRumourBySlug(STANDARD_TOWN_RUMOUR_TABLE)
-                                rumourTold = true
+                                tellRumorBySlug(STANDARD_TOWN_RUMOR_TABLE)
+                                rumorTold = true
                             }
                         }
 
@@ -669,7 +669,7 @@ internal class StandaloneScriptExecutor(
                 candidate.topic == topic && candidate.job == content.slug(npc.job)
             }
         if (action != null) return executeScriptRoot(SCRIPT_ROOT_KIND_QUESTION_ACTION, action.scriptRoot, insideLoop)
-        screen.writeText(speak.questionReply(topic, npc)?.renderExternal(npc) ?: speak.noRumourLines())
+        screen.writeText(speak.questionReply(topic, npc)?.renderExternal(npc) ?: speak.noRumorLines())
         return StandaloneScriptSignal.Continue
     }
 
@@ -742,20 +742,20 @@ internal class StandaloneScriptExecutor(
         screen.writeText(promptVariant?.text?.renderExternal(npc).orEmpty() + reply?.renderExternal(npc).orEmpty())
     }
 
-    private fun tellRumour(
+    private fun tellRumor(
         table: CompiledHandleRef,
         appendToCurrent: Boolean = false,
     ) {
-        tellRumourBySlug(content.slug(table), appendToCurrent)
+        tellRumorBySlug(content.slug(table), appendToCurrent)
     }
 
-    private fun tellRumourBySlug(
+    private fun tellRumorBySlug(
         tableSlug: String,
         appendToCurrent: Boolean = false,
     ) {
         val speak = systems.speak ?: return
         val entries =
-            speak.textTables.rumourTables
+            speak.textTables.rumorTables
                 .firstOrNull { table -> table.id == tableSlug }
                 ?.entries
                 ?.filter { entry ->
@@ -763,9 +763,9 @@ internal class StandaloneScriptExecutor(
                         flagStateRef("${state.flag}.${state.native}")?.let(::matchesFlagState) == true
                     }
                 }.orEmpty()
-        val entry = entries.randomElementOrNull("speak.rumour.entry")
+        val entry = entries.randomElementOrNull("speak.rumor.entry")
         if (entry == null) {
-            screen.writeText(speak.noRumourLines())
+            screen.writeText(speak.noRumorLines())
             return
         }
         val lines = entry.text.renderExternal()
@@ -1215,7 +1215,7 @@ internal class StandaloneScriptExecutor(
     private fun ExternalRuntimeSpeak.screen(id: String): ExternalRuntimeTextBlock? =
         textTables.screens.firstOrNull { screen -> screen.id == id }?.text
 
-    private fun ExternalRuntimeSpeak.noRumourLines(): List<String> = screen(SPEAK_NO_RUMOUR_SCREEN)?.renderExternal().orEmpty()
+    private fun ExternalRuntimeSpeak.noRumorLines(): List<String> = screen(SPEAK_NO_RUMOR_SCREEN)?.renderExternal().orEmpty()
 
     private fun ExternalRuntimeSpeak.questionReply(
         topic: QuestionTopic,

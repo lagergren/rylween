@@ -1,3 +1,4 @@
+import org.gradle.api.file.ConfigurableFileCollection
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import rylween.gradle.CheckRustMudBundleInspectTask
 import rylween.gradle.CompileNativeCExecutableTask
@@ -27,6 +28,18 @@ val generatedGameCatalogFile: Provider<RegularFile> =
         "generated/gameCatalog/kotlin/rylween/game/RylweenGeneratedGameCatalog.kt",
     )
 val gameDslSourceFile: RegularFile = layout.projectDirectory.file("src/game/dsl/RylweenGame.dsl.kts")
+val gameDslScenarioModuleFile: RegularFile = layout.projectDirectory.file("src/game/dsl/RylweenTestScenarios.dsl.kts")
+val includeTestScenarioDsl: Provider<Boolean> =
+    providers
+        .gradleProperty("rylween.includeTestScenarios")
+        .map(String::toBoolean)
+        .orElse(true)
+val gameDslModuleFiles: ConfigurableFileCollection =
+    objects.fileCollection().from(gameDslSourceFile).also { modules ->
+        if (includeTestScenarioDsl.get()) {
+            modules.from(gameDslScenarioModuleFile)
+        }
+    }
 val gameDslSourceLabel: String = gameDslSourceFile.asFile.relativeTo(projectDir).invariantSeparatorsPath
 
 kotlin {
@@ -83,6 +96,7 @@ val generateCompiledGameHarness: TaskProvider<GenerateCompiledGameHarnessTask> b
     description = "Generates a test harness that compiles the game DSL as Kotlin and exposes nextRylween."
 
     gameSource.set(gameDslSourceFile)
+    gameSources.from(gameDslModuleFiles)
     sourceLabel.set(gameDslSourceLabel)
     outputFile.set(generatedGameHarnessFile)
 }
@@ -92,6 +106,7 @@ val generateGameCatalogHandles: TaskProvider<GenerateGameCatalogHandlesTask> by 
     description = "Generates current-game item and item-pool handles from the game DSL declarations."
 
     gameSource.set(gameDslSourceFile)
+    gameSources.from(gameDslModuleFiles)
     sourceLabel.set(gameDslSourceLabel)
     outputFile.set(generatedGameCatalogFile)
 }

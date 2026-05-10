@@ -522,7 +522,7 @@ private class NativePathCollector {
             is Op.ForEachMember -> collect(op.body)
             is Op.ForEachMonster -> collect(op.body)
             is Op.Speak -> Unit
-            is Op.TellRumour -> Unit
+            is Op.TellRumor -> Unit
             is Op.RunScene -> Unit
             is Op.Encounter -> Unit
             is Op.EnterDungeon -> Unit

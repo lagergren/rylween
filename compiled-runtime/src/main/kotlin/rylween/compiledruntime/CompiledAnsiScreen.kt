@@ -21,6 +21,7 @@ import rylween.compiled.ExternalScreenRegion
 import rylween.compiled.ExternalStaticScreen
 import rylween.compiled.ExternalTerminalTerrainStyle
 import rylween.dsl.GridPoint
+import rylween.dsl.HitPoints
 import rylween.dsl.PcClass
 import rylween.frontend.ansi.AnsiCodes
 import kotlin.math.max
@@ -299,19 +300,28 @@ internal class CompiledAnsiScreen(
         val bottom =
             (0 until 4).joinToString("   ") { index ->
                 val member = party.members.getOrNull(index)
-                member
-                    ?.let { current ->
-                        "H${index + 1}: ${AnsiCodes.FG_YELLOW}${current.hitPoints.current.toString().padStart(3)}/" +
-                            "${current.hitPoints.max.toString().padStart(3)}${AnsiCodes.FG_GREEN}"
-                    }
-                    ?: "H${index + 1}:        "
+                member?.statusLineSegment(index) ?: "${index + 1} --"
             }
         goto(statusTop)
         terminal.writeRaw(top)
         goto(statusBottom)
-        terminal.writeRaw("${AnsiCodes.FG_GREEN}$bottom${AnsiCodes.FG_WHITE}")
+        terminal.writeRaw("${AnsiCodes.FG_GREEN}$bottom${AnsiCodes.CSI}K${AnsiCodes.FG_WHITE}")
         terminal.flush()
     }
+
+    private fun CompiledPartyMember.statusLineSegment(index: Int): String =
+        buildString {
+            append(index + 1)
+            append(' ')
+            append(hitPoints.statusPoolText("H"))
+            if (pcClass == PcClass.Mage || pcClass == PcClass.Priest) {
+                append(' ')
+                append(mana.statusPoolText("M"))
+            }
+        }
+
+    private fun HitPoints.statusPoolText(label: String): String =
+        "$label${currentAnsiColor()}$current${AnsiCodes.FG_YELLOW}/$max${AnsiCodes.FG_GREEN}"
 
     private fun foodStatus(
         food: Int,
@@ -320,6 +330,15 @@ internal class CompiledAnsiScreen(
         if (food == 0) return "${AnsiCodes.FG_RED}STARVING${AnsiCodes.FG_GREEN} "
         if (food < members.count { member -> !member.dead } * 3) return "${AnsiCodes.FG_MAGENTA}HUNGRY  "
         return "${AnsiCodes.FG_YELLOW}OK    "
+    }
+
+    private fun HitPoints.currentAnsiColor(): String {
+        val max = max.coerceAtLeast(1)
+        return when {
+            current * 4 <= max -> AnsiCodes.FG_RED
+            current * 2 <= max -> AnsiCodes.FG_MAGENTA
+            else -> AnsiCodes.FG_YELLOW
+        }
     }
 
     private fun renderMap(

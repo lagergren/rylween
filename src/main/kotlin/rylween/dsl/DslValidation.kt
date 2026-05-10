@@ -1170,7 +1170,7 @@ private fun validateTextBlock(
     }
 }
 
-/** Validates conversation menus, rumour tables, prompts, and NPC dialogue references. */
+/** Validates conversation menus, rumor tables, prompts, and NPC dialogue references. */
 fun validateSpeakSystem(
     speak: SpeakSystemModel,
     characters: List<CharacterModel> = emptyList(),
@@ -1205,11 +1205,11 @@ fun validateSpeakSystem(
             listOf(
                 ConversationTopic.Chitchat,
                 ConversationTopic.Question,
-                ConversationTopic.Rumour,
+                ConversationTopic.Rumor,
                 ConversationTopic.Bye,
             )
         check(conversation.menu.actions.map { it.topic } == expectedTopics) {
-            "standard conversation top-level menu must be C/Q/R/B chitchat, question, rumour, bye"
+            "standard conversation top-level menu must be C/Q/R/B chitchat, question, rumor, bye"
         }
 
         val expectedQuestionTopics =
@@ -1244,11 +1244,11 @@ fun validateSpeakSystem(
             "standard conversation chitchat replies must dispatch by subject and NPC job"
         }
 
-        check(conversation.rumour.usage == RumourUsagePolicy.OncePerConversationThenFallback) {
-            "standard conversation rumours must be once per conversation with fallback text"
+        check(conversation.rumor.usage == RumorUsagePolicy.OncePerConversationThenFallback) {
+            "standard conversation rumors must be once per conversation with fallback text"
         }
-        check(conversation.rumour.source == RumourSourcePolicy.StandardTownRumours) {
-            "standard conversation rumours must use the standard town rumour source"
+        check(conversation.rumor.source == RumorSourcePolicy.StandardTownRumors) {
+            "standard conversation rumors must use the standard town rumor source"
         }
         validateTextBlock(conversation.prompts.chooseNpc, "speak choose-npc prompt")
         validateTextBlock(
@@ -1370,31 +1370,31 @@ private fun validateSpeakTextTables(
     }
 
     check(
-        tables.rumourTables
+        tables.rumorTables
             .map { it.id }
             .toSet()
-            .size == tables.rumourTables.size,
+            .size == tables.rumorTables.size,
     ) {
-        "duplicate rumour table"
+        "duplicate rumor table"
     }
-    tables.rumourTables.forEach { table ->
-        check(table.entries.isNotEmpty()) { "rumour table ${table.id.slug} has no entries" }
+    tables.rumorTables.forEach { table ->
+        check(table.entries.isNotEmpty()) { "rumor table ${table.id.slug} has no entries" }
         val namedEntries = table.entries.mapNotNull { it.id }
         check(namedEntries.toSet().size == namedEntries.size) {
-            "rumour table ${table.id.slug} has duplicate rumours"
+            "rumor table ${table.id.slug} has duplicate rumors"
         }
         table.entries.forEach { entry ->
             val label = entry.id?.slug ?: "anonymous"
             check(entry.excludedBy.toSet().size == entry.excludedBy.size) {
-                "rumour $label has duplicate exclusion states"
+                "rumor $label has duplicate exclusion states"
             }
             entry.excludedBy.forEach { state ->
                 check(state.flag.scope == FlagScope.Party) {
-                    "rumour $label exclusion ${state.flag.slug}.${state.native} must be a party state"
+                    "rumor $label exclusion ${state.flag.slug}.${state.native} must be a party state"
                 }
-                flagStates?.requireKnown(state, "rumour $label exclusion")
+                flagStates?.requireKnown(state, "rumor $label exclusion")
             }
-            validateTextBlock(entry.text, "rumour table ${table.id.slug}.$label", knownRoles, knownTowns)
+            validateTextBlock(entry.text, "rumor table ${table.id.slug}.$label", knownRoles, knownTowns)
         }
     }
 }

@@ -647,11 +647,11 @@ data class RewardBundleId(
     val slug: String,
 )
 
-data class RumourTableId(
+data class RumorTableId(
     val slug: String,
 )
 
-data class RumourId(
+data class RumorId(
     val slug: String,
 )
 
@@ -865,9 +865,9 @@ fun lootTable(slug: String): LootTableId = LootTableId(slug)
 
 fun rewardBundle(slug: String): RewardBundleId = RewardBundleId(slug)
 
-fun rumourTable(slug: String): RumourTableId = RumourTableId(slug)
+fun rumorTable(slug: String): RumorTableId = RumorTableId(slug)
 
-fun rumour(slug: String): RumourId = RumourId(slug)
+fun rumor(slug: String): RumorId = RumorId(slug)
 
 // Engine-native operation handles are part of the reusable runtime boundary,
 // not game content.
@@ -1264,8 +1264,8 @@ sealed interface Op {
         val building: BuildingId,
     ) : Op
 
-    data class TellRumour(
-        val table: RumourTableId,
+    data class TellRumor(
+        val table: RumorTableId,
     ) : Op
 
     data class RunScene(
@@ -2034,7 +2034,7 @@ data class ShopInterludeModel(
     val decline: InputBindingModel,
     val accepted: List<TextBlock>,
     val declined: TextBlock,
-    val runsRumourAfterAccept: Boolean,
+    val runsRumorAfterAccept: Boolean,
     val forceFirstUntil: FlagState?,
 ) {
     val acceptKey: Char get() = accept.primaryChar
@@ -2116,7 +2116,7 @@ enum class DialogueBranchSelection { FirstMatchingStateThenDefault }
 
 enum class MissionHintPolicy { BeforeEachMenu }
 
-enum class ConversationTopic { Chitchat, Question, Rumour, Bye }
+enum class ConversationTopic { Chitchat, Question, Rumor, Bye }
 
 enum class QuestionTopic { Lodging, Magic, People, Nothing }
 
@@ -2124,9 +2124,9 @@ enum class ChitchatSubject { Well, Weather, Health }
 
 enum class ChitchatReplyPolicy { BySubjectAndNpcJob }
 
-enum class RumourUsagePolicy { OncePerConversationThenFallback }
+enum class RumorUsagePolicy { OncePerConversationThenFallback }
 
-enum class RumourSourcePolicy { StandardTownRumours }
+enum class RumorSourcePolicy { StandardTownRumors }
 
 enum class ChitchatPromptAudience { Any, Female, Male }
 
@@ -2164,9 +2164,9 @@ data class ChitchatModel(
     val replies: ChitchatReplyPolicy,
 )
 
-data class ConversationRumourModel(
-    val usage: RumourUsagePolicy,
-    val source: RumourSourcePolicy,
+data class ConversationRumorModel(
+    val usage: RumorUsagePolicy,
+    val source: RumorSourcePolicy,
 )
 
 data class ConversationPromptTextModel(
@@ -2211,15 +2211,15 @@ data class QuestionReplyTextModel(
     val replies: List<JobTextModel>,
 )
 
-data class RumourEntryModel(
-    val id: RumourId?,
+data class RumorEntryModel(
+    val id: RumorId?,
     val text: TextBlock,
     val excludedBy: List<FlagState>,
 )
 
-data class RumourTextTableModel(
-    val id: RumourTableId,
-    val entries: List<RumourEntryModel>,
+data class RumorTextTableModel(
+    val id: RumorTableId,
+    val entries: List<RumorEntryModel>,
 )
 
 data class QuestionActionScriptModel(
@@ -2233,7 +2233,7 @@ data class SpeakTextTablesModel(
     val chitchatPrompts: List<ChitchatPromptTextModel> = emptyList(),
     val chitchatReplies: List<ChitchatReplyTextModel> = emptyList(),
     val questionReplies: List<QuestionReplyTextModel> = emptyList(),
-    val rumourTables: List<RumourTextTableModel> = emptyList(),
+    val rumorTables: List<RumorTextTableModel> = emptyList(),
 )
 
 data class StandardConversationModel(
@@ -2243,7 +2243,7 @@ data class StandardConversationModel(
     val missionHints: MissionHintPolicy,
     val menu: ConversationMenuModel,
     val chitchat: ChitchatModel,
-    val rumour: ConversationRumourModel,
+    val rumor: ConversationRumorModel,
     val prompts: ConversationPromptTextModel,
     val nativeServices: List<EngineServiceUse>,
 )
@@ -2760,7 +2760,7 @@ private fun ConversationTopic.defaultLabel(): String =
     when (this) {
         ConversationTopic.Chitchat -> "Chitchat"
         ConversationTopic.Question -> "Question"
-        ConversationTopic.Rumour -> "Rumors"
+        ConversationTopic.Rumor -> "Rumors"
         ConversationTopic.Bye -> "Bye"
     }
 
@@ -3413,8 +3413,8 @@ fun render(arg: Any): String =
         is LootTableId -> arg.slug
         is RewardBundleId -> arg.slug
         is NpcJobId -> arg.slug
-        is RumourTableId -> arg.slug
-        is RumourId -> arg.slug
+        is RumorTableId -> arg.slug
+        is RumorId -> arg.slug
         else -> arg.toString()
     }
 
@@ -3678,8 +3678,8 @@ class ScriptScope(
         record(Op.Speak(building))
     }
 
-    fun tellRumour(table: RumourTableId = DslDefaultRumourTables.standardTown) {
-        record(Op.TellRumour(table))
+    fun tellRumor(table: RumorTableId = DslDefaultRumorTables.standardTown) {
+        record(Op.TellRumor(table))
     }
 
     fun encounter(
@@ -4084,7 +4084,7 @@ class ShopInterludeBuilder(
     private var declinedText: TextBlock? = null
     private var acceptBinding: InputBindingModel = inputKey('A')
     private var declineBinding: InputBindingModel = inputKey('D')
-    var runsRumourAfterAccept: Boolean = false
+    var runsRumorAfterAccept: Boolean = false
     private var forceFirstUntilState: FlagState? = null
 
     var acceptKey: Char
@@ -4142,7 +4142,7 @@ class ShopInterludeBuilder(
             decline = declineBinding,
             accepted = acceptedTexts.toList(),
             declined = requireNotNull(declinedText) { "shop interlude requires declined text" },
-            runsRumourAfterAccept = runsRumourAfterAccept,
+            runsRumorAfterAccept = runsRumorAfterAccept,
             forceFirstUntil = forceFirstUntilState,
         )
 }
@@ -8212,7 +8212,7 @@ class SpeakTextTablesBuilder {
     private val chitchatPrompts = mutableListOf<ChitchatPromptTextModel>()
     private val chitchatReplies = mutableListOf<ChitchatReplyTextModel>()
     private val questionReplies = mutableListOf<QuestionReplyTextModel>()
-    private val rumourTables = mutableListOf<RumourTextTableModel>()
+    private val rumorTables = mutableListOf<RumorTextTableModel>()
 
     fun screen(
         id: TextId,
@@ -8242,11 +8242,11 @@ class SpeakTextTablesBuilder {
         questionReplies += QuestionReplyTextModel(topic, JobTextTableBuilder().apply(body).build())
     }
 
-    fun rumourTable(
-        id: RumourTableId,
-        body: RumourTextTableBuilder.() -> Unit,
+    fun rumorTable(
+        id: RumorTableId,
+        body: RumorTextTableBuilder.() -> Unit,
     ) {
-        rumourTables += RumourTextTableBuilder(id).apply(body).build()
+        rumorTables += RumorTextTableBuilder(id).apply(body).build()
     }
 
     fun build(): SpeakTextTablesModel =
@@ -8255,7 +8255,7 @@ class SpeakTextTablesBuilder {
             chitchatPrompts = chitchatPrompts.toList(),
             chitchatReplies = chitchatReplies.toList(),
             questionReplies = questionReplies.toList(),
-            rumourTables = rumourTables.toList(),
+            rumorTables = rumorTables.toList(),
         )
 }
 
@@ -8318,28 +8318,28 @@ class JobTextTableBuilder {
 }
 
 @RylNextDsl
-class RumourTextTableBuilder(
-    private val id: RumourTableId,
+class RumorTextTableBuilder(
+    private val id: RumorTableId,
 ) {
-    private val entries = mutableListOf<RumourEntryModel>()
+    private val entries = mutableListOf<RumorEntryModel>()
 
-    fun rumour(body: RumourEntryBuilder.() -> Unit) {
-        entries += RumourEntryBuilder(null).apply(body).build()
+    fun rumor(body: RumorEntryBuilder.() -> Unit) {
+        entries += RumorEntryBuilder(null).apply(body).build()
     }
 
-    fun rumour(
-        id: RumourId,
-        body: RumourEntryBuilder.() -> Unit,
+    fun rumor(
+        id: RumorId,
+        body: RumorEntryBuilder.() -> Unit,
     ) {
-        entries += RumourEntryBuilder(id).apply(body).build()
+        entries += RumorEntryBuilder(id).apply(body).build()
     }
 
-    fun build(): RumourTextTableModel = RumourTextTableModel(id, entries.toList())
+    fun build(): RumorTextTableModel = RumorTextTableModel(id, entries.toList())
 }
 
 @RylNextDsl
-class RumourEntryBuilder(
-    private val id: RumourId?,
+class RumorEntryBuilder(
+    private val id: RumorId?,
 ) : TextLineSink {
     private val text = StructuredTextBlockBuilder()
     private val excludedStates = mutableListOf<FlagState>()
@@ -8352,7 +8352,7 @@ class RumourEntryBuilder(
         excludedStates += states
     }
 
-    fun build(): RumourEntryModel = RumourEntryModel(id, text.build(), excludedStates.toList())
+    fun build(): RumorEntryModel = RumorEntryModel(id, text.build(), excludedStates.toList())
 }
 
 @RylNextDsl
@@ -8372,11 +8372,11 @@ class StandardConversationBuilder {
                     people()
                     nothing()
                 }
-                rumour()
+                rumor()
                 bye()
             }.build()
     private var chitchatModel = ChitchatBuilder().build()
-    private var rumourModel = ConversationRumourBuilder().build()
+    private var rumorModel = ConversationRumorBuilder().build()
     private var promptsModel = ConversationPromptTextBuilder().build()
 
     fun menu(body: ConversationMenuBuilder.() -> Unit) {
@@ -8387,8 +8387,8 @@ class StandardConversationBuilder {
         chitchatModel = ChitchatBuilder(chitchatModel).apply(body).build()
     }
 
-    fun rumour(body: ConversationRumourBuilder.() -> Unit) {
-        rumourModel = ConversationRumourBuilder(rumourModel).apply(body).build()
+    fun rumor(body: ConversationRumorBuilder.() -> Unit) {
+        rumorModel = ConversationRumorBuilder(rumorModel).apply(body).build()
     }
 
     fun prompts(body: ConversationPromptTextBuilder.() -> Unit) {
@@ -8403,7 +8403,7 @@ class StandardConversationBuilder {
             missionHints = missionHints,
             menu = menuModel,
             chitchat = chitchatModel,
-            rumour = rumourModel,
+            rumor = rumorModel,
             prompts = promptsModel,
             nativeServices = defaultNativeServices,
         )
@@ -8413,7 +8413,7 @@ class StandardConversationBuilder {
             listOf(
                 EngineServiceUse(EngineService.KeyboardInput, "NPC selection and conversation menu choices"),
                 EngineServiceUse(EngineService.Rendering, "text-window clearing, menu rendering, and dialogue screens"),
-                EngineServiceUse(EngineService.RandomNumbers, "chitchat subject and rumour selection"),
+                EngineServiceUse(EngineService.RandomNumbers, "chitchat subject and rumor selection"),
                 EngineServiceUse(EngineService.NpcStateStorage, "NPC lookup, job/gender/role metadata, and visited bits"),
                 EngineServiceUse(EngineService.PartyStateMutation, "dialogue scripts can advance flags, rewards, and journals"),
                 EngineServiceUse(EngineService.TextFormatting, "NPC names, jobs, locations, and role-bound text placeholders"),
@@ -8488,18 +8488,18 @@ class ConversationMenuBuilder {
         questionActions = QuestionMenuBuilder().apply(body).build()
     }
 
-    fun rumour(
+    fun rumor(
         key: Char = 'R',
-        action: KeyActionId = DslDefaultKeyActions.speakRumour,
+        action: KeyActionId = DslDefaultKeyActions.speakRumor,
     ) {
-        rumour(inputKey(key), action)
+        rumor(inputKey(key), action)
     }
 
-    fun rumour(
+    fun rumor(
         binding: InputBindingModel,
-        action: KeyActionId = DslDefaultKeyActions.speakRumour,
+        action: KeyActionId = DslDefaultKeyActions.speakRumor,
     ) {
-        actions += ConversationMenuActionModel(ConversationTopic.Rumour, binding, action)
+        actions += ConversationMenuActionModel(ConversationTopic.Rumor, binding, action)
     }
 
     fun bye(
@@ -8599,15 +8599,15 @@ class ChitchatBuilder(
 }
 
 @RylNextDsl
-class ConversationRumourBuilder(
-    initial: ConversationRumourModel? = null,
+class ConversationRumorBuilder(
+    initial: ConversationRumorModel? = null,
 ) {
-    var usage: RumourUsagePolicy =
-        initial?.usage ?: RumourUsagePolicy.OncePerConversationThenFallback
-    var source: RumourSourcePolicy =
-        initial?.source ?: RumourSourcePolicy.StandardTownRumours
+    var usage: RumorUsagePolicy =
+        initial?.usage ?: RumorUsagePolicy.OncePerConversationThenFallback
+    var source: RumorSourcePolicy =
+        initial?.source ?: RumorSourcePolicy.StandardTownRumors
 
-    fun build(): ConversationRumourModel = ConversationRumourModel(usage, source)
+    fun build(): ConversationRumorModel = ConversationRumorModel(usage, source)
 }
 
 @RylNextDsl
@@ -8854,6 +8854,37 @@ class RylweenBuilder {
 }
 
 fun rylween(body: RylweenBuilder.() -> Unit): RylweenModel = RylweenBuilder().apply(body).build()
+
+@RylNextDsl
+class RylweenStateModuleBuilder {
+    private val states = mutableListOf<StateModel>()
+
+    fun state(
+        id: StateId,
+        body: StateBuilder.() -> Unit,
+    ) {
+        stateFixture(id, body)
+    }
+
+    fun stateFixture(
+        id: StateId,
+        body: StateBuilder.() -> Unit,
+    ) {
+        states += StateBuilder(id, StateKind.AuthoredFixture).apply(body).build()
+    }
+
+    fun runtimeState(
+        id: StateId,
+        body: StateBuilder.() -> Unit,
+    ) {
+        states += StateBuilder(id, StateKind.RuntimeSnapshot).apply(body).build()
+    }
+
+    fun build(): List<StateModel> = states.toList()
+}
+
+fun RylweenModel.withStateModule(body: RylweenStateModuleBuilder.() -> Unit): RylweenModel =
+    copy(states = states + RylweenStateModuleBuilder().apply(body).build())
 
 @RylNextDsl
 class StateBuilder(

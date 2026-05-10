@@ -70,6 +70,7 @@ internal object StandaloneCompiledReplayPlans {
     private const val TOWN_SILVER_KEY_STATE = "town-silver-key-replay"
     private const val HOBGOBLIN_CARAVAN_STATE = "hobgoblin-caravan-replay"
     private const val MASTER_CROWN_CHAIN_STATE = "master-crown-chain-replay"
+    private const val NEAR_WINNING_STATE = "near-winning-replay"
 
     fun build(
         name: String,
@@ -84,7 +85,7 @@ internal object StandaloneCompiledReplayPlans {
             TOWN_CHURCH_PATHS -> townChurchPaths(stateOverride ?: TOWN_SERVICES_STATE)
             TOWN_SOCIAL_PATHS -> townSocialPaths(stateOverride ?: TOWN_SERVICES_STATE)
             TOWN_RANDOM_OFFER_PATH -> townRandomOfferPath(stateOverride ?: TOWN_SERVICES_STATE)
-            TOWN_GARTH_REWARD_SMOKE -> townGarthRewardSmoke(bundle, stateOverride ?: FRESH_STATE)
+            TOWN_GARTH_REWARD_SMOKE -> townGarthRewardSmoke(bundle, stateOverride ?: NEAR_WINNING_STATE)
             TOWN_MISSION_INTRO_ROUTE -> townMissionIntroRoute(bundle, stateOverride ?: TOWN_MISSION_STATE)
             TOWN_SILVER_KEY_CHAIN_ROUTE -> townSilverKeyChainRoute(bundle, stateOverride ?: TOWN_SILVER_KEY_STATE)
             SILVER_KEY_DISCOVERY_ROUTE -> silverKeyDiscoveryRoute(bundle, stateOverride ?: TOWN_MISSION_STATE)
@@ -133,7 +134,7 @@ internal object StandaloneCompiledReplayPlans {
                     StandaloneReplayComponent(
                         name = "town.wilor_master_crown_intro",
                         commands = "E3N" + speakNpc(2) + speakNpc(5) + "LL",
-                        checkpoints = listOf("output:You are better fit", "state:master_crown.task1_assigned"),
+                        checkpoints = listOf("output:suited for this than I am", "state:master_crown.task1_assigned"),
                     ),
                     moveTo("travel.to_kobold_village", location("kobold_village")),
                     StandaloneReplayComponent(
@@ -484,7 +485,7 @@ internal object StandaloneCompiledReplayPlans {
             components =
                 listOf(
                     StandaloneReplayComponent(
-                        name = "town.thord_tavern_drinks_rumour_hassan_story",
+                        name = "town.thord_tavern_drinks_rumor_hassan_story",
                         commands = "E3OAOBOCODOERAS2CBT1TL",
                         checkpoints =
                             listOf(
@@ -494,7 +495,7 @@ internal object StandaloneCompiledReplayPlans {
                                 "output:After listening",
                                 "output:Chatting with",
                                 "output:Hassan",
-                                "output:TRAVELLER'S STORY",
+                                "output:TRAVELER'S STORY",
                             ),
                     ),
                     StandaloneReplayComponent(
@@ -650,11 +651,11 @@ internal object StandaloneCompiledReplayPlans {
         mapOf(
             12 to waitForInput(),
             20 to waitForInput(),
-        ) + (13..19).associateWith(::colourRiddleRoute)
+        ) + (13..19).associateWith(::colorRiddleRoute)
 
-    private fun reebarAscendEvents(): Map<Int, String> = mapOf(12 to waitForInput()) + (13..19).associateWith(::colourRiddleRoute)
+    private fun reebarAscendEvents(): Map<Int, String> = mapOf(12 to waitForInput()) + (13..19).associateWith(::colorRiddleRoute)
 
-    private fun colourRiddleRoute(level: Int): String = waitForInput(2) + (20 - level) + waitForInput()
+    private fun colorRiddleRoute(level: Int): String = waitForInput(2) + (20 - level) + waitForInput()
 
     private fun thunTempleRoute(): String =
         waitForInput(2) +
