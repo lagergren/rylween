@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-LAUNCHER="$ROOT_DIR/compiled-runtime/build/install/rylween-compiled-runtime/bin/rylween-compiled"
+LAUNCHER="$ROOT_DIR/runtime/build/install/rylween/bin/rylween"
 BUNDLE="$ROOT_DIR/build/compiled/rylween-bundle.json"
 
 build=false
@@ -24,7 +24,7 @@ for arg in "$@"; do
 done
 
 if [[ "$build" == true || ! -x "$LAUNCHER" || ! -f "$BUNDLE" ]]; then
-  (cd "$ROOT_DIR" && ./gradlew emitExternalCompiledBundle :compiled-runtime:installCompiledRuntime --console=plain)
+  (cd "$ROOT_DIR" && ./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain)
 fi
 
 bundle_seen=false

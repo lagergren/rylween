@@ -7,9 +7,11 @@ keep the door open for them — and so that the unfinished "version 3"
 multi-party scoping work isn't lost.
 
 The original code is a single-process, single-party Xenolink BBS door. The
-current port keeps that shape: one binary, one party, one realm in
-`data/current-world.json5`, one writer. Everything below describes what would
-have to change to make it more than that, and in what order.
+current port keeps that shape: one binary, one party, one runtime save slot by
+default (`build/saves/runtime.rsave`), one writer. Authored game content and
+ANSI resources are packaged through `:game` resources; there is no mutable root
+`data/` world directory in the active checkout. Everything below describes what
+would have to change to make the runtime more than that, and in what order.
 
 ## 1. Single-world, multi-party shared state
 
@@ -20,11 +22,11 @@ layout. Two parties walking through Theorin see the same blacksmith and the
 same rumours; if party A finishes the smuggler quest, party B walks in and the
 smuggler is gone.
 
-Today this doesn't work. `data/current-world.json5` is single-writer by
-construction — the engine `fopen`s it, mutates the in-memory tree, and rewrites
-the whole file on save. No party identifier exists; the save format assumes "the
-party" is implicit. Two engines pointed at the same file would race on every
-save and silently clobber one another's state.
+Today this doesn't work. The active runtime save format is deliberately
+single-party: it stores one party, one location/mode, one RNG stream, and the
+continuation state needed to resume that party. No shared world-state store or
+party identifier exists. Two runtimes pointed at the same save would race on
+every write and silently clobber one another's state.
 
 The lightweight shape for v0 would be a split between *world state* and *party
 state*. World state is what every party sees: NPC roster (post-realization),
@@ -32,10 +34,10 @@ town inventories, mission flags, world clock. Party state is what one party
 carries: roster, inventory, location, journal, per-party mission progress.
 Concretely:
 
-  - `data/realms/<realm-id>/world.json5` — the realized, mutable world.
+  - `<saves-dir>/realms/<realm-id>/world.json5` — the realized, mutable world.
     One writer at a time, guarded by a file lock (`flock(LOCK_EX)` is enough
     for a single-host MUD).
-  - `data/realms/<realm-id>/parties/<party-id>.json5` — one file per party.
+  - `<saves-dir>/realms/<realm-id>/parties/<party-id>.json5` — one file per party.
     Owned exclusively by that party; never touched by anyone else.
 
 A party's session reads world.json5 + its own party file at startup, mutates
@@ -81,12 +83,12 @@ can follow them — at the cost of a turn or a check. Tracks decay (drop after
 N world-clock days). This is the first feature that makes the wilderness feel
 *populated* rather than static.
 
-**Ambush.** A hook already exists in the data: `data/world.json5` carries
-`ambush_chance: 19` on camped parties, and `data/world/texts/rest.json5` has
-the `Ambush!` string ready. Today this fires monster ambushes at camp. The
-generalization is: when two parties camp within K hexes of each other on the
-same world-night, roll the same ambush chance and let one party surprise the
-other. The combat surface is the harder part — see below.
+**Ambush.** A hook already exists in the authored game rules: camped parties
+have an ambush chance and the rest text includes the `Ambush!` string. Today
+this fires monster ambushes at camp. The generalization is: when two parties
+camp within K hexes of each other on the same world-night, roll the same ambush
+chance and let one party surprise the other. The combat surface is the harder
+part — see below.
 
 **Combat vs. another party.** The existing battle loop in `battle.c` is
 monster-shaped: opponent slots come from the monster table, AI is the
@@ -94,10 +96,9 @@ nasty-magic / spell-pick logic that §23 is currently lifting to data. A party
 opponent would slot into the same shape if the opposing party's roster can be
 projected into the battle struct. That projection is the work: an enemy party
 is six PCs, each with full inventory and spell list, not a row from
-`data/monsters.json5`. The right time to attempt this is *after* §23 finishes
-and the battle loop is fully data-driven on the monster side — at that point
-adding a second source of opponents (read from another party-file) is a
-contained change.
+the compiled monster table. The right time to attempt this is after the battle
+loop is fully data-driven on the monster side — at that point adding a second
+source of opponents (read from another party-file) is a contained change.
 
 None of these need a live network. All of them are *eventually-consistent*
 through the shared filesystem. That's the design property we're protecting.
@@ -106,7 +107,7 @@ through the shared filesystem. That's the design property we're protecting.
 
 The smallest cross-party feature worth building first. Scope:
 
-  - One file per realm: `data/realms/<realm-id>/bulletin.json5`.
+  - One file per realm: `<saves-dir>/realms/<realm-id>/bulletin.json5`.
   - Append-only at the API level (we never edit or delete an entry from
     inside the game; a sysop can hand-edit the file).
   - Anchored to the inn (or a new "notice board" location in the town menu).
@@ -168,7 +169,7 @@ Concretely:
     is a per-connection pty-style read pump on top.
 
 Authentication is the genuinely hard part. v0 is a flat
-`htpasswd`-style file: `data/realms/<realm-id>/users.txt`, one
+`htpasswd`-style file: `<saves-dir>/realms/<realm-id>/users.txt`, one
 `username:bcrypt-hash:party-id` per line, login prompt at session start. v1 is
 something nicer (SSH-key-based via `authorized_keys` in front of an
 `authorized_command`; or a real ACL file with capability flags). The v0 choice
@@ -189,14 +190,15 @@ Keep the door open; don't walk through it yet.
 
 ### Concrete non-JVM product target
 
-The scoped non-JVM target is a Rust ANSI TCP server/runtime, tracked in
-`plans/k1-rust-server-mud-plan.md`.
+The previously scoped Rust ANSI TCP server/runtime has been deferred and
+removed from the active checkout. The idea still belongs here, but it should
+return as a new plan only when server/MUD work becomes the next priority.
 
 This keeps the C code in its current role as a compact loader/VM boundary
 probe, while giving the server/MUD idea a real product surface: a static
 non-JVM binary that reads the J1 JSON bundle, executes scripts through the J2
 compiled VM, owns authentication and realm/party file locking, and passes the
-same J3 conformance suites as the Kotlin hosts before it is called playable.
+same conformance suites as the Kotlin host before it is called playable.
 
 Rust is the right first product language because the server target needs
 long-running TCP sessions, safe parsing, structured diagnostics, concurrency,
@@ -217,14 +219,13 @@ file the title menu can read back.
 The 1993 Amiga distribution did this with `Doors:Rylween/Score.TXT` —
 plaintext, append-only, one line per finished party. The original file list is
 preserved in `scratch/legacy-archive.zip` under `legacy/distro-amiga/Files.TXT`.
-The Kotlin port quietly inherited
-two empty stubs (`data/score.txt`, `data/vscore.txt`, gitignored) but
-nothing wrote or read them, so they were dropped.
+The Kotlin port briefly inherited two empty score stubs from the legacy data
+layout, but nothing wrote or read them, so they were dropped.
 
 The right shape:
 
-  - The hall-of-heroes file lives next to save files, not in `data/`.
-    `data/` is jar-bundled read-only source; the scoreboard is mutable
+  - The hall-of-heroes file lives next to save files, not in game resources.
+    Packaged game resources are read-only source; the scoreboard is mutable
     runtime output. Concrete path: `<saves-dir>/heroes.json5`, where
     `<saves-dir>` is the same `--saves-dir` / `RYL_SAVES_DIR` directory
     the launcher already understands. Default `build/saves/heroes.json5`.
