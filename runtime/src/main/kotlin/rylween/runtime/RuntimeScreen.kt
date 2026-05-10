@@ -57,6 +57,7 @@ internal class RuntimeScreen(
     private val statusBottom = regions.getValue(STATUSLINE_BOTTOM)
     private val imageById: Map<String, ExternalImageAsset> = systems.presentation.images.associateBy { it.id }
     private val staticScreenById: Map<String, ExternalStaticScreen> = systems.presentation.staticScreens.associateBy { it.id }
+    private val pausePrompts = PausePrompts(systems.prompts)
     private val stylesByTerrain: Map<String, ExternalTerminalTerrainStyle> =
         systems.presentation.terminalTerrain.associateBy { it.terrain }
 
@@ -391,7 +392,7 @@ internal class RuntimeScreen(
         val pages = fullScreenTextPages(lines)
         for ((index, page) in pages.withIndex()) {
             val lastPage = index == pages.lastIndex
-            val prompt = if (lastPage) "Press any key to return." else "Press any key for more."
+            val prompt = pausePrompts.line(if (lastPage) "to return" else "for more")
             log?.event("screen.more page=${index + 1}/${pages.size}")
             writeFullScreenText(page + prompt)
             if (advance() == null) return

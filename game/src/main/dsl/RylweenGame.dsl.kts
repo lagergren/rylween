@@ -6268,7 +6268,6 @@ var nextRylween: RylweenModel = rylween {
                         "for you. It will bring",
                         "you much gold!",
                         "",
-                        "Press any key.",
                     )
                     waitInput("after garth mission offer")
                     clearText()
@@ -6281,7 +6280,6 @@ var nextRylween: RylweenModel = rylween {
                         "you 2000 gold and a ruby",
                         "my grandfather gave me.",
                         "",
-                        "Press any key.",
                     )
                     waitInput("after garth bandits story")
                     clearText()
@@ -6294,7 +6292,6 @@ var nextRylween: RylweenModel = rylween {
                         "bring my cargo back",
                         "here. Then I'll pay you.",
                         "",
-                        "Press any key.",
                     )
                     waitInput("after garth accepted reminder")
                     clearText()
@@ -6306,7 +6303,6 @@ var nextRylween: RylweenModel = rylween {
                         "He pays you 2000 gold and",
                         "hands you a red gem.",
                         "",
-                        "Press any key.",
                     )
                     waitInput("after garth reward intro")
                     clearText()
