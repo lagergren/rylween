@@ -39,8 +39,9 @@ same JSON artifact structurally.
 
 The standalone compiled runtime accepts `--bundle <file>`, validates the J1 JSON,
 builds its compiled lookup tables, and boots from compiled state images. Gameplay
-now runs through the compiled-runtime host rather than the archived interpreted
-terminal launcher.
+now runs through the compiled-runtime host. The old interpreted terminal
+launcher has been removed from the active checkout and preserved only inside
+`scratch/legacy-archive.zip`.
 
 `CompiledGameBundle.loadCompiledGame()` is a Kotlin in-memory loader/validator:
 it validates cross-table references and builds string, handle, and script lookup

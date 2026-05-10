@@ -3,7 +3,7 @@
 This document defines what a runtime must implement when it consumes the
 compiled JSON bundle directly. It is the implementation contract behind the
 J2/J3 work in [j2-compiled-vm-plan.md](j2-compiled-vm-plan.md) and the runtime
-tasks tracked in [../dsl-improvements.md](../dsl-improvements.md).
+tasks tracked in [dsl-improvements.md](dsl-improvements.md).
 
 The compiled bundle is the runtime product. A conforming runtime must not need
 the authored Kotlin `Op` tree, generated Kotlin game catalog, or old JVM session
@@ -29,8 +29,9 @@ compiled tables and expose the services the VM requires.
 
 ## Current JVM Runtime Split
 
-There is currently one active playable Kotlin runtime path in the Gradle build,
-plus archived historical/reference paths:
+There is currently one active playable Kotlin runtime path in the Gradle build.
+Historical/reference paths were removed from the active checkout and preserved
+inside `scratch/legacy-archive.zip`:
 
 - `run.sh` installs and runs `rylween-compiled`, whose
   entry point is
@@ -44,17 +45,18 @@ plus archived historical/reference paths:
   hunt/camp/upkeep rules from `runtimeSystems.realm`, direct service/dungeon/
   castle/battle execution, and a standalone save file that validates the
   compiled bundle hash before restoring mutable runtime ids.
-- `legacy/ansi-runtime` contains the old interpreted/hybrid ANSI product path.
-  It required the J1 JSON bundle, verified the artifact, and executed script
-  roots through the J2 compiled VM, but it still materialized the bundle into
-  the Kotlin runtime-facing model and drove gameplay through
+- `legacy/ansi-runtime` in the archive is the old interpreted/hybrid ANSI
+  product path. It required the J1 JSON bundle, verified the artifact, and
+  executed script roots through the J2 compiled VM, but it still materialized
+  the bundle into the Kotlin runtime-facing model and drove gameplay through
   `RylweenKotlinEngine`, the live session graph, terminal rendering helpers,
-  and ANSI/session adapters. It is intentionally no longer included as an
-  active Gradle subproject.
-- `legacy/reference-runtime` contains the old live JVM session graph, engine
-  facade, save renderer/parser, stateful authored-script oracle, and terminal
-  session helpers that used to live under `src/main/kotlin/rylween/runtime`,
-  `src/main/kotlin/rylween/engine`, `src/main/kotlin/rylween/save`, and
+  and ANSI/session adapters. It is intentionally no longer in the active
+  checkout or Gradle graph.
+- `legacy/reference-runtime` in the archive is the old live JVM session graph,
+  engine facade, save renderer/parser, stateful authored-script oracle, and
+  terminal session helpers that used to live under
+  `src/main/kotlin/rylween/runtime`, `src/main/kotlin/rylween/engine`,
+  `src/main/kotlin/rylween/save`, and
   `src/main/kotlin/rylween/frontend/terminal`. It is source reference and
   parity history only, not an active Gradle source set.
 

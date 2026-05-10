@@ -215,8 +215,9 @@ that's missing is a *persistent* end-of-game record: when a party wins
 file the title menu can read back.
 
 The 1993 Amiga distribution did this with `Doors:Rylween/Score.TXT` —
-plaintext, append-only, one line per finished party (per
-`legacy/distro-amiga/Files.TXT`). The Kotlin port quietly inherited
+plaintext, append-only, one line per finished party. The original file list is
+preserved in `scratch/legacy-archive.zip` under `legacy/distro-amiga/Files.TXT`.
+The Kotlin port quietly inherited
 two empty stubs (`data/score.txt`, `data/vscore.txt`, gitignored) but
 nothing wrote or read them, so they were dropped.
 

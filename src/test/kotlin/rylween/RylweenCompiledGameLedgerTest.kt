@@ -1600,7 +1600,7 @@ class RylweenCompiledGameLedgerTest {
 
     @Test
     fun rustMudTargetStaysExperimentalUntilConformanceCloseout() {
-        val ledger = File("dsl-improvements.md").readText()
+        val ledger = File("plans/dsl-improvements.md").readText()
         val plan = File("plans/k1-rust-server-mud-plan.md").readText()
         val build = File("build.gradle.kts").readText()
         val buildLogic = File("build-logic/src/main/kotlin/rylween/gradle/RylweenBuildTasks.kt").readText()

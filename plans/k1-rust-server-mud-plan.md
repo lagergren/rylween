@@ -14,10 +14,11 @@ locking libraries, and enough ecosystem support to implement a server without
 turning the C probe into a second full game codebase.
 
 The target is also not a native single-user terminal clone. A native terminal
-would mostly duplicate the Kotlin ANSI runtime while proving less of the
-future architecture. A server/MUD target exercises the parts that matter for
-future directions: many parties, shared realm state, persistent scoreboard,
-authentication, and host surfaces that cannot rely on Kotlin session classes.
+would mostly duplicate the active Kotlin compiled runtime while proving less of
+the future architecture. A server/MUD target exercises the parts that matter
+for future directions: many parties, shared realm state, persistent scoreboard,
+authentication, and host surfaces that cannot rely on JVM implementation
+classes.
 
 ## Product Shape
 
