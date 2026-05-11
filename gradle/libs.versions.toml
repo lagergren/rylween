@@ -1,11 +1,10 @@
 [versions]
+jdk = "25"
 kotlin = "2.3.21"
 jline = "4.0.12"
-clikt = "5.0.3"
 
 [libraries]
 jline = { module = "org.jline:jline", version.ref = "jline" }
-clikt = { module = "com.github.ajalt.clikt:clikt-jvm", version.ref = "clikt" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

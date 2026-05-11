@@ -1,13 +1,19 @@
 # Adventurers of Rylween
-Old code archive and potential ports for Adventurers of Rylween, a MUD style games for BBSes that I wrote in 1992-1993.
+Kotlin port and runtime workspace for Adventurers of Rylween, a MUD
+style game for BBSes that I wrote in 1992-1993.
 
-The current runnable port is the Kotlin DSL/runtime under `src/main`,
-`src/game`, and `src/app`. The historical C/JSON5 port and its replay
-fixtures live under `legacy/c-json5` for reference and parity checks.
+The current runnable Kotlin game is the `:runtime` project. Shared
+DSL/compiler and compiled-bundle contracts live under `:core`, authored game
+DSL and resources live under `:game`, bundle emitters and native probes live
+under `:tools`, and terminal transport/protocol code lives under `:terminal`.
+
+The old interpreted Kotlin ANSI project and historical C/JSON5 port are
+removed from the active checkout; their final tree is zipped at
+`scratch/legacy-archive.zip`.
 
 ## Terminal compatibility
 
-The game streams ANSI escape codes (colour, cursor positioning) and uses
+The game streams ANSI escape codes (color, cursor positioning) and uses
 ambiguous-width Unicode characters in some art. How those characters are
 sized depends on the terminal:
 
@@ -22,46 +28,54 @@ sized depends on the terminal:
 If you must run in `Terminal.app`, expect occasional one-cell drift in
 borders and decorative art. Gameplay text is unaffected.
 
-## Kotlin runtime commands
+## Runtime commands
 
-Build the direct ANSI launcher first:
-
-```sh
-./gradlew installKotlinAnsi --console=plain
-./run.sh --state fresh-replay --seed 1
-./run.sh --build --state fresh-replay --seed 1
-build/install/rylween-kotlin/bin/rylween --state fresh-replay --seed 1
-build/install/rylween-kotlin/bin/rylween --build --state fresh-replay --seed 1
-```
-
-The root `run.sh` wrapper and generated `build/install/rylween-kotlin/bin/rylween`
-script are the closest current equivalents to `rylween.exe`. Use them for interactive ANSI play; they run
-outside Gradle so Gradle progress output and key echo do not share the game
-screen. It loads the compiled DSL game, packaged `ansi/**` resources, the
-authored wilderness map, the classic screen frame, text/status/map regions, and
-the terminal terrain glyph table. Pass `--build` when you want to refresh the
-installed runtime with `./gradlew installKotlinAnsi --console=plain` before
-launching; `run.sh` also bootstraps that install if the generated launcher is
-missing.
-
-The line-oriented shells are still useful for testing:
+Build and run the direct runtime:
 
 ```sh
-./gradlew runKotlinGame --args="--state fresh-replay --seed 1"
-./gradlew runKotlinTown --args="--town thord --hour 12 --seed 1"
+./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain
+./run.sh --build --seed 1
+./run.sh --no-title --state strong-replay --seed 1
+runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --state fresh-replay --seed 1
 ```
 
-Useful ANSI logging forms:
+The root `run.sh` wrapper is now the closest current equivalent to
+`rylween.exe`. It builds `build/compiled/rylween-bundle.json` and
+`:runtime:installRuntime` when needed, injects the bundle path,
+and runs outside Gradle so Gradle progress output and key echo do not share the
+game screen.
+
+`run.sh` shows the title flow by default. Press RETURN at the splash screen,
+then `N` to create a new party. Use `--no-title` only when you intentionally
+want to boot a state or feed a direct script.
+Each run writes a forensic log to `build/logs/runtime/latest.log`; use
+`--log <file>` to keep a named capture instead of replacing `latest.log`.
+For manual forensics, `--debug-log` flashes the latest log line below the game
+frame, and `--debug-secrets` enables hidden wilderness triggers: `[` forces a
+cave discovery and `]` forces a random encounter.
 
 ```sh
-RYL_LOG=stderr build/install/rylween-kotlin/bin/rylween --state fresh-replay
-RYL_LOG=file:build/rylween.log build/install/rylween-kotlin/bin/rylween --state fresh-replay
-RYL_LOG=tcp:9999,file:build/rylween.log build/install/rylween-kotlin/bin/rylween --state fresh-replay
-RYL_LOG_LEVEL=debug RYL_LOG=file:build/rylween.log ./run.sh --state fresh-replay
-./run.sh --serve 127.0.0.1:2323 --state fresh-replay
+./run.sh --screen title
+./run.sh --no-title --script 22SX --save build/saves/runtime.rsave
+./run.sh --load build/saves/runtime.rsave
+./run.sh --no-title --state strong-replay --seed 1 --debug-log --debug-secrets
 ```
 
-`--serve [host:]port` waits for one socket/telnet client and renders the same
-ANSI UI to that socket instead of the local terminal. Logs still use `RYL_LOG`,
-so server diagnostics stay off the player render stream. `RYL_LOG_LEVEL=debug`
-adds formula-evaluation and authored-op execution traces.
+The runtime boots directly from the compiled bundle, renders static screens and
+wilderness frames, runs wilderness/town/services/battle/dungeon and castle flows
+from compiled tables, handles direct save/load with bundle-hash validation, and
+is verified by `:runtime:check`. Long acceptance routes are generated from
+test-only replay plans and fed to the installed runtime through `--script`;
+the shipped launcher does not expose a replay-planning mode.
+
+## Cleanup
+
+Generated files are confined to Gradle build output, local Kotlin compiler
+caches, and runtime save/log directories under `build/`. From the repo root:
+
+```sh
+./gradlew clean --console=plain
+```
+
+This removes project build directories, the included `build-logic/build`
+directory, and regenerated local `.kotlin` session/error caches.

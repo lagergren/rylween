@@ -1,12 +1,14 @@
 # J2 Compiled VM Plan
 
 This plan describes the work needed to turn the J1 compiled JSON bundle from a
-validated data artifact into an executable script/runtime contract. Today the
-Kotlin ANSI and headless hosts read the J1 bundle, materialize the Kotlin
-runtime-facing model, and execute scripts through the existing authored `Op`
-interpreter plus reusable session state machines. J2 is the path where a host
-can instead execute compiled script programs from the bundle and honestly
-declare `RuntimeScriptExecutionStrategy.CompiledVm`.
+validated data artifact into an executable script/runtime contract. That work
+has been completed for the active Kotlin product path: the `:runtime` host
+reads the J1 bundle and executes production script
+roots from compiled tables. The older Kotlin ANSI/headless session hosts and
+authored `Op` oracle are no longer active source; their final tree is preserved
+inside `scratch/legacy-archive.zip`.
+The formal portable-runtime contract lives in
+[compiled-vm-runtime-spec.md](compiled-vm-runtime-spec.md).
 
 ## Goal
 
@@ -41,33 +43,37 @@ as a focused probe after the Kotlin compiled VM path is green.
 Already in the repo:
 
 - `CompiledScriptProgram`, `CompiledInstruction`, `CompiledOpcode`, and typed
-  operands in `src/main/kotlin/rylween/compiled/CompiledBundle.kt`
+  operands in `core/src/main/kotlin/rylween/compiled/CompiledBundle.kt`
 - strict deterministic J1 JSON emission and Kotlin/C readers
 - native smoke validation for opcode and operand shapes
-- `RuntimeHostContract` with `CompiledVm` as an explicit script execution
-  strategy
-- playable Kotlin ANSI and Kotlin headless hosts using the J1 bundle
-- conformance suites for bundle boot, static screens, wilderness, town,
-  dungeon, castle/Ydarg, battle, save/load, and view commands
+- the runtime in `:runtime`
+- installed-launcher replay checks for bundle boot, static screens,
+  wilderness, town, dungeon, castle/Ydarg, battle, save/load, and
+  Hall-of-Heroes/reporting paths
 - a full acceptance playthrough that reaches Ydarg victory and renders
   score/heroes reports
 
-Missing:
+Closed J2 pieces now in the repo:
 
 - a compiled VM execution kernel
 - expression and lvalue evaluation over compiled operand records
 - blocking input and continuation frame support for compiled instructions
 - child-session handoffs from compiled instructions
 - compiled VM save/resume serialization
-- conformance mode that runs script roots through `CompiledVm`
-- any native executor beyond bundle validation
+- runtime execution with no generated-game fallback
+- a native executor probe beyond bundle validation
+
+Remaining product work belongs outside J2. The C code remains a contract/probe
+implementation; any future non-JVM server/MUD runtime should restart as a new
+product plan.
 
 ## Architecture Shape
 
 ### VM Kernel
 
-Introduce a backend-neutral compiled script executor in `rylween.runtime` or a
-focused sibling package such as `rylween.runtime.vm`.
+The backend-neutral compiled script executor contracts now live under
+`core/src/main/kotlin/rylween/runtime/vm`, while the active production host
+lives in `runtime/src/main/kotlin/rylween/runtime`.
 
 Core model:
 
@@ -302,6 +308,7 @@ Tasks:
 - add an ANSI `--script-vm compiled` flag or test-only host switch
 - route ANSI script roots through the same VM executor
 - run `checkKotlinAnsiBundleBoot`
+- run `checkBundleAnsiBundleBoot` against the generated-game-free bundle install
 - run targeted ANSI/script prompt regressions for town, tavern story, shops,
   dungeon events, and Ydarg-adjacent flows
 
@@ -361,6 +368,16 @@ Estimated size: 1-2 weeks.
 ### J2.9 Product Decision: Full Native Runtime Or Stop
 
 Do not accidentally drift from probe to product.
+
+Decision for this track: stop at the native probe. The C/native code should keep
+validating the J1 loader boundary and narrow J2 VM portability, but it should
+not become a playable runtime inside J2. A playable non-JVM target would have to
+own much more than opcode dispatch: frontend rendering, persistence,
+diagnostics, host services, conformance fixtures, and the full acceptance
+playthrough. That scope belongs in a separate product task with an explicit
+target. The previous Rust server/MUD skeleton has been deferred and removed
+from the active checkout; a future server/MUD runtime should start from
+`plans/future-directions.md` when it becomes the next priority.
 
 If a non-JVM playable runtime is scheduled, create a new product task for that
 runtime. It must implement:
@@ -438,14 +455,16 @@ Total for a fully playable native runtime: likely 2-3 months beyond the probe.
 
 ## Closeout Checklist
 
-- [ ] opcode arity/type contract is tested
-- [ ] compiled expression and lvalue evaluators cover every emitted shape
-- [ ] pure VM roots execute without authored `Op` fallback
-- [ ] prompts and menus resume without replaying side effects
-- [ ] child sessions block and resume through typed request/result records
-- [ ] compiled VM continuations save/load under strict snapshot validation
-- [ ] Kotlin headless declares `CompiledVm` and passes J3 suites
-- [ ] Kotlin ANSI can opt into `CompiledVm`
-- [ ] full acceptance playthrough passes in compiled-VM mode
-- [ ] C/native probe executes a narrow compiled scenario from the J1 bundle
-- [ ] ledger distinguishes completed J2 pieces from optional native product work
+- [x] opcode arity/type contract is tested
+- [x] compiled expression and lvalue evaluators cover every emitted shape
+- [x] pure VM roots execute without authored `Op` fallback
+- [x] prompts and menus resume without replaying side effects
+- [x] child sessions block and resume through typed request/result records
+- [x] compiled VM continuations save/load under strict snapshot validation
+- [x] Kotlin headless declares `CompiledVm` and passes J3 suites
+- [x] Kotlin ANSI production launchers run script roots through `CompiledVm`
+- [x] full acceptance playthrough passes in compiled-VM mode
+- [x] bundle-only Kotlin ANSI install boots from J1 JSON with no generated-game fallback
+- [x] remaining emitted runtime-mutation opcodes are implemented in `CompiledVm`
+- [x] C/native probe executes a narrow compiled scenario from the J1 bundle
+- [x] ledger distinguishes completed J2 pieces from optional native product work

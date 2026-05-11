@@ -11,3 +11,9 @@ plugins {
 }
 
 rootProject.name = "rylween"
+
+include("runtime")
+include("core")
+include("game")
+include("tools")
+include("terminal")
