@@ -74,6 +74,8 @@ private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
 private const val TEXT_WINDOW_PAGE_LINES = 9
 private const val CREATION_REJECTION_DELAY_MS = 1_000
+private const val CREATION_SAVE_CONFIRMATION_DELAY_MS = 2_000
+private const val CREATION_SAVE_CONFIRMATION_TEXT = "OK"
 private const val TOWN_MAINSTREET_IMAGE = "blitgfx.towne_mainstreet"
 private const val TOWN_COMMAND_GROUP = "town"
 private const val TOWN_LEAVE_ACTION = "leave_town"
@@ -847,8 +849,10 @@ class GameRuntime private constructor(
             "creation.party_created name=${logValue(partyName)} members=${members.size} " +
                 "position=${runtime.logPosition()} memberNames=${memberNames.joinToString(separator = ",", transform = ::logValue)}",
         )
-        screen.writeText(prompts.saving.renderCreation() + PausePrompts(systems.prompts).line())
-        input.readCommand()
+        val savingPrompt = prompts.saving.renderCreation()
+        screen.writeText(savingPrompt)
+        input.pause(CREATION_SAVE_CONFIRMATION_DELAY_MS)
+        screen.writeText(savingPrompt.withLastLineSuffix(" $CREATION_SAVE_CONFIRMATION_TEXT"))
         return runtime
     }
 
@@ -1709,6 +1713,12 @@ private fun String.afterMnemonic(key: String): String =
     removePrefix(key)
         .removePrefix(key.uppercase())
         .removePrefix(key.lowercase())
+
+private fun List<String>.withLastLineSuffix(suffix: String): List<String> =
+    when {
+        isEmpty() -> listOf(suffix.trimStart())
+        else -> dropLast(1) + (last() + suffix)
+    }
 
 internal data class MoveResult(
     val party: PartyState,

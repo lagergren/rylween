@@ -158,6 +158,9 @@ internal fun terminalPageHtml(): String =
         .bg-magenta { background: #562264; }
         .bg-cyan { background: #185763; }
         .bg-white { background: #cfc9bb; }
+        .cursor-box {
+          box-shadow: inset 0 0 0 1px currentColor;
+        }
 
         @media (max-width: 720px) {
           .topbar {
@@ -208,6 +211,12 @@ internal fun terminalPageHtml(): String =
         const connectionText = document.getElementById("connectionText");
         const colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
         const blankStyle = { fg: "white", bg: "black" };
+        const DEC_PRIVATE_CURSOR_VISIBILITY_MODE = 25;
+        const ANSI_STEADY_BLOCK_CURSOR_SHAPE = 2;
+        const DEFAULT_CURSOR_SHAPE = "box";
+        const cursorShapeClassByAnsiCode = new Map([
+          [ANSI_STEADY_BLOCK_CURSOR_SHAPE, DEFAULT_CURSOR_SHAPE],
+        ]);
         const state = {
           row: 0,
           col: 0,
@@ -215,6 +224,8 @@ internal fun terminalPageHtml(): String =
           bg: "black",
           savedRow: 0,
           savedCol: 0,
+          cursorVisible: false,
+          cursorShape: DEFAULT_CURSOR_SHAPE,
           cells: [],
         };
         let socket = null;
@@ -254,16 +265,26 @@ internal fun terminalPageHtml(): String =
             .replaceAll(">", "&gt;");
         }
 
-        function classFor(cell) {
-          return "fg-" + cell.fg + " bg-" + cell.bg;
+        function cursorColumn() {
+          return Math.max(0, Math.min(columns - 1, state.col));
+        }
+
+        function classFor(cell, row, col) {
+          let classes = "fg-" + cell.fg + " bg-" + cell.bg;
+          if (state.cursorVisible && row === state.row && col === cursorColumn()) {
+            classes += " cursor-" + state.cursorShape;
+          }
+          return classes;
         }
 
         function render() {
           const html = [];
-          for (const line of state.cells) {
+          for (let row = 0; row < state.cells.length; row += 1) {
+            const line = state.cells[row];
             let currentClass = "";
-            for (const cell of line) {
-              const cellClass = classFor(cell);
+            for (let col = 0; col < line.length; col += 1) {
+              const cell = line[col];
+              const cellClass = classFor(cell, row, col);
               if (cellClass !== currentClass) {
                 if (currentClass !== "") {
                   html.push("</span>");
@@ -374,8 +395,22 @@ internal fun terminalPageHtml(): String =
           }
         }
 
-        function applyCsi(command, params) {
-          if (command === "m") {
+        function applyPrivateMode(command, params) {
+          const code = numberParam(params, 0, 0);
+          if (code !== DEC_PRIVATE_CURSOR_VISIBILITY_MODE) {
+            return;
+          }
+          if (command === "h") {
+            state.cursorVisible = true;
+          } else if (command === "l") {
+            state.cursorVisible = false;
+          }
+        }
+
+        function applyCsi(command, params, privateMode) {
+          if (privateMode) {
+            applyPrivateMode(command, params);
+          } else if (command === "m") {
             applySgr(params);
           } else if (command === "H" || command === "f") {
             state.row = Math.max(0, Math.min(rows - 1, numberParam(params, 0, 1) - 1));
@@ -398,6 +433,9 @@ internal fun terminalPageHtml(): String =
           } else if (command === "u") {
             state.row = state.savedRow;
             state.col = state.savedCol;
+          } else if (command === "q") {
+            const shapeCode = numberParam(params, 0, ANSI_STEADY_BLOCK_CURSOR_SHAPE);
+            state.cursorShape = cursorShapeClassByAnsiCode.get(shapeCode) || DEFAULT_CURSOR_SHAPE;
           }
         }
 
@@ -407,8 +445,10 @@ internal fun terminalPageHtml(): String =
             const code = text.charCodeAt(index);
             if (code >= 0x40 && code <= 0x7e) {
               const body = text.slice(start, index);
-              const params = body.replace("?", "").split(";");
-              applyCsi(text[index], params);
+              const privateMode = body.startsWith("?");
+              const paramText = privateMode ? body.slice(1) : body;
+              const params = paramText.trim().split(";");
+              applyCsi(text[index], params, privateMode);
               return index + 1;
             }
             index += 1;
