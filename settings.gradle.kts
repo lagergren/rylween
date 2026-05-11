@@ -13,6 +13,7 @@ plugins {
 rootProject.name = "rylween"
 
 include("runtime")
+include("runtime-web")
 include("core")
 include("game")
 include("tools")

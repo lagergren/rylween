@@ -80,7 +80,7 @@ internal class ScriptExecutor(
     initialRuntime: RuntimeState,
     initialLocals: Map<String, Int> = emptyMap(),
     private var activeInventorySlot: Int? = null,
-    private val log: RuntimeLog? = null,
+    private val log: RuntimeLog,
 ) {
     private var runtime: RuntimeState = initialRuntime
     private var locals: Map<String, Int> = initialLocals
@@ -265,6 +265,7 @@ internal class ScriptExecutor(
                             dungeon = instruction.handleOperand(0),
                             levels = instruction.integerOperand(1),
                             postDungeon = context.continuationAfter(instructionIndex, instructionCount),
+                            log = log,
                         )
                 }
 
@@ -332,6 +333,7 @@ internal class ScriptExecutor(
                                 dungeon = instruction.handleOperand(0),
                                 levels = int(instruction.intOperand(1)),
                                 postDungeon = context.continuationAfter(instructionIndex, instructionCount),
+                                log = log,
                             )
                 }
 
@@ -794,7 +796,7 @@ internal class ScriptExecutor(
         mandatory: Boolean,
     ) {
         val battle =
-            BattleRunner(content, systems.combat, input, screen, pausePrompts = pausePrompts)
+            BattleRunner(content, systems.combat, input, screen, log, pausePrompts)
                 .runMonster(runtime, monster, mandatory = mandatory)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
@@ -853,7 +855,7 @@ internal class ScriptExecutor(
         val draw = runtime.party.drawRandom(0, items.lastIndex)
         val item = items[draw.value]
         val price = offer.priceOverride ?: itemRecord(item).cost
-        log?.rngDraw(
+        log.rngDraw(
             context = "script.random_item_offer.item",
             lo = 0,
             hi = items.lastIndex,
@@ -866,7 +868,7 @@ internal class ScriptExecutor(
         return when {
             offer.decline.matchesInput(content, choice) ->
                 party.also {
-                    log?.event("script.random_item_offer.declined item=${content.slug(item)} price=$price")
+                    log.event("script.random_item_offer.declined item=${content.slug(item)} price=$price")
                     offer.declined?.let { text -> screen.writeText(text.renderRewardLines(item, price)) }
                     input.pause(offer.pauseMillis.declined)
                 }
@@ -874,7 +876,7 @@ internal class ScriptExecutor(
             !offer.buy.matchesInput(content, choice) -> party
             party.resources.gold < price ->
                 party.also {
-                    log?.event("script.random_item_offer.broke item=${content.slug(item)} price=$price gold=${party.resources.gold}")
+                    log.event("script.random_item_offer.broke item=${content.slug(item)} price=$price gold=${party.resources.gold}")
                     screen.writeText(offer.broke.renderRewardLines(item, price))
                     input.pause(offer.pauseMillis.broke)
                 }
@@ -885,7 +887,7 @@ internal class ScriptExecutor(
                         placed.party
                             .withGold(party.resources.gold - price)
                             .also {
-                                log?.event("script.random_item_offer.bought item=${content.slug(item)} price=$price")
+                                log.event("script.random_item_offer.bought item=${content.slug(item)} price=$price")
                                 screen.updateStatus(runtime.withParty(it))
                                 screen.writeText(offer.deal.renderRewardLines(item, price))
                                 input.pause(offer.pauseMillis.deal)
@@ -893,7 +895,7 @@ internal class ScriptExecutor(
 
                     ItemPlacement.Full ->
                         party.also {
-                            log?.event("script.random_item_offer.full item=${content.slug(item)}")
+                            log.event("script.random_item_offer.full item=${content.slug(item)}")
                             offer.messages.cantCarry?.let { text -> screen.writeText(text.renderRewardLines(item, price)) }
                             input.pause(offer.pauseMillis.full)
                         }
@@ -907,7 +909,7 @@ internal class ScriptExecutor(
                                             .withInventoryItem(slot, item)
                                             .withGold(party.resources.gold - price)
                                             .also {
-                                                log?.event(
+                                                log.event(
                                                     "script.random_item_offer.bought " +
                                                         "item=${content.slug(item)} price=$price droppedSlot=$slot",
                                                 )
@@ -1051,7 +1053,7 @@ internal class ScriptExecutor(
     ): Int {
         val draw = runtime.party.drawRandom(lo, hi)
         runtime = runtime.withParty(draw.party)
-        log?.rngDraw("script.random", lo, hi, draw.value)
+        log.rngDraw("script.random", lo, hi, draw.value)
         return draw.value
     }
 
@@ -1063,7 +1065,7 @@ internal class ScriptExecutor(
         runtime = runtime.withParty(draw.party)
         val right = int(expr.right)
         val result = draw.value.compareCompiled(expr.op, right)
-        log?.rngDraw(
+        log.rngDraw(
             context = "script.chance",
             lo = lo,
             hi = hi,
@@ -1482,7 +1484,7 @@ internal class ScriptExecutor(
         if (isEmpty()) return null
         val draw = runtime.party.drawRandom(0, lastIndex)
         runtime = runtime.withParty(draw.party)
-        log?.rngDraw(context, 0, lastIndex, draw.value)
+        log.rngDraw(context, 0, lastIndex, draw.value)
         return this[draw.value]
     }
 
