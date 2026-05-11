@@ -1,0 +1,512 @@
+/**
+ * Runtime-facing content aggregate and prompt/key contracts.
+ *
+ * This file groups the immutable records that direct runtimes consume after the
+ * authored game DSL is validated: `GameModel`, `RuntimeContent`, wilderness and
+ * dungeon key tables, reusable prompt models, trigger declarations, and
+ * wilderness event/terrain-transition configuration. It is the boundary between
+ * authoring builders and runtime/bundle readers, not a place for one-off game
+ * scripts or Rylween-specific prose.
+ */
+package rylween.dsl
+
+/**
+ * Bundled view of [GameModel] content the reusable sessions actually consume:
+ * combat tables, monster catalog, formulas, rewards, leveling rules, spells,
+ * item-use scripts, item records, realm-level balance, dungeon/wilderness
+ * subsystem config, town list, town menu, scenes, missions, characters.
+ * Optional debug/secret hooks are included here as content-gated runtime
+ * behavior rather than frontend globals.
+ *
+ * Sessions and runtimes accept this as a single parameter so adding a new
+ * content kind is one builder field plus one read site, not a parameter
+ * threaded through twelve constructors.
+ */
+data class RuntimeContent(
+    val combat: CombatSystemModel = CombatSystemModel(null),
+    val monsters: List<MonsterModel> = emptyList(),
+    val formulas: List<FormulaModel> = emptyList(),
+    val rewards: List<RewardBundleModel> = emptyList(),
+    val leveling: LevelingModel? = null,
+    val spells: List<SpellModel> = emptyList(),
+    val itemUses: List<ItemUseModel> = emptyList(),
+    val itemRecords: List<ItemRecordModel> = emptyList(),
+    val realm: RealmContentModel = RealmContentModel(),
+    val prompts: GamePromptsModel = GamePromptsModel(),
+    val progress: GameProgressModel = GameProgressModel(emptyList(), null),
+    val characterCreation: CharacterCreationModel? = null,
+    val dungeons: DungeonSystemModel = DungeonSystemModel(),
+    val castles: List<CastleContentModel> = emptyList(),
+    val wilderness: WildernessSystemModel = WildernessSystemModel(),
+    val towns: List<TownModel> = emptyList(),
+    val townSystem: TownSystemModel? = null,
+    val scenes: List<SceneModel> = emptyList(),
+    val missions: List<MissionModel> = emptyList(),
+    val characters: List<CharacterModel> = emptyList(),
+    val speak: SpeakSystemModel = SpeakSystemModel(null),
+    val dialogue: List<DialogueModel> = emptyList(),
+    val secrets: SecretSystemModel = SecretSystemModel(),
+) {
+    init {
+        require(castles.map { it.id }.toSet().size == castles.size) { "duplicate castle content" }
+    }
+
+    val battleConfigured: Boolean get() = combat.standardBattle != null
+}
+
+data class GameModel(
+    val metadata: GameMetadataModel = GameMetadataModel(),
+    val limits: GameLimitsModel = GameLimitsModel(),
+    val itemCatalog: List<ItemRecordModel>,
+    val itemPools: List<ItemPoolId>,
+    val realm: RealmContentModel = RealmContentModel(),
+    val prompts: GamePromptsModel,
+    val visuals: VisualsModel,
+    val worldMaps: List<WorldMapModel>,
+    val terrain: TerrainCatalogModel,
+    val terminal: TerminalPresentationModel,
+    val layouts: LayoutModel,
+    val flags: List<FlagRef>,
+    val authoredFlags: List<FlagContentModel>,
+    val progress: GameProgressModel,
+    val characterCreation: CharacterCreationModel?,
+    val leveling: LevelingModel?,
+    val formulas: List<FormulaModel>,
+    val rewards: List<RewardBundleModel>,
+    val combat: CombatSystemModel,
+    val wilderness: WildernessSystemModel,
+    val dungeons: DungeonSystemModel,
+    val castles: List<CastleContentModel>,
+    val speak: SpeakSystemModel,
+    val towns: List<TownModel>,
+    val townSystem: TownSystemModel?,
+    val characters: List<CharacterModel>,
+    val monsters: List<MonsterModel>,
+    val scenes: List<SceneModel>,
+    val dialogue: List<DialogueModel>,
+    val spells: List<SpellModel>,
+    val itemUses: List<ItemUseModel>,
+    val missions: List<MissionModel>,
+    val secrets: SecretSystemModel = SecretSystemModel(),
+) {
+    init {
+        require(castles.map { it.id }.toSet().size == castles.size) { "duplicate castle content" }
+    }
+}
+
+fun GameModel.itemPool(pool: ItemPoolId): ItemPoolId = itemPools.firstOrNull { it == pool } ?: pool
+
+fun GameModel.runtimeContent(): RuntimeContent =
+    RuntimeContent(
+        combat = combat,
+        monsters = monsters,
+        formulas = formulas,
+        rewards = rewards,
+        leveling = leveling,
+        spells = spells,
+        itemUses = itemUses,
+        itemRecords = itemCatalog,
+        realm = realm,
+        prompts = prompts,
+        progress = progress,
+        characterCreation = characterCreation,
+        dungeons = dungeons,
+        castles = castles,
+        wilderness = wilderness,
+        towns = towns,
+        townSystem = townSystem,
+        scenes = scenes,
+        missions = missions,
+        characters = characters,
+        speak = speak,
+        dialogue = dialogue,
+        secrets = secrets,
+    )
+
+sealed interface Trigger {
+    data class RandomStep(
+        val percent: Int,
+    ) : Trigger
+
+    data class AtPosition(
+        val point: GridPoint,
+    ) : Trigger
+
+    data class AtLocation(
+        val location: LocationId,
+    ) : Trigger
+
+    data class OnTerrain(
+        val terrain: TerrainId,
+    ) : Trigger
+}
+
+data class WildernessSystemModel(
+    val keys: WildernessKeysModel = WildernessKeysModel(),
+    val events: WildernessEventModel = WildernessEventModel(),
+    val terrainTransitions: TerrainTransitionModel = TerrainTransitionModel(),
+)
+
+data class WildernessKeysModel(
+    val moveNorth: InputBindingModel = inputKey("8", InputAliases.ArrowUp, "UP", "ARROW_UP", label = "8/Up"),
+    val moveSouth: InputBindingModel = inputKey("2", InputAliases.ArrowDown, "DOWN", "ARROW_DOWN", label = "2/Down"),
+    val moveWest: InputBindingModel = inputKey("4", InputAliases.ArrowLeft, "LEFT", "ARROW_LEFT", label = "4/Left"),
+    val moveEast: InputBindingModel = inputKey("6", InputAliases.ArrowRight, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
+    val pass: InputBindingModel = inputKey(" ", "SPACE", label = "Space"),
+    val save: InputBindingModel = inputKey("S"),
+    val readyWeapon: InputBindingModel = inputKey("W"),
+    val readyArmor: InputBindingModel = inputKey("R"),
+    val redraw: InputBindingModel = inputKey("!"),
+    val journal: InputBindingModel = inputKey("J"),
+    val help: InputBindingModel = inputKey("?"),
+    val hunt: InputBindingModel = inputKey("H"),
+    val viewParty: InputBindingModel = inputKey("V"),
+    val removeArmor: InputBindingModel = inputKey("T"),
+    val removeWeapon: InputBindingModel = inputKey("P"),
+    val enter: InputBindingModel = inputKey("E"),
+    val drop: InputBindingModel = inputKey("L"),
+    val camp: InputBindingModel = inputKey("C"),
+    val castSpell: InputBindingModel = inputKey("Z"),
+    val quaff: InputBindingModel = inputKey("Q"),
+    val quit: InputBindingModel = inputKey("X"),
+    val debugForceCave: InputBindingModel = inputKey("[", label = "["),
+    val debugForceEncounter: InputBindingModel = inputKey("]", label = "]"),
+    val caveEnter: InputBindingModel = inputKey("E"),
+    val caveLeave: InputBindingModel = inputKey("L"),
+    val outOfMovesSave: InputBindingModel = inputKey("S"),
+    val outOfMovesQuit: InputBindingModel = inputKey("Q"),
+    val quitYes: InputBindingModel = inputKey("Y"),
+    val quitNo: InputBindingModel = inputKey("N"),
+    val commandHint: TextBlock = inlineText("Press ? for commands."),
+    val helpPages: List<TextBlock> = emptyList(),
+)
+
+fun WildernessKeysModel.exploreKeys(): List<InputBindingModel> =
+    listOf(
+        moveNorth,
+        moveSouth,
+        moveWest,
+        moveEast,
+        pass,
+        save,
+        readyWeapon,
+        readyArmor,
+        redraw,
+        journal,
+        help,
+        hunt,
+        viewParty,
+        removeArmor,
+        removeWeapon,
+        enter,
+        drop,
+        camp,
+        castSpell,
+        quaff,
+        quit,
+    )
+
+fun WildernessKeysModel.debugKeys(): List<InputBindingModel> = listOf(debugForceCave, debugForceEncounter)
+
+fun WildernessKeysModel.caveKeys(): List<InputBindingModel> = listOf(caveEnter, caveLeave)
+
+fun WildernessKeysModel.outOfMovesKeys(): List<InputBindingModel> = listOf(outOfMovesSave, outOfMovesQuit)
+
+fun WildernessKeysModel.quitConfirmKeys(): List<InputBindingModel> = listOf(quitYes, quitNo)
+
+data class DungeonKeysModel(
+    val descend: InputBindingModel = inputKey("D"),
+    val ascend: InputBindingModel = inputKey("A"),
+    val help: InputBindingModel = inputKey("?"),
+    val drop: InputBindingModel = inputKey("L"),
+    val removeArmor: InputBindingModel = inputKey("T"),
+    val removeWeapon: InputBindingModel = inputKey("P"),
+    val readyWeapon: InputBindingModel = inputKey("W"),
+    val readyArmor: InputBindingModel = inputKey("R"),
+    val quaff: InputBindingModel = inputKey("Q"),
+    val castSpell: InputBindingModel = inputKey("Z"),
+    val viewParty: InputBindingModel = inputKey("V"),
+    val save: InputBindingModel = inputKey("S"),
+    val commandHint: TextBlock = inlineText("Press ? for commands."),
+    val helpPages: List<TextBlock> = emptyList(),
+)
+
+data class GamePromptsModel(
+    val pauseVerbs: List<String> = emptyList(),
+    val returnKeyName: String = "RETURN key",
+    val priest: PriestSpellPromptsModel = PriestSpellPromptsModel(),
+    val inventoryUse: InventoryUsePromptsModel = InventoryUsePromptsModel(),
+    val equipment: EquipmentPromptsModel = EquipmentPromptsModel(),
+    val save: SavePromptsModel = SavePromptsModel(),
+    val town: TownPromptsModel = TownPromptsModel(),
+    val wilderness: WildernessPromptsModel = WildernessPromptsModel(),
+    val dungeon: DungeonPromptsModel = DungeonPromptsModel(),
+    val party: PartyPromptsModel = PartyPromptsModel(),
+    val characterCreation: CharacterCreationPromptsModel = CharacterCreationPromptsModel(),
+)
+
+data class SavePromptsModel(
+    val saving: TextBlock = missingPrompt("save.saving"),
+    val done: TextBlock = missingPrompt("save.done"),
+    val failed: TextBlock = missingPrompt("save.failed"),
+)
+
+data class CharacterCreationPromptsModel(
+    val header: TextBlock = missingPrompt("character_creation.header"),
+    val partyName: TextBlock = missingPrompt("character_creation.party_name"),
+    val statsPage: TextBlock = missingPrompt("character_creation.stats_page"),
+    val reroll: TextBlock = missingPrompt("character_creation.reroll"),
+    val memberName: TextBlock = missingPrompt("character_creation.member_name"),
+    val gender: TextBlock = missingPrompt("character_creation.gender"),
+    val genderMaleLabel: String = "Male",
+    val genderFemaleLabel: String = "Female",
+    val race: TextBlock = missingPrompt("character_creation.race"),
+    val classMenu: TextBlock = missingPrompt("character_creation.class_menu"),
+    val saving: TextBlock = missingPrompt("character_creation.saving"),
+) {
+    fun renderStatsPage(
+        memberNumber: Int,
+        weaponSkill: Int,
+        health: Int,
+        wisdom: Int,
+        charisma: Int,
+    ): TextBlock =
+        statsPage.resolvePromptValues(
+            PromptTextValues(
+                creationMemberNumber = memberNumber,
+                creationWeaponSkill = weaponSkill,
+                creationHealth = health,
+                creationWisdom = wisdom,
+                creationCharisma = charisma,
+            ),
+        )
+
+    fun renderMemberName(memberNumber: Int): TextBlock =
+        memberName.resolvePromptValues(PromptTextValues(creationMemberNumber = memberNumber))
+
+    fun renderGender(memberName: String): TextBlock = gender.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
+
+    fun renderRace(memberName: String): TextBlock = race.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
+}
+
+data class PriestSpellPromptsModel(
+    val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") },
+    val mageCombatOnly: TextBlock = inlineText("Sorry. Mage spells are", "combat-only."),
+    val wrongClass: TextBlock = inlineText("Wrong class."),
+    val dead: TextBlock = inlineText("Dead."),
+    val invalidCaster: TextBlock = inlineText("Not a party member."),
+    val invalidSpell: TextBlock = inlineText("Not possible."),
+    val noSpells: TextBlock = inlineText("No priest spells are", "declared."),
+) {
+    fun spellList(
+        member: PartyMemberState,
+        spells: List<SpellModel>,
+        abortSlot: Int,
+    ): TextBlock =
+        inlineText(
+            *(
+                spells.map { spell ->
+                    val cost = spell.baseCost + member.level
+                    "${spell.slot}. ${spell.name.padEnd(12)}(${cost.toString().padStart(3)}/${member.mana.current.toString().padStart(3)})"
+                } + "$abortSlot. Abort"
+            ).toTypedArray(),
+        )
+}
+
+data class InventoryUsePromptsModel(
+    val use: TextBlock = inlineText("Use what?"),
+    val quaff: TextBlock = inlineText("Quaff what?"),
+    val noItems: TextBlock = inlineText("You are not carrying", "anything."),
+    val noItem: TextBlock = inlineText("There is nothing", "in that slot."),
+    val invalidSlotFirstPrefix: String = "Inventory slot ",
+    val invalidSlotFirstSuffix: String = "",
+    val invalidSlotSecond: String = "does not exist.",
+    val notUsableFirst: String = "Nothing happens",
+    val notUsableSecondPrefix: String = "with ",
+    val notUsableSecondSuffix: String = ".",
+) {
+    fun choose(
+        prompt: TextBlock,
+        choiceLines: List<String>,
+    ): TextBlock = combineTextBlocks(prompt, TextBlock.Inline(choiceLines))
+
+    fun invalidSlot(slot: Int): TextBlock = inlineText("$invalidSlotFirstPrefix$slot$invalidSlotFirstSuffix", invalidSlotSecond)
+
+    fun notUsable(itemName: String): TextBlock = inlineText(notUsableFirst, "$notUsableSecondPrefix$itemName$notUsableSecondSuffix")
+}
+
+data class EquipmentPromptsModel(
+    val inventory: TextBlock = inlineText("Ready what?"),
+    val who: TextBlock = inlineText("Who? (1-N)"),
+    val readyWeapons: TextBlock = inlineText("Do you want to ready", "some weapons before", "leaving?", ""),
+    val readyArmors: TextBlock = inlineText("Do you want to ready", "some armors before", "leaving?", ""),
+)
+
+data class TownPromptsModel(
+    val unavailableSuffix: String = " is not available here.",
+    val closedSuffix: String = " is closed.",
+    val entryWelcome: TextBlock = missingPrompt("town.entry_welcome"),
+    val entryTax: TextBlock = missingPrompt("town.entry_tax"),
+    val entryTaxThanks: TextBlock = missingPrompt("town.entry_tax_thanks"),
+) {
+    fun unavailable(building: BuildingId): TextBlock = inlineText("${building.slug}$unavailableSuffix")
+
+    fun closed(building: BuildingId): TextBlock = inlineText("${building.slug}$closedSuffix")
+
+    fun renderEntryTaxPrompt(
+        townName: String,
+        taxPercent: Int,
+        taxAmount: Int,
+    ): TextBlock {
+        val values =
+            PromptTextValues(
+                currentTownName = townName,
+                townTaxPercent = taxPercent,
+                townTaxAmount = taxAmount,
+            )
+        return combineTextBlocks(
+            entryWelcome.resolvePromptValues(values),
+            entryTax.resolvePromptValues(values),
+        )
+    }
+}
+
+data class PartyPromptsModel(
+    val viewWho: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, "/Q/A)") },
+    val journalHeader: TextBlock = missingPrompt("party.journal_header"),
+    val dropPrompt: TextBlock = inlineText("Drop what?"),
+    val dropEmptySlot: TextBlock = inlineText("Nothing to drop."),
+    val dropAborted: TextBlock = inlineText("Aborted."),
+    val dropDropped: TextBlock =
+        structuredText {
+            line("You drop the")
+            line(TextPart.SelectedItemName, ".")
+        },
+    val dropCapacityReduced: TextBlock = inlineText("You are forced to", "leave some of your", "food behind..."),
+) {
+    fun renderDropped(itemName: String): TextBlock = dropDropped.resolvePromptValues(PromptTextValues(selectedItemName = itemName))
+}
+
+data class WildernessPromptsModel(
+    val pass: TextBlock = missingPrompt("wilderness.pass"),
+    val noMoves: TextBlock = missingPrompt("wilderness.no_moves"),
+    val outOfMoves: TextBlock = missingPrompt("wilderness.out_of_moves"),
+    val notInWilderness: TextBlock = missingPrompt("wilderness.not_in_wilderness"),
+    val nothingToEnter: TextBlock = missingPrompt("wilderness.nothing_to_enter"),
+    val quitConfirm: TextBlock = missingPrompt("wilderness.quit_confirm"),
+    val dungeonHandoff: TextBlock = missingPrompt("wilderness.dungeon_handoff"),
+) {
+    fun renderDungeonHandoff(
+        dungeonName: String,
+        levels: Int,
+    ): TextBlock =
+        dungeonHandoff.resolvePromptValues(
+            PromptTextValues(
+                wildernessDungeonName = dungeonName,
+                wildernessDungeonLevels = levels,
+            ),
+        )
+}
+
+data class DungeonPromptsModel(
+    val levelMenu: TextBlock = missingPrompt("dungeon.level_menu"),
+    val enterLevel: TextBlock = missingPrompt("dungeon.enter_level"),
+    val atMaxDepth: TextBlock = missingPrompt("dungeon.at_max_depth"),
+    val noTorches: TextBlock = missingPrompt("dungeon.no_torches"),
+    val leaveCavern: TextBlock = missingPrompt("dungeon.leave_cavern"),
+) {
+    fun renderLevelMenu(depth: Int): TextBlock = levelMenu.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
+
+    fun renderEnterLevel(depth: Int): TextBlock = enterLevel.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
+}
+
+private fun missingPrompt(name: String): TextBlock = inlineText("[missing prompt: $name]")
+
+internal data class PromptTextValues(
+    val wildernessDungeonName: String? = null,
+    val wildernessDungeonLevels: Int? = null,
+    val dungeonDepth: Int? = null,
+    val selectedItemName: String? = null,
+    val conversationNpcName: String? = null,
+    val currentTownName: String? = null,
+    val townTaxPercent: Int? = null,
+    val townTaxAmount: Int? = null,
+    val creationMemberNumber: Int? = null,
+    val creationMemberName: String? = null,
+    val creationWeaponSkill: Int? = null,
+    val creationHealth: Int? = null,
+    val creationWisdom: Int? = null,
+    val creationCharisma: Int? = null,
+)
+
+internal fun TextBlock.resolvePromptValues(values: PromptTextValues): TextBlock =
+    when (this) {
+        is TextBlock.Inline,
+        is TextBlock.Ref,
+        -> this
+        is TextBlock.Structured ->
+            TextBlock.Structured(
+                lines.map { line ->
+                    TextLine(line.parts.map { part -> part.resolvePromptValue(values) })
+                },
+            )
+    }
+
+internal fun TextPart.resolvePromptValue(values: PromptTextValues): TextPart =
+    when (this) {
+        TextPart.WildernessDungeonName -> TextPart.Literal(values.wildernessDungeonName ?: fallbackText())
+        TextPart.WildernessDungeonLevels -> TextPart.Literal(values.wildernessDungeonLevels?.toString() ?: fallbackText())
+        TextPart.DungeonDepth -> TextPart.Literal(values.dungeonDepth?.toString() ?: fallbackText())
+        TextPart.SelectedItemName -> TextPart.Literal(values.selectedItemName ?: fallbackText())
+        TextPart.ConversationNpcName -> TextPart.Literal(values.conversationNpcName ?: fallbackText())
+        TextPart.CurrentTownName -> TextPart.Literal(values.currentTownName ?: fallbackText())
+        TextPart.TownTaxPercent -> TextPart.Literal(values.townTaxPercent?.toString() ?: fallbackText())
+        TextPart.TownTaxAmount -> TextPart.Literal(values.townTaxAmount?.toString() ?: fallbackText())
+        TextPart.CreationMemberNumber -> TextPart.Literal(values.creationMemberNumber?.toString() ?: fallbackText())
+        TextPart.CreationMemberName -> TextPart.Literal(values.creationMemberName ?: fallbackText())
+        TextPart.CreationWeaponSkill -> TextPart.Literal(values.creationWeaponSkill?.toString() ?: fallbackText())
+        TextPart.CreationHealth -> TextPart.Literal(values.creationHealth?.toString() ?: fallbackText())
+        TextPart.CreationWisdom -> TextPart.Literal(values.creationWisdom?.toString() ?: fallbackText())
+        TextPart.CreationCharisma -> TextPart.Literal(values.creationCharisma?.toString() ?: fallbackText())
+        else -> this
+    }
+
+internal fun ConversationTopic.defaultLabel(): String =
+    when (this) {
+        ConversationTopic.Chitchat -> "Chitchat"
+        ConversationTopic.Question -> "Question"
+        ConversationTopic.Rumor -> "Rumors"
+        ConversationTopic.Bye -> "Bye"
+    }
+
+internal fun QuestionTopic.defaultLabel(): String =
+    when (this) {
+        QuestionTopic.Lodging -> "Lodging"
+        QuestionTopic.Magic -> "Magic"
+        QuestionTopic.People -> "People"
+        QuestionTopic.Nothing -> "Nothing"
+    }
+
+data class WildernessEventModel(
+    val caveChancePercent: Int = 3,
+    val quietChancePercent: Int = 91,
+    val encounterSplitPercent: Int = 50,
+    val easyEncounterTier: EncounterTier = DslDefaultEncounterTiers.weak,
+    val hardEncounterTier: EncounterTier = DslDefaultEncounterTiers.wild,
+    val caveDungeon: DungeonId = DslDefaultDungeons.randomCave,
+    val caveDepthRange: IntRange = 3..16,
+    val caveEntryCost: Int = 10,
+    val caveImage: ImageId? = null,
+    val caveFoundPrompt: TextBlock = inlineText("You find a cave!", "", "(E)nter", "(L)eave"),
+    val caveNoMoves: TextBlock = inlineText("You don't have enough", "moves left to explore", "the cave...", ""),
+)
+
+data class TerrainTransitionModel(
+    val chancePercent: Int = 9,
+    val entries: List<TerrainTransitionTextModel> = emptyList(),
+)
+
+data class TerrainTransitionTextModel(
+    val terrain: TerrainId,
+    val text: TextBlock,
+)

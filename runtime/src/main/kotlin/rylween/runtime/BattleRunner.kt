@@ -1497,9 +1497,11 @@ internal class BattleRunner(
 
         private fun CompiledTextBlock.renderScriptLines(): List<String> =
             renderTextLines(
-                content = content,
-                intValue = { expr -> int(expr).toString() },
-                stringValue = ::string,
+                CompiledTextRenderContext(
+                    content = content,
+                    intValue = { expr -> int(expr).toString() },
+                    stringValue = ::string,
+                ),
             )
 
         private fun string(expr: CompiledStringExpr): String =

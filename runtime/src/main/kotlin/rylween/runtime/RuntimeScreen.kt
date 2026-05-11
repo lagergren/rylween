@@ -659,4 +659,6 @@ internal fun String.readableSlug(): String =
         .filter(String::isNotEmpty)
         .joinToString(" ") { part -> part.replaceFirstChar(Char::uppercaseChar) }
 
+internal fun String.readableJob(): String = readableSlug().replaceFirstChar(Char::lowercaseChar)
+
 internal fun rylween.compiled.CompiledContentBundle.slug(ref: CompiledHandleRef): String = strings.value(handles.handle(ref).slugString)

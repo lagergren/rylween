@@ -254,7 +254,7 @@ internal class ScriptExecutor(
             CompiledOpcode.ForEachMember -> executeForEachMember(instruction, context, instructionIndex, instructionCount)
             CompiledOpcode.ForEachMonster -> ScriptSignal.Continue
             CompiledOpcode.Speak -> executeSpeak(instruction.handleOperand(0), context.insideLoop)
-            CompiledOpcode.TellRumor -> continueAfter { tellRumor(instruction.handleOperand(0), appendToCurrent = true) }
+            CompiledOpcode.TellRumor -> continueAfter { appendRumor(instruction.handleOperand(0)) }
             CompiledOpcode.RunScene -> executeScene(instruction.handleOperand(0), context.insideLoop)
             CompiledOpcode.Encounter -> executeEncounter(instruction.handleOperand(0), instruction.booleanOperand(1))
             CompiledOpcode.EnterDungeon ->
@@ -483,7 +483,7 @@ internal class ScriptExecutor(
     }
 
     private fun List<CompiledMenuOption>.menuOptionLines(): List<String> =
-        map { option -> "${option.binding.primaryInputLabel(content)}. ${content.strings.value(option.binding.labelString)}" }
+        map { option -> option.binding.mnemonicLine(content, content.strings.value(option.binding.labelString)) }
 
     private fun List<String>.alreadyListMenuOptions(options: List<CompiledMenuOption>): Boolean =
         options.all { option ->
@@ -634,7 +634,7 @@ internal class ScriptExecutor(
                             if (rumorTold) {
                                 writeText(speak.noRumorLines())
                             } else {
-                                tellRumorBySlug(STANDARD_TOWN_RUMOR_TABLE)
+                                tellStandardTownRumor()
                                 rumorTold = true
                             }
                             waitForCurrentText()
@@ -743,16 +743,17 @@ internal class ScriptExecutor(
         screen.writeText(promptLines + "" + replyLines)
     }
 
-    private fun tellRumor(
-        table: CompiledHandleRef,
-        appendToCurrent: Boolean = false,
-    ) {
-        tellRumorBySlug(content.slug(table), appendToCurrent)
+    private fun appendRumor(table: CompiledHandleRef) {
+        writeRumor(content.slug(table), prefixLines = currentTextLines)
     }
 
-    private fun tellRumorBySlug(
+    private fun tellStandardTownRumor() {
+        writeRumor(STANDARD_TOWN_RUMOR_TABLE, prefixLines = emptyList())
+    }
+
+    private fun writeRumor(
         tableSlug: String,
-        appendToCurrent: Boolean = false,
+        prefixLines: List<String>,
     ) {
         val speak = systems.speak ?: return
         val entries =
@@ -771,11 +772,7 @@ internal class ScriptExecutor(
         }
         val lines = entry.text.renderExternal()
         appendRumorJournalHint(entry)
-        if (appendToCurrent && currentTextLines.isNotEmpty()) {
-            writeText(currentTextLines + lines)
-        } else {
-            writeText(lines)
-        }
+        writeText(prefixLines + lines)
     }
 
     private fun appendRumorJournalHint(entry: ExternalRumorEntry) {
@@ -943,23 +940,25 @@ internal class ScriptExecutor(
         price: Int? = null,
     ): List<String> =
         renderTextLines(
-            content,
-            intValue = { expr -> int(expr).toString() },
-            stringValue = ::string,
-            runtimeValue = { part ->
-                when (part) {
-                    CompiledRuntimeTextPart.OfferedItemName,
-                    CompiledRuntimeTextPart.SelectedItemName,
-                    CompiledRuntimeTextPart.BattleLootName,
-                    -> itemName(item)
+            CompiledTextRenderContext(
+                content,
+                intValue = { expr -> int(expr).toString() },
+                stringValue = ::string,
+                runtimeValue = { part ->
+                    when (part) {
+                        CompiledRuntimeTextPart.OfferedItemName,
+                        CompiledRuntimeTextPart.SelectedItemName,
+                        CompiledRuntimeTextPart.BattleLootName,
+                        -> itemName(item)
 
-                    CompiledRuntimeTextPart.OfferedItemPrice,
-                    CompiledRuntimeTextPart.ShopPrice,
-                    -> price?.toString() ?: itemRecord(item).cost.toString()
+                        CompiledRuntimeTextPart.OfferedItemPrice,
+                        CompiledRuntimeTextPart.ShopPrice,
+                        -> price?.toString() ?: itemRecord(item).cost.toString()
 
-                    else -> runtimeText(part)
-                }
-            },
+                        else -> runtimeText(part)
+                    }
+                },
+            ),
         )
 
     private fun PartyState.placeItem(
@@ -1272,7 +1271,11 @@ internal class ScriptExecutor(
             "townName" -> part.args["town"]?.let(::townNameBySlug)
             "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
             "roleName" -> part.args["role"]?.let(::roleName)
+            "roleJob" -> part.args["role"]?.let(::roleJob)
             "roleLocation" -> part.args["role"]?.let { role -> if (journal) roleJournalLocation(role) else roleLocation(role) }
+            "npcName" -> part.args["npc"]?.let(::npcName)
+            "npcJob" -> part.args["npc"]?.let(::npcJob)
+            "npcLocation" -> part.args["npc"]?.let { npc -> if (journal) npcJournalLocation(npc) else npcLocation(npc) }
             "locationCoordinate" -> part.args["location"]?.let(::locationTextBySlug)
             else -> null
         }
@@ -1289,6 +1292,12 @@ internal class ScriptExecutor(
                             ?.position()
                             ?.hasExactJournalCoordinate() == true
 
+                    "npcLocation" ->
+                        part.args["npc"]
+                            ?.let(::npcCharacter)
+                            ?.position()
+                            ?.hasExactJournalCoordinate() == true
+
                     "fuzzyTownLocation" -> part.args["radius"]?.toIntOrNull() == 0
                     "locationCoordinate" -> true
                     else -> false
@@ -1302,6 +1311,14 @@ internal class ScriptExecutor(
         roleCharacter(role)
             ?.let { character -> content.strings.value(character.nameString) }
             ?: content.slug(role)
+
+    private fun roleJob(roleSlug: String): String? =
+        roleCharacter(roleSlug)?.let(::characterJob)
+
+    private fun roleJob(role: CompiledHandleRef): String =
+        roleCharacter(role)
+            ?.let(::characterJob)
+            ?: content.slug(role).readableJob()
 
     private fun roleLocation(roleSlug: String): String? =
         roleCharacter(roleSlug)
@@ -1325,6 +1342,44 @@ internal class ScriptExecutor(
             ?.let(::journalPositionText)
             ?: content.slug(role)
 
+    private fun npcName(npcSlug: String): String? =
+        npcCharacter(npcSlug)?.let { character -> content.strings.value(character.nameString) }
+
+    private fun npcName(npc: CompiledHandleRef): String =
+        npcCharacter(npc)
+            ?.let { character -> content.strings.value(character.nameString) }
+            ?: content.slug(npc)
+
+    private fun npcJob(npcSlug: String): String? =
+        npcCharacter(npcSlug)?.let(::characterJob)
+
+    private fun npcJob(npc: CompiledHandleRef): String =
+        npcCharacter(npc)
+            ?.let(::characterJob)
+            ?: content.slug(npc).readableJob()
+
+    private fun npcLocation(npcSlug: String): String? =
+        npcCharacter(npcSlug)
+            ?.position()
+            ?.let(::positionText)
+
+    private fun npcLocation(npc: CompiledHandleRef): String =
+        npcCharacter(npc)
+            ?.position()
+            ?.let(::positionText)
+            ?: content.slug(npc)
+
+    private fun npcJournalLocation(npcSlug: String): String? =
+        npcCharacter(npcSlug)
+            ?.position()
+            ?.let(::journalPositionText)
+
+    private fun npcJournalLocation(npc: CompiledHandleRef): String =
+        npcCharacter(npc)
+            ?.position()
+            ?.let(::journalPositionText)
+            ?: content.slug(npc)
+
     private fun roleCharacter(roleSlug: String): CompiledCharacter? {
         val role = content.refOrNull(CompiledHandleKind.Role, roleSlug) ?: return null
         return roleCharacter(role)
@@ -1332,6 +1387,16 @@ internal class ScriptExecutor(
 
     private fun roleCharacter(role: CompiledHandleRef): CompiledCharacter? =
         content.characters.firstOrNull { character -> role in character.roles }
+
+    private fun npcCharacter(npcSlug: String): CompiledCharacter? {
+        val npc = content.refOrNull(CompiledHandleKind.Npc, npcSlug) ?: return null
+        return npcCharacter(npc)
+    }
+
+    private fun npcCharacter(npc: CompiledHandleRef): CompiledCharacter? =
+        content.characters.firstOrNull { character -> character.id == npc }
+
+    private fun characterJob(character: CompiledCharacter): String = content.slug(character.job).readableJob()
 
     private fun townNameBySlug(townSlug: String): String =
         content.refOrNull(CompiledHandleKind.Town, townSlug)?.let { town -> content.townName(town) } ?: townSlug
@@ -1399,11 +1464,6 @@ internal class ScriptExecutor(
         val hash = key.fold(0) { acc, char -> acc * 31 + char.code }
         return Math.floorMod(hash, span) - radius
     }
-
-    private fun Map<String, List<ExternalRuntimeCommand>>.menuLines(group: String): List<String> =
-        get(group).orEmpty().map { command ->
-            "${command.binding.primary}. ${command.label ?: command.binding.label}"
-        }
 
     private fun Map<String, List<ExternalRuntimeCommand>>.mnemonicMenuLines(group: String): List<String> =
         get(group).orEmpty().map { command -> command.mnemonicLine() }
@@ -1497,24 +1557,36 @@ internal class ScriptExecutor(
 
     private fun CompiledTextBlock.renderScriptLines(): List<String> =
         renderTextLines(
-            content,
-            intValue = { expr -> int(expr).toString() },
-            stringValue = ::string,
-            roleNameValue = ::roleName,
-            roleLocationValue = ::roleLocation,
-            locationValue = ::locationText,
-            runtimeValue = ::runtimeText,
+            CompiledTextRenderContext(
+                content,
+                intValue = { expr -> int(expr).toString() },
+                stringValue = ::string,
+                roleNameValue = ::roleName,
+                roleJobValue = ::roleJob,
+                roleLocationValue = ::roleLocation,
+                npcNameValue = ::npcName,
+                npcJobValue = ::npcJob,
+                npcLocationValue = ::npcLocation,
+                locationValue = ::locationText,
+                runtimeValue = ::runtimeText,
+            ),
         )
 
     private fun CompiledTextBlock.renderJournalLines(): List<String> =
         renderTextLines(
-            content,
-            intValue = { expr -> int(expr).toString() },
-            stringValue = ::string,
-            roleNameValue = ::roleName,
-            roleLocationValue = ::roleJournalLocation,
-            locationValue = ::locationText,
-            runtimeValue = ::runtimeText,
+            CompiledTextRenderContext(
+                content,
+                intValue = { expr -> int(expr).toString() },
+                stringValue = ::string,
+                roleNameValue = ::roleName,
+                roleJobValue = ::roleJob,
+                roleLocationValue = ::roleJournalLocation,
+                npcNameValue = ::npcName,
+                npcJobValue = ::npcJob,
+                npcLocationValue = ::npcJournalLocation,
+                locationValue = ::locationText,
+                runtimeValue = ::runtimeText,
+            ),
         )
 
     private fun locationText(location: CompiledHandleRef): String =
