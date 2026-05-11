@@ -281,7 +281,7 @@ var nextRylween: RylweenModel = rylween {
         }
 
         layouts {
-            region(ScreenRegions.textWindow, x = 49, y = 6, width = 26, height = 11)
+            region(ScreenRegions.textWindow, x = 49, y = 5, width = 26, height = 11)
             region(ScreenRegions.topLeft, x = 0, y = 0)
             region(ScreenRegions.statuslineTop, x = 3, y = 21)
             region(ScreenRegions.statuslineBottom, x = 13, y = 22)

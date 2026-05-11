@@ -15,11 +15,15 @@ FROM eclipse-temurin:25-jdk AS builder
 
 WORKDIR /src
 
-COPY gradle gradle
-COPY gradlew settings.gradle.kts build.gradle.kts ./
-COPY build-logic build-logic
+COPY gradle/wrapper gradle/wrapper
+# Warm the Gradle wrapper distribution before copying project files that change
+# often. This layer should only be invalidated when the wrapper itself changes.
+COPY gradlew ./
 RUN ./gradlew --no-daemon --version
 
+COPY gradle/libs.versions.toml gradle/libs.versions.toml
+COPY settings.gradle.kts build.gradle.kts ./
+COPY build-logic build-logic
 COPY . .
 # Produces two runtime artifacts, and fails the image build if either the
 # compiled bundle or installed web runtime cannot be built:
