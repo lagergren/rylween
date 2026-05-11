@@ -344,6 +344,7 @@ Decisions from the first `RylweenGame.dsl.kts` pass:
 - Content changes should not require runtime-code changes. During migration we may rebuild the JVM project because content and runtime sit in one Gradle build, but architecturally a new item, mission, dungeon, NPC, monster, town, scene, or map row should compile into the game model/bundle and run on the same Kotlin/C/server/native runtime. The only compatibility requirement is save/world compatibility: runtime snapshots should record a game-universe id/version/hash, and loading should reject incompatible worlds or run an explicit future migration. We are not carrying old C/JSON save compatibility as a design constraint.
 - A Kotlin ANSI frontend/runtime shell is a useful near-term backend as long as it stays isolated as a replaceable view/input adapter. It should own terminal modes, ANSI cursor/window drawing, asset/text rendering, input decoding, logging/socket fan-out, and file persistence, while consuming the same compiled game model and session APIs as a bitmap frontend, C bridge, server runtime, or headless test runner. It should not contain world-specific game rules. Current shape: the old interpreted/hybrid ANSI product has been archived inside `scratch/legacy-archive.zip` under `legacy/ansi-runtime` and is no longer an active Gradle project. Shared terminal escape/key primitives remain in `:terminal` so the runtime can reuse protocol constants without depending on the classic host. The active playable Kotlin path is `:runtime:installRuntime` plus `run.sh`, which reads `build/compiled/rylween-bundle.json` and runs outside Gradle so Gradle console/progress output does not share the game screen.
 - Runtime design is compiled-bundle first and host/view second. Game rules and state transitions should flow from authored DSL into compiled tables and runtime-system rows; the active runtime consumes those tables directly through `WildernessActions`, `ScriptExecutor`, `BattleRunner`, `DungeonRuntime`, `CastleRuntime`, and related host code. Replacing ANSI terminal graphics with another frontend must not require changes to game content, rules, or save state.
+- Persistence should converge toward "state is state" rather than a second hand-authored save schema. The current key/value `SaveFile` adapter remains acceptable while it is the shortest safe boundary, but a future typed hierarchical state model serialized directly to JSON or another deterministic data format should be preferred if it deletes parser code and reduces bugs. Do not add this just because serialization is available; add it only when authored initial state, generated runtime world state, account/user state, party state, and global win/reset status become simpler as one explicit data model with clear ownership.
 - The old line-oriented terminal adapters are archived reference material. Current tests drive the runtime through installed launcher smoke tasks, test-only replay plans that feed the shipped launcher with `--script`, direct scripts, and bundle/native checks.
 - Full playthrough testing should use scripted scenarios over compiled game models: choose a start state, fixed random seed, semantic or terminal-like inputs, and expected checkpoints such as party state, flags/milestones, inventory, current mode, journal entries, and rendered text/event traces. This should evolve like the previous C/JSON5 scenario approach, but without baking test-only rules into runtime code.
 - Small visible service beats are game semantics, not disposable UI polish. C/JSON5 `wait_input`/`ryl_pause` screens, pause delays, one-line confirmations such as inn drinks, and the random aggressive `(<verb> RETURN key)` prompt must be preserved in the authored game content plus reusable runtime hooks. The current 30 pause verbs live once in `RylweenGame.dsl.kts` under `prompts { pauseVerbs(...) }`; Kotlin runtime code may render and consume that model, but must not carry a duplicate current-game list.
@@ -610,11 +611,15 @@ contract, while the authored game remains portable JSON/data.
 - [ ] K. Web/server runtime product. Deferred as implementation, now scoped in
   [web-runtime-plan.md](web-runtime-plan.md). The first product direction is a
   JVM web container that reuses the current compiled-bundle Kotlin runtime,
-  proves browser play with ANSI-over-WebSocket, then grows a semantic bitmap
-  renderer, accounts, and per-user persistence. Any future non-JVM server/MUD
-  runtime should still read the J1 JSON bundle, execute script roots through the
-  J2 compiled VM, own multi-party persistence, and pass the same runtime
-  replay/conformance suites as `:runtime` before it is called playable.
+  proves browser play with ANSI-over-WebSocket against one shared world save,
+  then grows a semantic bitmap renderer, accounts, and true multi-party shared
+  state. The container should build only the compiled bundle into the image;
+  mutable world creation, generated NPC placement, date-based move resets, logs,
+  users, and saves belong under the configured data directory at runtime. Any
+  future non-JVM server/MUD runtime should still read the J1 JSON bundle, execute
+  script roots through the J2 compiled VM, own multi-party persistence, and pass
+  the same runtime replay/conformance suites as `:runtime` before it is called
+  playable.
 
 ## Complete migration inventory
 

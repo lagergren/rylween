@@ -33,10 +33,11 @@ the same compiled JSON bundle and runtime rules as the current JVM runtime.
 ## Product Target
 
 Ship a container that starts one web server. A user opens the site, creates or
-logs into an account, and plays a persisted Rylween party in the browser. Several
-users can play at the same time. For now, each user's save is independent, and
-global conflicts such as two users winning at the same time are explicitly out
-of scope.
+logs into an account, and plays Rylween in the browser against one persisted game
+world for that runtime. Several users may connect, but the first web proof should
+serialize world access until the runtime owns true multi-party shared state. When
+one party wins, the world is globally won and ordinary play should remain blocked
+until an operator resets or replaces that world save.
 
 The desired final browser experience is not just ANSI in a web terminal. The
 world should remain tile-based, but the tile and scene renderers should use
@@ -64,8 +65,8 @@ is:
 3. Render the stream with xterm.js in the browser so cursor positioning, window
    clearing, colors, and full-screen ANSI art work without writing a custom ANSI
    parser.
-4. Persist accounts and per-account save files under a mounted server data
-   directory.
+4. Persist one shared world save under a mounted server data directory, with
+   user/account data kept as identity metadata around that world.
 
 This proves web login, concurrent sessions, server persistence, and game-loop
 fit before investing in the better graphics layer.
@@ -95,8 +96,11 @@ Server responsibilities:
 - Accept `WS /ws/play` for authenticated game sessions.
 - Store mutable server data under `RYLWEEN_DATA`, defaulting to `/data`.
 - Keep one active runtime session per account at a time.
-- Give each account its own save file, for example
-  `/data/realms/default/parties/<account-id>.rsave`.
+- Use one authoritative world save for the runtime, defaulting to
+  `/data/saves/world.rsave`.
+- Until the runtime has a world manager that can merge independent party turns,
+  hold a process-local world-session lock so two users cannot restore the same
+  save and then overwrite each other's mutations.
 
 The first account store can be file-based to keep the container small:
 
@@ -233,21 +237,32 @@ Terrain should get a first-class web tileset declaration. Example concepts:
 
 First web version:
 
-- Account identity is server-owned.
-- One account maps to one active party/save file.
+- Account identity is server-owned, but the game world is shared by the runtime.
+- The configured world save is created by the same runtime initialization path
+  when it does not exist; the Docker image only contains the compiled bundle and
+  never bakes mutable generated world state into the image.
 - Saves remain the current runtime save format and keep bundle-hash validation.
-- A user can create a new party if no save exists, or continue an existing save.
-- Save on explicit in-game save command.
-- Add autosave-on-disconnect only after the runtime session API can safely expose
-  the current state at interruption points.
+- Generated world facts such as randomized NPC placement are persisted into the
+  shared save on session start, so a restarted container sees the same world.
+- The save stores a full ISO `yyyy-MM-dd` last-played date, not only a day number,
+  so daily move resets cannot fail when sessions are exactly a month apart.
+- The first POC serializes live sessions with a process-local world lock. This is
+  intentionally conservative: file locks alone avoid torn writes but still allow
+  stale session state to overwrite another player's completed world.
 
-Later shared-world version:
+Future simplification:
 
-- Split per-party state from realm/world state.
-- Store global Hall-of-Heroes separately from party saves.
-- Add file locks or SQLite transactions around shared state.
-- Keep two-simultaneous-winners as a later product rule, not a blocker for the
-  first web container.
+- Consider replacing the key/value `SaveFile` adapter with a typed hierarchical
+  state model that serializes directly to JSON or another deterministic data
+  format. This should happen only if it makes the code shorter, simpler, and less
+  bug-prone by removing duplicate hand-written save parsing. It should preserve
+  the principle that state is state: authored initial state, generated runtime
+  state, world state, user/account state, party state, and win/lockout status
+  should be represented as explicit data with clear ownership.
+- Add a world manager that owns the authoritative in-memory world and can support
+  true simultaneous parties without whole-session serialization.
+- Move to SQLite or another transactional store only when account metadata,
+  audit logs, Hall-of-Heroes, or shared-world queries make flat files awkward.
 
 ## Container Target
 
@@ -258,7 +273,8 @@ Add a web runtime image that:
 - copies `rylween-bundle.json`,
 - copies packaged game resources,
 - exposes port `8080`,
-- uses `/data` as a volume for users, saves, logs, and server secrets,
+- uses `/data` as a volume for users, the shared world save, logs, and server
+  secrets,
 - starts with something like:
 
 ```sh
@@ -277,8 +293,8 @@ Keep `:runtime:check` as the baseline. Add web-specific checks in this order:
    active-session rejection.
 2. A fake WebSocket terminal test that drives title/static-screen output through
    the injected terminal API.
-3. A scripted web session smoke that creates or loads two separate users and
-   verifies their saves do not collide.
+3. A scripted web session smoke that creates or loads the shared world save and
+   verifies two connected users cannot overwrite it concurrently.
 4. Browser tests for xterm/cursor clearing once the static client exists.
 5. Browser screenshot/canvas tests for tile rendering once the bitmap renderer
    exists.
@@ -286,8 +302,10 @@ Keep `:runtime:check` as the baseline. Add web-specific checks in this order:
 ## Milestones
 
 1. Runtime API extraction: CLI still passes `:runtime:check`.
-2. Web ANSI POC: one authenticated user can play in the browser and save.
-3. Concurrent web POC: two users can play at once with independent saves.
+2. Web ANSI POC: one authenticated user can play in the browser and save the
+   shared world.
+3. Concurrent web POC: two users can connect without save races; true
+   simultaneous parties come after the world manager exists.
 4. Web container: build and run with `/data` persistence.
 5. Semantic view boundary: ANSI CLI and web JSON renderer share one runtime
    loop.

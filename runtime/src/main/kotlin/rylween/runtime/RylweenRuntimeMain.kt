@@ -64,6 +64,7 @@ import rylween.dsl.StatPool
 import rylween.terminal.AnsiTerminal
 import rylween.terminal.AnsiTerminals
 import java.io.File
+import java.time.LocalDate
 import kotlin.math.max
 import kotlin.system.exitProcess
 
@@ -94,6 +95,7 @@ object RylweenRuntimeMain {
 /** Parsed command-line configuration for [GameRuntime]. */
 data class RuntimeConfig(
     val bundleFile: File,
+    val userId: String = DEFAULT_RUNTIME_USER,
     val stateSlug: String = "fresh-replay",
     val stateExplicit: Boolean = false,
     val loadFile: File? = null,
@@ -116,6 +118,7 @@ private object RuntimeCli {
         }
 
         var bundleFile: File? = null
+        var userId = DEFAULT_RUNTIME_USER
         var stateSlug = "fresh-replay"
         var stateExplicit = false
         var loadFile: File? = null
@@ -139,6 +142,11 @@ private object RuntimeCli {
                 "--state" -> {
                     stateSlug = args.valueAfter(index, arg)
                     stateExplicit = true
+                    index += 2
+                }
+
+                "--user" -> {
+                    userId = args.valueAfter(index, arg)
                     index += 2
                 }
 
@@ -203,6 +211,7 @@ private object RuntimeCli {
         }
         return RuntimeConfig(
             bundleFile = checkNotNull(bundleFile) { "--bundle is required" },
+            userId = userId,
             stateSlug = stateSlug,
             stateExplicit = stateExplicit,
             loadFile = loadFile,
@@ -225,6 +234,7 @@ private object RuntimeCli {
             |
             |Options:
             |  --state <slug>    Boot compiled state image directly, default fresh-replay.
+            |  --user <id>       Save/load user id inside the shared world save, default local.
             |  --load <file>     Load a runtime save.
             |  --save <file>     Save target for the S command, default build/saves/runtime.rsave.
             |  --screen <slug>   Render one compiled static screen and exit.
@@ -260,7 +270,7 @@ private fun RuntimeConfig.run() {
         log.event(
             "run.start bundle=${bundleFile.path} state=$stateSlug load=${loadFile?.path.orEmpty()} " +
                 "save=${saveFile.path} screen=${staticScreen.orEmpty()} script=${scriptedInput != null} " +
-                "seed=${seed ?: ""} title=$showTitleMenu noTitle=$skipTitleMenu debugLogFlash=$debugLogFlash " +
+                "user=$userId seed=${seed ?: ""} title=$showTitleMenu noTitle=$skipTitleMenu debugLogFlash=$debugLogFlash " +
                 "debugSecrets=$debugSecrets",
         )
         if (staticScreen != null) {
@@ -268,6 +278,7 @@ private fun RuntimeConfig.run() {
             return
         }
         runtime.runWilderness(
+            userId = userId,
             stateSlug = stateSlug,
             loadFile = loadFile,
             saveFile = saveFile,
@@ -339,6 +350,7 @@ class GameRuntime private constructor(
 
     /** Runs the runtime wilderness loop from one compiled state image. */
     fun runWilderness(
+        userId: String = DEFAULT_RUNTIME_USER,
         stateSlug: String,
         loadFile: File?,
         saveFile: File,
@@ -347,11 +359,13 @@ class GameRuntime private constructor(
         showTitleMenu: Boolean = false,
         debugLogFlash: Boolean = false,
         debugSecrets: Boolean = false,
+        sessionDate: LocalDate = LocalDate.now(),
         log: RuntimeLog,
     ): RuntimeSessionResult =
         AnsiTerminals.open(scripted = scriptedInput != null).use { terminal ->
             runWilderness(
                 terminal = terminal,
+                userId = userId,
                 stateSlug = stateSlug,
                 loadFile = loadFile,
                 saveFile = saveFile,
@@ -360,6 +374,7 @@ class GameRuntime private constructor(
                 showTitleMenu = showTitleMenu,
                 debugLogFlash = debugLogFlash,
                 debugSecrets = debugSecrets,
+                sessionDate = sessionDate,
                 log = log,
             )
         }
@@ -367,6 +382,7 @@ class GameRuntime private constructor(
     /** Runs the runtime wilderness loop using a caller-owned terminal. */
     fun runWilderness(
         terminal: AnsiTerminal,
+        userId: String,
         stateSlug: String,
         loadFile: File?,
         saveFile: File,
@@ -375,15 +391,18 @@ class GameRuntime private constructor(
         showTitleMenu: Boolean = false,
         debugLogFlash: Boolean = false,
         debugSecrets: Boolean = false,
+        sessionDate: LocalDate = LocalDate.now(),
         log: RuntimeLog,
     ): RuntimeSessionResult {
         var runtime =
             loadFile?.let { file ->
+                logSaveFileLines("runtime.restore", file, log)
                 SaveFile.read(
                     file = file,
                     expectedBundleHash = bundleContentHash,
                     content = content,
                     stateLookup = ::stateBySlug,
+                    userId = userId,
                 )
             } ?: RuntimeState.from(stateBySlug(stateSlug), content)
         runtime = seed?.let(runtime::withSeed) ?: runtime
@@ -392,14 +411,21 @@ class GameRuntime private constructor(
         if (debugLogFlash) log.mirrorTo(screen::flashLogLine)
         try {
             log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
-            logNpcPlacements(runtime, log)
             val input = RuntimeInput(terminal, scriptedInput, log)
-            if (showTitleMenu) {
+            val saveContext = RuntimeSaveContext(saveFile, bundleContentHash, userId)
+            val loopContext = RuntimeLoopContext(content, systems, input, screen, saveContext, log)
+            val hasUserSave = loadFile?.let { file -> SaveFile.hasUserParty(file, bundleContentHash, userId) } ?: false
+            if (showTitleMenu || loadFile != null && !hasUserSave) {
                 runtime =
-                    runTitleMenu(runtime, stateSlug, seed, saveFile, input, screen, log)
+                    runTitleMenu(runtime, stateSlug, seed, loopContext)
                         ?: return RuntimeSessionResult(RuntimeSessionExitReason.SessionEnded)
                 log.event("wilderness.title_selected position=${runtime.logPosition()} mode=${runtime.currentMode}")
             }
+            val sessionStartRuntime = runtime
+            runtime = runtime.materializeMissingNpcPlacements(world, log)
+            runtime = runtime.applySessionDate(sessionDate, log)
+            persistSessionStartIfChanged(sessionStartRuntime, runtime, saveContext, log)
+            logNpcPlacements(runtime, log)
             val commands = WildernessCommands.from(systems)
             val debugCommands = WildernessCommands.from(systems, "wilderness.debug")
             val actions =
@@ -414,14 +440,14 @@ class GameRuntime private constructor(
                     screen = screen,
                     log = log,
                 )
-            val utility = UtilityActions(content, systems, input, screen)
+            val utility = UtilityActions(content, systems, input, screen, log)
             screen.bootFrame()
             screen.renderWilderness(runtime, world)
             while (true) {
                 when (runtime.currentMode) {
                     RuntimeMode.Dungeon -> {
                         runtime =
-                            DungeonRuntime(content, systems, input, screen, saveFile, bundleContentHash, log)
+                            DungeonRuntime(loopContext)
                                 .run(runtime)
                         if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
                         if (input.exhausted) return input.exitResult()
@@ -431,7 +457,7 @@ class GameRuntime private constructor(
 
                     RuntimeMode.Castle -> {
                         runtime =
-                            CastleRuntime(content, systems, input, screen, saveFile, bundleContentHash)
+                            CastleRuntime(loopContext)
                                 .run(runtime)
                         if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
                         if (input.exhausted) return input.exitResult()
@@ -505,7 +531,7 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches("save", command) -> {
-                            saveRuntime(runtime, saveFile, screen)
+                            saveRuntime(runtime, saveContext, screen, log)
                             false
                         }
 
@@ -526,7 +552,7 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches("enter", command) -> {
-                            val entered = enterLocation(runtime, input, screen, saveFile, log)
+                            val entered = enterLocation(runtime, loopContext)
                             runtime = entered
                             entered.currentMode == RuntimeMode.Wilderness
                         }
@@ -616,40 +642,44 @@ class GameRuntime private constructor(
         runtime: RuntimeState,
         stateSlug: String,
         seed: Long?,
-        saveFile: File,
-        input: RuntimeInput,
-        screen: RuntimeScreen,
-        log: RuntimeLog,
+        context: RuntimeLoopContext,
     ): RuntimeState? {
+        val input = context.input
+        val log = context.log
+        val save = context.save
+        val screen = context.screen
         screen.showStaticScreen(TITLE_SCREEN, runtime)
         log.event("title.splash")
         if (input.readCommand() == null) return null
         while (true) {
-            val savedRuntime = loadSavedRuntimeOrNull(saveFile, log)
+            val savedRuntime = loadSavedRuntimeOrNull(save, log)
             screen.bootFrame()
             screen.writeText(titleMenuLines(hasSavedGame = savedRuntime != null))
             when (val command = input.readCommand()) {
                 null -> return null
                 'N' if savedRuntime == null -> {
                     log.event("title.new state=$stateSlug")
-                    val freshRuntime = RuntimeState.from(stateBySlug(stateSlug), content)
-                    return runCharacterCreation(seed?.let(freshRuntime::withSeed) ?: freshRuntime, input, screen, log)
+                    val creationRuntime = seed?.let(runtime::withSeed) ?: runtime
+                    return runCharacterCreation(creationRuntime, input, screen, log)
                 }
 
                 'C' if savedRuntime != null -> {
-                    log.event("title.continue save=${saveFile.path}")
+                    log.event("title.continue save=${save.file.path}")
                     return seed?.let(savedRuntime::withSeed) ?: savedRuntime
                 }
 
                 'T' if savedRuntime != null -> {
                     screen.writeText(listOf("Terminate saved party?", "", "(Y)es", "(N)o"))
                     if (input.readCommand() == 'Y') {
-                        val deleted = runCatching { !saveFile.exists() || saveFile.delete() }.getOrDefault(false)
-                        log.event("title.terminate save=${saveFile.path} deleted=$deleted")
+                        val deleted =
+                            runCatching {
+                                SaveFile.removeUser(save.file, save.bundleContentHash, save.userId)
+                            }.getOrDefault(false)
+                        log.event("title.terminate save=${save.file.path} deleted=$deleted")
                         screen.writeText(
                             listOf(
                                 if (deleted) "Saved party terminated." else "Could not delete saved party.",
-                                saveFile.path,
+                                save.file.path,
                             ),
                         )
                         input.readCommand()
@@ -686,19 +716,22 @@ class GameRuntime private constructor(
     }
 
     private fun loadSavedRuntimeOrNull(
-        saveFile: File,
+        save: RuntimeSaveContext,
         log: RuntimeLog,
     ): RuntimeState? {
-        if (!saveFile.exists()) return null
+        if (!save.file.exists()) return null
+        if (!SaveFile.hasUserParty(save.file, save.bundleContentHash, save.userId)) return null
         return runCatching {
+            logSaveFileLines("title.restore", save.file, log)
             SaveFile.read(
-                file = saveFile,
-                expectedBundleHash = bundleContentHash,
+                file = save.file,
+                expectedBundleHash = save.bundleContentHash,
                 content = content,
                 stateLookup = ::stateBySlug,
+                userId = save.userId,
             )
         }.onFailure { error ->
-            log.event("title.save_load_failed save=${saveFile.path} error=${error.message.orEmpty()}")
+            log.event("title.save_load_failed save=${save.file.path} error=${error.message.orEmpty()}")
         }.getOrNull()
     }
 
@@ -796,6 +829,10 @@ class GameRuntime private constructor(
             }
         }
         runtime = runtime.applyCreatedParty(partyName, members, memberNames)
+        log.event(
+            "creation.party_created name=${logValue(partyName)} members=${members.size} " +
+                "position=${runtime.logPosition()} memberNames=${memberNames.joinToString(separator = ",", transform = ::logValue)}",
+        )
         screen.writeText(prompts.saving.renderCreation() + PausePrompts(systems.prompts).line())
         input.readCommand()
         return runtime
@@ -963,7 +1000,6 @@ class GameRuntime private constructor(
             currentMode = RuntimeMode.Wilderness,
             currentTown = null,
             partyMemberMax = memberMax,
-            completedMissions = emptyList(),
             dungeon = null,
             castle = null,
             party = nextParty,
@@ -1093,27 +1129,69 @@ class GameRuntime private constructor(
 
     private fun saveRuntime(
         runtime: RuntimeState,
-        saveFile: File,
+        save: RuntimeSaveContext,
         screen: RuntimeScreen,
+        log: RuntimeLog,
     ) {
-        SaveFile.write(saveFile, runtime, bundleContentHash, content)
-        screen.writeText(listOf("Game saved.", saveFile.path))
+        persistRuntime(runtime, save, log, "command")
+        screen.writeText(listOf("Game saved.", save.file.path))
+    }
+
+    private fun persistSessionStartIfChanged(
+        before: RuntimeState,
+        after: RuntimeState,
+        save: RuntimeSaveContext,
+        log: RuntimeLog,
+    ) {
+        val hasUserSave = SaveFile.hasUserParty(save.file, save.bundleContentHash, save.userId)
+        if (before == after && save.file.isFile && hasUserSave) return
+        persistRuntime(after, save, log, "session_start")
+    }
+
+    private fun persistRuntime(
+        runtime: RuntimeState,
+        save: RuntimeSaveContext,
+        log: RuntimeLog,
+        reason: String,
+    ) {
+        save.write(runtime, content)
+        log.event(
+            "runtime.save reason=$reason user=${save.userId} file=${save.file.path} position=${runtime.logPosition()} " +
+                "mode=${runtime.currentMode} lastPlayedDate=${runtime.lastPlayedDate ?: ""}",
+        )
+        logSaveFileLines("runtime.save", save.file, log)
+    }
+
+    private fun logSaveFileLines(
+        context: String,
+        saveFile: File,
+        log: RuntimeLog,
+    ) {
+        if (!saveFile.isFile) {
+            log.event("$context.file_missing file=${saveFile.path}")
+            return
+        }
+        val lines = SaveFile.lines(saveFile)
+        log.event("$context.file file=${saveFile.path} lines=${lines.size}")
+        lines.forEachIndexed { index, line ->
+            log.event("$context.line index=${index + 1} value=${logValue(line)}")
+        }
     }
 
     private fun enterLocation(
         runtime: RuntimeState,
-        input: RuntimeInput,
-        screen: RuntimeScreen,
-        saveFile: File,
-        log: RuntimeLog,
+        context: RuntimeLoopContext,
     ): RuntimeState {
+        val input = context.input
+        val log = context.log
+        val screen = context.screen
         log.event("wilderness.enter position=${runtime.logPosition()}")
         val town = content.towns.firstOrNull { it.position == runtime.party.position }
         if (town != null) return enterTown(runtime, input, screen, town, log)
         val castle = systems.castleRows.firstOrNull { castle -> castle.entry == runtime.party.position }
         if (castle != null) {
             log.event("wilderness.enter_castle castle=${castle.id}")
-            return CastleRuntime(content, systems, input, screen, saveFile, bundleContentHash)
+            return CastleRuntime(context)
                 .startCastle(runtime, castle)
         }
         log.event("wilderness.enter_none")
@@ -1211,6 +1289,94 @@ class GameRuntime private constructor(
         return bundle.states.firstOrNull { it.state == stateRef } ?: error("unknown compiled state $slug")
     }
 
+    private fun RuntimeState.materializeMissingNpcPlacements(
+        world: WorldMap,
+        log: RuntimeLog,
+    ): RuntimeState {
+        var current = this
+        var placementParty = current.party.copy(rngState = current.party.rngState ?: 1L)
+        val placements = current.npcs.toMutableList()
+        content.characters.forEach { character ->
+            if (character.effectivePosition(current) != null) return@forEach
+            val candidates = npcPlacementCandidates(character.placement, world)
+            if (candidates.isEmpty()) {
+                log.event(
+                    "npc.placement.unplaced npc=${slug(character.id)} " +
+                        "name=${logValue(string(character.nameString))} job=${slug(character.job)} reason=no_candidates",
+                )
+                return@forEach
+            }
+            val draw = placementParty.drawRandom(0, candidates.lastIndex)
+            placementParty = draw.party
+            val position = candidates[draw.value]
+            placements += CompiledNpcPlacement(character.id, position)
+            current = current.copy(npcs = placements.toList())
+            log.event(
+                "npc.placement.generated npc=${slug(character.id)} " +
+                    "name=${logValue(string(character.nameString))} job=${slug(character.job)} " +
+                    "source=${character.placement.logSource()} location=${position.logLocation()}${position.townLogDetails()}",
+            )
+        }
+        return current
+    }
+
+    private fun RuntimeState.applySessionDate(
+        sessionDate: LocalDate,
+        log: RuntimeLog,
+    ): RuntimeState {
+        val previous = lastPlayedDate
+        if (previous == null) {
+            log.event("realm.session_date.init date=$sessionDate timeLeft=${party.resources.timeLeft}")
+            return copy(lastPlayedDate = sessionDate)
+        }
+        if (!sessionDate.isAfter(previous)) {
+            log.event("realm.session_date.keep previous=$previous date=$sessionDate timeLeft=${party.resources.timeLeft}")
+            return this
+        }
+        val dailyMoves = checkNotNull(systems.characterCreation).start.dailyTimeLeft
+        val nextParty =
+            party.copy(
+                resources = party.resources.copy(timeLeft = dailyMoves),
+                counters =
+                    party.counters.copy(
+                        attacked = false,
+                        attackedToday = emptyList(),
+                    ),
+            )
+        log.event(
+            "realm.session_date.reset previous=$previous date=$sessionDate " +
+                "oldTimeLeft=${party.resources.timeLeft} newTimeLeft=$dailyMoves",
+        )
+        return copy(lastPlayedDate = sessionDate, party = nextParty)
+    }
+
+    private fun npcPlacementCandidates(
+        placement: CompiledCharacterPlacement,
+        world: WorldMap,
+    ): List<CompiledWorldPosition> =
+        when (placement) {
+            is CompiledCharacterPlacement.Fixed -> emptyList()
+            CompiledCharacterPlacement.Randomized -> townNpcCandidates() + wildernessNpcCandidates(world)
+            CompiledCharacterPlacement.RandomizedWilderness -> wildernessNpcCandidates(world)
+        }
+
+    private fun townNpcCandidates(): List<CompiledWorldPosition> =
+        content.towns.flatMap { town ->
+            town.services.map { building ->
+                CompiledWorldPosition.Town(town.id, building)
+            }
+        }
+
+    private fun wildernessNpcCandidates(world: WorldMap): List<CompiledWorldPosition> =
+        (1..world.height).flatMap { y ->
+            (0 until world.width).mapNotNull { x ->
+                val point = GridPoint(x, y)
+                val terrain = world.terrainAt(point)
+                if (terrain?.allowsNpcPlacement == true) return@mapNotNull CompiledWorldPosition.Wilderness(point)
+                null
+            }
+        }
+
     private fun logNpcPlacements(
         runtime: RuntimeState,
         log: RuntimeLog,
@@ -1229,7 +1395,9 @@ class GameRuntime private constructor(
                     id = character.id,
                     name = string(character.nameString),
                     job = slug(character.job),
+                    source = character.positionSource(runtime),
                     location = position.logLocation(),
+                    townDetails = position.townLogDetails(),
                 )
             }
         val locationSummary =
@@ -1248,10 +1416,24 @@ class GameRuntime private constructor(
             .forEach { row ->
                 log.event(
                     "npc.placement npc=${slug(row.id)} name=${logValue(row.name)} " +
-                        "job=${row.job} location=${row.location}",
+                        "job=${row.job} source=${row.source} location=${row.location}${row.townDetails}",
                 )
             }
     }
+
+    private fun CompiledCharacter.positionSource(runtime: RuntimeState): String {
+        val runtimePlacement = runtime.npcs.firstOrNull { placement -> placement.npc == id }
+        if (runtimePlacement != null) return placement.logSource()
+        if (placement is CompiledCharacterPlacement.Fixed) return "fixed"
+        return "missing"
+    }
+
+    private fun CompiledCharacterPlacement.logSource(): String =
+        when (this) {
+            is CompiledCharacterPlacement.Fixed -> "fixed"
+            CompiledCharacterPlacement.Randomized -> "randomized"
+            CompiledCharacterPlacement.RandomizedWilderness -> "randomized_wilderness"
+        }
 
     private fun CompiledCharacter.effectivePosition(runtime: RuntimeState): CompiledWorldPosition? =
         runtime.npcs.firstOrNull { placement -> placement.npc == id }?.position
@@ -1262,6 +1444,12 @@ class GameRuntime private constructor(
             is CompiledWorldPosition.Town -> "town.${slug(town)}.${slug(building)}"
             is CompiledWorldPosition.Wilderness -> "wilderness.${point.x},${point.y}"
         }
+
+    private fun CompiledWorldPosition.townLogDetails(): String {
+        if (this !is CompiledWorldPosition.Town) return ""
+        val row = content.towns.firstOrNull { townRow -> townRow.id == town } ?: return ""
+        return " townName=${logValue(string(row.nameString))} townCoordinate=${row.position.x},${row.position.y}"
+    }
 
     private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -1284,7 +1472,9 @@ private data class NpcPlacementLogRow(
     val id: CompiledHandleRef,
     val name: String,
     val job: String,
+    val source: String,
     val location: String,
+    val townDetails: String,
 )
 
 internal data class RuntimeState(
@@ -1297,6 +1487,7 @@ internal data class RuntimeState(
     val currentMode: RuntimeMode,
     val currentTown: CompiledHandleRef?,
     val lastTerrain: CompiledHandleRef?,
+    val lastPlayedDate: LocalDate?,
     val partyMemberMax: Int,
     val locations: List<CompiledLocationPlacement>,
     val npcs: List<CompiledNpcPlacement>,
@@ -1328,6 +1519,7 @@ internal data class RuntimeState(
                 currentMode = state.realm.currentMode,
                 currentTown = state.realm.currentTown,
                 lastTerrain = state.realm.lastTerrain,
+                lastPlayedDate = null,
                 partyMemberMax = state.realm.partyMemberMax,
                 locations = state.locations,
                 npcs = state.npcs,
@@ -1514,7 +1706,7 @@ private const val REFERENCE_RANDOM_MULTIPLIER: Long = 0x2545F4914F6CDD1DL
 internal class RuntimeInput(
     private val terminal: AnsiTerminal,
     scriptedInput: String?,
-    private val log: RuntimeLog? = null,
+    private val log: RuntimeLog,
 ) {
     private val scripted = scriptedInput?.toList()?.let(::ArrayDeque)
 
@@ -1527,16 +1719,16 @@ internal class RuntimeInput(
     fun readCommand(): Char? {
         val scriptedCommand = readScriptedCommand()
         if (scriptedCommand != null) {
-            log?.event("input.command key=$scriptedCommand scripted=true")
+            log.event("input.command key=$scriptedCommand scripted=true")
             return scriptedCommand
         }
         if (scripted != null) {
-            log?.event("input.command eof scripted=true")
+            log.event("input.command eof scripted=true")
             return null
         }
         val token = terminal.readKeyToken() ?: return null
         return (token.firstOrNull()?.uppercaseChar() ?: '\n').also { command ->
-            log?.event("input.command key=$command scripted=false")
+            log.event("input.command key=$command scripted=false")
         }
     }
 

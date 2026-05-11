@@ -27,6 +27,7 @@ internal class UtilityActions(
     private val systems: ExternalRuntimeSystems,
     private val input: RuntimeInput,
     private val screen: RuntimeScreen,
+    private val log: RuntimeLog,
 ) {
     fun drop(runtime: RuntimeState): RuntimeState {
         val choices = runtime.party.inventory.filter { slot -> slot.item != null }
@@ -84,7 +85,7 @@ internal class UtilityActions(
                 else -> runtime
             }
         val program = use?.scriptRoot?.let(::programByRef) ?: return prepared
-        return ScriptExecutor(content, systems, input, screen, prepared, activeInventorySlot = slot)
+        return ScriptExecutor(content, systems, input, screen, prepared, activeInventorySlot = slot, log = log)
             .execute(program)
     }
 
@@ -107,6 +108,7 @@ internal class UtilityActions(
             screen = screen,
             initialRuntime = runtime,
             initialLocals = mapOf("caster_idx" to casterIndex + 1),
+            log = log,
         ).execute(program)
     }
 

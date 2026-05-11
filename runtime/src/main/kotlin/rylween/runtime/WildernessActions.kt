@@ -52,7 +52,7 @@ internal class WildernessActions(
     private val commands: Map<String, List<ExternalRuntimeCommand>>,
     private val input: RuntimeInput,
     private val screen: RuntimeScreen,
-    private val log: RuntimeLog? = null,
+    private val log: RuntimeLog,
 ) {
     private companion object {
         const val CAMP_MESSAGE_DELAY_MS = 1_300
@@ -149,12 +149,12 @@ internal class WildernessActions(
     }
 
     fun forceCaveDiscovery(runtime: RuntimeState): WildernessActionResult {
-        log?.event("debug.secret.force_cave position=${runtime.party.position.x},${runtime.party.position.y}")
+        log.event("debug.secret.force_cave position=${runtime.party.position.x},${runtime.party.position.y}")
         return runtime.applyCaveDiscovery(emptyList(), source = "debug_secret")
     }
 
     fun forceEncounter(runtime: RuntimeState): WildernessActionResult {
-        log?.event("debug.secret.force_encounter position=${runtime.party.position.x},${runtime.party.position.y}")
+        log.event("debug.secret.force_encounter position=${runtime.party.position.x},${runtime.party.position.y}")
         return runtime.applyEncounter(emptyList(), source = "debug_secret")
     }
 
@@ -173,7 +173,7 @@ internal class WildernessActions(
         }
 
         if (current.party.rngState == null) {
-            log?.event("rng.skip context=wilderness.event_gate reason=no_seed")
+            log.event("rng.skip context=wilderness.event_gate reason=no_seed")
             return WildernessActionResult(current, messages)
         }
 
@@ -189,7 +189,7 @@ internal class WildernessActions(
                 eventDraw.value < quietLimit -> "quiet"
                 else -> "encounter"
             }
-        log?.rngDraw(
+        log.rngDraw(
             context = "wilderness.event_gate",
             lo = 0,
             hi = 99,
@@ -234,7 +234,7 @@ internal class WildernessActions(
                 is CompiledTrigger.RandomStep -> {
                     val draw = next.party.rngState?.let { next.party.drawRandom(0, 99) } ?: return@forEach
                     next = next.withParty(draw.party)
-                    log?.rngDraw(
+                    log.rngDraw(
                         context = "wilderness.mission_random_step",
                         lo = 0,
                         hi = 99,
@@ -260,7 +260,7 @@ internal class WildernessActions(
             }
                 ?: error("missing compiled mission scene ${content.slug(mission.action)}")
         val ran =
-            ScriptExecutor(content, systems, input, screen, this)
+            ScriptExecutor(content, systems, input, screen, this, log = log)
                 .execute(program)
         if (ran.currentMode != RuntimeMode.Dungeon) return ran.withCompletedMission(mission.id)
         return ran.copy(dungeon = ran.dungeon?.copy(pendingMission = mission.id))
@@ -280,7 +280,7 @@ internal class WildernessActions(
         messages: List<String>,
         source: String,
     ): WildernessActionResult {
-        log?.event("wilderness.cave_discovery source=$source position=${party.position.x},${party.position.y}")
+        log.event("wilderness.cave_discovery source=$source position=${party.position.x},${party.position.y}")
         if (messages.isNotEmpty()) screen.writeText(messages)
         wilderness.events.caveImage?.let(screen::showImage)
         screen.writeText(wilderness.events.caveFoundPrompt.renderText())
@@ -292,7 +292,7 @@ internal class WildernessActions(
             return WildernessActionResult(this)
         }
         val depth = party.drawRandom(wilderness.events.caveDepthRange.first, wilderness.events.caveDepthRange.last)
-        log?.rngDraw(
+        log.rngDraw(
             context = "wilderness.cave_depth",
             lo = wilderness.events.caveDepthRange.first,
             hi = wilderness.events.caveDepthRange.last,
@@ -329,7 +329,7 @@ internal class WildernessActions(
         val splitDraw = current.party.drawRandom(0, 99)
         current = current.withParty(splitDraw.party)
         val tier = if (splitDraw.value < events.encounterSplitPercent) events.easyEncounterTier else events.hardEncounterTier
-        log?.rngDraw(
+        log.rngDraw(
             context = "wilderness.encounter_split",
             lo = 0,
             hi = 99,
@@ -357,7 +357,7 @@ internal class WildernessActions(
             )
         val chance = party.drawRandom(0, 99)
         party = chance.party
-        log?.rngDraw(
+        log.rngDraw(
             context = "wilderness.hunt_success",
             lo = 0,
             hi = 99,
@@ -377,7 +377,7 @@ internal class WildernessActions(
             )
         }
         val food = party.drawRandom(rules.foodMin, rules.foodMax)
-        log?.rngDraw(
+        log.rngDraw(
             context = "wilderness.hunt_food",
             lo = rules.foodMin,
             hi = rules.foodMax,
@@ -447,7 +447,7 @@ internal class WildernessActions(
         val draw = party.drawRandom(1, rules.temperatureMax)
         val temperature = draw.value
         val activeBands = rules.temperatureBands.filter { band -> temperature in band.first..band.last }
-        log?.rngDraw(
+        log.rngDraw(
             context = "wilderness.camp_temperature",
             lo = 1,
             hi = rules.temperatureMax,
@@ -496,7 +496,7 @@ internal class WildernessActions(
         val ambushTier = rules.ambushTier
         if (rules.ambushChancePercent <= 0 || ambushTier == null) return CampMutation(this)
         val chance = party.drawRandom(0, 99)
-        log?.rngDraw(
+        log.rngDraw(
             context = "wilderness.camp_ambush",
             lo = 0,
             hi = 99,
@@ -513,7 +513,7 @@ internal class WildernessActions(
             val aliveIndexes = party.members.mapIndexedNotNull { index, member -> index.takeUnless { member.dead } }
             val victim = party.drawRandom(0, aliveIndexes.lastIndex)
             val victimIndex = aliveIndexes[victim.value]
-            log?.rngDraw(
+            log.rngDraw(
                 context = "wilderness.camp_surprise_victim",
                 lo = 0,
                 hi = aliveIndexes.lastIndex,
@@ -544,7 +544,7 @@ internal class WildernessActions(
         if (from == null || to == null || from == to) return this
         val transition = wilderness.terrainTransitions.entries.firstOrNull { entry -> entry.terrain == to } ?: return this
         val draw = party.drawRandom(0, 99)
-        log?.rngDraw(
+        log.rngDraw(
             context = "wilderness.terrain_transition",
             lo = 0,
             hi = 99,
@@ -570,7 +570,7 @@ internal class WildernessActions(
                 if (member.pcClass !in manaRegenerationClasses || member.mana.current >= member.mana.max) return@mapIndexed member
                 val draw = party.drawRandom(0, 99)
                 party = draw.party
-                log?.rngDraw(
+                log.rngDraw(
                     context = "wilderness.upkeep_mana_regen",
                     lo = 0,
                     hi = 99,

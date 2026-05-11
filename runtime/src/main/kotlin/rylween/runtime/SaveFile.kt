@@ -1,83 +1,61 @@
 /**
  * Save/load support for the runtime.
  *
- * This file intentionally writes a small runtime-owned save format from direct
- * compiled handles and scalar rows. It does not use the old Kotlin
- * `RuntimeSessionState` snapshot path, because the runtime must be
- * able to persist state without depending on the legacy session graph.
+ * The on-disk shape is a shared-world envelope. Common rows describe the
+ * world everyone is playing in; `user.N.*` rows describe each saved party and
+ * where that party is currently playing.
  */
 
 package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle
+import rylween.compiled.CompiledEquipment
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInventorySlot
+import rylween.compiled.CompiledLocationPlacement
+import rylween.compiled.CompiledNpcPlacement
 import rylween.compiled.CompiledNpcVisit
+import rylween.compiled.CompiledPartyAttackRecord
 import rylween.compiled.CompiledPartyCounters
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledStateImage
+import rylween.compiled.CompiledWorldPosition
 import rylween.dsl.GridPoint
 import rylween.dsl.PartyResources
 import rylween.dsl.RuntimeMode
+import rylween.dsl.StatPool
 import java.io.File
+import java.time.LocalDate
 
 private const val SAVE_FORMAT = "rylween-save"
 private const val SAVE_VERSION = "1"
+private const val SAVE_MODEL = "shared-world"
 private const val PARTY_MEMBER_RECORD_COUNT = "party.members"
+private const val USERS_COUNT = "users.count"
 private val MEMBER_FIELD_KEY = Regex("""^member\.(\d+)\.""")
 
-/** Reads and writes runtime wilderness saves. */
+/** Reads and writes runtime shared-world saves. */
 internal object SaveFile {
     fun write(
         file: File,
         runtime: RuntimeState,
         bundleHash: String,
         content: CompiledContentBundle,
+        userId: String = DEFAULT_RUNTIME_USER,
     ) {
+        val activeUser = userId.normalizedSaveUser()
+        val preservedUsers =
+            file
+                .existingSaveValuesOrEmpty()
+                .userRecords()
+                .filterNot { record -> record.id == activeUser }
+        val userRecords = preservedUsers + UserSaveRecord(activeUser, runtime.userSaveValues(content))
         val values =
-            buildMap {
-                put("format", SAVE_FORMAT)
-                put("version", SAVE_VERSION)
-                put("bundleHash", bundleHash)
-                put("state", runtime.stateSlug)
-                put("realm.day", runtime.day.toString())
-                put("realm.hour", runtime.hour.toString())
-                put("realm.minute", runtime.minute.toString())
-                put("realm.currentMap", content.slug(runtime.currentMap))
-                put("realm.currentMode", runtime.currentMode.name)
-                put("realm.currentTown", runtime.currentTown?.let(content::slug).orEmpty())
-                put("realm.lastTerrain", runtime.lastTerrain?.let(content::slug).orEmpty())
-                put("realm.partyMemberMax", runtime.partyMemberMax.toString())
-                put("missions.completed", runtime.completedMissions.joinToString(",") { content.slug(it) })
-                runtime.dungeon?.let { dungeon ->
-                    put("dungeon.id", content.slug(dungeon.dungeon))
-                    put("dungeon.maxDepth", dungeon.maxDepth.toString())
-                    put("dungeon.depth", dungeon.depth.toString())
-                    put("dungeon.pendingMission", dungeon.pendingMission?.let(content::slug).orEmpty())
-                    put(
-                        "dungeon.levelEvents",
-                        dungeon.levelEvents.entries
-                            .sortedBy(Map.Entry<Int, CompiledHandleRef>::key)
-                            .joinToString(",") { (level, event) -> "$level:${content.slug(event)}" },
-                    )
-                    dungeon.postDungeon?.let { continuation -> putPostDungeon(continuation, content) }
-                }
-                runtime.castle?.let { castle ->
-                    put("castle.id", castle.castleId)
-                    put("castle.floor", castle.floor.toString())
-                    put("castle.x", castle.point.x.toString())
-                    put("castle.y", castle.point.y.toString())
-                    put("castle.roomEntryPending", castle.roomEntryPending.toString())
-                    put(
-                        "castle.rooms",
-                        castle.rooms.entries
-                            .sortedWith(compareBy<Map.Entry<GridPoint, String>> { it.key.y }.thenBy { it.key.x })
-                            .joinToString(",") { (point, event) -> "${point.x}:${point.y}:$event" },
-                    )
-                }
-                putParty(runtime.party, content)
-            }
+            runtime
+                .worldSaveValues(bundleHash, content)
+                .toMutableMap()
+        values.putUserRecords(userRecords)
         file.parentFile?.mkdirs()
         file.writeText(SaveCodec.encodeValues(values))
     }
@@ -87,6 +65,7 @@ internal object SaveFile {
         expectedBundleHash: String,
         content: CompiledContentBundle,
         stateLookup: (String) -> CompiledStateImage,
+        userId: String = DEFAULT_RUNTIME_USER,
     ): RuntimeState {
         val values = file.readSaveValues()
         values.requireValue("format", SAVE_FORMAT)
@@ -94,22 +73,175 @@ internal object SaveFile {
         values.requireValue("bundleHash", expectedBundleHash)
 
         val baseState = RuntimeState.from(stateLookup(values.required("state")), content)
-        validateSavedPartyMemberCount(values, baseState.partyMemberMax)
-        val mode = values["realm.currentMode"]?.let(RuntimeMode::valueOf) ?: baseState.currentMode
+        val userValues = values.userValuesFor(userId)
+        if (userValues.hasPartyFields()) validateSavedPartyMemberCount(userValues, baseState.partyMemberMax)
         return baseState.copy(
             day = values.intOrDefault("realm.day", baseState.day),
             hour = values.intOrDefault("realm.hour", baseState.hour),
             minute = values.intOrDefault("realm.minute", baseState.minute),
-            currentMap = values.handleOrDefault("realm.currentMap", CompiledHandleKind.WorldMap, content, baseState.currentMap),
-            currentMode = mode,
-            currentTown = values.optionalHandle("realm.currentTown", CompiledHandleKind.Town, content) ?: baseState.currentTown,
-            lastTerrain = values.optionalHandle("realm.lastTerrain", CompiledHandleKind.Terrain, content) ?: baseState.lastTerrain,
+            currentMap = userValues.handleOrDefault("realm.currentMap", CompiledHandleKind.WorldMap, content, baseState.currentMap),
+            currentMode = userValues.runtimeModeOrDefault("realm.currentMode", baseState.currentMode),
+            currentTown = userValues.optionalHandle("realm.currentTown", CompiledHandleKind.Town, content) ?: baseState.currentTown,
+            lastTerrain = userValues.optionalHandle("realm.lastTerrain", CompiledHandleKind.Terrain, content) ?: baseState.lastTerrain,
+            lastPlayedDate =
+                userValues.optionalDate("realm.lastPlayedDate")
+                    ?: values.optionalDate("realm.lastPlayedDate")
+                    ?: baseState.lastPlayedDate,
             partyMemberMax = values.intOrDefault("realm.partyMemberMax", baseState.partyMemberMax),
+            locations = values.readLocations(baseState.locations, content),
+            npcs = values.readNpcs(baseState.npcs, content),
             completedMissions =
                 values.handleListOrDefault("missions.completed", CompiledHandleKind.Mission, content, baseState.completedMissions),
-            dungeon = values.readDungeon(content) ?: baseState.dungeon,
-            castle = values.readCastle() ?: baseState.castle,
-            party = values.readParty(baseState.party, content),
+            dungeon = userValues.readDungeon(content) ?: baseState.dungeon,
+            castle = userValues.readCastle() ?: baseState.castle,
+            party = userValues.readParty(baseState.party, content),
+        )
+    }
+
+    fun hasUserParty(
+        file: File,
+        expectedBundleHash: String,
+        userId: String,
+    ): Boolean {
+        if (!file.isFile) return false
+        return runCatching {
+            val values = file.readSaveValues()
+            values.requireValue("format", SAVE_FORMAT)
+            values.requireValue("version", SAVE_VERSION)
+            values.requireValue("bundleHash", expectedBundleHash)
+            values.hasUserParty(userId)
+        }.getOrDefault(false)
+    }
+
+    fun removeUser(
+        file: File,
+        expectedBundleHash: String,
+        userId: String,
+    ): Boolean {
+        if (!file.isFile) return true
+        val values = file.readSaveValues()
+        values.requireValue("format", SAVE_FORMAT)
+        values.requireValue("version", SAVE_VERSION)
+        values.requireValue("bundleHash", expectedBundleHash)
+        val records = values.userRecords()
+        if (records.isEmpty()) return file.delete()
+        val nextRecords = records.filterNot { record -> record.id == userId.normalizedSaveUser() }
+        val nextValues = values.withoutUserRecords().toMutableMap()
+        nextValues.putUserRecords(nextRecords)
+        file.writeText(SaveCodec.encodeValues(nextValues))
+        return true
+    }
+
+    fun lines(file: File): List<String> = file.readLines()
+
+    private fun RuntimeState.worldSaveValues(
+        bundleHash: String,
+        content: CompiledContentBundle,
+    ): Map<String, String> =
+        buildMap {
+            put("format", SAVE_FORMAT)
+            put("version", SAVE_VERSION)
+            put("saveModel", SAVE_MODEL)
+            put("bundleHash", bundleHash)
+            put("state", stateSlug)
+            put("realm.day", day.toString())
+            put("realm.hour", hour.toString())
+            put("realm.minute", minute.toString())
+            put("realm.lastPlayedDate", lastPlayedDate?.toString().orEmpty())
+            put("realm.partyMemberMax", partyMemberMax.toString())
+            put("missions.completed", completedMissions.joinToString(",") { mission -> content.slug(mission) })
+            putLocations(locations, content)
+            putNpcs(npcs, content)
+        }
+
+    private fun RuntimeState.userSaveValues(content: CompiledContentBundle): Map<String, String> =
+        buildMap {
+            put("realm.currentMap", content.slug(currentMap))
+            put("realm.currentMode", currentMode.name)
+            put("realm.currentTown", currentTown?.let(content::slug).orEmpty())
+            put("realm.lastTerrain", lastTerrain?.let(content::slug).orEmpty())
+            put("realm.lastPlayedDate", lastPlayedDate?.toString().orEmpty())
+            dungeon?.let { state -> putDungeon(state, content) }
+            castle?.let { state -> putCastle(state) }
+            putParty(party, content)
+        }
+
+    private fun MutableMap<String, String>.putLocations(
+        locations: List<CompiledLocationPlacement>,
+        content: CompiledContentBundle,
+    ) {
+        val rows = locations.sortedBy { placement -> content.slug(placement.location) }
+        put("locations.count", rows.size.toString())
+        rows.forEachIndexed { index, placement ->
+            val number = index + 1
+            put("location.$number.id", content.slug(placement.location))
+            put("location.$number.x", placement.point.x.toString())
+            put("location.$number.y", placement.point.y.toString())
+        }
+    }
+
+    private fun MutableMap<String, String>.putNpcs(
+        npcs: List<CompiledNpcPlacement>,
+        content: CompiledContentBundle,
+    ) {
+        val rows = npcs.sortedBy { placement -> content.slug(placement.npc) }
+        put("npcs.count", rows.size.toString())
+        rows.forEachIndexed { index, placement ->
+            val number = index + 1
+            val prefix = "npc.$number"
+            put("$prefix.id", content.slug(placement.npc))
+            putWorldPosition(prefix, placement.position, content)
+        }
+    }
+
+    private fun MutableMap<String, String>.putWorldPosition(
+        prefix: String,
+        position: CompiledWorldPosition,
+        content: CompiledContentBundle,
+    ) {
+        when (position) {
+            is CompiledWorldPosition.Wilderness -> {
+                put("$prefix.position", "wilderness")
+                put("$prefix.x", position.point.x.toString())
+                put("$prefix.y", position.point.y.toString())
+            }
+
+            is CompiledWorldPosition.Town -> {
+                put("$prefix.position", "town")
+                put("$prefix.town", content.slug(position.town))
+                put("$prefix.building", content.slug(position.building))
+            }
+        }
+    }
+
+    private fun MutableMap<String, String>.putDungeon(
+        dungeon: DungeonState,
+        content: CompiledContentBundle,
+    ) {
+        put("dungeon.id", content.slug(dungeon.dungeon))
+        put("dungeon.maxDepth", dungeon.maxDepth.toString())
+        put("dungeon.depth", dungeon.depth.toString())
+        put("dungeon.pendingMission", dungeon.pendingMission?.let(content::slug).orEmpty())
+        put(
+            "dungeon.levelEvents",
+            dungeon.levelEvents.entries
+                .sortedBy(Map.Entry<Int, CompiledHandleRef>::key)
+                .joinToString(",") { (level, event) -> "$level:${content.slug(event)}" },
+        )
+        dungeon.postDungeon?.let { continuation -> putPostDungeon(continuation, content) }
+    }
+
+    private fun MutableMap<String, String>.putCastle(castle: CastleState) {
+        put("castle.id", castle.castleId)
+        put("castle.floor", castle.floor.toString())
+        put("castle.x", castle.point.x.toString())
+        put("castle.y", castle.point.y.toString())
+        put("castle.roomEntryPending", castle.roomEntryPending.toString())
+        put(
+            "castle.rooms",
+            castle.rooms.entries
+                .sortedWith(compareBy<Map.Entry<GridPoint, String>> { it.key.y }.thenBy { it.key.x })
+                .joinToString(",") { (point, event) -> "${point.x}:${point.y}:$event" },
         )
     }
 
@@ -118,9 +250,11 @@ internal object SaveFile {
         content: CompiledContentBundle,
     ) {
         put("party.id", content.slug(party.id))
+        put("party.playerString", party.playerString.toString())
         put("party.name", party.name)
         put("party.x", party.position.x.toString())
         put("party.y", party.position.y.toString())
+        put("party.facing", party.facing?.name.orEmpty())
         put("party.gold", party.resources.gold.toString())
         put("party.torches", party.resources.torches.toString())
         put("party.food", party.resources.food.toString())
@@ -136,9 +270,13 @@ internal object SaveFile {
         put("party.kills", party.counters.kills.toString())
         put("party.waitingMail", party.counters.waitingMail.toString())
         put("party.attacked", party.counters.attacked.toString())
+        put(
+            "party.attackedToday",
+            party.counters.attackedToday.joinToString(",") { record -> "${content.slug(record.party)}:${record.attacked}" },
+        )
         put("party.rngState", party.rngState?.toString().orEmpty())
-        put("party.flags", party.flags.joinToString(",") { content.slug(it) })
-        put("party.milestones", party.milestones.joinToString(",") { content.slug(it) })
+        put("party.flags", party.flags.joinToString(",") { flag -> content.slug(flag) })
+        put("party.milestones", party.milestones.joinToString(",") { milestone -> content.slug(milestone) })
         put(
             "party.visitedNpcs",
             party.visitedNpcs
@@ -153,12 +291,46 @@ internal object SaveFile {
             put("inventory.${slot.slot}", slot.item?.let(content::slug).orEmpty())
         }
         party.members.forEachIndexed { index, member ->
-            val number = index + 1
-            put("member.$number.name", party.memberNames.getOrNull(index).orEmpty())
-            put("member.$number.hitPoints", member.hitPoints.current.toString())
-            put("member.$number.magic", member.mana.current.toString())
-            put("member.$number.dead", member.dead.toString())
+            putMember(index + 1, member, party.memberNames.getOrNull(index).orEmpty(), content)
         }
+    }
+
+    private fun MutableMap<String, String>.putMember(
+        number: Int,
+        member: CompiledPartyMember,
+        memberName: String,
+        content: CompiledContentBundle,
+    ) {
+        val prefix = "member.$number"
+        put("$prefix.name", memberName)
+        put("$prefix.nameString", member.nameString.toString())
+        put("$prefix.gender", member.gender.name)
+        put("$prefix.race", member.race.name)
+        put("$prefix.class", member.pcClass.name)
+        put("$prefix.level", member.level.toString())
+        put("$prefix.health", member.health.toString())
+        put("$prefix.hitPoints", member.hitPoints.current.toString())
+        put("$prefix.hitPointsMax", member.hitPoints.max.toString())
+        put("$prefix.weaponSkill", member.weaponSkill.toString())
+        put("$prefix.wisdom", member.wisdom.toString())
+        put("$prefix.magic", member.mana.current.toString())
+        put("$prefix.magicMax", member.mana.max.toString())
+        put("$prefix.charisma", member.charisma.toString())
+        put("$prefix.weapon", content.slug(member.equipment.weapon))
+        put("$prefix.armor", content.slug(member.equipment.armor))
+        put("$prefix.experience", member.experience.toString())
+        put("$prefix.dead", member.dead.toString())
+    }
+
+    private fun MutableMap<String, String>.putPostDungeon(
+        continuation: ScriptContinuationState,
+        content: CompiledContentBundle,
+    ) {
+        put("dungeon.post.root", content.slug(continuation.root))
+        put("dungeon.post.frames", SaveCodec.encodeFrames(continuation.frames))
+        put("dungeon.post.locals", SaveCodec.encodeIntMap(continuation.locals))
+        put("dungeon.post.textBindings", SaveCodec.encodeStringMap(continuation.textBindings))
+        put("dungeon.post.activeInventorySlot", continuation.activeInventorySlot?.toString().orEmpty())
     }
 
     internal fun validateSavedPartyMemberCount(
@@ -186,24 +358,16 @@ internal object SaveFile {
         }
     }
 
-    private fun MutableMap<String, String>.putPostDungeon(
-        continuation: ScriptContinuationState,
-        content: CompiledContentBundle,
-    ) {
-        put("dungeon.post.root", content.slug(continuation.root))
-        put("dungeon.post.frames", SaveCodec.encodeFrames(continuation.frames))
-        put("dungeon.post.locals", SaveCodec.encodeIntMap(continuation.locals))
-        put("dungeon.post.textBindings", SaveCodec.encodeStringMap(continuation.textBindings))
-        put("dungeon.post.activeInventorySlot", continuation.activeInventorySlot?.toString().orEmpty())
-    }
-
     private fun Map<String, String>.readParty(
         base: PartyState,
         content: CompiledContentBundle,
     ): PartyState =
         base.copy(
+            id = optionalHandle("party.id", CompiledHandleKind.Party, content) ?: base.id,
+            playerString = intOrDefault("party.playerString", base.playerString),
             name = get("party.name")?.takeIf(String::isNotEmpty) ?: base.name,
             position = GridPoint(intOrDefault("party.x", base.position.x), intOrDefault("party.y", base.position.y)),
+            facing = optionalEnumOrDefault("party.facing", base.facing),
             resources =
                 PartyResources(
                     gold = intOrDefault("party.gold", base.resources.gold),
@@ -218,17 +382,62 @@ internal object SaveFile {
                     kills = intOrDefault("party.kills", base.counters.kills),
                     waitingMail = booleanOrDefault("party.waitingMail", base.counters.waitingMail),
                     attacked = booleanOrDefault("party.attacked", base.counters.attacked),
-                    attackedToday = base.counters.attackedToday,
+                    attackedToday = readAttackedToday(base.counters.attackedToday, content),
                 ),
             flags = handleListOrDefault("party.flags", CompiledHandleKind.FlagState, content, base.flags),
             milestones = handleListOrDefault("party.milestones", CompiledHandleKind.Milestone, content, base.milestones),
             visitedNpcs = readVisitedNpcs(base.visitedNpcs, content),
             journal = readJournal(base.journal),
             inventory = readInventory(base.inventory, content),
-            members = readMembers(base.members),
+            members = readMembers(base.members, content),
             memberNames = readMemberNames(base.memberNames),
             rngState = optionalLong("party.rngState") ?: base.rngState,
         )
+
+    private fun Map<String, String>.readLocations(
+        base: List<CompiledLocationPlacement>,
+        content: CompiledContentBundle,
+    ): List<CompiledLocationPlacement> {
+        val count = optionalInt("locations.count") ?: return base
+        return (1..count).map { number ->
+            CompiledLocationPlacement(
+                location = content.ref(CompiledHandleKind.Location, required("location.$number.id")),
+                point = GridPoint(required("location.$number.x").toInt(), required("location.$number.y").toInt()),
+            )
+        }
+    }
+
+    private fun Map<String, String>.readNpcs(
+        base: List<CompiledNpcPlacement>,
+        content: CompiledContentBundle,
+    ): List<CompiledNpcPlacement> {
+        val count = optionalInt("npcs.count") ?: return base
+        return (1..count).map { number ->
+            CompiledNpcPlacement(
+                npc = content.ref(CompiledHandleKind.Npc, required("npc.$number.id")),
+                position = readWorldPosition("npc.$number", content),
+            )
+        }
+    }
+
+    private fun Map<String, String>.readWorldPosition(
+        prefix: String,
+        content: CompiledContentBundle,
+    ): CompiledWorldPosition {
+        val position = required("$prefix.position")
+        if (position == "wilderness") {
+            return CompiledWorldPosition.Wilderness(
+                GridPoint(required("$prefix.x").toInt(), required("$prefix.y").toInt()),
+            )
+        }
+        if (position == "town") {
+            return CompiledWorldPosition.Town(
+                town = content.ref(CompiledHandleKind.Town, required("$prefix.town")),
+                building = content.ref(CompiledHandleKind.Building, required("$prefix.building")),
+            )
+        }
+        error("unknown compiled save world position $position")
+    }
 
     private fun Map<String, String>.readDungeon(content: CompiledContentBundle): DungeonState? {
         val dungeon = optionalHandle("dungeon.id", CompiledHandleKind.Dungeon, content) ?: return null
@@ -280,6 +489,24 @@ internal object SaveFile {
         )
     }
 
+    private fun Map<String, String>.readAttackedToday(
+        base: List<CompiledPartyAttackRecord>,
+        content: CompiledContentBundle,
+    ): List<CompiledPartyAttackRecord> {
+        val raw = get("party.attackedToday") ?: return base
+        if (raw.isEmpty()) return emptyList()
+        return raw
+            .split(',')
+            .filter(String::isNotEmpty)
+            .map { token ->
+                val parts = token.split(':')
+                CompiledPartyAttackRecord(
+                    party = content.ref(CompiledHandleKind.Party, parts[0]),
+                    attacked = parts.getOrElse(1) { "false" }.toBooleanStrict(),
+                )
+            }
+    }
+
     private fun Map<String, String>.readVisitedNpcs(
         base: List<CompiledNpcVisit>,
         content: CompiledContentBundle,
@@ -303,15 +530,48 @@ internal object SaveFile {
             if (containsKey("inventory.${slot.slot}")) slot.copy(item = item) else slot
         }
 
-    private fun Map<String, String>.readMembers(base: List<CompiledPartyMember>): List<CompiledPartyMember> =
+    private fun Map<String, String>.readMembers(
+        base: List<CompiledPartyMember>,
+        content: CompiledContentBundle,
+    ): List<CompiledPartyMember> =
         base.mapIndexed { index, member ->
             val number = index + 1
+            val prefix = "member.$number"
             member.copy(
-                hitPoints = member.hitPoints.copy(current = intOrDefault("member.$number.hitPoints", member.hitPoints.current)),
-                mana = member.mana.copy(current = intOrDefault("member.$number.magic", member.mana.current)),
-                dead = booleanOrDefault("member.$number.dead", member.dead),
+                nameString = intOrDefault("$prefix.nameString", member.nameString),
+                gender = enumOrDefault("$prefix.gender", member.gender),
+                race = enumOrDefault("$prefix.race", member.race),
+                pcClass = enumOrDefault("$prefix.class", member.pcClass),
+                level = intOrDefault("$prefix.level", member.level),
+                health = intOrDefault("$prefix.health", member.health),
+                hitPoints =
+                    StatPool(
+                        intOrDefault("$prefix.hitPoints", member.hitPoints.current),
+                        intOrDefault("$prefix.hitPointsMax", member.hitPoints.max),
+                    ),
+                weaponSkill = intOrDefault("$prefix.weaponSkill", member.weaponSkill),
+                wisdom = intOrDefault("$prefix.wisdom", member.wisdom),
+                mana =
+                    StatPool(
+                        intOrDefault("$prefix.magic", member.mana.current),
+                        intOrDefault("$prefix.magicMax", member.mana.max),
+                    ),
+                charisma = intOrDefault("$prefix.charisma", member.charisma),
+                equipment = readEquipment(prefix, member.equipment, content),
+                experience = intOrDefault("$prefix.experience", member.experience),
+                dead = booleanOrDefault("$prefix.dead", member.dead),
             )
         }
+
+    private fun Map<String, String>.readEquipment(
+        prefix: String,
+        base: CompiledEquipment,
+        content: CompiledContentBundle,
+    ): CompiledEquipment =
+        CompiledEquipment(
+            weapon = optionalHandle("$prefix.weapon", CompiledHandleKind.Item, content) ?: base.weapon,
+            armor = optionalHandle("$prefix.armor", CompiledHandleKind.Item, content) ?: base.armor,
+        )
 
     private fun Map<String, String>.readMemberNames(base: List<String>): List<String> =
         base.mapIndexed { index, name ->
@@ -324,6 +584,82 @@ internal object SaveFile {
     }
 
     private fun File.readSaveValues(): Map<String, String> = SaveCodec.decodeValues(readLines())
+
+    private fun File.existingSaveValuesOrEmpty(): Map<String, String> {
+        if (!isFile) return emptyMap()
+        return runCatching { readSaveValues() }.getOrDefault(emptyMap())
+    }
+
+    private fun Map<String, String>.userValuesFor(userId: String): Map<String, String> {
+        val users = userRecords()
+        val user = users.firstOrNull { record -> record.id == userId.normalizedSaveUser() }
+        if (user != null) return user.values
+        if (users.isNotEmpty()) return emptyMap()
+        if (userId.normalizedSaveUser() == DEFAULT_RUNTIME_USER && hasPartyFields()) return this
+        return emptyMap()
+    }
+
+    private fun Map<String, String>.hasUserParty(userId: String): Boolean {
+        val users = userRecords()
+        if (users.isEmpty()) return userId.normalizedSaveUser() == DEFAULT_RUNTIME_USER && hasPartyFields()
+        val user = users.firstOrNull { record -> record.id == userId.normalizedSaveUser() }
+        return user?.values?.hasPartyFields() == true
+    }
+
+    private fun Map<String, String>.hasPartyFields(): Boolean =
+        keys.any { key ->
+            key.startsWith("party.") ||
+                key.startsWith("member.") ||
+                key.startsWith("inventory.")
+        }
+
+    private fun Map<String, String>.userRecords(): List<UserSaveRecord> {
+        val count = optionalInt(USERS_COUNT) ?: return emptyList()
+        return (1..count).mapNotNull { number ->
+            val prefix = "user.$number."
+            val id = get("${prefix}id")?.takeIf(String::isNotBlank)?.normalizedSaveUser()
+            id?.let { saveUser ->
+                UserSaveRecord(
+                    id = saveUser,
+                    values =
+                        entries
+                            .asSequence()
+                            .filter { (key, _) -> key.startsWith(prefix) && key != "${prefix}id" }
+                            .associate { (key, value) -> key.removePrefix(prefix) to value },
+                )
+            }
+        }
+    }
+
+    private fun MutableMap<String, String>.putUserRecords(records: List<UserSaveRecord>) {
+        val sorted = records.sortedBy(UserSaveRecord::id)
+        put(USERS_COUNT, sorted.size.toString())
+        sorted.forEachIndexed { index, record ->
+            val prefix = "user.${index + 1}"
+            put("$prefix.id", record.id)
+            record.values.entries.sortedBy(Map.Entry<String, String>::key).forEach { (key, value) ->
+                put("$prefix.$key", value)
+            }
+        }
+    }
+
+    private fun Map<String, String>.withoutUserRecords(): Map<String, String> =
+        filterKeys { key ->
+            key != USERS_COUNT && !key.startsWith("user.")
+        }
+
+    private fun String.normalizedSaveUser(): String =
+        lowercase()
+            .map { char ->
+                when {
+                    char.isLetterOrDigit() -> char
+                    char == '-' -> char
+                    char == '_' -> char
+                    else -> '_'
+                }
+            }.joinToString("")
+            .takeIf(String::isNotBlank)
+            ?: DEFAULT_RUNTIME_USER
 
     private fun Map<String, String>.savedMemberSlots(): Set<Int> =
         keys
@@ -354,10 +690,30 @@ internal object SaveFile {
 
     private fun Map<String, String>.optionalLong(key: String): Long? = get(key)?.takeIf(String::isNotEmpty)?.toLong()
 
+    private fun Map<String, String>.optionalDate(key: String): LocalDate? =
+        get(key)
+            ?.takeIf(String::isNotEmpty)
+            ?.let(LocalDate::parse)
+
     private fun Map<String, String>.booleanOrDefault(
         key: String,
         default: Boolean,
     ): Boolean = get(key)?.takeIf(String::isNotEmpty)?.toBooleanStrict() ?: default
+
+    private inline fun <reified T : Enum<T>> Map<String, String>.enumOrDefault(
+        key: String,
+        default: T,
+    ): T = get(key)?.takeIf(String::isNotEmpty)?.let { value -> enumValueOf<T>(value) } ?: default
+
+    private inline fun <reified T : Enum<T>> Map<String, String>.optionalEnumOrDefault(
+        key: String,
+        default: T?,
+    ): T? = get(key)?.takeIf(String::isNotEmpty)?.let { value -> enumValueOf<T>(value) } ?: default
+
+    private fun Map<String, String>.runtimeModeOrDefault(
+        key: String,
+        default: RuntimeMode,
+    ): RuntimeMode = enumOrDefault(key, default)
 
     private fun Map<String, String>.handleOrDefault(
         key: String,
@@ -385,3 +741,8 @@ internal object SaveFile {
             ?.map { slug -> content.ref(kind, slug) }
             ?: default
 }
+
+private data class UserSaveRecord(
+    val id: String,
+    val values: Map<String, String>,
+)

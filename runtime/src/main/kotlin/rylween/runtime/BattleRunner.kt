@@ -81,7 +81,7 @@ internal class BattleRunner(
     private val combat: ExternalRuntimeCombat,
     private val input: RuntimeInput,
     private val screen: RuntimeScreen,
-    private val log: RuntimeLog? = null,
+    private val log: RuntimeLog,
     private val pausePrompts: PausePrompts? = null,
 ) {
     private val battle: ExternalStandardBattle? = combat.standardBattle
@@ -98,7 +98,7 @@ internal class BattleRunner(
             )
         }
         val pick = runtime.party.drawRandom(0, candidates.lastIndex)
-        log?.rngDraw(
+        log.rngDraw(
             context = "battle.tier_monster",
             lo = 0,
             hi = candidates.lastIndex,
@@ -166,7 +166,7 @@ internal class BattleRunner(
         val rules = encounter.rules
         val draw = encounter.runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
         val escaped = draw.value < rules.opening.fleeChancePercent
-        log?.rngDraw(
+        log.rngDraw(
             context = "battle.flee",
             lo = 0,
             hi = RANDOM_PERCENT_MAX,
@@ -599,7 +599,7 @@ internal class BattleRunner(
                 .takeIf { banners -> banners.isNotEmpty() }
                 ?.let { banners -> party.drawRandom(0, banners.lastIndex) }
         bannerDraw?.let { draw ->
-            log?.rngDraw(
+            log.rngDraw(
                 context = "battle.encounter_banner",
                 lo = 0,
                 hi = rules.opening.banners.lastIndex,
@@ -611,7 +611,7 @@ internal class BattleRunner(
         val countDraw = party.drawRandom(1, countMax.coerceAtLeast(1))
         party = countDraw.party
         val count = countDraw.value.coerceAtLeast(monster.count.first).coerceAtMost(rules.encounterFoeCountMax)
-        log?.rngDraw(
+        log.rngDraw(
             context = "battle.foe_count",
             lo = 1,
             hi = countMax.coerceAtLeast(1),
@@ -630,7 +630,7 @@ internal class BattleRunner(
                 repeat(count) { index ->
                     val hpDraw = party.drawRandom(1, hpRange.last)
                     party = hpDraw.party
-                    log?.rngDraw(
+                    log.rngDraw(
                         context = "battle.foe_hp",
                         lo = 1,
                         hi = hpRange.last,

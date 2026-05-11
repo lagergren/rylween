@@ -47,7 +47,7 @@ internal class RuntimeScreen(
     private val terminal: AnsiTerminal,
     bundle: CompiledGameBundle,
     private val systems: ExternalRuntimeSystems,
-    private val log: RuntimeLog? = null,
+    private val log: RuntimeLog,
 ) {
     private val content = bundle.content
     private val regions: Map<String, ExternalScreenRegion> = systems.presentation.regions.associateBy { it.id }
@@ -68,7 +68,7 @@ internal class RuntimeScreen(
     fun bootFrame() {
         classicFrameActive = true
         activeMapImage = null
-        log?.event("screen.boot_frame")
+        log.event("screen.boot_frame")
         terminal.writeRaw("${AnsiCodes.CSI}?25l")
         staticScreenById["frame"]?.image?.let { image -> renderImage(image) }
             ?: terminal.writeRaw("${AnsiCodes.CSI}2J${AnsiCodes.CSI}1;1H")
@@ -82,7 +82,7 @@ internal class RuntimeScreen(
         runtime: RuntimeState,
     ) {
         classicFrameActive = false
-        log?.event("screen.static slug=$screenSlug")
+        log.event("screen.static slug=$screenSlug")
         val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
         screen.image?.let { image -> renderImage(image) }
         staticScreenText(screen, runtime).takeIf(List<String>::isNotEmpty)?.let(::writeFullScreenText)
@@ -95,7 +95,7 @@ internal class RuntimeScreen(
         advance: () -> Char?,
     ) {
         classicFrameActive = false
-        log?.event("screen.static_paged slug=$screenSlug")
+        log.event("screen.static_paged slug=$screenSlug")
         val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
         screen.image?.let { image -> renderImage(image) }
         val lines = staticScreenText(screen, runtime)
@@ -112,7 +112,7 @@ internal class RuntimeScreen(
         world: WorldMap,
     ) {
         ensureClassicFrame()
-        log?.event("screen.render_wilderness position=${runtime.party.position.x},${runtime.party.position.y}")
+        log.event("screen.render_wilderness position=${runtime.party.position.x},${runtime.party.position.y}")
         renderStatus(runtime)
         renderMap(runtime.party.position, world)
         writeText(wildernessContextLines(runtime, world) + "" + systems.wilderness.commandHint.render(runtime))
@@ -121,7 +121,7 @@ internal class RuntimeScreen(
     /** Renders the dungeon backdrop, status lines, and authored depth prompt. */
     fun renderDungeon(runtime: RuntimeState) {
         ensureClassicFrame()
-        log?.event("screen.render_dungeon depth=${runtime.dungeon?.depth ?: 1}")
+        log.event("screen.render_dungeon depth=${runtime.dungeon?.depth ?: 1}")
         renderStatus(runtime)
         systems.dungeon.backdrop?.let(::showImage)
         val depth = runtime.dungeon?.depth ?: 1
@@ -137,7 +137,7 @@ internal class RuntimeScreen(
         castle: ExternalRuntimeCastle,
     ) {
         ensureClassicFrame()
-        log?.event("screen.render_castle castle=${castle.id} floor=${runtime.castle?.floor ?: 0}")
+        log.event("screen.render_castle castle=${castle.id} floor=${runtime.castle?.floor ?: 0}")
         renderStatus(runtime)
         castle.image?.let(::showImage)
         val state = runtime.castle
@@ -165,7 +165,7 @@ internal class RuntimeScreen(
     /** Clears the classic text window and writes the supplied lines inside it. */
     fun writeText(lines: List<String>) {
         ensureClassicFrame()
-        log?.event("screen.write_text lines=${lines.size} first=${lines.firstOrNull().orEmpty().take(40)}")
+        log.event("screen.write_text lines=${lines.size} first=${lines.firstOrNull().orEmpty().take(40)}")
         clearRegion(textWindow)
         lines.take(textWindow.height ?: lines.size).forEachIndexed { index, line ->
             gotoTextRow(index)
@@ -350,7 +350,7 @@ internal class RuntimeScreen(
         activeMapImage = null
         clearRegion(mapWindow)
         val viewport = world.viewport(center, rows = WILDERNESS_MAP_TILES, columns = WILDERNESS_MAP_TILES)
-        log?.event(
+        log.event(
             "screen.render_map center=${center.x},${center.y} rows=${viewport.size} " +
                 "columns=${viewport.firstOrNull()?.size ?: 0} region=${mapWindow.width}x${mapWindow.height} rowStride=$WILDERNESS_MAP_ROW_STRIDE",
         )
@@ -393,7 +393,7 @@ internal class RuntimeScreen(
         for ((index, page) in pages.withIndex()) {
             val lastPage = index == pages.lastIndex
             val prompt = pausePrompts.line(if (lastPage) "to return" else "for more")
-            log?.event("screen.more page=${index + 1}/${pages.size}")
+            log.event("screen.more page=${index + 1}/${pages.size}")
             writeFullScreenText(page + prompt)
             if (advance() == null) return
         }

@@ -42,7 +42,7 @@ internal class ShopService(
     private val systems: ExternalRuntimeSystems,
     private val input: RuntimeInput,
     private val screen: RuntimeScreen,
-    private val log: RuntimeLog? = null,
+    private val log: RuntimeLog,
 ) {
     private val realm = systems.realm
     private val itemsById: Map<CompiledHandleRef, CompiledItemRecord> = content.items.associateBy { it.id }
@@ -79,7 +79,7 @@ internal class ShopService(
                 }
 
                 else -> {
-                    log?.event("shop.invalid_choice building=${content.slug(shop.building)} key=$choice")
+                    log.event("shop.invalid_choice building=${content.slug(shop.building)} key=$choice")
                 }
             }
         }
@@ -98,13 +98,13 @@ internal class ShopService(
         var current = runtime
         val shouldRun =
             if (forced) {
-                log?.event("shop.interlude.forced building=${content.slug(shop.building)}")
+                log.event("shop.interlude.forced building=${content.slug(shop.building)}")
                 true
             } else {
                 val draw = runtime.party.drawRandom(0, 99)
                 current = runtime.withParty(draw.party)
                 val hit = draw.value < interlude.chancePercent
-                log?.rngDraw(
+                log.rngDraw(
                     context = "shop.interlude",
                     lo = 0,
                     hi = 99,
@@ -500,7 +500,7 @@ internal class ShopService(
         val draw = party.drawRandom(0, 99)
         bargain.rejectRollBelow?.let { threshold ->
             if (draw.value < threshold) {
-                log?.rngDraw(
+                log.rngDraw(
                     context = "shop.sell.haggle",
                     lo = 0,
                     hi = 99,
@@ -516,7 +516,7 @@ internal class ShopService(
                 current += current / max(1, bonus.addCurrentDivisor)
             }
         }
-        log?.rngDraw(
+        log.rngDraw(
             context = "shop.sell.haggle",
             lo = 0,
             hi = 99,
@@ -549,7 +549,7 @@ internal class ShopService(
             )
         }
         val draw = runtime.party.drawRandom(0, entries.lastIndex)
-        log?.rngDraw("speak.rumor.entry", 0, entries.lastIndex, draw.value)
+        log.rngDraw("speak.rumor.entry", 0, entries.lastIndex, draw.value)
         val current = runtime.withParty(draw.party)
         return RumorResult(current, entries[draw.value].text.renderExternal(current))
     }
