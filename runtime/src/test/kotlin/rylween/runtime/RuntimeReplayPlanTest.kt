@@ -290,6 +290,8 @@ class RuntimeReplayPlanTest {
                 executable.path,
                 "--bundle",
                 bundleFile.path,
+                "--user",
+                "replay-test",
             ) + args + listOf("--log", testTmp.resolve("$name.log").path)
         val process =
             ProcessBuilder(command)
