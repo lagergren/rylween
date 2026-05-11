@@ -188,23 +188,26 @@ Every step away from it (a separate world coordinator daemon, a database, a
 web frontend) is justifiable later but multiplies the operational surface.
 Keep the door open; don't walk through it yet.
 
-### Concrete non-JVM product target
+### Concrete web product target
 
-The previously scoped Rust ANSI TCP server/runtime has been deferred and
-removed from the active checkout. The idea still belongs here, but it should
-return as a new plan only when server/MUD work becomes the next priority.
+The active web direction is now scoped in
+[web-runtime-plan.md](web-runtime-plan.md). The first shippable target is a JVM
+web container that reuses the current compiled-bundle Kotlin runtime, proves
+browser play with ANSI-over-WebSocket, and then adds a semantic bitmap renderer
+for terrain tiles, scene art, and browser-native UI.
 
-This keeps the C code in its current role as a compact loader/VM boundary
-probe, while giving the server/MUD idea a real product surface: a static
-non-JVM binary that reads the J1 JSON bundle, executes scripts through the J2
-compiled VM, owns authentication and realm/party file locking, and passes the
-same conformance suites as the Kotlin host before it is called playable.
+This keeps the C code in its current role as a compact loader/VM boundary probe
+and avoids restarting the product in another language before the browser
+transport, accounts, and renderer seams are proven. A later non-JVM runtime may
+still make sense, but it should follow the same product contract: read the J1
+JSON bundle, execute scripts through the J2 compiled VM, own authentication and
+realm/party persistence, and pass the same conformance suites as the Kotlin
+host before it is called playable.
 
-Rust is the right first product language because the server target needs
-long-running TCP sessions, safe parsing, structured diagnostics, concurrency,
-and file-locking discipline. A C terminal clone would prove less of the
-future-directions architecture and would be too easy to confuse with the
-existing native probe.
+Rust or another non-JVM implementation can return later if scale, deployment,
+or portability demands it. It should not be the first web milestone, because
+the current Kotlin runtime already proves the compiled bundle and the immediate
+unknown is the browser product boundary.
 
 ## 5. Persistent scoreboard / hall of heroes
 

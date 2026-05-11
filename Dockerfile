@@ -6,7 +6,7 @@
 #
 # Usage:
 #   docker build -t rylween .
-#   docker run --rm -it rylween
+#   docker run --rm -it -v rylween-data:/data rylween
 
 # ---------------------------------------------------------------------
 # Stage 1: builder — compile Kotlin and assemble the runtime install dir.
@@ -21,7 +21,8 @@ COPY build-logic build-logic
 RUN ./gradlew --no-daemon --version
 
 COPY . .
-# Produces two runtime artifacts:
+# Produces two runtime artifacts, and fails the image build if either the
+# compiled bundle or installed runtime cannot be built:
 #   /src/build/compiled/rylween-bundle.json
 #     The compiled game data bundle emitted from the Kotlin DSL.
 #   /src/runtime/build/install/rylween/
@@ -35,6 +36,11 @@ RUN ./gradlew --no-daemon :tools:emitExternalCompiledBundle :runtime:installRunt
 # ---------------------------------------------------------------------
 FROM eclipse-temurin:25-jre AS runtime
 
+ARG RYLWEEN_DATA_DIR=/data
+ENV RYLWEEN_DATA_DIR="${RYLWEEN_DATA_DIR}"
+ENV RYLWEEN_SAVE_DIR="${RYLWEEN_DATA_DIR}/saves"
+ENV RYLWEEN_LOG_DIR="${RYLWEEN_DATA_DIR}/logs"
+
 WORKDIR /app
 # Copy the compiled data bundle consumed by the runtime at startup.
 COPY --from=builder /src/build/compiled/rylween-bundle.json /app/rylween-bundle.json
@@ -43,5 +49,6 @@ COPY --from=builder /src/build/compiled/rylween-bundle.json /app/rylween-bundle.
 COPY --from=builder /src/runtime/build/install/rylween /app/rylween
 
 ENV PATH="/app/rylween/bin:${PATH}"
-ENTRYPOINT ["/app/rylween/bin/rylween", "--bundle", "/app/rylween-bundle.json"]
+VOLUME ["/data"]
+ENTRYPOINT ["sh", "-c", "mkdir -p \"$RYLWEEN_SAVE_DIR\" \"$RYLWEEN_LOG_DIR\" && exec /app/rylween/bin/rylween --bundle /app/rylween-bundle.json --save \"$RYLWEEN_SAVE_DIR/runtime.rsave\" --log \"$RYLWEEN_LOG_DIR/runtime.log\" \"$@\"", "rylween"]
 CMD ["--title"]

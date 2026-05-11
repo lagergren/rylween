@@ -607,13 +607,14 @@ contract, while the authored game remains portable JSON/data.
 
   Current follow-up coverage: `ScriptExecutor` and `CompiledVm` now treat an absent story flag as the authored `none` state, so compiled dialogue and branch predicates can execute mission-intro content from clean fixtures. The runtime verification adds `town-mission-intro-route` for fixed Thord/Wilor mission-giver branches, `town-silver-key-chain-route` for the Gotharp/Azaaza Silver Key follow-up, `silver-key-discovery-route` for the uninterrupted map purchase -> Silver Sanctum note -> smith confession chain, `hobgoblin-caravan-route` for the seeded random-step caravan mission, and `master-crown-discovery-route` for the Broth/Ithienn -> kobold village -> skullweed -> Borin -> Nolrim's crypt -> Master Crown location chain, alongside the existing town social, Garth reward, acceptance power-route, castle-victory, save/load, and Hall-of-Heroes checks.
 
-- [ ] K. Non-JVM server/MUD runtime product. Deferred. The previous Rust
-  skeleton and plan were removed from the active checkout because the current
-  priority is hardening the Kotlin runtime and compiled-bundle boundary. When
-  server/MUD work returns, open a fresh product plan that reads the J1 JSON
-  bundle, executes script roots through the J2 compiled VM, owns multi-party
-  persistence, and passes the same runtime replay/conformance suites as
-  `:runtime` before it is called playable.
+- [ ] K. Web/server runtime product. Deferred as implementation, now scoped in
+  [web-runtime-plan.md](web-runtime-plan.md). The first product direction is a
+  JVM web container that reuses the current compiled-bundle Kotlin runtime,
+  proves browser play with ANSI-over-WebSocket, then grows a semantic bitmap
+  renderer, accounts, and per-user persistence. Any future non-JVM server/MUD
+  runtime should still read the J1 JSON bundle, execute script roots through the
+  J2 compiled VM, own multi-party persistence, and pass the same runtime
+  replay/conformance suites as `:runtime` before it is called playable.
 
 ## Complete migration inventory
 
