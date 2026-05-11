@@ -14,12 +14,10 @@ import rylween.compiled.CompiledDungeonEvent
 import rylween.compiled.CompiledDungeonRandomEvent
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledScriptProgram
-import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.dsl.DungeonEventDisposition
 import rylween.dsl.Resource
 import rylween.dsl.RuntimeMode
-import java.io.File
 
 /** Savable dungeon state. */
 internal data class DungeonState(
@@ -33,15 +31,15 @@ internal data class DungeonState(
 
 /** Runs dungeon exploration directly from compiled content and runtime-system rows. */
 internal class DungeonRuntime(
-    private val content: CompiledContentBundle,
-    private val systems: ExternalRuntimeSystems,
-    private val input: RuntimeInput,
-    private val screen: RuntimeScreen,
-    private val saveFile: File,
-    private val bundleContentHash: String,
-    private val log: RuntimeLog? = null,
+    private val context: RuntimeLoopContext,
 ) {
-    private val utility = UtilityActions(content, systems, input, screen)
+    private val content = context.content
+    private val systems = context.systems
+    private val input = context.input
+    private val screen = context.screen
+    private val save = context.save
+    private val log = context.log
+    private val utility = UtilityActions(content, systems, input, screen, log)
     private val commands = systems.commands.getValue(DUNGEON_COMMAND_GROUP)
 
     fun run(initialRuntime: RuntimeState): RuntimeState {
@@ -149,6 +147,7 @@ internal class DungeonRuntime(
                     screen = screen,
                     initialRuntime = next,
                     initialLocals = mapOf("dungeon_level" to dungeon.depth),
+                    log = log,
                 ).execute(program)
             }
         return next.copy(dungeon = next.dungeon?.clearEventIfNeeded(event, next))
@@ -158,7 +157,7 @@ internal class DungeonRuntime(
         runtime: RuntimeState,
         continuation: ScriptContinuationState,
     ): RuntimeState =
-        ScriptExecutor(content, systems, input, screen, runtime)
+        ScriptExecutor(content, systems, input, screen, runtime, log = log)
             .execute(continuation)
 
     private fun DungeonState.clearEventIfNeeded(
@@ -202,8 +201,12 @@ internal class DungeonRuntime(
     }
 
     private fun saveRuntime(runtime: RuntimeState) {
-        SaveFile.write(saveFile, runtime, bundleContentHash, content)
-        screen.writeText(listOf(saveFile.path))
+        save.write(runtime, content)
+        log.event(
+            "runtime.save user=${save.userId} file=${save.file.path} " +
+                "position=${runtime.party.position.x},${runtime.party.position.y} mode=${runtime.currentMode}",
+        )
+        screen.writeText(listOf(save.file.path))
     }
 
     private fun eventByRef(ref: CompiledHandleRef): CompiledDungeonEvent =
@@ -221,7 +224,7 @@ internal fun RuntimeState.enterDungeon(
     levels: Int,
     postDungeon: ScriptContinuationState? = null,
     pendingMission: CompiledHandleRef? = null,
-    log: RuntimeLog? = null,
+    log: RuntimeLog,
 ): RuntimeState {
     var plannedParty = party
     val maxDepth = levels.coerceAtLeast(1)
@@ -280,7 +283,7 @@ private fun List<CompiledDungeonRandomEvent>.drawDungeonEvent(
     content: CompiledContentBundle,
     dungeon: CompiledHandleRef,
     level: Int,
-    log: RuntimeLog?,
+    log: RuntimeLog,
 ): DungeonEventDraw? {
     if (party.rngState == null) return null
     val totalWeight = sumOf(CompiledDungeonRandomEvent::weight)
@@ -292,7 +295,7 @@ private fun List<CompiledDungeonRandomEvent>.drawDungeonEvent(
             running += random.weight
             draw.value <= running
         }.event
-    log?.rngDraw(
+    log.rngDraw(
         context = "dungeon.random_event",
         lo = 1,
         hi = totalWeight,

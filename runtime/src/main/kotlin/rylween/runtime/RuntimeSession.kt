@@ -2,9 +2,13 @@ package rylween.runtime
 
 import rylween.terminal.AnsiTerminal
 import java.io.File
+import java.time.LocalDate
+
+const val DEFAULT_RUNTIME_USER: String = "local"
 
 /** Programmatic configuration for one interactive runtime session. */
 data class RuntimeSessionConfig(
+    val userId: String = DEFAULT_RUNTIME_USER,
     val stateSlug: String = "fresh-replay",
     val loadFile: File? = null,
     val saveFile: File = File("build/saves/runtime.rsave"),
@@ -13,6 +17,7 @@ data class RuntimeSessionConfig(
     val showTitleMenu: Boolean = false,
     val debugLogFlash: Boolean = false,
     val debugSecrets: Boolean = false,
+    val sessionDate: LocalDate = LocalDate.now(),
 )
 
 /** Programmatic configuration for rendering a one-shot static screen. */
@@ -53,6 +58,7 @@ class RuntimeSessionFactory private constructor(
     ): RuntimeSessionResult =
         runtime.runWilderness(
             terminal = terminal,
+            userId = config.userId,
             stateSlug = config.stateSlug,
             loadFile = config.loadFile,
             saveFile = config.saveFile,
@@ -61,6 +67,7 @@ class RuntimeSessionFactory private constructor(
             showTitleMenu = config.showTitleMenu,
             debugLogFlash = config.debugLogFlash,
             debugSecrets = config.debugSecrets,
+            sessionDate = config.sessionDate,
             log = log,
         )
 

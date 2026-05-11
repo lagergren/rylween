@@ -9,18 +9,15 @@
 
 package rylween.runtime
 
-import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeCommand
-import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.dsl.GridPoint
 import rylween.dsl.PcClass
 import rylween.dsl.RuntimeMode
-import java.io.File
 
 /** Savable castle state. */
 internal data class CastleState(
@@ -33,14 +30,15 @@ internal data class CastleState(
 
 /** Runs one generic castle from stable runtime-system rows. */
 internal class CastleRuntime(
-    private val content: CompiledContentBundle,
-    private val systems: ExternalRuntimeSystems,
-    private val input: RuntimeInput,
-    private val screen: RuntimeScreen,
-    private val saveFile: File,
-    private val bundleContentHash: String,
+    private val context: RuntimeLoopContext,
 ) {
-    private val utility = UtilityActions(content, systems, input, screen)
+    private val content = context.content
+    private val systems = context.systems
+    private val input = context.input
+    private val screen = context.screen
+    private val save = context.save
+    private val log = context.log
+    private val utility = UtilityActions(content, systems, input, screen, log)
 
     fun run(initialRuntime: RuntimeState): RuntimeState {
         var runtime = initialRuntime
@@ -157,7 +155,7 @@ internal class CastleRuntime(
     ): RuntimeState {
         screen.writeText(castle.text.roomMonster.renderCastle())
         val battle =
-            BattleRunner(content, systems.combat, input, screen, pausePrompts = PausePrompts(systems.prompts))
+            BattleRunner(content, systems.combat, input, screen, log, PausePrompts(systems.prompts))
                 .runTier(runtime, castle.monsterTier)
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         return battle.runtime.copy(
@@ -326,8 +324,12 @@ internal class CastleRuntime(
     }
 
     private fun saveRuntime(runtime: RuntimeState) {
-        SaveFile.write(saveFile, runtime, bundleContentHash, content)
-        screen.writeText(listOf(saveFile.path))
+        save.write(runtime, content)
+        log.event(
+            "runtime.save user=${save.userId} file=${save.file.path} " +
+                "position=${runtime.party.position.x},${runtime.party.position.y} mode=${runtime.currentMode}",
+        )
+        screen.writeText(listOf(save.file.path))
     }
 
     private fun seedRooms(
@@ -385,7 +387,7 @@ internal class CastleRuntime(
         sceneSlug: String,
     ): RuntimeState {
         val program = sceneProgram(sceneSlug) ?: return runtime
-        return ScriptExecutor(content, systems, input, screen, runtime).execute(program)
+        return ScriptExecutor(content, systems, input, screen, runtime, log = log).execute(program)
     }
 
     private fun sceneProgram(sceneSlug: String): CompiledScriptProgram? =
