@@ -49,7 +49,7 @@ and runs outside Gradle so Gradle progress output and key echo do not share the
 game screen.
 
 `run.sh` shows the title flow by default. Press RETURN at the splash screen,
-then `N` to create a new party. Use `--no-title` only when you intentionally
+then `C` to create a new party. Use `--no-title` only when you intentionally
 want to boot a state or feed a direct script.
 Each run writes a forensic log to `build/logs/runtime/latest.log`; use
 `--log <file>` to keep a named capture instead of replacing `latest.log`.

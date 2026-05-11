@@ -1201,6 +1201,8 @@ var nextRylween: RylweenModel = rylween {
             standardBattle {
                 roundLimit = 200
                 encounterFoeCountMax = 8
+                encounterHitPointMinFormula = Formulas.encounterH1Scaled
+                encounterHitPointMaxFormula = Formulas.encounterH2Scaled
                 victoryImage(Images.Backdrop.battleVictory)
 
                 opening {
@@ -1214,6 +1216,11 @@ var nextRylween: RylweenModel = rylween {
                         Images.Backdrop.encounterBanner4,
                         Images.Backdrop.encounterBanner5,
                     )
+                }
+
+                openingKeys {
+                    fight = inputKey('F')
+                    run = inputKey('R')
                 }
 
                 text {
@@ -1283,11 +1290,11 @@ var nextRylween: RylweenModel = rylween {
                 }
 
                 playerActions {
-                    attack { line("(A)ttack") }
-                    defend { line("(D)efend") }
-                    useMagicItem { line("(U)se Item") }
-                    battleCry { line("(B)attle Cry") }
-                    castMageSpell { line("(C)ast Spell") }
+                    attack('A') { line("(A)ttack") }
+                    defend('D') { line("(D)efend") }
+                    useMagicItem('U') { line("(U)se Item") }
+                    battleCry('B') { line("(B)attle Cry") }
+                    castMageSpell('C') { line("(C)ast Spell") }
                 }
 
                 playerRound {
@@ -2315,6 +2322,15 @@ var nextRylween: RylweenModel = rylween {
                     usage = RumorUsagePolicy.OncePerConversationThenFallback
                     source = RumorSourcePolicy.StandardTownRumors
                 }
+
+                prompts {
+                    chooseNpc = inlineText("Speak with whom?", "")
+                    mainMenu {
+                        line("Chatting with")
+                        line(npcName, ":")
+                        line("")
+                    }
+                }
             }
 
             textTables {
@@ -2506,13 +2522,23 @@ var nextRylween: RylweenModel = rylween {
                         lines("- No I'm a lone ranger.")
                     }
                     job(NpcJobs.fighter) {
-                        lines("- Well, I met this", "merchant who seeks", "revenge on a band of", "bandits.")
+                        lines {
+                            line("- Well, I met this")
+                            line(character(Roles.banditsQuestGiver).job, " who seeks")
+                            line("revenge on a band of")
+                            line("bandits.")
+                        }
                     }
                     job(NpcJobs.wizard) {
                         lines("- OH! Well... not really.")
                     }
                     job(NpcJobs.priest) {
-                        lines("- I've heard of a hermit", "who lives in the swamps", "by Ollk. Perhaps he can", "help you.")
+                        lines {
+                            line("- I've heard of a ", character(Roles.hermitTrollTooth).job)
+                            line("who lives in the swamps")
+                            line("by ", town(Towns.ollk).name, ". Perhaps")
+                            line("he can help you.")
+                        }
                     }
                     job(NpcJobs.thief) {
                         lines("- No. Sorry. Dunno.")
@@ -2523,7 +2549,7 @@ var nextRylween: RylweenModel = rylween {
                     job(NpcJobs.bard) {
                         lines {
                             line("- Rumor has it that a")
-                            line("fighter called")
+                            line(character(Roles.fighterIntro).job, " called")
                             line(character(Roles.fighterIntro).name)
                             line("has a mission for you.")
                         }
@@ -2674,10 +2700,17 @@ var nextRylween: RylweenModel = rylween {
                         lines("Some say that you", "need gems to enter", "the old Temple of", "Thun.")
                     }
                     rumor {
-                        lines("Seek the Hermit if", "you want to know", "of the Fire Shield")
+                        lines {
+                            line("Seek the ", character(Roles.hermitTrollTooth).job)
+                            line("if you want to know")
+                            line("of the Fire Shield")
+                        }
                     }
                     rumor {
-                        lines("The Hermit lives in", "the swamp.")
+                        lines {
+                            line("The ", character(Roles.hermitTrollTooth).job)
+                            line("lives in the swamp.")
+                        }
                     }
                     rumor {
                         lines("Always post a guard", "when you camp in the", "Wilderness.")
@@ -2691,14 +2724,14 @@ var nextRylween: RylweenModel = rylween {
                     rumor(Rumors.banditsQuestGiver) {
                         excludeWhen(Story.garth.bandits.recovered, Story.garth.bandits.closed)
                         lines {
-                            line("A man named ", character(Roles.banditsQuestGiver).name)
+                            line("A ", character(Roles.banditsQuestGiver).job, " named ", character(Roles.banditsQuestGiver).name)
                             line("will pay you for")
                             line("killing some bandits.")
                         }
                     }
                     rumor(Rumors.rangerQuestGiver) {
                         lines {
-                            line("A hunter called ", character(Roles.rangersQuestGiver).name)
+                            line("A ", character(Roles.rangersQuestGiver).job, " called ", character(Roles.rangersQuestGiver).name)
                             line("seeks a brave party")
                             line("of adventurers.")
                         }
@@ -2738,7 +2771,7 @@ var nextRylween: RylweenModel = rylween {
                     }
                     rumor(Rumors.crownSeer) {
                         lines {
-                            line("A man named ", character(Roles.crownSeer).name)
+                            line("A ", character(Roles.crownSeer).job, " named ", character(Roles.crownSeer).name)
                             line("knows of the Crown.")
                             line("He lives ", character(Roles.crownSeer).location, "!")
                         }
@@ -2917,8 +2950,24 @@ var nextRylween: RylweenModel = rylween {
         }
 
         characters {
+            randomPlacementPolicy {
+                wilderness(8..57, 8..27) {
+                    replaceX(48, 49)
+                }
+                townServices(Towns.thord, Buildings.tavern, Buildings.inn)
+                townServices(Towns.ollk, Buildings.tavern, Buildings.inn)
+                townServices(Towns.wilor, Buildings.tavern, Buildings.inn)
+                townServices(Towns.murn, Buildings.tavern, Buildings.inn)
+            }
+
+            randomWildernessPolicy {
+                wilderness(8..57, 8..27) {
+                    replaceX(48, 49)
+                }
+            }
+
             character(Npcs.garth, "Garth", NpcJobs.merchant) {
-                fixed(Towns.thord.inn)
+                fixed(Towns.thord.tavern)
                 role(Roles.banditsQuestGiver)
             }
 
@@ -3062,7 +3111,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             character(Npcs.marcus, "Marcus", NpcJobs.hermit) {
-                fixed(Wilderness.xy(48, 7))
+                fixedNear(Towns.ollk, gridOffset(0, -5), requiredTerrain = Terrain.swamp)
                 role(Roles.hermitTrollTooth)
             }
 
@@ -3076,24 +3125,23 @@ var nextRylween: RylweenModel = rylween {
                 fixed(Towns.wilor.tavern)
             }
 
-            // The original C puts these trailing merchant slots in wilderness at
-            // 0,0. Authoring should state intent instead of inheriting an implicit
-            // origin hut, so keep them as wilderness-randomized people unless old
-            // data archaeology proves explicit hut coordinates.
+            // The original NPC.DAT keeps these trailing merchant records at
+            // 0,0 as inactive table slots. Model that as an explicit absence
+            // rather than a playable wilderness location.
             character(Npcs.alex, "Alex", NpcJobs.merchant) {
-                randomWilderness()
+                unplaced()
             }
 
             character(Npcs.galdon, "Galdon", NpcJobs.merchant) {
-                randomWilderness()
+                unplaced()
             }
 
             character(Npcs.kosch, "Kosch", NpcJobs.merchant) {
-                randomWilderness()
+                unplaced()
             }
 
             character(Npcs.ufarsin, "Ufarsin", NpcJobs.merchant) {
-                randomWilderness()
+                unplaced()
             }
         }
 
@@ -4096,11 +4144,12 @@ var nextRylween: RylweenModel = rylween {
                         menu(
                             "What'll it be?",
                             "",
-                            "A. Ale         2 au",
-                            "B. Mead        3 au",
-                            "C. Wine        5 au",
-                            "D. Whiskey     7 au",
-                            "E. Fanta       1 au",
+                            "(A) Ale         2 au",
+                            "(B) Mead        3 au",
+                            "(C) Wine        5 au",
+                            "(D) Whiskey     7 au",
+                            "(E) Fanta       1 au",
+                            "(N)othing",
                         ) {
                             option('A') {
                                 pay(lit(2),
@@ -4177,6 +4226,7 @@ var nextRylween: RylweenModel = rylween {
                                     },
                                 )
                             }
+                            option('N') {}
                         }
                     },
                 )
@@ -4651,11 +4701,11 @@ var nextRylween: RylweenModel = rylween {
                         clearText()
                         screen("Order:", "")
                         menu(
-                            "A. Ale       2 au",
-                            "B. Mead      3 au",
-                            "C. Wine      4 au",
-                            "D. Fanta     1 au",
-                            "E. Nothing",
+                            "(A) Ale       2 au",
+                            "(B) Mead      3 au",
+                            "(C) Wine      4 au",
+                            "(D) Fanta     1 au",
+                            "(N)othing",
                         ) {
                             option('A') {
                                 pay(lit(2),
@@ -4746,7 +4796,7 @@ var nextRylween: RylweenModel = rylween {
                                     },
                                 )
                             }
-                            option('E') {}
+                            option('N') {}
                         }
                     }
                 }
@@ -5723,12 +5773,12 @@ var nextRylween: RylweenModel = rylween {
             encounter(Monsters.bandit, mandatory = true)
             renderMap()
             clearText()
-            readScreen(
-                "You find the cargo",
-                "the merchant wanted",
-                "you to bring him.",
-                "",
-            )
+            readScreen {
+                line("You find the cargo")
+                line("the ", character(Roles.banditsQuestGiver).job, " wanted")
+                line("you to bring him.")
+                line("")
+            }
             mark(Story.garth.bandits.recovered)
         }
 
@@ -5736,14 +5786,15 @@ var nextRylween: RylweenModel = rylween {
             encounter(Monsters.troll, mandatory = true)
             renderMap()
             clearText()
-            screen(
-                "You break off a troll",
-                "tooth to give the hermit.",
-                "After wiping the slime of",
-                "it, you put it in your",
-                "backpack.",
-                "",
-            )
+            screen {
+                line("You break off a troll")
+                line("tooth to give the")
+                line(character(Roles.hermitTrollTooth).job, ".")
+                line("After wiping the slime of")
+                line("it, you put it in your")
+                line("backpack.")
+                line("")
+            }
             waitInput("after troll tooth")
             clearText()
             mark(Story.hermit.trollTooth.extracted)
@@ -6298,12 +6349,12 @@ var nextRylween: RylweenModel = rylween {
                 }
 
                 whenState(Story.garth.bandits.recovered) {
-                    screen(
-                        "The merchant is GRATEFUL!",
-                        "He pays you 2000 gold and",
-                        "hands you a red gem.",
-                        "",
-                    )
+                    screen {
+                        line("The ", character(Roles.banditsQuestGiver).job, " is GRATEFUL!")
+                        line("He pays you 2000 gold and")
+                        line("hands you a red gem.")
+                        line("")
+                    }
                     waitInput("after garth reward intro")
                     clearText()
                     reward {
@@ -6335,7 +6386,13 @@ var nextRylween: RylweenModel = rylween {
                         line("")
                     }
                     journal {
-                        line(character(Roles.rangerBrother).name, ", the Ranger lives ", character(Roles.rangerBrother).location)
+                        line(
+                            character(Roles.rangerBrother).name,
+                            ", the ",
+                            character(Roles.rangerBrother).job,
+                            " lives ",
+                            character(Roles.rangerBrother).location,
+                        )
                     }
                     mark(Story.ranger.letter.accepted)
                 }
@@ -6343,21 +6400,22 @@ var nextRylween: RylweenModel = rylween {
 
             npc(Npcs.areth) {
                 whenState(Story.fighter.priestBook.none) {
-                    say(
-                        "- Greetings. Once upon",
-                        "a time, I was a mighty",
-                        "fighter. Before I retired",
-                        "I managed to slay over",
-                        "two hundred orcs. All",
-                        "of this, because of my",
-                        "Dancing Blade. I have",
-                        "no use for this weapon",
-                        "",
-                    )
+                    say {
+                        line("- Greetings. Once upon")
+                        line("a time, I was a mighty")
+                        line(character(Npcs.areth).job, ". Before I")
+                        line("retired I managed to")
+                        line("slay over two hundred")
+                        line("orcs. All")
+                        line("of this, because of my")
+                        line("Dancing Blade. I have")
+                        line("no use for this weapon")
+                        line("")
+                    }
                     say {
                         line("anymore, and I will give")
                         line("it to you, if you do me a")
-                        line("small favor. A priest")
+                        line("small favor. A ", character(Roles.priestWithBook).job)
                         line("named ", character(Roles.priestWithBook).name, " has got")
                         line("one of my books. We are")
                         line("old friends, and I lent")
@@ -6413,7 +6471,7 @@ var nextRylween: RylweenModel = rylween {
                         line("book, he nods and looks")
                         line("a bit embarrased.")
                         line("- Yes, I know. I happened")
-                        line("to lose it. A wizard")
+                        line("to lose it. A ", character(Roles.wizardRobbed).job)
                         line("called ", character(Roles.wizardRobbed).name, " stole it")
                         line("from my bedroom a week")
                         line("ago...")
@@ -6646,8 +6704,9 @@ var nextRylween: RylweenModel = rylween {
             npc(Npcs.broth) {
                 whenState(Story.nymph.seeker.none) {
                     say {
-                        line("I heard that a man called")
-                        line(character(Roles.wizardThreeTasks).name, " knows of the")
+                        line("I heard that a")
+                        line(character(Roles.wizardThreeTasks).job, " called ", character(Roles.wizardThreeTasks).name)
+                        line("knows of the")
                         line("Crown. I have roamed the")
                         line("land in search of him,")
                         line("since I want this item")
@@ -6672,24 +6731,24 @@ var nextRylween: RylweenModel = rylween {
             npc(Npcs.gotharp) {
                 whenState(Story.silverKey.noteFound) {
                     mark(Story.silverKey.thiefSqueezed)
-                    say(
-                        "You push him up against",
-                        "a wall and start asking",
-                        "him questions. After",
-                        "some 'mild' persuasion",
-                        "he tells you that he",
-                        "sold the Key to a",
-                        "traveling blacksmith",
-                        "who was interested in",
-                        "its metallurgical",
-                        "structure.",
-                        "",
-                    )
+                    say {
+                        line("You push him up against")
+                        line("a wall and start asking")
+                        line("him questions. After")
+                        line("some 'mild' persuasion")
+                        line("he tells you that he")
+                        line("sold the Key to a")
+                        line("traveling ", character(Roles.silverKeySmith).job)
+                        line("who was interested in")
+                        line("its metallurgical")
+                        line("structure.")
+                        line("")
+                    }
                     say {
                         line("After breaking a few")
                         line("of his teeth, he also")
                         line("willingly reveals that")
-                        line("the smith went by the")
+                        line("the ", character(Roles.silverKeySmith).job, " went by the")
                         line("name of ", character(Roles.silverKeySmith).name, "...")
                         line("")
                     }
@@ -6956,17 +7015,17 @@ var nextRylween: RylweenModel = rylween {
 
             npc(Npcs.marcus) {
                 whenState(Story.hermit.trollTooth.none) {
-                    say(
-                        "- Welcome, chosen ones!",
-                        "the hermit cackles.",
-                        "- I know of the Fire",
-                        "Shield, an item of",
-                        "great power.",
-                        "Go find me teeth of",
-                        "a troll, and I will",
-                        "tell you about it.",
-                        "",
-                    )
+                    say {
+                        line("- Welcome, chosen ones!")
+                        line("the ", character(Npcs.marcus).job, " cackles.")
+                        line("- I know of the Fire")
+                        line("Shield, an item of")
+                        line("great power.")
+                        line("Go find me teeth of")
+                        line("a troll, and I will")
+                        line("tell you about it.")
+                        line("")
+                    }
                     mark(Story.hermit.trollTooth.accepted)
                 }
 

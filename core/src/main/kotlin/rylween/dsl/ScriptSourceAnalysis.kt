@@ -425,7 +425,11 @@ private class NativePathCollector {
             is TextPart.StringValue -> collect(part.value)
             is TextPart.Literal,
             is TextPart.RoleName,
+            is TextPart.RoleJob,
             is TextPart.RoleLocation,
+            is TextPart.NpcName,
+            is TextPart.NpcJob,
+            is TextPart.NpcLocation,
             is TextPart.TownName,
             is TextPart.FuzzyTownLocation,
             is TextPart.LocationCoordinate,

@@ -92,6 +92,10 @@ private enum class NativeSmokeTextPartTag(
     FuzzyTownLocation(6),
     LocationCoordinate(7),
     Runtime(8),
+    RoleJob(9),
+    NpcName(10),
+    NpcJob(11),
+    NpcLocation(12),
 }
 
 private enum class NativeSmokeViewCommandTag(
@@ -321,7 +325,11 @@ private class NativeSmokeArtifactWriter {
             is CompiledTextPart.IntValue -> tag(NativeSmokeTextPartTag.IntValue) { intExpr(part.value) }
             is CompiledTextPart.StringValue -> tag(NativeSmokeTextPartTag.StringValue) { stringExpr(part.value) }
             is CompiledTextPart.RoleName -> tag(NativeSmokeTextPartTag.RoleName) { handleRef(part.role) }
+            is CompiledTextPart.RoleJob -> tag(NativeSmokeTextPartTag.RoleJob) { handleRef(part.role) }
             is CompiledTextPart.RoleLocation -> tag(NativeSmokeTextPartTag.RoleLocation) { handleRef(part.role) }
+            is CompiledTextPart.NpcName -> tag(NativeSmokeTextPartTag.NpcName) { handleRef(part.npc) }
+            is CompiledTextPart.NpcJob -> tag(NativeSmokeTextPartTag.NpcJob) { handleRef(part.npc) }
+            is CompiledTextPart.NpcLocation -> tag(NativeSmokeTextPartTag.NpcLocation) { handleRef(part.npc) }
             is CompiledTextPart.TownName -> tag(NativeSmokeTextPartTag.TownName) { handleRef(part.town) }
             is CompiledTextPart.FuzzyTownLocation ->
                 tag(NativeSmokeTextPartTag.FuzzyTownLocation) {
@@ -849,7 +857,11 @@ private class NativeSmokeArtifactReader(
             NativeSmokeTextPartTag.IntValue -> intExpr()
             NativeSmokeTextPartTag.StringValue -> stringExpr()
             NativeSmokeTextPartTag.RoleName,
+            NativeSmokeTextPartTag.RoleJob,
             NativeSmokeTextPartTag.RoleLocation,
+            NativeSmokeTextPartTag.NpcName,
+            NativeSmokeTextPartTag.NpcJob,
+            NativeSmokeTextPartTag.NpcLocation,
             NativeSmokeTextPartTag.TownName,
             NativeSmokeTextPartTag.LocationCoordinate,
             -> handleRef()

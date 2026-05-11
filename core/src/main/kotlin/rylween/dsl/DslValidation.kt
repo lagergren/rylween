@@ -1016,9 +1016,18 @@ fun validateTownSystem(
 fun validateCharacters(
     characters: List<CharacterModel>,
     towns: List<TownModel> = emptyList(),
+    terrain: TerrainCatalogModel? = null,
+    worldMaps: List<WorldMapModel> = emptyList(),
 ) {
     check(characters.map { it.id }.toSet().size == characters.size) { "duplicate character id" }
     val townsById = towns.associateBy { it.id }
+    val terrainById = terrain?.terrain?.associateBy { it.id }
+    val wildernessTerrainRows =
+        worldMaps
+            .singleOrNull { map -> map.id == DslDefaultMaps.wilderness }
+            ?.layers
+            ?.singleOrNull { layer -> layer.id == DslDefaultMapLayers.terrain }
+            ?.rows
 
     val roles = characters.flatMap { character -> character.roles.map { it to character.id } }
     check(roles.map { it.first }.toSet().size == roles.size) {
@@ -1050,9 +1059,106 @@ fun validateCharacters(
                         }
                     }
                 }
-            CharacterPlacementModel.Randomized,
-            CharacterPlacementModel.RandomizedWilderness,
-            -> Unit
+            is CharacterPlacementModel.FixedNearTown ->
+                validateFixedNearTownPlacement(
+                    character.id,
+                    placement,
+                    townsById,
+                    terrainById,
+                    wildernessTerrainRows,
+                )
+            is CharacterPlacementModel.Randomized ->
+                validateRandomNpcPlacementPolicy(character.id, placement.policy, townsById)
+            is CharacterPlacementModel.RandomizedWilderness ->
+                validateRandomNpcPlacementPolicy(character.id, placement.policy, townsById)
+            CharacterPlacementModel.Unplaced -> Unit
+        }
+    }
+}
+
+private fun validateFixedNearTownPlacement(
+    character: NpcId,
+    placement: CharacterPlacementModel.FixedNearTown,
+    townsById: Map<TownId, TownModel>,
+    terrainById: Map<TerrainId, TerrainSemanticsModel>?,
+    wildernessTerrainRows: List<String>?,
+) {
+    val town =
+        checkNotNull(townsById[placement.town]) {
+            "character ${character.slug} is placed near unknown town ${placement.town.slug}"
+        }
+    val point = town.position + placement.offset
+    check(point.x >= 0 && point.y >= 0) {
+        "character ${character.slug} fixed-near-town placement resolves to invalid wilderness coordinate $point"
+    }
+    val terrain =
+        checkNotNull(terrainById?.get(placement.requiredTerrain)) {
+            "character ${character.slug} fixed-near-town placement requires unknown terrain ${placement.requiredTerrain.slug}"
+        }
+    val tile =
+        checkNotNull(wildernessTerrainRows?.getOrNull(point.y - 1)?.getOrNull(point.x)) {
+            "character ${character.slug} fixed-near-town placement resolves outside the wilderness map at $point"
+        }
+    check(tile == terrain.mapCode) {
+        "character ${character.slug} fixed-near-town placement resolves to ${point.x}x${point.y} " +
+            "on tile '$tile', but requires ${placement.requiredTerrain.slug} tile '${terrain.mapCode}'"
+    }
+}
+
+private fun validateRandomNpcPlacementPolicy(
+    character: NpcId,
+    policy: RandomNpcPlacementPolicyModel,
+    townsById: Map<TownId, TownModel>,
+) {
+    check(policy.options.isNotEmpty()) {
+        "character ${character.slug} has a random placement policy with no options"
+    }
+    policy.options.forEach { option ->
+        check(option.chanceShares > 0) {
+            "character ${character.slug} has a random placement option with non-positive chanceShares ${option.chanceShares}"
+        }
+        when (option) {
+            is RandomNpcPlacementOptionModel.TownServices ->
+                validateRandomNpcTownServices(character, option, townsById)
+            is RandomNpcPlacementOptionModel.WildernessRect ->
+                validateRandomNpcWildernessRect(character, option)
+        }
+    }
+}
+
+private fun validateRandomNpcTownServices(
+    character: NpcId,
+    option: RandomNpcPlacementOptionModel.TownServices,
+    townsById: Map<TownId, TownModel>,
+) {
+    val town = townsById[option.town]
+    check(town != null) {
+        "character ${character.slug} random placement references unknown town ${option.town.slug}"
+    }
+    check(option.services.isNotEmpty()) {
+        "character ${character.slug} random placement in ${option.town.slug} has no town services"
+    }
+    val townServices = town.services.mapTo(mutableSetOf(), TownServiceModel::building)
+    option.services.forEach { service ->
+        check(service in townServices) {
+            "character ${character.slug} random placement references ${option.town.slug}.${service.slug}, but that town does not offer the service"
+        }
+    }
+}
+
+private fun validateRandomNpcWildernessRect(
+    character: NpcId,
+    option: RandomNpcPlacementOptionModel.WildernessRect,
+) {
+    check(!option.x.isEmpty() && !option.y.isEmpty()) {
+        "character ${character.slug} random wilderness placement has an empty coordinate range"
+    }
+    check(option.x.first >= 0 && option.y.first >= 0) {
+        "character ${character.slug} random wilderness placement has a negative coordinate range"
+    }
+    option.xReplacements.forEach { (from, to) ->
+        check(from >= 0 && to >= 0) {
+            "character ${character.slug} random wilderness placement has a negative x replacement"
         }
     }
 }
@@ -1061,6 +1167,7 @@ private fun validateTextBlock(
     block: TextBlock,
     label: String,
     knownRoles: Set<NpcRole>? = null,
+    knownNpcs: Set<NpcId>? = null,
     knownTowns: Set<TownId>? = null,
     allowedRuntimeBindings: Set<TextPart> = EmptyTextBindings,
 ) {
@@ -1075,10 +1182,34 @@ private fun validateTextBlock(
                     "$label references unbound character role ${part.role.slug}"
                 }
             }
+            is TextPart.RoleJob -> {
+                check(part.role.slug.isNotBlank()) { "$label references blank character role" }
+                check(knownRoles == null || part.role in knownRoles) {
+                    "$label references unbound character role ${part.role.slug}"
+                }
+            }
             is TextPart.RoleLocation -> {
                 check(part.role.slug.isNotBlank()) { "$label references blank character role" }
                 check(knownRoles == null || part.role in knownRoles) {
                     "$label references unbound character role ${part.role.slug}"
+                }
+            }
+            is TextPart.NpcName -> {
+                check(part.npc.slug.isNotBlank()) { "$label references blank NPC" }
+                check(knownNpcs == null || part.npc in knownNpcs) {
+                    "$label references unknown NPC ${part.npc.slug}"
+                }
+            }
+            is TextPart.NpcJob -> {
+                check(part.npc.slug.isNotBlank()) { "$label references blank NPC" }
+                check(knownNpcs == null || part.npc in knownNpcs) {
+                    "$label references unknown NPC ${part.npc.slug}"
+                }
+            }
+            is TextPart.NpcLocation -> {
+                check(part.npc.slug.isNotBlank()) { "$label references blank NPC" }
+                check(knownNpcs == null || part.npc in knownNpcs) {
+                    "$label references unknown NPC ${part.npc.slug}"
                 }
             }
             is TextPart.TownName -> {
@@ -1291,6 +1422,7 @@ private fun validateSpeakTextTables(
     flagStates: FlagStateIndex? = null,
 ) {
     val knownRoles = characters.flatMap { it.roles }.toSet()
+    val knownNpcs = characters.map { it.id }.toSet()
     val knownTowns = towns.map { it.id }.toSet()
 
     check(
@@ -1302,7 +1434,13 @@ private fun validateSpeakTextTables(
         "duplicate reusable speak screen"
     }
     tables.screens.forEach { screen ->
-        validateTextBlock(screen.text, "reusable speak screen ${screen.id.id}", knownTowns = knownTowns)
+        validateTextBlock(
+            screen.text,
+            "reusable speak screen ${screen.id.id}",
+            knownRoles = knownRoles,
+            knownNpcs = knownNpcs,
+            knownTowns = knownTowns,
+        )
     }
 
     check(
@@ -1327,6 +1465,8 @@ private fun validateSpeakTextTables(
             validateTextBlock(
                 variant.text,
                 "chitchat prompt ${prompt.subject}.${variant.audience}",
+                knownRoles = knownRoles,
+                knownNpcs = knownNpcs,
                 knownTowns = knownTowns,
             )
         }
@@ -1341,7 +1481,7 @@ private fun validateSpeakTextTables(
         "duplicate chitchat reply table"
     }
     tables.chitchatReplies.forEach { replies ->
-        validateJobReplies(replies.replies, "chitchat reply ${replies.subject}", knownRoles, knownTowns)
+        validateJobReplies(replies.replies, "chitchat reply ${replies.subject}", knownRoles, knownNpcs, knownTowns)
     }
 
     check(
@@ -1356,7 +1496,7 @@ private fun validateSpeakTextTables(
         check(replies.topic != QuestionTopic.Nothing) {
             "question reply table Nothing should not have canned replies"
         }
-        validateJobReplies(replies.replies, "question reply ${replies.topic}", knownRoles, knownTowns)
+        validateJobReplies(replies.replies, "question reply ${replies.topic}", knownRoles, knownNpcs, knownTowns)
     }
 
     check(
@@ -1384,7 +1524,7 @@ private fun validateSpeakTextTables(
                 }
                 flagStates?.requireKnown(state, "rumor $label exclusion")
             }
-            validateTextBlock(entry.text, "rumor table ${table.id.slug}.$label", knownRoles, knownTowns)
+            validateTextBlock(entry.text, "rumor table ${table.id.slug}.$label", knownRoles, knownNpcs, knownTowns)
         }
     }
 }
@@ -1393,13 +1533,14 @@ private fun validateJobReplies(
     replies: List<JobTextModel>,
     label: String,
     knownRoles: Set<NpcRole>? = null,
+    knownNpcs: Set<NpcId>? = null,
     knownTowns: Set<TownId>? = null,
 ) {
     check(replies.isNotEmpty()) { "$label has no job replies" }
     check(replies.map { it.job }.toSet().size == replies.size) { "$label has duplicate job replies" }
     replies.forEach { reply ->
         check(reply.job.slug.isNotBlank()) { "$label references blank NPC job" }
-        validateTextBlock(reply.text, "$label ${reply.job.slug}", knownRoles, knownTowns)
+        validateTextBlock(reply.text, "$label ${reply.job.slug}", knownRoles, knownNpcs, knownTowns)
     }
 }
 
@@ -1520,6 +1661,7 @@ fun validateScriptRewards(
     val itemRecordById = itemRecords.associateBy { it.id }
     val flagStates = flags?.let(::FlagStateIndex)
     val knownRoles = content.characters.flatMap { it.roles }.toSet()
+    val knownNpcs = content.characters.map { it.id }.toSet()
     val knownTowns = content.towns.map { it.id }.toSet()
     val knownScenes = content.scenes.map { it.id }.toSet()
     val knownMonsters = content.monsters.map { it.id }.toSet()
@@ -1911,7 +2053,7 @@ fun validateScriptRewards(
     content.scriptSourceRoots().forEach { root ->
         root.visitScriptOps { sourceOp ->
             when (val op = sourceOp.op) {
-                is Op.Screen -> validateTextBlock(op.text, "screen", knownRoles, knownTowns)
+                is Op.Screen -> validateTextBlock(op.text, "screen", knownRoles, knownNpcs, knownTowns)
                 is Op.EmitIndexed -> validateIntExpression(op.value, "indexed text emit")
                 is Op.LetInt -> validateIntExpression(op.value, "local int")
                 is Op.Set -> validateIntExpression(op.value, "state assignment")
@@ -1921,7 +2063,7 @@ fun validateScriptRewards(
                     validateIntExpression(op.value, "state clamped add")
                     validateIntExpression(op.max, "state clamped add max")
                 }
-                is Op.AppendJournal -> validateTextBlock(op.text, "journal append", knownRoles, knownTowns)
+                is Op.AppendJournal -> validateTextBlock(op.text, "journal append", knownRoles, knownNpcs, knownTowns)
                 is Op.Menu -> {
                     validateTextBlock(op.prompt, "menu prompt")
                     op.options.forEach { option ->
@@ -2544,7 +2686,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("secrets") { validateSecretSystem(content.secrets, content.itemCatalog, content.monsters) }
         captureValidation("towns") { validateTowns(content.towns) }
         captureValidation("townSystem") { validateTownSystem(content.townSystem, content.towns, content.scenes) }
-        captureValidation("characters") { validateCharacters(content.characters, content.towns) }
+        captureValidation("characters") { validateCharacters(content.characters, content.towns, content.terrain, content.worldMaps) }
         captureValidation("speak") { validateSpeakSystem(content.speak, content.characters, content.towns, content.flags) }
         captureValidation("itemUses") { validateItemUses(content.itemUses, content.itemCatalog) }
         captureValidation("dialogue") { validateDialogue(content.dialogue, content.characters, content.flags) }

@@ -15,6 +15,36 @@ compiled-bundle, and snapshot/VM diagnostic contracts live under
 `core/src/main/kotlin`; authored game DSL and resources live under `:game`; and
 bundle/native-probe tooling lives under `:tools`.
 
+Current cleanup track:
+
+- Continue splitting `core/src/main/kotlin/rylween/dsl/Dsl.kt` into cohesive
+  source files that keep the same `rylween.dsl` authoring package. The split is
+  architectural, not a new authoring surface: reusable DSL/kernel definitions
+  stay in core, while Rylween-specific prose, menu labels, battle text,
+  service scripts, NPC placement facts, and scenario content stay in
+  `game/src/main/dsl/RylweenGame.dsl.kts`.
+- Clean up `RuntimeSnapshotModel.kt`. It is still used by compiled bundle state
+  compilation and save/session snapshot contracts, but its current
+  `rylween.runtime` package/path reads like live runtime machinery. Keep the
+  portable DTO contract, then move or rename it only if that reduces coupling:
+  likely toward a snapshot/state contract package owned by `:core`, with no
+  semantic save-format change.
+- Run a Kotlin idiom pass across active source. Remove nullable fields and
+  parameters where the model always has a real value, prefer explicit default
+  sinks/empty records over `null`, use immutable collections at model
+  boundaries, replace imperative accumulation with `buildList`/`buildMap` where
+  it makes code shorter and clearer, and use `require`/`check` or small domain
+  exceptions for invariants instead of ad hoc nullable error paths. Long
+  parameter trains should collapse into narrow context/value objects only when
+  that makes ownership and serialization boundaries clearer.
+- Audit all `@Suppress` usage after the DSL split settles. Every suppressed
+  warning should have a current reason: public DSL surface, generated-catalog
+  entry point, reflective/serialized contract, test oracle, or deliberate
+  compatibility hook. If a warning points at dead code, stale enum values,
+  unreachable helpers, or a missing implementation path, remove or fix the code
+  instead of broadening suppression. Treat newly exposed warnings as a bug-finding
+  pass, not just IDE noise.
+
 ## Core direction
 
 The ideal source shape is:

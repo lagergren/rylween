@@ -34,6 +34,8 @@ import rylween.compiled.CompiledNpcVisit
 import rylween.compiled.CompiledPartyCounters
 import rylween.compiled.CompiledPartyImage
 import rylween.compiled.CompiledPartyMember
+import rylween.compiled.CompiledRandomNpcPlacementOption
+import rylween.compiled.CompiledRandomNpcPlacementPolicy
 import rylween.compiled.CompiledRuntimeTextPart
 import rylween.compiled.CompiledStateImage
 import rylween.compiled.CompiledStringExpr
@@ -673,7 +675,7 @@ class GameRuntime private constructor(
             screen.writeText(titleMenuLines(hasSavedGame = savedRuntime != null))
             when (val command = input.readCommand()) {
                 null -> return null
-                'N' if savedRuntime == null -> {
+                'C' if savedRuntime == null -> {
                     log.event("title.new state=$stateSlug")
                     val creationRuntime = seed?.let(runtime::withSeed) ?: runtime
                     return runCharacterCreation(creationRuntime, input, screen, log)
@@ -756,15 +758,15 @@ class GameRuntime private constructor(
             add("Rylween")
             add("")
             if (hasSavedGame) {
-                add("C. Continue Saved Game")
-                add("T. Terminate Party")
+                add("(C)ontinue Saved Game")
+                add("(T)erminate Party")
             } else {
-                add("N. Create New Party")
+                add("(C)reate New Party")
             }
-            add("S. View Current Scores")
-            add("H. View Hall of Fame")
-            add("D. View Documentation")
-            add("X. Exit")
+            add("(S)coreboard")
+            add("(H)all of Fame")
+            add("(D)ocumentation")
+            add("E(x)it")
         }
 
     private fun runCharacterCreation(
@@ -1316,17 +1318,24 @@ class GameRuntime private constructor(
         val placements = current.npcs.toMutableList()
         content.characters.forEach { character ->
             if (character.effectivePosition(current) != null) return@forEach
-            val candidates = npcPlacementCandidates(character.placement, world)
-            if (candidates.isEmpty()) {
+            if (character.placement == CompiledCharacterPlacement.Unplaced) {
+                log.event(
+                    "npc.placement.unplaced npc=${slug(character.id)} " +
+                        "name=${logValue(string(character.nameString))} job=${slug(character.job)} reason=authored_unplaced",
+                )
+                return@forEach
+            }
+            val occupiedPositions = content.characters.mapNotNull { it.effectivePosition(current) }.toSet()
+            val draw = placementParty.drawNpcPlacement(character.placement, world, occupiedPositions)
+            if (draw == null) {
                 log.event(
                     "npc.placement.unplaced npc=${slug(character.id)} " +
                         "name=${logValue(string(character.nameString))} job=${slug(character.job)} reason=no_candidates",
                 )
                 return@forEach
             }
-            val draw = placementParty.drawRandom(0, candidates.lastIndex)
             placementParty = draw.party
-            val position = candidates[draw.value]
+            val position = draw.position
             placements += CompiledNpcPlacement(character.id, position)
             current = current.copy(npcs = placements.toList())
             log.event(
@@ -1368,32 +1377,119 @@ class GameRuntime private constructor(
         return copy(lastPlayedDate = sessionDate, party = nextParty)
     }
 
-    private fun npcPlacementCandidates(
+    /**
+     * Dispatches fixed, generated, and explicitly absent placement models.
+     *
+     * @param placement compiled placement model from the authored character row.
+     * @param world current world map, used by generated wilderness placement.
+     * @param occupiedPositions already materialized or fixed NPC positions.
+     */
+    private fun PartyState.drawNpcPlacement(
         placement: CompiledCharacterPlacement,
         world: WorldMap,
-    ): List<CompiledWorldPosition> =
+        occupiedPositions: Set<CompiledWorldPosition>,
+    ): NpcPlacementDraw? =
         when (placement) {
-            is CompiledCharacterPlacement.Fixed -> emptyList()
-            CompiledCharacterPlacement.Randomized -> townNpcCandidates() + wildernessNpcCandidates(world)
-            CompiledCharacterPlacement.RandomizedWilderness -> wildernessNpcCandidates(world)
+            is CompiledCharacterPlacement.Fixed -> null
+            is CompiledCharacterPlacement.Randomized ->
+                drawRandomNpcPlacementPolicy(placement.policy, world, occupiedPositions)
+            is CompiledCharacterPlacement.RandomizedWilderness ->
+                drawRandomNpcPlacementPolicy(placement.policy, world, occupiedPositions)
+            CompiledCharacterPlacement.Unplaced -> null
         }
 
-    private fun townNpcCandidates(): List<CompiledWorldPosition> =
-        content.towns.flatMap { town ->
-            town.services.map { building ->
-                CompiledWorldPosition.Town(town.id, building)
-            }
+    /**
+     * Selects one authored placement bucket by relative chance shares, then
+     * delegates to the bucket-specific draw. This consumes party RNG exactly
+     * when a new shared-world NPC position must be materialized.
+     *
+     * @param policy compiled authored placement policy for the NPC.
+     * @param world current world map, used for wilderness terrain checks.
+     * @param occupiedPositions already materialized or fixed NPC positions.
+     */
+    private fun PartyState.drawRandomNpcPlacementPolicy(
+        policy: CompiledRandomNpcPlacementPolicy,
+        world: WorldMap,
+        occupiedPositions: Set<CompiledWorldPosition>,
+    ): NpcPlacementDraw? {
+        if (policy.options.isEmpty()) return null
+        val shareTotal = policy.options.sumOf(CompiledRandomNpcPlacementOption::chanceShares)
+        if (shareTotal <= 0) return null
+        val optionDraw = drawRandom(1, shareTotal)
+        var remaining = optionDraw.value
+        val option =
+            policy.options.firstOrNull { candidate ->
+                remaining -= candidate.chanceShares
+                remaining <= 0
+            } ?: return null
+        return optionDraw.party.drawNpcPlacementOption(option, world, occupiedPositions)
+    }
+
+    /**
+     * Draws a concrete position from one already-selected authored placement option.
+     *
+     * @param option placement bucket selected by [drawRandomNpcPlacementPolicy].
+     * @param world current world map, used for wilderness terrain checks.
+     * @param occupiedPositions already materialized or fixed NPC positions.
+     */
+    private fun PartyState.drawNpcPlacementOption(
+        option: CompiledRandomNpcPlacementOption,
+        world: WorldMap,
+        occupiedPositions: Set<CompiledWorldPosition>,
+    ): NpcPlacementDraw? =
+        when (option) {
+            is CompiledRandomNpcPlacementOption.TownServices -> drawTownNpcServicePlacement(option)
+            is CompiledRandomNpcPlacementOption.WildernessRect ->
+                drawWildernessNpcPlacement(option, world, occupiedPositions)
         }
 
-    private fun wildernessNpcCandidates(world: WorldMap): List<CompiledWorldPosition> =
-        (1..world.height).flatMap { y ->
-            (0 until world.width).mapNotNull { x ->
-                val point = GridPoint(x, y)
-                val terrain = world.terrainAt(point)
-                if (terrain?.allowsNpcPlacement == true) return@mapNotNull CompiledWorldPosition.Wilderness(point)
-                null
+    /**
+     * Places an NPC in one of the option's named services for the selected town.
+     * Services are handles such as `inn` or `tavern`, not legacy numeric slots.
+     *
+     * @param option compiled town-service bucket containing the town handle and
+     * named service handles that may receive the NPC.
+     */
+    private fun PartyState.drawTownNpcServicePlacement(option: CompiledRandomNpcPlacementOption.TownServices): NpcPlacementDraw? {
+        val town = content.towns.firstOrNull { row -> row.id == option.town } ?: return null
+        val services = option.services.filter { service -> service in town.services }
+        if (services.isEmpty()) return null
+        val serviceDraw = drawRandom(0, services.lastIndex)
+        return NpcPlacementDraw(CompiledWorldPosition.Town(town.id, services[serviceDraw.value]), serviceDraw.party)
+    }
+
+    /**
+     * Builds eligible wilderness candidates from the authored rectangle and
+     * chooses one uniformly. Terrain and occupied positions are checked here so
+     * game content controls the rectangle while map semantics control validity.
+     *
+     * @param option compiled wilderness bucket containing the coordinate ranges
+     * and optional coordinate rewrites.
+     * @param world current world map, used to reject terrain that forbids NPCs.
+     * @param occupiedPositions already materialized or fixed NPC positions.
+     */
+    private fun PartyState.drawWildernessNpcPlacement(
+        option: CompiledRandomNpcPlacementOption.WildernessRect,
+        world: WorldMap,
+        occupiedPositions: Set<CompiledWorldPosition>,
+    ): NpcPlacementDraw? {
+        val candidates =
+            option.y.flatMap { y ->
+                option.x.mapNotNull { x ->
+                    val point = GridPoint(option.xReplacements[x] ?: x, y)
+                    val position = CompiledWorldPosition.Wilderness(point)
+                    val terrain = world.terrainAt(point)
+                    when {
+                        terrain?.allowsNpcPlacement != true -> null
+                        position in occupiedPositions -> null
+                        else -> position
+                    }
+                }
             }
-        }
+        if (candidates.isEmpty()) return null
+        val positionDraw = drawRandom(0, candidates.lastIndex)
+        return NpcPlacementDraw(candidates[positionDraw.value], positionDraw.party)
+    }
 
     private fun logNpcPlacements(
         runtime: RuntimeState,
@@ -1449,8 +1545,9 @@ class GameRuntime private constructor(
     private fun CompiledCharacterPlacement.logSource(): String =
         when (this) {
             is CompiledCharacterPlacement.Fixed -> "fixed"
-            CompiledCharacterPlacement.Randomized -> "randomized"
-            CompiledCharacterPlacement.RandomizedWilderness -> "randomized_wilderness"
+            is CompiledCharacterPlacement.Randomized -> "randomized"
+            is CompiledCharacterPlacement.RandomizedWilderness -> "randomized_wilderness"
+            CompiledCharacterPlacement.Unplaced -> "unplaced"
         }
 
     private fun CompiledCharacter.effectivePosition(runtime: RuntimeState): CompiledWorldPosition? =
@@ -1493,6 +1590,11 @@ private data class NpcPlacementLogRow(
     val source: String,
     val location: String,
     val townDetails: String,
+)
+
+private data class NpcPlacementDraw(
+    val position: CompiledWorldPosition,
+    val party: PartyState,
 )
 
 internal data class RuntimeState(
@@ -1849,53 +1951,50 @@ private fun ExternalRuntimeTextBlock.renderCreation(
 
 private fun String.normalizedCreationName(): String = trim().replaceFirstChar(Char::uppercaseChar)
 
+internal class CompiledTextRenderContext(
+    val content: CompiledContentBundle,
+    val intValue: (CompiledIntExpr) -> String = { "[int]" },
+    val stringValue: (CompiledStringExpr) -> String = { "[string]" },
+    val roleNameValue: (CompiledHandleRef) -> String = { role -> "[role:${content.slug(role)}]" },
+    val roleJobValue: (CompiledHandleRef) -> String = { role -> "[role-job:${content.slug(role)}]" },
+    val roleLocationValue: (CompiledHandleRef) -> String = { role -> "[role-location:${content.slug(role)}]" },
+    val npcNameValue: (CompiledHandleRef) -> String = { npc -> "[npc:${content.slug(npc)}]" },
+    val npcJobValue: (CompiledHandleRef) -> String = { npc -> "[npc-job:${content.slug(npc)}]" },
+    val npcLocationValue: (CompiledHandleRef) -> String = { npc -> "[npc-location:${content.slug(npc)}]" },
+    val locationValue: (CompiledHandleRef) -> String = { location -> "[location:${content.slug(location)}]" },
+    val runtimeValue: (CompiledRuntimeTextPart) -> String = { part -> "[${part.name}]" },
+)
+
+internal fun CompiledTextBlock.renderTextLines(content: CompiledContentBundle): List<String> =
+    renderTextLines(CompiledTextRenderContext(content))
+
 internal fun CompiledTextBlock.renderTextLines(
-    content: CompiledContentBundle,
-    intValue: (CompiledIntExpr) -> String = { "[int]" },
-    stringValue: (CompiledStringExpr) -> String = { "[string]" },
-    roleNameValue: (CompiledHandleRef) -> String = { role -> "[role:${content.slug(role)}]" },
-    roleLocationValue: (CompiledHandleRef) -> String = { role -> "[role-location:${content.slug(role)}]" },
-    locationValue: (CompiledHandleRef) -> String = { location -> "[location:${content.slug(location)}]" },
-    runtimeValue: (CompiledRuntimeTextPart) -> String = { part -> "[${part.name}]" },
+    context: CompiledTextRenderContext,
 ): List<String> =
     when (this) {
-        is CompiledTextBlock.Ref -> listOf("[text:${content.slug(text)}]")
-        is CompiledTextBlock.Inline -> lineStrings.map(content.strings::value)
+        is CompiledTextBlock.Ref -> listOf("[text:${context.content.slug(text)}]")
+        is CompiledTextBlock.Inline -> lineStrings.map(context.content.strings::value)
         is CompiledTextBlock.Structured ->
             lines.map { line ->
-                line.parts.joinToString(separator = "") { part ->
-                    part.renderText(
-                        content,
-                        intValue,
-                        stringValue,
-                        roleNameValue,
-                        roleLocationValue,
-                        locationValue,
-                        runtimeValue,
-                    )
-                }
+                line.parts.joinToString(separator = "") { part -> part.renderText(context) }
             }
     }
 
-private fun CompiledTextPart.renderText(
-    content: CompiledContentBundle,
-    intValue: (CompiledIntExpr) -> String,
-    stringValue: (CompiledStringExpr) -> String,
-    roleNameValue: (CompiledHandleRef) -> String,
-    roleLocationValue: (CompiledHandleRef) -> String,
-    locationValue: (CompiledHandleRef) -> String,
-    runtimeValue: (CompiledRuntimeTextPart) -> String,
-): String =
+private fun CompiledTextPart.renderText(context: CompiledTextRenderContext): String =
     when (this) {
-        is CompiledTextPart.Literal -> content.strings.value(string)
-        is CompiledTextPart.IntValue -> intValue(value)
-        is CompiledTextPart.StringValue -> stringValue(value)
-        is CompiledTextPart.RoleName -> roleNameValue(role)
-        is CompiledTextPart.RoleLocation -> roleLocationValue(role)
-        is CompiledTextPart.TownName -> content.townName(town)
-        is CompiledTextPart.FuzzyTownLocation -> "${content.townName(town)} area"
-        is CompiledTextPart.LocationCoordinate -> locationValue(location)
-        is CompiledTextPart.Runtime -> runtimeValue(kind)
+        is CompiledTextPart.Literal -> context.content.strings.value(string)
+        is CompiledTextPart.IntValue -> context.intValue(value)
+        is CompiledTextPart.StringValue -> context.stringValue(value)
+        is CompiledTextPart.RoleName -> context.roleNameValue(role)
+        is CompiledTextPart.RoleJob -> context.roleJobValue(role)
+        is CompiledTextPart.RoleLocation -> context.roleLocationValue(role)
+        is CompiledTextPart.NpcName -> context.npcNameValue(npc)
+        is CompiledTextPart.NpcJob -> context.npcJobValue(npc)
+        is CompiledTextPart.NpcLocation -> context.npcLocationValue(npc)
+        is CompiledTextPart.TownName -> context.content.townName(town)
+        is CompiledTextPart.FuzzyTownLocation -> "${context.content.townName(town)} area"
+        is CompiledTextPart.LocationCoordinate -> context.locationValue(location)
+        is CompiledTextPart.Runtime -> context.runtimeValue(kind)
     }
 
 internal class WorldMap(
