@@ -304,7 +304,25 @@ class GameRuntime private constructor(
         stateSlug: String,
         loadFile: File?,
         log: RuntimeLog,
-    ) {
+    ): RuntimeSessionResult =
+        AnsiTerminals.stdout().use { terminal ->
+            renderStaticScreen(
+                terminal = terminal,
+                screenSlug = screenSlug,
+                stateSlug = stateSlug,
+                loadFile = loadFile,
+                log = log,
+            )
+        }
+
+    /** Renders a compiled static screen route using a caller-owned terminal. */
+    fun renderStaticScreen(
+        terminal: AnsiTerminal,
+        screenSlug: String,
+        stateSlug: String,
+        loadFile: File?,
+        log: RuntimeLog,
+    ): RuntimeSessionResult {
         log.event("screen.static slug=$screenSlug state=$stateSlug load=${loadFile?.path.orEmpty()}")
         val runtime =
             loadFile?.let { file ->
@@ -315,9 +333,8 @@ class GameRuntime private constructor(
                     stateLookup = ::stateBySlug,
                 )
             } ?: RuntimeState.from(stateBySlug(stateSlug), content)
-        AnsiTerminals.stdout().use { terminal ->
-            RuntimeScreen(terminal, bundle, systems, log).showStaticScreen(screenSlug, runtime)
-        }
+        RuntimeScreen(terminal, bundle, systems, log).showStaticScreen(screenSlug, runtime)
+        return RuntimeSessionResult(RuntimeSessionExitReason.StaticScreenRendered)
     }
 
     /** Runs the runtime wilderness loop from one compiled state image. */
@@ -331,7 +348,35 @@ class GameRuntime private constructor(
         debugLogFlash: Boolean = false,
         debugSecrets: Boolean = false,
         log: RuntimeLog,
-    ) {
+    ): RuntimeSessionResult =
+        AnsiTerminals.open(scripted = scriptedInput != null).use { terminal ->
+            runWilderness(
+                terminal = terminal,
+                stateSlug = stateSlug,
+                loadFile = loadFile,
+                saveFile = saveFile,
+                scriptedInput = scriptedInput,
+                seed = seed,
+                showTitleMenu = showTitleMenu,
+                debugLogFlash = debugLogFlash,
+                debugSecrets = debugSecrets,
+                log = log,
+            )
+        }
+
+    /** Runs the runtime wilderness loop using a caller-owned terminal. */
+    fun runWilderness(
+        terminal: AnsiTerminal,
+        stateSlug: String,
+        loadFile: File?,
+        saveFile: File,
+        scriptedInput: String?,
+        seed: Long? = null,
+        showTitleMenu: Boolean = false,
+        debugLogFlash: Boolean = false,
+        debugSecrets: Boolean = false,
+        log: RuntimeLog,
+    ): RuntimeSessionResult {
         var runtime =
             loadFile?.let { file ->
                 SaveFile.read(
@@ -343,211 +388,227 @@ class GameRuntime private constructor(
             } ?: RuntimeState.from(stateBySlug(stateSlug), content)
         runtime = seed?.let(runtime::withSeed) ?: runtime
         val world = WorldMap.from(content, runtime.currentMap)
-        AnsiTerminals.open(scripted = scriptedInput != null).use { terminal ->
-            val screen = RuntimeScreen(terminal, bundle, systems, log)
-            if (debugLogFlash) log.mirrorTo(screen::flashLogLine)
-            try {
-                log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
-                logNpcPlacements(runtime, log)
-                val input = RuntimeInput(terminal, scriptedInput, log)
-                if (showTitleMenu) {
-                    runtime = runTitleMenu(runtime, stateSlug, seed, saveFile, input, screen, log) ?: return
-                    log.event("wilderness.title_selected position=${runtime.logPosition()} mode=${runtime.currentMode}")
-                }
-                val commands = WildernessCommands.from(systems)
-                val debugCommands = WildernessCommands.from(systems, "wilderness.debug")
-                val actions =
-                    WildernessActions(
-                        content = content,
-                        systems = systems,
-                        realm = systems.realm,
-                        combat = systems.combat,
-                        wilderness = systems.wilderness,
-                        commands = systems.commands,
-                        input = input,
-                        screen = screen,
-                        log = log,
-                    )
-                val utility = UtilityActions(content, systems, input, screen)
-                screen.bootFrame()
-                screen.renderWilderness(runtime, world)
-                while (true) {
-                    when (runtime.currentMode) {
-                        RuntimeMode.Dungeon -> {
-                            runtime =
-                                DungeonRuntime(content, systems, input, screen, saveFile, bundleContentHash, log)
-                                    .run(runtime)
-                            if (runtime.currentMode == RuntimeMode.GameOver || input.exhausted) return
-                            screen.renderWilderness(runtime, world)
-                            continue
-                        }
-
-                        RuntimeMode.Castle -> {
-                            runtime =
-                                CastleRuntime(content, systems, input, screen, saveFile, bundleContentHash)
-                                    .run(runtime)
-                            if (runtime.currentMode == RuntimeMode.GameOver || input.exhausted) return
-                            screen.renderWilderness(runtime, world)
-                            continue
-                        }
-
-                        RuntimeMode.GameOver -> return
-                        else -> Unit
-                    }
-                    val command = input.readCommand()
-                    log.event("wilderness.command key=${command ?: "null"} position=${runtime.logPosition()}")
-                    var moveEvent: MoveEvent? = null
-                    val advanceTurn =
-                        when {
-                            command == null -> return
-                            commands.matches("quit", command) -> return
-                            commands.matches("moveNorth", command) -> {
-                                val move = move(runtime.party, world, 0, -1, screen)
-                                runtime =
-                                    runtime.copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain).withParty(move.party)
-                                moveEvent = move.event
-                                true
-                            }
-
-                            commands.matches("moveSouth", command) -> {
-                                val move = move(runtime.party, world, 0, 1, screen)
-                                runtime =
-                                    runtime.copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain).withParty(move.party)
-                                moveEvent = move.event
-                                true
-                            }
-
-                            commands.matches("moveWest", command) -> {
-                                val move = move(runtime.party, world, -1, 0, screen)
-                                runtime =
-                                    runtime.copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain).withParty(move.party)
-                                moveEvent = move.event
-                                true
-                            }
-
-                            commands.matches("moveEast", command) -> {
-                                val move = move(runtime.party, world, 1, 0, screen)
-                                runtime =
-                                    runtime.copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain).withParty(move.party)
-                                moveEvent = move.event
-                                true
-                            }
-
-                            commands.matches("pass", command) -> {
-                                runtime = runtime.withParty(runtime.party.passTurn())
-                                true
-                            }
-
-                            commands.matches("redraw", command) -> {
-                                screen.renderWilderness(runtime, world)
-                                false
-                            }
-
-                            commands.matches("help", command) -> {
-                                printHelp(screen, input, runtime, world)
-                                false
-                            }
-
-                            commands.matches("save", command) -> {
-                                saveRuntime(runtime, saveFile, screen)
-                                false
-                            }
-
-                            commands.matches("viewParty", command) -> {
-                                showWildernessPages(screen, input, runtime, world, PartyPages.partyPages(content, runtime.party))
-                                false
-                            }
-
-                            commands.matches("journal", command) -> {
-                                showWildernessPage(screen, input, runtime, world, PartyPages.journalLines(runtime.party))
-                                false
-                            }
-
-                            commands.matches("enter", command) -> {
-                                val entered = enterLocation(runtime, input, screen, saveFile, log)
-                                runtime = entered
-                                entered.currentMode == RuntimeMode.Wilderness
-                            }
-
-                            commands.matches("readyWeapon", command) -> {
-                                runtime = utility.readyWeapon(runtime)
-                                false
-                            }
-
-                            commands.matches("readyArmor", command) -> {
-                                runtime = utility.readyArmor(runtime)
-                                false
-                            }
-
-                            commands.matches("removeWeapon", command) -> {
-                                runtime = utility.removeWeapon(runtime)
-                                redrawWildernessIfCurrent(screen, runtime, world)
-                                false
-                            }
-
-                            commands.matches("removeArmor", command) -> {
-                                runtime = utility.removeArmor(runtime)
-                                redrawWildernessIfCurrent(screen, runtime, world)
-                                false
-                            }
-
-                            commands.matches("drop", command) -> {
-                                runtime = utility.drop(runtime)
-                                redrawWildernessIfCurrent(screen, runtime, world)
-                                false
-                            }
-
-                            commands.matches("camp", command) -> {
-                                runtime = applyAction(actions.camp(runtime), input, screen, world)
-                                false
-                            }
-
-                            commands.matches("hunt", command) -> {
-                                runtime = applyAction(actions.hunt(runtime), input, screen, world)
-                                false
-                            }
-
-                            commands.matches("castSpell", command) -> {
-                                runtime = utility.castPriestSpell(runtime)
-                                redrawWildernessIfCurrent(screen, runtime, world)
-                                false
-                            }
-
-                            commands.matches("quaff", command) -> {
-                                runtime = utility.quaff(runtime)
-                                redrawWildernessIfCurrent(screen, runtime, world)
-                                false
-                            }
-
-                            debugSecrets && debugCommands.matches("forceCave", command) -> {
-                                runtime = applyAction(actions.forceCaveDiscovery(runtime), input, screen, world)
-                                false
-                            }
-
-                            debugSecrets && debugCommands.matches("forceEncounter", command) -> {
-                                runtime = applyAction(actions.forceEncounter(runtime), input, screen, world)
-                                false
-                            }
-
-                            command == '\n' -> false
-                            else -> {
-                                screen.writeText(listOf("Unknown command '$command'.", "Press ? for commands."))
-                                false
-                            }
-                        }
-                    if (advanceTurn) {
-                        runtime = applyAction(actions.applyTurnUpkeep(runtime), input, screen, world)
-                        if (runtime.currentMode == RuntimeMode.GameOver) return
-                        moveEvent?.let { event ->
-                            runtime = applyAction(actions.applyMoveEvents(runtime, event), input, screen, world)
-                            if (runtime.currentMode == RuntimeMode.GameOver) return
-                        }
-                    }
-                    if (input.exhausted) return
-                }
-            } finally {
-                if (debugLogFlash) log.mirrorTo(null)
+        val screen = RuntimeScreen(terminal, bundle, systems, log)
+        if (debugLogFlash) log.mirrorTo(screen::flashLogLine)
+        try {
+            log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
+            logNpcPlacements(runtime, log)
+            val input = RuntimeInput(terminal, scriptedInput, log)
+            if (showTitleMenu) {
+                runtime =
+                    runTitleMenu(runtime, stateSlug, seed, saveFile, input, screen, log)
+                        ?: return RuntimeSessionResult(RuntimeSessionExitReason.SessionEnded)
+                log.event("wilderness.title_selected position=${runtime.logPosition()} mode=${runtime.currentMode}")
             }
+            val commands = WildernessCommands.from(systems)
+            val debugCommands = WildernessCommands.from(systems, "wilderness.debug")
+            val actions =
+                WildernessActions(
+                    content = content,
+                    systems = systems,
+                    realm = systems.realm,
+                    combat = systems.combat,
+                    wilderness = systems.wilderness,
+                    commands = systems.commands,
+                    input = input,
+                    screen = screen,
+                    log = log,
+                )
+            val utility = UtilityActions(content, systems, input, screen)
+            screen.bootFrame()
+            screen.renderWilderness(runtime, world)
+            while (true) {
+                when (runtime.currentMode) {
+                    RuntimeMode.Dungeon -> {
+                        runtime =
+                            DungeonRuntime(content, systems, input, screen, saveFile, bundleContentHash, log)
+                                .run(runtime)
+                        if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
+                        if (input.exhausted) return input.exitResult()
+                        screen.renderWilderness(runtime, world)
+                        continue
+                    }
+
+                    RuntimeMode.Castle -> {
+                        runtime =
+                            CastleRuntime(content, systems, input, screen, saveFile, bundleContentHash)
+                                .run(runtime)
+                        if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
+                        if (input.exhausted) return input.exitResult()
+                        screen.renderWilderness(runtime, world)
+                        continue
+                    }
+
+                    RuntimeMode.GameOver -> return gameOverResult()
+                    else -> Unit
+                }
+                val command = input.readCommand()
+                log.event("wilderness.command key=${command ?: "null"} position=${runtime.logPosition()}")
+                var moveEvent: MoveEvent? = null
+                val advanceTurn =
+                    when {
+                        command == null -> return input.exitResult()
+                        commands.matches("quit", command) -> return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
+                        commands.matches("moveNorth", command) -> {
+                            val move = move(runtime.party, world, 0, -1, screen)
+                            runtime =
+                                runtime
+                                    .copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain)
+                                    .withParty(move.party)
+                            moveEvent = move.event
+                            true
+                        }
+
+                        commands.matches("moveSouth", command) -> {
+                            val move = move(runtime.party, world, 0, 1, screen)
+                            runtime =
+                                runtime
+                                    .copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain)
+                                    .withParty(move.party)
+                            moveEvent = move.event
+                            true
+                        }
+
+                        commands.matches("moveWest", command) -> {
+                            val move = move(runtime.party, world, -1, 0, screen)
+                            runtime =
+                                runtime
+                                    .copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain)
+                                    .withParty(move.party)
+                            moveEvent = move.event
+                            true
+                        }
+
+                        commands.matches("moveEast", command) -> {
+                            val move = move(runtime.party, world, 1, 0, screen)
+                            runtime =
+                                runtime
+                                    .copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain)
+                                    .withParty(move.party)
+                            moveEvent = move.event
+                            true
+                        }
+
+                        commands.matches("pass", command) -> {
+                            runtime = runtime.withParty(runtime.party.passTurn())
+                            true
+                        }
+
+                        commands.matches("redraw", command) -> {
+                            screen.renderWilderness(runtime, world)
+                            false
+                        }
+
+                        commands.matches("help", command) -> {
+                            printHelp(screen, input, runtime, world)
+                            false
+                        }
+
+                        commands.matches("save", command) -> {
+                            saveRuntime(runtime, saveFile, screen)
+                            false
+                        }
+
+                        commands.matches("viewParty", command) -> {
+                            showWildernessPages(
+                                screen,
+                                input,
+                                runtime,
+                                world,
+                                PartyPages.partyPages(content, runtime.party),
+                            )
+                            false
+                        }
+
+                        commands.matches("journal", command) -> {
+                            showWildernessPage(screen, input, runtime, world, PartyPages.journalLines(runtime.party))
+                            false
+                        }
+
+                        commands.matches("enter", command) -> {
+                            val entered = enterLocation(runtime, input, screen, saveFile, log)
+                            runtime = entered
+                            entered.currentMode == RuntimeMode.Wilderness
+                        }
+
+                        commands.matches("readyWeapon", command) -> {
+                            runtime = utility.readyWeapon(runtime)
+                            false
+                        }
+
+                        commands.matches("readyArmor", command) -> {
+                            runtime = utility.readyArmor(runtime)
+                            false
+                        }
+
+                        commands.matches("removeWeapon", command) -> {
+                            runtime = utility.removeWeapon(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
+                            false
+                        }
+
+                        commands.matches("removeArmor", command) -> {
+                            runtime = utility.removeArmor(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
+                            false
+                        }
+
+                        commands.matches("drop", command) -> {
+                            runtime = utility.drop(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
+                            false
+                        }
+
+                        commands.matches("camp", command) -> {
+                            runtime = applyAction(actions.camp(runtime), input, screen, world)
+                            false
+                        }
+
+                        commands.matches("hunt", command) -> {
+                            runtime = applyAction(actions.hunt(runtime), input, screen, world)
+                            false
+                        }
+
+                        commands.matches("castSpell", command) -> {
+                            runtime = utility.castPriestSpell(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
+                            false
+                        }
+
+                        commands.matches("quaff", command) -> {
+                            runtime = utility.quaff(runtime)
+                            redrawWildernessIfCurrent(screen, runtime, world)
+                            false
+                        }
+
+                        debugSecrets && debugCommands.matches("forceCave", command) -> {
+                            runtime = applyAction(actions.forceCaveDiscovery(runtime), input, screen, world)
+                            false
+                        }
+
+                        debugSecrets && debugCommands.matches("forceEncounter", command) -> {
+                            runtime = applyAction(actions.forceEncounter(runtime), input, screen, world)
+                            false
+                        }
+
+                        command == '\n' -> false
+                        else -> {
+                            screen.writeText(listOf("Unknown command '$command'.", "Press ? for commands."))
+                            false
+                        }
+                    }
+                if (advanceTurn) {
+                    runtime = applyAction(actions.applyTurnUpkeep(runtime), input, screen, world)
+                    if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
+                    moveEvent?.let { event ->
+                        runtime = applyAction(actions.applyMoveEvents(runtime, event), input, screen, world)
+                        if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
+                    }
+                }
+                if (input.exhausted) return input.exitResult()
+            }
+        } finally {
+            if (debugLogFlash) log.mirrorTo(null)
         }
     }
 
@@ -585,7 +646,12 @@ class GameRuntime private constructor(
                     if (input.readCommand() == 'Y') {
                         val deleted = runCatching { !saveFile.exists() || saveFile.delete() }.getOrDefault(false)
                         log.event("title.terminate save=${saveFile.path} deleted=$deleted")
-                        screen.writeText(listOf(if (deleted) "Saved party terminated." else "Could not delete saved party.", saveFile.path))
+                        screen.writeText(
+                            listOf(
+                                if (deleted) "Saved party terminated." else "Could not delete saved party.",
+                                saveFile.path,
+                            ),
+                        )
                         input.readCommand()
                     }
                 }
@@ -690,7 +756,13 @@ class GameRuntime private constructor(
                     input,
                     log,
                     prompts.race.renderCreation(memberName = memberName),
-                    rules.races.mapIndexed { index, option -> CreationChoice(index.digitChoiceKey(), option.label, option.race) },
+                    rules.races.mapIndexed { index, option ->
+                        CreationChoice(
+                            index.digitChoiceKey(),
+                            option.label,
+                            option.race,
+                        )
+                    },
                     "race",
                 )
                     ?: return null
@@ -700,7 +772,13 @@ class GameRuntime private constructor(
                     input,
                     log,
                     prompts.classMenu.renderCreation(),
-                    rules.classes.mapIndexed { index, option -> CreationChoice(index.digitChoiceKey(), option.label, option) },
+                    rules.classes.mapIndexed { index, option ->
+                        CreationChoice(
+                            index.digitChoiceKey(),
+                            option.label,
+                            option,
+                        )
+                    },
                     "class",
                 )
                     ?: return null
@@ -800,7 +878,9 @@ class GameRuntime private constructor(
     private fun Int.digitChoiceKey(): Char = (this + 1).digitToChar()
 
     private fun <T> List<CreationChoice<T>>.menuLines(): List<String> =
-        chunked(2).map { row -> row.joinToString("  ") { choice -> "${choice.key}. ${choice.label}".padEnd(12) }.trimEnd() }
+        chunked(2).map { row ->
+            row.joinToString("  ") { choice -> "${choice.key}. ${choice.label}".padEnd(12) }.trimEnd()
+        }
 
     private fun ExternalCharacterCreationClassOption.failureFor(stats: CreationStats): ExternalRuntimeTextBlock? =
         requiredStat?.let { stat -> minimum?.let { min -> failureText.takeIf { stats.value(stat) < min } } }
@@ -1093,10 +1173,18 @@ class GameRuntime private constructor(
                 log.event("town.invalid_choice key=$choice")
                 continue
             }
-            if (command.action == TOWN_LEAVE_ACTION) return current.copy(currentMode = RuntimeMode.Wilderness, currentTown = null)
-            val service = serviceEntries.firstOrNull { entry -> entry.command.action == command.action }?.service ?: continue
+            if (command.action == TOWN_LEAVE_ACTION) return current.leaveTown()
+            val service =
+                serviceEntries.firstOrNull { entry -> entry.command.action == command.action }?.service ?: continue
             log.event("town.service town=${slug(town.id)} building=${slug(service.building)}")
-            current = runService(current.copy(currentMode = RuntimeMode.Town, currentTown = town.id), service, input, screen, log)
+            current =
+                runService(
+                    current.copy(currentMode = RuntimeMode.Town, currentTown = town.id),
+                    service,
+                    input,
+                    screen,
+                    log,
+                )
             if (current.currentMode != RuntimeMode.Town || input.exhausted) return current
         }
     }
@@ -1222,6 +1310,8 @@ internal data class RuntimeState(
     fun withCompletedMission(mission: CompiledHandleRef): RuntimeState = copy(completedMissions = (completedMissions + mission).distinct())
 
     fun withSeed(seed: Long): RuntimeState = withParty(party.copy(rngState = seed))
+
+    fun leaveTown(): RuntimeState = copy(currentMode = RuntimeMode.Wilderness, currentTown = null)
 
     companion object {
         fun from(
@@ -1513,6 +1603,15 @@ internal class RuntimeInput(
     }
 }
 
+private fun RuntimeInput.exitResult(): RuntimeSessionResult = RuntimeSessionResult(exitReason())
+
+private fun gameOverResult(): RuntimeSessionResult = RuntimeSessionResult(RuntimeSessionExitReason.GameOver)
+
+private fun RuntimeInput.exitReason(): RuntimeSessionExitReason {
+    if (exhausted) return RuntimeSessionExitReason.ScriptExhausted
+    return RuntimeSessionExitReason.InputClosed
+}
+
 private const val DEFAULT_TEXT_INPUT_LIMIT = 80
 
 private fun ExternalRuntimeTextBlock.renderCreation(
@@ -1549,7 +1648,15 @@ internal fun CompiledTextBlock.renderTextLines(
         is CompiledTextBlock.Structured ->
             lines.map { line ->
                 line.parts.joinToString(separator = "") { part ->
-                    part.renderText(content, intValue, stringValue, roleNameValue, roleLocationValue, locationValue, runtimeValue)
+                    part.renderText(
+                        content,
+                        intValue,
+                        stringValue,
+                        roleNameValue,
+                        roleLocationValue,
+                        locationValue,
+                        runtimeValue,
+                    )
                 }
             }
     }
