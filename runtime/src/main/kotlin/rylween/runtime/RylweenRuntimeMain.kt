@@ -95,7 +95,7 @@ object RylweenRuntimeMain {
 /** Parsed command-line configuration for [GameRuntime]. */
 data class RuntimeConfig(
     val bundleFile: File,
-    val userId: String = DEFAULT_RUNTIME_USER,
+    val userId: String?,
     val stateSlug: String = "fresh-replay",
     val stateExplicit: Boolean = false,
     val loadFile: File? = null,
@@ -118,7 +118,7 @@ private object RuntimeCli {
         }
 
         var bundleFile: File? = null
-        var userId = DEFAULT_RUNTIME_USER
+        var userId: String? = null
         var stateSlug = "fresh-replay"
         var stateExplicit = false
         var loadFile: File? = null
@@ -146,7 +146,7 @@ private object RuntimeCli {
                 }
 
                 "--user" -> {
-                    userId = args.valueAfter(index, arg)
+                    userId = args.valueAfter(index, arg).validatedRuntimeUserId()
                     index += 2
                 }
 
@@ -209,6 +209,12 @@ private object RuntimeCli {
         check(!(showTitleMenu && skipTitleMenu)) {
             "--title and --no-title are mutually exclusive"
         }
+        if (staticScreen == null) {
+            check(userId != null) { "--user is required for interactive runtime sessions" }
+        }
+        if (staticScreen != null && loadFile != null) {
+            check(userId != null) { "--user is required when rendering a saved runtime screen" }
+        }
         return RuntimeConfig(
             bundleFile = checkNotNull(bundleFile) { "--bundle is required" },
             userId = userId,
@@ -234,7 +240,7 @@ private object RuntimeCli {
             |
             |Options:
             |  --state <slug>    Boot compiled state image directly, default fresh-replay.
-            |  --user <id>       Save/load user id inside the shared world save, default local.
+            |  --user <id>       Save/load user id inside the shared world save.
             |  --load <file>     Load a runtime save.
             |  --save <file>     Save target for the S command, default build/saves/runtime.rsave.
             |  --screen <slug>   Render one compiled static screen and exit.
@@ -255,6 +261,10 @@ private fun List<String>.valueAfter(
     option: String,
 ): String = getOrNull(index + 1) ?: error("$option requires a value")
 
+private fun String.validatedRuntimeUserId(): String =
+    trim()
+        .also { userId -> require(userId.any(Char::isLetterOrDigit)) { "--user must contain a letter or digit" } }
+
 internal fun String.screenSlug(): String =
     when (val normalized = lowercase().replace('-', '_')) {
         "vscore", "verbose", "verbose_score" -> "verbose_score"
@@ -274,11 +284,11 @@ private fun RuntimeConfig.run() {
                 "debugSecrets=$debugSecrets",
         )
         if (staticScreen != null) {
-            runtime.renderStaticScreen(staticScreen, stateSlug, loadFile, log)
+            runtime.renderStaticScreen(staticScreen, stateSlug, loadFile, userId, log)
             return
         }
         runtime.runWilderness(
-            userId = userId,
+            userId = checkNotNull(userId) { "--user is required for interactive runtime sessions" },
             stateSlug = stateSlug,
             loadFile = loadFile,
             saveFile = saveFile,
@@ -314,6 +324,7 @@ class GameRuntime private constructor(
         screenSlug: String,
         stateSlug: String,
         loadFile: File?,
+        userId: String?,
         log: RuntimeLog,
     ): RuntimeSessionResult =
         AnsiTerminals.stdout().use { terminal ->
@@ -322,6 +333,7 @@ class GameRuntime private constructor(
                 screenSlug = screenSlug,
                 stateSlug = stateSlug,
                 loadFile = loadFile,
+                userId = userId,
                 log = log,
             )
         }
@@ -332,6 +344,7 @@ class GameRuntime private constructor(
         screenSlug: String,
         stateSlug: String,
         loadFile: File?,
+        userId: String?,
         log: RuntimeLog,
     ): RuntimeSessionResult {
         log.event("screen.static slug=$screenSlug state=$stateSlug load=${loadFile?.path.orEmpty()}")
@@ -342,6 +355,7 @@ class GameRuntime private constructor(
                     expectedBundleHash = bundleContentHash,
                     content = content,
                     stateLookup = ::stateBySlug,
+                    userId = checkNotNull(userId) { "--user is required when rendering a saved runtime screen" },
                 )
             } ?: RuntimeState.from(stateBySlug(stateSlug), content)
         RuntimeScreen(terminal, bundle, systems, log).showStaticScreen(screenSlug, runtime)
@@ -350,7 +364,7 @@ class GameRuntime private constructor(
 
     /** Runs the runtime wilderness loop from one compiled state image. */
     fun runWilderness(
-        userId: String = DEFAULT_RUNTIME_USER,
+        userId: String,
         stateSlug: String,
         loadFile: File?,
         saveFile: File,

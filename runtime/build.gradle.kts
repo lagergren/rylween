@@ -121,6 +121,10 @@ val installRuntime: TaskProvider<Sync> by tasks.registering(Sync::class) {
     }
 }
 
+tasks.withType<RunInstalledLauncherWithJavaTask>().configureEach {
+    userId.set("gradle-smoke")
+}
+
 tasks.test {
     dependsOn(installRuntime)
     dependsOn(":tools:emitExternalCompiledBundle")

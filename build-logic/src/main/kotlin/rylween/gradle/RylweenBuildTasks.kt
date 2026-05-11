@@ -93,6 +93,10 @@ abstract class RunInstalledLauncherWithJavaTask
 
         @get:Input
         @get:Optional
+        abstract val userId: Property<String>
+
+        @get:Input
+        @get:Optional
         abstract val stateSlug: Property<String>
 
         @get:Input
@@ -154,6 +158,9 @@ abstract class RunInstalledLauncherWithJavaTask
                 )
             if (hasScreen) {
                 launcherArgs += listOf("--screen", screen.get())
+            }
+            if (userId.isPresent) {
+                launcherArgs += listOf("--user", userId.get())
             }
             if (stateSlug.isPresent) {
                 launcherArgs += listOf("--state", stateSlug.get())

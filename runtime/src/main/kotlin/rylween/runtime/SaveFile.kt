@@ -42,7 +42,7 @@ internal object SaveFile {
         runtime: RuntimeState,
         bundleHash: String,
         content: CompiledContentBundle,
-        userId: String = DEFAULT_RUNTIME_USER,
+        userId: String,
     ) {
         val activeUser = userId.normalizedSaveUser()
         val preservedUsers =
@@ -65,7 +65,7 @@ internal object SaveFile {
         expectedBundleHash: String,
         content: CompiledContentBundle,
         stateLookup: (String) -> CompiledStateImage,
-        userId: String = DEFAULT_RUNTIME_USER,
+        userId: String,
     ): RuntimeState {
         val values = file.readSaveValues()
         values.requireValue("format", SAVE_FORMAT)
@@ -595,13 +595,13 @@ internal object SaveFile {
         val user = users.firstOrNull { record -> record.id == userId.normalizedSaveUser() }
         if (user != null) return user.values
         if (users.isNotEmpty()) return emptyMap()
-        if (userId.normalizedSaveUser() == DEFAULT_RUNTIME_USER && hasPartyFields()) return this
+        if (hasPartyFields()) return this
         return emptyMap()
     }
 
     private fun Map<String, String>.hasUserParty(userId: String): Boolean {
         val users = userRecords()
-        if (users.isEmpty()) return userId.normalizedSaveUser() == DEFAULT_RUNTIME_USER && hasPartyFields()
+        if (users.isEmpty()) return hasPartyFields()
         val user = users.firstOrNull { record -> record.id == userId.normalizedSaveUser() }
         return user?.values?.hasPartyFields() == true
     }
@@ -648,18 +648,21 @@ internal object SaveFile {
             key != USERS_COUNT && !key.startsWith("user.")
         }
 
-    private fun String.normalizedSaveUser(): String =
-        lowercase()
-            .map { char ->
-                when {
-                    char.isLetterOrDigit() -> char
-                    char == '-' -> char
-                    char == '_' -> char
-                    else -> '_'
-                }
-            }.joinToString("")
-            .takeIf(String::isNotBlank)
-            ?: DEFAULT_RUNTIME_USER
+    private fun String.normalizedSaveUser(): String {
+        val normalized =
+            trim()
+                .lowercase()
+                .map { char ->
+                    when {
+                        char.isLetterOrDigit() -> char
+                        char == '-' -> char
+                        char == '_' -> char
+                        else -> '_'
+                    }
+                }.joinToString("")
+        require(normalized.any(Char::isLetterOrDigit)) { "runtime user id must contain a letter or digit" }
+        return normalized
+    }
 
     private fun Map<String, String>.savedMemberSlots(): Set<Int> =
         keys

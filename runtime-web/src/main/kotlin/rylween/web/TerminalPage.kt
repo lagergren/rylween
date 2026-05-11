@@ -435,14 +435,22 @@ internal fun terminalPageHtml(): String =
           if (stored && stored.trim() !== "") {
             return stored;
           }
-          const entered = window.prompt("Adventurer name", "adventurer") || "adventurer";
-          window.localStorage.setItem("rylweenUser", entered);
-          return entered;
+          const entered = window.prompt("Adventurer name", "");
+          if (!entered || entered.trim() === "") {
+            return null;
+          }
+          window.localStorage.setItem("rylweenUser", entered.trim());
+          return entered.trim();
         }
 
         function connect() {
+          const name = userName();
+          if (!name) {
+            setStatus("Name required", false);
+            return;
+          }
           const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-          const path = "/ws/play?user=" + encodeURIComponent(userName());
+          const path = "/ws/play?user=" + encodeURIComponent(name);
           socket = new WebSocket(scheme + "://" + window.location.host + path);
           socket.addEventListener("open", () => {
             setStatus("Connected", true);

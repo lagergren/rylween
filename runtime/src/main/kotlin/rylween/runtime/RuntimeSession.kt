@@ -4,12 +4,10 @@ import rylween.terminal.AnsiTerminal
 import java.io.File
 import java.time.LocalDate
 
-const val DEFAULT_RUNTIME_USER: String = "local"
-
 /** Programmatic configuration for one interactive runtime session. */
 data class RuntimeSessionConfig(
-    val userId: String = DEFAULT_RUNTIME_USER,
-    val stateSlug: String = "fresh-replay",
+    val userId: String,
+    val stateSlug: String,
     val loadFile: File? = null,
     val saveFile: File = File("build/saves/runtime.rsave"),
     val scriptedInput: String? = null,
@@ -23,8 +21,9 @@ data class RuntimeSessionConfig(
 /** Programmatic configuration for rendering a one-shot static screen. */
 data class RuntimeStaticScreenConfig(
     val screenSlug: String,
-    val stateSlug: String = "fresh-replay",
+    val stateSlug: String,
     val loadFile: File? = null,
+    val userId: String? = null,
 )
 
 /** Coarse reason a runtime session returned control to its caller. */
@@ -81,6 +80,7 @@ class RuntimeSessionFactory private constructor(
             screenSlug = config.screenSlug,
             stateSlug = config.stateSlug,
             loadFile = config.loadFile,
+            userId = config.userId,
             log = log,
         )
 
