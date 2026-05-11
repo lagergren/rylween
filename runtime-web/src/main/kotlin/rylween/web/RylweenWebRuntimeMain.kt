@@ -254,6 +254,11 @@ private class RuntimeWebServer(
             return
         }
         val user = WebUser.from(request.query["user"])
+        if (user == null) {
+            serverLog.event("web.websocket.reject id=$clientId remote=${logValue(remote)} reason=missing_user")
+            respondText(socket, "400 Bad Request", "text/plain; charset=utf-8", "user required\n")
+            return
+        }
         serverLog.event(
             "web.user.login id=$clientId remote=${logValue(remote)} " +
                 "user=${user.slug} displayName=${logValue(user.displayName)}",
@@ -379,23 +384,19 @@ private data class WebUser(
     val displayName: String,
 ) {
     companion object {
-        fun from(value: String?): WebUser {
+        fun from(value: String?): WebUser? {
             val raw = value?.trim().orEmpty()
-            val displayName = displayNameFrom(raw)
-            val slug = slugFrom(displayName)
+            if (raw.isBlank()) return null
+            val displayName = raw.take(40)
+            val slug = slugFrom(displayName) ?: return null
             return WebUser(slug, displayName)
         }
 
-        private fun displayNameFrom(raw: String): String {
-            if (raw.isBlank()) return "adventurer"
-            return raw.take(40)
-        }
-
-        private fun slugFrom(displayName: String): String {
+        private fun slugFrom(displayName: String): String? {
             val lowered = displayName.lowercase(Locale.ROOT)
             val cleaned = lowered.replace(Regex("[^a-z0-9_-]+"), "-").trim('-')
-            if (cleaned.isNotBlank()) return cleaned.take(48)
-            return "adventurer"
+            if (cleaned.isBlank()) return null
+            return cleaned.take(48)
         }
     }
 }

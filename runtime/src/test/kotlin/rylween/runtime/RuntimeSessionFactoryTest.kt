@@ -22,7 +22,14 @@ class RuntimeSessionFactoryTest {
             val result =
                 RuntimeSessionFactory
                     .load(bundleFile)
-                    .renderStaticScreen(terminal, RuntimeStaticScreenConfig(screenSlug = "title"), log)
+                    .renderStaticScreen(
+                        terminal,
+                        RuntimeStaticScreenConfig(
+                            screenSlug = "title",
+                            stateSlug = "fresh-replay",
+                        ),
+                        log,
+                    )
 
             assertEquals(RuntimeSessionExitReason.StaticScreenRendered, result.reason)
         }
@@ -44,6 +51,8 @@ class RuntimeSessionFactoryTest {
                     .start(
                         terminal,
                         RuntimeSessionConfig(
+                            userId = "test-user",
+                            stateSlug = "fresh-replay",
                             saveFile = saveFile,
                             scriptedInput = "",
                         ),
@@ -146,6 +155,8 @@ class RuntimeSessionFactoryTest {
                 .start(
                     RecordingAnsiTerminal(),
                     RuntimeSessionConfig(
+                        userId = "local",
+                        stateSlug = "fresh-replay",
                         loadFile = loadFile,
                         saveFile = saveFile,
                         scriptedInput = "",
