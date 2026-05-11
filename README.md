@@ -7,6 +7,9 @@ DSL/compiler and compiled-bundle contracts live under `:core`, authored game
 DSL and resources live under `:game`, bundle emitters and native probes live
 under `:tools`, and terminal transport/protocol code lives under `:terminal`.
 
+The original game text and manual live in
+[`adventurers-of-rylween.md`](game/src/main/resources/adventurers-of-rylween.md).
+
 The old interpreted Kotlin ANSI project and historical C/JSON5 port are
 removed from the active checkout; their final tree is zipped at
 `scratch/legacy-archive.zip`.
