@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import rylween.compiled.readExternalCompiledGameBundle
 import rylween.terminal.AnsiTerminal
 import java.io.File
 import java.time.LocalDate
@@ -95,6 +96,39 @@ class RuntimeSessionFactoryTest {
 
         assertEquals(beforeReload, saveFile.readText(), "loading the same date should not rewrite unchanged world state")
         assertContains(secondLog.readText(), "runtime.restore.line")
+    }
+
+    @Test
+    fun generatedNpcPlacementUsesAuthoredTownServicePolicy() {
+        val saveFile = testTmp.resolve("session-api-npc-placement.rsave").freshSaveFile()
+        val logFile = testTmp.resolve("session-api-npc-placement.log")
+
+        runRuntimeSession(saveFile, logFile, sessionDate = LocalDate.of(2026, 5, 11))
+
+        val values = saveFile.readSaveValues()
+        val placements = values.npcPlacements()
+        val townServices = bundleFile.readExternalCompiledGameBundle().content.townServiceSlugs()
+        val townPlacements = placements.filter { placement -> placement.position == "town" }
+        val wildernessPlacements = placements.filter { placement -> placement.position == "wilderness" }
+
+        assertTrue(placements.size > 20, "fresh shared world should persist generated NPC placements")
+        assertTrue(townPlacements.size > wildernessPlacements.size, "Rylween random NPC policy should favor town service buckets")
+        assertTrue(
+            wildernessPlacements.none { placement -> placement.x == 0 && placement.y == 0 },
+            "inactive imported NPC slots must not become wilderness 0,0 placements",
+        )
+        assertTrue(
+            placements.none { placement -> placement.id in setOf("alex", "galdon", "kosch", "ufarsin") },
+            "inactive imported merchant slots should not be materialized",
+        )
+        townPlacements.forEach { placement ->
+            val services = townServices.getValue(checkNotNull(placement.town))
+            assertContains(services, checkNotNull(placement.building), "${placement.id} should use an authored town service")
+        }
+        assertTrue(
+            townPlacements.all { placement -> placement.building in setOf("inn", "tavern") },
+            "random NPC town placements should use only the authored inn/tavern buckets",
+        )
     }
 
     @Test
@@ -196,7 +230,36 @@ class RuntimeSessionFactoryTest {
                 .associate { (key, value) -> targetPrefix + key.removePrefix(sourcePrefix) to value }
         return this + duplicated + ("users.count" to "2") + ("${targetPrefix}id" to targetUserId)
     }
+
+    private fun Map<String, String>.npcPlacements(): List<SaveNpcPlacement> {
+        val count = getValue("npcs.count").toInt()
+        return (1..count).map { index ->
+            val prefix = "npc.$index."
+            SaveNpcPlacement(
+                id = getValue("${prefix}id"),
+                position = getValue("${prefix}position"),
+                town = get("${prefix}town"),
+                building = get("${prefix}building"),
+                x = get("${prefix}x")?.toInt(),
+                y = get("${prefix}y")?.toInt(),
+            )
+        }
+    }
 }
+
+private data class SaveNpcPlacement(
+    val id: String,
+    val position: String,
+    val town: String?,
+    val building: String?,
+    val x: Int?,
+    val y: Int?,
+)
+
+private fun rylween.compiled.CompiledContentBundle.townServiceSlugs(): Map<String, Set<String>> =
+    towns.associate { town ->
+        slug(town.id) to town.services.mapTo(mutableSetOf(), ::slug)
+    }
 
 private class RecordingAnsiTerminal : AnsiTerminal {
     private val buffer = StringBuilder()

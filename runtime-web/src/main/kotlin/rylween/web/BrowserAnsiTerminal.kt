@@ -12,6 +12,21 @@ private const val TEXT_INPUT_CURSOR_OFF = "${AnsiCodes.CSI}?25l"
 private const val INPUT_PREFIX = "key:"
 private const val EOF_CODE = -1
 
+/**
+ * Browser-backed implementation of the same terminal interface used by the
+ * local ANSI runtime.
+ *
+ * The game runtime still writes ordinary ANSI escape sequences through
+ * [AnsiTerminal.writeRaw]. In the web runtime those bytes are sent as text
+ * WebSocket frames to `TerminalPage.kt`, whose JavaScript keeps an 80-column
+ * screen buffer, interprets the subset of ANSI that Rylween emits
+ * (cursor movement, clear-screen/window commands, colors, and cursor visibility),
+ * and redraws the `<pre>` as styled spans. Browser key presses travel the other
+ * direction as `key:<chars>` WebSocket messages. This adapter queues those key
+ * codes and feeds them back into the shared [AnsiInput] helpers, so command
+ * reads, text input, arrow decoding, cursor echo, and EOF handling all use the
+ * same code path as the local terminal.
+ */
 internal class BrowserAnsiTerminal(
     private val connection: WebSocketConnection,
 ) : AnsiTerminal {

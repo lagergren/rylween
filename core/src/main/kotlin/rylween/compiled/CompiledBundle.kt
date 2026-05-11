@@ -71,6 +71,8 @@ import rylween.dsl.PartyState
 import rylween.dsl.PcClass
 import rylween.dsl.Race
 import rylween.dsl.RandomItemOfferModel
+import rylween.dsl.RandomNpcPlacementOptionModel
+import rylween.dsl.RandomNpcPlacementPolicyModel
 import rylween.dsl.RealmState
 import rylween.dsl.Resource
 import rylween.dsl.RewardApplicationModel
@@ -432,9 +434,36 @@ sealed interface CompiledCharacterPlacement {
         val position: CompiledWorldPosition,
     ) : CompiledCharacterPlacement
 
-    data object Randomized : CompiledCharacterPlacement
+    data class Randomized(
+        val policy: CompiledRandomNpcPlacementPolicy,
+    ) : CompiledCharacterPlacement
 
-    data object RandomizedWilderness : CompiledCharacterPlacement
+    data class RandomizedWilderness(
+        val policy: CompiledRandomNpcPlacementPolicy,
+    ) : CompiledCharacterPlacement
+
+    data object Unplaced : CompiledCharacterPlacement
+}
+
+data class CompiledRandomNpcPlacementPolicy(
+    val options: List<CompiledRandomNpcPlacementOption>,
+)
+
+sealed interface CompiledRandomNpcPlacementOption {
+    val chanceShares: Int
+
+    data class TownServices(
+        val town: CompiledHandleRef,
+        val services: List<CompiledHandleRef>,
+        override val chanceShares: Int,
+    ) : CompiledRandomNpcPlacementOption
+
+    data class WildernessRect(
+        val x: IntRange,
+        val y: IntRange,
+        val xReplacements: Map<Int, Int>,
+        override val chanceShares: Int,
+    ) : CompiledRandomNpcPlacementOption
 }
 
 data class CompiledMonster(
@@ -724,8 +753,24 @@ sealed interface CompiledTextPart {
         val role: CompiledHandleRef,
     ) : CompiledTextPart
 
+    data class RoleJob(
+        val role: CompiledHandleRef,
+    ) : CompiledTextPart
+
     data class RoleLocation(
         val role: CompiledHandleRef,
+    ) : CompiledTextPart
+
+    data class NpcName(
+        val npc: CompiledHandleRef,
+    ) : CompiledTextPart
+
+    data class NpcJob(
+        val npc: CompiledHandleRef,
+    ) : CompiledTextPart
+
+    data class NpcLocation(
+        val npc: CompiledHandleRef,
     ) : CompiledTextPart
 
     data class TownName(
@@ -1390,9 +1435,10 @@ private class CompiledBundleCompiler(
             character.roles.forEach { role -> handles.add(CompiledHandleKind.Role, role.slug) }
             when (val placement = character.placement) {
                 is CharacterPlacementModel.Fixed -> declarePositionHandles(placement.position)
-                CharacterPlacementModel.Randomized,
-                CharacterPlacementModel.RandomizedWilderness,
-                -> Unit
+                is CharacterPlacementModel.FixedNearTown -> Unit
+                is CharacterPlacementModel.Randomized -> declareRandomNpcPlacementPolicy(placement.policy)
+                is CharacterPlacementModel.RandomizedWilderness -> declareRandomNpcPlacementPolicy(placement.policy)
+                CharacterPlacementModel.Unplaced -> Unit
             }
         }
         game.scenes.forEach { handles.add(CompiledHandleKind.Scene, it.id.slug) }
@@ -1487,6 +1533,18 @@ private class CompiledBundleCompiler(
             is WorldPosition.Town -> {
                 handles.add(CompiledHandleKind.Town, position.town.slug)
                 handles.add(CompiledHandleKind.Building, position.building.slug)
+            }
+        }
+    }
+
+    private fun declareRandomNpcPlacementPolicy(policy: RandomNpcPlacementPolicyModel) {
+        policy.options.forEach { option ->
+            when (option) {
+                is RandomNpcPlacementOptionModel.TownServices -> {
+                    handles.add(CompiledHandleKind.Town, option.town.slug)
+                    option.services.forEach { service -> handles.add(CompiledHandleKind.Building, service.slug) }
+                }
+                is RandomNpcPlacementOptionModel.WildernessRect -> Unit
             }
         }
     }
@@ -1900,7 +1958,11 @@ private class CompiledBundleCompiler(
             is TextPart.IntValue -> CompiledTextPart.IntValue(intExpr(part.value))
             is TextPart.StringValue -> CompiledTextPart.StringValue(stringExpr(part.value))
             is TextPart.RoleName -> CompiledTextPart.RoleName(roleRef(part.role))
+            is TextPart.RoleJob -> CompiledTextPart.RoleJob(roleRef(part.role))
             is TextPart.RoleLocation -> CompiledTextPart.RoleLocation(roleRef(part.role))
+            is TextPart.NpcName -> CompiledTextPart.NpcName(npcRef(part.npc))
+            is TextPart.NpcJob -> CompiledTextPart.NpcJob(npcRef(part.npc))
+            is TextPart.NpcLocation -> CompiledTextPart.NpcLocation(npcRef(part.npc))
             is TextPart.TownName -> CompiledTextPart.TownName(townRef(part.town))
             is TextPart.FuzzyTownLocation -> CompiledTextPart.FuzzyTownLocation(townRef(part.town), part.radius)
             is TextPart.LocationCoordinate -> CompiledTextPart.LocationCoordinate(locationRef(part.location))
@@ -2195,11 +2257,35 @@ private class CompiledBundleCompiler(
             placement =
                 when (val placement = character.placement) {
                     is CharacterPlacementModel.Fixed -> CompiledCharacterPlacement.Fixed(position(placement.position))
-                    CharacterPlacementModel.Randomized -> CompiledCharacterPlacement.Randomized
-                    CharacterPlacementModel.RandomizedWilderness -> CompiledCharacterPlacement.RandomizedWilderness
+                    is CharacterPlacementModel.FixedNearTown -> CompiledCharacterPlacement.Fixed(fixedNearTownPosition(placement))
+                    is CharacterPlacementModel.Randomized ->
+                        CompiledCharacterPlacement.Randomized(randomNpcPlacementPolicy(placement.policy))
+                    is CharacterPlacementModel.RandomizedWilderness ->
+                        CompiledCharacterPlacement.RandomizedWilderness(randomNpcPlacementPolicy(placement.policy))
+                    CharacterPlacementModel.Unplaced -> CompiledCharacterPlacement.Unplaced
                 },
             roles = character.roles.map(::roleRef),
         )
+
+    private fun randomNpcPlacementPolicy(policy: RandomNpcPlacementPolicyModel): CompiledRandomNpcPlacementPolicy =
+        CompiledRandomNpcPlacementPolicy(policy.options.map(::randomNpcPlacementOption))
+
+    private fun randomNpcPlacementOption(option: RandomNpcPlacementOptionModel): CompiledRandomNpcPlacementOption =
+        when (option) {
+            is RandomNpcPlacementOptionModel.TownServices ->
+                CompiledRandomNpcPlacementOption.TownServices(
+                    town = townRef(option.town),
+                    services = option.services.map(::buildingRef),
+                    chanceShares = option.chanceShares,
+                )
+            is RandomNpcPlacementOptionModel.WildernessRect ->
+                CompiledRandomNpcPlacementOption.WildernessRect(
+                    x = option.x,
+                    y = option.y,
+                    xReplacements = option.xReplacements,
+                    chanceShares = option.chanceShares,
+                )
+        }
 
     private fun compileMonster(monster: MonsterModel): CompiledMonster =
         CompiledMonster(
@@ -2418,6 +2504,16 @@ private class CompiledBundleCompiler(
             is WorldPosition.Wilderness -> CompiledWorldPosition.Wilderness(position.point)
             is WorldPosition.Town -> CompiledWorldPosition.Town(townRef(position.town), buildingRef(position.building))
         }
+
+    private fun fixedNearTownPosition(placement: CharacterPlacementModel.FixedNearTown): CompiledWorldPosition {
+        val town = game.towns.first { town -> town.id == placement.town }
+        val point =
+            GridPoint(
+                x = town.position.x + placement.offset.x,
+                y = town.position.y + placement.offset.y,
+            )
+        return CompiledWorldPosition.Wilderness(point)
+    }
 
     private fun itemRef(id: ItemId): CompiledHandleRef = handles.ref(CompiledHandleKind.Item, id.slug)
 

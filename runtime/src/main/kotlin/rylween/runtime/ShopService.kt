@@ -173,9 +173,9 @@ internal class ShopService(
         val generatedLines =
             buildList {
                 buy.catalogs.forEach { catalog ->
-                    add("${catalog.binding.primaryInputLabel(content)}. ${content.strings.value(catalog.titleString)}")
+                    add(catalog.binding.mnemonicLine(content, content.strings.value(catalog.titleString)))
                 }
-                add("${buy.paymentKeys.decline.primaryInputLabel(content)}. Nothing")
+                add(buy.paymentKeys.decline.mnemonicLine(content, "Nothing"))
             }
         while (true) {
             screen.writeText(promptLines.withGeneratedChoices(generatedLines))
@@ -217,7 +217,7 @@ internal class ShopService(
                 catalog.intro?.let { addAll(it.renderTextLines(content)) }
                 page.entries.forEach { offer ->
                     val label = offer.labelString?.let(content.strings::value) ?: itemName(offer.item)
-                    add("${offer.binding.primaryInputLabel(content)}. $label  ${unitPrice(offer, party)} au")
+                    add(offer.binding.mnemonicLine(content, "$label  ${unitPrice(offer, party)} au"))
                 }
                 page.navigation.previous?.let { add(it.optionLine(content)) }
                 page.navigation.next?.let { add(it.optionLine(content)) }
@@ -562,7 +562,11 @@ internal class ShopService(
                 "townName" -> part.args["town"]?.let(::townNameBySlug)
                 "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
                 "roleName" -> part.args["role"]?.let(::roleName)
+                "roleJob" -> part.args["role"]?.let(::roleJob)
                 "roleLocation" -> part.args["role"]?.let { role -> roleLocation(role, runtime) }
+                "npcName" -> part.args["npc"]?.let(::npcName)
+                "npcJob" -> part.args["npc"]?.let(::npcJob)
+                "npcLocation" -> part.args["npc"]?.let { npc -> npcLocation(npc, runtime) }
                 "locationCoordinate" -> null
                 else -> null
             }
@@ -570,6 +574,9 @@ internal class ShopService(
 
     private fun roleName(roleSlug: String): String? =
         roleCharacter(roleSlug)?.let { character -> content.strings.value(character.nameString) }
+
+    private fun roleJob(roleSlug: String): String? =
+        roleCharacter(roleSlug)?.let(::characterJob)
 
     private fun roleLocation(
         roleSlug: String,
@@ -579,10 +586,31 @@ internal class ShopService(
             ?.position(runtime)
             ?.let(::positionText)
 
+    private fun npcName(npcSlug: String): String? =
+        npcCharacter(npcSlug)?.let { character -> content.strings.value(character.nameString) }
+
+    private fun npcJob(npcSlug: String): String? =
+        npcCharacter(npcSlug)?.let(::characterJob)
+
+    private fun npcLocation(
+        npcSlug: String,
+        runtime: RuntimeState,
+    ): String? =
+        npcCharacter(npcSlug)
+            ?.position(runtime)
+            ?.let(::positionText)
+
     private fun roleCharacter(roleSlug: String): CompiledCharacter? {
         val role = refOrNull(CompiledHandleKind.Role, roleSlug) ?: return null
         return content.characters.firstOrNull { character -> role in character.roles }
     }
+
+    private fun npcCharacter(npcSlug: String): CompiledCharacter? {
+        val npc = refOrNull(CompiledHandleKind.Npc, npcSlug) ?: return null
+        return content.characters.firstOrNull { character -> character.id == npc }
+    }
+
+    private fun characterJob(character: CompiledCharacter): String = content.slug(character.job).readableJob()
 
     private fun CompiledCharacter.position(runtime: RuntimeState): CompiledWorldPosition? =
         runtime.npcs.firstOrNull { placement -> placement.npc == id }?.position
@@ -700,21 +728,23 @@ internal class ShopService(
         carryCap: Int? = null,
     ): List<String> =
         renderTextLines(
-            content,
-            runtimeValue = { part ->
-                when (part) {
-                    CompiledRuntimeTextPart.OfferedItemName,
-                    CompiledRuntimeTextPart.SelectedItemName,
-                    -> item?.let(::itemName) ?: "[${part.name}]"
+            CompiledTextRenderContext(
+                content,
+                runtimeValue = { part ->
+                    when (part) {
+                        CompiledRuntimeTextPart.OfferedItemName,
+                        CompiledRuntimeTextPart.SelectedItemName,
+                        -> item?.let(::itemName) ?: "[${part.name}]"
 
-                    CompiledRuntimeTextPart.OfferedItemPrice,
-                    CompiledRuntimeTextPart.ShopPrice,
-                    -> price?.toString() ?: "[${part.name}]"
+                        CompiledRuntimeTextPart.OfferedItemPrice,
+                        CompiledRuntimeTextPart.ShopPrice,
+                        -> price?.toString() ?: "[${part.name}]"
 
-                    CompiledRuntimeTextPart.ShopCarryCap -> carryCap?.toString() ?: "[${part.name}]"
-                    else -> "[${part.name}]"
-                }
-            },
+                        CompiledRuntimeTextPart.ShopCarryCap -> carryCap?.toString() ?: "[${part.name}]"
+                        else -> "[${part.name}]"
+                    }
+                },
+            ),
         )
 }
 
@@ -755,4 +785,14 @@ internal fun CompiledInputBinding.matchesInput(
 internal fun CompiledInputBinding.primaryInputLabel(content: CompiledContentBundle): String = content.strings.value(primaryString)
 
 private fun CompiledInputBinding.optionLine(content: CompiledContentBundle): String =
-    "${primaryInputLabel(content)}. ${content.strings.value(labelString)}"
+    mnemonicLine(content, content.strings.value(labelString))
+
+internal fun CompiledInputBinding.mnemonicLine(
+    content: CompiledContentBundle,
+    text: String,
+): String = "(${primaryInputLabel(content).uppercase()})${text.afterMnemonic(primaryInputLabel(content))}"
+
+private fun String.afterMnemonic(key: String): String =
+    removePrefix(key)
+        .removePrefix(key.uppercase())
+        .removePrefix(key.lowercase())

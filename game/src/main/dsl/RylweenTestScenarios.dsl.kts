@@ -7,6 +7,42 @@
 import rylween.dsl.*
 import rylween.game.*
 
+val replayRandomNpcIds =
+    listOf(
+        Npcs.nrimTo,
+        Npcs.areth,
+        Npcs.nevaak,
+        Npcs.gorm,
+        Npcs.bernak,
+        Npcs.matias,
+        Npcs.tybalt,
+        Npcs.romeo,
+        Npcs.werra,
+        Npcs.arenjun,
+        Npcs.oskar,
+        Npcs.harry,
+        Npcs.marraga,
+        Npcs.broth,
+        Npcs.ebond,
+        Npcs.bolph,
+        Npcs.gotharp,
+        Npcs.ron,
+        Npcs.kaal,
+        Npcs.daniel,
+        Npcs.leander,
+        Npcs.ithienn,
+        Npcs.azaaza,
+    )
+
+fun NpcStateBuilder.stageRandomNpcsAwayFromTownServices(vararg keepPlaced: NpcId) {
+    val keep = keepPlaced.toSet()
+    replayRandomNpcIds
+        .filterNot(keep::contains)
+        .forEachIndexed { index, npc ->
+            npc at Wilderness.xy(8 + index, 8)
+        }
+}
+
 nextRylween = nextRylween.withStateModule {
     // Authored start state fixture. It can stay compact and readable.
     stateFixture(States.freshReplay) {
@@ -281,6 +317,11 @@ nextRylween = nextRylween.withStateModule {
             wilderness(Maps.wilderness)
         }
 
+        npcs {
+            Npcs.garth at Towns.thord.inn
+            stageRandomNpcsAwayFromTownServices()
+        }
+
         party(Parties.playtest) {
             player = "playtest"
             name = "Playtest"
@@ -426,6 +467,22 @@ nextRylween = nextRylween.withStateModule {
             Npcs.ithienn at Towns.wilor.inn
             Npcs.gotharp at Towns.ollk.inn
             Npcs.azaaza at Towns.ollk.inn
+            stageRandomNpcsAwayFromTownServices(
+                Npcs.nrimTo,
+                Npcs.areth,
+                Npcs.nevaak,
+                Npcs.gorm,
+                Npcs.bernak,
+                Npcs.tybalt,
+                Npcs.harry,
+                Npcs.marraga,
+                Npcs.broth,
+                Npcs.gotharp,
+                Npcs.ron,
+                Npcs.leander,
+                Npcs.ithienn,
+                Npcs.azaaza,
+            )
         }
 
         party(Parties.playtest) {
@@ -504,6 +561,7 @@ nextRylween = nextRylween.withStateModule {
         npcs {
             Npcs.gotharp at Towns.ollk.inn
             Npcs.azaaza at Towns.ollk.inn
+            stageRandomNpcsAwayFromTownServices(Npcs.gotharp, Npcs.azaaza)
         }
 
         party(Parties.playtest) {
@@ -638,6 +696,14 @@ nextRylween = nextRylween.withStateModule {
             Npcs.broth at Towns.wilor.inn
             Npcs.ron at Towns.wilor.inn
             Npcs.ithienn at Towns.wilor.inn
+            stageRandomNpcsAwayFromTownServices(
+                Npcs.bernak,
+                Npcs.tybalt,
+                Npcs.harry,
+                Npcs.broth,
+                Npcs.ron,
+                Npcs.ithienn,
+            )
         }
 
         party(Parties.playtest) {
@@ -716,6 +782,7 @@ nextRylween = nextRylween.withStateModule {
             Npcs.garth at Towns.thord.inn
             Npcs.bernak at Towns.wilor.inn
             Npcs.azaaza at Towns.ollk.inn
+            stageRandomNpcsAwayFromTownServices(Npcs.bernak, Npcs.azaaza)
         }
 
         party(Parties.playtest) {
@@ -862,6 +929,7 @@ nextRylween = nextRylween.withStateModule {
             Npcs.garth at Towns.thord.inn
             Npcs.bernak at Towns.wilor.inn
             Npcs.azaaza at Towns.ollk.inn
+            stageRandomNpcsAwayFromTownServices(Npcs.bernak, Npcs.azaaza)
         }
 
         party(Parties.replay) {

@@ -9,6 +9,7 @@ import rylween.dsl.DungeonEventDisposition
 import rylween.dsl.DungeonId
 import rylween.dsl.EquipmentCommand
 import rylween.dsl.Facing
+import rylween.dsl.GridPoint
 import rylween.dsl.InputAliases
 import rylween.dsl.IntAst
 import rylween.dsl.ItemConsumePolicy
@@ -32,12 +33,15 @@ import rylween.dsl.StaticScreenRuntimeReport
 import rylween.dsl.TemperatureBand
 import rylween.dsl.TemperatureBandRange
 import rylween.dsl.TerrainSettlement
+import rylween.dsl.TextBlock
+import rylween.dsl.TextPart
 import rylween.dsl.TownHandle
 import rylween.dsl.TownKind
 import rylween.dsl.Trigger
 import rylween.dsl.Wilderness
 import rylween.dsl.analyzeScriptSources
 import rylween.dsl.cells
+import rylween.dsl.gridOffset
 import rylween.dsl.inlineText
 import rylween.dsl.isWinningConfiguration
 import rylween.dsl.itemPool
@@ -237,6 +241,15 @@ class RylweenCompiledGameLedgerTest {
                     it.id == Rumors.banditsQuestGiver
                 }.excludedBy == listOf(Story.garth.bandits.recovered, Story.garth.bandits.closed),
         )
+        check(
+            nextDsl.speak.textTables.rumorTables
+                .single()
+                .entries
+                .single { it.id == Rumors.banditsQuestGiver }
+                .text
+                .textParts()
+                .contains(TextPart.RoleJob(Roles.banditsQuestGiver)),
+        )
         check(nextDsl.dialogue.size == NpcRoles.all.size)
         check(
             nextDsl.dialogue
@@ -354,11 +367,14 @@ class RylweenCompiledGameLedgerTest {
                 .matches(InputAliases.ArrowUp),
         )
         check(nextDsl.characters.size == 39)
-        check(nextDsl.characters.single { Roles.crownSeer in it.roles }.placement == CharacterPlacementModel.Randomized)
-        check(nextDsl.characters.single { it.id == Npcs.marcus }.placement == CharacterPlacementModel.Fixed(Wilderness.xy(48, 7)))
+        check(nextDsl.characters.single { Roles.crownSeer in it.roles }.placement is CharacterPlacementModel.Randomized)
+        check(
+            nextDsl.characters.single { it.id == Npcs.marcus }.placement ==
+                CharacterPlacementModel.FixedNearTown(Towns.ollk.id, gridOffset(0, -5), Terrain.swamp),
+        )
         check(
             listOf(Npcs.alex, Npcs.galdon, Npcs.kosch, Npcs.ufarsin).all { npc ->
-                nextDsl.characters.single { it.id == npc }.placement == CharacterPlacementModel.RandomizedWilderness
+                nextDsl.characters.single { it.id == npc }.placement == CharacterPlacementModel.Unplaced
             },
         )
         check(nextDsl.characters.flatMap { it.roles }.toSet() == NpcRoles.all.toSet())
@@ -852,6 +868,15 @@ class RylweenCompiledGameLedgerTest {
                 .branches.size == 3,
         )
         check(
+            nextDsl.dialogue
+                .single { it.npc == Npcs.areth }
+                .branches
+                .flatMap { branch -> branch.ops }
+                .anyNested { op ->
+                    op is Op.Screen && TextPart.NpcJob(Npcs.areth) in op.text.textParts()
+                },
+        )
+        check(
             nextDsl.dialogue.single { it.npc == Npcs.garth }.branches.any { branch ->
                 branch.whenState == Story.garth.bandits.recovered &&
                     branch.ops.any { op ->
@@ -962,6 +987,18 @@ class RylweenCompiledGameLedgerTest {
                 .first()
                 .length == 78,
         )
+        val wildernessTerrainRows =
+            nextDsl.worldMaps
+                .single { it.id == Maps.wilderness }
+                .layers
+                .single { it.id == MapLayers.terrain }
+                .rows
+        fun wildernessMapCodeAt(point: GridPoint): Char = wildernessTerrainRows[point.y - 1][point.x]
+        val hermitPoint = xy(48, 7)
+        val ollkPoint = townsById.getValue(Towns.ollk.id).position
+        check(wildernessMapCodeAt(hermitPoint) == 't')
+        check(wildernessMapCodeAt(ollkPoint) == '0')
+        check(hermitPoint.x == ollkPoint.x && ollkPoint.y - hermitPoint.y == 5)
         check(
             !nextDsl.terrain.terrain
                 .single { it.id == Terrain.mountain }
@@ -1272,13 +1309,13 @@ class RylweenCompiledGameLedgerTest {
             "run.sh must not fall back to the archived interpreted ANSI runtime"
         }
         check(
-            ":runtime:installRuntime" in dockerfile &&
-                "/src/runtime/build/install/rylween" in dockerfile &&
-                "[\"/app/rylween/bin/rylween\", \"--bundle\", \"/app/rylween-bundle.json\"]" in dockerfile,
+            ":runtime-web:installRuntimeWeb" in dockerfile &&
+                "/src/runtime-web/build/install/rylween-web" in dockerfile &&
+                "/app/rylween-web/bin/rylween-web --bundle" in dockerfile,
         ) {
-            "Dockerfile must run the current Kotlin runtime install distribution"
+            "Dockerfile must run the current Kotlin web runtime install distribution"
         }
-        check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/", "rust/rylween-mud").none { token -> token in dockerfile }) {
+        check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in dockerfile }) {
             "Dockerfile must not wire archived or probe launchers into the playable image"
         }
         check("--title" in launcher && "--no-title" in launcher && "title_seen=false" in launcher) {
@@ -1286,6 +1323,9 @@ class RylweenCompiledGameLedgerTest {
         }
         check("--no-title" in runtimeMain && "skipTitleMenu" in runtimeMain && "!skipTitleMenu" in runtimeMain) {
             "runtime must support an explicit --no-title title-screen skip"
+        }
+        check("(C)reate New Party" in runtimeMain && "N. Create New Party" !in runtimeMain) {
+            "title menu must use mnemonic command formatting for new-party selection"
         }
         check(
             ":runtime:installRuntime" in buildWrapperTask &&
@@ -1296,6 +1336,34 @@ class RylweenCompiledGameLedgerTest {
         }
         check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in buildWrapperTask }) {
             "generated wrapper task must not fall back to the archived interpreted ANSI runtime"
+        }
+    }
+
+    @Test
+    fun battleTextIsAuthoredInGameDslNotDslImplementation() {
+        val gameDsl = File("game/src/main/dsl/RylweenGame.dsl.kts").readText()
+        val dslImplementation =
+            File("core/src/main/kotlin/rylween/dsl")
+                .walkTopDown()
+                .filter { file -> file.isFile && file.extension == "kt" }
+                .joinToString("\n") { file -> file.readText() }
+        val battleTextTokens =
+            listOf(
+                "Blood shall flow!",
+                "Coward. You won't get",
+                "any EXP for this battle.",
+                "The spell fizzles!",
+                "HI-YAAAA!",
+                " damage pts!!!",
+                "(A)ttack",
+                "(U)se Item",
+            )
+
+        check(battleTextTokens.all { token -> token in gameDsl }) {
+            "Rylween battle prose and menu labels must be authored in the game DSL"
+        }
+        check(battleTextTokens.none { token -> token in dslImplementation }) {
+            "Reusable DSL implementation must not contain Rylween-specific battle prose or menu labels"
         }
     }
 
@@ -1654,3 +1722,10 @@ class RylweenCompiledGameLedgerTest {
         }
     }
 }
+
+private fun TextBlock.textParts(): List<TextPart> =
+    when (this) {
+        is TextBlock.Ref -> emptyList()
+        is TextBlock.Inline -> emptyList()
+        is TextBlock.Structured -> lines.flatMap { line -> line.parts }
+    }

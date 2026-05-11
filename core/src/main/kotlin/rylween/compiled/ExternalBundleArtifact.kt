@@ -1895,10 +1895,18 @@ private class ExternalBundleArtifactWriter {
             is TextPart.IntValue -> jsonObject("kind" to JsonString("intExpr"), "expr" to intAstJson(part.value))
             is TextPart.StringValue -> jsonObject("kind" to JsonString("stringExpr"), "expr" to strAstJson(part.value))
             is TextPart.RoleName -> jsonObject("kind" to JsonString("roleName"), "role" to JsonString(part.role.slug))
+            is TextPart.RoleJob -> jsonObject("kind" to JsonString("roleJob"), "role" to JsonString(part.role.slug))
             is TextPart.RoleLocation ->
                 jsonObject(
                     "kind" to JsonString("roleLocation"),
                     "role" to JsonString(part.role.slug),
+                )
+            is TextPart.NpcName -> jsonObject("kind" to JsonString("npcName"), "npc" to JsonString(part.npc.slug))
+            is TextPart.NpcJob -> jsonObject("kind" to JsonString("npcJob"), "npc" to JsonString(part.npc.slug))
+            is TextPart.NpcLocation ->
+                jsonObject(
+                    "kind" to JsonString("npcLocation"),
+                    "npc" to JsonString(part.npc.slug),
                 )
             is TextPart.TownName -> jsonObject("kind" to JsonString("townName"), "town" to JsonString(part.town.slug))
             is TextPart.FuzzyTownLocation ->
@@ -2895,7 +2903,11 @@ private class ExternalRuntimeSystemsReader(
             "intExpr",
             "stringExpr",
             "roleName",
+            "roleJob",
             "roleLocation",
+            "npcName",
+            "npcJob",
+            "npcLocation",
             "townName",
             "fuzzyTownLocation",
             "locationCoordinate",

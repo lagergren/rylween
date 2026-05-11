@@ -251,9 +251,25 @@ private class CompiledBundleValidator(
         character.roles.forEach { handle(it, "character role") }
         when (val placement = character.placement) {
             is CompiledCharacterPlacement.Fixed -> position(placement.position)
-            CompiledCharacterPlacement.Randomized,
-            CompiledCharacterPlacement.RandomizedWilderness,
-            -> Unit
+            is CompiledCharacterPlacement.Randomized -> randomNpcPlacementPolicy(placement.policy)
+            is CompiledCharacterPlacement.RandomizedWilderness -> randomNpcPlacementPolicy(placement.policy)
+            CompiledCharacterPlacement.Unplaced -> Unit
+        }
+    }
+
+    private fun randomNpcPlacementPolicy(policy: CompiledRandomNpcPlacementPolicy) {
+        require(policy.options.isNotEmpty()) { "random NPC placement policy has no options" }
+        policy.options.forEach { option ->
+            require(option.chanceShares > 0) {
+                "random NPC placement option has non-positive chanceShares ${option.chanceShares}"
+            }
+            when (option) {
+                is CompiledRandomNpcPlacementOption.TownServices -> {
+                    handle(option.town, "random NPC placement town")
+                    option.services.forEach { service -> handle(service, "random NPC placement town service") }
+                }
+                is CompiledRandomNpcPlacementOption.WildernessRect -> Unit
+            }
         }
     }
 
@@ -492,7 +508,11 @@ private class CompiledBundleValidator(
             is CompiledTextPart.IntValue -> intExpr(part.value)
             is CompiledTextPart.StringValue -> stringExpr(part.value)
             is CompiledTextPart.RoleName -> handle(part.role, "role name")
+            is CompiledTextPart.RoleJob -> handle(part.role, "role job")
             is CompiledTextPart.RoleLocation -> handle(part.role, "role location")
+            is CompiledTextPart.NpcName -> handle(part.npc, "NPC name")
+            is CompiledTextPart.NpcJob -> handle(part.npc, "NPC job")
+            is CompiledTextPart.NpcLocation -> handle(part.npc, "NPC location")
             is CompiledTextPart.TownName -> handle(part.town, "town name")
             is CompiledTextPart.FuzzyTownLocation -> handle(part.town, "fuzzy town location")
             is CompiledTextPart.LocationCoordinate -> handle(part.location, "location coordinate")
