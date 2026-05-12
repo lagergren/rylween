@@ -26,12 +26,12 @@ import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalWildernessFatigueRule
 import rylween.compiled.ExternalWildernessRuntime
-import rylween.dsl.GridPoint
-import rylween.dsl.PcClass
 import rylween.dsl.PronounCase
-import rylween.dsl.RuntimeMode
-import rylween.dsl.TemperatureBand
-import rylween.dsl.WildernessFatigueMatch
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.RuntimeMode
+import rylween.dsl.impl.TemperatureBand
+import rylween.dsl.impl.WildernessFatigueMatch
 import rylween.dsl.pronoun
 
 /** Result of one runtime wilderness action. */

@@ -15,11 +15,11 @@ import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.CompiledSpell
 import rylween.compiled.ExternalRuntimeSystems
-import rylween.dsl.ItemConsumePolicy
-import rylween.dsl.ItemKind
-import rylween.dsl.ItemStorageKind
-import rylween.dsl.ItemUseContext
-import rylween.dsl.PcClass
+import rylween.dsl.impl.ItemConsumePolicy
+import rylween.dsl.impl.ItemKind
+import rylween.dsl.impl.ItemStorageKind
+import rylween.dsl.impl.ItemUseContext
+import rylween.dsl.impl.PcClass
 
 /** Direct compiled implementations for reusable party utility commands. */
 internal class UtilityActions(

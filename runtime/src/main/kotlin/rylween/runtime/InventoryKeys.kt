@@ -1,7 +1,7 @@
 package rylween.runtime
 
 import rylween.compiled.CompiledInventorySlot
-import rylween.dsl.InventorySaveSlotMax
+import rylween.dsl.impl.InventorySaveSlotMax
 
 private const val INVENTORY_FIRST_KEY = 'A'
 private const val INVENTORY_ENTRY_WIDTH = 12

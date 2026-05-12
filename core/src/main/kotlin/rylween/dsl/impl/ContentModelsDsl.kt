@@ -7,7 +7,9 @@
  * balance values are supplied from `RylweenGame.dsl.kts` or another game source
  * and materialized into these reusable contracts.
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 /** Item categories understood by inventory, equipment, shops, rewards, and saves. */
 enum class ItemKind { Empty, Weapon, Armor, Gear, Potion, Treasure, Special, MagicItem }
@@ -77,7 +79,7 @@ data class WildernessUpkeepRules(
         require(foodCostLeaderDiv >= 0) { "food leader divisor must be non-negative" }
         require(starveFoodThreshold >= 0) { "starvation food threshold must be non-negative" }
         require(starveDamage >= 0) { "starve damage must be non-negative" }
-        require(manaRegenChance in 0..100) { "mana regen chance must be 0..100" }
+        require(manaRegenChance in 0..100) { "mana regeneration chance must be 0..100" }
         require(restedHoursCostPerTurn >= 0) { "rested-hours turn cost must be non-negative" }
     }
 }

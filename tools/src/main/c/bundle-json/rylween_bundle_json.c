@@ -525,8 +525,16 @@ static void print_text_part(const node *strings, const node *part) {
         printf("<string>");
     } else if (str_eq(type, "RoleName")) {
         printf("<role-name>");
+    } else if (str_eq(type, "RoleJob")) {
+        printf("<role-job>");
     } else if (str_eq(type, "RoleLocation")) {
         printf("<role-location>");
+    } else if (str_eq(type, "NpcName")) {
+        printf("<npc-name>");
+    } else if (str_eq(type, "NpcJob")) {
+        printf("<npc-job>");
+    } else if (str_eq(type, "NpcLocation")) {
+        printf("<npc-location>");
     } else if (str_eq(type, "TownName")) {
         printf("<town-name>");
     } else if (str_eq(type, "FuzzyTownLocation")) {

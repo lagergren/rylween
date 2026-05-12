@@ -9,6 +9,8 @@
  */
 package rylween.dsl
 
+import rylween.dsl.impl.*
+
 abstract class IntExpr {
     abstract val ast: IntAst
 

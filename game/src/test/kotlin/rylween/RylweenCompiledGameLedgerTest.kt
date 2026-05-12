@@ -1,50 +1,51 @@
 package rylween
 
 import rylween.dsl.BuildingId
-import rylween.dsl.CharacterCreationStat
-import rylween.dsl.CharacterCreationStatRollModel
-import rylween.dsl.CharacterPlacementModel
-import rylween.dsl.DialogueBranchSelection
 import rylween.dsl.DungeonEventDisposition
 import rylween.dsl.DungeonId
-import rylween.dsl.EquipmentCommand
-import rylween.dsl.Facing
-import rylween.dsl.GridPoint
 import rylween.dsl.InputAliases
 import rylween.dsl.IntAst
-import rylween.dsl.ItemConsumePolicy
-import rylween.dsl.ItemKind
 import rylween.dsl.ItemPoolId
-import rylween.dsl.ItemUseContext
 import rylween.dsl.MonsterId
 import rylween.dsl.NativeAllowlist
 import rylween.dsl.Op
-import rylween.dsl.PartyResources
-import rylween.dsl.PcClass
-import rylween.dsl.QuestionTopic
-import rylween.dsl.Race
-import rylween.dsl.RewardOverflowPolicy
-import rylween.dsl.RumorUsagePolicy
-import rylween.dsl.ShopBargainBonusModel
-import rylween.dsl.ShopSellBargainModel
 import rylween.dsl.SpellId
-import rylween.dsl.StateKind
-import rylween.dsl.StaticScreenRuntimeReport
-import rylween.dsl.TemperatureBand
-import rylween.dsl.TemperatureBandRange
-import rylween.dsl.TerrainSettlement
 import rylween.dsl.TextBlock
 import rylween.dsl.TextPart
 import rylween.dsl.TownHandle
-import rylween.dsl.TownKind
-import rylween.dsl.Trigger
-import rylween.dsl.Wilderness
 import rylween.dsl.analyzeScriptSources
-import rylween.dsl.cells
-import rylween.dsl.gridOffset
+import rylween.dsl.impl.CharacterCreationStat
+import rylween.dsl.impl.CharacterCreationStatRollModel
+import rylween.dsl.impl.CharacterPlacementModel
+import rylween.dsl.impl.DialogueBranchSelection
+import rylween.dsl.impl.EquipmentCommand
+import rylween.dsl.impl.Facing
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.ItemConsumePolicy
+import rylween.dsl.impl.ItemKind
+import rylween.dsl.impl.ItemUseContext
+import rylween.dsl.impl.PartyResources
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.QuestionTopic
+import rylween.dsl.impl.Race
+import rylween.dsl.impl.RewardOverflowPolicy
+import rylween.dsl.impl.RumorUsagePolicy
+import rylween.dsl.impl.ShopBargainBonusModel
+import rylween.dsl.impl.ShopSellBargainModel
+import rylween.dsl.impl.StateKind
+import rylween.dsl.impl.StaticScreenRuntimeReport
+import rylween.dsl.impl.TemperatureBand
+import rylween.dsl.impl.TemperatureBandRange
+import rylween.dsl.impl.TerrainSettlement
+import rylween.dsl.impl.TownKind
+import rylween.dsl.impl.Trigger
+import rylween.dsl.impl.Wilderness
+import rylween.dsl.impl.cells
+import rylween.dsl.impl.gridOffset
+import rylween.dsl.impl.itemPool
+import rylween.dsl.impl.xy
 import rylween.dsl.inlineText
 import rylween.dsl.isWinningConfiguration
-import rylween.dsl.itemPool
 import rylween.dsl.keyAction
 import rylween.dsl.line
 import rylween.dsl.lines
@@ -55,7 +56,6 @@ import rylween.dsl.validateAuthoredContent
 import rylween.dsl.validateFlagCatalog
 import rylween.dsl.validateGameProgress
 import rylween.dsl.validateStates
-import rylween.dsl.xy
 import rylween.game.Buildings
 import rylween.game.Castles
 import rylween.game.DungeonEvents
@@ -993,6 +993,7 @@ class RylweenCompiledGameLedgerTest {
                 .layers
                 .single { it.id == MapLayers.terrain }
                 .rows
+
         fun wildernessMapCodeAt(point: GridPoint): Char = wildernessTerrainRows[point.y - 1][point.x]
         val hermitPoint = xy(48, 7)
         val ollkPoint = townsById.getValue(Towns.ollk.id).position
@@ -1096,8 +1097,8 @@ class RylweenCompiledGameLedgerTest {
         check(Story.silverKey.caveLocated in acceptanceParty.flags)
         check(specialInventoryItems(nextDsl, acceptanceParty).isEmpty())
         check(!isWinningConfiguration(nextDsl, acceptanceParty))
-        check(strongParty.player == "playtest")
-        check(strongParty.name == "Playtest")
+        check(strongParty.player == "Strong")
+        check(strongParty.name == "Strong")
         check(strongParty.position == Wilderness.xy(12, 9))
         check(strongParty.flags.isEmpty())
         check(strongParty.journal.isEmpty())
@@ -1244,6 +1245,7 @@ class RylweenCompiledGameLedgerTest {
         val rootBuild = File("build.gradle.kts").readText()
         val settings = File("settings.gradle.kts").readText()
         val launcher = File("run.sh").readText()
+        val serverLauncher = File("run-server.sh").readText()
         val dockerfile = File("Dockerfile").readText()
         val gitIgnore = File(".gitignore").readText()
         val dockerIgnore = File(".dockerignore").readText()
@@ -1320,6 +1322,12 @@ class RylweenCompiledGameLedgerTest {
         }
         check("--title" in launcher && "--no-title" in launcher && "title_seen=false" in launcher) {
             "run.sh must show the title screen by default and require --no-title to skip it"
+        }
+        check("--name" in launcher && "RYLWEEN_DATA_DIR" in launcher && "world.rsave" in launcher) {
+            "run.sh must expose named local save loading from the default data directory"
+        }
+        check("--name" in serverLauncher && "RYLWEEN_NAME" in serverLauncher && "run.sh\" --build --name" in serverLauncher) {
+            "run-server.sh must seed named local saves through the same run.sh path"
         }
         check("--no-title" in runtimeMain && "skipTitleMenu" in runtimeMain && "!skipTitleMenu" in runtimeMain) {
             "runtime must support an explicit --no-title title-screen skip"
@@ -1564,7 +1572,7 @@ class RylweenCompiledGameLedgerTest {
             "CompiledOpcode.RandomItemOffer",
             "ScriptContinuationState",
             "executeSpeak",
-            "tellRumor",
+            "writeRumor",
             "applyReward",
             "runRandomItemOffer",
         ).forEach { token ->

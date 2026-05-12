@@ -11,6 +11,8 @@
 
 package rylween.dsl
 
+import rylween.dsl.impl.*
+
 /** Kinds of script roots that can be authored in the Kotlin DSL. */
 enum class ScriptSourceRootKind {
     /** A named scene script. */

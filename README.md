@@ -38,8 +38,8 @@ Build and run the direct runtime:
 ```sh
 ./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain
 ./run.sh --build --seed 1
-./run.sh --no-title --state strong-replay --seed 1
-runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --state fresh-replay --seed 1
+./run.sh --build --name Strong
+runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --user local --state fresh-replay --seed 1
 ```
 
 The root `run.sh` wrapper is now the closest current equivalent to
@@ -48,11 +48,16 @@ The root `run.sh` wrapper is now the closest current equivalent to
 and runs outside Gradle so Gradle progress output and key echo do not share the
 game screen.
 
+`run.sh` uses `~/.rylween/data` by default. It stores the shared save at
+`~/.rylween/data/saves/world.rsave` and logs to
+`~/.rylween/data/logs/runtime/latest.log` unless `RYLWEEN_DATA_DIR`,
+`RYLWEEN_SAVE_FILE`, or `RYLWEEN_LOG_FILE` override those paths.
+
 `run.sh` shows the title flow by default. Press RETURN at the splash screen,
-then `C` to create a new party. Use `--no-title` only when you intentionally
+then `C` to create a new party. Use `--name Strong` to load the seeded Strong
+party from the default save file. Use `--no-title` only when you intentionally
 want to boot a state or feed a direct script.
-Each run writes a forensic log to `build/logs/runtime/latest.log`; use
-`--log <file>` to keep a named capture instead of replacing `latest.log`.
+Use `--log <file>` to keep a named capture instead of replacing `latest.log`.
 For manual forensics, `--debug-log` flashes the latest log line below the game
 frame, and `--debug-secrets` enables hidden wilderness triggers: `[` forces a
 cave discovery and `]` forces a random encounter.
@@ -61,8 +66,19 @@ cave discovery and `]` forces a random encounter.
 ./run.sh --screen title
 ./run.sh --no-title --script 22SX --save build/saves/runtime.rsave
 ./run.sh --load build/saves/runtime.rsave
-./run.sh --no-title --state strong-replay --seed 1 --debug-log --debug-secrets
+./run.sh --name Strong --debug-log --debug-secrets
 ```
+
+Run the browser ANSI proof of concept in Docker:
+
+```sh
+./run-server.sh --build
+./run-server.sh --build --name Strong
+```
+
+The second form seeds `~/.rylween/data/saves/world.rsave` with the Strong party
+before starting the container. In the browser, enter `Strong` as the adventurer
+name to use that save.
 
 The runtime boots directly from the compiled bundle, renders static screens and
 wilderness frames, runs wilderness/town/services/battle/dungeon and castle flows

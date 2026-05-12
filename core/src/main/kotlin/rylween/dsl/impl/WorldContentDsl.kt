@@ -8,7 +8,9 @@
  * live in `Dsl.kt` and specialized DSL files; Rylween-specific rows live in the
  * game DSL.
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 /**
  * Authored NPC placement rule used when the shared world state is first created.

@@ -8,7 +8,9 @@
  * save/restore code serializes these records rather than a separate ad hoc
  * model.
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 enum class Gender { Male, Female }
 

@@ -5,6 +5,7 @@
 // for replay, smoke, and save/load coverage.
 
 import rylween.dsl.*
+import rylween.dsl.impl.*
 import rylween.game.*
 
 val replayRandomNpcIds =
@@ -197,8 +198,8 @@ nextRylween = nextRylween.withStateModule {
         }
 
         party(Parties.playtest) {
-            player = "playtest"
-            name = "Playtest"
+            player = "Strong"
+            name = "Strong"
             position = Wilderness.xy(12, 9)
             facing = Facing.North
 

@@ -15,9 +15,9 @@ import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeTextBlock
-import rylween.dsl.GridPoint
-import rylween.dsl.PcClass
-import rylween.dsl.RuntimeMode
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.RuntimeMode
 
 /** Savable castle state. */
 internal data class CastleState(

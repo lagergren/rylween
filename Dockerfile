@@ -7,6 +7,7 @@
 # Usage:
 #   docker build -t rylween .
 #   docker run --rm -p 8080:8080 -v rylween-data:/data rylween
+#   ./run-server.sh --build --name Strong
 
 # ---------------------------------------------------------------------
 # Stage 1: builder - compile Kotlin and assemble the web runtime install dir.
@@ -46,6 +47,7 @@ ENV RYLWEEN_DATA_DIR="${RYLWEEN_DATA_DIR}"
 ENV RYLWEEN_BUNDLE=/app/rylween-bundle.json
 ENV RYLWEEN_HOST=0.0.0.0
 ENV RYLWEEN_PORT=8080
+ENV RYLWEEN_SAVE_FILE=/data/saves/world.rsave
 
 WORKDIR /app
 # Copy the compiled data bundle consumed by the web runtime at startup.

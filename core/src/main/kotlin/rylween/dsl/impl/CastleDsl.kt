@@ -4,11 +4,13 @@
  * This file owns the reusable grid-castle DSL surface: castle room event
  * categories, navigation key contracts, treasure/pitfall/stair models, and the
  * `castle { ... }` builder used from the authored game DSL. It deliberately
- * contains only generic castle mechanics; Rylween's Ydarg coordinates, prose,
+ * contains only generic castle mechanics; Castle Ydarg coordinates, prose,
  * item names, trap text, and completion scripts belong in
  * `game/src/main/dsl/RylweenGame.dsl.kts`.
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 /** Room-event categories encoded in a generated castle room map. */
 enum class CastleRoomEvent { Empty, Monster, Pitfall, Treasure }
@@ -131,18 +133,19 @@ class CastleBuilder(
     var mapSize: Int = 5
     var roomTypeMax: Int = 5
     var monsterTier: EncounterTier? = null
-    private val roomEvents =
-        mutableMapOf(
-            1 to CastleRoomEvent.Monster,
-            2 to CastleRoomEvent.Pitfall,
-            3 to CastleRoomEvent.Treasure,
-        )
+    private val roomEvents = mutableMapOf<Int, CastleRoomEvent>()
     private var treasureModel = CastleTreasureBuilder().build()
     private var pitfallModel = CastlePitfallBuilder().build()
     private var stairsModel = CastleStairsBuilder().build()
     private var scriptsModel = CastleScriptsBuilder().build()
     private var keysModel = CastleKeysModel()
     private var textModel = CastleTextBuilder().build()
+
+    init {
+        roomEvent(1, CastleRoomEvent.Monster)
+        roomEvent(2, CastleRoomEvent.Pitfall)
+        roomEvent(3, CastleRoomEvent.Treasure)
+    }
 
     fun map(
         size: Int,
@@ -193,7 +196,7 @@ class CastleBuilder(
             completionMilestone = completionMilestone,
             mapSize = mapSize,
             roomTypeMax = roomTypeMax,
-            roomEvents = roomEvents.toMap(),
+            roomEvents = roomEvents.filterValues { event -> event != CastleRoomEvent.Empty },
             monsterTier = checkNotNull(monsterTier) { "castle ${id.slug} requires monsterTier" },
             treasure = treasureModel,
             pitfall = pitfallModel,
@@ -307,11 +310,48 @@ class CastleKeysBuilder(
     var readyArmor: InputBindingModel = initial.readyArmor
     var quaff: InputBindingModel = initial.quaff
     var castSpell: InputBindingModel = initial.castSpell
-    var treasureTake: InputBindingModel = initial.treasureTake
-    var treasureLeave: InputBindingModel = initial.treasureLeave
-    var stairsTeleport: InputBindingModel = initial.stairsTeleport
-    var stairsGive: InputBindingModel = initial.stairsGive
-    var stairsLeave: InputBindingModel = initial.stairsLeave
+    private var treasureTake = initial.treasureTake
+    private var treasureLeave = initial.treasureLeave
+    private var stairsTeleport = initial.stairsTeleport
+    private var stairsGive = initial.stairsGive
+    private var stairsLeave = initial.stairsLeave
+
+    /** Replaces the treasure-room take/leave bindings. */
+    fun treasure(
+        take: InputBindingModel = treasureTake,
+        leave: InputBindingModel = treasureLeave,
+    ) {
+        treasureTake = take
+        treasureLeave = leave
+    }
+
+    /** Replaces the treasure-room take/leave bindings from raw key characters. */
+    fun treasure(
+        take: Char,
+        leave: Char,
+    ) {
+        treasure(inputKey(take), inputKey(leave))
+    }
+
+    /** Replaces the stair-room teleport/give/leave bindings. */
+    fun stairs(
+        teleport: InputBindingModel = stairsTeleport,
+        give: InputBindingModel = stairsGive,
+        leave: InputBindingModel = stairsLeave,
+    ) {
+        stairsTeleport = teleport
+        stairsGive = give
+        stairsLeave = leave
+    }
+
+    /** Replaces the stair-room teleport/give/leave bindings from raw key characters. */
+    fun stairs(
+        teleport: Char,
+        give: Char,
+        leave: Char,
+    ) {
+        stairs(inputKey(teleport), inputKey(give), inputKey(leave))
+    }
 
     fun build(): CastleKeysModel =
         CastleKeysModel(

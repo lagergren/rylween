@@ -16,8 +16,8 @@ import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.dsl.DungeonEventDisposition
-import rylween.dsl.Resource
-import rylween.dsl.RuntimeMode
+import rylween.dsl.impl.Resource
+import rylween.dsl.impl.RuntimeMode
 
 /** Savable dungeon state. */
 internal data class DungeonState(

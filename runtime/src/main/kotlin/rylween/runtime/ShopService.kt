@@ -29,11 +29,11 @@ import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledWorldPosition
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
-import rylween.dsl.GridPoint
-import rylween.dsl.Resource
-import rylween.dsl.RewardOverflowPolicy
-import rylween.dsl.ShopQuantityCap
-import rylween.dsl.ShopZeroQuantityDealPolicy
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.Resource
+import rylween.dsl.impl.RewardOverflowPolicy
+import rylween.dsl.impl.ShopQuantityCap
+import rylween.dsl.impl.ShopZeroQuantityDealPolicy
 import kotlin.math.max
 
 /** Runs one compiled shop service against the runtime party model. */
@@ -575,8 +575,7 @@ internal class ShopService(
     private fun roleName(roleSlug: String): String? =
         roleCharacter(roleSlug)?.let { character -> content.strings.value(character.nameString) }
 
-    private fun roleJob(roleSlug: String): String? =
-        roleCharacter(roleSlug)?.let(::characterJob)
+    private fun roleJob(roleSlug: String): String? = roleCharacter(roleSlug)?.let(::characterJob)
 
     private fun roleLocation(
         roleSlug: String,
@@ -586,11 +585,9 @@ internal class ShopService(
             ?.position(runtime)
             ?.let(::positionText)
 
-    private fun npcName(npcSlug: String): String? =
-        npcCharacter(npcSlug)?.let { character -> content.strings.value(character.nameString) }
+    private fun npcName(npcSlug: String): String? = npcCharacter(npcSlug)?.let { character -> content.strings.value(character.nameString) }
 
-    private fun npcJob(npcSlug: String): String? =
-        npcCharacter(npcSlug)?.let(::characterJob)
+    private fun npcJob(npcSlug: String): String? = npcCharacter(npcSlug)?.let(::characterJob)
 
     private fun npcLocation(
         npcSlug: String,
