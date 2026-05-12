@@ -467,6 +467,10 @@ textPart:
     tag 6 FuzzyTownLocation(townHandle, radius: i32)
     tag 7 LocationCoordinate(locationHandle)
     tag 8 Runtime(runtimeTextPartOrdinal: u32)
+    tag 9 RoleJob(roleHandle)
+    tag 10 NpcName(npcHandle)
+    tag 11 NpcJob(npcHandle)
+    tag 12 NpcLocation(npcHandle)
 ```
 
 `CompiledRuntimeTextPart` ordinals must be less than the header

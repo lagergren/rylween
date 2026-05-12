@@ -21,10 +21,10 @@ import rylween.compiled.CompiledPartyCounters
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledStateImage
 import rylween.compiled.CompiledWorldPosition
-import rylween.dsl.GridPoint
-import rylween.dsl.PartyResources
-import rylween.dsl.RuntimeMode
-import rylween.dsl.StatPool
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.PartyResources
+import rylween.dsl.impl.RuntimeMode
+import rylween.dsl.impl.StatPool
 import java.io.File
 import java.time.LocalDate
 
@@ -68,9 +68,7 @@ internal object SaveFile {
         userId: String,
     ): RuntimeState {
         val values = file.readSaveValues()
-        values.requireValue("format", SAVE_FORMAT)
-        values.requireValue("version", SAVE_VERSION)
-        values.requireValue("bundleHash", expectedBundleHash)
+        values.requireCompatibleSave(expectedBundleHash)
 
         val baseState = RuntimeState.from(stateLookup(values.required("state")), content)
         val userValues = values.userValuesFor(userId)
@@ -102,16 +100,13 @@ internal object SaveFile {
         file: File,
         expectedBundleHash: String,
         userId: String,
-    ): Boolean {
-        if (!file.isFile) return false
-        return runCatching {
-            val values = file.readSaveValues()
-            values.requireValue("format", SAVE_FORMAT)
-            values.requireValue("version", SAVE_VERSION)
-            values.requireValue("bundleHash", expectedBundleHash)
-            values.hasUserParty(userId)
-        }.getOrDefault(false)
-    }
+    ): Boolean =
+        file.isFile &&
+            runCatching {
+                val values = file.readSaveValues()
+                values.requireCompatibleSave(expectedBundleHash)
+                values.hasUserParty(userId)
+            }.getOrDefault(false)
 
     fun removeUser(
         file: File,
@@ -120,9 +115,7 @@ internal object SaveFile {
     ): Boolean {
         if (!file.isFile) return true
         val values = file.readSaveValues()
-        values.requireValue("format", SAVE_FORMAT)
-        values.requireValue("version", SAVE_VERSION)
-        values.requireValue("bundleHash", expectedBundleHash)
+        values.requireCompatibleSave(expectedBundleHash)
         val records = values.userRecords()
         if (records.isEmpty()) return file.delete()
         val nextRecords = records.filterNot { record -> record.id == userId.normalizedSaveUser() }
@@ -675,6 +668,12 @@ internal object SaveFile {
             }.toSet()
 
     private fun Map<String, String>.required(key: String): String = get(key) ?: error("compiled save missing $key")
+
+    private fun Map<String, String>.requireCompatibleSave(expectedBundleHash: String) {
+        requireValue("format", SAVE_FORMAT)
+        requireValue("version", SAVE_VERSION)
+        requireValue("bundleHash", expectedBundleHash)
+    }
 
     private fun Map<String, String>.requireValue(
         key: String,

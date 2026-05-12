@@ -20,9 +20,9 @@ import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalScreenRegion
 import rylween.compiled.ExternalStaticScreen
 import rylween.compiled.ExternalTerminalTerrainStyle
-import rylween.dsl.GridPoint
-import rylween.dsl.HitPoints
-import rylween.dsl.PcClass
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.HitPoints
+import rylween.dsl.impl.PcClass
 import rylween.terminal.AnsiCodes
 import rylween.terminal.AnsiTerminal
 import kotlin.math.max

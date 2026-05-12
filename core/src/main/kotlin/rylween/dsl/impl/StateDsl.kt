@@ -9,7 +9,9 @@
  * normally declares content, while optional scenario modules add authored
  * fixtures or runtime snapshots with [RylweenModel.withStateModule].
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 @RylNextDsl
 class RylweenBuilder {

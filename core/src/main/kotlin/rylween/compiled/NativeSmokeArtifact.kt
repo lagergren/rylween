@@ -8,9 +8,9 @@
  */
 package rylween.compiled
 
-import rylween.dsl.RewardApplicationModel
-import rylween.dsl.ShopQuantityCap
-import rylween.dsl.ShopSellBargainModel
+import rylween.dsl.impl.RewardApplicationModel
+import rylween.dsl.impl.ShopQuantityCap
+import rylween.dsl.impl.ShopSellBargainModel
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.enums.enumEntries

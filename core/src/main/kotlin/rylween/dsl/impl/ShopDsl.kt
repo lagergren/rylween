@@ -7,7 +7,9 @@
  * and scripted service flow are authored in the game DSL and emitted through
  * these generic records.
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 enum class ShopZeroQuantityDealPolicy { Always, NonZeroOnly }
 

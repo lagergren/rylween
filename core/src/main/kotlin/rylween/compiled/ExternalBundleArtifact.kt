@@ -7,64 +7,64 @@
  */
 package rylween.compiled
 
-import rylween.dsl.BattleTextModel
+import rylween.dsl.impl.BattleTextModel
 import rylween.dsl.BoolAst
-import rylween.dsl.CampRulesModel
-import rylween.dsl.CastleContentModel
-import rylween.dsl.CastleTextModel
-import rylween.dsl.CharacterClassOptionModel
-import rylween.dsl.CharacterCreationModel
-import rylween.dsl.CharacterCreationStat
-import rylween.dsl.ChitchatPromptAudience
-import rylween.dsl.ChitchatSubject
-import rylween.dsl.ClassLevelUpModel
-import rylween.dsl.CombatActionKind
-import rylween.dsl.CombatActionModel
-import rylween.dsl.CombatActionRequirement
-import rylween.dsl.CombatSystemModel
-import rylween.dsl.DefendRulesModel
+import rylween.dsl.impl.CampRulesModel
+import rylween.dsl.impl.CastleContentModel
+import rylween.dsl.impl.CastleTextModel
+import rylween.dsl.impl.CharacterClassOptionModel
+import rylween.dsl.impl.CharacterCreationModel
+import rylween.dsl.impl.CharacterCreationStat
+import rylween.dsl.impl.ChitchatPromptAudience
+import rylween.dsl.impl.ChitchatSubject
+import rylween.dsl.impl.ClassLevelUpModel
+import rylween.dsl.impl.CombatActionKind
+import rylween.dsl.impl.CombatActionModel
+import rylween.dsl.impl.CombatActionRequirement
+import rylween.dsl.impl.CombatSystemModel
+import rylween.dsl.impl.DefendRulesModel
 import rylween.dsl.DungeonSystemModel
-import rylween.dsl.EncounterOpeningModel
-import rylween.dsl.EngineServiceUse
-import rylween.dsl.FlagRef
-import rylween.dsl.FlagScope
-import rylween.dsl.FlagState
-import rylween.dsl.GameModel
-import rylween.dsl.GameProgressModel
-import rylween.dsl.GamePromptsModel
-import rylween.dsl.GridPoint
-import rylween.dsl.HuntRulesModel
+import rylween.dsl.impl.EncounterOpeningModel
+import rylween.dsl.impl.EngineServiceUse
+import rylween.dsl.impl.FlagRef
+import rylween.dsl.impl.FlagScope
+import rylween.dsl.impl.FlagState
+import rylween.dsl.impl.GameModel
+import rylween.dsl.impl.GameProgressModel
+import rylween.dsl.impl.GamePromptsModel
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.HuntRulesModel
 import rylween.dsl.InputBindingModel
 import rylween.dsl.IntAst
-import rylween.dsl.ItemRecordModel
-import rylween.dsl.JobTextModel
-import rylween.dsl.LevelingModel
-import rylween.dsl.MandatoryRunRule
-import rylween.dsl.MonsterMeleeRulesModel
-import rylween.dsl.MonsterRoundModel
+import rylween.dsl.impl.ItemRecordModel
+import rylween.dsl.impl.JobTextModel
+import rylween.dsl.impl.LevelingModel
+import rylween.dsl.impl.MandatoryRunRule
+import rylween.dsl.impl.MonsterMeleeRulesModel
+import rylween.dsl.impl.MonsterRoundModel
 import rylween.dsl.NativeStringArg
-import rylween.dsl.PartyResources
-import rylween.dsl.PcClass
-import rylween.dsl.PlayerRoundModel
-import rylween.dsl.QuestionTopic
-import rylween.dsl.Race
-import rylween.dsl.RealmContentModel
-import rylween.dsl.Resource
-import rylween.dsl.RylweenModel
-import rylween.dsl.SourceSpecialField
-import rylween.dsl.SpeakSystemModel
-import rylween.dsl.SpeakTextTablesModel
-import rylween.dsl.StandardBattleModel
-import rylween.dsl.StandardConversationModel
+import rylween.dsl.impl.PartyResources
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.PlayerRoundModel
+import rylween.dsl.impl.QuestionTopic
+import rylween.dsl.impl.Race
+import rylween.dsl.impl.RealmContentModel
+import rylween.dsl.impl.Resource
+import rylween.dsl.impl.RylweenModel
+import rylween.dsl.impl.SourceSpecialField
+import rylween.dsl.impl.SpeakSystemModel
+import rylween.dsl.impl.SpeakTextTablesModel
+import rylween.dsl.impl.StandardBattleModel
+import rylween.dsl.impl.StandardConversationModel
 import rylween.dsl.StrAst
-import rylween.dsl.TemperatureBand
+import rylween.dsl.impl.TemperatureBand
 import rylween.dsl.TextBlock
 import rylween.dsl.TextPart
-import rylween.dsl.TownSystemModel
-import rylween.dsl.WildernessFatigueMatch
-import rylween.dsl.WildernessSystemModel
-import rylween.dsl.WildernessUpkeepRules
-import rylween.dsl.WorldPosition
+import rylween.dsl.impl.TownSystemModel
+import rylween.dsl.impl.WildernessFatigueMatch
+import rylween.dsl.impl.WildernessSystemModel
+import rylween.dsl.impl.WildernessUpkeepRules
+import rylween.dsl.impl.WorldPosition
 import java.io.File
 import java.lang.reflect.Array
 import java.lang.reflect.Modifier
@@ -1003,7 +1003,7 @@ private class ExternalBundleArtifactWriter {
             "classes" to JsonArray(characterCreation.classes.map(::characterCreationClassJson)),
         )
 
-    private fun characterCreationStartJson(start: rylween.dsl.CharacterCreationStartModel): JsonValue {
+    private fun characterCreationStartJson(start: rylween.dsl.impl.CharacterCreationStartModel): JsonValue {
         val position =
             when (val current = start.position) {
                 is WorldPosition.Wilderness -> current.point
@@ -1632,7 +1632,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun dungeonRuntimeJson(
         dungeons: DungeonSystemModel,
-        prompts: rylween.dsl.DungeonPromptsModel,
+        prompts: rylween.dsl.impl.DungeonPromptsModel,
     ): JsonValue =
         jsonObject(
             "backdrop" to dungeons.backdrop?.let { JsonString(it.slug) }.orJsonNull(),

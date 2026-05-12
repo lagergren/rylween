@@ -18,7 +18,7 @@ import rylween.compiled.CompiledStateImage
 import rylween.compiled.CompiledTerrain
 import rylween.compiled.CompiledWorldPosition
 import rylween.compiled.ExternalRuntimeSystems
-import rylween.dsl.GridPoint
+import rylween.dsl.impl.GridPoint
 
 /** One reusable semantic piece of a runtime replay. */
 internal data class ReplayComponent(

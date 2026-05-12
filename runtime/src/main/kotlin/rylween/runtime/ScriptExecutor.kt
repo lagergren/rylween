@@ -44,23 +44,23 @@ import rylween.compiled.ExternalRuntimeSpeak
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalRuntimeTextPart
-import rylween.dsl.ChitchatPromptAudience
-import rylween.dsl.Gender
-import rylween.dsl.GridPoint
 import rylween.dsl.InventorySlotChoiceFilter
-import rylween.dsl.ItemStorageKind
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.NativeAllowlist
-import rylween.dsl.PcClass
 import rylween.dsl.PronounCase
-import rylween.dsl.QuestionTopic
-import rylween.dsl.Resource
-import rylween.dsl.RewardOverflowPolicy
-import rylween.dsl.RuntimeMode
 import rylween.dsl.ScriptControlSignal
-import rylween.dsl.of
+import rylween.dsl.impl.ChitchatPromptAudience
+import rylween.dsl.impl.Gender
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.ItemStorageKind
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.QuestionTopic
+import rylween.dsl.impl.Resource
+import rylween.dsl.impl.RewardOverflowPolicy
+import rylween.dsl.impl.RuntimeMode
+import rylween.dsl.impl.of
+import rylween.dsl.impl.sourceId
 import rylween.dsl.pronoun
-import rylween.dsl.sourceId
 
 private const val PERCENT_DENOMINATOR = 100
 private const val STANDARD_TOWN_RUMOR_TABLE = "standard_town"
@@ -1312,8 +1312,7 @@ internal class ScriptExecutor(
             ?.let { character -> content.strings.value(character.nameString) }
             ?: content.slug(role)
 
-    private fun roleJob(roleSlug: String): String? =
-        roleCharacter(roleSlug)?.let(::characterJob)
+    private fun roleJob(roleSlug: String): String? = roleCharacter(roleSlug)?.let(::characterJob)
 
     private fun roleJob(role: CompiledHandleRef): String =
         roleCharacter(role)
@@ -1342,16 +1341,14 @@ internal class ScriptExecutor(
             ?.let(::journalPositionText)
             ?: content.slug(role)
 
-    private fun npcName(npcSlug: String): String? =
-        npcCharacter(npcSlug)?.let { character -> content.strings.value(character.nameString) }
+    private fun npcName(npcSlug: String): String? = npcCharacter(npcSlug)?.let { character -> content.strings.value(character.nameString) }
 
     private fun npcName(npc: CompiledHandleRef): String =
         npcCharacter(npc)
             ?.let { character -> content.strings.value(character.nameString) }
             ?: content.slug(npc)
 
-    private fun npcJob(npcSlug: String): String? =
-        npcCharacter(npcSlug)?.let(::characterJob)
+    private fun npcJob(npcSlug: String): String? = npcCharacter(npcSlug)?.let(::characterJob)
 
     private fun npcJob(npc: CompiledHandleRef): String =
         npcCharacter(npc)

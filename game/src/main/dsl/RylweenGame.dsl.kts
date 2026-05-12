@@ -9,6 +9,7 @@
 //   ./gradlew check
 
 import rylween.dsl.*
+import rylween.dsl.impl.*
 import rylween.game.*
 
 // =============================================================================
@@ -2958,12 +2959,6 @@ var nextRylween: RylweenModel = rylween {
                 townServices(Towns.ollk, Buildings.tavern, Buildings.inn)
                 townServices(Towns.wilor, Buildings.tavern, Buildings.inn)
                 townServices(Towns.murn, Buildings.tavern, Buildings.inn)
-            }
-
-            randomWildernessPolicy {
-                wilderness(8..57, 8..27) {
-                    replaceX(48, 49)
-                }
             }
 
             character(Npcs.garth, "Garth", NpcJobs.merchant) {

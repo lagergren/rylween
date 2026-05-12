@@ -7,14 +7,14 @@
 package rylween.runtime
 
 import rylween.dsl.CastleId
-import rylween.dsl.CastleRoomEvent
+import rylween.dsl.impl.CastleRoomEvent
 import rylween.dsl.DungeonEventId
 import rylween.dsl.DungeonId
-import rylween.dsl.GridPoint
+import rylween.dsl.impl.GridPoint
 import rylween.dsl.ItemId
 import rylween.dsl.MissionId
 import rylween.dsl.SceneId
-import rylween.dsl.StateModel
+import rylween.dsl.impl.StateModel
 
 /** Full savable runtime image: world state plus optional mode/session state. */
 data class RuntimeSnapshotModel(

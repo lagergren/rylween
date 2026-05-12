@@ -307,7 +307,7 @@ val checkRuntimePartyJournalScript: TaskProvider<RunInstalledLauncherWithJavaTas
     script.set("V1234567?123J1X")
     expectedOutputContains.set(
         listOf(
-            "Party: Playtest",
+            "Party: Strong",
             "1. Aragorn",
             "4. Mira",
             "Space = Pass",

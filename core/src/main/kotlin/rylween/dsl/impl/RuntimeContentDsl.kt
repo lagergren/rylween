@@ -8,7 +8,9 @@
  * authoring builders and runtime/bundle readers, not a place for one-off game
  * scripts or Rylween-specific prose.
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 /**
  * Bundled view of [GameModel] content the reusable sessions actually consume:

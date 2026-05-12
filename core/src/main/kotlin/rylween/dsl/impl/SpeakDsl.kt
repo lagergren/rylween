@@ -7,7 +7,9 @@
  * `WorldContentDsl.kt`; authored character/job-specific lines stay in the game
  * DSL so another game can reuse the machinery with different prose.
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 @RylNextDsl
 class SpeakBuilder {
