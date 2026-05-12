@@ -144,13 +144,15 @@ internal class ShopService(
             return runtime
         }
 
-        var acceptedLines = emptyList<String>()
-        interlude.accepted.forEach { text ->
-            if (acceptedLines.isNotEmpty()) acceptedLines += ""
-            acceptedLines += text.renderTextLines(content)
-            screen.writeText(acceptedLines)
-            input.pause(SHOP_INTERLUDE_DELAY_MS)
-        }
+        interlude
+            .accepted
+            .runningFold(emptyList<String>()) { lines, text ->
+                lines.withInterludePage(text.renderTextLines(content))
+            }.drop(1)
+            .forEach { lines ->
+                screen.writeText(lines)
+                input.pause(SHOP_INTERLUDE_DELAY_MS)
+            }
         if (!interlude.runsRumorAfterAccept) return runtime
         val rumor = rumorLines(runtime)
         writeTextAndWait(rumor.lines)
@@ -329,16 +331,14 @@ internal class ShopService(
         party: PartyState,
     ): Int? {
         if (buy.inventoryApplication.overflow != RewardOverflowPolicy.PromptDropThenPlace) return null
-        screen.writeText(buy.cantCarry.renderTextLines(content) + "" + "Drop an item? (Y/N)")
+        screen.writeText(
+            buy.cantCarry.renderTextLines(content) +
+                "" +
+                systems.prompts.party.dropOverflowConfirm.renderShopPrompt(),
+        )
         val confirm = input.readCommand()?.uppercaseChar() ?: return null
         if (confirm != 'Y') return null
-        val lines =
-            buildList {
-                add("Drop which item?")
-                add("Any other key leaves.")
-                addAll(inventoryLines(party))
-            }
-        screen.writeText(lines)
+        screen.writeText(systems.prompts.party.dropOverflowPrompt.renderShopPrompt() + inventoryLines(party))
         val choice = input.readCommand() ?: return null
         val slot = choice.inventorySlotFromKey() ?: return null
         return slot.takeIf { party.inventoryItem(it) != null }
@@ -399,7 +399,7 @@ internal class ShopService(
                 writeTextAndWait(sell.declined?.renderTextLines(content) ?: listOf("No thanks."))
                 return current
             }
-            if (sell.bargain != null && sell.saleKeys.bargain.matchesInput(content, confirm)) {
+            if (sell.haggle != null && sell.saleKeys.haggle.matchesInput(content, confirm)) {
                 val quote = haggleQuote(sell, item, price, current.party)
                 price =
                     quote.price
@@ -423,11 +423,8 @@ internal class ShopService(
 
     private fun sellChoiceLines(sell: CompiledShopSell): List<String> =
         buildList {
-            add(
-                "Accept? (${sell.saleKeys.accept.primaryInputLabel(content)})es / " +
-                    "(${sell.saleKeys.decline.primaryInputLabel(content)})o",
-            )
-            if (sell.bargain != null) add("(${sell.saleKeys.bargain.primaryInputLabel(content)})argain")
+            add(listOf(sell.saleKeys.accept, sell.saleKeys.decline).joinToString(" / ") { key -> key.optionLine(content) })
+            if (sell.haggle != null) add(sell.saleKeys.haggle.optionLine(content))
         }
 
     private fun writeTextAndWait(lines: List<String>) {
@@ -458,6 +455,11 @@ internal class ShopService(
     }
 
     private fun List<String>.withChoiceGap(): List<String> = if (lastOrNull().isNullOrBlank()) this else this + ""
+
+    private fun List<String>.withInterludePage(page: List<String>): List<String> {
+        if (isEmpty()) return page
+        return this + "" + page
+    }
 
     private fun List<String>.withGeneratedChoices(generatedLines: List<String>): List<String> =
         takeIf { lines -> lines.alreadyListChoices(generatedLines.map { line -> line.substringBefore('.') }) } ?: (this + generatedLines)
@@ -496,9 +498,9 @@ internal class ShopService(
         party: PartyState,
     ): SellQuote {
         var current = price
-        val bargain = sell.bargain ?: return SellQuote(current, party)
+        val haggle = sell.haggle ?: return SellQuote(current, party)
         val draw = party.drawRandom(0, 99)
-        bargain.rejectRollBelow?.let { threshold ->
+        haggle.rejectRollBelow?.let { threshold ->
             if (draw.value < threshold) {
                 log.rngDraw(
                     context = "shop.sell.haggle",
@@ -511,7 +513,7 @@ internal class ShopService(
                 return SellQuote(price = null, party = draw.party)
             }
         }
-        bargain.bonuses.forEach { bonus ->
+        haggle.bonuses.forEach { bonus ->
             if (draw.value > bonus.rollGreaterThan) {
                 current += current / max(1, bonus.addCurrentDivisor)
             }
@@ -743,6 +745,8 @@ internal class ShopService(
                 },
             ),
         )
+
+    private fun ExternalRuntimeTextBlock.renderShopPrompt(): List<String> = render { null }
 }
 
 private const val SHOP_INTERLUDE_DELAY_MS = 2_000

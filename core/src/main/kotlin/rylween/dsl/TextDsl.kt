@@ -75,6 +75,8 @@ sealed interface TextPart {
 
     object SelectedItemName : TextPart
 
+    object EquipmentKindName : TextPart
+
     object ShopPrice : TextPart
 
     object ShopCarryCap : TextPart
@@ -150,6 +152,7 @@ fun TextPart.fallbackText(): String =
         TextPart.OfferedItemName -> "{item_name}"
         TextPart.OfferedItemPrice -> "{item_price}"
         TextPart.SelectedItemName -> "{selected_item_name}"
+        TextPart.EquipmentKindName -> "{equipment_kind}"
         TextPart.ShopPrice -> "{price}"
         TextPart.ShopCarryCap -> "{cap}"
         TextPart.HuntMemberName -> "{who_name}"

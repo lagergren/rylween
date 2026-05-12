@@ -125,20 +125,19 @@ internal object SaveCodec {
     private fun unescape(
         value: String,
         mapped: (Char) -> Char,
-    ): String {
-        val out = StringBuilder()
-        var escaped = false
-        value.forEach { char ->
-            if (escaped) {
-                out.append(mapped(char))
-                escaped = false
-            } else if (char == '\\') {
-                escaped = true
-            } else {
-                out.append(char)
+    ): String =
+        buildString {
+            var escaped = false
+            value.forEach { char ->
+                if (escaped) {
+                    append(mapped(char))
+                    escaped = false
+                } else if (char == '\\') {
+                    escaped = true
+                } else {
+                    append(char)
+                }
             }
+            if (escaped) append('\\')
         }
-        if (escaped) out.append('\\')
-        return out.toString()
-    }
 }

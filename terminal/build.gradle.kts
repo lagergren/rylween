@@ -24,7 +24,3 @@ dependencies {
     testImplementation(kotlin("test"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
-
-tasks.test {
-    useJUnitPlatform()
-}

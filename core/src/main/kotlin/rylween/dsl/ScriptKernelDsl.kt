@@ -200,10 +200,10 @@ data class InputBindingModel(
 }
 
 object InputAliases {
-    const val ArrowUp: String = "\u001B[A"
-    const val ArrowDown: String = "\u001B[B"
-    const val ArrowRight: String = "\u001B[C"
-    const val ArrowLeft: String = "\u001B[D"
+    const val ARROW_UP: String = "\u001B[A"
+    const val ARROW_DOWN: String = "\u001B[B"
+    const val ARROW_RIGHT: String = "\u001B[C"
+    const val ARROW_LEFT: String = "\u001B[D"
 }
 
 fun inputKey(
@@ -459,8 +459,6 @@ data class MenuOption(
     val binding: InputBindingModel,
     val body: List<Op>,
 ) {
-    constructor(key: Char, body: List<Op>) : this(inputKey(key), body)
-
     val key: Char get() = binding.primaryChar
 }
 

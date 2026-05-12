@@ -65,12 +65,14 @@ import rylween.dsl.impl.RuntimeMode
 import rylween.dsl.impl.StatPool
 import rylween.terminal.AnsiTerminal
 import rylween.terminal.AnsiTerminals
+import java.io.Closeable
 import java.io.File
 import java.time.LocalDate
 import kotlin.math.max
 import kotlin.system.exitProcess
 
 private const val TITLE_SCREEN = "title"
+private const val TITLE_COMMAND_GROUP = "title"
 private const val SCORE_SCREEN = "score"
 private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
@@ -78,7 +80,7 @@ private const val TEXT_WINDOW_PAGE_LINES = 9
 private const val CREATION_REJECTION_DELAY_MS = 1_000
 private const val CREATION_SAVE_CONFIRMATION_DELAY_MS = 2_000
 private const val CREATION_SAVE_CONFIRMATION_TEXT = "OK"
-private const val TOWN_MAINSTREET_IMAGE = "blitgfx.towne_mainstreet"
+private const val TOWN_MAIN_STREET_IMAGE = "blitgfx.towne_mainstreet"
 private const val TOWN_COMMAND_GROUP = "town"
 private const val TOWN_LEAVE_ACTION = "leave_town"
 private const val WILDERNESS_MESSAGE_DELAY_MS = 1_200
@@ -362,7 +364,7 @@ class GameRuntime private constructor(
                     userId = checkNotNull(userId) { "--user is required when rendering a saved runtime screen" },
                 )
             } ?: RuntimeState.from(stateBySlug(stateSlug), content)
-        RuntimeScreen(terminal, bundle, systems, log).showStaticScreen(screenSlug, runtime)
+        RuntimeScreen(bundle, terminal, systems, log).showStaticScreen(screenSlug, runtime)
         return RuntimeSessionResult(RuntimeSessionExitReason.StaticScreenRendered)
     }
 
@@ -425,9 +427,14 @@ class GameRuntime private constructor(
             } ?: RuntimeState.from(stateBySlug(stateSlug), content)
         runtime = seed?.let(runtime::withSeed) ?: runtime
         val world = WorldMap.from(content, runtime.currentMap)
-        val screen = RuntimeScreen(terminal, bundle, systems, log)
-        if (debugLogFlash) log.mirrorTo(screen::flashLogLine)
-        try {
+        val screen = RuntimeScreen(bundle, terminal, systems, log)
+        val flashLogSink =
+            if (debugLogFlash) {
+                log.addSink(screen::flashLogLine)
+            } else {
+                Closeable {}
+            }
+        flashLogSink.use {
             log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
             val input = RuntimeInput(terminal, scriptedInput, log)
             val saveContext = RuntimeSaveContext(saveFile, bundleContentHash, userId)
@@ -635,6 +642,12 @@ class GameRuntime private constructor(
                             false
                         }
 
+                        debugSecrets && debugCommands.matches("showMap", command) -> {
+                            screen.showDebugWorldMap(runtime, world, input::readCommand)
+                            screen.renderWilderness(runtime, world)
+                            false
+                        }
+
                         command == '\n' -> false
                         else -> {
                             screen.writeText(listOf("Unknown command '$command'.", "Press ? for commands."))
@@ -651,8 +664,6 @@ class GameRuntime private constructor(
                 }
                 if (input.exhausted) return input.exitResult()
             }
-        } finally {
-            if (debugLogFlash) log.mirrorTo(null)
         }
     }
 
@@ -666,6 +677,13 @@ class GameRuntime private constructor(
         val log = context.log
         val save = context.save
         val screen = context.screen
+        val titleCommands = systems.commands.getValue(TITLE_COMMAND_GROUP)
+
+        fun matches(
+            action: String,
+            command: Char,
+        ): Boolean = titleCommands.firstOrNull { title -> title.action == action }?.binding?.matches(command) == true
+
         screen.showStaticScreen(TITLE_SCREEN, runtime)
         log.event("title.splash")
         if (input.readCommand() == null) return null
@@ -673,21 +691,21 @@ class GameRuntime private constructor(
             val savedRuntime = loadSavedRuntimeOrNull(save, log)
             screen.bootFrame()
             screen.writeText(titleMenuLines(hasSavedGame = savedRuntime != null))
-            when (val command = input.readCommand()) {
-                null -> return null
-                'C' if savedRuntime == null -> {
+            val command = input.readCommand() ?: return null
+            when {
+                savedRuntime == null && matches("createNewParty", command) -> {
                     log.event("title.new state=$stateSlug")
                     val creationRuntime = seed?.let(runtime::withSeed) ?: runtime
                     return runCharacterCreation(creationRuntime, input, screen, log)
                 }
 
-                'C' if savedRuntime != null -> {
+                savedRuntime != null && matches("continueSavedGame", command) -> {
                     log.event("title.continue save=${save.file.path}")
                     return seed?.let(savedRuntime::withSeed) ?: savedRuntime
                 }
 
-                'T' if savedRuntime != null -> {
-                    screen.writeText(listOf("Terminate saved party?", "", "(Y)es", "(N)o"))
+                savedRuntime != null && matches("terminateParty", command) -> {
+                    screen.writeText(systems.prompts.titleMenu.terminateConfirm.render { null })
                     if (input.readCommand() == 'Y') {
                         val deleted =
                             runCatching {
@@ -695,38 +713,35 @@ class GameRuntime private constructor(
                             }.getOrDefault(false)
                         log.event("title.terminate save=${save.file.path} deleted=$deleted")
                         screen.writeText(
-                            listOf(
-                                if (deleted) "Saved party terminated." else "Could not delete saved party.",
-                                save.file.path,
-                            ),
+                            titleTerminateResultLines(deleted) + save.file.path,
                         )
                         input.readCommand()
                     }
                 }
 
-                'S' -> {
+                matches("scoreboard", command) -> {
                     log.event("title.score")
                     screen.showPagedStaticScreen(SCORE_SCREEN, savedRuntime ?: runtime, input::readCommand)
                 }
 
-                'H' -> {
+                matches("hallOfFame", command) -> {
                     log.event("title.heroes")
                     screen.showPagedStaticScreen(HEROES_SCREEN, savedRuntime ?: runtime, input::readCommand)
                 }
 
-                'D' -> {
+                matches("documentation", command) -> {
                     log.event("title.manual")
                     screen.showPagedStaticScreen(MANUAL_SCREEN, savedRuntime ?: runtime, input::readCommand)
                 }
 
-                'X' -> {
+                matches("leave", command) -> {
                     log.event("title.exit")
                     return null
                 }
 
                 else -> {
                     log.event("title.invalid key=$command")
-                    screen.writeText(listOf("Invalid input.", "Key: $command", ""))
+                    screen.writeText(systems.prompts.titleMenu.invalidInput.render { null } + "Key: $command")
                     input.readCommand()
                 }
             }
@@ -754,19 +769,40 @@ class GameRuntime private constructor(
     }
 
     private fun titleMenuLines(hasSavedGame: Boolean): List<String> =
-        buildList {
-            add("Rylween")
-            add("")
-            if (hasSavedGame) {
-                add("(C)ontinue Saved Game")
-                add("(T)erminate Party")
-            } else {
-                add("(C)reate New Party")
+        systems.commands.getValue(TITLE_COMMAND_GROUP).let { commands ->
+            buildList {
+                addAll(systems.prompts.titleMenu.header.render { null })
+                if (hasSavedGame) {
+                    add(commands.menuLine("continueSavedGame"))
+                    add(commands.menuLine("terminateParty"))
+                } else {
+                    add(commands.menuLine("createNewParty"))
+                }
+                add(commands.menuLine("scoreboard"))
+                add(commands.menuLine("hallOfFame"))
+                add(commands.menuLine("documentation"))
+                add(commands.menuLine("leave"))
             }
-            add("(S)coreboard")
-            add("(H)all of Fame")
-            add("(D)ocumentation")
-            add("E(x)it")
+        }
+
+    private fun titleTerminateResultLines(deleted: Boolean): List<String> {
+        val prompt = systems.prompts.titleMenu
+        if (deleted) return prompt.terminated.render { null }
+        return prompt.terminateFailed.render { null }
+    }
+
+    private fun List<ExternalRuntimeCommand>.menuLine(action: String): String =
+        first { command -> command.action == action }.mnemonicLine()
+
+    private fun ExternalRuntimeCommand.mnemonicLine(): String = binding.mnemonicLine(label ?: binding.label)
+
+    private fun ExternalRuntimeTextBlock.renderTown(town: rylween.compiled.CompiledTown): List<String> =
+        render { kind ->
+            when (kind) {
+                "currentTownName" -> string(town.nameString)
+                "townTaxPercent" -> town.taxPercent.toString()
+                else -> null
+            }
         }
 
     private fun runCharacterCreation(
@@ -1117,35 +1153,9 @@ class GameRuntime private constructor(
     private fun generatedWildernessHelpPages(): List<List<String>> =
         systems.commands["wilderness"]
             .orEmpty()
-            .map { command -> "${command.binding.label} = ${command.action.wildernessHelpText()}" }
+            .map { command -> "${command.binding.label} = ${command.label ?: command.action.readableSlug()}" }
             .chunked(TEXT_WINDOW_PAGE_LINES)
             .ifEmpty { listOf(listOf("Press ? for commands.")) }
-
-    private fun String.wildernessHelpText(): String =
-        when (this) {
-            "moveNorth" -> "Move North"
-            "moveSouth" -> "Move South"
-            "moveWest" -> "Move West"
-            "moveEast" -> "Move East"
-            "pass" -> "Pass"
-            "save" -> "Save Game"
-            "readyWeapon" -> "Wield Weapon"
-            "readyArmor" -> "Ready Armor"
-            "redraw" -> "Redraw Screen"
-            "journal" -> "View Journal"
-            "help" -> "View this help"
-            "hunt" -> "Hunt for Food"
-            "viewParty" -> "View Party"
-            "removeArmor" -> "Take off armor"
-            "removeWeapon" -> "Put down weapon"
-            "enter" -> "Enter"
-            "drop" -> "Leave (Discard) Item"
-            "camp" -> "Camp"
-            "castSpell" -> "Cast Spell"
-            "quaff" -> "Quaff Potion"
-            "quit" -> "Quit Game (No Save)"
-            else -> readableSlug()
-        }
 
     private fun saveRuntime(
         runtime: RuntimeState,
@@ -1215,7 +1225,7 @@ class GameRuntime private constructor(
                 .startCastle(runtime, castle)
         }
         log.event("wilderness.enter_none")
-        screen.writeText(listOf("There is nothing to enter here."))
+        screen.writeText(systems.prompts.wilderness.nothingToEnter.render { null })
         return runtime
     }
 
@@ -1240,7 +1250,7 @@ class GameRuntime private constructor(
             services.mapNotNull { service ->
                 townCommands
                     .firstOrNull { command -> command.action == slug(service.action) }
-                    ?.let { command -> TownMenuEntry(command, service, slug(service.building).readableSlug()) }
+                    ?.let { command -> TownMenuEntry(command, service, command.label ?: command.binding.label) }
             }
         val leaveCommand = townCommands.firstOrNull { command -> command.action == TOWN_LEAVE_ACTION }
         if (serviceEntries.isEmpty()) {
@@ -1250,16 +1260,16 @@ class GameRuntime private constructor(
 
         fun menuLines(): List<String> =
             buildList {
-                add("Entering ${string(town.nameString)}")
+                addAll(systems.prompts.town.menuTitle.renderTown(town))
                 add("")
                 serviceEntries.forEach { entry -> add(entry.menuLine()) }
-                leaveCommand?.let { command -> add(command.binding.mnemonicLine("Leave")) }
+                leaveCommand?.let { command -> add(command.mnemonicLine()) }
             }
 
         var current = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
         while (true) {
             val menu = menuLines()
-            screen.showImage(TOWN_MAINSTREET_IMAGE)
+            screen.showImage(TOWN_MAIN_STREET_IMAGE)
             screen.writeText(menu)
             var choice = input.readCommand() ?: return current
             while (choice == '!') {
@@ -2003,6 +2013,8 @@ internal class WorldMap(
     val height: Int = rows.size
 
     fun terrainAt(point: GridPoint): CompiledTerrain? = tileAt(point)?.let(terrainByCode::get)
+
+    fun paddedRows(): List<String> = rows.map { row -> row.padEnd(width) }
 
     private fun tileAt(point: GridPoint): Char? = rows.getOrNull(point.y - 1)?.getOrNull(point.x)
 

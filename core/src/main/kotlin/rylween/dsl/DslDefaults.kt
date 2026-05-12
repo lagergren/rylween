@@ -94,22 +94,8 @@ internal object DslDefaultLootTables {
     val standardBattle = lootTable("standard_battle")
 }
 
-internal object DslDefaultRewards {
-    val standardBattle = rewardBundle("standard_battle")
-}
-
 internal object DslDefaultRumorTables {
     val standardTown = rumorTable("standard_town")
-}
-
-internal object DslDefaultImages {
-    object Scene {
-        val encounterBanner1 = image("blitgfx.encounter.1")
-        val encounterBanner2 = image("blitgfx.encounter.2")
-        val encounterBanner3 = image("blitgfx.encounter.3")
-        val encounterBanner4 = image("blitgfx.encounter.4")
-        val encounterBanner5 = image("blitgfx.encounter.5")
-    }
 }
 
 internal object DslDefaultScenes {

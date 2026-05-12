@@ -75,7 +75,7 @@ private data class WebRuntimeConfig(
             var stateSlug = envOrDefault("RYLWEEN_STATE", DEFAULT_STATE)
             var initialLoadFile = optionalFileEnv("RYLWEEN_LOAD_FILE")
             var saveFileOverride = optionalFileEnv("RYLWEEN_SAVE_FILE")
-            var seed = optionalLongEnv("RYLWEEN_SEED")
+            var seed = optionalSeedEnv()
             var index = 0
             while (index < args.size) {
                 val arg = args[index]
@@ -133,8 +133,8 @@ private data class WebRuntimeConfig(
             return File(value)
         }
 
-        private fun optionalLongEnv(key: String): Long? {
-            val value = System.getenv(key)?.takeIf(String::isNotBlank) ?: return null
+        private fun optionalSeedEnv(): Long? {
+            val value = System.getenv("RYLWEEN_SEED")?.takeIf(String::isNotBlank) ?: return null
             return value.toLong()
         }
 
@@ -145,7 +145,7 @@ private data class WebRuntimeConfig(
         ): String = args.getOrNull(index) ?: error("$option requires a value")
 
         private fun printUsage() {
-            println(
+            WebConsole.line(
                 """
                 Usage: rylween-web [--bundle FILE] [--data DIR] [--host HOST] [--port PORT] [--state SLUG] [--load FILE] [--save FILE] [--seed N]
 
@@ -178,7 +178,6 @@ private class RuntimeWebServer(
     fun serveForever() {
         serverSocket.reuseAddress = true
         serverSocket.bind(InetSocketAddress(config.host, config.port))
-        println("Rylween web runtime listening on http://${config.host}:${config.port}/")
         serverLog.event(
             "web.server.start host=${config.host} port=${config.port} bundle=${config.bundleFile.path} " +
                 "data=${config.dataDir.path} save=${config.worldSaveFile.path} serverLog=${config.serverLogFile.path}",
@@ -205,7 +204,6 @@ private class RuntimeWebServer(
                     runCatching {
                         respondText(client, "500 Internal Server Error", "text/plain; charset=utf-8", "server error\n")
                     }
-                    System.err.println("web client failed: ${failure.message}")
                 }
         }
         serverLog.event("web.client.disconnect id=$clientId remote=${logValue(remote)}")
@@ -374,7 +372,13 @@ private class RuntimeWebServer(
 }
 
 private fun streamRuntimeLog(line: String) {
-    println(line)
+    WebConsole.line(line)
+}
+
+private object WebConsole {
+    fun line(value: String) {
+        System.out.println(value)
+    }
 }
 
 private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""

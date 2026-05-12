@@ -15,6 +15,7 @@ import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.CompiledSpell
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.dsl.impl.ItemConsumePolicy
 import rylween.dsl.impl.ItemKind
 import rylween.dsl.impl.ItemStorageKind
@@ -32,7 +33,7 @@ internal class UtilityActions(
     fun drop(runtime: RuntimeState): RuntimeState {
         val choices = runtime.party.inventory.filter { slot -> slot.item != null }
         if (choices.isEmpty()) return runtime
-        screen.writeText(listOf("Drop which item?") + inventoryLines(choices))
+        screen.writeText(systems.prompts.party.dropPrompt.renderUtility() + inventoryLines(choices))
         val slot =
             input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
                 ?: return runtime
@@ -70,9 +71,9 @@ internal class UtilityActions(
                 val use =
                     content.itemUses.firstOrNull { use -> use.item == item && ItemUseContext.Inventory in use.contexts }
                 slot.takeIf { use != null && itemRecord(item).kind == ItemKind.Potion }
-            }
+        }
         if (choices.isEmpty()) return runtime
-        screen.writeText(listOf("Quaff what?") + inventoryLines(choices))
+        screen.writeText(systems.prompts.inventoryUse.quaff.renderUtility() + inventoryLines(choices))
         val slot =
             input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
                 ?: return runtime
@@ -128,12 +129,12 @@ internal class UtilityActions(
                     record.kind == acceptedKind &&
                         (record.equippableBy.isEmpty() || member.pcClass in record.equippableBy)
                 }
-            }
+        }
         if (choices.isEmpty()) {
-            screen.writeText(listOf("No $equipmentName available."))
+            screen.writeText(systems.prompts.equipment.noAvailable.renderUtility(equipmentKindName = equipmentName))
             return runtime
         }
-        screen.writeText(listOf("Ready what?") + inventoryLines(choices))
+        screen.writeText(systems.prompts.equipment.inventory.renderUtility() + inventoryLines(choices))
         val slot =
             input
                 .readCommand()
@@ -141,7 +142,7 @@ internal class UtilityActions(
                 ?.takeIf { selected -> choices.any { it.slot == selected } }
                 ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
-        screen.writeText(listOf("Equipped ${itemName(item)}."))
+        screen.writeText(systems.prompts.equipment.equipped.renderUtility(selectedItem = item))
         return runtime.updateMember(memberIndex) { current -> equip(current, item) }
     }
 
@@ -177,7 +178,8 @@ internal class UtilityActions(
     ): Int? {
         if (indexes.isEmpty()) return null
         screen.writeText(
-            listOf("Who?", "") +
+            systems.prompts.equipment.who.renderUtility() +
+                "" +
                 indexes.map { index ->
                     "${index + 1}. ${runtime.party.memberName(content, index)}"
                 },
@@ -200,6 +202,18 @@ internal class UtilityActions(
             ?: items.first { record -> record.kind == ItemKind.Empty }.id
 
     private fun itemName(item: CompiledHandleRef): String = content.strings.value(itemRecord(item).displayNameString)
+
+    private fun ExternalRuntimeTextBlock.renderUtility(
+        selectedItem: CompiledHandleRef? = null,
+        equipmentKindName: String? = null,
+    ): List<String> =
+        render { kind ->
+            when (kind) {
+                "selectedItemName" -> selectedItem?.let(::itemName)
+                "equipmentKindName" -> equipmentKindName
+                else -> null
+            }
+        }
 
     private fun itemRecord(item: CompiledHandleRef): CompiledItemRecord =
         content.items.firstOrNull { record -> record.id == item }

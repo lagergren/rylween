@@ -925,7 +925,7 @@ internal class ScriptExecutor(
         party: PartyState,
         leadLines: List<String>,
     ): Int? {
-        screen.writeText(leadLines + "" + "Drop an item? (Y/N)")
+        screen.writeText(leadLines + "" + systems.prompts.party.dropOverflowConfirm.renderSimplePrompt())
         val confirm = input.readCommand()?.uppercaseChar() ?: return null
         if (confirm != 'Y') return null
         screen.writeText(inventoryReplaceLines(party))
@@ -977,12 +977,14 @@ internal class ScriptExecutor(
     }
 
     private fun inventoryReplaceLines(party: PartyState): List<String> =
-        listOf("Drop which item?", "Any other key leaves.") +
+        systems.prompts.party.dropOverflowPrompt.renderSimplePrompt() +
             inventoryMenuLines(
                 party.inventory.map { slot ->
                     inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
                 },
             )
+
+    private fun ExternalRuntimeTextBlock.renderSimplePrompt(): List<String> = render { null }
 
     private fun memberChoiceLines(choices: List<Int>): List<String> =
         choices.map { member ->

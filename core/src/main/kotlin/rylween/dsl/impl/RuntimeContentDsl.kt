@@ -148,10 +148,10 @@ data class WildernessSystemModel(
 )
 
 data class WildernessKeysModel(
-    val moveNorth: InputBindingModel = inputKey("8", InputAliases.ArrowUp, "UP", "ARROW_UP", label = "8/Up"),
-    val moveSouth: InputBindingModel = inputKey("2", InputAliases.ArrowDown, "DOWN", "ARROW_DOWN", label = "2/Down"),
-    val moveWest: InputBindingModel = inputKey("4", InputAliases.ArrowLeft, "LEFT", "ARROW_LEFT", label = "4/Left"),
-    val moveEast: InputBindingModel = inputKey("6", InputAliases.ArrowRight, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
+    val moveNorth: InputBindingModel = inputKey("8", InputAliases.ARROW_UP, "UP", "ARROW_UP", label = "8/Up"),
+    val moveSouth: InputBindingModel = inputKey("2", InputAliases.ARROW_DOWN, "DOWN", "ARROW_DOWN", label = "2/Down"),
+    val moveWest: InputBindingModel = inputKey("4", InputAliases.ARROW_LEFT, "LEFT", "ARROW_LEFT", label = "4/Left"),
+    val moveEast: InputBindingModel = inputKey("6", InputAliases.ARROW_RIGHT, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
     val pass: InputBindingModel = inputKey(" ", "SPACE", label = "Space"),
     val save: InputBindingModel = inputKey("S"),
     val readyWeapon: InputBindingModel = inputKey("W"),
@@ -171,6 +171,7 @@ data class WildernessKeysModel(
     val quit: InputBindingModel = inputKey("X"),
     val debugForceCave: InputBindingModel = inputKey("[", label = "["),
     val debugForceEncounter: InputBindingModel = inputKey("]", label = "]"),
+    val debugShowMap: InputBindingModel = inputKey("M"),
     val caveEnter: InputBindingModel = inputKey("E"),
     val caveLeave: InputBindingModel = inputKey("L"),
     val outOfMovesSave: InputBindingModel = inputKey("S"),
@@ -179,6 +180,31 @@ data class WildernessKeysModel(
     val quitNo: InputBindingModel = inputKey("N"),
     val commandHint: TextBlock = inlineText("Press ? for commands."),
     val helpPages: List<TextBlock> = emptyList(),
+    val commandLabels: WildernessCommandLabelsModel = WildernessCommandLabelsModel(),
+)
+
+data class WildernessCommandLabelsModel(
+    val moveNorth: String = "Move North",
+    val moveSouth: String = "Move South",
+    val moveWest: String = "Move West",
+    val moveEast: String = "Move East",
+    val pass: String = "Pass",
+    val save: String = "Save Game",
+    val readyWeapon: String = "Wield Weapon",
+    val readyArmor: String = "Ready Armor",
+    val redraw: String = "Redraw Screen",
+    val journal: String = "View Journal",
+    val help: String = "View this help",
+    val hunt: String = "Hunt for Food",
+    val viewParty: String = "View Party",
+    val removeArmor: String = "Take off armor",
+    val removeWeapon: String = "Put down weapon",
+    val enter: String = "Enter",
+    val drop: String = "Leave (Discard) Item",
+    val camp: String = "Camp",
+    val castSpell: String = "Cast Spell",
+    val quaff: String = "Quaff Potion",
+    val quit: String = "Quit Game (No Save)",
 )
 
 fun WildernessKeysModel.exploreKeys(): List<InputBindingModel> =
@@ -206,7 +232,7 @@ fun WildernessKeysModel.exploreKeys(): List<InputBindingModel> =
         quit,
     )
 
-fun WildernessKeysModel.debugKeys(): List<InputBindingModel> = listOf(debugForceCave, debugForceEncounter)
+fun WildernessKeysModel.debugKeys(): List<InputBindingModel> = listOf(debugForceCave, debugForceEncounter, debugShowMap)
 
 fun WildernessKeysModel.caveKeys(): List<InputBindingModel> = listOf(caveEnter, caveLeave)
 
@@ -234,6 +260,7 @@ data class DungeonKeysModel(
 data class GamePromptsModel(
     val pauseVerbs: List<String> = emptyList(),
     val returnKeyName: String = "RETURN key",
+    val titleMenu: TitleMenuPromptsModel = TitleMenuPromptsModel(),
     val priest: PriestSpellPromptsModel = PriestSpellPromptsModel(),
     val inventoryUse: InventoryUsePromptsModel = InventoryUsePromptsModel(),
     val equipment: EquipmentPromptsModel = EquipmentPromptsModel(),
@@ -243,6 +270,21 @@ data class GamePromptsModel(
     val dungeon: DungeonPromptsModel = DungeonPromptsModel(),
     val party: PartyPromptsModel = PartyPromptsModel(),
     val characterCreation: CharacterCreationPromptsModel = CharacterCreationPromptsModel(),
+)
+
+data class TitleMenuPromptsModel(
+    val header: TextBlock = inlineText("Rylween", ""),
+    val createNewParty: InputBindingModel = inputKey("C", label = "Create New Party"),
+    val continueSavedGame: InputBindingModel = inputKey("C", label = "Continue Saved Game"),
+    val terminateParty: InputBindingModel = inputKey("T", label = "Terminate Party"),
+    val scoreboard: InputBindingModel = inputKey("S", label = "Scoreboard"),
+    val hallOfFame: InputBindingModel = inputKey("H", label = "Hall of Fame"),
+    val documentation: InputBindingModel = inputKey("D", label = "Documentation"),
+    val leave: InputBindingModel = inputKey("L", label = "Leave"),
+    val terminateConfirm: TextBlock = inlineText("Terminate saved party?", "", "(Y)es", "(N)o"),
+    val terminated: TextBlock = inlineText("Saved party terminated."),
+    val terminateFailed: TextBlock = inlineText("Could not delete saved party."),
+    val invalidInput: TextBlock = inlineText("Invalid input."),
 )
 
 data class SavePromptsModel(
@@ -276,7 +318,7 @@ data class PriestSpellPromptsModel(
 )
 
 data class InventoryUsePromptsModel(
-    val use: TextBlock = inlineText("Use what?"),
+    val usePrompt: TextBlock = inlineText("Use what?"),
     val quaff: TextBlock = inlineText("Quaff what?"),
     val noItems: TextBlock = inlineText("You are not carrying", "anything."),
     val noItem: TextBlock = inlineText("There is nothing", "in that slot."),
@@ -296,6 +338,14 @@ data class InventoryUsePromptsModel(
 data class EquipmentPromptsModel(
     val inventory: TextBlock = inlineText("Ready what?"),
     val who: TextBlock = inlineText("Who? (1-N)"),
+    val noAvailable: TextBlock =
+        structuredText {
+            line("No ", TextPart.EquipmentKindName, " available.")
+        },
+    val equipped: TextBlock =
+        structuredText {
+            line("Equipped ", TextPart.SelectedItemName, ".")
+        },
     val readyWeapons: TextBlock = inlineText("Do you want to ready", "some weapons before", "leaving?", ""),
     val readyArmors: TextBlock = inlineText("Do you want to ready", "some armors before", "leaving?", ""),
 )
@@ -303,6 +353,7 @@ data class EquipmentPromptsModel(
 data class TownPromptsModel(
     val unavailableSuffix: String = " is not available here.",
     val closedSuffix: String = " is closed.",
+    val menuTitle: TextBlock = structuredText { line("Entering ", TownText.name) },
     val entryWelcome: TextBlock = missingPrompt("town.entry_welcome"),
     val entryTax: TextBlock = missingPrompt("town.entry_tax"),
     val entryTaxThanks: TextBlock = missingPrompt("town.entry_tax_thanks"),
@@ -320,6 +371,8 @@ data class PartyPromptsModel(
             line(TextPart.SelectedItemName, ".")
         },
     val dropCapacityReduced: TextBlock = inlineText("You are forced to", "leave some of your", "food behind..."),
+    val dropOverflowConfirm: TextBlock = inlineText("Drop an item? (Y/N)"),
+    val dropOverflowPrompt: TextBlock = inlineText("Drop which item?", "Any other key leaves."),
 )
 
 data class WildernessPromptsModel(

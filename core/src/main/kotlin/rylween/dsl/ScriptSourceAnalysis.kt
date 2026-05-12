@@ -438,6 +438,7 @@ private class NativePathCollector {
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
             TextPart.SelectedItemName,
+            TextPart.EquipmentKindName,
             TextPart.ShopPrice,
             TextPart.ShopCarryCap,
             TextPart.HuntMemberName,

@@ -1,11 +1,14 @@
 import org.gradle.api.file.ConfigurableFileCollection
+import org.jetbrains.kotlin.gradle.scripting.ScriptingExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import rylween.gradle.GenerateCompiledGameHarnessTask
 import rylween.gradle.GenerateGameCatalogHandlesTask
 
 plugins {
     idea
+    `java-library`
     alias(libs.plugins.kotlin.jvm)
+    id("org.jetbrains.kotlin.plugin.scripting")
     id("rylween.qa-conventions")
 }
 
@@ -25,9 +28,26 @@ kotlin {
     jvmToolchain(rylweenJvmToolchainVersion)
 }
 
+val rylweenScripting: ScriptingExtension =
+    extensions.findByType<ScriptingExtension>()
+        ?: extensions.create("kotlinScripting", ScriptingExtension::class.java)
+rylweenScripting.scriptDefinition("rylween.dsl.RylweenDslScript")
+
 idea {
     module {
         name = "rylween.game"
+        generatedSourceDirs.add(
+            layout.buildDirectory
+                .dir("generated/gameHarness/kotlin")
+                .get()
+                .asFile,
+        )
+        generatedSourceDirs.add(
+            layout.buildDirectory
+                .dir("generated/gameCatalog/kotlin")
+                .get()
+                .asFile,
+        )
     }
 }
 
@@ -57,19 +77,23 @@ val gameDslModuleFiles: ConfigurableFileCollection =
 val gameDslSourceLabel: String = gameDslSourceFile.asFile.relativeTo(projectDir).invariantSeparatorsPath
 
 sourceSets.named("main") {
-    java.srcDir(generatedGameHarnessDir)
-    java.srcDir(generatedGameCatalogDir)
+    kotlin.srcDir(generatedGameHarnessDir)
+    kotlin.srcDir(generatedGameCatalogDir)
+    // The authored DSL files need the module classpath in editors, so they are
+    // Kotlin sources as well as packaged resources consumed by the bundle tools.
+    kotlin.srcDir("src/main/dsl")
+    resources.srcDir("src/main/dsl")
 }
 
 dependencies {
-    implementation(project(":core"))
+    api(project(":core"))
+    kotlinScriptDef(project(":core"))
     testImplementation(kotlin("test"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {
     workingDir = rootProject.projectDir
-    useJUnitPlatform()
 }
 
 val generateCompiledGameHarness: TaskProvider<GenerateCompiledGameHarnessTask> by tasks.registering(

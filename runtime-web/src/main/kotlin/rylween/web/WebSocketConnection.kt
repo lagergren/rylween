@@ -139,7 +139,7 @@ internal class WebSocketConnection(
     }
 }
 
-private data class WebSocketFrame(
+private class WebSocketFrame(
     val opcode: Int,
     val payload: ByteArray,
 )
