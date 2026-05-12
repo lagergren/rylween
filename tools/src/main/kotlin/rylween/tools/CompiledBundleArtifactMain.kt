@@ -5,8 +5,6 @@
  * smoke artifact in `compiled/NativeSmokeArtifact.kt`. They live outside the
  * ANSI runtime subproject so bundle emission stays a compiler/tooling concern.
  */
-@file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
-
 package rylween.tools
 
 import rylween.compiled.ExternalBundleSectionId

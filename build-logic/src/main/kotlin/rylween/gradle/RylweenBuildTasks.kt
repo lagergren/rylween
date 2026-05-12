@@ -8,7 +8,6 @@ import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Optional
@@ -784,8 +783,13 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
             flags
                 .flatMap { flag -> (1 until flag.path.size).map { size -> flag.path.take(size) } }
                 .distinctBy { it.joinToString(".") }
+        val containerPaths =
+            buildList {
+                addAll(containerPrefixes)
+                add(0, emptyList())
+            }
         val containers =
-            (listOf(emptyList<String>()) + containerPrefixes)
+            containerPaths
                 .joinToString(separator = "\n\n") { prefix ->
                     generateFlagContainer(
                         className = if (prefix.isEmpty()) "StoryFlags" else flagContainerClassName(prefix),
@@ -1181,7 +1185,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
     private fun textHandles(source: String): TextNode {
         val root = TextNode(emptyList())
         val textHandles =
-            Regex("""\b(?:T|Texts)\.([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+)""")
+            Regex("""\bT(?:exts)?\.([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+)""")
                 .findAll(source)
                 .map { match ->
                     SourceHandle(
@@ -1367,7 +1371,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
         validateNoCatalogIdCollisions(source, "town building", townPositionHandles)
         val defaultServiceNames =
             listOf("merchant", "inn", "tavern", "smith", "church", "guild").filter { service ->
-                Regex("""\b${Regex.escape(service)}\s*(?:\(|\{)""").containsMatchIn(townAndSystemBlocks)
+                Regex("""\b${Regex.escape(service)}\s*[({]""").containsMatchIn(townAndSystemBlocks)
             }
         return orderedNames(
             (explicitNames + townPositionHandles.distinctNamesInOrder() + defaultServiceNames).distinctInOrder(),
@@ -1747,85 +1751,4 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
         mapOf(
             "Towne.Rumor.indexed" to "towne.rumor.r{}",
         )
-}
-
-/**
- * Generates the checked-in style wrapper script used by `run.sh`.
- */
-abstract class GenerateRuntimeBuildWrapperTask : DefaultTask() {
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
-
-    @TaskAction
-    fun generate() {
-        val output = outputFile.get().asFile
-        output.parentFile.mkdirs()
-        output.writeText(
-            $$"""
-            |#!/usr/bin/env bash
-            |set -euo pipefail
-            |
-            |ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-            |INSTALL_HOME="$ROOT_DIR/runtime/build/install/rylween"
-            |LAUNCHER="$INSTALL_HOME/bin/rylween"
-            |BUNDLE="$ROOT_DIR/build/compiled/rylween-bundle.json"
-            |
-            |build=false
-            |title_seen=false
-            |args=()
-            |for arg in "$@"; do
-            |  case "$arg" in
-            |    --build)
-            |      build=true
-            |      ;;
-            |    --title|--no-title)
-            |      title_seen=true
-            |      args+=("$arg")
-            |      ;;
-            |    *)
-            |      args+=("$arg")
-            |      ;;
-            |  esac
-            |done
-            |
-            |if [[ "$build" == true || ! -x "$LAUNCHER" || ! -f "$BUNDLE" ]]; then
-            |  if [[ ! -x "$ROOT_DIR/gradlew" ]]; then
-            |    echo "rylween: cannot find Gradle wrapper at $ROOT_DIR/gradlew" >&2
-            |    exit 1
-            |  fi
-            |  (cd "$ROOT_DIR" && ./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain)
-            |fi
-            |
-            |bundle_seen=false
-            |for arg in "${args[@]}"; do
-            |  if [[ "$arg" == "--bundle" || "$arg" == --bundle=* ]]; then
-            |    bundle_seen=true
-            |  fi
-            |done
-            |if [[ "$bundle_seen" == false ]]; then
-            |  args=("--bundle" "$BUNDLE" "${args[@]}")
-            |fi
-            |
-            |if [[ "$title_seen" == false ]]; then
-            |  args=("--title" "${args[@]}")
-            |fi
-            |
-            |RUN_PARENT="$(mktemp -d "${TMPDIR:-/tmp}/rylween-run.XXXXXX")"
-            |cleanup() {
-            |  rm -rf "$RUN_PARENT"
-            |}
-            |trap cleanup EXIT
-            |
-            |# Run from a private copy so Gradle rebuilds/tests cannot rewrite jars under
-            |# an active game process and trigger lazy classpath ZipFile failures.
-            |cp -R "$INSTALL_HOME" "$RUN_PARENT/"
-            |RUN_LAUNCHER="$RUN_PARENT/rylween/bin/rylween"
-            |
-            |status=0
-            |"$RUN_LAUNCHER" "${args[@]}" || status=$?
-            |exit "$status"
-            """.trimMargin() + "\n",
-        )
-        output.setExecutable(true, false)
-    }
 }
