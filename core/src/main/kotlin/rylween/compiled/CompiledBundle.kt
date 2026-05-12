@@ -10,118 +10,118 @@ package rylween.compiled
 
 import rylween.dsl.BoolAst
 import rylween.dsl.BuildingId
-import rylween.dsl.BuildingServiceModel
-import rylween.dsl.CharacterModel
-import rylween.dsl.CharacterPlacementModel
+import rylween.dsl.impl.BuildingServiceModel
+import rylween.dsl.impl.CharacterModel
+import rylween.dsl.impl.CharacterPlacementModel
 import rylween.dsl.DungeonEventDisposition
 import rylween.dsl.DungeonEventId
 import rylween.dsl.DungeonEventModel
 import rylween.dsl.DungeonId
 import rylween.dsl.DungeonScenarioModel
 import rylween.dsl.EncounterTier
-import rylween.dsl.EngineServiceUse
-import rylween.dsl.Facing
-import rylween.dsl.FlagContentModel
-import rylween.dsl.FlagScope
-import rylween.dsl.FlagState
+import rylween.dsl.impl.EngineServiceUse
+import rylween.dsl.impl.Facing
+import rylween.dsl.impl.FlagContentModel
+import rylween.dsl.impl.FlagScope
+import rylween.dsl.impl.FlagState
 import rylween.dsl.FormulaId
-import rylween.dsl.FormulaModel
+import rylween.dsl.impl.FormulaModel
 import rylween.dsl.GameMilestoneId
-import rylween.dsl.GameModel
-import rylween.dsl.GameUniverseModel
-import rylween.dsl.Gender
-import rylween.dsl.GridPoint
-import rylween.dsl.GridSize
-import rylween.dsl.HitPoints
-import rylween.dsl.ImageAssetKind
-import rylween.dsl.ImageAssetModel
+import rylween.dsl.impl.GameModel
+import rylween.dsl.impl.GameUniverseModel
+import rylween.dsl.impl.Gender
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.GridSize
+import rylween.dsl.impl.HitPoints
+import rylween.dsl.impl.ImageAssetKind
+import rylween.dsl.impl.ImageAssetModel
 import rylween.dsl.ImageId
-import rylween.dsl.ImagePlacement
+import rylween.dsl.impl.ImagePlacement
 import rylween.dsl.InputBindingModel
 import rylween.dsl.IntAst
-import rylween.dsl.ItemConsumePolicy
+import rylween.dsl.impl.ItemConsumePolicy
 import rylween.dsl.ItemId
-import rylween.dsl.ItemKind
+import rylween.dsl.impl.ItemKind
 import rylween.dsl.ItemPoolId
-import rylween.dsl.ItemRecordModel
-import rylween.dsl.ItemStorageKind
-import rylween.dsl.ItemUseContext
+import rylween.dsl.impl.ItemRecordModel
+import rylween.dsl.impl.ItemStorageKind
+import rylween.dsl.impl.ItemUseContext
 import rylween.dsl.ItemUseModel
-import rylween.dsl.JournalEntryState
+import rylween.dsl.impl.JournalEntryState
 import rylween.dsl.KeyActionId
 import rylween.dsl.LValueAst
 import rylween.dsl.LocationId
 import rylween.dsl.LootTableId
-import rylween.dsl.LootTableModel
-import rylween.dsl.Mana
+import rylween.dsl.impl.LootTableModel
+import rylween.dsl.impl.Mana
 import rylween.dsl.MapLayerId
 import rylween.dsl.MissionId
-import rylween.dsl.MissionModel
+import rylween.dsl.impl.MissionModel
 import rylween.dsl.MonsterId
-import rylween.dsl.MonsterModel
+import rylween.dsl.impl.MonsterModel
 import rylween.dsl.NativeStringArg
 import rylween.dsl.NpcId
 import rylween.dsl.NpcJobId
 import rylween.dsl.NpcRole
 import rylween.dsl.Op
 import rylween.dsl.PartyId
-import rylween.dsl.PartyMemberState
-import rylween.dsl.PartyResources
-import rylween.dsl.PartyState
-import rylween.dsl.PcClass
-import rylween.dsl.Race
-import rylween.dsl.RandomItemOfferModel
-import rylween.dsl.RandomNpcPlacementOptionModel
-import rylween.dsl.RandomNpcPlacementPolicyModel
-import rylween.dsl.RealmState
-import rylween.dsl.Resource
-import rylween.dsl.RewardApplicationModel
+import rylween.dsl.impl.PartyMemberState
+import rylween.dsl.impl.PartyResources
+import rylween.dsl.impl.PartyState
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.Race
+import rylween.dsl.impl.RandomItemOfferModel
+import rylween.dsl.impl.RandomNpcPlacementOptionModel
+import rylween.dsl.impl.RandomNpcPlacementPolicyModel
+import rylween.dsl.impl.RealmState
+import rylween.dsl.impl.Resource
+import rylween.dsl.impl.RewardApplicationModel
 import rylween.dsl.RewardBundleId
-import rylween.dsl.RewardBundleModel
-import rylween.dsl.RewardMessageModel
+import rylween.dsl.impl.RewardBundleModel
+import rylween.dsl.impl.RewardMessageModel
 import rylween.dsl.RumorTableId
-import rylween.dsl.RuntimeMode
-import rylween.dsl.RylweenModel
+import rylween.dsl.impl.RuntimeMode
+import rylween.dsl.impl.RylweenModel
 import rylween.dsl.SceneId
 import rylween.dsl.ScreenRegionId
-import rylween.dsl.ScreenRegionModel
-import rylween.dsl.ScriptRewardModel
-import rylween.dsl.ShopBuyModel
-import rylween.dsl.ShopCatalogModel
-import rylween.dsl.ShopInterludeModel
-import rylween.dsl.ShopItemOfferModel
-import rylween.dsl.ShopPriceModel
-import rylween.dsl.ShopPurchaseModel
-import rylween.dsl.ShopQuantityCap
-import rylween.dsl.ShopSellBargainModel
-import rylween.dsl.ShopSellModel
-import rylween.dsl.ShopServiceModel
-import rylween.dsl.ShopZeroQuantityDealPolicy
+import rylween.dsl.impl.ScreenRegionModel
+import rylween.dsl.impl.ScriptRewardModel
+import rylween.dsl.impl.ShopBuyModel
+import rylween.dsl.impl.ShopCatalogModel
+import rylween.dsl.impl.ShopInterludeModel
+import rylween.dsl.impl.ShopItemOfferModel
+import rylween.dsl.impl.ShopPriceModel
+import rylween.dsl.impl.ShopPurchaseModel
+import rylween.dsl.impl.ShopQuantityCap
+import rylween.dsl.impl.ShopSellBargainModel
+import rylween.dsl.impl.ShopSellModel
+import rylween.dsl.impl.ShopServiceModel
+import rylween.dsl.impl.ShopZeroQuantityDealPolicy
 import rylween.dsl.SpellId
 import rylween.dsl.SpellModel
 import rylween.dsl.StateId
-import rylween.dsl.StateKind
-import rylween.dsl.StateModel
+import rylween.dsl.impl.StateKind
+import rylween.dsl.impl.StateModel
 import rylween.dsl.StaticScreenId
-import rylween.dsl.StaticScreenModel
-import rylween.dsl.StaticScreenRuntimeReport
+import rylween.dsl.impl.StaticScreenModel
+import rylween.dsl.impl.StaticScreenRuntimeReport
 import rylween.dsl.StrAst
-import rylween.dsl.TemperatureBand
+import rylween.dsl.impl.TemperatureBand
 import rylween.dsl.TerrainId
-import rylween.dsl.TerrainSemanticsModel
-import rylween.dsl.TerrainSettlement
+import rylween.dsl.impl.TerrainSemanticsModel
+import rylween.dsl.impl.TerrainSettlement
 import rylween.dsl.TerrainTagId
 import rylween.dsl.TextBlock
 import rylween.dsl.TextPart
 import rylween.dsl.TownId
-import rylween.dsl.TownKind
-import rylween.dsl.TownModel
-import rylween.dsl.Trigger
+import rylween.dsl.impl.TownKind
+import rylween.dsl.impl.TownModel
+import rylween.dsl.impl.Trigger
 import rylween.dsl.ViewCommand
 import rylween.dsl.WorldMapId
-import rylween.dsl.WorldMapModel
-import rylween.dsl.WorldPosition
-import rylween.dsl.runtimeContent
+import rylween.dsl.impl.WorldMapModel
+import rylween.dsl.impl.WorldPosition
+import rylween.dsl.impl.runtimeContent
 import rylween.runtime.CastleSessionSnapshot
 import rylween.runtime.DungeonSavedStep
 import rylween.runtime.RuntimeModeSnapshot
@@ -131,13 +131,49 @@ import rylween.runtime.ScriptContinuationSnapshot
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.scriptRootCatalog
 
-/** Complete compiled J1 bundle: content tables plus save/start state images. */
+/**
+ * Complete compiled J1 bundle: content tables plus save/start state images.
+ *
+ * @property content immutable compiled content shared by all runtime states in the artifact.
+ * @property states compiled authored fixtures and runtime snapshots that can seed or verify a runtime.
+ */
 data class CompiledGameBundle(
     val content: CompiledContentBundle,
     val states: List<CompiledStateImage>,
 )
 
-/** Dense compiled content tables emitted from [rylween.dsl.GameModel]. */
+/**
+ * Dense compiled content tables emitted from [rylween.dsl.GameModel].
+ *
+ * This is the main host-facing bundle payload. Handles and strings are interned once, and every other section refers to
+ * those tables through compact integer ids. For example, [characters] contains NPC rows whose `nameString`, `job`, roles,
+ * and placement references point into [strings] and [handles] rather than carrying repeated slugs.
+ *
+ * @property universe display/version metadata for compatibility checks and runtime banners.
+ * @property limits optional authored limits used by validators and hosts.
+ * @property strings interned strings shared by text, handles, names, and scripts.
+ * @property handles typed handle table for ids such as items, towns, scenes, NPCs, terrain, and script roots.
+ * @property flags authored flag catalog.
+ * @property items item catalog rows.
+ * @property itemPools resolved item-pool rows.
+ * @property formulas compiled integer formulas.
+ * @property rewards battle/script reward bundles.
+ * @property terrain terrain semantics keyed by compiled terrain handles.
+ * @property worldMaps authored world-map layers.
+ * @property images visual assets, including ANSI art and later bitmap assets.
+ * @property staticScreens static full-screen resources such as title/help/report screens.
+ * @property screenRegions named terminal/browser screen regions.
+ * @property towns town records and their service lists.
+ * @property buildingServices engine-backed town service declarations.
+ * @property characters NPC records, including authored or generated placement policy.
+ * @property monsters monster catalog rows.
+ * @property missions mission records and state transitions.
+ * @property spells spell scripts and metadata.
+ * @property itemUses usable item scripts and context flags.
+ * @property dungeonEvents authored dungeon event scripts.
+ * @property dungeonScenarios dungeon layout/scenario definitions.
+ * @property scripts compiled script roots for scenes, dialogue, services, spells, item use, and dungeon events.
+ */
 data class CompiledContentBundle(
     val universe: CompiledUniverse,
     val limits: CompiledLimits,
@@ -305,17 +341,20 @@ data class CompiledHandleTable(
             ?: error("unknown compiled handle ${ref.kind.name}#${ref.id}")
 }
 
+/** Compiled authored flag and its valid state handles. */
 data class CompiledFlag(
     val id: CompiledHandleRef,
     val scope: FlagScope,
     val states: List<CompiledFlagState>,
 )
 
+/** One compiled state belonging to a [CompiledFlag]. */
 data class CompiledFlagState(
     val id: CompiledHandleRef,
     val nativeString: Int,
 )
 
+/** Compiled item catalog row used by shops, inventory, rewards, combat equipment, and save/load. */
 data class CompiledItemRecord(
     val id: CompiledHandleRef,
     val kind: ItemKind,
@@ -330,16 +369,19 @@ data class CompiledItemRecord(
     val resourceCapacityBonus: Map<Resource, Int>,
 )
 
+/** Named list of item handles used by random rewards and random item offers. */
 data class CompiledItemPool(
     val id: CompiledHandleRef,
     val items: List<CompiledHandleRef>,
 )
 
+/** Compiled integer formula referenced by rules such as rewards and battle calculations. */
 data class CompiledFormula(
     val id: CompiledHandleRef,
     val value: CompiledIntExpr,
 )
 
+/** Reward package applied after battles or scripts, including formulas and loot table. */
 data class CompiledRewardBundle(
     val id: CompiledHandleRef,
     val experience: CompiledHandleRef,
@@ -348,6 +390,7 @@ data class CompiledRewardBundle(
     val loot: CompiledLootTable,
 )
 
+/** Random loot-table policy for treasure and magic item drops. */
 data class CompiledLootTable(
     val id: CompiledHandleRef,
     val dropChancePercent: Int,
@@ -356,6 +399,12 @@ data class CompiledLootTable(
     val magic: CompiledHandleRef,
 )
 
+/**
+ * Terrain semantics for one map tile.
+ *
+ * [mapCode] is the authored character used in map resources. [allowsNpcPlacement] is precomputed so runtime NPC
+ * placement does not have to reinterpret settlement/passability rules.
+ */
 data class CompiledTerrain(
     val id: CompiledHandleRef,
     val mapCode: Char,
@@ -366,6 +415,7 @@ data class CompiledTerrain(
     val tags: List<CompiledHandleRef>,
 )
 
+/** Compiled world-map header and ordered map layers. */
 data class CompiledWorldMap(
     val id: CompiledHandleRef,
     val width: Int?,
@@ -374,11 +424,13 @@ data class CompiledWorldMap(
     val layers: List<CompiledWorldMapLayer>,
 )
 
+/** One compiled world-map layer whose rows are interned strings. */
 data class CompiledWorldMapLayer(
     val id: CompiledHandleRef,
     val rowStrings: List<Int>,
 )
 
+/** Visual asset referenced by runtime view commands and service screens. */
 data class CompiledImageAsset(
     val id: CompiledHandleRef,
     val kind: ImageAssetKind,
@@ -386,6 +438,7 @@ data class CompiledImageAsset(
     val placement: ImagePlacement,
 )
 
+/** Static full-screen resource such as title, help, score, or hall-of-heroes screens. */
 data class CompiledStaticScreen(
     val id: CompiledHandleRef,
     val image: CompiledHandleRef?,
@@ -394,6 +447,7 @@ data class CompiledStaticScreen(
     val runtimeReport: StaticScreenRuntimeReport?,
 )
 
+/** Named terminal/browser screen rectangle used by host renderers. */
 data class CompiledScreenRegion(
     val id: CompiledHandleRef,
     val x: Int,
@@ -402,6 +456,7 @@ data class CompiledScreenRegion(
     val height: Int?,
 )
 
+/** Compiled town record with map position, tax rule, kind, and service buildings. */
 data class CompiledTown(
     val id: CompiledHandleRef,
     val nameString: Int,
@@ -411,6 +466,7 @@ data class CompiledTown(
     val services: List<CompiledHandleRef>,
 )
 
+/** Town-service entry point that maps a building/action to a script and engine service requirements. */
 data class CompiledBuildingService(
     val building: CompiledHandleRef,
     val action: CompiledHandleRef,
@@ -420,6 +476,7 @@ data class CompiledBuildingService(
     val nativeServices: List<EngineServiceUse>,
 )
 
+/** Compiled NPC record, including display name, job, roles, and placement policy. */
 data class CompiledCharacter(
     val id: CompiledHandleRef,
     val nameString: Int,
@@ -429,6 +486,7 @@ data class CompiledCharacter(
     val roles: List<CompiledHandleRef>,
 )
 
+/** Placement strategy for an NPC at world creation or fixture loading. */
 sealed interface CompiledCharacterPlacement {
     data class Fixed(
         val position: CompiledWorldPosition,
@@ -445,10 +503,12 @@ sealed interface CompiledCharacterPlacement {
     data object Unplaced : CompiledCharacterPlacement
 }
 
+/** Weighted placement policy used when a runtime generates an NPC position. */
 data class CompiledRandomNpcPlacementPolicy(
     val options: List<CompiledRandomNpcPlacementOption>,
 )
 
+/** One weighted bucket inside [CompiledRandomNpcPlacementPolicy]. */
 sealed interface CompiledRandomNpcPlacementOption {
     val chanceShares: Int
 
@@ -466,6 +526,7 @@ sealed interface CompiledRandomNpcPlacementOption {
     ) : CompiledRandomNpcPlacementOption
 }
 
+/** Compiled monster stats and optional encounter-tier membership. */
 data class CompiledMonster(
     val id: CompiledHandleRef,
     val nameString: Int,
@@ -478,6 +539,7 @@ data class CompiledMonster(
     val immune: Boolean,
 )
 
+/** Mission trigger and action binding evaluated by runtime mission logic. */
 data class CompiledMission(
     val id: CompiledHandleRef,
     val trigger: CompiledTrigger,
@@ -485,6 +547,7 @@ data class CompiledMission(
     val action: CompiledHandleRef,
 )
 
+/** Spell metadata and script root executed when the spell is cast. */
 data class CompiledSpell(
     val id: CompiledHandleRef,
     val slot: Int,
@@ -493,6 +556,7 @@ data class CompiledSpell(
     val scriptRoot: CompiledHandleRef,
 )
 
+/** Item-use metadata and script root executed in combat or inventory contexts. */
 data class CompiledItemUse(
     val item: CompiledHandleRef,
     val contexts: Set<ItemUseContext>,
@@ -500,6 +564,7 @@ data class CompiledItemUse(
     val scriptRoot: CompiledHandleRef,
 )
 
+/** Dungeon event script plus clearing/random-encounter metadata. */
 data class CompiledDungeonEvent(
     val id: CompiledHandleRef,
     val disposition: DungeonEventDisposition,
@@ -508,6 +573,7 @@ data class CompiledDungeonEvent(
     val clearWhenFlag: CompiledHandleRef?,
 )
 
+/** Dungeon scenario definition: level range, fixed events, and weighted random event pool. */
 data class CompiledDungeonScenario(
     val dungeon: CompiledHandleRef,
     val nameString: Int?,
@@ -517,11 +583,13 @@ data class CompiledDungeonScenario(
     val randomEvents: List<CompiledDungeonRandomEvent>,
 )
 
+/** Weighted random event entry inside a dungeon scenario. */
 data class CompiledDungeonRandomEvent(
     val event: CompiledHandleRef,
     val weight: Int,
 )
 
+/** Runtime trigger expression for wilderness missions and events. */
 sealed interface CompiledTrigger {
     data class RandomStep(
         val percent: Int,
@@ -540,18 +608,21 @@ sealed interface CompiledTrigger {
     ) : CompiledTrigger
 }
 
+/** All compiled script roots addressable by runtime systems. */
 data class CompiledScriptBundle(
     val roots: List<CompiledScriptProgram>,
 ) {
     fun root(root: ScriptRootRef): CompiledScriptProgram? = roots.firstOrNull { it.root.sameRoot(root) }
 }
 
+/** One compiled script root and its instruction stream. */
 data class CompiledScriptProgram(
     val root: ScriptRootRef,
     val rootHandle: CompiledHandleRef,
     val instructions: List<CompiledInstruction>,
 )
 
+/** VM opcode set emitted from authored script AST operations. */
 enum class CompiledOpcode {
     Screen,
     Emit,
@@ -598,11 +669,13 @@ enum class CompiledOpcode {
     NativeCall,
 }
 
+/** One VM instruction: opcode plus typed operands validated by [CompiledOpcodeContract]. */
 data class CompiledInstruction(
     val opcode: CompiledOpcode,
     val operands: List<CompiledOperand> = emptyList(),
 )
 
+/** Typed operand payload used by [CompiledInstruction]. */
 sealed interface CompiledOperand {
     data class Integer(
         val value: Int,
@@ -693,22 +766,26 @@ sealed interface CompiledOperand {
     ) : CompiledOperand
 }
 
+/** One compiled switch arm; `null` [match] is the default branch. */
 data class CompiledSwitchCase(
     val match: Int?,
     val body: List<CompiledInstruction>,
 )
 
+/** One compiled menu binding and body executed when the binding is selected. */
 data class CompiledMenuOption(
     val binding: CompiledInputBinding,
     val body: List<CompiledInstruction>,
 )
 
+/** Compiled keyboard/input binding with primary input, aliases, and display label string ids. */
 data class CompiledInputBinding(
     val primaryString: Int,
     val aliasStrings: List<Int>,
     val labelString: Int,
 )
 
+/** Text-input answer matcher used by ask-text script instructions. */
 data class CompiledTextAnswer(
     val acceptedStrings: List<Int>,
     val matchOps: List<CompiledInstruction>,
@@ -718,6 +795,7 @@ data class CompiledTextAnswer(
     val maxLength: Int?,
 )
 
+/** Compiled text block, either a handle ref, inline literal lines, or structured dynamic lines. */
 sealed interface CompiledTextBlock {
     data class Ref(
         val text: CompiledHandleRef,
@@ -732,10 +810,12 @@ sealed interface CompiledTextBlock {
     ) : CompiledTextBlock
 }
 
+/** One structured line made of literal and dynamic text parts. */
 data class CompiledTextLine(
     val parts: List<CompiledTextPart>,
 )
 
+/** Dynamic part of a structured text line. */
 sealed interface CompiledTextPart {
     data class Literal(
         val string: Int,
@@ -791,6 +871,7 @@ sealed interface CompiledTextPart {
     ) : CompiledTextPart
 }
 
+/** Runtime-provided text placeholder values that cannot be resolved at compile time. */
 enum class CompiledRuntimeTextPart {
     OfferedItemName,
     OfferedItemPrice,
@@ -825,6 +906,7 @@ enum class CompiledRuntimeTextPart {
     BattleLevelsGained,
 }
 
+/** Screen/view command emitted from scripts and interpreted by runtime renderers. */
 sealed interface CompiledViewCommand {
     data object ClearText : CompiledViewCommand
 
@@ -839,6 +921,7 @@ sealed interface CompiledViewCommand {
     ) : CompiledViewCommand
 }
 
+/** Compiled integer expression tree evaluated by the script executor. */
 sealed interface CompiledIntExpr {
     data class Literal(
         val value: Int,
@@ -905,8 +988,10 @@ sealed interface CompiledIntExpr {
     ) : CompiledIntExpr
 }
 
+/** Arithmetic operator for [CompiledIntExpr.Binary]. */
 enum class CompiledBinaryOp { Add, Sub, Mul, Div, Mod }
 
+/** Compiled boolean expression tree evaluated by scripts and runtime conditions. */
 sealed interface CompiledBoolExpr {
     data class Cmp(
         val left: CompiledIntExpr,
@@ -956,8 +1041,10 @@ sealed interface CompiledBoolExpr {
     ) : CompiledBoolExpr
 }
 
+/** Integer comparison operator for [CompiledBoolExpr.Cmp]. */
 enum class CompiledComparisonOp { Eq, Ne, Lt, Lte, Gt, Gte }
 
+/** Compiled string expression, currently limited to engine-native string functions. */
 sealed interface CompiledStringExpr {
     data class NativeString(
         val pathString: Int,
@@ -965,6 +1052,7 @@ sealed interface CompiledStringExpr {
     ) : CompiledStringExpr
 }
 
+/** Argument supplied to a compiled native string expression. */
 sealed interface CompiledNativeStringArg {
     data class Literal(
         val string: Int,
@@ -975,6 +1063,7 @@ sealed interface CompiledNativeStringArg {
     ) : CompiledNativeStringArg
 }
 
+/** Assignable runtime location for script set/add/sub instructions. */
 sealed interface CompiledLValue {
     data class RealmScalar(
         val nameString: Int,
@@ -999,6 +1088,7 @@ sealed interface CompiledLValue {
     ) : CompiledLValue
 }
 
+/** Script-authored reward payload applied by `GrantReward`. */
 data class CompiledScriptReward(
     val gold: CompiledIntExpr?,
     val items: List<CompiledHandleRef>,
@@ -1006,11 +1096,13 @@ data class CompiledScriptReward(
     val messages: CompiledRewardMessages,
 )
 
+/** Optional reward messages shown when inventory placement needs player interaction. */
 data class CompiledRewardMessages(
     val cantCarry: CompiledTextBlock?,
     val pickedUp: CompiledTextBlock?,
 )
 
+/** Wilderness random item offer shown by scripts, with price, choice bindings, reward placement, and delays. */
 data class CompiledRandomItemOffer(
     val pool: CompiledHandleRef,
     val offer: CompiledTextBlock,
@@ -1026,6 +1118,7 @@ data class CompiledRandomItemOffer(
     val pauseMillis: CompiledOfferPauses,
 )
 
+/** Millisecond pauses used after random-offer outcomes to preserve original pacing. */
 data class CompiledOfferPauses(
     val broke: Int,
     val full: Int,
@@ -1033,6 +1126,7 @@ data class CompiledOfferPauses(
     val declined: Int,
 )
 
+/** Complete compiled shop/service screen definition for one town building. */
 data class CompiledShopService(
     val building: CompiledHandleRef,
     val image: CompiledHandleRef,
@@ -1046,12 +1140,14 @@ data class CompiledShopService(
     val interlude: CompiledShopInterlude?,
 )
 
+/** Top-level shop menu bindings. */
 data class CompiledShopMenuKeys(
     val buy: CompiledInputBinding,
     val sell: CompiledInputBinding,
     val leave: CompiledInputBinding,
 )
 
+/** Buy-mode configuration for a shop, including catalogs, payment prompts, and inventory placement. */
 data class CompiledShopBuy(
     val prompt: CompiledTextBlock,
     val catalogs: List<CompiledShopCatalog>,
@@ -1065,11 +1161,13 @@ data class CompiledShopBuy(
     val inventoryApplication: RewardApplicationModel,
 )
 
+/** Bindings used when confirming or declining a purchase. */
 data class CompiledShopPurchaseKeys(
     val pay: CompiledInputBinding,
     val decline: CompiledInputBinding,
 )
 
+/** One selectable buy catalog, such as weapons, armor, or general goods. */
 data class CompiledShopCatalog(
     val binding: CompiledInputBinding,
     val titleString: Int,
@@ -1090,6 +1188,7 @@ data class CompiledShopCatalogPageNavigation(
     val next: CompiledInputBinding? = null,
 )
 
+/** One purchasable row in a shop catalog page. */
 data class CompiledShopItemOffer(
     val binding: CompiledInputBinding,
     val item: CompiledHandleRef,
@@ -1099,6 +1198,7 @@ data class CompiledShopItemOffer(
     val purchase: CompiledShopPurchase,
 )
 
+/** Price policy for buying or selling an item/resource. */
 sealed interface CompiledShopPrice {
     data object ItemCost : CompiledShopPrice
 
@@ -1117,6 +1217,7 @@ sealed interface CompiledShopPrice {
     ) : CompiledShopPrice
 }
 
+/** Purchase effect applied after payment succeeds. */
 sealed interface CompiledShopPurchase {
     data object InventoryItem : CompiledShopPurchase
 
@@ -1129,6 +1230,7 @@ sealed interface CompiledShopPurchase {
     ) : CompiledShopPurchase
 }
 
+/** Sell-mode configuration for shops that buy party inventory items. */
 data class CompiledShopSell(
     val prompt: CompiledTextBlock,
     val acceptedKinds: Set<ItemKind>,
@@ -1143,12 +1245,20 @@ data class CompiledShopSell(
     val saleKeys: CompiledShopSaleKeys,
 )
 
+/** Bindings used when accepting, declining, or bargaining over a sale offer. */
 data class CompiledShopSaleKeys(
     val accept: CompiledInputBinding,
     val decline: CompiledInputBinding,
     val bargain: CompiledInputBinding,
 )
 
+/**
+ * Optional scripted interruption shown during a shop visit.
+ *
+ * Rylween uses this for service flavor such as gossip or special shopkeeper offers before returning to the normal shop
+ * flow. [chancePercent] controls how often it appears, [accepted] contains the lines shown after accepting, and
+ * [runsRumorAfterAccept] lets the runtime immediately follow the accepted text with a rumor-table draw.
+ */
 data class CompiledShopInterlude(
     val chancePercent: Int,
     val offer: CompiledTextBlock,
@@ -1160,6 +1270,7 @@ data class CompiledShopInterlude(
     val forceFirstUntil: CompiledHandleRef? = null,
 )
 
+/** Compiled authored fixture or runtime snapshot image. */
 data class CompiledStateImage(
     val state: CompiledHandleRef,
     val kind: StateKind,
@@ -1171,6 +1282,7 @@ data class CompiledStateImage(
     val mode: CompiledRuntimeModeImage?,
 )
 
+/** Realm-wide state shared by all parties in one game world. */
 data class CompiledRealmImage(
     val day: Int,
     val hour: Int,
@@ -1186,16 +1298,19 @@ data class CompiledRealmImage(
     val lastTerrain: CompiledHandleRef?,
 )
 
+/** Fixed authored placement for a named world location. */
 data class CompiledLocationPlacement(
     val location: CompiledHandleRef,
     val point: GridPoint,
 )
 
+/** Saved or fixture placement for one NPC. */
 data class CompiledNpcPlacement(
     val npc: CompiledHandleRef,
     val position: CompiledWorldPosition,
 )
 
+/** Compiled world position, either wilderness coordinates or a town building/service. */
 sealed interface CompiledWorldPosition {
     data class Wilderness(
         val point: GridPoint,
@@ -1207,6 +1322,7 @@ sealed interface CompiledWorldPosition {
     ) : CompiledWorldPosition
 }
 
+/** Complete saved/fixture party state inside a compiled state image. */
 data class CompiledPartyImage(
     val id: CompiledHandleRef,
     val playerString: Int,
@@ -1223,6 +1339,7 @@ data class CompiledPartyImage(
     val journal: List<CompiledJournalEntry>,
 )
 
+/** Mutable counters persisted for a party. */
 data class CompiledPartyCounters(
     val memberCount: Int?,
     val kills: Int,
@@ -1231,21 +1348,25 @@ data class CompiledPartyCounters(
     val attackedToday: List<CompiledPartyAttackRecord>,
 )
 
+/** Per-party attack-today record used by player-vs-player attack limits. */
 data class CompiledPartyAttackRecord(
     val party: CompiledHandleRef,
     val attacked: Boolean,
 )
 
+/** One saved inventory slot; empty slots have `null` [item]. */
 data class CompiledInventorySlot(
     val slot: Int,
     val item: CompiledHandleRef?,
 )
 
+/** Per-party NPC visit bit. */
 data class CompiledNpcVisit(
     val npc: CompiledHandleRef,
     val visited: Boolean,
 )
 
+/** Journal entry stored in a party state image. */
 sealed interface CompiledJournalEntry {
     data class Text(
         val text: CompiledHandleRef,
@@ -1256,6 +1377,7 @@ sealed interface CompiledJournalEntry {
     ) : CompiledJournalEntry
 }
 
+/** Saved/fixture party-member stats, equipment, experience, and death state. */
 data class CompiledPartyMember(
     val nameString: Int,
     val gender: Gender,
@@ -1273,11 +1395,13 @@ data class CompiledPartyMember(
     val dead: Boolean,
 )
 
+/** Equipped weapon and armor item refs. */
 data class CompiledEquipment(
     val weapon: CompiledHandleRef,
     val armor: CompiledHandleRef,
 )
 
+/** Extra mode-specific runtime state needed when saving inside a sub-runtime. */
 sealed interface CompiledRuntimeModeImage {
     data class Castle(
         val session: CastleSessionSnapshot,
@@ -1289,6 +1413,7 @@ sealed interface CompiledRuntimeModeImage {
     ) : CompiledRuntimeModeImage
 }
 
+/** Saved dungeon session state for restoring inside a dungeon. */
 data class CompiledDungeonSessionImage(
     val dungeon: CompiledHandleRef,
     val maxDepth: Int,
@@ -1297,13 +1422,43 @@ data class CompiledDungeonSessionImage(
     val step: DungeonSavedStep,
 )
 
+/** Continuation run after a dungeon mission completes and returns to script flow. */
 data class CompiledMissionPostDungeonImage(
     val mission: CompiledHandleRef,
     val scene: CompiledHandleRef,
     val continuation: ScriptContinuationSnapshot,
 )
 
+/**
+ * Lowers an authored [RylweenModel] into the compiled J1 bundle consumed by runtime hosts and artifact writers.
+ *
+ * @return compiled content tables and compiled start/save state images.
+ */
 fun RylweenModel.toCompiledGameBundle(): CompiledGameBundle = CompiledBundleCompiler(content, states).compile()
+
+private data class CompiledContentSections(
+    val universe: CompiledUniverse,
+    val limits: CompiledLimits,
+    val flags: List<CompiledFlag>,
+    val items: List<CompiledItemRecord>,
+    val itemPools: List<CompiledItemPool>,
+    val formulas: List<CompiledFormula>,
+    val rewards: List<CompiledRewardBundle>,
+    val terrain: List<CompiledTerrain>,
+    val worldMaps: List<CompiledWorldMap>,
+    val images: List<CompiledImageAsset>,
+    val staticScreens: List<CompiledStaticScreen>,
+    val screenRegions: List<CompiledScreenRegion>,
+    val towns: List<CompiledTown>,
+    val buildingServices: List<CompiledBuildingService>,
+    val characters: List<CompiledCharacter>,
+    val monsters: List<CompiledMonster>,
+    val missions: List<CompiledMission>,
+    val spells: List<CompiledSpell>,
+    val itemUses: List<CompiledItemUse>,
+    val dungeonEvents: List<CompiledDungeonEvent>,
+    val dungeonScenarios: List<CompiledDungeonScenario>,
+)
 
 private class CompiledBundleCompiler(
     private val game: GameModel,
@@ -1312,66 +1467,48 @@ private class CompiledBundleCompiler(
     private val strings = MutableStringInterner()
     private val handles = MutableHandleTable(strings)
 
+    /**
+     * Compiles the complete authored game into a runtime-ready bundle.
+     *
+     * The compile order is intentional:
+     * 1. Declare content and state handles first so every later reference can resolve to a stable [CompiledHandleRef].
+     * 2. Compile scripts before freezing the string table, because script operands intern text, variable names, and handles.
+     * 3. Compile typed content sections from [game], again interning strings as each row is lowered.
+     * 4. Compile authored fixtures/runtime snapshots from [states].
+     * 5. Freeze [strings] and [handles] into immutable tables and return the final [CompiledGameBundle].
+     *
+     * @return immutable compiled content plus compiled state images.
+     */
     fun compile(): CompiledGameBundle {
-        declareContentHandles()
-        declareStateHandles()
-        val scripts = compileScripts()
-        val universe = compileUniverse(game.metadata.universe)
-        val limits =
-            CompiledLimits(
-                maxWorldMaps = game.limits.maxWorldMaps,
-                maxMapCells = game.limits.maxMapCells,
-                screenSize = game.limits.screenSize,
-            )
-        val flags = game.authoredFlags.map(::compileFlag)
-        val items = game.itemCatalog.map(::compileItem)
-        val itemPools = game.itemPools.map(::compileItemPool)
-        val formulas = game.formulas.map(::compileFormula)
-        val rewards = game.rewards.map(::compileRewardBundle)
-        val terrain = game.terrain.terrain.map(::compileTerrain)
-        val worldMaps = game.worldMaps.map(::compileWorldMap)
-        val images = game.visuals.images.map(::compileImage)
-        val staticScreens = game.visuals.staticScreens.map(::compileStaticScreen)
-        val screenRegions = game.layouts.regions.map(::compileRegion)
-        val towns = game.towns.map(::compileTown)
-        val buildingServices =
-            game.townSystem
-                ?.buildingServices
-                .orEmpty()
-                .map(::compileBuildingService)
-        val characters = game.characters.map(::compileCharacter)
-        val monsters = game.monsters.map(::compileMonster)
-        val missions = game.missions.map(::compileMission)
-        val spells = game.spells.map(::compileSpell)
-        val itemUses = game.itemUses.map(::compileItemUse)
-        val dungeonEvents = game.dungeons.events.map(::compileDungeonEvent)
-        val dungeonScenarios = game.dungeons.scenarios.map(::compileDungeonScenario)
-        val stateImages = states.map { state -> compileState(RuntimeSnapshotModel(state)) }
+        declareHandles()
+        val scripts = compileScriptBundle()
+        val sections = compileContentSections()
+        val stateImages = compileList(states) { state -> compileState(RuntimeSnapshotModel(state)) }
         val content =
             CompiledContentBundle(
-                universe = universe,
-                limits = limits,
+                universe = sections.universe,
+                limits = sections.limits,
                 strings = strings.toTable(),
                 handles = handles.toTable(),
-                flags = flags,
-                items = items,
-                itemPools = itemPools,
-                formulas = formulas,
-                rewards = rewards,
-                terrain = terrain,
-                worldMaps = worldMaps,
-                images = images,
-                staticScreens = staticScreens,
-                screenRegions = screenRegions,
-                towns = towns,
-                buildingServices = buildingServices,
-                characters = characters,
-                monsters = monsters,
-                missions = missions,
-                spells = spells,
-                itemUses = itemUses,
-                dungeonEvents = dungeonEvents,
-                dungeonScenarios = dungeonScenarios,
+                flags = sections.flags,
+                items = sections.items,
+                itemPools = sections.itemPools,
+                formulas = sections.formulas,
+                rewards = sections.rewards,
+                terrain = sections.terrain,
+                worldMaps = sections.worldMaps,
+                images = sections.images,
+                staticScreens = sections.staticScreens,
+                screenRegions = sections.screenRegions,
+                towns = sections.towns,
+                buildingServices = sections.buildingServices,
+                characters = sections.characters,
+                monsters = sections.monsters,
+                missions = sections.missions,
+                spells = sections.spells,
+                itemUses = sections.itemUses,
+                dungeonEvents = sections.dungeonEvents,
+                dungeonScenarios = sections.dungeonScenarios,
                 scripts = scripts,
             )
         return CompiledGameBundle(
@@ -1379,6 +1516,54 @@ private class CompiledBundleCompiler(
             states = stateImages,
         )
     }
+
+    private fun declareHandles() {
+        declareContentHandles()
+        declareStateHandles()
+    }
+
+    private fun compileScriptBundle(): CompiledScriptBundle = compileScripts()
+
+    private fun compileContentSections(): CompiledContentSections =
+        CompiledContentSections(
+            universe = compileUniverse(game.metadata.universe),
+            limits = compileLimits(),
+            flags = compileList(game.authoredFlags, ::compileFlag),
+            items = compileList(game.itemCatalog, ::compileItem),
+            itemPools = compileList(game.itemPools, ::compileItemPool),
+            formulas = compileList(game.formulas, ::compileFormula),
+            rewards = compileList(game.rewards, ::compileRewardBundle),
+            terrain = compileList(game.terrain.terrain, ::compileTerrain),
+            worldMaps = compileList(game.worldMaps, ::compileWorldMap),
+            images = compileList(game.visuals.images, ::compileImage),
+            staticScreens = compileList(game.visuals.staticScreens, ::compileStaticScreen),
+            screenRegions = compileList(game.layouts.regions, ::compileRegion),
+            towns = compileList(game.towns, ::compileTown),
+            buildingServices =
+                compileList(
+                    game.townSystem?.buildingServices.orEmpty(),
+                    ::compileBuildingService,
+                ),
+            characters = compileList(game.characters, ::compileCharacter),
+            monsters = compileList(game.monsters, ::compileMonster),
+            missions = compileList(game.missions, ::compileMission),
+            spells = compileList(game.spells, ::compileSpell),
+            itemUses = compileList(game.itemUses, ::compileItemUse),
+            dungeonEvents = compileList(game.dungeons.events, ::compileDungeonEvent),
+            dungeonScenarios = compileList(game.dungeons.scenarios, ::compileDungeonScenario),
+        )
+
+    private fun compileLimits(): CompiledLimits =
+        CompiledLimits(
+            maxWorldMaps = game.limits.maxWorldMaps,
+            maxMapCells = game.limits.maxMapCells,
+            screenSize = game.limits.screenSize,
+        )
+
+    private fun <Source, Target> compileList(
+        source: List<Source>,
+        compile: (Source) -> Target,
+    ): List<Target> = source.map(compile)
 
     private fun compileUniverse(universe: GameUniverseModel): CompiledUniverse =
         CompiledUniverse(
@@ -2669,6 +2854,13 @@ private fun flagStateSlug(state: FlagState): String = "${state.flag.slug}.${stat
 
 private fun scriptRootSlug(root: ScriptRootRef): String = "${root.kind.name.lowercase()}.${root.slug}"
 
+/**
+ * Mutable string-id allocator used only while compiling a bundle.
+ *
+ * Compiled rows store one-based string ids instead of repeated Kotlin strings. The compiler discovers strings while it
+ * walks metadata, content rows, script operands, and state snapshots, so allocation has to be append-only during the
+ * compile pass. [toTable] freezes the accumulated values into the immutable [CompiledStringTable] stored in the bundle.
+ */
 private class MutableStringInterner(
     initial: List<String> = emptyList(),
 ) {
@@ -2688,6 +2880,14 @@ private class MutableStringInterner(
     fun toTable(): CompiledStringTable = CompiledStringTable(values.toList())
 }
 
+/**
+ * Mutable typed-handle allocator used only while compiling a bundle.
+ *
+ * Handles are declared before most content is lowered, but late script/state traversal can still introduce references
+ * that must resolve to the same compact ids. The mutable table interns `(kind, slug)` pairs, assigns ids per
+ * [CompiledHandleKind], and keeps a dense global order for artifact serialization. [toTable] freezes the final rows into
+ * [CompiledHandleTable], which is immutable and safe for runtime/loading code.
+ */
 private class MutableHandleTable(
     private val strings: MutableStringInterner,
 ) {

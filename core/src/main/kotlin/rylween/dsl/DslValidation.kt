@@ -8,6 +8,8 @@
  */
 package rylween.dsl
 
+import rylween.dsl.impl.*
+
 /** One author-facing validation failure with a stable dotted content path. */
 data class ValidationDiagnostic(
     val path: String,

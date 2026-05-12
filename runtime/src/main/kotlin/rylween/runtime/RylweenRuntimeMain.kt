@@ -53,16 +53,16 @@ import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
-import rylween.dsl.CharacterCreationStat
-import rylween.dsl.Facing
-import rylween.dsl.Gender
-import rylween.dsl.GridPoint
-import rylween.dsl.PartyResources
-import rylween.dsl.PcClass
-import rylween.dsl.Race
-import rylween.dsl.Resource
-import rylween.dsl.RuntimeMode
-import rylween.dsl.StatPool
+import rylween.dsl.impl.CharacterCreationStat
+import rylween.dsl.impl.Facing
+import rylween.dsl.impl.Gender
+import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.PartyResources
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.Race
+import rylween.dsl.impl.Resource
+import rylween.dsl.impl.RuntimeMode
+import rylween.dsl.impl.StatPool
 import rylween.terminal.AnsiTerminal
 import rylween.terminal.AnsiTerminals
 import java.io.File
@@ -1968,9 +1968,7 @@ internal class CompiledTextRenderContext(
 internal fun CompiledTextBlock.renderTextLines(content: CompiledContentBundle): List<String> =
     renderTextLines(CompiledTextRenderContext(content))
 
-internal fun CompiledTextBlock.renderTextLines(
-    context: CompiledTextRenderContext,
-): List<String> =
+internal fun CompiledTextBlock.renderTextLines(context: CompiledTextRenderContext): List<String> =
     when (this) {
         is CompiledTextBlock.Ref -> listOf("[text:${context.content.slug(text)}]")
         is CompiledTextBlock.Inline -> lineStrings.map(context.content.strings::value)

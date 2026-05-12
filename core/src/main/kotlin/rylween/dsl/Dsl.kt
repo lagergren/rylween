@@ -12,11 +12,13 @@
  * 1. Kotlin is the source format.
  * 2. Scripts record a real AST instead of being Unit-shaped notes.
  * 3. Flags, monsters, items, scenes, text ids, NPC roles, and spells are typed handles.
- * 4. Engine-native calls are explicit under `native.*`.
+ * 4. Engine-native calls stay behind typed DSL verbs or explicit allowlist specs.
  * 5. Game-specific declarations should read like game data, not Kotlin programming.
  */
 
 package rylween.dsl
+
+import rylween.dsl.impl.*
 
 // =============================================================================
 // 05. DSL kernel: builders and validation
@@ -63,7 +65,6 @@ class ScriptScope(
     val ask: AskScope = AskScope(this)
     val choice: ChoiceScope = ChoiceScope(this)
     val view: ViewScope = ViewScope(this)
-    val native: NativeScope = NativeScope(this)
 
     val currentCaster: MemberRef
         get() = party.member(v("caster_idx"))
@@ -106,11 +107,6 @@ class ScriptScope(
 
     fun emit(id: TextId): Unit = record(Op.Emit(id))
 
-    fun emitIndexed(
-        pattern: TextPattern,
-        value: IntExpr,
-    ): Unit = record(Op.EmitIndexed(pattern, value.ast))
-
     fun journal(text: TextBlock): Unit = record(Op.AppendJournal(text))
 
     fun journal(vararg lines: String): Unit = journal(textLines(*lines))
@@ -128,8 +124,6 @@ class ScriptScope(
     fun renderMap(): Unit = view.renderMap()
 
     fun showBackdrop(image: ImageId): Unit = view.showBackdrop(image)
-
-    fun showImage(image: ImageId): Unit = view.showImage(image)
 
     fun statusLine(): Unit = view.statusLine()
 
@@ -177,13 +171,6 @@ class ScriptScope(
     }
 
     operator fun LocalIntRef.minusAssign(value: Int): Unit = minusAssign(lit(value))
-
-    fun bind(
-        name: String,
-        value: StrExpr,
-    ) {
-        record(Op.BindText(name, value.ast))
-    }
 
     fun mark(state: FlagState) {
         record(Op.SetFlag(state.flag.slug, state.native))
@@ -418,8 +405,6 @@ class ScriptScope(
 
     fun consumeActiveItem(): Unit = record(Op.ConsumeActiveItem)
 
-    fun consumeTorch(): Unit = record(Op.ConsumeTorch)
-
     fun reward(body: ScriptRewardBuilder.() -> Unit) {
         record(Op.GrantReward(ScriptRewardBuilder().apply(body).build()))
     }
@@ -535,20 +520,10 @@ class RandomItemOfferBuilder(
     private var declineBinding: InputBindingModel = inputKey('N')
     private var priceOverrideModel: Int? = null
 
-    var buyKey: Char
-        get() = buyBinding.primaryChar
-        set(value) {
-            buyBinding = inputKey(value)
-        }
-    var declineKey: Char
-        get() = declineBinding.primaryChar
-        set(value) {
-            declineBinding = inputKey(value)
-        }
-    var brokePauseMillis: Int = 800
-    var fullPauseMillis: Int = 1000
-    var dealPauseMillis: Int = 800
-    var declinedPauseMillis: Int = 1000
+    private var brokePauseMillis: Int = 800
+    private var fullPauseMillis: Int = 1000
+    private var dealPauseMillis: Int = 800
+    private var declinedPauseMillis: Int = 1000
 
     fun offer(vararg lines: String) {
         offerText = inlineText(*lines)
@@ -948,63 +923,11 @@ class ViewScope(
 
     fun renderMap(): Unit = script.record(Op.View(ViewCommand.RenderMap))
 
-    fun redrawMap(): Unit = renderMap()
-
     fun showBackdrop(image: ImageId): Unit = showImage(image)
 
-    fun showImage(image: ImageId): Unit = script.record(Op.View(ViewCommand.ShowImage(image)))
+    private fun showImage(image: ImageId): Unit = script.record(Op.View(ViewCommand.ShowImage(image)))
 
     fun statusLine(): Unit = script.record(Op.View(ViewCommand.StatusLine))
-}
-
-class NativeScope(
-    private val script: ScriptScope,
-) {
-    // Native is deliberately narrow: rendering, keyboard input, inventory slot
-    // plumbing, and helper calls whose implementation is genuinely engine-owned.
-    // Game rules should become typed DSL verbs before they are allowed here.
-    val screen: NativeScreen = NativeScreen(script)
-    val inventory: NativeInventory = NativeInventory(script)
-    val town: NativeTown = NativeTown(script)
-    val input: NativeInput = NativeInput(script)
-}
-
-class NativeScreen(
-    private val script: ScriptScope,
-) {
-    @Deprecated("Use view.clearText() or clearText(); rendering is no longer a native string request.")
-    fun clearText(): Unit = script.record(Op.View(ViewCommand.ClearText))
-
-    @Deprecated("Use view.clearMapWindow() or clearMapWindow(); rendering is no longer a native string request.")
-    fun clearMapWindow(): Unit = script.record(Op.View(ViewCommand.ClearMapWindow))
-
-    @Deprecated("Use view.renderMap() or renderMap(); rendering is no longer a native string request.")
-    fun redrawMap(): Unit = script.record(Op.View(ViewCommand.RenderMap))
-
-    @Deprecated("Use view.showBackdrop(...) or showBackdrop(...); rendering is no longer a native string request.")
-    fun showImage(image: ImageId): Unit = script.record(Op.View(ViewCommand.ShowImage(image)))
-
-    @Deprecated("Use view.statusLine() or statusLine(); rendering is no longer a native string request.")
-    fun statusLine(): Unit = script.record(Op.View(ViewCommand.StatusLine))
-}
-
-class NativeInventory(
-    private val script: ScriptScope,
-) {
-    fun add(itemId: IntExpr): Unit = script.record(Op.NativeCall(NativeAllowlist.inventoryAdd.path, listOf(render(itemId))))
-}
-
-class NativeTown(
-    private val script: ScriptScope,
-) {
-    fun enterService(building: BuildingId): Unit =
-        script.record(Op.NativeCall(NativeAllowlist.townEnterService.path, listOf(render(building))))
-}
-
-class NativeInput(
-    private val script: ScriptScope,
-) {
-    fun keyUpper(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.inputKeyUpper.path, emptyList()))
 }
 
 internal fun recordScript(body: ScriptScope.() -> Unit): List<Op> = recordScript(ScriptContext(), body)
@@ -1551,36 +1474,31 @@ class TerrainSemanticsBuilder(
     private val mapCode: Char,
 ) {
     var passable: Boolean = true
-    var movementCost: Int = 1
-    var allowsNpcPlacement: Boolean? = null
+    private var movementCostModel: Int = 1
+    private var allowsNpcPlacementModel: Boolean? = null
     private var settlementModel: TerrainSettlement? = null
-    private val tagModels = mutableSetOf<TerrainTagId>()
 
     fun blocksMovement() {
         passable = false
-        movementCost = 0
-        allowsNpcPlacement = false
+        movementCostModel = 0
+        allowsNpcPlacementModel = false
     }
 
     fun settlement(kind: TerrainSettlement) {
         settlementModel = kind
-        allowsNpcPlacement = false
-    }
-
-    fun tags(vararg tags: TerrainTagId) {
-        tagModels += tags
+        allowsNpcPlacementModel = false
     }
 
     fun build(): TerrainSemanticsModel {
-        val placement = allowsNpcPlacement ?: (passable && settlementModel == null)
+        val placement = allowsNpcPlacementModel ?: (passable && settlementModel == null)
         return TerrainSemanticsModel(
             id = id,
             mapCode = mapCode,
             passable = passable,
-            movementCost = movementCost,
+            movementCost = movementCostModel,
             allowsNpcPlacement = placement,
             settlement = settlementModel,
-            tags = tagModels.toSet(),
+            tags = emptySet(),
         )
     }
 }
@@ -2074,20 +1992,6 @@ class ImageAssetsBuilder {
             )
     }
 
-    fun bitmap(
-        id: ImageId,
-        resource: String,
-        placement: ImagePlacement,
-    ) {
-        images +=
-            ImageAssetModel(
-                id = id,
-                kind = ImageAssetKind.Bitmap,
-                resource = resource,
-                placement = placement,
-            )
-    }
-
     fun build(): List<ImageAssetModel> = images.toList()
 }
 
@@ -2171,7 +2075,7 @@ class GamePromptsBuilder(
     initial: GamePromptsModel = GamePromptsModel(),
 ) {
     private var pauseVerbList = initial.pauseVerbs
-    var returnKeyName: String = initial.returnKeyName
+    private var returnKeyName: String = initial.returnKeyName
     private var priest = initial.priest
     private var inventoryUse = initial.inventoryUse
     private var equipment = initial.equipment
@@ -2616,8 +2520,8 @@ class WildernessKeysBuilder(
     var castSpell: InputBindingModel = initial.castSpell
     var quaff: InputBindingModel = initial.quaff
     var quit: InputBindingModel = initial.quit
-    var debugForceCave: InputBindingModel = initial.debugForceCave
-    var debugForceEncounter: InputBindingModel = initial.debugForceEncounter
+    private var debugForceCave: InputBindingModel = initial.debugForceCave
+    private var debugForceEncounter: InputBindingModel = initial.debugForceEncounter
     private var caveEnterKey = initial.caveEnter
     private var caveLeaveKey = initial.caveLeave
     private var outOfMovesSaveKey = initial.outOfMovesSave
@@ -2627,7 +2531,7 @@ class WildernessKeysBuilder(
     private var commandHintText = initial.commandHint
     private var helpPageText = initial.helpPages
 
-    fun movement(
+    private fun movement(
         north: InputBindingModel = moveNorthKey,
         south: InputBindingModel = moveSouthKey,
         west: InputBindingModel = moveWestKey,
@@ -2637,15 +2541,6 @@ class WildernessKeysBuilder(
         moveSouthKey = south
         moveWestKey = west
         moveEastKey = east
-    }
-
-    fun movement(
-        north: Char,
-        south: Char,
-        west: Char,
-        east: Char,
-    ) {
-        movement(inputKey(north), inputKey(south), inputKey(west), inputKey(east))
     }
 
     fun numberPadMovementWithArrows() {
@@ -2872,11 +2767,6 @@ class DungeonEventBuilder(
         clearWhenFlag = flag
     }
 
-    fun clearsAfterRun() {
-        disposition = DungeonEventDisposition.ClearAfterRun
-        clearWhenFlag = null
-    }
-
     fun randomEncounter(tier: EncounterTier) {
         randomEncounterTier = tier
     }
@@ -2910,10 +2800,6 @@ class DungeonScenarioBuilder(
 
     fun levels(count: Int) {
         levelRange = count..count
-    }
-
-    fun randomLevels(range: IntRange) {
-        levelRange = range
     }
 
     fun level(
@@ -3333,8 +3219,8 @@ class BuildingServiceCatalogBuilder {
 @RylNextDsl
 class BuildingServiceBuilder(
     private val building: BuildingId,
-    private val defaultAction: KeyActionId,
-    private val defaultScene: SceneId,
+    defaultAction: KeyActionId,
+    defaultScene: SceneId,
 ) {
     var action: KeyActionId = defaultAction
     var scene: SceneId = defaultScene
@@ -3365,7 +3251,6 @@ class BuildingServiceBuilder(
 class CharacterCatalogBuilder {
     private val characters = mutableListOf<CharacterModel>()
     private var randomPlacementPolicy = RandomNpcPlacementPolicyModel()
-    private var randomWildernessPolicy = RandomNpcPlacementPolicyModel()
 
     /**
      * Defines the default generated placement policy for later `randomPlacement()` NPCs.
@@ -3375,16 +3260,6 @@ class CharacterCatalogBuilder {
      */
     fun randomPlacementPolicy(body: RandomNpcPlacementPolicyBuilder.() -> Unit) {
         randomPlacementPolicy = RandomNpcPlacementPolicyBuilder().apply(body).build()
-    }
-
-    /**
-     * Defines the default generated placement policy for later `randomWilderness()` NPCs.
-     *
-     * @param body wilderness placement choices shared by NPCs that do not
-     * override their own wilderness-only random policy.
-     */
-    fun randomWildernessPolicy(body: RandomNpcPlacementPolicyBuilder.() -> Unit) {
-        randomWildernessPolicy = RandomNpcPlacementPolicyBuilder().apply(body).build()
     }
 
     /**
@@ -3398,7 +3273,7 @@ class CharacterCatalogBuilder {
         id: NpcId,
         body: CharacterBuilder.() -> Unit,
     ) {
-        characters += CharacterBuilder(id, randomPlacementPolicy, randomWildernessPolicy).apply(body).build()
+        characters += CharacterBuilder(id, randomPlacementPolicy).apply(body).build()
     }
 
     /**
@@ -3416,7 +3291,7 @@ class CharacterCatalogBuilder {
         body: CharacterBuilder.() -> Unit = {},
     ) {
         characters +=
-            CharacterBuilder(id, randomPlacementPolicy, randomWildernessPolicy)
+            CharacterBuilder(id, randomPlacementPolicy)
                 .apply {
                     this.name = name
                     this.job = job
@@ -3427,7 +3302,7 @@ class CharacterCatalogBuilder {
     fun build(): List<CharacterModel> = characters.toList()
 }
 
-/** Collects the chance-share choices used by `randomPlacement` and `randomWilderness`. */
+/** Collects the chance-share choices used by `randomPlacement`. */
 @RylNextDsl
 class RandomNpcPlacementPolicyBuilder {
     private val options = mutableListOf<RandomNpcPlacementOptionModel>()
@@ -3512,13 +3387,11 @@ class RandomWildernessPlacementBuilder {
  *
  * @param id stable authored NPC id.
  * @param randomPlacementPolicy current catalog-level default for `randomPlacement()`.
- * @param randomWildernessPolicy current catalog-level default for `randomWilderness()`.
  */
 @RylNextDsl
 class CharacterBuilder(
     private val id: NpcId,
     private val randomPlacementPolicy: RandomNpcPlacementPolicyModel,
-    private val randomWildernessPolicy: RandomNpcPlacementPolicyModel,
 ) {
     /** Display name used in text, save/log output, and NPC menus. */
     var name: String = ""
@@ -3584,20 +3457,6 @@ class CharacterBuilder(
      */
     fun randomPlacement(body: RandomNpcPlacementPolicyBuilder.() -> Unit) {
         placementModel = CharacterPlacementModel.Randomized(RandomNpcPlacementPolicyBuilder().apply(body).build())
-    }
-
-    /** Uses the catalog-level default wilderness generated placement policy for this NPC. */
-    fun randomWilderness() {
-        placementModel = CharacterPlacementModel.RandomizedWilderness(randomWildernessPolicy)
-    }
-
-    /**
-     * Uses an NPC-specific wilderness generated placement policy.
-     *
-     * @param body wilderness placement choices used only by this NPC.
-     */
-    fun randomWilderness(body: RandomNpcPlacementPolicyBuilder.() -> Unit) {
-        placementModel = CharacterPlacementModel.RandomizedWilderness(RandomNpcPlacementPolicyBuilder().apply(body).build())
     }
 
     /** Keeps this NPC record out of the playable world. */
@@ -4044,8 +3903,6 @@ class ItemUseBuilder(
     fun combat(): Unit = usableIn(ItemUseContext.Combat)
 
     fun inventory(): Unit = usableIn(ItemUseContext.Inventory)
-
-    fun combatAndInventory(): Unit = usableIn(ItemUseContext.Combat, ItemUseContext.Inventory)
 
     fun effect(body: ScriptScope.() -> Unit) {
         ops = recordScript(body)

@@ -11,8 +11,8 @@ import rylween.dsl.DialogueBranchModel
 import rylween.dsl.DungeonEventId
 import rylween.dsl.ItemId
 import rylween.dsl.NpcId
-import rylween.dsl.QuestionActionScriptModel
-import rylween.dsl.RuntimeContent
+import rylween.dsl.impl.QuestionActionScriptModel
+import rylween.dsl.impl.RuntimeContent
 import rylween.dsl.SceneId
 import rylween.dsl.SpellId
 

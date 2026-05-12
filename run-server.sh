@@ -12,6 +12,9 @@ CONTAINER_PORT="${RYLWEEN_CONTAINER_PORT:-${RYLWEEN_PORT:-8080}}"
 HOST_PORT="${RYLWEEN_HOST_PORT:-$CONTAINER_PORT}"
 PUBLISH_HOST="${RYLWEEN_PUBLISH_HOST:-127.0.0.1}"
 BUILD_IMAGE="${RYLWEEN_BUILD:-false}"
+RUN_NAME="${RYLWEEN_NAME:-}"
+CONTAINER_SAVE_FILE="${RYLWEEN_SAVE_FILE:-$CONTAINER_DATA_DIR/saves/world.rsave}"
+HOST_SAVE_FILE=""
 
 log() {
   printf '[rylween-server] %s\n' "$*"
@@ -19,11 +22,12 @@ log() {
 
 usage() {
   cat <<'EOF'
-Usage: ./run-server.sh [--build]
+Usage: ./run-server.sh [--build] [--name NAME]
 
 Environment:
   RYLWEEN_IMAGE              Docker image tag. Default: rylween:latest
   RYLWEEN_BUILD              Build image before running when set to true.
+  RYLWEEN_NAME               Optional named local save to seed before running. Example: Strong
   RYLWEEN_CONTAINER_NAME     Docker container name. Default: rylween-web
   RYLWEEN_HOST_DATA_DIR      Host data directory. Default: ~/.rylween/data
   RYLWEEN_HOST_PORT          Host port to publish. Default: container port
@@ -36,10 +40,23 @@ Environment:
 EOF
 }
 
-for arg in "$@"; do
+while [[ $# -gt 0 ]]; do
+  arg="$1"
+  shift
   case "$arg" in
     --build)
       BUILD_IMAGE=true
+      ;;
+    --name)
+      if [[ $# -eq 0 ]]; then
+        echo "--name requires a value" >&2
+        exit 2
+      fi
+      RUN_NAME="$1"
+      shift
+      ;;
+    --name=*)
+      RUN_NAME="${arg#--name=}"
       ;;
     --help|-h)
       usage
@@ -53,12 +70,34 @@ for arg in "$@"; do
   esac
 done
 
-mkdir -p "$HOST_DATA_DIR"
+case "$CONTAINER_SAVE_FILE" in
+  "$CONTAINER_DATA_DIR"/*)
+    HOST_SAVE_FILE="$HOST_DATA_DIR/${CONTAINER_SAVE_FILE#"$CONTAINER_DATA_DIR/"}"
+    ;;
+esac
+
+mkdir -p "$HOST_DATA_DIR/saves" "$HOST_DATA_DIR/logs"
 
 if [[ "$BUILD_IMAGE" == true ]]; then
   log "building image: $IMAGE"
   log "build context: $ROOT_DIR"
   docker build -t "$IMAGE" "$ROOT_DIR"
+fi
+
+if [[ -n "$RUN_NAME" ]]; then
+  if [[ -z "$HOST_SAVE_FILE" ]]; then
+    echo "Cannot seed --name $RUN_NAME because RYLWEEN_SAVE_FILE is outside $CONTAINER_DATA_DIR." >&2
+    exit 2
+  fi
+  seed_console="$HOST_DATA_DIR/logs/runtime/seed-${RUN_NAME}.console.log"
+  mkdir -p "$(dirname "$seed_console")"
+  log "seeding named save: $RUN_NAME"
+  log "seed host save: $HOST_SAVE_FILE"
+  log "seed console log: $seed_console"
+  RYLWEEN_DATA_DIR="$HOST_DATA_DIR" \
+    RYLWEEN_SAVE_FILE="$HOST_SAVE_FILE" \
+    RYLWEEN_LOG_FILE="$HOST_DATA_DIR/logs/runtime/latest.log" \
+    "$ROOT_DIR/run.sh" --build --name "$RUN_NAME" --script X >"$seed_console" 2>&1
 fi
 
 env_args=(
@@ -90,7 +129,14 @@ log "volume: $HOST_DATA_DIR:$CONTAINER_DATA_DIR"
 log "publish: $PUBLISH_HOST:$HOST_PORT -> $CONTAINER_PORT"
 log "container bind host: $CONTAINER_HOST"
 log "container data subdirs: $CONTAINER_DATA_DIR/saves and $CONTAINER_DATA_DIR/logs"
-log "default shared world save: $CONTAINER_DATA_DIR/saves/world.rsave"
+log "default shared world save: $CONTAINER_SAVE_FILE"
+if [[ -n "$HOST_SAVE_FILE" ]]; then
+  log "host shared world save: $HOST_SAVE_FILE"
+fi
+if [[ -n "$RUN_NAME" ]]; then
+  log "seeded name: $RUN_NAME"
+  log "browser user name to enter: $RUN_NAME"
+fi
 for name in RYLWEEN_STATE RYLWEEN_SAVE_FILE RYLWEEN_LOAD_FILE RYLWEEN_SEED RYLWEEN_BUNDLE; do
   value="${!name:-}"
   if [[ -n "$value" ]]; then

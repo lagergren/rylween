@@ -36,20 +36,20 @@ import rylween.compiled.ExternalLevelingRules
 import rylween.compiled.ExternalRuntimeCombat
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalStandardBattle
-import rylween.dsl.CombatActionKind
-import rylween.dsl.CombatActionRequirement
-import rylween.dsl.Gender
-import rylween.dsl.ItemConsumePolicy
-import rylween.dsl.ItemKind
-import rylween.dsl.ItemUseContext
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.NativeAllowlist
-import rylween.dsl.PcClass
 import rylween.dsl.PronounCase
-import rylween.dsl.RuntimeMode
-import rylween.dsl.of
+import rylween.dsl.impl.CombatActionKind
+import rylween.dsl.impl.CombatActionRequirement
+import rylween.dsl.impl.Gender
+import rylween.dsl.impl.ItemConsumePolicy
+import rylween.dsl.impl.ItemKind
+import rylween.dsl.impl.ItemUseContext
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.RuntimeMode
+import rylween.dsl.impl.of
+import rylween.dsl.impl.sourceId
 import rylween.dsl.pronoun
-import rylween.dsl.sourceId
 
 private const val RANDOM_PERCENT_MAX = 99
 private const val SPELL_ABORT_SLOT = 7

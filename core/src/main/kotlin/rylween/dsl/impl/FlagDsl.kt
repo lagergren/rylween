@@ -6,7 +6,9 @@
  * references into dense runtime ids, while save/load keeps the authored slug and
  * state names as the stable contract.
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 /** Runtime storage scope for authored story flags. */
 enum class FlagScope { Party, Encounter }

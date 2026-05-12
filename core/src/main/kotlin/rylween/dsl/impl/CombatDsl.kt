@@ -7,7 +7,9 @@
  * spell names, cries, and Rylween-specific balance values are authored in the
  * game DSL and compiled through these generic records.
  */
-package rylween.dsl
+package rylween.dsl.impl
+
+import rylween.dsl.*
 
 enum class MandatoryRunRule { NoEscape }
 
@@ -29,14 +31,6 @@ data class CombatActionModel(
     val requirement: CombatActionRequirement,
     val prompt: TextBlock,
 ) {
-    constructor(
-        key: Char,
-        action: KeyActionId,
-        kind: CombatActionKind,
-        requirement: CombatActionRequirement,
-        prompt: TextBlock,
-    ) : this(inputKey(key), action, kind, requirement, prompt)
-
     val key: Char get() = binding.primaryChar
 }
 

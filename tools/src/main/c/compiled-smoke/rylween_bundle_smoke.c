@@ -68,7 +68,11 @@ typedef enum {
     TEXT_PART_TOWN_NAME = 5U,
     TEXT_PART_FUZZY_TOWN_LOCATION = 6U,
     TEXT_PART_LOCATION_COORDINATE = 7U,
-    TEXT_PART_RUNTIME = 8U
+    TEXT_PART_RUNTIME = 8U,
+    TEXT_PART_ROLE_JOB = 9U,
+    TEXT_PART_NPC_NAME = 10U,
+    TEXT_PART_NPC_JOB = 11U,
+    TEXT_PART_NPC_LOCATION = 12U
 } TextPartTag;
 
 typedef enum {
@@ -313,6 +317,10 @@ static void parse_text_part(Reader *reader) {
         case TEXT_PART_ROLE_LOCATION:
         case TEXT_PART_TOWN_NAME:
         case TEXT_PART_LOCATION_COORDINATE:
+        case TEXT_PART_ROLE_JOB:
+        case TEXT_PART_NPC_NAME:
+        case TEXT_PART_NPC_JOB:
+        case TEXT_PART_NPC_LOCATION:
             (void)read_handle_ref(reader);
             break;
         case TEXT_PART_FUZZY_TOWN_LOCATION:

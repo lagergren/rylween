@@ -247,7 +247,7 @@ abstract class GenerateCompiledGameHarnessTask : DefaultTask() {
             bodyLines
                 .joinToString(separator = "\n") { line -> "        $line" }
         val imports =
-            (importLines + "import rylween.dsl.*")
+            (importLines + "import rylween.dsl.*" + "import rylween.dsl.impl.*")
                 .distinct()
                 .joinToString(separator = "\n")
                 .let { if (it.isBlank()) "" else "$it\n\n" }
@@ -578,6 +578,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
                 |package rylween.game
                 |
                 |import rylween.dsl.*
+                |import rylween.dsl.impl.*
                 |
                 |$sections
                 """.trimMargin() + "\n",
