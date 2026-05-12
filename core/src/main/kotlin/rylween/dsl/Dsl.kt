@@ -2856,8 +2856,8 @@ class WildernessEventBuilder {
     var caveDepthRange: IntRange = 3..16
     var caveEntryCost: Int = 10
     var caveImage: ImageId? = null
-    private var caveFoundPromptText: TextBlock = inlineText("You find a cave!", "", "(E)nter", "(L)eave")
-    private var caveNoMovesText: TextBlock = inlineText("You don't have enough", "moves left to explore", "the cave...", "")
+    private var caveFoundPromptText: TextBlock? = null
+    private var caveNoMovesText: TextBlock? = null
 
     fun caveFoundPrompt(vararg lines: String) {
         caveFoundPromptText = inlineText(*lines)
@@ -2886,8 +2886,8 @@ class WildernessEventBuilder {
             caveDepthRange = caveDepthRange,
             caveEntryCost = caveEntryCost,
             caveImage = caveImage,
-            caveFoundPrompt = caveFoundPromptText,
-            caveNoMoves = caveNoMovesText,
+            caveFoundPrompt = requireNotNull(caveFoundPromptText) { "wilderness events require caveFoundPrompt text" },
+            caveNoMoves = requireNotNull(caveNoMovesText) { "wilderness events require caveNoMoves text" },
         )
 }
 

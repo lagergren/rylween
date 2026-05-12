@@ -52,8 +52,6 @@ data class RuntimeContent(
     init {
         require(castles.map { it.id }.toSet().size == castles.size) { "duplicate castle content" }
     }
-
-    val battleConfigured: Boolean get() = combat.standardBattle != null
 }
 
 data class GameModel(
@@ -265,31 +263,7 @@ data class CharacterCreationPromptsModel(
     val race: TextBlock = missingPrompt("character_creation.race"),
     val classMenu: TextBlock = missingPrompt("character_creation.class_menu"),
     val saving: TextBlock = missingPrompt("character_creation.saving"),
-) {
-    fun renderStatsPage(
-        memberNumber: Int,
-        weaponSkill: Int,
-        health: Int,
-        wisdom: Int,
-        charisma: Int,
-    ): TextBlock =
-        statsPage.resolvePromptValues(
-            PromptTextValues(
-                creationMemberNumber = memberNumber,
-                creationWeaponSkill = weaponSkill,
-                creationHealth = health,
-                creationWisdom = wisdom,
-                creationCharisma = charisma,
-            ),
-        )
-
-    fun renderMemberName(memberNumber: Int): TextBlock =
-        memberName.resolvePromptValues(PromptTextValues(creationMemberNumber = memberNumber))
-
-    fun renderGender(memberName: String): TextBlock = gender.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
-
-    fun renderRace(memberName: String): TextBlock = race.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
-}
+)
 
 data class PriestSpellPromptsModel(
     val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") },
@@ -299,21 +273,7 @@ data class PriestSpellPromptsModel(
     val invalidCaster: TextBlock = inlineText("Not a party member."),
     val invalidSpell: TextBlock = inlineText("Not possible."),
     val noSpells: TextBlock = inlineText("No priest spells are", "declared."),
-) {
-    fun spellList(
-        member: PartyMemberState,
-        spells: List<SpellModel>,
-        abortSlot: Int,
-    ): TextBlock =
-        inlineText(
-            *(
-                spells.map { spell ->
-                    val cost = spell.baseCost + member.level
-                    "${spell.slot}. ${spell.name.padEnd(12)}(${cost.toString().padStart(3)}/${member.mana.current.toString().padStart(3)})"
-                } + "$abortSlot. Abort"
-            ).toTypedArray(),
-        )
-}
+)
 
 data class InventoryUsePromptsModel(
     val use: TextBlock = inlineText("Use what?"),
@@ -331,10 +291,6 @@ data class InventoryUsePromptsModel(
         prompt: TextBlock,
         choiceLines: List<String>,
     ): TextBlock = combineTextBlocks(prompt, TextBlock.Inline(choiceLines))
-
-    fun invalidSlot(slot: Int): TextBlock = inlineText("$invalidSlotFirstPrefix$slot$invalidSlotFirstSuffix", invalidSlotSecond)
-
-    fun notUsable(itemName: String): TextBlock = inlineText(notUsableFirst, "$notUsableSecondPrefix$itemName$notUsableSecondSuffix")
 }
 
 data class EquipmentPromptsModel(
@@ -350,28 +306,7 @@ data class TownPromptsModel(
     val entryWelcome: TextBlock = missingPrompt("town.entry_welcome"),
     val entryTax: TextBlock = missingPrompt("town.entry_tax"),
     val entryTaxThanks: TextBlock = missingPrompt("town.entry_tax_thanks"),
-) {
-    fun unavailable(building: BuildingId): TextBlock = inlineText("${building.slug}$unavailableSuffix")
-
-    fun closed(building: BuildingId): TextBlock = inlineText("${building.slug}$closedSuffix")
-
-    fun renderEntryTaxPrompt(
-        townName: String,
-        taxPercent: Int,
-        taxAmount: Int,
-    ): TextBlock {
-        val values =
-            PromptTextValues(
-                currentTownName = townName,
-                townTaxPercent = taxPercent,
-                townTaxAmount = taxAmount,
-            )
-        return combineTextBlocks(
-            entryWelcome.resolvePromptValues(values),
-            entryTax.resolvePromptValues(values),
-        )
-    }
-}
+)
 
 data class PartyPromptsModel(
     val viewWho: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, "/Q/A)") },
@@ -385,9 +320,7 @@ data class PartyPromptsModel(
             line(TextPart.SelectedItemName, ".")
         },
     val dropCapacityReduced: TextBlock = inlineText("You are forced to", "leave some of your", "food behind..."),
-) {
-    fun renderDropped(itemName: String): TextBlock = dropDropped.resolvePromptValues(PromptTextValues(selectedItemName = itemName))
-}
+)
 
 data class WildernessPromptsModel(
     val pass: TextBlock = missingPrompt("wilderness.pass"),
@@ -397,18 +330,7 @@ data class WildernessPromptsModel(
     val nothingToEnter: TextBlock = missingPrompt("wilderness.nothing_to_enter"),
     val quitConfirm: TextBlock = missingPrompt("wilderness.quit_confirm"),
     val dungeonHandoff: TextBlock = missingPrompt("wilderness.dungeon_handoff"),
-) {
-    fun renderDungeonHandoff(
-        dungeonName: String,
-        levels: Int,
-    ): TextBlock =
-        dungeonHandoff.resolvePromptValues(
-            PromptTextValues(
-                wildernessDungeonName = dungeonName,
-                wildernessDungeonLevels = levels,
-            ),
-        )
-}
+)
 
 data class DungeonPromptsModel(
     val levelMenu: TextBlock = missingPrompt("dungeon.level_menu"),
@@ -416,62 +338,9 @@ data class DungeonPromptsModel(
     val atMaxDepth: TextBlock = missingPrompt("dungeon.at_max_depth"),
     val noTorches: TextBlock = missingPrompt("dungeon.no_torches"),
     val leaveCavern: TextBlock = missingPrompt("dungeon.leave_cavern"),
-) {
-    fun renderLevelMenu(depth: Int): TextBlock = levelMenu.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
-
-    fun renderEnterLevel(depth: Int): TextBlock = enterLevel.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
-}
-
-private fun missingPrompt(name: String): TextBlock = inlineText("[missing prompt: $name]")
-
-internal data class PromptTextValues(
-    val wildernessDungeonName: String? = null,
-    val wildernessDungeonLevels: Int? = null,
-    val dungeonDepth: Int? = null,
-    val selectedItemName: String? = null,
-    val conversationNpcName: String? = null,
-    val currentTownName: String? = null,
-    val townTaxPercent: Int? = null,
-    val townTaxAmount: Int? = null,
-    val creationMemberNumber: Int? = null,
-    val creationMemberName: String? = null,
-    val creationWeaponSkill: Int? = null,
-    val creationHealth: Int? = null,
-    val creationWisdom: Int? = null,
-    val creationCharisma: Int? = null,
 )
 
-internal fun TextBlock.resolvePromptValues(values: PromptTextValues): TextBlock =
-    when (this) {
-        is TextBlock.Inline,
-        is TextBlock.Ref,
-        -> this
-        is TextBlock.Structured ->
-            TextBlock.Structured(
-                lines.map { line ->
-                    TextLine(line.parts.map { part -> part.resolvePromptValue(values) })
-                },
-            )
-    }
-
-internal fun TextPart.resolvePromptValue(values: PromptTextValues): TextPart =
-    when (this) {
-        TextPart.WildernessDungeonName -> TextPart.Literal(values.wildernessDungeonName ?: fallbackText())
-        TextPart.WildernessDungeonLevels -> TextPart.Literal(values.wildernessDungeonLevels?.toString() ?: fallbackText())
-        TextPart.DungeonDepth -> TextPart.Literal(values.dungeonDepth?.toString() ?: fallbackText())
-        TextPart.SelectedItemName -> TextPart.Literal(values.selectedItemName ?: fallbackText())
-        TextPart.ConversationNpcName -> TextPart.Literal(values.conversationNpcName ?: fallbackText())
-        TextPart.CurrentTownName -> TextPart.Literal(values.currentTownName ?: fallbackText())
-        TextPart.TownTaxPercent -> TextPart.Literal(values.townTaxPercent?.toString() ?: fallbackText())
-        TextPart.TownTaxAmount -> TextPart.Literal(values.townTaxAmount?.toString() ?: fallbackText())
-        TextPart.CreationMemberNumber -> TextPart.Literal(values.creationMemberNumber?.toString() ?: fallbackText())
-        TextPart.CreationMemberName -> TextPart.Literal(values.creationMemberName ?: fallbackText())
-        TextPart.CreationWeaponSkill -> TextPart.Literal(values.creationWeaponSkill?.toString() ?: fallbackText())
-        TextPart.CreationHealth -> TextPart.Literal(values.creationHealth?.toString() ?: fallbackText())
-        TextPart.CreationWisdom -> TextPart.Literal(values.creationWisdom?.toString() ?: fallbackText())
-        TextPart.CreationCharisma -> TextPart.Literal(values.creationCharisma?.toString() ?: fallbackText())
-        else -> this
-    }
+private fun missingPrompt(name: String): TextBlock = inlineText("[missing prompt: $name]")
 
 internal fun ConversationTopic.defaultLabel(): String =
     when (this) {
@@ -499,8 +368,8 @@ data class WildernessEventModel(
     val caveDepthRange: IntRange = 3..16,
     val caveEntryCost: Int = 10,
     val caveImage: ImageId? = null,
-    val caveFoundPrompt: TextBlock = inlineText("You find a cave!", "", "(E)nter", "(L)eave"),
-    val caveNoMoves: TextBlock = inlineText("You don't have enough", "moves left to explore", "the cave...", ""),
+    val caveFoundPrompt: TextBlock = missingPrompt("wilderness.cave_found"),
+    val caveNoMoves: TextBlock = missingPrompt("wilderness.cave_no_moves"),
 )
 
 data class TerrainTransitionModel(

@@ -153,13 +153,6 @@ data class TownMenuActionModel(
     val building: BuildingId?,
     val endsMenu: Boolean,
 ) {
-    constructor(
-        key: Char,
-        action: KeyActionId,
-        building: BuildingId?,
-        endsMenu: Boolean,
-    ) : this(inputKey(key), action, building, endsMenu)
-
     val key: Char get() = binding.primaryChar
 }
 
@@ -451,9 +444,6 @@ data class ConversationMenuActionModel(
     val action: KeyActionId,
     val label: String = topic.defaultLabel(),
 ) {
-    constructor(topic: ConversationTopic, key: Char, action: KeyActionId) :
-        this(topic, inputKey(key), action)
-
     val key: Char get() = binding.primaryChar
 }
 
@@ -463,9 +453,6 @@ data class QuestionMenuActionModel(
     val action: KeyActionId,
     val label: String = topic.defaultLabel(),
 ) {
-    constructor(topic: QuestionTopic, key: Char, action: KeyActionId) :
-        this(topic, inputKey(key), action)
-
     val key: Char get() = binding.primaryChar
 }
 
@@ -487,9 +474,7 @@ data class ConversationRumorModel(
 data class ConversationPromptTextModel(
     val chooseNpc: TextBlock = inlineText(),
     val mainMenu: TextBlock = inlineText(),
-) {
-    fun renderMainMenu(npcName: String): TextBlock = mainMenu.resolvePromptValues(PromptTextValues(conversationNpcName = npcName))
-}
+)
 
 data class ReusableScreenTextModel(
     val id: TextId,
