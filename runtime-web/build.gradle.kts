@@ -29,10 +29,6 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-tasks.test {
-    useJUnitPlatform()
-}
-
 val runtimeWebJar: TaskProvider<Jar> = tasks.named<Jar>("jar")
 val runtimeWebJarFile: Provider<RegularFile> = runtimeWebJar.flatMap { it.archiveFile }
 val runtimeWebClasspathConfig: Configuration = configurations.runtimeClasspath.get()

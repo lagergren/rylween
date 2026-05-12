@@ -674,7 +674,7 @@ static void parse_shop_buy(Reader *reader) {
     parse_reward_application(reader);
 }
 
-static void parse_shop_bargain(Reader *reader) {
+static void parse_shop_haggle(Reader *reader) {
     uint32_t bonus_count = read_u32(reader);
     for (uint32_t i = 0; i < bonus_count; ++i) {
         (void)read_u32(reader);
@@ -683,9 +683,9 @@ static void parse_shop_bargain(Reader *reader) {
     parse_optional_int(reader);
 }
 
-static void parse_optional_shop_bargain(Reader *reader) {
+static void parse_optional_shop_haggle(Reader *reader) {
     if (read_optional_present(reader)) {
-        parse_shop_bargain(reader);
+        parse_shop_haggle(reader);
     }
 }
 
@@ -702,7 +702,7 @@ static void parse_shop_sell(Reader *reader) {
     parse_optional_text_block(reader);
     parse_optional_text_block(reader);
     parse_shop_price(reader);
-    parse_optional_shop_bargain(reader);
+    parse_optional_shop_haggle(reader);
     parse_input_binding(reader);
     parse_input_binding(reader);
     parse_input_binding(reader);

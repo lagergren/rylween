@@ -648,11 +648,11 @@ shopSell:
     offer              textBlock
     sold               nullable<textBlock>
     price              shopPrice
-    bargain            nullable<shopBargain>
+    haggle            nullable<shopHaggle>
     acceptKey          inputBinding
     declineKey         inputBinding
 
-shopBargain:
+shopHaggle:
     bonuses            list<(rollGreaterThan: i32, addCurrentDivisor: i32)>
     rejectRollBelow    nullable<i32>
 

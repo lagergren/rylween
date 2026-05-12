@@ -553,11 +553,34 @@ data class SecretSystemModel(
     val players: List<SecretPlayerModel> = emptyList(),
 )
 
+/**
+ * Matcher for hidden player-specific authoring hooks.
+ *
+ * `Any` applies to every player on a runtime. `Named` applies only when the
+ * runtime player identity matches one of the authored names; the DSL exposes
+ * this as `playerNamed("...")` or `playersNamed("...", "...")`.
+ */
+sealed interface SecretPlayerMatcherModel {
+    data object Any : SecretPlayerMatcherModel
+
+    data class Named(
+        val names: List<String>,
+    ) : SecretPlayerMatcherModel
+}
+
+/** Hidden key and step-trigger actions gated by one [SecretPlayerMatcherModel]. */
 data class SecretPlayerModel(
-    val playerName: String,
+    val matcher: SecretPlayerMatcherModel,
     val keyActions: List<SecretKeyActionModel> = emptyList(),
     val stepTrigger: SecretStepTriggerModel? = null,
-)
+) {
+    val playerNames: List<String>
+        get() =
+            when (matcher) {
+                SecretPlayerMatcherModel.Any -> emptyList()
+                is SecretPlayerMatcherModel.Named -> matcher.names
+            }
+}
 
 data class SecretKeyActionModel(
     val binding: InputBindingModel,

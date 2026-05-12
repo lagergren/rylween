@@ -30,8 +30,9 @@ import rylween.dsl.impl.QuestionTopic
 import rylween.dsl.impl.Race
 import rylween.dsl.impl.RewardOverflowPolicy
 import rylween.dsl.impl.RumorUsagePolicy
-import rylween.dsl.impl.ShopBargainBonusModel
-import rylween.dsl.impl.ShopSellBargainModel
+import rylween.dsl.impl.SecretPlayerMatcherModel
+import rylween.dsl.impl.ShopHaggleBonusModel
+import rylween.dsl.impl.ShopSellHaggleModel
 import rylween.dsl.impl.StateKind
 import rylween.dsl.impl.StaticScreenRuntimeReport
 import rylween.dsl.impl.TemperatureBand
@@ -106,6 +107,13 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.itemCatalog.size == 63)
         check(nextDsl.itemCatalog.single { it.id == Items.redPotion }.kind == ItemKind.Potion)
         check(nextDsl.itemPools.size == 7)
+        check(
+            nextDsl.secrets.players.map { it.matcher } ==
+                listOf(
+                    SecretPlayerMatcherModel.Named(listOf("Marcus Lagergren", "Marcus")),
+                    SecretPlayerMatcherModel.Named(listOf("Karl Skagerberg")),
+                ),
+        )
         check(nextDsl.progress.milestones.size == 6)
         check(
             nextDsl.progress.win
@@ -364,7 +372,7 @@ class RylweenCompiledGameLedgerTest {
         )
         check(
             nextDsl.wilderness.keys.moveNorth
-                .matches(InputAliases.ArrowUp),
+                .matches(InputAliases.ARROW_UP),
         )
         check(nextDsl.characters.size == 39)
         check(nextDsl.characters.single { Roles.crownSeer in it.roles }.placement is CharacterPlacementModel.Randomized)
@@ -613,12 +621,12 @@ class RylweenCompiledGameLedgerTest {
         )
         check(smithSell.acceptedKinds == setOf(ItemKind.Weapon, ItemKind.Armor))
         check(
-            smithSell.bargain ==
-                ShopSellBargainModel(
+            smithSell.haggle ==
+                ShopSellHaggleModel(
                     bonuses =
                         listOf(
-                            ShopBargainBonusModel(rollGreaterThan = 90, addCurrentDivisor = 4),
-                            ShopBargainBonusModel(rollGreaterThan = 75, addCurrentDivisor = 6),
+                            ShopHaggleBonusModel(rollGreaterThan = 90, addCurrentDivisor = 4),
+                            ShopHaggleBonusModel(rollGreaterThan = 75, addCurrentDivisor = 6),
                         ),
                     rejectRollBelow = 76,
                 ),
@@ -737,7 +745,7 @@ class RylweenCompiledGameLedgerTest {
                     Items.greenGem,
                     Items.chalice,
                     Items.pendant,
-                    Items.broche,
+                    Items.brooch,
                     Items.crystalBowl,
                     Items.necklace,
                 ),
@@ -908,8 +916,8 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.prompts.pauseVerbs.first() == "Smash")
         check(nextDsl.prompts.pauseVerbs.last() == "Decapitate")
         check(nextDsl.prompts.inventoryUse.quaff == inlineText("Quaff what?"))
-        check(nextDsl.prompts.equipment.readyArmors == inlineText("Do you want to ready", "some armors before", "leaving?", ""))
-        check(nextDsl.prompts.town.closed(Buildings.inn) == inlineText("inn is closed."))
+        check(nextDsl.prompts.equipment.readyArmors == inlineText("Do you want to ready", "any armors before", "leaving?", ""))
+        check(nextDsl.prompts.town.closedSuffix == " is closed.")
         check(nextDsl.realm.upkeep.foodTickEvery == 5)
         check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
         check(nextDsl.realm.upkeep.fatigue.size == 4)
@@ -1244,16 +1252,16 @@ class RylweenCompiledGameLedgerTest {
     fun retiredAnsiRuntimeIsAbsentFromActiveGradleProjects() {
         val rootBuild = File("build.gradle.kts").readText()
         val settings = File("settings.gradle.kts").readText()
+        val coreBuild = File("core/build.gradle.kts").readText()
         val launcher = File("run.sh").readText()
         val serverLauncher = File("run-server.sh").readText()
         val dockerfile = File("Dockerfile").readText()
         val gitIgnore = File(".gitignore").readText()
         val dockerIgnore = File(".dockerignore").readText()
         val gameBuild = File("game/build.gradle.kts").readText()
+        val gameDsl = File("game/src/main/dsl/RylweenGame.dsl.kts").readText()
         val runtimeMain =
             File("runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
-        val buildWrapperTask =
-            File("build-logic/src/main/kotlin/rylween/gradle/RylweenBuildTasks.kt").readText()
 
         check(!File("legacy").exists()) {
             "legacy source tree must not remain in the active repository checkout"
@@ -1278,6 +1286,29 @@ class RylweenCompiledGameLedgerTest {
         }
         check("idea" in gameBuild && "name = \"rylween.game\"" in gameBuild) {
             "IDEA import must name :game consistently with sibling modules"
+        }
+        check("`java-library`" in gameBuild && "api(project(\":core\"))" in gameBuild) {
+            "game module must expose core DSL types to Gradle-backed script/editor consumers"
+        }
+        check(
+            "resources.srcDir(\"src/main/dsl\")" in gameBuild &&
+                "kotlin.srcDir(\"src/main/dsl\")" in gameBuild &&
+                "resourceDirs.add(layout.projectDirectory.dir(\"src/main/dsl\").asFile)" !in gameBuild &&
+                "\n        sourceDirs.add(layout.projectDirectory.dir(\"src/main/dsl\").asFile)" !in gameBuild,
+        ) {
+            "game DSL scripts must be Gradle Kotlin sources for editor resolution and resources for bundle tooling"
+        }
+        check(
+            File("core/src/main/kotlin/rylween/dsl/RylweenDslScript.kt").isFile &&
+                File(
+                    "core/src/main/resources/META-INF/kotlin/script/templates/rylween.dsl.RylweenDslScript",
+                ).isFile &&
+                "kotlinScriptDef(project(\":core\"))" in gameBuild &&
+                "`java-library`" in coreBuild &&
+                "api(kotlin(\"scripting-common\"))" in coreBuild &&
+                "api(kotlin(\"scripting-jvm\"))" in coreBuild,
+        ) {
+            "game DSL scripts must have a registered Kotlin script definition for Gradle-backed editor resolution"
         }
         check(".dat" !in gitIgnore && "data/" !in gitIgnore) {
             ".gitignore must not preserve stale root data/dat artifact patterns"
@@ -1332,18 +1363,48 @@ class RylweenCompiledGameLedgerTest {
         check("--no-title" in runtimeMain && "skipTitleMenu" in runtimeMain && "!skipTitleMenu" in runtimeMain) {
             "runtime must support an explicit --no-title title-screen skip"
         }
-        check("(C)reate New Party" in runtimeMain && "N. Create New Party" !in runtimeMain) {
-            "title menu must use mnemonic command formatting for new-party selection"
+        check(
+            "TITLE_COMMAND_GROUP" in runtimeMain &&
+                "systems.prompts.titleMenu.header" in runtimeMain &&
+                "commands.menuLine(\"createNewParty\")" in runtimeMain,
+        ) {
+            "runtime title menu must render compiled DSL prompts and command labels"
         }
         check(
-            ":runtime:installRuntime" in buildWrapperTask &&
-                "runtime/build/install/rylween" in buildWrapperTask &&
-                "RUN_LAUNCHER" in buildWrapperTask,
+            "titleMenu" in gameDsl &&
+                "createNewParty = inputKey(\"C\", label = \"Create New Party\")" in gameDsl &&
+                "leave = inputKey(\"L\", label = \"Leave\")" in gameDsl &&
+                "E(x)it" !in gameDsl,
         ) {
-            "generated wrapper task must launch the runtime"
+            "game DSL must own the title menu labels and use the L key for leaving"
         }
-        check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in buildWrapperTask }) {
-            "generated wrapper task must not fall back to the archived interpreted ANSI runtime"
+    }
+
+    @Test
+    fun wildernessDebugSecretCanRenderAnnotatedWorldMap() {
+        val runtimeContentDsl =
+            File("core/src/main/kotlin/rylween/dsl/impl/RuntimeContentDsl.kt").readText()
+        val externalBundle =
+            File("core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt").readText()
+        val runtimeMain =
+            File("runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
+        val runtimeScreen =
+            File("runtime/src/main/kotlin/rylween/runtime/RuntimeScreen.kt").readText()
+
+        check("debugShowMap" in runtimeContentDsl && "\"showMap\"" in externalBundle) {
+            "wilderness debug map key must be compiled into the external command bundle"
+        }
+        check("debugSecrets && debugCommands.matches(\"showMap\", command)" in runtimeMain) {
+            "runtime must dispatch the compiled debug map command only through the debug secret path"
+        }
+        check(
+            "showDebugWorldMap" in runtimeScreen &&
+                "content.towns.forEach" in runtimeScreen &&
+                "TerrainSettlement.Hut" in runtimeScreen &&
+                "TerrainSettlement.Castle" in runtimeScreen &&
+                "annotated.mark(partyPosition, '@')" in runtimeScreen,
+        ) {
+            "debug map screen must annotate towns, huts, castles, and the party position"
         }
     }
 

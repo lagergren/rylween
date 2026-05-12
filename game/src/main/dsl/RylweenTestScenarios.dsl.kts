@@ -74,7 +74,7 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 1000
+                gold = 1_000
                 torches = 5
                 food = 100
                 timeLeft = 200
@@ -204,7 +204,7 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 10000
+                gold = 10_000
                 torches = 40
                 food = 150
                 timeLeft = 200
@@ -330,7 +330,7 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 10000
+                gold = 10_000
                 torches = 40
                 food = 140
                 timeLeft = 200
@@ -493,7 +493,7 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 100000
+                gold = 100_000
                 torches = 40
                 food = 150
                 timeLeft = 500
@@ -572,7 +572,7 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 100000
+                gold = 100_000
                 torches = 40
                 food = 150
                 timeLeft = 500
@@ -633,7 +633,7 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 100000
+                gold = 100_000
                 torches = 40
                 food = 150
                 timeLeft = 500
@@ -714,11 +714,11 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 100000
+                gold = 100_000
                 torches = 80
                 food = 500
-                timeLeft = 1000
-                restedHours = 1000
+                timeLeft = 1_000
+                restedHours = 1_000
             }
 
             inventory {
@@ -738,8 +738,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Human
                     klass = PcClass.Fighter
                     level = 28
-                    health = 50000
-                    hitPoints = 50000 of 50000
+                    health = 50_000
+                    hitPoints = 50_000 of 50_000
                     weaponSkill = 100
                     wisdom = 72
                     mana = 0 of 72
@@ -793,10 +793,10 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 50000
+                gold = 50_000
                 torches = 120
                 food = 500
-                timeLeft = 1200
+                timeLeft = 1_200
                 restedHours = 500
             }
 
@@ -829,11 +829,11 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Human
                     klass = PcClass.Priest
                     level = 28
-                    health = 5000000
-                    hitPoints = 5000000 of 5000000
+                    health = 5_000_000
+                    hitPoints = 5_000_000 of 5_000_000
                     weaponSkill = 100
-                    wisdom = 5000
-                    mana = 5000 of 5000
+                    wisdom = 5_000
+                    mana = 5_000 of 5_000
                     charisma = 90
                     equipped {
                         weapon = Items.deathBlade
@@ -848,8 +848,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Halfling
                     klass = PcClass.Thief
                     level = 28
-                    health = 50000
-                    hitPoints = 0 of 50000
+                    health = 50_000
+                    hitPoints = 0 of 50_000
                     weaponSkill = 100
                     wisdom = 90
                     mana = 0 of 90
@@ -867,11 +867,11 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Elf
                     klass = PcClass.Mage
                     level = 28
-                    health = 50000
-                    hitPoints = 0 of 50000
+                    health = 50_000
+                    hitPoints = 0 of 50_000
                     weaponSkill = 100
-                    wisdom = 5000
-                    mana = 0 of 5000
+                    wisdom = 5_000
+                    mana = 0 of 5_000
                     charisma = 90
                     equipped {
                         weapon = Items.deathBlade
@@ -886,8 +886,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Human
                     klass = PcClass.Fighter
                     level = 28
-                    health = 50000
-                    hitPoints = 0 of 50000
+                    health = 50_000
+                    hitPoints = 0 of 50_000
                     weaponSkill = 100
                     wisdom = 90
                     mana = 0 of 90
@@ -940,7 +940,7 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 1000
+                gold = 1_000
                 torches = 40
                 food = 150
                 timeLeft = 200
@@ -975,8 +975,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Human
                     klass = PcClass.Fighter
                     level = 28
-                    health = 50000
-                    hitPoints = 50000 of 50000
+                    health = 50_000
+                    hitPoints = 50_000 of 50_000
                     weaponSkill = 100
                     wisdom = 70
                     mana = 0 of 70
@@ -994,8 +994,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Elf
                     klass = PcClass.Ranger
                     level = 28
-                    health = 50000
-                    hitPoints = 0 of 50000
+                    health = 50_000
+                    hitPoints = 0 of 50_000
                     weaponSkill = 100
                     wisdom = 90
                     mana = 0 of 90
@@ -1013,8 +1013,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Elf
                     klass = PcClass.Mage
                     level = 28
-                    health = 50000
-                    hitPoints = 0 of 50000
+                    health = 50_000
+                    hitPoints = 0 of 50_000
                     weaponSkill = 100
                     wisdom = 90
                     mana = 0 of 90
@@ -1032,8 +1032,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Human
                     klass = PcClass.Priest
                     level = 28
-                    health = 50000
-                    hitPoints = 0 of 50000
+                    health = 50_000
+                    hitPoints = 0 of 50_000
                     weaponSkill = 100
                     wisdom = 90
                     mana = 0 of 90
@@ -1067,7 +1067,6 @@ nextRylween = nextRylween.withStateModule {
             activeParty = Parties.replay
             gameOver(Maps.wilderness)
             banished = false
-            lastPlayedDay = 14
             partyMemberMax = 4
         }
 
@@ -1090,7 +1089,7 @@ nextRylween = nextRylween.withStateModule {
             facing = Facing.North
 
             resources {
-                gold = 1000
+                gold = 1_000
                 torches = 5
                 food = 100
                 timeLeft = 0
@@ -1151,8 +1150,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Human
                     klass = PcClass.Fighter
                     level = 28
-                    health = 50000
-                    hitPoints = 50000 of 50000
+                    health = 50_000
+                    hitPoints = 50_000 of 50_000
                     weaponSkill = 100
                     wisdom = 90
                     mana = 0 of 90
@@ -1170,8 +1169,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Elf
                     klass = PcClass.Ranger
                     level = 28
-                    health = 50000
-                    hitPoints = 0 of 50000
+                    health = 50_000
+                    hitPoints = 50_000 of 50_000
                     weaponSkill = 100
                     wisdom = 90
                     mana = 0 of 90
@@ -1189,8 +1188,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Elf
                     klass = PcClass.Mage
                     level = 28
-                    health = 50000
-                    hitPoints = 0 of 50000
+                    health = 50_000
+                    hitPoints = 0 of 50_000
                     weaponSkill = 100
                     wisdom = 90
                     mana = 0 of 90
@@ -1208,8 +1207,8 @@ nextRylween = nextRylween.withStateModule {
                     race = Race.Human
                     klass = PcClass.Priest
                     level = 28
-                    health = 50000
-                    hitPoints = 0 of 50000
+                    health = 50_000
+                    hitPoints = 0 of 50_000
                     weaponSkill = 100
                     wisdom = 90
                     mana = 0 of 90

@@ -239,12 +239,12 @@ class BattleOpeningKeysBuilder(
     initial: BattleOpeningKeysModel? = null,
 ) {
     var fight: InputBindingModel? = initial?.fight
-    var run: InputBindingModel? = initial?.run
+    var flee: InputBindingModel? = initial?.run
 
     fun build(): BattleOpeningKeysModel =
         BattleOpeningKeysModel(
             fight = requiredStandardBattle(fight, "openingKeys.fight = ..."),
-            run = requiredStandardBattle(run, "openingKeys.run = ..."),
+            run = requiredStandardBattle(flee, "openingKeys.flee = ..."),
         )
 }
 
@@ -309,7 +309,7 @@ class BattleTextBuilder(
         fightText = structuredText(body)
     }
 
-    fun run(body: StructuredTextBlockBuilder.() -> Unit) {
+    fun fleeOption(body: StructuredTextBlockBuilder.() -> Unit) {
         runText = structuredText(body)
     }
 

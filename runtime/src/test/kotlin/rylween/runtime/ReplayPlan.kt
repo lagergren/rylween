@@ -432,7 +432,7 @@ internal object ReplayPlans {
                                 "output:Merchant",
                                 "output:Deal!",
                                 "output:You can carry no",
-                                "output:Accept? (Y)es / (N)o",
+                                "output:(Y)es / (N)o",
                                 "output:No thanks.",
                                 "output:Sold!",
                                 "output:I don't deal",
@@ -440,7 +440,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_smith_buy_sell_haggle",
-                        commands = "SDABA1NBWN8PASBASCYASDBYALL",
+                        commands = "SDABA1NBWN8PASBASCYASDHYALL",
                         checkpoints =
                             listOf(
                                 "output:The smith welcomes you",

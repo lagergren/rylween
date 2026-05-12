@@ -112,7 +112,7 @@ Important table families:
 - presentation tables: terminal terrain glyphs, screen regions, static screens,
   and image assets.
 - gameplay tables: shop catalogs, encounters, spells, rewards, missions,
-  dungeon scenarios/events, castle content, NPCs, rumours, and text blocks.
+  dungeon scenarios/events, castle content, NPCs, rumors, and text blocks.
 
 A runtime may index these tables into native structures at load time, but it
 must preserve the bundle hash and table identities for diagnostics and saves.
@@ -176,7 +176,7 @@ A full runtime must provide host systems for:
 - realm and party state mutation.
 - flags, milestones, journal entries, score, and Hall-of-Heroes reporting.
 - inventory, equipment, item use, resource accounting, and party-member fields.
-- town entry, service routing, speak/rumour/chitchat, shops, inns, churches,
+- town entry, service routing, speak/rumor/chitchat, shops, inns, churches,
   taverns, guilds, and huts.
 - wilderness movement, terrain effects, random missions, NPC huts, caves, and
   dungeon/castle entry.
@@ -264,7 +264,7 @@ Implement:
   `ForEachMonster`.
 - Blocking input continuations for wait, menu, key, member, monster,
   inventory-slot, and text prompts.
-- Child-session continuation records for speak, rumour, reward, random-item
+- Child-session continuation records for speak, rumor, reward, random-item
   offer, shop service, encounter, and dungeon entry.
 - Native int/string/effect service registry with arity and argument-slot
   validation.
@@ -280,12 +280,12 @@ Implement:
   random mission polling, NPC huts, terrain transition text, upkeep, death,
   out-of-moves handling, and save commands allowed by game policy.
 - Town loop: entry tax, town menus, service hours, church, smith, merchant, inn,
-  tavern, guild, speak/chitchat/rumour services, and leave-to-wilderness state.
+  tavern, guild, speak/chitchat/rumor services, and leave-to-wilderness state.
 - Shop service: catalog selection and paging, buy/sell confirmation, bulk
-  resources, inventory overflow policy, bargain/rejection RNG, interlude text,
+  resources, inventory overflow policy, haggle/rejection RNG, interlude text,
   and all runtime text placeholders.
 - Speak service: NPC selection, visited state, role/town text bindings,
-  dialogue branch dispatch, questions, chitchat, rumours, and no-NPC/no-rumour
+  dialogue branch dispatch, questions, chitchat, rumors, and no-NPC/no-rumor
   fallbacks.
 - Reward/random-offer services: gold/items/application policy, special item
   milestone behavior, full-inventory prompts, decline/broke/deal text, and RNG.

@@ -2,7 +2,7 @@
  * Shop service model and builders.
  *
  * This file owns the reusable shop DSL: buy/sell catalog records, pricing
- * formulas, quantity caps, bargain rules, interludes, and the `shop { ... }`
+ * formulas, quantity caps, haggle rules, interludes, and the `shop { ... }`
  * service builder used by town scripts. Specific shop inventory, text, prices,
  * and scripted service flow are authored in the game DSL and emitted through
  * these generic records.
@@ -13,23 +13,23 @@ import rylween.dsl.*
 
 enum class ShopZeroQuantityDealPolicy { Always, NonZeroOnly }
 
-data class ShopBargainBonusModel(
+data class ShopHaggleBonusModel(
     val rollGreaterThan: Int,
     val addCurrentDivisor: Int,
 ) {
     init {
-        require(rollGreaterThan in 0..100) { "shop bargain bonus threshold must be 0..100" }
-        require(addCurrentDivisor > 0) { "shop bargain bonus divisor must be positive" }
+        require(rollGreaterThan in 0..100) { "shop haggle bonus threshold must be 0..100" }
+        require(addCurrentDivisor > 0) { "shop haggle bonus divisor must be positive" }
     }
 }
 
-data class ShopSellBargainModel(
-    val bonuses: List<ShopBargainBonusModel>,
+data class ShopSellHaggleModel(
+    val bonuses: List<ShopHaggleBonusModel>,
     val rejectRollBelow: Int?,
 ) {
     init {
         rejectRollBelow?.let { threshold ->
-            require(threshold in 0..101) { "shop bargain rejection threshold must be 0..101" }
+            require(threshold in 0..101) { "shop haggle rejection threshold must be 0..101" }
         }
     }
 }
@@ -181,7 +181,7 @@ data class ShopSellModel(
     val declined: TextBlock?,
     val sold: TextBlock?,
     val price: ShopPriceModel,
-    val bargain: ShopSellBargainModel?,
+    val haggle: ShopSellHaggleModel?,
     val saleKeys: ShopSaleKeysModel,
 )
 
@@ -211,9 +211,9 @@ data class ShopPurchaseKeysModel(
 )
 
 data class ShopSaleKeysModel(
-    val accept: InputBindingModel = inputKey('Y'),
-    val decline: InputBindingModel = inputKey('N'),
-    val bargain: InputBindingModel = inputKey('B', label = "Bargain"),
+    val accept: InputBindingModel = inputKey('Y', label = "Yes"),
+    val decline: InputBindingModel = inputKey('N', label = "No"),
+    val haggle: InputBindingModel = inputKey('H', label = "Haggle"),
 )
 
 data class ShopServiceModel(
@@ -742,7 +742,7 @@ class ShopSellBuilder {
     private var declinedText: TextBlock? = null
     private var soldText: TextBlock? = null
     var price: ShopPriceModel = ShopPriceModel.HalfItemCost
-    private var bargainModel: ShopSellBargainModel? = null
+    private var haggleModel: ShopSellHaggleModel? = null
     private var saleKeysModel: ShopSaleKeysModel = ShopSaleKeysModel()
 
     fun prompt(vararg lines: String) {
@@ -781,12 +781,12 @@ class ShopSellBuilder {
         saleKeysModel = ShopSaleKeysBuilder(saleKeysModel).apply(body).build()
     }
 
-    fun bargain(body: ShopSellBargainBuilder.() -> Unit) {
-        bargainModel = ShopSellBargainBuilder().apply(body).build()
+    fun haggle(body: ShopSellHaggleBuilder.() -> Unit) {
+        haggleModel = ShopSellHaggleBuilder().apply(body).build()
     }
 
     fun smithHaggle() {
-        bargain {
+        haggle {
             bonus(rollGreaterThan = 90, addCurrentDivisor = 4)
             bonus(rollGreaterThan = 75, addCurrentDivisor = 6)
             rejectWhenRollBelow(76)
@@ -804,29 +804,29 @@ class ShopSellBuilder {
             declined = declinedText,
             sold = soldText,
             price = price,
-            bargain = bargainModel,
+            haggle = haggleModel,
             saleKeys = saleKeysModel,
         )
 }
 
 @RylNextDsl
-class ShopSellBargainBuilder {
-    private val bonuses = mutableListOf<ShopBargainBonusModel>()
+class ShopSellHaggleBuilder {
+    private val bonuses = mutableListOf<ShopHaggleBonusModel>()
     private var rejectRollBelow: Int? = null
 
     fun bonus(
         rollGreaterThan: Int,
         addCurrentDivisor: Int,
     ) {
-        bonuses += ShopBargainBonusModel(rollGreaterThan, addCurrentDivisor)
+        bonuses += ShopHaggleBonusModel(rollGreaterThan, addCurrentDivisor)
     }
 
     fun rejectWhenRollBelow(threshold: Int) {
         rejectRollBelow = threshold
     }
 
-    internal fun build(): ShopSellBargainModel =
-        ShopSellBargainModel(
+    internal fun build(): ShopSellHaggleModel =
+        ShopSellHaggleModel(
             bonuses = bonuses.toList(),
             rejectRollBelow = rejectRollBelow,
         )
@@ -838,7 +838,7 @@ class ShopSaleKeysBuilder(
 ) {
     var accept: InputBindingModel = initial.accept
     var decline: InputBindingModel = initial.decline
-    var bargain: InputBindingModel = initial.bargain
+    var haggle: InputBindingModel = initial.haggle
 
-    fun build(): ShopSaleKeysModel = ShopSaleKeysModel(accept, decline, bargain)
+    fun build(): ShopSaleKeysModel = ShopSaleKeysModel(accept, decline, haggle)
 }

@@ -33,7 +33,7 @@ var nextRylween: RylweenModel = rylween {
 
         limits {
             maxWorldMaps = 1
-            maxMapCells = 3120
+            maxMapCells = 3_120
             screenSize = cells(width = 80, height = 24)
         }
 
@@ -205,22 +205,22 @@ var nextRylween: RylweenModel = rylween {
         }
 
         secrets {
-            player("Marcus Lagergren") {
+            playersNamed("Marcus Lagergren", "Marcus") {
                 addTimeLeft('/', amount = 50, refreshStatus = true)
                 setInventory('(', slot = 12, item = Items.drumsOfDeath)
                 setInventory(')', slot = 11, item = Items.gemOfResurrection)
                 setInventory('&', slot = 10, item = Items.kaelsAxe)
                 setInventory('*', slot = 9, item = Items.holyHandGrenade)
-                addGold('+', amount = 1000, refreshStatus = true)
+                addGold('+', amount = 1_000, refreshStatus = true)
             }
-            player("Karl Skagerberg") {
+            playerNamed("Karl Skagerberg") {
                 spawnEncounterEvery(everySteps = 101, monster = Monsters.skagerbergKiller)
             }
         }
 
         worldMap(Maps.wilderness) {
             size = cells(width = 78, height = 40)
-            storageCapacity = 3120
+            storageCapacity = 3_120
 
             layer(MapLayers.terrain) {
                 rows(
@@ -707,6 +707,20 @@ var nextRylween: RylweenModel = rylween {
                 "Cleave", "Mangle", "Skewer", "Eviscerate", "Vanquish",
                 "Trample", "Batter", "Slam", "Smite", "Decapitate",
             )
+            titleMenu {
+                header = inlineText("Rylween", "")
+                createNewParty = inputKey("C", label = "Create New Party")
+                continueSavedGame = inputKey("C", label = "Continue Saved Game")
+                terminateParty = inputKey("T", label = "Terminate Party")
+                scoreboard = inputKey("S", label = "Scoreboard")
+                hallOfFame = inputKey("H", label = "Hall of Fame")
+                documentation = inputKey("D", label = "Documentation")
+                leave = inputKey("L", label = "Leave")
+                terminateConfirm = inlineText("Terminate this party?", "", "(Y)es", "(N)o")
+                terminated = inlineText("Party terminated.")
+                terminateFailed = inlineText("No party to terminate.")
+                invalidInput = inlineText("Choose an option.")
+            }
             priest {
                 who = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") }
                 mageCombatOnly = inlineText("Sorry. Mage spells are", "combat-only.")
@@ -717,7 +731,7 @@ var nextRylween: RylweenModel = rylween {
                 noSpells = inlineText("No priest spells are", "declared.")
             }
             inventoryUse {
-                use = inlineText("Use what?")
+                usePrompt = inlineText("Use what?")
                 quaff = inlineText("Quaff what?")
                 noItems = inlineText("You are not carrying", "anything.")
                 noItem = inlineText("There is nothing", "in that slot.")
@@ -731,8 +745,8 @@ var nextRylween: RylweenModel = rylween {
             equipment {
                 inventory = inlineText("Ready what?")
                 who = inlineText("Who? (1-N)")
-                readyWeapons = inlineText("Do you want to ready", "some weapons before", "leaving?", "")
-                readyArmors = inlineText("Do you want to ready", "some armors before", "leaving?", "")
+                readyWeapons = inlineText("Do you want to ready", "any weapons before", "leaving?", "")
+                readyArmors = inlineText("Do you want to ready", "any armors before", "leaving?", "")
             }
             save {
                 saving = inlineText("Saving position...")
@@ -838,7 +852,7 @@ var nextRylween: RylweenModel = rylween {
 
         items {
             // Equipment is unrestricted unless a weapon or armor declares allowed classes.
-            // Example: weapon(Items.holyBlade, "Holy Blade", cost = 5000, damage = 40) { equippableBy(PcClass.Priest) }
+            // Example: weapon(Items.holyBlade, "Holy Blade", cost = 5_000, damage = 40) { equippableBy(PcClass.Priest) }
             empty(Items.none)
 
             weapon(Items.sword, "Sword", cost = 160, damage = 6)
@@ -854,22 +868,22 @@ var nextRylween: RylweenModel = rylween {
             weapon(Items.crossbow, "Crossbow", cost = 900, damage = 21)
             weapon(Items.scythe, "Scythe", cost = 870, damage = 14)
             weapon(Items.scimitar, "Scimitar", cost = 600, damage = 8)
-            weapon(Items.twoHandSword, "2H-Sword", cost = 1200, damage = 19)
-            weapon(Items.magicDagger, "Magic Dagger", cost = 1800, damage = 24)
-            weapon(Items.magicSword, "Magic Sword", cost = 3000, damage = 30)
-            weapon(Items.magicAxe, "Magic Axe", cost = 4000, damage = 38)
-            weapon(Items.dancingSword, "Dancing Sword", cost = 6000, damage = 50)
-            weapon(Items.deathBlade, "Death Blade", cost = 10000, damage = 68)
+            weapon(Items.twoHandSword, "2H-Sword", cost = 1_200, damage = 19)
+            weapon(Items.magicDagger, "Magic Dagger", cost = 1_800, damage = 24)
+            weapon(Items.magicSword, "Magic Sword", cost = 3_000, damage = 30)
+            weapon(Items.magicAxe, "Magic Axe", cost = 4_000, damage = 38)
+            weapon(Items.dancingSword, "Dancing Sword", cost = 6_000, damage = 50)
+            weapon(Items.deathBlade, "Death Blade", cost = 10_000, damage = 68)
 
             armor(Items.leather, "Leather", cost = 260, armorClass = 2)
             armor(Items.chainMail, "Chain Mail", cost = 600, armorClass = 5)
             armor(Items.plateMail, "Plate Mail", cost = 980, armorClass = 7)
-            armor(Items.ringMail, "Ring Mail", cost = 1950, armorClass = 9)
-            armor(Items.elvinCloak, "Elvin Cloak", cost = 3600, armorClass = 12)
-            armor(Items.mithrilMail, "Mithril Mail", cost = 5800, armorClass = 14)
-            armor(Items.admtMail, "Admt. Mail", cost = 9400, armorClass = 16)
-            armor(Items.protSphere, "Prot. Sphere", cost = 15000, armorClass = 20)
-            armor(Items.cloakOfGods, "Cloak of Gods", cost = 28000, armorClass = 30)
+            armor(Items.ringMail, "Ring Mail", cost = 1_950, armorClass = 9)
+            armor(Items.elvinCloak, "Elvin Cloak", cost = 3_600, armorClass = 12)
+            armor(Items.mithrilMail, "Mithril Mail", cost = 5_800, armorClass = 14)
+            armor(Items.admtMail, "Admt. Mail", cost = 9_400, armorClass = 16)
+            armor(Items.protSphere, "Prot. Sphere", cost = 15_000, armorClass = 20)
+            armor(Items.cloakOfGods, "Cloak of Gods", cost = 28_000, armorClass = 30)
 
             gear(Items.torch, "Torch", cost = 1)
             gear(Items.ration, "Ration", cost = 2)
@@ -886,13 +900,13 @@ var nextRylween: RylweenModel = rylween {
             potion(Items.bluePotion, "Blue Potion", cost = 100)
             potion(Items.amberPotion, "Amber Potion", cost = 500)
 
-            treasure(Items.redGem, "Red Gem", cost = 1000)
-            treasure(Items.blueGem, "Blue Gem", cost = 1200)
-            treasure(Items.greenGem, "Green Gem", cost = 1900)
-            treasure(Items.chalice, "Chalice", cost = 2340)
-            treasure(Items.pendant, "Pendant", cost = 5000)
-            treasure(Items.broche, "Broche", cost = 1234)
-            treasure(Items.crystalBowl, "Crystal Bowl", cost = 4567)
+            treasure(Items.redGem, "Red Gem", cost = 1_000)
+            treasure(Items.blueGem, "Blue Gem", cost = 1_200)
+            treasure(Items.greenGem, "Green Gem", cost = 1_900)
+            treasure(Items.chalice, "Chalice", cost = 2_340)
+            treasure(Items.pendant, "Pendant", cost = 5_000)
+            treasure(Items.brooch, "Brooch", cost = 1_234)
+            treasure(Items.crystalBowl, "Crystal Bowl", cost = 4_567)
             treasure(Items.necklace, "Necklace", cost = 987)
             treasure(Items.donkey, "Donkey", cost = 800) {
                 resourceCapacityBonus(Resource.Food, 150)
@@ -904,18 +918,18 @@ var nextRylween: RylweenModel = rylween {
             special(Items.jazzyfoot, "Jazzyfoot")
             special(Items.silverkey, "Silver Key")
 
-            magicItem(Items.frostWand, "Frost Wand", cost = 1000)
-            magicItem(Items.fireWand, "Fire Wand", cost = 3000)
-            magicItem(Items.gemOfConfusion, "Gem of Confusion", cost = 1560)
-            magicItem(Items.gemOfBlindness, "Gem of Blindness", cost = 4900)
-            magicItem(Items.drumsOfDeath, "Drums of Death", cost = 4500)
+            magicItem(Items.frostWand, "Frost Wand", cost = 1_000)
+            magicItem(Items.fireWand, "Fire Wand", cost = 3_000)
+            magicItem(Items.gemOfConfusion, "Gem of Confusion", cost = 1_560)
+            magicItem(Items.gemOfBlindness, "Gem of Blindness", cost = 4_900)
+            magicItem(Items.drumsOfDeath, "Drums of Death", cost = 4_500)
             magicItem(Items.staffOfHealing, "Staff of Healing", cost = 670)
-            magicItem(Items.blessingScroll, "Blessing Scroll", cost = 2000)
-            magicItem(Items.staffOfCuring, "Staff of Curing", cost = 4343)
-            magicItem(Items.gemOfResurrection, "Gem of Resurrection", cost = 9000)
-            magicItem(Items.kaelsAxe, "Kael's Axe", cost = 14000)
-            magicItem(Items.holyHandGrenade, "Holy Hand Grenade", cost = 5600)
-            magicItem(Items.fluteOfMadness, "Flute of Madness", cost = 9000)
+            magicItem(Items.blessingScroll, "Blessing Scroll", cost = 2_000)
+            magicItem(Items.staffOfCuring, "Staff of Curing", cost = 4_343)
+            magicItem(Items.gemOfResurrection, "Gem of Resurrection", cost = 9_000)
+            magicItem(Items.kaelsAxe, "Kael's Axe", cost = 14_000)
+            magicItem(Items.holyHandGrenade, "Holy Hand Grenade", cost = 5_600)
+            magicItem(Items.fluteOfMadness, "Flute of Madness", cost = 9_000)
 
             pool(ItemPools.battleSpoils) {
                 items(
@@ -927,7 +941,7 @@ var nextRylween: RylweenModel = rylween {
                     Items.greenGem,
                     Items.chalice,
                     Items.pendant,
-                    Items.broche,
+                    Items.brooch,
                     Items.crystalBowl,
                     Items.necklace,
                 )
@@ -1014,7 +1028,7 @@ var nextRylween: RylweenModel = rylween {
                     Items.greenGem,
                     Items.chalice,
                     Items.pendant,
-                    Items.broche,
+                    Items.brooch,
                     Items.crystalBowl,
                     Items.necklace,
                 )
@@ -1070,11 +1084,35 @@ var nextRylween: RylweenModel = rylween {
             maxLevel = 28
             hitPointFloor = Formulas.levelUpHitPointFloor
             xpThresholds(
-                0, 0,
-                2000, 4000, 8000, 12000, 20000, 28000, 36000, 48000, 54000,
-                64000, 74000, 86000, 98000, 110000, 125000, 150000, 180000,
-                240000, 300000, 400000, 550000, 700000, 900000, 1100000,
-                1500000, 2000000, 2800000,
+                0,
+                0,
+                2_000,
+                4_000,
+                8_000,
+                12_000,
+                20_000,
+                28_000,
+                36_000,
+                48_000,
+                54_000,
+                64_000,
+                74_000,
+                86_000,
+                98_000,
+                110_000,
+                125_000,
+                150_000,
+                180_000,
+                240_000,
+                300_000,
+                400_000,
+                550_000,
+                700_000,
+                900_000,
+                1_100_000,
+                1_500_000,
+                2_000_000,
+                2_800_000,
             )
             classLevelUp(PcClass.Fighter) {
                 weaponSkill = 3
@@ -1124,7 +1162,7 @@ var nextRylween: RylweenModel = rylween {
                 level = 1
                 dailyTimeLeft = 175
                 resources {
-                    gold = 1000
+                    gold = 1_000
                     torches = 5
                     food = 100
                     timeLeft = 200
@@ -1221,7 +1259,7 @@ var nextRylween: RylweenModel = rylween {
 
                 openingKeys {
                     fight = inputKey('F')
-                    run = inputKey('R')
+                    flee = inputKey('R')
                 }
 
                 text {
@@ -1230,7 +1268,7 @@ var nextRylween: RylweenModel = rylween {
                     foeDisplayName { line(BattleText.foeDisplayName); line("") }
                     stillFace { line("You still face") }
                     fight { line("(F)ight") }
-                    run { line("(R)un") }
+                    fleeOption { line("(R)un") }
                     bloodFlow { line("Blood shall flow!") }
                     whatNow { lines("What now?", "") }
                     targetPrompt { lines("Who?", "") }
@@ -1462,20 +1500,20 @@ var nextRylween: RylweenModel = rylween {
             backdrop(Images.Backdrop.insideCave)
 
             event(DungeonEvents.nothingSpecial) {
-                run {
+                script {
                     readScreen("You find nothing", "special on this level.", "")
                 }
             }
 
             event(DungeonEvents.emptyLevel) {
-                run {
+                script {
                     readScreen("This level is empty.", "")
                 }
             }
 
             event(DungeonEvents.spectrumMessage) {
                 recurring()
-                run {
+                script {
                     readScreen(
                         "A message on the wall",
                         "reads:",
@@ -1490,7 +1528,7 @@ var nextRylween: RylweenModel = rylween {
 
             event(DungeonEvents.gold) {
                 recurring()
-                run {
+                script {
                     val amount = localInt(random(40..339))
                     screen {
                         line("You find ", amount)
@@ -1504,7 +1542,7 @@ var nextRylween: RylweenModel = rylween {
 
             event(DungeonEvents.torches) {
                 recurring()
-                run {
+                script {
                     val amount = localInt(random(2..4))
                     screen {
                         line("You find ", amount, " torches.")
@@ -1518,7 +1556,7 @@ var nextRylween: RylweenModel = rylween {
 
             event(DungeonEvents.findObject) {
                 recurring()
-                run {
+                script {
                     randomDungeonItemFind(
                         commonPools = listOf(
                             ItemPools.dungeonWeaponFinds,
@@ -1532,7 +1570,7 @@ var nextRylween: RylweenModel = rylween {
 
             event(DungeonEvents.goldChest) {
                 recurring()
-                run {
+                script {
                     menu(
                         "You find a chest!",
                         "",
@@ -1549,7 +1587,7 @@ var nextRylween: RylweenModel = rylween {
                                         line(partyName(it), " checks the")
                                         line("chest for traps.")
                                     }
-                                    pause(1000)
+                                    pause1s()
                                     trapChance set 2
                                     thiefFound set 1
                                 }
@@ -1558,23 +1596,23 @@ var nextRylween: RylweenModel = rylween {
                             whenever(random(0..9) lt trapChance) {
                                 clearText()
                                 screen("A TRAP!")
-                                pause(600)
+                                pause600ms()
                                 choose(random(0..2)) {
                                     case(0) {
                                         screen("Poisonous gas", "hisses out through", "hidden holes.", "")
-                                        pause(1400)
+                                        pause1500ms()
                                         screen("The party coughs", "and retches.")
-                                        pause(600)
+                                        pause600ms()
                                         screen("Finally. The gas clears.", "")
                                     }
                                     case(1) {
                                         screen("A spiked pitfall", "opens in the floor", "beneath you.", "")
-                                        pause(1400)
+                                        pause1500ms()
                                         screen("You climb out of it,", "badly wounded.", "")
                                     }
                                     case(2) {
                                         screen("A large boulder", "drops from above!!!")
-                                        pause(1400)
+                                        pause1500ms()
                                         screen("Badly bruised, you", "try to stand up again.", "")
                                     }
                                 }
@@ -1615,11 +1653,11 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.thunRiddle1) {
-                run {
+                script {
                     riddleGate(
                         intro = textLines(
                             "You stand before a",
-                            "mage dressed entirenly",
+                            "mage dressed entirely",
                             "in red.",
                             "",
                             "- Answer this, fools, or",
@@ -1648,11 +1686,11 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.thunRiddle2) {
-                run {
+                script {
                     riddleGate(
                         intro = textLines(
                             "You stand before a",
-                            "mage dressed entirenly",
+                            "mage dressed entirely",
                             "in green.",
                             "",
                             "- Answer this, fools, or",
@@ -1681,11 +1719,11 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.thunRiddle3) {
-                run {
+                script {
                     riddleGate(
                         intro = textLines(
                             "You stand before a",
-                            "mage dressed entirenly",
+                            "mage dressed entirely",
                             "in blue.",
                             "",
                             "- Answer this, fools, or",
@@ -1715,7 +1753,7 @@ var nextRylween: RylweenModel = rylween {
 
             event(DungeonEvents.colorRiddle) {
                 recurring()
-                run {
+                script {
                     val antechamber = localInt(context.dungeonLevel - 12)
                     readScreen {
                         line("A plaque here reads:")
@@ -1758,7 +1796,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.fireShieldGuardian) {
-                run {
+                script {
                     readScreen(
                         "As you enter this level",
                         "you hear a horrible",
@@ -1774,7 +1812,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.fireShield) {
-                run {
+                script {
                     whenever(!achieved(Milestones.fireShield)) {
                         readScreen(
                             "After you have bested",
@@ -1793,7 +1831,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.bracelets) {
-                run {
+                script {
                     whenever(!achieved(Milestones.braceletsOfThun)) {
                         readScreen(
                             "This whole chamber",
@@ -1814,7 +1852,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.nolrimTomb) {
-                run {
+                script {
                     whenever(!Story.masterCrown.daggerTaken) {
                         readScreen(
                             "Nolrim's body rests on",
@@ -1830,7 +1868,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.masterCrown) {
-                run {
+                script {
                     whenever(!achieved(Milestones.masterCrown)) {
                         readScreen(
                             "FINALLY! In the hands of",
@@ -1858,14 +1896,14 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.silverSanctum) {
-                run {
+                script {
                     whenever(!Story.silverKey.noteFound) {
                         readScreen(
                             "This room shines like",
                             "silver. You can see your",
                             "mirror image in the",
                             "walls. After searching",
-                            "the room thorougly, you",
+                            "the room thoroughly, you",
                             "find nothing. No Silver",
                             "Key, no treasure.",
                             "",
@@ -1898,7 +1936,7 @@ var nextRylween: RylweenModel = rylween {
 
             event(DungeonEvents.hobgoblinPatrol) {
                 recurring()
-                run {
+                script {
                     readScreen(
                         "You bump into a hobgoblin",
                         "patrol. With shiny and",
@@ -1919,7 +1957,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.royalGuard1) {
-                run {
+                script {
                     readScreen(
                         "As you enter this room",
                         "an army of hobgoblin",
@@ -1931,13 +1969,13 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.royalGuard2) {
-                run {
+                script {
                     readScreen(
                         "As you enter this room",
                         "an army of undead",
                         "hobgoblins, smelling",
                         "of rotting flesh and",
-                        "brandising gleaming",
+                        "brandishing gleaming",
                         "tridents attack you.",
                         "",
                     )
@@ -1946,7 +1984,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.hobgoblinChief) {
-                run {
+                script {
                     whenever(!achieved(Milestones.silverKey)) {
                         readScreen(
                             "You stand before a",
@@ -1966,7 +2004,7 @@ var nextRylween: RylweenModel = rylween {
                                     "yourself. You do so. The",
                                     "hobgoblin chief eyes you",
                                     "suspiciously for a few",
-                                    "seconds. Not hestitating",
+                                    "seconds. Not hesitating",
                                     "a moment you attack.",
                                     "",
                                 )
@@ -1974,7 +2012,7 @@ var nextRylween: RylweenModel = rylween {
                             },
                             miss = {
                                 screen("- GUARDS! GUARDS!", "", "(Hobgoblin guards rush", " to confront you.)")
-                                pause(2000)
+                                pause2s()
                                 encounter(Monsters.hobgoblin, mandatory = true)
                                 encounter(Monsters.hobgoblinChief, mandatory = true)
                             },
@@ -1995,7 +2033,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.orcNest) {
-                run {
+                script {
                     readScreen(
                         "Some orcs watch a trapdoor",
                         "in the floor here. As",
@@ -2019,7 +2057,7 @@ var nextRylween: RylweenModel = rylween {
 
             event(DungeonEvents.tammysPrison) {
                 recurringUntil(Story.peasant.wife.rescued)
-                run {
+                script {
                     whenever(Story.peasant.wife.accepted and !Story.peasant.wife.rescued) {
                         readScreen(
                             "The peasant's wife is in",
@@ -2035,7 +2073,7 @@ var nextRylween: RylweenModel = rylween {
 
             event(DungeonEvents.erethorPriests) {
                 recurring()
-                run {
+                script {
                     readScreen(
                         "You are spotted by",
                         "some priests. They",
@@ -2048,7 +2086,7 @@ var nextRylween: RylweenModel = rylween {
             }
 
             event(DungeonEvents.luteChamber) {
-                run {
+                script {
                     whenever(!Story.erethor.lute.luteTaken) {
                         readScreen(
                             "This is the altar chamber",
@@ -2829,7 +2867,7 @@ var nextRylween: RylweenModel = rylween {
                     yes = {
                         whenever(party.gold lt price) {
                             screen("- No money, eh?", "  don't bother", "  to come back!")
-                            pause(1600)
+                            pause2s()
                         } otherwise {
                             party.gold -= price
                             forEachMember {
@@ -2838,7 +2876,7 @@ var nextRylween: RylweenModel = rylween {
                                 }
                             }
                             screen("You spend a very", "exhausting hour", "upstairs.", "(PERVERT!) ;-)", "")
-                            pause(2000)
+                            pause2s()
                         }
                     },
                 )
@@ -2941,7 +2979,7 @@ var nextRylween: RylweenModel = rylween {
                 }
                 tavern {
                     scene = Scenes.Towne.tavern
-                    hours = 6..1
+                    openHours(opensAt = 6, closesAt = 1)
                 }
                 guild {
                     scene = Scenes.Towne.guild
@@ -3376,7 +3414,7 @@ var nextRylween: RylweenModel = rylween {
             monster(Monsters.baronYdarg) {
                 name = "Baron Ydarg"
                 count = 1..1
-                hitPoints = 500..1000
+                hitPoints = 500..1_000
                 weaponSkill = 90
                 spellPower = 5
                 immune = true
@@ -3689,7 +3727,7 @@ var nextRylween: RylweenModel = rylween {
             monster(Monsters.skagerbergKiller) {
                 name = "Skagerberg Killer"
                 count = 1..1
-                hitPoints = 2000..3500
+                hitPoints = 2_000..3_500
                 weaponSkill = 100
                 spellPower = 20
                 immune = true
@@ -3841,14 +3879,14 @@ var nextRylween: RylweenModel = rylween {
                                     "",
                                 )
                             }
-                            pause(1200)
+                            pause1500ms()
                             breakLoop("corpse exits the church service")
                         } otherwise {
                             whenever(m.hp eq m.maxHp) {
                                 screen {
                                     line(partyName(m), " needs no healing.")
                                 }
-                                pause(1000)
+                                pause1s()
                             } otherwise {
                                 val price = localInt((m.maxHp - m.hp) * 7)
                                 clearText()
@@ -3866,7 +3904,7 @@ var nextRylween: RylweenModel = rylween {
                                                 "gold!",
                                             )
                                         }
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     paid = {
                                         clearText()
@@ -3875,7 +3913,7 @@ var nextRylween: RylweenModel = rylween {
                                             line("The priestess heals")
                                             line(pronoun(m, PronounCase.Object), " fully.")
                                         }
-                                        pause(1000)
+                                        pause1s()
                                     },
                                 )
                             }
@@ -3893,7 +3931,7 @@ var nextRylween: RylweenModel = rylween {
                         whenever(!m.spellcaster) {
                             clearText()
                             screen("Not a spellcaster!")
-                            pause(1000)
+                            pause1s()
                         } otherwise {
                             whenever(m.mp eq m.wisdom) {
                                 clearText()
@@ -3904,7 +3942,7 @@ var nextRylween: RylweenModel = rylween {
                                         "to be restored.",
                                     )
                                 }
-                                pause(2000)
+                                pause2s()
                             } otherwise {
                                 clearText()
                                 val price = localInt(m.level * (m.wisdom - m.mp) * 2)
@@ -3918,7 +3956,7 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("You don't have the gold!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     paid = {
                                         m.mp set m.wisdom
@@ -3927,7 +3965,7 @@ var nextRylween: RylweenModel = rylween {
                                             line("The priestess restores")
                                             line(pronoun(m, PronounCase.Possessive), " energy.")
                                         }
-                                        pause(1000)
+                                        pause1s()
                                     },
                                 )
                             }
@@ -3948,7 +3986,7 @@ var nextRylween: RylweenModel = rylween {
                                 line("- ", partyName(m), " seems very alive")
                                 line("at the moment.")
                             }
-                            pause(1200)
+                            pause1500ms()
                         } otherwise {
                             clearText()
                             val price = localInt(m.level * 650)
@@ -3962,7 +4000,7 @@ var nextRylween: RylweenModel = rylween {
                                 broke = {
                                     clearText()
                                     screen("You don't have the gold!")
-                                    pause(1000)
+                                    pause1s()
                                 },
                                 paid = {
                                     m.hp set 1
@@ -3973,7 +4011,7 @@ var nextRylween: RylweenModel = rylween {
                                         line("The priestess raises")
                                         line(pronoun(m, PronounCase.Object), ".")
                                     }
-                                    pause(1000)
+                                    pause1s()
                                 },
                             )
                         }
@@ -4057,7 +4095,7 @@ var nextRylween: RylweenModel = rylween {
                             item('2', Items.axe, label = "Axe")
                             item('3', Items.bow, label = "Bow")
                             item('4', Items.club, label = "Club")
-                            item('5', Items.halbard, label = "Halbard")
+                            item('5', Items.halbard, label = "Halberd")
                             item('6', Items.crossbow, label = "Crossbow")
                         }
                         page {
@@ -4081,7 +4119,7 @@ var nextRylween: RylweenModel = rylween {
                         line("")
                     }
                     declined("No thanks.")
-                    bargain {
+                    haggle {
                         bonus(rollGreaterThan = 90, addCurrentDivisor = 4)
                         bonus(rollGreaterThan = 75, addCurrentDivisor = 6)
                         rejectWhenRollBelow(76)
@@ -4114,7 +4152,7 @@ var nextRylween: RylweenModel = rylween {
                                 line("Sorry, supper is ", cost)
                                 line("gold.")
                             }
-                            pause(1000)
+                            pause1s()
                         } otherwise {
                             party.gold -= cost
                             clearText()
@@ -4127,7 +4165,7 @@ var nextRylween: RylweenModel = rylween {
                                 )
                             }
                             healLivingMembers(6)
-                            pause(2000)
+                            pause2s()
                         }
                     },
                 )
@@ -4151,12 +4189,12 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("No money - No drink!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     ok = {
                                         clearText()
                                         screen("Ahh...!")
-                                        pause(1000)
+                                        pause1s()
                                         healLivingMembers((lit(2) / 2) + 1)
                                     },
                                 )
@@ -4166,12 +4204,12 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("No money - No drink!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     ok = {
                                         clearText()
                                         screen("Ahh...!")
-                                        pause(1000)
+                                        pause1s()
                                         healLivingMembers((lit(3) / 2) + 1)
                                     },
                                 )
@@ -4181,12 +4219,12 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("No money - No drink!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     ok = {
                                         clearText()
                                         screen("Ahh...!")
-                                        pause(1000)
+                                        pause1s()
                                         healLivingMembers((lit(5) / 2) + 1)
                                     },
                                 )
@@ -4196,12 +4234,12 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("No money - No drink!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     ok = {
                                         clearText()
                                         screen("Ahh...!")
-                                        pause(1000)
+                                        pause1s()
                                         healLivingMembers((lit(7) / 2) + 1)
                                     },
                                 )
@@ -4211,12 +4249,12 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("No money - No drink!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     ok = {
                                         clearText()
                                         screen("The other guests giggle.")
-                                        pause(1000)
+                                        pause1s()
                                         healLivingMembers((lit(1) / 2) + 1)
                                     },
                                 )
@@ -4246,17 +4284,17 @@ var nextRylween: RylweenModel = rylween {
                                             "You are thrown out.",
                                         )
                                     }
-                                    pause(2000)
+                                    pause2s()
                                     clearMapWindow()
                                     breakLoop("thrown out of inn")
                                 } otherwise {
                                     party.gold -= cost
                                     clearText()
                                     screen("You go to bed...")
-                                    pause(1000)
+                                    pause1s()
                                     screen("Zzzz...", "")
                                     party.restedHours set 14
-                                    pause(1500)
+                                    pause1500ms()
                                     screen {
                                         lines(
                                             "You wake up a little",
@@ -4425,7 +4463,7 @@ var nextRylween: RylweenModel = rylween {
             whenever((realm.hour lt 6) and (realm.hour gt 1)) {
                 clearText()
                 screen("Tavern Closed.")
-                pause(1000)
+                pause1s()
                 stop("tavern closed")
             }
 
@@ -4449,7 +4487,7 @@ var nextRylween: RylweenModel = rylween {
                     "at your sleeve...",
                     "",
                 )
-                pause(3000)
+                pause3s()
                 screen(
                     "- Hey, hey, hey! You!",
                     "  yes... you! I have",
@@ -4457,7 +4495,7 @@ var nextRylween: RylweenModel = rylween {
                     "  interest you...",
                     "",
                 )
-                pause(3000)
+                pause3s()
                 clearText()
                 choice.randomItemOffer(ItemPools.tavernScruffySpecials) {
                     offer {
@@ -4526,7 +4564,7 @@ var nextRylween: RylweenModel = rylween {
                                     "stories...",
                                 )
                             }
-                            pause(2000)
+                            pause2s()
                         } otherwise {
                             clearText()
                             screen {
@@ -4536,10 +4574,10 @@ var nextRylween: RylweenModel = rylween {
                                 line("  A TRAVELER'S STORY?")
                                 line("")
                             }
-                            pause(2000)
+                            pause2s()
 
                             screen("- YEAAH! Roars the crowd!", "")
-                            pause(2000)
+                            pause2s()
 
                             val isBoast = localInt(0)
                             menu("(T)rue story", "(B)oast") {
@@ -4568,7 +4606,7 @@ var nextRylween: RylweenModel = rylween {
                                 whenever(random(0..99) gt storyteller.charisma) {
                                     clearText()
                                     screen("- Out with the liar!")
-                                    pause(2000)
+                                    pause2s()
                                     screen("You are thrown out.")
                                     whenever(storyteller.charisma gte 10) {
                                         storyteller.charisma -= 10
@@ -4591,7 +4629,7 @@ var nextRylween: RylweenModel = rylween {
                                         "",
                                     )
                                 }
-                                pause(2000)
+                                pause2s()
                                 storyteller.charisma += 3
                             }
                             whenever((score gt 300) and (score lt 401)) {
@@ -4602,16 +4640,16 @@ var nextRylween: RylweenModel = rylween {
                                         "",
                                     )
                                 }
-                                pause(2000)
+                                pause2s()
                                 storyteller.charisma += 1
                             }
                             whenever((score gt 150) and (score lt 301)) {
                                 screen("Nice story, Sir!", "")
-                                pause(1600)
+                                pause2s()
                             }
                             whenever((score gt 100) and (score lt 151)) {
                                 screen("The mob is bored.", "")
-                                pause(1600)
+                                pause2s()
                                 whenever(storyteller.charisma gt 0) {
                                     storyteller.charisma -= 1
                                 }
@@ -4625,7 +4663,7 @@ var nextRylween: RylweenModel = rylween {
                                         "",
                                     )
                                 }
-                                pause(2000)
+                                pause2s()
                                 whenever(storyteller.charisma gte 3) {
                                     storyteller.charisma -= 3
                                 }
@@ -4686,7 +4724,7 @@ var nextRylween: RylweenModel = rylween {
                                     screen("A bargirl tells you:", "")
                                 }
                             }
-                            pause(600)
+                            pause600ms()
                             tellRumor()
                             waitInput("after tavern rumor")
                         }
@@ -4707,7 +4745,7 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("No money - No drink!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     ok = {
                                         clearText()
@@ -4717,7 +4755,7 @@ var nextRylween: RylweenModel = rylween {
                                                 "returns).",
                                             )
                                         }
-                                        pause(1000)
+                                        pause1s()
                                         forEachMember(includeDead = true) {
                                             it.hp.addClamped((lit(2) / 2) + 1, it.maxHp)
                                         }
@@ -4729,7 +4767,7 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("No money - No drink!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     ok = {
                                         clearText()
@@ -4739,7 +4777,7 @@ var nextRylween: RylweenModel = rylween {
                                                 "returns).",
                                             )
                                         }
-                                        pause(1000)
+                                        pause1s()
                                         forEachMember(includeDead = true) {
                                             it.hp.addClamped((lit(3) / 2) + 1, it.maxHp)
                                         }
@@ -4751,7 +4789,7 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("No money - No drink!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     ok = {
                                         clearText()
@@ -4761,7 +4799,7 @@ var nextRylween: RylweenModel = rylween {
                                                 "returns).",
                                             )
                                         }
-                                        pause(1000)
+                                        pause1s()
                                         forEachMember(includeDead = true) {
                                             it.hp.addClamped((lit(4) / 2) + 1, it.maxHp)
                                         }
@@ -4773,7 +4811,7 @@ var nextRylween: RylweenModel = rylween {
                                     broke = {
                                         clearText()
                                         screen("No money - No drink!")
-                                        pause(1000)
+                                        pause1s()
                                     },
                                     ok = {
                                         clearText()
@@ -4784,7 +4822,7 @@ var nextRylween: RylweenModel = rylween {
                                                 "tavern...",
                                             )
                                         }
-                                        pause(2000)
+                                        pause2s()
                                         forEachMember(includeDead = true) {
                                             it.hp.addClamped((lit(1) / 2) + 1, it.maxHp)
                                         }
@@ -4833,7 +4871,7 @@ var nextRylween: RylweenModel = rylween {
             showBackdrop(Images.Scene.hut)
             clearText()
             screen("You enter the hut.")
-            pause(600)
+            pause600ms()
 
             loop {
                 clearText()
@@ -4865,7 +4903,7 @@ var nextRylween: RylweenModel = rylween {
                 line("opponent for ", damage)
                 line("damage pts.")
             }
-            pause(1600)
+            pause2s()
 
             target.hp -= damage
 
@@ -4873,7 +4911,7 @@ var nextRylween: RylweenModel = rylween {
                 target.hp set 0
                 target.dead set true
                 screen("...KILLED!")
-                pause(600)
+                pause600ms()
             }
         }
 
@@ -4889,14 +4927,14 @@ var nextRylween: RylweenModel = rylween {
                         line(partyName(caster), " burns ", monsterName(foe))
                         line("for ", damage, " pts!")
                     }
-                    pause(1000)
+                    pause1s()
 
                     foe.hp -= damage
 
                     whenever(foe.hp lte 0) {
                         foe.hp set 0
                         screen("...KILLED!")
-                        pause(600)
+                        pause600ms()
                         foe.dead set true
                     }
                 }
@@ -4915,7 +4953,7 @@ var nextRylween: RylweenModel = rylween {
                     "enemies",
                 )
             }
-            pause(2000)
+            pause2s()
             battle.monsterWeaponSkill /= 2
             battle.monsterConfused set true
         }
@@ -4933,7 +4971,7 @@ var nextRylween: RylweenModel = rylween {
                         "wounded.",
                     )
                 }
-                pause(2000)
+                pause2s()
                 target.hp set 1
             } otherwise {
                 screen {
@@ -4943,7 +4981,7 @@ var nextRylween: RylweenModel = rylween {
                         "of the earth!",
                     )
                 }
-                pause(2000)
+                pause2s()
                 target.dead set true
                 target.hp set 0
             }
@@ -4957,7 +4995,7 @@ var nextRylween: RylweenModel = rylween {
                 line(partyName(caster), " utters a word.")
                 lines("The enemies freeze dead", "in their tracks.")
             }
-            pause(2000)
+            pause2s()
             battle.monstersHeld set true
         }
 
@@ -4973,7 +5011,7 @@ var nextRylween: RylweenModel = rylween {
                     "against you this round.",
                 )
             }
-            pause(2800)
+            pause3s()
             battle.antimagic set true
         }
 
@@ -4985,12 +5023,12 @@ var nextRylween: RylweenModel = rylween {
             screen {
                 line("on ", partyName(target), "!")
             }
-            pause(1000)
+            pause1s()
             screen {
                 line("and does ", damage, " pts")
                 line("of damage!")
             }
-            pause(1000)
+            pause1s()
             target.hp -= damage
             whenever(target.hp lte 0) {
                 target.hp set 0
@@ -4998,13 +5036,13 @@ var nextRylween: RylweenModel = rylween {
                 screen {
                     line("\u001B[31m", partyName(target), " DIES!\u001B[37m")
                 }
-                pause(1000)
+                pause1s()
             }
         }
 
         spell(Spells.Monster.fire, slot = 2, baseCost = 0, name = "Cloud of Fire") {
             screen("Cloud of Fire!")
-            pause(1000)
+            pause1s()
             forEachMember { target ->
                 val damage = localInt((battle.encounterHitPointMax / 5) + random(0..4))
                 clearText()
@@ -5012,7 +5050,7 @@ var nextRylween: RylweenModel = rylween {
                     line(partyName(target), " is burnt for")
                     line(damage, " damage pts!")
                 }
-                pause(1000)
+                pause1s()
                 target.hp -= damage
                 whenever(target.hp lte 0) {
                     target.hp set 0
@@ -5020,24 +5058,24 @@ var nextRylween: RylweenModel = rylween {
                     screen {
                         line("\u001B[31m", partyName(target), " DIES!\u001B[37m")
                     }
-                    pause(1000)
+                    pause1s()
                 }
             }
         }
 
         spell(Spells.Monster.hold, slot = 3, baseCost = 0, name = "Hold Creature") {
             screen("Hold Creature!")
-            pause(600)
+            pause600ms()
             screen("You realize with horror", "that you cannot move!")
-            pause(1500)
+            pause1500ms()
             battle.partyHeld set true
         }
 
         spell(Spells.Monster.confusion, slot = 4, baseCost = 0, name = "Confusion") {
             screen("Confusion!")
-            pause(600)
+            pause600ms()
             screen("You are almost blinded", "by a colorful haze.")
-            pause(1500)
+            pause1500ms()
             battle.partyConfused set true
         }
 
@@ -5063,7 +5101,7 @@ var nextRylween: RylweenModel = rylween {
                 whenever(target.dead) {
                     clearText()
                     screen("Dead.")
-                    pause(600)
+                    pause600ms()
                     clearText()
                 } otherwise {
                     target.hp.addClamped(healing, target.maxHp)
@@ -5073,12 +5111,12 @@ var nextRylween: RylweenModel = rylween {
                         line(partyName(target))
                         line("for ", healing, " hit points...")
                     }
-                    pause(1500)
+                    pause1500ms()
                     clearText()
                 }
             } otherwise {
                 screen("Not enough spell pts!")
-                pause(1000)
+                pause1s()
                 clearText()
             }
         }
@@ -5105,11 +5143,11 @@ var nextRylween: RylweenModel = rylween {
                     line(partyName(target))
                     line("fully...")
                 }
-                pause(1500)
+                pause1500ms()
                 clearText()
             } otherwise {
                 screen("Not enough spell pts!")
-                pause(1000)
+                pause1s()
                 clearText()
             }
         }
@@ -5139,18 +5177,18 @@ var nextRylween: RylweenModel = rylween {
                         lines("flicker, and finally")
                         line(pronoun(target, PronounCase.Subject), " opens ", pronoun(target, PronounCase.Possessive), " eyes!")
                     }
-                    pause(1700)
+                    pause2s()
                     clearText()
                 } otherwise {
                     screen {
                         line(partyName(target), " is alive and")
                         line("healthy.")
                     }
-                    pause(1500)
+                    pause1500ms()
                 }
             } otherwise {
                 screen("Not enough spell pts!")
-                pause(1000)
+                pause1s()
                 clearText()
             }
         }
@@ -5182,7 +5220,7 @@ var nextRylween: RylweenModel = rylween {
                 }
             } otherwise {
                 screen("Not enough spell pts!")
-                pause(1000)
+                pause1s()
                 clearText()
             }
         }
@@ -5203,7 +5241,7 @@ var nextRylween: RylweenModel = rylween {
                     } otherwise {
                         clearText()
                         screen("Something special is", "near!")
-                        pause(1500)
+                        pause1500ms()
                         clearText()
                         choose(random(0..2)) {
                             case(0) { dungeonItemFind(ItemPools.dungeonWeaponFinds) }
@@ -5218,7 +5256,7 @@ var nextRylween: RylweenModel = rylween {
                 }
             } otherwise {
                 screen("Not enough spell pts!")
-                pause(1000)
+                pause1s()
                 clearText()
             }
         }
@@ -5268,11 +5306,11 @@ var nextRylween: RylweenModel = rylween {
                 teleportParty(direction, distance)
                 screen("You appear to be", "somewhere else.")
                 renderMap()
-                pause(1200)
+                pause1500ms()
                 clearText()
             } otherwise {
                 screen("Not enough spell pts!")
-                pause(1000)
+                pause1s()
                 clearText()
             }
         }
@@ -5293,9 +5331,9 @@ var nextRylween: RylweenModel = rylween {
                         line(partyName(caster), " utters")
                         lines("three syllables in an", "archaic tongue...", "")
                     }
-                    pause(2000)
+                    pause2s()
                     screen("and the ground cracks", "open!")
-                    pause(3000)
+                    pause3s()
                     clearMapWindow()
                     showBackdrop(Images.Backdrop.cave)
                     clearText()
@@ -5320,7 +5358,7 @@ var nextRylween: RylweenModel = rylween {
                     )
                 } otherwise {
                     screen("Not enough spell pts!")
-                    pause(1000)
+                    pause1s()
                     clearText()
                 }
             }
@@ -5345,7 +5383,7 @@ var nextRylween: RylweenModel = rylween {
                     line(partyName(target), " recovers")
                     line("15 hit points.")
                 }
-                pause(1000)
+                pause1s()
             }
         }
 
@@ -5373,7 +5411,7 @@ var nextRylween: RylweenModel = rylween {
                     target.dead set true
                     party.memberCount -= 1
                 }
-                pause(1000)
+                pause1s()
             }
         }
 
@@ -5397,7 +5435,7 @@ var nextRylween: RylweenModel = rylween {
                     line(partyName(target), " recovers")
                     line("15 spell points.")
                 }
-                pause(1000)
+                pause1s()
             }
         }
 
@@ -5415,14 +5453,14 @@ var nextRylween: RylweenModel = rylween {
                     line(partyName(caster), " chills ", monsterName(target))
                     line("for ", damage, " damage pts.")
                 }
-                pause(1000)
+                pause1s()
 
                 target.hp -= damage
 
                 whenever(target.hp lte 0) {
                     target.hp set 0
                     screen("...KILLED!")
-                    pause(600)
+                    pause600ms()
                     target.dead set true
                 }
             }
@@ -5445,14 +5483,14 @@ var nextRylween: RylweenModel = rylween {
                             line(partyName(caster), " burns ", monsterName(foe))
                             line("for ", damage, " pts!")
                         }
-                        pause(1000)
+                        pause1s()
 
                         foe.hp -= damage
 
                         whenever(foe.hp lte 0) {
                             foe.hp set 0
                             screen("...KILLED!")
-                            pause(600)
+                            pause600ms()
                             foe.dead set true
                         }
                     }
@@ -5527,9 +5565,9 @@ var nextRylween: RylweenModel = rylween {
                     line("to take a ", monsterName(target))
                     line("away...")
                 }
-                pause(2000)
+                pause2s()
                 screen("...KILLED!")
-                pause(600)
+                pause600ms()
                 target.dead set true
                 target.hp set 0
                 clearText()
@@ -5557,7 +5595,7 @@ var nextRylween: RylweenModel = rylween {
                     line(partyName(target), " is fully")
                     line("healed.")
                 }
-                pause(1000)
+                pause1s()
                 clearText()
             }
         }
@@ -5626,7 +5664,7 @@ var nextRylween: RylweenModel = rylween {
                     screen {
                         line(partyName(target), " opens ", pronoun(target, PronounCase.Possessive), " eyes!")
                     }
-                    pause(1000)
+                    pause1s()
                     target.dead set false
                     target.hp set 1
                     consumeActiveItem()
@@ -5634,7 +5672,7 @@ var nextRylween: RylweenModel = rylween {
                     screen {
                         line(partyName(target), " is not dead.")
                     }
-                    pause(1000)
+                    pause1s()
                     battle.actionRetry set true
                 }
             }
@@ -5652,7 +5690,7 @@ var nextRylween: RylweenModel = rylween {
                     line(partyName(caster), " throws Kael's")
                     lines("axe at the enemy!", "")
                 }
-                pause(1500)
+                pause1500ms()
                 screen {
                     lines(
                         "It wounds them severely",
@@ -5661,7 +5699,7 @@ var nextRylween: RylweenModel = rylween {
                         "cannot see!",
                     )
                 }
-                pause(4000)
+                pause4s()
                 clearText()
                 screen {
                     lines(
@@ -5670,7 +5708,7 @@ var nextRylween: RylweenModel = rylween {
                         "mortally wounded foes!",
                     )
                 }
-                pause(3000)
+                pause3s()
 
                 forEachMonster { foe ->
                     foe.hp set random(1..3)
@@ -5695,9 +5733,9 @@ var nextRylween: RylweenModel = rylween {
                         "",
                     )
                 }
-                pause(3000)
+                pause3s()
                 screen("KA-BLAM!", "")
-                pause(1500)
+                pause1500ms()
                 clearText()
 
                 forEachMonster { foe ->
@@ -6018,7 +6056,7 @@ var nextRylween: RylweenModel = rylween {
                 line("Before you is the crypt")
                 line("of Nolrim. After levering")
                 line("a stone slab away, a dark")
-                line("forboding passage leads")
+                line("foreboding passage leads")
                 line("down to unknown depths.")
                 line("")
                 line("(E)nter the Crypt")
@@ -6046,7 +6084,7 @@ var nextRylween: RylweenModel = rylween {
                     line("half-orc told you about.")
                     line("As you get closer, you")
                     line("become aware of a hideous")
-                    line("smell, emnating from the")
+                    line("smell, emanating from the")
                     line("cavern depths...")
                     line("")
                     line("(E)nter")
@@ -6089,14 +6127,14 @@ var nextRylween: RylweenModel = rylween {
                     readScreen(
                         "You defeat the Ogre Lord.",
                         "You take all the gold",
-                        "you find, 5645 gold coins!",
+                        "you find, 5,645 gold coins!",
                         "You also find a Mithril",
                         "Mail some unfortunate",
                         "warrior has left here.",
                         "",
                     )
                     reward {
-                        gold(5645)
+                        gold(5_645)
                         items(Items.mithrilMail)
                     }
                     val noteFinder = party.member(2)
@@ -6292,14 +6330,14 @@ var nextRylween: RylweenModel = rylween {
             )
             readScreen(
                 "Smiling, he offers you",
-                "3578 gold coins and 3",
+                "3,578 gold coins and 3",
                 "gems. You greedily accept",
                 "the gift. He also hands",
                 "you a purple dwarf stone.",
                 "",
             )
             reward {
-                gold(3578)
+                gold(3_578)
                 items(Items.redGem, Items.blueGem, Items.greenGem)
             }
             mark(Story.masterCrown.borinPaid)
@@ -6315,7 +6353,7 @@ var nextRylween: RylweenModel = rylween {
                         "you much gold!",
                         "",
                     )
-                    waitInput("after garth mission offer")
+                    waitInput("after Garth mission offer")
                     clearText()
                     screen(
                         "I was robbed by bandits",
@@ -6327,7 +6365,7 @@ var nextRylween: RylweenModel = rylween {
                         "my grandfather gave me.",
                         "",
                     )
-                    waitInput("after garth bandits story")
+                    waitInput("after Garth bandits story")
                     clearText()
                     mark(Story.garth.bandits.accepted)
                 }
@@ -6339,21 +6377,21 @@ var nextRylween: RylweenModel = rylween {
                         "here. Then I'll pay you.",
                         "",
                     )
-                    waitInput("after garth accepted reminder")
+                    waitInput("after Garth accepted reminder")
                     clearText()
                 }
 
                 whenState(Story.garth.bandits.recovered) {
                     screen {
                         line("The ", character(Roles.banditsQuestGiver).job, " is GRATEFUL!")
-                        line("He pays you 2000 gold and")
-                        line("hands you a red gem.")
+                        line("He pays you 2,000 gold")
+                        line("and hands you a red gem.")
                         line("")
                     }
-                    waitInput("after garth reward intro")
+                    waitInput("after Garth reward intro")
                     clearText()
                     reward {
-                        gold(2000)
+                        gold(2_000)
                         items(Items.redGem)
                         promptDrop(
                             cantCarry = "You can't carry the gem.",
@@ -6424,8 +6462,9 @@ var nextRylween: RylweenModel = rylween {
 
                 whenState(Story.fighter.priestBook.wizardRobbed) {
                     say(
-                        "- Oh! Thank you!!! He",
-                        "removes a floor board",
+                        "- Oh! Thank you!!!",
+                        "",
+                        "He removes a floor board",
                         "and gives you a WONDERFUL",
                         "blade. It sparkles in",
                         "the light!",
@@ -6464,7 +6503,7 @@ var nextRylween: RylweenModel = rylween {
                     say {
                         line("When you mention the")
                         line("book, he nods and looks")
-                        line("a bit embarrased.")
+                        line("a bit embarrassed.")
                         line("- Yes, I know. I happened")
                         line("to lose it. A ", character(Roles.wizardRobbed).job)
                         line("called ", character(Roles.wizardRobbed).name, " stole it")
@@ -6475,7 +6514,7 @@ var nextRylween: RylweenModel = rylween {
                     say(
                         "He quickly fled, but I",
                         "know it's him, because",
-                        "he made inquieries about",
+                        "he made inquiries about",
                         "it, and tried to steal",
                         "it from me when I was",
                         "having dinner.",
@@ -6512,9 +6551,9 @@ var nextRylween: RylweenModel = rylween {
                         "I have an offer to make",
                         "thee. I will sell you",
                         "a map to the location of",
-                        "the SILVER KEY for 50000",
+                        "the SILVER KEY for 50,000",
                         "gold coins. The price is",
-                        "resonable. 10000 gold for",
+                        "reasonable. 10,000 gold for",
                         "each of those fruitless",
                         "years.",
                         "",
@@ -6522,9 +6561,9 @@ var nextRylween: RylweenModel = rylween {
                     menu("(B)uy it", "(N)o thanks") {
                         option('B') {
                             pay(
-                                amount = lit(50000),
+                                amount = lit(50_000),
                                 broke = {
-                                    say("- Sorry! 50000! No more", "no less. Come back when", "you have the gold.", "")
+                                    say("- Sorry! 50,000! No more", "no less. Come back when", "you have the gold.", "")
                                 },
                                 ok = {
                                     say {
@@ -6617,7 +6656,7 @@ var nextRylween: RylweenModel = rylween {
                     }
                     say(
                         "- We used to travel",
-                        "together and he found",
+                        "together, and he found",
                         "the Cloak in a long dead",
                         "hero's tomb. Now that",
                         "we have the Lute, the",
@@ -6647,7 +6686,7 @@ var nextRylween: RylweenModel = rylween {
                     menu("(B)uy it", "(N)o thanks") {
                         option('B') {
                             pay(
-                                amount = lit(10000),
+                                amount = lit(10_000),
                                 broke = {
                                     say("- Sorry! 10000! No more", "no less. Come back when", "you have the gold.", "")
                                 },
@@ -6786,7 +6825,7 @@ var nextRylween: RylweenModel = rylween {
                         "",
                     )
                     say(
-                        "He hands you 3000 gold,",
+                        "He hands you 3,000 gold,",
                         "an Adamantium Armor of",
                         "advanced craftsmanship",
                         "and some other assorted",
@@ -6798,7 +6837,7 @@ var nextRylween: RylweenModel = rylween {
                     )
                     mark(Story.peasant.wife.paid)
                     reward {
-                        gold(3000)
+                        gold(3_000)
                         items(Items.admtMail, Items.holyHandGrenade, Items.amberPotion, Items.fireWand, Items.crystalBowl)
                         promptDrop(cantCarry = "You can't carry all the")
                     }
@@ -6857,7 +6896,7 @@ var nextRylween: RylweenModel = rylween {
                     whenever(party.inventory.itemCost(slot) lt 35) {
                         clearText()
                         say("- NAH, THINK NOT!.")
-                        pause(1000)
+                        pause1s()
                     } otherwise {
                         clearText()
                         say {
@@ -6997,8 +7036,8 @@ var nextRylween: RylweenModel = rylween {
                     )
                     say(
                         "- They clubbed me",
-                        "unconcious and took all",
-                        "my belonings!!! Including",
+                        "unconscious and took all",
+                        "my belongings!!! Including",
                         "that key. Find them and",
                         "take it back. It's yours",
                         "if you get it.",
