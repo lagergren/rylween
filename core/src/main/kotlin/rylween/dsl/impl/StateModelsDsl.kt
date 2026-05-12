@@ -79,11 +79,6 @@ sealed interface WorldPosition {
     ) : WorldPosition
 }
 
-fun townPosition(
-    town: TownId,
-    building: BuildingId,
-): WorldPosition = WorldPosition.Town(town, building)
-
 object Wilderness {
     fun xy(
         x: Int,
