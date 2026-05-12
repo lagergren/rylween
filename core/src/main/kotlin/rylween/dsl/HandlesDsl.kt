@@ -184,8 +184,6 @@ data class RumorId(
 
 fun text(id: String): TextId = TextId(id)
 
-fun textPattern(pattern: String): TextPattern = TextPattern(pattern)
-
 fun item(slug: String): ItemId = ItemId.authored(slug)
 
 fun itemPool(
@@ -206,13 +204,9 @@ fun terrain(
     sourceMapCode: Char? = null,
 ): TerrainId = TerrainId(slug, sourceMapCode)
 
-fun terrainTag(slug: String): TerrainTagId = TerrainTagId(slug)
-
 fun image(slug: String): ImageId = ImageId(slug)
 
 fun staticScreen(slug: String): StaticScreenId = StaticScreenId(slug)
-
-fun palette(slug: String): PaletteId = PaletteId(slug)
 
 fun paletteColor(slug: String): PaletteColorId = PaletteColorId(slug)
 

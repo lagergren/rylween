@@ -33,6 +33,7 @@ private const val SAVE_VERSION = "1"
 private const val SAVE_MODEL = "shared-world"
 private const val PARTY_MEMBER_RECORD_COUNT = "party.members"
 private const val USERS_COUNT = "users.count"
+
 private val MEMBER_FIELD_KEY = Regex("""^member\.(\d+)\.""")
 
 /** Reads and writes runtime shared-world saves. */

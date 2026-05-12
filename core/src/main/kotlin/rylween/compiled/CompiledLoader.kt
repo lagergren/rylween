@@ -715,7 +715,7 @@ private class CompiledBundleValidator(
         sell.sold?.let(::text)
         binding(sell.saleKeys.accept)
         binding(sell.saleKeys.decline)
-        binding(sell.saleKeys.bargain)
+        binding(sell.saleKeys.haggle)
     }
 
     private fun shopInterlude(interlude: CompiledShopInterlude) {

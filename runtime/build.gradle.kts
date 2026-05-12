@@ -32,10 +32,6 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-tasks.test {
-    useJUnitPlatform()
-}
-
 val javaToolchains: JavaToolchainService = extensions.getByType()
 val kotlinRuntimeJavaLauncher: Provider<JavaLauncher> =
     javaToolchains.launcherFor {
@@ -337,7 +333,7 @@ val checkRuntimeTownPromptScript: TaskProvider<RunInstalledLauncherWithJavaTask>
     script.set("22EMSANXLCH2LL")
     expectedOutputContains.set(
         listOf(
-            "Accept? (Y)es / (N)o",
+            "(Y)es / (N)o",
             "No thanks.",
             "Who? (1-4)",
             "2. Legolas",

@@ -145,6 +145,7 @@ private val RandomItemOfferTextBindings: Set<TextPart> =
         TextPart.OfferedItemPrice,
     )
 private val SelectedItemTextBindings: Set<TextPart> = setOf(TextPart.SelectedItemName)
+private val EquipmentTextBindings: Set<TextPart> = setOf(TextPart.EquipmentKindName)
 private val ShopPriceTextBindings: Set<TextPart> = setOf(TextPart.ShopPrice)
 private val ShopCapacityTextBindings: Set<TextPart> = setOf(TextPart.ShopCarryCap)
 private val WildernessDungeonEntryTextBindings: Set<TextPart> =
@@ -700,29 +701,43 @@ fun validateSecretSystem(
     itemCatalog: List<ItemRecordModel>,
     monsters: List<MonsterModel>,
 ) {
-    val playerNames = secrets.players.map { it.playerName }
+    val playerNames = secrets.players.flatMap(SecretPlayerModel::playerNames)
     check(playerNames.toSet().size == playerNames.size) { "duplicate secret player name" }
+    check(secrets.players.count { player -> player.matcher == SecretPlayerMatcherModel.Any } <= 1) {
+        "duplicate playerAny secret block"
+    }
 
     val itemIds = itemCatalog.map { it.id }.toSet()
     val monsterIds = monsters.map { it.id }.toSet()
     secrets.players.forEach { player ->
-        check(player.playerName.isNotBlank()) { "secret player name is blank" }
+        val playerLabel = player.secretLabel()
+        player.playerNames.forEach { name -> check(name.isNotBlank()) { "secret player name is blank" } }
+        when (val matcher = player.matcher) {
+            SecretPlayerMatcherModel.Any -> Unit
+            is SecretPlayerMatcherModel.Named -> check(matcher.names.isNotEmpty()) { "secret playersNamed block has no names" }
+        }
         player.stepTrigger?.let { trigger ->
             check(trigger.everySteps > 0) {
-                "secret player ${player.playerName} step trigger must be positive"
+                "secret $playerLabel step trigger must be positive"
             }
-            validateSecretAction(trigger.action, "secret player ${player.playerName} step trigger", itemIds, monsterIds)
+            validateSecretAction(trigger.action, "secret $playerLabel step trigger", itemIds, monsterIds)
         }
         player.keyActions.forEach { keyAction ->
-            validateInputChoiceBinding(keyAction.binding, "secret player ${player.playerName} key")
-            validateSecretAction(keyAction.action, "secret player ${player.playerName} key", itemIds, monsterIds)
+            validateInputChoiceBinding(keyAction.binding, "secret $playerLabel key")
+            validateSecretAction(keyAction.action, "secret $playerLabel key", itemIds, monsterIds)
         }
         checkUniqueBindings(
             player.keyActions.map { it.binding },
-            "secret player ${player.playerName}",
+            "secret $playerLabel",
         )
     }
 }
+
+private fun SecretPlayerModel.secretLabel(): String =
+    when (val matcher = matcher) {
+        SecretPlayerMatcherModel.Any -> "playerAny"
+        is SecretPlayerMatcherModel.Named -> "players ${matcher.names.joinToString()}"
+    }
 
 private fun validateSecretAction(
     action: SecretActionModel,
@@ -841,6 +856,7 @@ private fun validateWildernessKeys(keys: WildernessKeysModel) {
         "quit" to keys.quit,
         "debug force cave" to keys.debugForceCave,
         "debug force encounter" to keys.debugForceEncounter,
+        "debug show map" to keys.debugShowMap,
         "cave enter" to keys.caveEnter,
         "cave leave" to keys.caveLeave,
         "out-of-moves save" to keys.outOfMovesSave,
@@ -1234,6 +1250,7 @@ private fun validateTextBlock(
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
             TextPart.SelectedItemName,
+            TextPart.EquipmentKindName,
             TextPart.ShopPrice,
             TextPart.ShopCarryCap,
             TextPart.HuntMemberName,
@@ -2002,12 +2019,12 @@ fun validateScriptRewards(
             validateShopPrice(sell.price, "shop ${shop.building.slug} sell")
             validateInputChoiceBinding(sell.saleKeys.accept, "shop ${shop.building.slug} sale accept key")
             validateInputChoiceBinding(sell.saleKeys.decline, "shop ${shop.building.slug} sale decline key")
-            sell.bargain?.let {
-                validateInputChoiceBinding(sell.saleKeys.bargain, "shop ${shop.building.slug} sale bargain key")
+            sell.haggle?.let {
+                validateInputChoiceBinding(sell.saleKeys.haggle, "shop ${shop.building.slug} sale haggle key")
             }
             checkUniqueBindings(
                 listOf(sell.saleKeys.accept, sell.saleKeys.decline) +
-                    listOfNotNull(sell.saleKeys.bargain.takeIf { sell.bargain != null }),
+                    listOfNotNull(sell.saleKeys.haggle.takeIf { sell.haggle != null }),
                 "shop ${shop.building.slug} sale confirmation",
             )
             check(sell.acceptedKinds.isNotEmpty() || sell.acceptedItems.isNotEmpty()) {
@@ -2179,9 +2196,17 @@ private fun validateRealmContent(realm: RealmContentModel) {
     realm.baseResourceCapacity.forEach { (resource, amount) ->
         check(amount >= 0) { "base ${resource.name.lowercase()} capacity must be non-negative" }
     }
-    checkPercent(realm.upkeep.manaRegenChance, "wilderness mana regen chance")
+    checkPercent(realm.upkeep.manaRegenChance, "wilderness mana regenerate chance")
     realm.upkeep.fatigue.forEachIndexed { index, rule ->
         validateTextBlock(rule.text, "wilderness fatigue rule $index")
+    }
+    check(realm.timeOfDay.isNotEmpty()) { "realm time-of-day bands must not be empty" }
+    realm.timeOfDay.forEachIndexed { index, band ->
+        check(band.hours.first in 0..23 && band.hours.last in 0..23) {
+            "realm time-of-day band $index hours must be within 0..23"
+        }
+        check(band.hours.first <= band.hours.last) { "realm time-of-day band $index has reversed hours" }
+        check(band.label.isNotBlank()) { "realm time-of-day band $index label must not be blank" }
     }
     validateCampRules(realm.camp)
     realm.hunt?.let(::validateHuntRules)
@@ -2758,6 +2783,11 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     check(prompts.returnKeyName.isNotBlank()) {
         "pause prompt return key name must not be blank"
     }
+    validateTextBlock(prompts.titleMenu.header, "title menu header prompt")
+    validateTextBlock(prompts.titleMenu.terminateConfirm, "title menu terminate-confirm prompt")
+    validateTextBlock(prompts.titleMenu.terminated, "title menu terminated prompt")
+    validateTextBlock(prompts.titleMenu.terminateFailed, "title menu terminate-failed prompt")
+    validateTextBlock(prompts.titleMenu.invalidInput, "title menu invalid-input prompt")
     validateTextBlock(prompts.priest.who, "priest who prompt", allowedRuntimeBindings = HuntTextBindings)
     validateTextBlock(prompts.priest.mageCombatOnly, "priest mage-combat-only prompt")
     validateTextBlock(prompts.priest.wrongClass, "priest wrong-class prompt")
@@ -2765,12 +2795,14 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.priest.invalidCaster, "priest invalid-caster prompt")
     validateTextBlock(prompts.priest.invalidSpell, "priest invalid-spell prompt")
     validateTextBlock(prompts.priest.noSpells, "priest no-spells prompt")
-    validateTextBlock(prompts.inventoryUse.use, "inventory use prompt")
+    validateTextBlock(prompts.inventoryUse.usePrompt, "inventory use prompt")
     validateTextBlock(prompts.inventoryUse.quaff, "inventory quaff prompt")
     validateTextBlock(prompts.inventoryUse.noItems, "inventory no-items prompt")
     validateTextBlock(prompts.inventoryUse.noItem, "inventory no-item prompt")
     validateTextBlock(prompts.equipment.inventory, "equipment inventory prompt")
     validateTextBlock(prompts.equipment.who, "equipment who prompt")
+    validateTextBlock(prompts.equipment.noAvailable, "equipment no-available prompt", allowedRuntimeBindings = EquipmentTextBindings)
+    validateTextBlock(prompts.equipment.equipped, "equipment equipped prompt", allowedRuntimeBindings = SelectedItemTextBindings)
     validateTextBlock(prompts.equipment.readyWeapons, "equipment ready-weapons prompt")
     validateTextBlock(prompts.equipment.readyArmors, "equipment ready-armors prompt")
     validateTextBlock(prompts.save.saving, "save saving prompt")
@@ -2807,6 +2839,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     )
     validateTextBlock(prompts.characterCreation.classMenu, "character creation class-menu prompt")
     validateTextBlock(prompts.characterCreation.saving, "character creation saving prompt")
+    validateTextBlock(prompts.town.menuTitle, "town menu-title prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryWelcome, "town entry welcome prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTax, "town entry tax prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTaxThanks, "town entry tax thanks prompt")
@@ -2833,6 +2866,8 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.party.dropAborted, "party drop-aborted prompt")
     validateTextBlock(prompts.party.dropDropped, "party drop-dropped prompt", allowedRuntimeBindings = SelectedItemTextBindings)
     validateTextBlock(prompts.party.dropCapacityReduced, "party drop-capacity-reduced prompt")
+    validateTextBlock(prompts.party.dropOverflowConfirm, "party drop-overflow-confirm prompt")
+    validateTextBlock(prompts.party.dropOverflowPrompt, "party drop-overflow-prompt prompt")
 }
 
 private fun validateItemPools(

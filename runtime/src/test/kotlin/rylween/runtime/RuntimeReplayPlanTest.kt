@@ -127,7 +127,7 @@ class RuntimeReplayPlanTest {
                 listOf(
                     "Merchant",
                     "You can carry no",
-                    "Accept? (Y)es / (N)o",
+                    "(Y)es / (N)o",
                     "No thanks.",
                     "Sold!",
                     "- I don't deal in that",

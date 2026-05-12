@@ -23,6 +23,7 @@ import rylween.compiled.ExternalTerminalTerrainStyle
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.HitPoints
 import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.TerrainSettlement
 import rylween.terminal.AnsiCodes
 import rylween.terminal.AnsiTerminal
 import kotlin.math.max
@@ -30,8 +31,8 @@ import kotlin.math.min
 
 private const val TEXT_WINDOW = "text_window"
 private const val MAP_WINDOW = "map_window"
-private const val STATUSLINE_TOP = "statusline_top"
-private const val STATUSLINE_BOTTOM = "statusline_bottom"
+private const val STATUS_LINE_TOP = "statusline_top"
+private const val STATUS_LINE_BOTTOM = "statusline_bottom"
 private const val WILDERNESS_MAP_TILES = 5
 private const val WILDERNESS_MAP_ROW_STRIDE = 2
 private const val FULL_SCREEN_WIDTH = 79
@@ -44,8 +45,8 @@ private const val HALL_OF_HEROES_REPORT = "HallOfHeroes"
 
 /** Screen model owned by the runtime. */
 internal class RuntimeScreen(
-    private val terminal: AnsiTerminal,
     bundle: CompiledGameBundle,
+    private val terminal: AnsiTerminal,
     private val systems: ExternalRuntimeSystems,
     private val log: RuntimeLog,
 ) {
@@ -53,8 +54,8 @@ internal class RuntimeScreen(
     private val regions: Map<String, ExternalScreenRegion> = systems.presentation.regions.associateBy { it.id }
     private val textWindow = regions.getValue(TEXT_WINDOW)
     private val mapWindow = regions.getValue(MAP_WINDOW)
-    private val statusTop = regions.getValue(STATUSLINE_TOP)
-    private val statusBottom = regions.getValue(STATUSLINE_BOTTOM)
+    private val statusTop = regions.getValue(STATUS_LINE_TOP)
+    private val statusBottom = regions.getValue(STATUS_LINE_BOTTOM)
     private val imageById: Map<String, ExternalImageAsset> = systems.presentation.images.associateBy { it.id }
     private val staticScreenById: Map<String, ExternalStaticScreen> = systems.presentation.staticScreens.associateBy { it.id }
     private val pausePrompts = PausePrompts(systems.prompts)
@@ -116,6 +117,18 @@ internal class RuntimeScreen(
         renderStatus(runtime)
         renderMap(runtime.party.position, world)
         writeText(wildernessContextLines(runtime, world) + "" + systems.wilderness.commandHint.render(runtime))
+    }
+
+    /** Shows the whole wilderness map with debug annotations for authored settlements and the party. */
+    fun showDebugWorldMap(
+        runtime: RuntimeState,
+        world: WorldMap,
+        advance: () -> Char?,
+    ) {
+        classicFrameActive = false
+        val position = runtime.party.position
+        log.event("screen.debug_world_map position=${position.x},${position.y}")
+        writePagedFullScreenText(debugWorldMapLines(runtime, world), advance)
     }
 
     /** Renders the dungeon backdrop, status lines, and authored depth prompt. */
@@ -246,6 +259,65 @@ internal class RuntimeScreen(
                 add("Press E to enter.")
             }
         }
+
+    private fun debugWorldMapLines(
+        runtime: RuntimeState,
+        world: WorldMap,
+    ): List<String> {
+        val rows = world.annotatedDebugRows(runtime.party.position)
+        val towns = content.towns.sortedWith(compareBy({ it.position.y }, { it.position.x }))
+        val huts = world.settlementPoints(TerrainSettlement.Hut)
+        val castles = world.settlementPoints(TerrainSettlement.Castle)
+        return buildList {
+            add("Rylween debug wilderness map")
+            add("Legend: @ party, T town, H hut, C castle")
+            add("Party: ${runtime.party.position.x},${runtime.party.position.y}")
+            add("")
+            addAll(rows)
+            add("")
+            add("Towns")
+            towns.forEach { town ->
+                add("${content.strings.value(town.nameString)} ${town.position.x},${town.position.y}")
+            }
+            add("")
+            add("Huts")
+            huts.forEach { point -> add("Hut ${point.x},${point.y}") }
+            if (castles.isNotEmpty()) {
+                add("")
+                add("Castles")
+                castles.forEach { point -> add("Castle ${point.x},${point.y}") }
+            }
+        }
+    }
+
+    private fun WorldMap.annotatedDebugRows(partyPosition: GridPoint): List<String> {
+        val annotated = paddedRows().map { row -> row.toCharArray() }
+        settlementPoints(TerrainSettlement.Hut).forEach { point -> annotated.mark(point, 'H') }
+        settlementPoints(TerrainSettlement.Castle).forEach { point -> annotated.mark(point, 'C') }
+        content.towns.forEach { town -> annotated.mark(town.position, 'T') }
+        annotated.mark(partyPosition, '@')
+        return annotated.mapIndexed { index, row -> "${(index + 1).toString().padStart(2)} ${String(row)}" }
+    }
+
+    private fun WorldMap.settlementPoints(settlement: TerrainSettlement): List<GridPoint> =
+        buildList {
+            for (y in 1..height) {
+                for (x in 0 until width) {
+                    val point = GridPoint(x, y)
+                    val terrain = terrainAt(point)
+                    if (terrain?.settlement == settlement) add(point)
+                }
+            }
+        }
+
+    private fun List<CharArray>.mark(
+        point: GridPoint,
+        marker: Char,
+    ) {
+        getOrNull(point.y - 1)?.let { row ->
+            if (point.x in row.indices) row[point.x] = marker
+        }
+    }
 
     private fun ExternalRuntimeTextBlock.render(runtime: RuntimeState): List<String> =
         render { kind ->
@@ -575,13 +647,15 @@ internal class RuntimeScreen(
         return stream.bufferedReader().readText()
     }
 
-    private fun timeLabel(hour: Int): String =
-        when (hour.mod(24)) {
-            in 6..11 -> "TIME: ${AnsiCodes.FG_YELLOW}DAWN${AnsiCodes.FG_GREEN}      "
-            in 12..17 -> "TIME: ${AnsiCodes.FG_YELLOW}MIDDAY${AnsiCodes.FG_GREEN}    "
-            in 18..23 -> "TIME: ${AnsiCodes.FG_YELLOW}TWILIGHT${AnsiCodes.FG_GREEN}  "
-            else -> "TIME: ${AnsiCodes.FG_YELLOW}MIDNIGHT${AnsiCodes.FG_GREEN}  "
-        }
+    private fun timeLabel(hour: Int): String {
+        val normalizedHour = hour.mod(24)
+        val label =
+            systems.realm.timeOfDay
+                .firstOrNull { band -> normalizedHour in band.firstHour..band.lastHour }
+                ?.label
+                ?: normalizedHour.toString().padStart(2, '0')
+        return "TIME: ${AnsiCodes.FG_YELLOW}${label.padEnd(9)}${AnsiCodes.FG_GREEN}"
+    }
 }
 
 /** Compiled-runtime view commands normalized away from DSL/runtime classes. */

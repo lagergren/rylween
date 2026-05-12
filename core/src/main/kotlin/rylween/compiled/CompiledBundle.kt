@@ -93,7 +93,7 @@ import rylween.dsl.impl.ShopItemOfferModel
 import rylween.dsl.impl.ShopPriceModel
 import rylween.dsl.impl.ShopPurchaseModel
 import rylween.dsl.impl.ShopQuantityCap
-import rylween.dsl.impl.ShopSellBargainModel
+import rylween.dsl.impl.ShopSellHaggleModel
 import rylween.dsl.impl.ShopSellModel
 import rylween.dsl.impl.ShopServiceModel
 import rylween.dsl.impl.ShopZeroQuantityDealPolicy
@@ -876,6 +876,7 @@ enum class CompiledRuntimeTextPart {
     OfferedItemName,
     OfferedItemPrice,
     SelectedItemName,
+    EquipmentKindName,
     ShopPrice,
     ShopCarryCap,
     HuntMemberName,
@@ -1241,15 +1242,15 @@ data class CompiledShopSell(
     val declined: CompiledTextBlock?,
     val sold: CompiledTextBlock?,
     val price: CompiledShopPrice,
-    val bargain: ShopSellBargainModel?,
+    val haggle: ShopSellHaggleModel?,
     val saleKeys: CompiledShopSaleKeys,
 )
 
-/** Bindings used when accepting, declining, or bargaining over a sale offer. */
+/** Bindings used when accepting, declining, or haggling over a sale offer. */
 data class CompiledShopSaleKeys(
     val accept: CompiledInputBinding,
     val decline: CompiledInputBinding,
-    val bargain: CompiledInputBinding,
+    val haggle: CompiledInputBinding,
 )
 
 /**
@@ -1293,7 +1294,6 @@ data class CompiledRealmImage(
     val currentMode: RuntimeMode,
     val currentTown: CompiledHandleRef?,
     val banished: Boolean,
-    val lastPlayedDay: Int,
     val partyMemberMax: Int,
     val lastTerrain: CompiledHandleRef?,
 )
@@ -2154,6 +2154,7 @@ private class CompiledBundleCompiler(
             TextPart.OfferedItemName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.OfferedItemName)
             TextPart.OfferedItemPrice -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.OfferedItemPrice)
             TextPart.SelectedItemName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.SelectedItemName)
+            TextPart.EquipmentKindName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.EquipmentKindName)
             TextPart.ShopPrice -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.ShopPrice)
             TextPart.ShopCarryCap -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.ShopCarryCap)
             TextPart.HuntMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntMemberName)
@@ -2332,12 +2333,12 @@ private class CompiledBundleCompiler(
             declined = sell.declined?.let(::text),
             sold = sell.sold?.let(::text),
             price = shopPrice(sell.price),
-            bargain = sell.bargain,
+            haggle = sell.haggle,
             saleKeys =
                 CompiledShopSaleKeys(
                     binding(sell.saleKeys.accept),
                     binding(sell.saleKeys.decline),
-                    binding(sell.saleKeys.bargain),
+                    binding(sell.saleKeys.haggle),
                 ),
         )
 
@@ -2604,7 +2605,6 @@ private class CompiledBundleCompiler(
             currentMode = realm.currentMode,
             currentTown = realm.currentTown?.let(::townRef),
             banished = realm.banished,
-            lastPlayedDay = realm.lastPlayedDay,
             partyMemberMax = realm.partyMemberMax,
             lastTerrain = realm.lastTerrain?.let(::terrainRef),
         )

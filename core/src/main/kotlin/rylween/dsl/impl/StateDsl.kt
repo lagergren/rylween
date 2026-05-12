@@ -120,7 +120,6 @@ class RealmStateBuilder {
     var currentMode: RuntimeMode = RuntimeMode.Wilderness
     var currentTown: TownId? = null
     var banished: Boolean = false
-    var lastPlayedDay: Int? = null
     var partyMemberMax: Int = 4
     private var lastTerrain: TerrainId? = null
 
@@ -162,7 +161,6 @@ class RealmStateBuilder {
             currentMode = currentMode,
             currentTown = currentTown,
             banished = banished,
-            lastPlayedDay = lastPlayedDay ?: day,
             partyMemberMax = partyMemberMax,
             lastTerrain = lastTerrain,
         )

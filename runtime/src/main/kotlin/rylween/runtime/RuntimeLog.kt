@@ -17,20 +17,10 @@ class RuntimeLog private constructor(
                 fileWriter.flush()
             },
         )
-    private val mirrorLock = Any()
-    private var mirrorSink: ((String) -> Unit)? = null
 
     fun addSink(sink: (String) -> Unit): Closeable {
         sinks.add(sink)
         return Closeable { sinks.remove(sink) }
-    }
-
-    fun mirrorTo(sink: ((String) -> Unit)?) {
-        synchronized(mirrorLock) {
-            mirrorSink?.let(sinks::remove)
-            mirrorSink = sink
-            sink?.let(sinks::add)
-        }
     }
 
     fun event(message: String) {

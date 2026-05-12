@@ -47,7 +47,23 @@ data class RealmContentModel(
     val upkeep: WildernessUpkeepRules = WildernessUpkeepRules(),
     val camp: CampRulesModel = CampRulesModel(),
     val hunt: HuntRulesModel? = null,
+    val timeOfDay: List<TimeOfDayBandModel> = defaultTimeOfDayBands(),
 )
+
+/** Authored label for an inclusive hour span in the status line. */
+data class TimeOfDayBandModel(
+    val hours: IntRange,
+    val label: String,
+)
+
+/** Rylween's default daily status labels before a game author overrides them. */
+fun defaultTimeOfDayBands(): List<TimeOfDayBandModel> =
+    listOf(
+        TimeOfDayBandModel(6..11, "DAWN"),
+        TimeOfDayBandModel(12..17, "MIDDAY"),
+        TimeOfDayBandModel(18..23, "TWILIGHT"),
+        TimeOfDayBandModel(0..5, "MIDNIGHT"),
+    )
 
 /** Match mode for a wilderness fatigue rule threshold. */
 enum class WildernessFatigueMatch { Equal, LessThan }

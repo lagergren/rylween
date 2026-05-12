@@ -10,7 +10,7 @@ package rylween.compiled
 
 import rylween.dsl.impl.RewardApplicationModel
 import rylween.dsl.impl.ShopQuantityCap
-import rylween.dsl.impl.ShopSellBargainModel
+import rylween.dsl.impl.ShopSellHaggleModel
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.enums.enumEntries
@@ -630,18 +630,18 @@ private class NativeSmokeArtifactWriter {
         nullable(sell.declined, ::textBlock)
         nullable(sell.sold, ::textBlock)
         shopPrice(sell.price)
-        nullable(sell.bargain, ::shopBargain)
+        nullable(sell.haggle, ::shopHaggle)
         inputBinding(sell.saleKeys.accept)
         inputBinding(sell.saleKeys.decline)
-        inputBinding(sell.saleKeys.bargain)
+        inputBinding(sell.saleKeys.haggle)
     }
 
-    private fun shopBargain(bargain: ShopSellBargainModel) {
-        list(bargain.bonuses) { bonus ->
+    private fun shopHaggle(haggle: ShopSellHaggleModel) {
+        list(haggle.bonuses) { bonus ->
             i32(bonus.rollGreaterThan)
             i32(bonus.addCurrentDivisor)
         }
-        nullable(bargain.rejectRollBelow, ::i32)
+        nullable(haggle.rejectRollBelow, ::i32)
     }
 
     private fun shopInterlude(interlude: CompiledShopInterlude) {
@@ -1153,17 +1153,17 @@ private class NativeSmokeArtifactReader(
         optional { textBlock() }
         optional { textBlock() }
         shopPrice()
-        optional { shopBargain() }
+        optional { shopHaggle() }
         inputBinding()
         inputBinding()
     }
 
-    private fun shopBargain() {
-        repeatCount(u32("shop bargain bonus count")) {
-            u32("shop bargain roll floor")
-            u32("shop bargain divisor")
+    private fun shopHaggle() {
+        repeatCount(u32("shop haggle bonus count")) {
+            u32("shop haggle roll floor")
+            u32("shop haggle divisor")
         }
-        optional { u32("shop bargain reject floor") }
+        optional { u32("shop haggle reject floor") }
     }
 
     private fun shopInterlude() {

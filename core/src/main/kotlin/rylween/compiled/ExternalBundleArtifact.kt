@@ -227,7 +227,85 @@ data class ExternalRuntimeSystems(
 data class ExternalRuntimePrompts(
     val pauseVerbs: List<String>,
     val returnKeyName: String,
+    val titleMenu: ExternalTitleMenuPrompts,
+    val priest: ExternalPriestSpellPrompts,
+    val inventoryUse: ExternalInventoryUsePrompts,
+    val equipment: ExternalEquipmentPrompts,
+    val town: ExternalTownPrompts,
+    val party: ExternalPartyPrompts,
+    val wilderness: ExternalWildernessPrompts,
     val characterCreation: ExternalCharacterCreationPrompts,
+)
+
+data class ExternalTitleMenuPrompts(
+    val header: ExternalRuntimeTextBlock,
+    val terminateConfirm: ExternalRuntimeTextBlock,
+    val terminated: ExternalRuntimeTextBlock,
+    val terminateFailed: ExternalRuntimeTextBlock,
+    val invalidInput: ExternalRuntimeTextBlock,
+)
+
+data class ExternalPriestSpellPrompts(
+    val who: ExternalRuntimeTextBlock,
+    val mageCombatOnly: ExternalRuntimeTextBlock,
+    val wrongClass: ExternalRuntimeTextBlock,
+    val dead: ExternalRuntimeTextBlock,
+    val invalidCaster: ExternalRuntimeTextBlock,
+    val invalidSpell: ExternalRuntimeTextBlock,
+    val noSpells: ExternalRuntimeTextBlock,
+)
+
+data class ExternalInventoryUsePrompts(
+    val usePrompt: ExternalRuntimeTextBlock,
+    val quaff: ExternalRuntimeTextBlock,
+    val noItems: ExternalRuntimeTextBlock,
+    val noItem: ExternalRuntimeTextBlock,
+    val invalidSlotFirstPrefix: String,
+    val invalidSlotFirstSuffix: String,
+    val invalidSlotSecond: String,
+    val notUsableFirst: String,
+    val notUsableSecondPrefix: String,
+    val notUsableSecondSuffix: String,
+)
+
+data class ExternalEquipmentPrompts(
+    val inventory: ExternalRuntimeTextBlock,
+    val who: ExternalRuntimeTextBlock,
+    val noAvailable: ExternalRuntimeTextBlock,
+    val equipped: ExternalRuntimeTextBlock,
+    val readyWeapons: ExternalRuntimeTextBlock,
+    val readyArmors: ExternalRuntimeTextBlock,
+)
+
+data class ExternalTownPrompts(
+    val unavailableSuffix: String,
+    val closedSuffix: String,
+    val menuTitle: ExternalRuntimeTextBlock,
+    val entryWelcome: ExternalRuntimeTextBlock,
+    val entryTax: ExternalRuntimeTextBlock,
+    val entryTaxThanks: ExternalRuntimeTextBlock,
+)
+
+data class ExternalPartyPrompts(
+    val viewWho: ExternalRuntimeTextBlock,
+    val journalHeader: ExternalRuntimeTextBlock,
+    val dropPrompt: ExternalRuntimeTextBlock,
+    val dropEmptySlot: ExternalRuntimeTextBlock,
+    val dropAborted: ExternalRuntimeTextBlock,
+    val dropDropped: ExternalRuntimeTextBlock,
+    val dropCapacityReduced: ExternalRuntimeTextBlock,
+    val dropOverflowConfirm: ExternalRuntimeTextBlock,
+    val dropOverflowPrompt: ExternalRuntimeTextBlock,
+)
+
+data class ExternalWildernessPrompts(
+    val pass: ExternalRuntimeTextBlock,
+    val noMoves: ExternalRuntimeTextBlock,
+    val outOfMoves: ExternalRuntimeTextBlock,
+    val notInWilderness: ExternalRuntimeTextBlock,
+    val nothingToEnter: ExternalRuntimeTextBlock,
+    val quitConfirm: ExternalRuntimeTextBlock,
+    val dungeonHandoff: ExternalRuntimeTextBlock,
 )
 
 data class ExternalCharacterCreationPrompts(
@@ -315,6 +393,14 @@ data class ExternalRuntimeRealm(
     val upkeep: ExternalWildernessUpkeep,
     val camp: ExternalCampRules,
     val hunt: ExternalHuntRules?,
+    val timeOfDay: List<ExternalTimeOfDayBand>,
+)
+
+/** One status-line time label exported for direct runtimes. */
+data class ExternalTimeOfDayBand(
+    val firstHour: Int,
+    val lastHour: Int,
+    val label: String,
 )
 
 /** Combat runtime-system rows consumed by direct bundle runtimes. */
@@ -1227,6 +1313,16 @@ private class ExternalBundleArtifactWriter {
             "upkeep" to upkeepJson(realm.upkeep),
             "camp" to campJson(realm.camp),
             "hunt" to realm.hunt?.let(::huntJson).orJsonNull(),
+            "timeOfDay" to
+                JsonArray(
+                    realm.timeOfDay.map { band ->
+                        jsonObject(
+                            "firstHour" to JsonNumber(band.hours.first.toString()),
+                            "lastHour" to JsonNumber(band.hours.last.toString()),
+                            "label" to JsonString(band.label),
+                        )
+                    },
+                ),
         )
 
     private fun upkeepJson(upkeep: WildernessUpkeepRules): JsonValue =
@@ -1319,6 +1415,14 @@ private class ExternalBundleArtifactWriter {
                             textField("failed", prompts.save.failed),
                         ),
                         promptGroupJson(
+                            "titleMenu",
+                            textField("header", prompts.titleMenu.header),
+                            textField("terminateConfirm", prompts.titleMenu.terminateConfirm),
+                            textField("terminated", prompts.titleMenu.terminated),
+                            textField("terminateFailed", prompts.titleMenu.terminateFailed),
+                            textField("invalidInput", prompts.titleMenu.invalidInput),
+                        ),
+                        promptGroupJson(
                             "characterCreation",
                             textField("header", prompts.characterCreation.header),
                             textField("partyName", prompts.characterCreation.partyName),
@@ -1344,7 +1448,7 @@ private class ExternalBundleArtifactWriter {
                         ),
                         promptGroupJson(
                             "inventoryUse",
-                            textField("use", prompts.inventoryUse.use),
+                            textField("usePrompt", prompts.inventoryUse.usePrompt),
                             textField("quaff", prompts.inventoryUse.quaff),
                             textField("noItems", prompts.inventoryUse.noItems),
                             textField("noItem", prompts.inventoryUse.noItem),
@@ -1359,6 +1463,8 @@ private class ExternalBundleArtifactWriter {
                             "equipment",
                             textField("inventory", prompts.equipment.inventory),
                             textField("who", prompts.equipment.who),
+                            textField("noAvailable", prompts.equipment.noAvailable),
+                            textField("equipped", prompts.equipment.equipped),
                             textField("readyWeapons", prompts.equipment.readyWeapons),
                             textField("readyArmors", prompts.equipment.readyArmors),
                         ),
@@ -1366,6 +1472,7 @@ private class ExternalBundleArtifactWriter {
                             "town",
                             stringField("unavailableSuffix", prompts.town.unavailableSuffix),
                             stringField("closedSuffix", prompts.town.closedSuffix),
+                            textField("menuTitle", prompts.town.menuTitle),
                             textField("entryWelcome", prompts.town.entryWelcome),
                             textField("entryTax", prompts.town.entryTax),
                             textField("entryTaxThanks", prompts.town.entryTaxThanks),
@@ -1379,6 +1486,8 @@ private class ExternalBundleArtifactWriter {
                             textField("dropAborted", prompts.party.dropAborted),
                             textField("dropDropped", prompts.party.dropDropped),
                             textField("dropCapacityReduced", prompts.party.dropCapacityReduced),
+                            textField("dropOverflowConfirm", prompts.party.dropOverflowConfirm),
+                            textField("dropOverflowPrompt", prompts.party.dropOverflowPrompt),
                         ),
                         promptGroupJson(
                             "wilderness",
@@ -1453,34 +1562,45 @@ private class ExternalBundleArtifactWriter {
 
     private fun commandsJson(game: GameModel): JsonValue =
         jsonObject(
+            "title" to
+                commandListJson(
+                    runtimeCommand("createNewParty", game.prompts.titleMenu.createNewParty),
+                    runtimeCommand("continueSavedGame", game.prompts.titleMenu.continueSavedGame),
+                    runtimeCommand("terminateParty", game.prompts.titleMenu.terminateParty),
+                    runtimeCommand("scoreboard", game.prompts.titleMenu.scoreboard),
+                    runtimeCommand("hallOfFame", game.prompts.titleMenu.hallOfFame),
+                    runtimeCommand("documentation", game.prompts.titleMenu.documentation),
+                    runtimeCommand("leave", game.prompts.titleMenu.leave),
+                ),
             "wilderness" to
                 commandListJson(
-                    "moveNorth" to game.wilderness.keys.moveNorth,
-                    "moveSouth" to game.wilderness.keys.moveSouth,
-                    "moveWest" to game.wilderness.keys.moveWest,
-                    "moveEast" to game.wilderness.keys.moveEast,
-                    "pass" to game.wilderness.keys.pass,
-                    "save" to game.wilderness.keys.save,
-                    "readyWeapon" to game.wilderness.keys.readyWeapon,
-                    "readyArmor" to game.wilderness.keys.readyArmor,
-                    "redraw" to game.wilderness.keys.redraw,
-                    "journal" to game.wilderness.keys.journal,
-                    "help" to game.wilderness.keys.help,
-                    "hunt" to game.wilderness.keys.hunt,
-                    "viewParty" to game.wilderness.keys.viewParty,
-                    "removeArmor" to game.wilderness.keys.removeArmor,
-                    "removeWeapon" to game.wilderness.keys.removeWeapon,
-                    "enter" to game.wilderness.keys.enter,
-                    "drop" to game.wilderness.keys.drop,
-                    "camp" to game.wilderness.keys.camp,
-                    "castSpell" to game.wilderness.keys.castSpell,
-                    "quaff" to game.wilderness.keys.quaff,
-                    "quit" to game.wilderness.keys.quit,
+                    runtimeCommand("moveNorth", game.wilderness.keys.moveNorth, game.wilderness.keys.commandLabels.moveNorth),
+                    runtimeCommand("moveSouth", game.wilderness.keys.moveSouth, game.wilderness.keys.commandLabels.moveSouth),
+                    runtimeCommand("moveWest", game.wilderness.keys.moveWest, game.wilderness.keys.commandLabels.moveWest),
+                    runtimeCommand("moveEast", game.wilderness.keys.moveEast, game.wilderness.keys.commandLabels.moveEast),
+                    runtimeCommand("pass", game.wilderness.keys.pass, game.wilderness.keys.commandLabels.pass),
+                    runtimeCommand("save", game.wilderness.keys.save, game.wilderness.keys.commandLabels.save),
+                    runtimeCommand("readyWeapon", game.wilderness.keys.readyWeapon, game.wilderness.keys.commandLabels.readyWeapon),
+                    runtimeCommand("readyArmor", game.wilderness.keys.readyArmor, game.wilderness.keys.commandLabels.readyArmor),
+                    runtimeCommand("redraw", game.wilderness.keys.redraw, game.wilderness.keys.commandLabels.redraw),
+                    runtimeCommand("journal", game.wilderness.keys.journal, game.wilderness.keys.commandLabels.journal),
+                    runtimeCommand("help", game.wilderness.keys.help, game.wilderness.keys.commandLabels.help),
+                    runtimeCommand("hunt", game.wilderness.keys.hunt, game.wilderness.keys.commandLabels.hunt),
+                    runtimeCommand("viewParty", game.wilderness.keys.viewParty, game.wilderness.keys.commandLabels.viewParty),
+                    runtimeCommand("removeArmor", game.wilderness.keys.removeArmor, game.wilderness.keys.commandLabels.removeArmor),
+                    runtimeCommand("removeWeapon", game.wilderness.keys.removeWeapon, game.wilderness.keys.commandLabels.removeWeapon),
+                    runtimeCommand("enter", game.wilderness.keys.enter, game.wilderness.keys.commandLabels.enter),
+                    runtimeCommand("drop", game.wilderness.keys.drop, game.wilderness.keys.commandLabels.drop),
+                    runtimeCommand("camp", game.wilderness.keys.camp, game.wilderness.keys.commandLabels.camp),
+                    runtimeCommand("castSpell", game.wilderness.keys.castSpell, game.wilderness.keys.commandLabels.castSpell),
+                    runtimeCommand("quaff", game.wilderness.keys.quaff, game.wilderness.keys.commandLabels.quaff),
+                    runtimeCommand("quit", game.wilderness.keys.quit, game.wilderness.keys.commandLabels.quit),
                 ),
             "wilderness.debug" to
                 commandListJson(
                     "forceCave" to game.wilderness.keys.debugForceCave,
                     "forceEncounter" to game.wilderness.keys.debugForceEncounter,
+                    "showMap" to game.wilderness.keys.debugShowMap,
                 ),
             "wilderness.cave" to
                 commandListJson(
@@ -1524,6 +1644,7 @@ private class ExternalBundleArtifactWriter {
                                     "building" to action.building?.let { JsonString(it.slug) }.orJsonNull(),
                                     "endsMenu" to JsonBoolean(action.endsMenu),
                                     "binding" to bindingJson(action.binding),
+                                    "label" to JsonString(action.binding.label),
                                 )
                             },
                         )
@@ -1923,6 +2044,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.OfferedItemName -> textTokenJson("offeredItemName")
             TextPart.OfferedItemPrice -> textTokenJson("offeredItemPrice")
             TextPart.SelectedItemName -> textTokenJson("selectedItemName")
+            TextPart.EquipmentKindName -> textTokenJson("equipmentKindName")
             TextPart.ShopPrice -> textTokenJson("shopPrice")
             TextPart.ShopCarryCap -> textTokenJson("shopCarryCap")
             TextPart.HuntMemberName -> textTokenJson("huntMemberName")
@@ -2093,10 +2215,36 @@ private class ExternalBundleArtifactWriter {
         value: String,
     ): JsonValue = jsonObject("name" to JsonString(name), "kind" to JsonString("string"), "value" to JsonString(value))
 
+    private data class RuntimeCommandSpec(
+        val action: String,
+        val binding: InputBindingModel,
+        val label: String? = null,
+        val topic: String? = null,
+    )
+
+    private fun runtimeCommand(
+        action: String,
+        binding: InputBindingModel,
+        label: String? = binding.label,
+        topic: String? = null,
+    ): RuntimeCommandSpec = RuntimeCommandSpec(action, binding, label, topic)
+
     private fun commandListJson(vararg commands: Pair<String, InputBindingModel>): JsonValue =
+        commandListJson(
+            *commands
+                .map { (action, binding) -> runtimeCommand(action, binding, label = null) }
+                .toTypedArray(),
+        )
+
+    private fun commandListJson(vararg commands: RuntimeCommandSpec): JsonValue =
         JsonArray(
-            commands.map { (action, binding) ->
-                jsonObject("action" to JsonString(action), "binding" to bindingJson(binding))
+            commands.map { command ->
+                jsonObject(
+                    "action" to JsonString(command.action),
+                    "binding" to bindingJson(command.binding),
+                    "label" to command.label?.let(::JsonString).orJsonNull(),
+                    "topic" to command.topic?.let(::JsonString).orJsonNull(),
+                )
             },
         )
 
@@ -2237,27 +2385,105 @@ private class ExternalRuntimeSystemsReader(
         )
     }
 
-    private fun JsonObject.readPrompts(): ExternalRuntimePrompts =
-        promptGroupFields("characterCreation").let { characterCreation ->
-            ExternalRuntimePrompts(
-                pauseVerbs = requiredArray("pauseVerbs").values.map { verb -> verb.asString("pause verb") },
-                returnKeyName = requiredString("returnKeyName"),
-                characterCreation =
-                    ExternalCharacterCreationPrompts(
-                        header = characterCreation.requiredTextPrompt("header"),
-                        partyName = characterCreation.requiredTextPrompt("partyName"),
-                        statsPage = characterCreation.requiredTextPrompt("statsPage"),
-                        reroll = characterCreation.requiredTextPrompt("reroll"),
-                        memberName = characterCreation.requiredTextPrompt("memberName"),
-                        gender = characterCreation.requiredTextPrompt("gender"),
-                        genderMaleLabel = characterCreation.requiredStringPrompt("genderMaleLabel"),
-                        genderFemaleLabel = characterCreation.requiredStringPrompt("genderFemaleLabel"),
-                        race = characterCreation.requiredTextPrompt("race"),
-                        classMenu = characterCreation.requiredTextPrompt("classMenu"),
-                        saving = characterCreation.requiredTextPrompt("saving"),
-                    ),
-            )
-        }
+    private fun JsonObject.readPrompts(): ExternalRuntimePrompts {
+        val titleMenu = promptGroupFields("titleMenu")
+        val priest = promptGroupFields("priest")
+        val inventoryUse = promptGroupFields("inventoryUse")
+        val equipment = promptGroupFields("equipment")
+        val town = promptGroupFields("town")
+        val party = promptGroupFields("party")
+        val wilderness = promptGroupFields("wilderness")
+        val characterCreation = promptGroupFields("characterCreation")
+        return ExternalRuntimePrompts(
+            pauseVerbs = requiredArray("pauseVerbs").values.map { verb -> verb.asString("pause verb") },
+            returnKeyName = requiredString("returnKeyName"),
+            titleMenu =
+                ExternalTitleMenuPrompts(
+                    header = titleMenu.requiredTextPrompt("header"),
+                    terminateConfirm = titleMenu.requiredTextPrompt("terminateConfirm"),
+                    terminated = titleMenu.requiredTextPrompt("terminated"),
+                    terminateFailed = titleMenu.requiredTextPrompt("terminateFailed"),
+                    invalidInput = titleMenu.requiredTextPrompt("invalidInput"),
+                ),
+            priest =
+                ExternalPriestSpellPrompts(
+                    who = priest.requiredTextPrompt("who"),
+                    mageCombatOnly = priest.requiredTextPrompt("mageCombatOnly"),
+                    wrongClass = priest.requiredTextPrompt("wrongClass"),
+                    dead = priest.requiredTextPrompt("dead"),
+                    invalidCaster = priest.requiredTextPrompt("invalidCaster"),
+                    invalidSpell = priest.requiredTextPrompt("invalidSpell"),
+                    noSpells = priest.requiredTextPrompt("noSpells"),
+                ),
+            inventoryUse =
+                ExternalInventoryUsePrompts(
+                    usePrompt = inventoryUse.requiredTextPrompt("usePrompt"),
+                    quaff = inventoryUse.requiredTextPrompt("quaff"),
+                    noItems = inventoryUse.requiredTextPrompt("noItems"),
+                    noItem = inventoryUse.requiredTextPrompt("noItem"),
+                    invalidSlotFirstPrefix = inventoryUse.requiredStringPrompt("invalidSlotFirstPrefix"),
+                    invalidSlotFirstSuffix = inventoryUse.requiredStringPrompt("invalidSlotFirstSuffix"),
+                    invalidSlotSecond = inventoryUse.requiredStringPrompt("invalidSlotSecond"),
+                    notUsableFirst = inventoryUse.requiredStringPrompt("notUsableFirst"),
+                    notUsableSecondPrefix = inventoryUse.requiredStringPrompt("notUsableSecondPrefix"),
+                    notUsableSecondSuffix = inventoryUse.requiredStringPrompt("notUsableSecondSuffix"),
+                ),
+            equipment =
+                ExternalEquipmentPrompts(
+                    inventory = equipment.requiredTextPrompt("inventory"),
+                    who = equipment.requiredTextPrompt("who"),
+                    noAvailable = equipment.requiredTextPrompt("noAvailable"),
+                    equipped = equipment.requiredTextPrompt("equipped"),
+                    readyWeapons = equipment.requiredTextPrompt("readyWeapons"),
+                    readyArmors = equipment.requiredTextPrompt("readyArmors"),
+                ),
+            town =
+                ExternalTownPrompts(
+                    unavailableSuffix = town.requiredStringPrompt("unavailableSuffix"),
+                    closedSuffix = town.requiredStringPrompt("closedSuffix"),
+                    menuTitle = town.requiredTextPrompt("menuTitle"),
+                    entryWelcome = town.requiredTextPrompt("entryWelcome"),
+                    entryTax = town.requiredTextPrompt("entryTax"),
+                    entryTaxThanks = town.requiredTextPrompt("entryTaxThanks"),
+                ),
+            party =
+                ExternalPartyPrompts(
+                    viewWho = party.requiredTextPrompt("viewWho"),
+                    journalHeader = party.requiredTextPrompt("journalHeader"),
+                    dropPrompt = party.requiredTextPrompt("dropPrompt"),
+                    dropEmptySlot = party.requiredTextPrompt("dropEmptySlot"),
+                    dropAborted = party.requiredTextPrompt("dropAborted"),
+                    dropDropped = party.requiredTextPrompt("dropDropped"),
+                    dropCapacityReduced = party.requiredTextPrompt("dropCapacityReduced"),
+                    dropOverflowConfirm = party.requiredTextPrompt("dropOverflowConfirm"),
+                    dropOverflowPrompt = party.requiredTextPrompt("dropOverflowPrompt"),
+                ),
+            wilderness =
+                ExternalWildernessPrompts(
+                    pass = wilderness.requiredTextPrompt("pass"),
+                    noMoves = wilderness.requiredTextPrompt("noMoves"),
+                    outOfMoves = wilderness.requiredTextPrompt("outOfMoves"),
+                    notInWilderness = wilderness.requiredTextPrompt("notInWilderness"),
+                    nothingToEnter = wilderness.requiredTextPrompt("nothingToEnter"),
+                    quitConfirm = wilderness.requiredTextPrompt("quitConfirm"),
+                    dungeonHandoff = wilderness.requiredTextPrompt("dungeonHandoff"),
+                ),
+            characterCreation =
+                ExternalCharacterCreationPrompts(
+                    header = characterCreation.requiredTextPrompt("header"),
+                    partyName = characterCreation.requiredTextPrompt("partyName"),
+                    statsPage = characterCreation.requiredTextPrompt("statsPage"),
+                    reroll = characterCreation.requiredTextPrompt("reroll"),
+                    memberName = characterCreation.requiredTextPrompt("memberName"),
+                    gender = characterCreation.requiredTextPrompt("gender"),
+                    genderMaleLabel = characterCreation.requiredStringPrompt("genderMaleLabel"),
+                    genderFemaleLabel = characterCreation.requiredStringPrompt("genderFemaleLabel"),
+                    race = characterCreation.requiredTextPrompt("race"),
+                    classMenu = characterCreation.requiredTextPrompt("classMenu"),
+                    saving = characterCreation.requiredTextPrompt("saving"),
+                ),
+        )
+    }
 
     private fun JsonObject.promptGroupFields(groupName: String): Map<String, JsonObject> =
         requiredArray("groups")
@@ -2465,8 +2691,8 @@ private class ExternalRuntimeSystemsReader(
                     ExternalRuntimeCommand(
                         action = obj.requiredString("action"),
                         binding = obj.requiredObject("binding").readBinding(),
-                        label = obj.optionalString("label"),
-                        topic = obj.optionalString("topic"),
+                        label = obj.optionalNullableString("label"),
+                        topic = obj.optionalNullableString("topic"),
                     )
                 }
             else -> error("expected command array for $name")
@@ -2762,6 +2988,17 @@ private class ExternalRuntimeSystemsReader(
             upkeep = requiredObject("upkeep").readUpkeep(),
             camp = requiredObject("camp").readCamp(),
             hunt = optional("hunt")?.takeUnless { it is JsonNull }?.asObject("hunt")?.readHunt(),
+            timeOfDay =
+                requiredArray("timeOfDay")
+                    .values
+                    .map { row ->
+                        val band = row.asObject("time-of-day band")
+                        ExternalTimeOfDayBand(
+                            firstHour = band.requiredInt("firstHour"),
+                            lastHour = band.requiredInt("lastHour"),
+                            label = band.requiredString("label"),
+                        )
+                    },
         )
 
     private fun JsonObject.readUpkeep(): ExternalWildernessUpkeep =

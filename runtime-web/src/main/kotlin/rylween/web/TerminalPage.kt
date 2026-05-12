@@ -3,6 +3,29 @@ package rylween.web
 private const val ANSI_ROWS = 25
 private const val ANSI_COLUMNS = 80
 
+/**
+ * Builds the single-page browser terminal used by the web runtime proof of concept.
+ *
+ * The backend does not render HTML widgets for the game screen. Instead, each web
+ * session wraps the compiled-bundle runtime in a `BrowserAnsiTerminal`.
+ * That terminal sends the same ANSI text stream the local terminal runtime
+ * writes, framed as WebSocket text messages. The JavaScript in this page owns
+ * a small fixed-size 80x25 cell buffer. It parses the runtime ANSI subset and
+ * paints the buffer into a `<pre>` as styled spans. The supported ANSI surface
+ * is intentionally narrow: printable characters, newlines, SGR colors,
+ * cursor movement, display/line clearing, cursor visibility, and the block
+ * cursor shape used by text input. It is not intended to be a general xterm
+ * emulator.
+ *
+ * This should run in normal current browsers because it relies only on standard
+ * WebSocket, DOM, CSS grid/flex layout, and CSS custom properties. The container
+ * can move from a developer machine to a Linux host without changing this page:
+ * the server only needs a JVM, the compiled bundle, and a writable data
+ * directory. Deployment still has the usual web-server requirements: expose the
+ * configured HTTP port, preserve WebSocket upgrade headers through any reverse
+ * proxy, and mount the configured data directory so the shared world save and
+ * logs survive container restarts.
+ */
 internal fun terminalPageHtml(): String =
     """
     <!doctype html>

@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.testing.Test
 import org.jlleitschuh.gradle.ktlint.reporter.ReporterType
 
 plugins {
@@ -19,6 +20,10 @@ ktlint {
         // Skip generated catalog/harness sources (we don't author those).
         exclude { entry -> entry.file.toString().contains("${File.separator}build${File.separator}generated${File.separator}") }
     }
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }
 
 val cpdClasspath: Configuration by configurations.creating

@@ -117,6 +117,18 @@ class ScriptScope(
 
     fun pause(ms: Int): Unit = record(Op.Pause(ms))
 
+    fun pause600ms(): Unit = pause(600)
+
+    fun pause1s(): Unit = pause(1_000)
+
+    fun pause1500ms(): Unit = pause(1_500)
+
+    fun pause2s(): Unit = pause(2_000)
+
+    fun pause3s(): Unit = pause(3_000)
+
+    fun pause4s(): Unit = pause(4_000)
+
     fun clearText(): Unit = view.clearText()
 
     fun clearMapWindow(): Unit = view.clearMapWindow()
@@ -262,7 +274,7 @@ class ScriptScope(
 
     fun healLivingMembers(amount: Int): Unit = healLivingMembers(lit(amount))
 
-    fun run(
+    fun runScene(
         scene: SceneId,
         vararg bindings: Pair<String, Any>,
     ) {
@@ -521,9 +533,9 @@ class RandomItemOfferBuilder(
     private var priceOverrideModel: Int? = null
 
     private var brokePauseMillis: Int = 800
-    private var fullPauseMillis: Int = 1000
+    private var fullPauseMillis: Int = 1_000
     private var dealPauseMillis: Int = 800
-    private var declinedPauseMillis: Int = 1000
+    private var declinedPauseMillis: Int = 1_000
 
     fun offer(vararg lines: String) {
         offerText = inlineText(*lines)
@@ -1014,6 +1026,7 @@ class RealmContentBuilder {
     private var upkeep = WildernessUpkeepRules()
     private var camp = CampRulesModel()
     private var hunt: HuntRulesModel? = null
+    private var timeOfDayBands = defaultTimeOfDayBands()
 
     fun baseResourceCapacity(
         resource: Resource,
@@ -1034,13 +1047,32 @@ class RealmContentBuilder {
         hunt = HuntRulesBuilder().apply(body).build()
     }
 
+    fun timeOfDay(body: TimeOfDayBandsBuilder.() -> Unit) {
+        timeOfDayBands = TimeOfDayBandsBuilder().apply(body).build()
+    }
+
     internal fun build(): RealmContentModel =
         RealmContentModel(
             baseResourceCapacity = baseCapacity.toMap(),
             upkeep = upkeep,
             camp = camp,
             hunt = hunt,
+            timeOfDay = timeOfDayBands,
         )
+}
+
+@RylNextDsl
+class TimeOfDayBandsBuilder {
+    private val bands = mutableListOf<TimeOfDayBandModel>()
+
+    fun band(
+        hours: IntRange,
+        label: String,
+    ) {
+        bands += TimeOfDayBandModel(hours, label)
+    }
+
+    internal fun build(): List<TimeOfDayBandModel> = bands.toList()
 }
 
 @RylNextDsl
@@ -1848,11 +1880,22 @@ class SecretSystemBuilder(
 ) {
     private val players = initial.players.toMutableList()
 
-    fun player(
+    fun playerNamed(
         name: String,
         body: SecretPlayerBuilder.() -> Unit,
     ) {
-        players += SecretPlayerBuilder(name).apply(body).build()
+        players += SecretPlayerBuilder(SecretPlayerMatcherModel.Named(listOf(name))).apply(body).build()
+    }
+
+    fun playersNamed(
+        vararg names: String,
+        body: SecretPlayerBuilder.() -> Unit,
+    ) {
+        players += SecretPlayerBuilder(SecretPlayerMatcherModel.Named(names.toList())).apply(body).build()
+    }
+
+    fun playerAny(body: SecretPlayerBuilder.() -> Unit) {
+        players += SecretPlayerBuilder(SecretPlayerMatcherModel.Any).apply(body).build()
     }
 
     fun build(): SecretSystemModel = SecretSystemModel(players = players.toList())
@@ -1860,7 +1903,7 @@ class SecretSystemBuilder(
 
 @RylNextDsl
 class SecretPlayerBuilder(
-    private val name: String,
+    private val matcher: SecretPlayerMatcherModel,
 ) {
     private val keyActions = mutableListOf<SecretKeyActionModel>()
     private var stepTrigger: SecretStepTriggerModel? = null
@@ -1905,7 +1948,7 @@ class SecretPlayerBuilder(
 
     fun build(): SecretPlayerModel =
         SecretPlayerModel(
-            playerName = name,
+            matcher = matcher,
             keyActions = keyActions.toList(),
             stepTrigger = stepTrigger,
         )
@@ -1943,6 +1986,10 @@ class WorldMapLayerBuilder(
 
     fun rows(vararg rows: String) {
         rowModels = rows.toList()
+    }
+
+    fun rows(rows: String) {
+        rowModels = rows.trimIndent().lines().dropWhile(String::isBlank).dropLastWhile(String::isBlank)
     }
 
     fun rows(rows: List<String>) {
@@ -2076,6 +2123,7 @@ class GamePromptsBuilder(
 ) {
     private var pauseVerbList = initial.pauseVerbs
     private var returnKeyName: String = initial.returnKeyName
+    private var titleMenu = initial.titleMenu
     private var priest = initial.priest
     private var inventoryUse = initial.inventoryUse
     private var equipment = initial.equipment
@@ -2092,6 +2140,10 @@ class GamePromptsBuilder(
 
     fun pauseVerbs(verbs: List<String>) {
         pauseVerbList = verbs.toList()
+    }
+
+    fun titleMenu(body: TitleMenuPromptsBuilder.() -> Unit) {
+        titleMenu = TitleMenuPromptsBuilder(titleMenu).apply(body).build()
     }
 
     fun priest(body: PriestSpellPromptsBuilder.() -> Unit) {
@@ -2134,6 +2186,7 @@ class GamePromptsBuilder(
         GamePromptsModel(
             pauseVerbs = pauseVerbList,
             returnKeyName = returnKeyName,
+            titleMenu = titleMenu,
             priest = priest,
             inventoryUse = inventoryUse,
             equipment = equipment,
@@ -2143,6 +2196,40 @@ class GamePromptsBuilder(
             dungeon = dungeon,
             party = party,
             characterCreation = characterCreation,
+        )
+}
+
+@RylNextDsl
+class TitleMenuPromptsBuilder(
+    initial: TitleMenuPromptsModel = TitleMenuPromptsModel(),
+) {
+    var header: TextBlock = initial.header
+    var createNewParty: InputBindingModel = initial.createNewParty
+    var continueSavedGame: InputBindingModel = initial.continueSavedGame
+    var terminateParty: InputBindingModel = initial.terminateParty
+    var scoreboard: InputBindingModel = initial.scoreboard
+    var hallOfFame: InputBindingModel = initial.hallOfFame
+    var documentation: InputBindingModel = initial.documentation
+    var leave: InputBindingModel = initial.leave
+    var terminateConfirm: TextBlock = initial.terminateConfirm
+    var terminated: TextBlock = initial.terminated
+    var terminateFailed: TextBlock = initial.terminateFailed
+    var invalidInput: TextBlock = initial.invalidInput
+
+    fun build(): TitleMenuPromptsModel =
+        TitleMenuPromptsModel(
+            header = header,
+            createNewParty = createNewParty,
+            continueSavedGame = continueSavedGame,
+            terminateParty = terminateParty,
+            scoreboard = scoreboard,
+            hallOfFame = hallOfFame,
+            documentation = documentation,
+            leave = leave,
+            terminateConfirm = terminateConfirm,
+            terminated = terminated,
+            terminateFailed = terminateFailed,
+            invalidInput = invalidInput,
         )
 }
 
@@ -2174,7 +2261,7 @@ class PriestSpellPromptsBuilder(
 class InventoryUsePromptsBuilder(
     initial: InventoryUsePromptsModel = InventoryUsePromptsModel(),
 ) {
-    var use: TextBlock = initial.use
+    var usePrompt: TextBlock = initial.usePrompt
     var quaff: TextBlock = initial.quaff
     var noItems: TextBlock = initial.noItems
     var noItem: TextBlock = initial.noItem
@@ -2187,7 +2274,7 @@ class InventoryUsePromptsBuilder(
 
     fun build(): InventoryUsePromptsModel =
         InventoryUsePromptsModel(
-            use = use,
+            usePrompt = usePrompt,
             quaff = quaff,
             noItems = noItems,
             noItem = noItem,
@@ -2206,13 +2293,25 @@ class EquipmentPromptsBuilder(
 ) {
     var inventory: TextBlock = initial.inventory
     var who: TextBlock = initial.who
+    private var noAvailableText: TextBlock = initial.noAvailable
+    private var equippedText: TextBlock = initial.equipped
     var readyWeapons: TextBlock = initial.readyWeapons
     var readyArmors: TextBlock = initial.readyArmors
+
+    fun noAvailable(body: EquipmentKindPromptBuilder.() -> Unit) {
+        noAvailableText = EquipmentKindPromptBuilder().apply(body).build()
+    }
+
+    fun equipped(body: SelectedItemPromptBuilder.() -> Unit) {
+        equippedText = SelectedItemPromptBuilder().apply(body).build()
+    }
 
     fun build(): EquipmentPromptsModel =
         EquipmentPromptsModel(
             inventory = inventory,
             who = who,
+            noAvailable = noAvailableText,
+            equipped = equippedText,
             readyWeapons = readyWeapons,
             readyArmors = readyArmors,
         )
@@ -2288,14 +2387,20 @@ class TownPromptsBuilder(
 ) {
     var unavailableSuffix: String = initial.unavailableSuffix
     var closedSuffix: String = initial.closedSuffix
+    private var menuTitleText: TextBlock = initial.menuTitle
     var entryWelcome: TextBlock = initial.entryWelcome
     var entryTax: TextBlock = initial.entryTax
     var entryTaxThanks: TextBlock = initial.entryTaxThanks
+
+    fun menuTitle(body: StructuredTextBlockBuilder.() -> Unit) {
+        menuTitleText = structuredText(body)
+    }
 
     fun build(): TownPromptsModel =
         TownPromptsModel(
             unavailableSuffix = unavailableSuffix,
             closedSuffix = closedSuffix,
+            menuTitle = menuTitleText,
             entryWelcome = entryWelcome,
             entryTax = entryTax,
             entryTaxThanks = entryTaxThanks,
@@ -2313,6 +2418,8 @@ class PartyPromptsBuilder(
     var dropAborted: TextBlock = initial.dropAborted
     private var dropDroppedText: TextBlock = initial.dropDropped
     var dropCapacityReduced: TextBlock = initial.dropCapacityReduced
+    var dropOverflowConfirm: TextBlock = initial.dropOverflowConfirm
+    var dropOverflowPrompt: TextBlock = initial.dropOverflowPrompt
 
     fun dropped(body: SelectedItemPromptBuilder.() -> Unit) {
         dropDroppedText = SelectedItemPromptBuilder().apply(body).build()
@@ -2327,6 +2434,8 @@ class PartyPromptsBuilder(
             dropAborted = dropAborted,
             dropDropped = dropDroppedText,
             dropCapacityReduced = dropCapacityReduced,
+            dropOverflowConfirm = dropOverflowConfirm,
+            dropOverflowPrompt = dropOverflowPrompt,
         )
 }
 
@@ -2427,6 +2536,19 @@ class SelectedItemPromptBuilder : TextLineSink {
 }
 
 @RylNextDsl
+class EquipmentKindPromptBuilder : TextLineSink {
+    private val text = StructuredTextBlockBuilder()
+
+    val equipmentKind: TextPart = TextPart.EquipmentKindName
+
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
+    }
+
+    fun build(): TextBlock = text.build()
+}
+
+@RylNextDsl
 class CharacterCreationStatsPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
 
@@ -2472,7 +2594,7 @@ class CharacterCreationMemberNamePromptBuilder : TextLineSink {
 @RylNextDsl
 class WildernessSystemBuilder {
     private var keysModel = WildernessKeysBuilder().build()
-    private var eventsModel = WildernessEventBuilder().build()
+    private var eventsModel: WildernessEventModel? = null
     private var terrainTransitionModel = TerrainTransitionBuilder().build()
 
     fun keys(body: WildernessKeysBuilder.() -> Unit) {
@@ -2490,7 +2612,7 @@ class WildernessSystemBuilder {
     fun build(): WildernessSystemModel =
         WildernessSystemModel(
             keys = keysModel,
-            events = eventsModel,
+            events = checkNotNull(eventsModel) { "wilderness requires events { ... }" },
             terrainTransitions = terrainTransitionModel,
         )
 }
@@ -2522,6 +2644,7 @@ class WildernessKeysBuilder(
     var quit: InputBindingModel = initial.quit
     private var debugForceCave: InputBindingModel = initial.debugForceCave
     private var debugForceEncounter: InputBindingModel = initial.debugForceEncounter
+    private var debugShowMap: InputBindingModel = initial.debugShowMap
     private var caveEnterKey = initial.caveEnter
     private var caveLeaveKey = initial.caveLeave
     private var outOfMovesSaveKey = initial.outOfMovesSave
@@ -2545,11 +2668,21 @@ class WildernessKeysBuilder(
 
     fun numberPadMovementWithArrows() {
         movement(
-            north = inputKey("8", InputAliases.ArrowUp, "UP", "ARROW_UP", label = "8/Up"),
-            south = inputKey("2", InputAliases.ArrowDown, "DOWN", "ARROW_DOWN", label = "2/Down"),
-            west = inputKey("4", InputAliases.ArrowLeft, "LEFT", "ARROW_LEFT", label = "4/Left"),
-            east = inputKey("6", InputAliases.ArrowRight, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
+            north = inputKey("8", InputAliases.ARROW_UP, "UP", "ARROW_UP", label = "8/Up"),
+            south = inputKey("2", InputAliases.ARROW_DOWN, "DOWN", "ARROW_DOWN", label = "2/Down"),
+            west = inputKey("4", InputAliases.ARROW_LEFT, "LEFT", "ARROW_LEFT", label = "4/Left"),
+            east = inputKey("6", InputAliases.ARROW_RIGHT, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
         )
+    }
+
+    fun debug(
+        forceCave: InputBindingModel = debugForceCave,
+        forceEncounter: InputBindingModel = debugForceEncounter,
+        showMap: InputBindingModel = debugShowMap,
+    ) {
+        debugForceCave = forceCave
+        debugForceEncounter = forceEncounter
+        debugShowMap = showMap
     }
 
     fun cave(
@@ -2634,6 +2767,7 @@ class WildernessKeysBuilder(
             quit = quit,
             debugForceCave = debugForceCave,
             debugForceEncounter = debugForceEncounter,
+            debugShowMap = debugShowMap,
             caveEnter = caveEnterKey,
             caveLeave = caveLeaveKey,
             outOfMovesSave = outOfMovesSaveKey,
@@ -2771,7 +2905,7 @@ class DungeonEventBuilder(
         randomEncounterTier = tier
     }
 
-    fun run(body: ScriptScope.() -> Unit) {
+    fun script(body: ScriptScope.() -> Unit) {
         ops += recordScript(body)
     }
 
@@ -3096,7 +3230,7 @@ class TownMenuBuilder {
     private val actions = mutableListOf<TownMenuActionModel>()
 
     fun church(key: Char = 'C') {
-        service(inputKey(key), DslDefaultBuildings.church, DslDefaultKeyActions.enterChurch)
+        service(inputKey(key, label = "Church"), DslDefaultBuildings.church, DslDefaultKeyActions.enterChurch)
     }
 
     fun church(binding: InputBindingModel) {
@@ -3104,7 +3238,7 @@ class TownMenuBuilder {
     }
 
     fun smith(key: Char = 'S') {
-        service(inputKey(key), DslDefaultBuildings.smith, DslDefaultKeyActions.enterSmith)
+        service(inputKey(key, label = "Smith"), DslDefaultBuildings.smith, DslDefaultKeyActions.enterSmith)
     }
 
     fun smith(binding: InputBindingModel) {
@@ -3112,7 +3246,7 @@ class TownMenuBuilder {
     }
 
     fun inn(key: Char = 'I') {
-        service(inputKey(key), DslDefaultBuildings.inn, DslDefaultKeyActions.enterInn)
+        service(inputKey(key, label = "Inn"), DslDefaultBuildings.inn, DslDefaultKeyActions.enterInn)
     }
 
     fun inn(binding: InputBindingModel) {
@@ -3120,7 +3254,7 @@ class TownMenuBuilder {
     }
 
     fun merchant(key: Char = 'M') {
-        service(inputKey(key), DslDefaultBuildings.merchant, DslDefaultKeyActions.enterMerchant)
+        service(inputKey(key, label = "Merchant"), DslDefaultBuildings.merchant, DslDefaultKeyActions.enterMerchant)
     }
 
     fun merchant(binding: InputBindingModel) {
@@ -3128,7 +3262,7 @@ class TownMenuBuilder {
     }
 
     fun tavern(key: Char = 'T') {
-        service(inputKey(key), DslDefaultBuildings.tavern, DslDefaultKeyActions.enterTavern)
+        service(inputKey(key, label = "Tavern"), DslDefaultBuildings.tavern, DslDefaultKeyActions.enterTavern)
     }
 
     fun tavern(binding: InputBindingModel) {
@@ -3136,7 +3270,7 @@ class TownMenuBuilder {
     }
 
     fun guild(key: Char = 'G') {
-        service(inputKey(key), DslDefaultBuildings.guild, DslDefaultKeyActions.enterGuild)
+        service(inputKey(key, label = "Guild"), DslDefaultBuildings.guild, DslDefaultKeyActions.enterGuild)
     }
 
     fun guild(binding: InputBindingModel) {
@@ -3147,7 +3281,7 @@ class TownMenuBuilder {
         key: Char = 'L',
         action: KeyActionId = DslDefaultKeyActions.leaveTown,
     ) {
-        leave(inputKey(key), action)
+        leave(inputKey(key, label = "Leave"), action)
     }
 
     fun leave(
@@ -3224,10 +3358,33 @@ class BuildingServiceBuilder(
 ) {
     var action: KeyActionId = defaultAction
     var scene: SceneId = defaultScene
-    var hours: IntRange? = null
+    private var opensAt: Int? = null
+    private var closesAt: Int? = null
+
+    var hours: IntRange?
+        get() {
+            val open = opensAt
+            val close = closesAt
+            if (open == null || close == null) return null
+            return open..close
+        }
+        set(value) {
+            opensAt = value?.first
+            closesAt = value?.last
+        }
+
+    /** Declares service opening and closing hours, including overnight spans such as 6 to 1. */
+    fun openHours(
+        opensAt: Int,
+        closesAt: Int,
+    ) {
+        this.opensAt = opensAt
+        this.closesAt = closesAt
+    }
 
     fun alwaysOpen() {
-        hours = null
+        opensAt = null
+        closesAt = null
     }
 
     fun build(): BuildingServiceModel =
@@ -3235,8 +3392,8 @@ class BuildingServiceBuilder(
             building = building,
             action = action,
             scene = scene,
-            opensAt = hours?.first,
-            closesAt = hours?.last,
+            opensAt = opensAt,
+            closesAt = closesAt,
             nativeServices =
                 listOf(
                     EngineServiceUse(EngineService.Rendering, "${building.slug} service screens and map-window art"),

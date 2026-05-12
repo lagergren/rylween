@@ -96,7 +96,6 @@ data class RealmState(
     val currentMode: RuntimeMode,
     val currentTown: TownId?,
     val banished: Boolean,
-    val lastPlayedDay: Int,
     val partyMemberMax: Int,
     val lastTerrain: TerrainId? = null,
 )
