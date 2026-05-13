@@ -1989,7 +1989,12 @@ class WorldMapLayerBuilder(
     }
 
     fun rows(rows: String) {
-        rowModels = rows.trimIndent().lines().dropWhile(String::isBlank).dropLastWhile(String::isBlank)
+        rowModels =
+            rows
+                .trimIndent()
+                .lines()
+                .dropWhile(String::isBlank)
+                .dropLastWhile(String::isBlank)
     }
 
     fun rows(rows: List<String>) {
@@ -2667,11 +2672,12 @@ class WildernessKeysBuilder(
     }
 
     fun numberPadMovementWithArrows() {
+        val defaultKeys = WildernessKeysModel()
         movement(
-            north = inputKey("8", InputAliases.ARROW_UP, "UP", "ARROW_UP", label = "8/Up"),
-            south = inputKey("2", InputAliases.ARROW_DOWN, "DOWN", "ARROW_DOWN", label = "2/Down"),
-            west = inputKey("4", InputAliases.ARROW_LEFT, "LEFT", "ARROW_LEFT", label = "4/Left"),
-            east = inputKey("6", InputAliases.ARROW_RIGHT, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
+            north = defaultKeys.moveNorth,
+            south = defaultKeys.moveSouth,
+            west = defaultKeys.moveWest,
+            east = defaultKeys.moveEast,
         )
     }
 
@@ -3703,8 +3709,14 @@ class MonsterBuilder(
     var spellPower: Int = 0
     var tier: EncounterTier? = null
     var immune: Boolean = false
+    private var encounterImage: ImageId? = null
 
-    fun build(): MonsterModel = MonsterModel(id, name, count, countMaxLevelDivisor, hitPoints, weaponSkill, spellPower, tier, immune)
+    fun encounterImage(image: ImageId?) {
+        encounterImage = image
+    }
+
+    fun build(): MonsterModel =
+        MonsterModel(id, name, count, countMaxLevelDivisor, hitPoints, weaponSkill, spellPower, tier, immune, encounterImage)
 }
 
 @RylNextDsl

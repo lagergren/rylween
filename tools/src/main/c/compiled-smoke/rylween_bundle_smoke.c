@@ -56,7 +56,8 @@ typedef enum {
 typedef enum {
     TEXT_BLOCK_REF = 0U,
     TEXT_BLOCK_INLINE = 1U,
-    TEXT_BLOCK_STRUCTURED = 2U
+    TEXT_BLOCK_STRUCTURED = 2U,
+    TEXT_BLOCK_FLOW = 3U
 } TextBlockTag;
 
 typedef enum {
@@ -355,7 +356,8 @@ static void parse_text_block(Reader *reader) {
         case TEXT_BLOCK_INLINE:
             parse_string_id_list(reader);
             break;
-        case TEXT_BLOCK_STRUCTURED: {
+        case TEXT_BLOCK_STRUCTURED:
+        case TEXT_BLOCK_FLOW: {
             uint32_t count = read_u32(reader);
             for (uint32_t i = 0; i < count; ++i) {
                 parse_text_line(reader);

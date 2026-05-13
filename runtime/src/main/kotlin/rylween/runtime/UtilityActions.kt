@@ -26,14 +26,17 @@ import rylween.dsl.impl.PcClass
 internal class UtilityActions(
     private val content: CompiledContentBundle,
     private val systems: ExternalRuntimeSystems,
-    private val input: RuntimeInput,
-    private val screen: RuntimeScreen,
+    private val input: RuntimeInputPort,
+    private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
 ) {
     fun drop(runtime: RuntimeState): RuntimeState {
         val choices = runtime.party.inventory.filter { slot -> slot.item != null }
         if (choices.isEmpty()) return runtime
-        screen.writeText(systems.prompts.party.dropPrompt.renderUtility() + inventoryLines(choices))
+        screen.writeText(
+            systems.prompts.party.dropPrompt
+                .renderUtility() + inventoryLines(choices),
+        )
         val slot =
             input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
                 ?: return runtime
@@ -71,9 +74,12 @@ internal class UtilityActions(
                 val use =
                     content.itemUses.firstOrNull { use -> use.item == item && ItemUseContext.Inventory in use.contexts }
                 slot.takeIf { use != null && itemRecord(item).kind == ItemKind.Potion }
-        }
+            }
         if (choices.isEmpty()) return runtime
-        screen.writeText(systems.prompts.inventoryUse.quaff.renderUtility() + inventoryLines(choices))
+        screen.writeText(
+            systems.prompts.inventoryUse.quaff
+                .renderUtility() + inventoryLines(choices),
+        )
         val slot =
             input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
                 ?: return runtime
@@ -129,12 +135,18 @@ internal class UtilityActions(
                     record.kind == acceptedKind &&
                         (record.equippableBy.isEmpty() || member.pcClass in record.equippableBy)
                 }
-        }
+            }
         if (choices.isEmpty()) {
-            screen.writeText(systems.prompts.equipment.noAvailable.renderUtility(equipmentKindName = equipmentName))
+            screen.writeText(
+                systems.prompts.equipment.noAvailable
+                    .renderUtility(equipmentKindName = equipmentName),
+            )
             return runtime
         }
-        screen.writeText(systems.prompts.equipment.inventory.renderUtility() + inventoryLines(choices))
+        screen.writeText(
+            systems.prompts.equipment.inventory
+                .renderUtility() + inventoryLines(choices),
+        )
         val slot =
             input
                 .readCommand()
@@ -142,7 +154,10 @@ internal class UtilityActions(
                 ?.takeIf { selected -> choices.any { it.slot == selected } }
                 ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
-        screen.writeText(systems.prompts.equipment.equipped.renderUtility(selectedItem = item))
+        screen.writeText(
+            systems.prompts.equipment.equipped
+                .renderUtility(selectedItem = item),
+        )
         return runtime.updateMember(memberIndex) { current -> equip(current, item) }
     }
 
@@ -178,7 +193,8 @@ internal class UtilityActions(
     ): Int? {
         if (indexes.isEmpty()) return null
         screen.writeText(
-            systems.prompts.equipment.who.renderUtility() +
+            systems.prompts.equipment.who
+                .renderUtility() +
                 "" +
                 indexes.map { index ->
                     "${index + 1}. ${runtime.party.memberName(content, index)}"

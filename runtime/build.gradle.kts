@@ -28,8 +28,6 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":terminal"))
     runtimeOnly(project(":game"))
-    testImplementation(kotlin("test"))
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 val javaToolchains: JavaToolchainService = extensions.getByType()

@@ -22,11 +22,10 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":web-common"))
     implementation(project(":runtime"))
     implementation(project(":terminal"))
     runtimeOnly(project(":game"))
-    testImplementation(kotlin("test"))
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 val runtimeWebJar: TaskProvider<Jar> = tasks.named<Jar>("jar")

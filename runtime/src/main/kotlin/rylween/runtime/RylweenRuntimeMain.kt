@@ -53,6 +53,7 @@ import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
+import rylween.dsl.DEFAULT_TEXT_WINDOW_COLUMNS
 import rylween.dsl.impl.CharacterCreationStat
 import rylween.dsl.impl.Facing
 import rylween.dsl.impl.Gender
@@ -83,7 +84,6 @@ private const val CREATION_SAVE_CONFIRMATION_TEXT = "OK"
 private const val TOWN_MAIN_STREET_IMAGE = "blitgfx.towne_mainstreet"
 private const val TOWN_COMMAND_GROUP = "town"
 private const val TOWN_LEAVE_ACTION = "leave_town"
-private const val WILDERNESS_MESSAGE_DELAY_MS = 1_200
 
 /** CLI entry point for the runtime. */
 object RylweenRuntimeMain {
@@ -414,6 +414,39 @@ class GameRuntime private constructor(
         sessionDate: LocalDate = LocalDate.now(),
         log: RuntimeLog,
     ): RuntimeSessionResult {
+        val input = RuntimeInput(terminal, scriptedInput, log)
+        val screen = RuntimeScreen(bundle, terminal, systems, log)
+        return runWilderness(
+            input = input,
+            screen = screen,
+            userId = userId,
+            stateSlug = stateSlug,
+            loadFile = loadFile,
+            saveFile = saveFile,
+            seed = seed,
+            showTitleMenu = showTitleMenu,
+            debugLogFlash = debugLogFlash,
+            debugSecrets = debugSecrets,
+            sessionDate = sessionDate,
+            log = log,
+        )
+    }
+
+    /** Runs the runtime loop through renderer-neutral ports. */
+    fun runWilderness(
+        input: RuntimeInputPort,
+        screen: RuntimeScreenPort,
+        userId: String,
+        stateSlug: String,
+        loadFile: File?,
+        saveFile: File,
+        seed: Long? = null,
+        showTitleMenu: Boolean = false,
+        debugLogFlash: Boolean = false,
+        debugSecrets: Boolean = false,
+        sessionDate: LocalDate = LocalDate.now(),
+        log: RuntimeLog,
+    ): RuntimeSessionResult {
         var runtime =
             loadFile?.let { file ->
                 logSaveFileLines("runtime.restore", file, log)
@@ -427,7 +460,6 @@ class GameRuntime private constructor(
             } ?: RuntimeState.from(stateBySlug(stateSlug), content)
         runtime = seed?.let(runtime::withSeed) ?: runtime
         val world = WorldMap.from(content, runtime.currentMap)
-        val screen = RuntimeScreen(bundle, terminal, systems, log)
         val flashLogSink =
             if (debugLogFlash) {
                 log.addSink(screen::flashLogLine)
@@ -436,7 +468,6 @@ class GameRuntime private constructor(
             }
         flashLogSink.use {
             log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
-            val input = RuntimeInput(terminal, scriptedInput, log)
             val saveContext = RuntimeSaveContext(saveFile, bundleContentHash, userId)
             val loopContext = RuntimeLoopContext(content, systems, input, screen, saveContext, log)
             val hasUserSave = loadFile?.let { file -> SaveFile.hasUserParty(file, bundleContentHash, userId) } ?: false
@@ -474,7 +505,10 @@ class GameRuntime private constructor(
                         runtime =
                             DungeonRuntime(loopContext)
                                 .run(runtime)
-                        if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
+                        if (runtime.currentMode == RuntimeMode.GameOver) {
+                            screen.renderGameOver(runtime)
+                            return gameOverResult()
+                        }
                         if (input.exhausted) return input.exitResult()
                         screen.renderWilderness(runtime, world)
                         continue
@@ -484,13 +518,19 @@ class GameRuntime private constructor(
                         runtime =
                             CastleRuntime(loopContext)
                                 .run(runtime)
-                        if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
+                        if (runtime.currentMode == RuntimeMode.GameOver) {
+                            screen.renderGameOver(runtime)
+                            return gameOverResult()
+                        }
                         if (input.exhausted) return input.exitResult()
                         screen.renderWilderness(runtime, world)
                         continue
                     }
 
-                    RuntimeMode.GameOver -> return gameOverResult()
+                    RuntimeMode.GameOver -> {
+                        screen.renderGameOver(runtime)
+                        return gameOverResult()
+                    }
                     else -> Unit
                 }
                 val command = input.readCommand()
@@ -613,12 +653,12 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches("camp", command) -> {
-                            runtime = applyAction(actions.camp(runtime), input, screen, world)
+                            runtime = applyAction(actions.camp(runtime), screen, world)
                             false
                         }
 
                         commands.matches("hunt", command) -> {
-                            runtime = applyAction(actions.hunt(runtime), input, screen, world)
+                            runtime = applyAction(actions.hunt(runtime), screen, world)
                             false
                         }
 
@@ -635,12 +675,12 @@ class GameRuntime private constructor(
                         }
 
                         debugSecrets && debugCommands.matches("forceCave", command) -> {
-                            runtime = applyAction(actions.forceCaveDiscovery(runtime), input, screen, world)
+                            runtime = applyAction(actions.forceCaveDiscovery(runtime), screen, world)
                             false
                         }
 
                         debugSecrets && debugCommands.matches("forceEncounter", command) -> {
-                            runtime = applyAction(actions.forceEncounter(runtime), input, screen, world)
+                            runtime = applyAction(actions.forceEncounter(runtime), screen, world)
                             false
                         }
 
@@ -657,10 +697,10 @@ class GameRuntime private constructor(
                         }
                     }
                 if (advanceTurn) {
-                    runtime = applyAction(actions.applyTurnUpkeep(runtime), input, screen, world)
+                    runtime = applyAction(actions.applyTurnUpkeep(runtime), screen, world)
                     if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
                     moveEvent?.let { event ->
-                        runtime = applyAction(actions.applyMoveEvents(runtime, event), input, screen, world)
+                        runtime = applyAction(actions.applyMoveEvents(runtime, event), screen, world)
                         if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
                     }
                 }
@@ -707,7 +747,10 @@ class GameRuntime private constructor(
                 }
 
                 savedRuntime != null && matches("terminateParty", command) -> {
-                    screen.writeText(systems.prompts.titleMenu.terminateConfirm.render { null })
+                    screen.writeText(
+                        systems.prompts.titleMenu.terminateConfirm
+                            .render { null },
+                    )
                     if (input.readCommand() == 'Y') {
                         val deleted =
                             runCatching {
@@ -743,7 +786,10 @@ class GameRuntime private constructor(
 
                 else -> {
                     log.event("title.invalid key=$command")
-                    screen.writeText(systems.prompts.titleMenu.invalidInput.render { null } + "Key: $command")
+                    screen.writeText(
+                        systems.prompts.titleMenu.invalidInput
+                            .render { null } + "Key: $command",
+                    )
                     input.readCommand()
                 }
             }
@@ -773,7 +819,10 @@ class GameRuntime private constructor(
     private fun titleMenuLines(hasSavedGame: Boolean): List<String> =
         systems.commands.getValue(TITLE_COMMAND_GROUP).let { commands ->
             buildList {
-                addAll(systems.prompts.titleMenu.header.render { null })
+                addAll(
+                    systems.prompts.titleMenu.header
+                        .render { null },
+                )
                 if (hasSavedGame) {
                     add(commands.menuLine("continueSavedGame"))
                     add(commands.menuLine("terminateParty"))
@@ -793,8 +842,7 @@ class GameRuntime private constructor(
         return prompt.terminateFailed.render { null }
     }
 
-    private fun List<ExternalRuntimeCommand>.menuLine(action: String): String =
-        first { command -> command.action == action }.mnemonicLine()
+    private fun List<ExternalRuntimeCommand>.menuLine(action: String): String = first { command -> command.action == action }.mnemonicLine()
 
     private fun ExternalRuntimeCommand.mnemonicLine(): String = binding.mnemonicLine(label ?: binding.label)
 
@@ -809,8 +857,8 @@ class GameRuntime private constructor(
 
     private fun runCharacterCreation(
         baseRuntime: RuntimeState,
-        input: RuntimeInput,
-        screen: RuntimeScreen,
+        input: RuntimeInputPort,
+        screen: RuntimeScreenPort,
         log: RuntimeLog,
     ): RuntimeState? {
         val rules = systems.characterCreation ?: error("compiled bundle has no character-creation rules")
@@ -899,8 +947,8 @@ class GameRuntime private constructor(
     private fun readAcceptedCreationStats(
         runtime: RuntimeState,
         memberNumber: Int,
-        input: RuntimeInput,
-        screen: RuntimeScreen,
+        input: RuntimeInputPort,
+        screen: RuntimeScreenPort,
         log: RuntimeLog,
     ): CreationStatsResult? {
         var current = runtime
@@ -945,8 +993,8 @@ class GameRuntime private constructor(
     }
 
     private fun <T> readCreationChoice(
-        screen: RuntimeScreen,
-        input: RuntimeInput,
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
         log: RuntimeLog,
         prompt: List<String>,
         choices: List<CreationChoice<T>>,
@@ -1066,16 +1114,24 @@ class GameRuntime private constructor(
 
     private fun applyAction(
         result: WildernessActionResult,
-        input: RuntimeInput,
-        screen: RuntimeScreen,
+        screen: RuntimeScreenPort,
         world: WorldMap,
     ): RuntimeState {
-        screen.renderWilderness(result.runtime, world)
-        if (result.messages.isNotEmpty()) {
-            screen.writeText(result.messages)
-            input.pause(WILDERNESS_MESSAGE_DELAY_MS)
+        if (result.runtime.currentMode == RuntimeMode.GameOver) {
+            screen.renderGameOver(result.runtime)
+        } else {
+            screen.renderWilderness(result.runtime, world)
         }
+        if (result.messages.isNotEmpty()) screen.showMessage(result.messages)
         return result.runtime
+    }
+
+    private fun RuntimeScreenPort.renderGameOver(runtime: RuntimeState) {
+        updateStatus(runtime)
+        systems.combat.standardBattle?.defeatImage?.let { image ->
+            writeViewCommand(RuntimeViewCommand.ClearMapWindow)
+            writeViewCommand(RuntimeViewCommand.ShowImage(image))
+        }
     }
 
     private fun move(
@@ -1083,7 +1139,7 @@ class GameRuntime private constructor(
         world: WorldMap,
         dx: Int,
         dy: Int,
-        screen: RuntimeScreen,
+        screen: RuntimeScreenPort,
     ): MoveResult {
         val source = party.position
         val target = GridPoint(source.x + dx, source.y + dy)
@@ -1107,8 +1163,8 @@ class GameRuntime private constructor(
     }
 
     private fun printHelp(
-        screen: RuntimeScreen,
-        input: RuntimeInput,
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
         runtime: RuntimeState,
         world: WorldMap,
     ) {
@@ -1120,8 +1176,8 @@ class GameRuntime private constructor(
     }
 
     private fun showWildernessPage(
-        screen: RuntimeScreen,
-        input: RuntimeInput,
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
         runtime: RuntimeState,
         world: WorldMap,
         lines: List<String>,
@@ -1130,8 +1186,8 @@ class GameRuntime private constructor(
     }
 
     private fun showWildernessPages(
-        screen: RuntimeScreen,
-        input: RuntimeInput,
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
         runtime: RuntimeState,
         world: WorldMap,
         pages: List<List<String>>,
@@ -1145,7 +1201,7 @@ class GameRuntime private constructor(
     }
 
     private fun redrawWildernessIfCurrent(
-        screen: RuntimeScreen,
+        screen: RuntimeScreenPort,
         runtime: RuntimeState,
         world: WorldMap,
     ) {
@@ -1162,7 +1218,7 @@ class GameRuntime private constructor(
     private fun saveRuntime(
         runtime: RuntimeState,
         save: RuntimeSaveContext,
-        screen: RuntimeScreen,
+        screen: RuntimeScreenPort,
         log: RuntimeLog,
     ) {
         persistRuntime(runtime, save, log, "command")
@@ -1227,14 +1283,17 @@ class GameRuntime private constructor(
                 .startCastle(runtime, castle)
         }
         log.event("wilderness.enter_none")
-        screen.writeText(systems.prompts.wilderness.nothingToEnter.render { null })
+        screen.writeText(
+            systems.prompts.wilderness.nothingToEnter
+                .render { null },
+        )
         return runtime
     }
 
     private fun enterTown(
         runtime: RuntimeState,
-        input: RuntimeInput,
-        screen: RuntimeScreen,
+        input: RuntimeInputPort,
+        screen: RuntimeScreenPort,
         town: rylween.compiled.CompiledTown,
         log: RuntimeLog,
     ): RuntimeState {
@@ -1262,7 +1321,10 @@ class GameRuntime private constructor(
 
         fun menuLines(): List<String> =
             buildList {
-                addAll(systems.prompts.town.menuTitle.renderTown(town))
+                addAll(
+                    systems.prompts.town.menuTitle
+                        .renderTown(town),
+                )
                 add("")
                 serviceEntries.forEach { entry -> add(entry.menuLine()) }
                 leaveCommand?.let { command -> add(command.mnemonicLine()) }
@@ -1302,8 +1364,8 @@ class GameRuntime private constructor(
     private fun runService(
         runtime: RuntimeState,
         service: CompiledBuildingService,
-        input: RuntimeInput,
-        screen: RuntimeScreen,
+        input: RuntimeInputPort,
+        screen: RuntimeScreenPort,
         log: RuntimeLog,
     ): RuntimeState {
         val sceneSlug = slug(service.scene)
@@ -1592,6 +1654,18 @@ class GameRuntime private constructor(
                 systems = bundleFile.readExternalRuntimeSystems(),
                 bundleContentHash = bundleFile.readExternalCompiledBundleContentHash(),
             )
+
+        /** Creates a runtime facade from already-loaded bundle/runtime-system sections. */
+        fun load(
+            bundle: CompiledGameBundle,
+            systems: ExternalRuntimeSystems,
+            bundleContentHash: String,
+        ): GameRuntime =
+            GameRuntime(
+                bundle = bundle,
+                systems = systems,
+                bundleContentHash = bundleContentHash,
+            )
     }
 }
 
@@ -1609,7 +1683,7 @@ private data class NpcPlacementDraw(
     val party: PartyState,
 )
 
-internal data class RuntimeState(
+data class RuntimeState(
     val stateSlug: String,
     val state: CompiledHandleRef,
     val day: Int,
@@ -1673,7 +1747,7 @@ internal data class RuntimeState(
     }
 }
 
-internal data class PartyState(
+data class PartyState(
     val id: CompiledHandleRef,
     val playerString: Int,
     val name: String,
@@ -1808,7 +1882,7 @@ internal fun wrapTextLine(
     }
 }
 
-internal data class RandomDraw(
+data class RandomDraw(
     val value: Int,
     val party: PartyState,
 )
@@ -1871,16 +1945,16 @@ internal class RuntimeInput(
     private val terminal: AnsiTerminal,
     scriptedInput: String?,
     private val log: RuntimeLog,
-) {
+) : RuntimeInputPort {
     private val scripted = scriptedInput?.toList()?.let(::ArrayDeque)
 
-    val exhausted: Boolean get() = scripted != null && scripted.isEmpty()
+    override val exhausted: Boolean get() = scripted != null && scripted.isEmpty()
 
-    fun pause(ms: Int) {
+    override fun pause(ms: Int) {
         if (scripted == null) terminal.pause(ms)
     }
 
-    fun readCommand(): Char? {
+    override fun readCommand(): Char? {
         val scriptedCommand = readScriptedCommand()
         if (scriptedCommand != null) {
             log.event("input.command key=$scriptedCommand scripted=true")
@@ -1890,20 +1964,23 @@ internal class RuntimeInput(
             log.event("input.command eof scripted=true")
             return null
         }
-        val token = terminal.readKeyToken() ?: return null
-        return (token.firstOrNull()?.uppercaseChar() ?: '\n').also { command ->
-            log.event("input.command key=$command scripted=false")
+        while (true) {
+            val token = terminal.readKeyToken() ?: return null
+            val command = RuntimeInputTokens.commandChar(token) ?: continue
+            return command.also {
+                log.event("input.command key=$command scripted=false")
+            }
         }
     }
 
-    fun readInt(maxDigits: Int = 6): Int? {
+    override fun readInt(maxDigits: Int): Int? {
         val scriptedValue = readScriptedUnsignedInt()
         if (scriptedValue != null) return scriptedValue
         if (scripted != null) return null
         return terminal.readTextLine(maxDigits)?.trim()?.toIntOrNull()
     }
 
-    fun readText(maxLength: Int? = null): String? {
+    override fun readText(maxLength: Int?): String? {
         val scriptedValue = readScriptedText()
         if (scriptedValue != null) return scriptedValue
         if (scripted != null) return null
@@ -1959,11 +2036,11 @@ internal class RuntimeInput(
     }
 }
 
-private fun RuntimeInput.exitResult(): RuntimeSessionResult = RuntimeSessionResult(exitReason())
+private fun RuntimeInputPort.exitResult(): RuntimeSessionResult = RuntimeSessionResult(exitReason())
 
 private fun gameOverResult(): RuntimeSessionResult = RuntimeSessionResult(RuntimeSessionExitReason.GameOver)
 
-private fun RuntimeInput.exitReason(): RuntimeSessionExitReason {
+private fun RuntimeInputPort.exitReason(): RuntimeSessionExitReason {
     if (exhausted) return RuntimeSessionExitReason.ScriptExhausted
     return RuntimeSessionExitReason.InputClosed
 }
@@ -1991,6 +2068,7 @@ private fun String.normalizedCreationName(): String = trim().replaceFirstChar(Ch
 
 internal class CompiledTextRenderContext(
     val content: CompiledContentBundle,
+    val flowColumns: Int? = DEFAULT_TEXT_WINDOW_COLUMNS,
     val intValue: (CompiledIntExpr) -> String = { "[int]" },
     val stringValue: (CompiledStringExpr) -> String = { "[string]" },
     val roleNameValue: (CompiledHandleRef) -> String = { role -> "[role:${content.slug(role)}]" },
@@ -2014,6 +2092,16 @@ internal fun CompiledTextBlock.renderTextLines(context: CompiledTextRenderContex
             lines.map { line ->
                 line.parts.joinToString(separator = "") { part -> part.renderText(context) }
             }
+        is CompiledTextBlock.Flow ->
+            paragraphs
+                .map { line -> line.parts.joinToString(separator = "") { part -> part.renderText(context) } }
+                .flowWrapped(context.flowColumns)
+    }
+
+private fun List<String>.flowWrapped(width: Int?): List<String> =
+    flatMapIndexed { index, paragraph ->
+        val wrapped = width?.let { wrapTextLine(paragraph, it) } ?: listOf(paragraph)
+        if (index < lastIndex) wrapped + "" else wrapped
     }
 
 private fun CompiledTextPart.renderText(context: CompiledTextRenderContext): String =
@@ -2033,7 +2121,7 @@ private fun CompiledTextPart.renderText(context: CompiledTextRenderContext): Str
         is CompiledTextPart.Runtime -> context.runtimeValue(kind)
     }
 
-internal class WorldMap(
+class WorldMap(
     private val rows: List<String>,
     private val terrainByCode: Map<Char, CompiledTerrain>,
 ) {

@@ -188,7 +188,7 @@ data class TextLine(
     val parts: List<TextPart>,
 )
 
-/** Authored text block, either by catalog ref, inline lines, or structured parts. */
+/** Authored text block, either by catalog ref, inline lines, structured parts, or deferred-wrap prose. */
 sealed interface TextBlock {
     data class Ref(
         val id: TextId,
@@ -201,17 +201,15 @@ sealed interface TextBlock {
     data class Structured(
         val lines: List<TextLine>,
     ) : TextBlock
+
+    data class Flow(
+        val paragraphs: List<TextLine>,
+    ) : TextBlock
 }
 
 /**
- * Default authoring width assumed by `flow(...)` when the caller doesn't
- * specify one. Matches the current ANSI text-window region declared in
- * `RylweenGame.kt` (`region(ScreenRegions.textWindow, ..., width = 26, ...)`).
- *
- * Note: this is a stepping-stone constant for the proof-of-concept. The
- * long-term direction is to keep flow text un-wrapped in the bundle and let
- * each renderer wrap to its own measurement (ANSI columns, pixel font
- * metrics, browser CSS, etc.) -- that's the only screen-agnostic answer.
+ * Classic ANSI text-window width. Kept as the default runtime wrap width for
+ * older call sites that render flow text without an explicit renderer width.
  */
 const val DEFAULT_TEXT_WINDOW_COLUMNS: Int = 26
 
@@ -225,33 +223,30 @@ fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = Str
 fun textLines(vararg lines: String): TextBlock = structuredText { lines(*expandMultiline(lines).toTypedArray()) }
 
 /**
- * Word-wraps a multi-paragraph prose block to the given column width and
- * returns it as a structured text block. Designer authors free-form prose;
- * the wrap fits whatever target width is given. Paragraphs are separated by
- * blank lines in the source and rendered with a blank line between them.
- *
- * This is the "flow" authoring path: it does the wrap eagerly with the
- * caller-supplied width (defaulting to the ANSI text window). A future
- * change can replace this with a `TextBlock.Flow` variant whose wrap is
- * deferred to the renderer; the call sites won't need to change.
+ * Captures multi-paragraph prose without choosing a render width. Paragraphs
+ * are separated by blank lines in the source and renderers wrap them at output
+ * time using their own column or pixel measurement.
  */
+fun flow(text: String): TextBlock {
+    val trimmed = text.trimIndent()
+    val paragraphs =
+        trimmed
+            .split(Regex("\\n\\s*\\n"))
+            .map { paragraph -> paragraph.trim().replace('\n', ' ') }
+            .filter(String::isNotEmpty)
+            .map { paragraph -> TextLine(listOf(TextPart.Literal(paragraph))) }
+    return TextBlock.Flow(paragraphs)
+}
+
+@Deprecated(
+    message = "flow text is renderer-wrapped; pass renderer width at output time",
+    replaceWith = ReplaceWith("flow(text)"),
+)
+@Suppress("UNUSED_PARAMETER")
 fun flow(
     text: String,
-    columns: Int = DEFAULT_TEXT_WINDOW_COLUMNS,
-): TextBlock {
-    val trimmed = text.trimIndent()
-    val paragraphs = trimmed.split(Regex("\\n\\s*\\n")).map { it.trim().replace('\n', ' ') }
-    val wrapped = mutableListOf<String>()
-    paragraphs.forEachIndexed { index, paragraph ->
-        if (paragraph.isEmpty()) {
-            wrapped.add("")
-        } else {
-            wrapped.addAll(wrapToWidth(paragraph, columns))
-        }
-        if (index < paragraphs.lastIndex) wrapped.add("")
-    }
-    return textLines(*wrapped.toTypedArray())
-}
+    columns: Int,
+): TextBlock = flow(text)
 
 /**
  * Detection rule for triple-quoted multi-line authoring: if the caller
@@ -265,32 +260,6 @@ private fun expandMultiline(lines: Array<out String>): List<String> =
     } else {
         lines.toList()
     }
-
-/**
- * Greedy word-wrap to the target column width. Words longer than the
- * width are hard-split via `chunked`. Used by `flow(...)`; mirrors the
- * runtime journal wrapper so authoring-time and runtime wrap agree.
- */
-private fun wrapToWidth(
-    text: String,
-    width: Int,
-): List<String> {
-    if (width <= 0 || text.length <= width) return listOf(text)
-    val tokens = text.split(' ').flatMap { word -> if (word.length > width) word.chunked(width) else listOf(word) }
-    return buildList {
-        var current = ""
-        for (token in tokens) {
-            val candidate = if (current.isEmpty()) token else "$current $token"
-            if (candidate.length <= width) {
-                current = candidate
-            } else {
-                add(current)
-                current = token
-            }
-        }
-        add(current)
-    }
-}
 
 /** Builder sink for collecting structured text lines. */
 interface TextLineSink {
@@ -326,6 +295,10 @@ private fun TextBlock.asStructuredLines(): List<TextLine> =
         is TextBlock.Inline -> lines.map { line -> TextLine(listOf(TextPart.Literal(line))) }
         is TextBlock.Ref -> listOf(TextLine(listOf(TextPart.Literal("[${id.id}]"))))
         is TextBlock.Structured -> lines
+        is TextBlock.Flow ->
+            paragraphs.flatMapIndexed { index, line ->
+                if (index < paragraphs.lastIndex) listOf(line, TextLine(listOf(TextPart.Literal("")))) else listOf(line)
+            }
     }
 
 private fun textPart(part: Any): TextPart =

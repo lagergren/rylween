@@ -148,10 +148,10 @@ data class WildernessSystemModel(
 )
 
 data class WildernessKeysModel(
-    val moveNorth: InputBindingModel = inputKey("8", InputAliases.ARROW_UP, "UP", "ARROW_UP", label = "8/Up"),
-    val moveSouth: InputBindingModel = inputKey("2", InputAliases.ARROW_DOWN, "DOWN", "ARROW_DOWN", label = "2/Down"),
-    val moveWest: InputBindingModel = inputKey("4", InputAliases.ARROW_LEFT, "LEFT", "ARROW_LEFT", label = "4/Left"),
-    val moveEast: InputBindingModel = inputKey("6", InputAliases.ARROW_RIGHT, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
+    val moveNorth: InputBindingModel = inputKey("8", InputAliases.ARROW_UP, "UP", "ARROW_UP", label = "8/↑"),
+    val moveSouth: InputBindingModel = inputKey("2", InputAliases.ARROW_DOWN, "DOWN", "ARROW_DOWN", label = "2/↓"),
+    val moveWest: InputBindingModel = inputKey("4", InputAliases.ARROW_LEFT, "LEFT", "ARROW_LEFT", label = "4/←"),
+    val moveEast: InputBindingModel = inputKey("6", InputAliases.ARROW_RIGHT, "RIGHT", "ARROW_RIGHT", label = "6/→"),
     val pass: InputBindingModel = inputKey(" ", "SPACE", label = "Space"),
     val save: InputBindingModel = inputKey("S"),
     val readyWeapon: InputBindingModel = inputKey("W"),

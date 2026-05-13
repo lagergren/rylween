@@ -20,8 +20,8 @@ internal data class RuntimeSaveContext(
 internal data class RuntimeLoopContext(
     val content: CompiledContentBundle,
     val systems: ExternalRuntimeSystems,
-    val input: RuntimeInput,
-    val screen: RuntimeScreen,
+    val input: RuntimeInputPort,
+    val screen: RuntimeScreenPort,
     val save: RuntimeSaveContext,
     val log: RuntimeLog,
 )

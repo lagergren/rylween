@@ -31,6 +31,8 @@ val cpdClasspath: Configuration by configurations.creating
 dependencies {
     cpdClasspath("net.sourceforge.pmd:pmd-cli:$pmdVersion")
     cpdClasspath("net.sourceforge.pmd:pmd-kotlin:$pmdVersion")
+    "testImplementation"(kotlin("test"))
+    "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
 }
 
 val cpdCheck: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {

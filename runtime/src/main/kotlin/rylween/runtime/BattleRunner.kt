@@ -79,8 +79,8 @@ internal data class BattleResult(
 internal class BattleRunner(
     private val content: CompiledContentBundle,
     private val combat: ExternalRuntimeCombat,
-    private val input: RuntimeInput,
-    private val screen: RuntimeScreen,
+    private val input: RuntimeInputPort,
+    private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
     private val pausePrompts: PausePrompts? = null,
 ) {
@@ -137,10 +137,11 @@ internal class BattleRunner(
                 listOf("Missing compiled standard-battle contract."),
             )
         val started = startEncounter(runtime, rules, monster)
-        rules.opening.banners.getOrNull(started.bannerIndex ?: -1)?.let { banner ->
+        started.openingImage()?.let { image ->
             screen.writeViewCommand(RuntimeViewCommand.ClearMapWindow)
-            screen.writeViewCommand(RuntimeViewCommand.ShowImage(banner))
+            screen.writeViewCommand(RuntimeViewCommand.ShowImage(image))
         }
+        screen.updateStatus(started.runtime)
         while (true) {
             screen.writeText(rules.openingText(started))
             val choice = input.readCommand() ?: return BattleResult(runtime)
@@ -246,6 +247,7 @@ internal class BattleRunner(
                     next = next.playerAction(index, member, messages)
                     retry = next.actionRetry
                     next = next.copy(actionRetry = false)
+                    screen.updateStatus(next.runtime)
                     showBattleMessages(messages)
                     attempts++
                 }
@@ -264,7 +266,11 @@ internal class BattleRunner(
         screen.writeText(prompt)
         val command = input.readCommand()
         val action = command?.let { key -> actions.firstOrNull { current -> current.binding.matches(key) } }
-        return when (action?.kind ?: CombatActionKind.Attack) {
+        if (action == null) {
+            messages += rules.text.notPossible.renderBattle()
+            return copy(actionRetry = true)
+        }
+        return when (action.kind) {
             CombatActionKind.Attack -> attack(member, messages)
             CombatActionKind.Defend -> defend(memberIndex, member, messages)
             CombatActionKind.BattleCry -> battleCry(messages)
@@ -416,6 +422,7 @@ internal class BattleRunner(
                         cast.value -> next.castMonsterSpell(index)
                         else -> next.monsterAttack(hp, messages)
                     }
+                screen.updateStatus(next.runtime)
                 showBattleMessages(messages)
             }
         }
@@ -507,11 +514,15 @@ internal class BattleRunner(
 
     private fun BattleEncounter.finish(): BattleResult =
         when {
-            !partyHasLivingMembers() ->
-                BattleResult(
-                    runtime.copy(currentMode = RuntimeMode.GameOver),
-                    rules.text.partyDefeated.renderBattle(),
-                )
+            !partyHasLivingMembers() -> {
+                val defeated = runtime.copy(currentMode = RuntimeMode.GameOver)
+                rules.defeatImage?.let { image ->
+                    screen.writeViewCommand(RuntimeViewCommand.ClearMapWindow)
+                    screen.writeViewCommand(RuntimeViewCommand.ShowImage(image))
+                }
+                screen.updateStatus(defeated)
+                BattleResult(defeated, rules.text.partyDefeated.renderBattle())
+            }
 
             monsterHasLivingMembers() ->
                 BattleResult(
@@ -872,6 +883,9 @@ internal class BattleRunner(
     private fun BattleEncounter.foeDisplayName(): String = "$monsterCount ${monsterName()}${"s".takeIf { monsterCount > 1 }.orEmpty()}"
 
     private fun BattleEncounter.monsterName(): String = content.strings.value(monster.nameString)
+
+    private fun BattleEncounter.openingImage(): String? =
+        monster.encounterImage?.let(content::slug) ?: rules.opening.banners.getOrNull(bannerIndex ?: -1)
 
     private fun BattleEncounter.partyHasLivingMembers(): Boolean = runtime.party.members.any { member -> !member.dead }
 

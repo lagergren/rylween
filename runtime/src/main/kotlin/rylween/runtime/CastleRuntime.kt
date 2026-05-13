@@ -20,7 +20,7 @@ import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.RuntimeMode
 
 /** Savable castle state. */
-internal data class CastleState(
+data class CastleState(
     val castleId: String,
     val floor: Int,
     val point: GridPoint,

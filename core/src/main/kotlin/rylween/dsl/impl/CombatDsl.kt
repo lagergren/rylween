@@ -128,6 +128,7 @@ data class StandardBattleModel(
     val encounterHitPointMinFormula: FormulaId,
     val encounterHitPointMaxFormula: FormulaId,
     val victoryImage: ImageId?,
+    val defeatImage: ImageId?,
     val nativeServices: List<EngineServiceUse>,
 )
 
@@ -172,6 +173,7 @@ class StandardBattleBuilder {
     var encounterHitPointMinFormula: FormulaId? = null
     var encounterHitPointMaxFormula: FormulaId? = null
     private var victoryImage: ImageId? = null
+    private var defeatImage: ImageId? = null
 
     fun text(body: BattleTextBuilder.() -> Unit) {
         textModel = BattleTextBuilder(textModel).apply(body).build()
@@ -201,6 +203,10 @@ class StandardBattleBuilder {
         victoryImage = image
     }
 
+    fun defeatImage(image: ImageId?) {
+        defeatImage = image
+    }
+
     fun build(): StandardBattleModel =
         StandardBattleModel(
             opening = requiredStandardBattle(openingModel, "opening { ... }"),
@@ -217,6 +223,7 @@ class StandardBattleBuilder {
             encounterHitPointMaxFormula =
                 requiredStandardBattle(encounterHitPointMaxFormula, "encounterHitPointMaxFormula = ..."),
             victoryImage = victoryImage,
+            defeatImage = defeatImage,
             nativeServices = defaultNativeServices,
         )
 
