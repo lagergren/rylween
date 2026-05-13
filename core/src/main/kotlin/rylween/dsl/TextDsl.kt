@@ -203,14 +203,94 @@ sealed interface TextBlock {
     ) : TextBlock
 }
 
+/**
+ * Default authoring width assumed by `flow(...)` when the caller doesn't
+ * specify one. Matches the current ANSI text-window region declared in
+ * `RylweenGame.kt` (`region(ScreenRegions.textWindow, ..., width = 26, ...)`).
+ *
+ * Note: this is a stepping-stone constant for the proof-of-concept. The
+ * long-term direction is to keep flow text un-wrapped in the bundle and let
+ * each renderer wrap to its own measurement (ANSI columns, pixel font
+ * metrics, browser CSS, etc.) -- that's the only screen-agnostic answer.
+ */
+const val DEFAULT_TEXT_WINDOW_COLUMNS: Int = 26
+
 /** Creates an inline literal text block. */
-fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(lines.toList())
+fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(expandMultiline(lines))
 
 /** Creates a structured text block with dynamic parts. */
 fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = StructuredTextBlockBuilder().apply(body).build()
 
 /** Creates a structured text block from literal lines. */
-fun textLines(vararg lines: String): TextBlock = structuredText { lines(*lines) }
+fun textLines(vararg lines: String): TextBlock = structuredText { lines(*expandMultiline(lines).toTypedArray()) }
+
+/**
+ * Word-wraps a multi-paragraph prose block to the given column width and
+ * returns it as a structured text block. Designer authors free-form prose;
+ * the wrap fits whatever target width is given. Paragraphs are separated by
+ * blank lines in the source and rendered with a blank line between them.
+ *
+ * This is the "flow" authoring path: it does the wrap eagerly with the
+ * caller-supplied width (defaulting to the ANSI text window). A future
+ * change can replace this with a `TextBlock.Flow` variant whose wrap is
+ * deferred to the renderer; the call sites won't need to change.
+ */
+fun flow(
+    text: String,
+    columns: Int = DEFAULT_TEXT_WINDOW_COLUMNS,
+): TextBlock {
+    val trimmed = text.trimIndent()
+    val paragraphs = trimmed.split(Regex("\\n\\s*\\n")).map { it.trim().replace('\n', ' ') }
+    val wrapped = mutableListOf<String>()
+    paragraphs.forEachIndexed { index, paragraph ->
+        if (paragraph.isEmpty()) {
+            wrapped.add("")
+        } else {
+            wrapped.addAll(wrapToWidth(paragraph, columns))
+        }
+        if (index < paragraphs.lastIndex) wrapped.add("")
+    }
+    return textLines(*wrapped.toTypedArray())
+}
+
+/**
+ * Detection rule for triple-quoted multi-line authoring: if the caller
+ * passed exactly one string and it contains a newline, treat it as
+ * `trimIndent().split("\n")`; otherwise behave like a normal vararg. This
+ * keeps `say("a", "b")` and `say("simple sentence.")` unchanged.
+ */
+private fun expandMultiline(lines: Array<out String>): List<String> =
+    if (lines.size == 1 && '\n' in lines[0]) {
+        lines[0].trimIndent().split('\n')
+    } else {
+        lines.toList()
+    }
+
+/**
+ * Greedy word-wrap to the target column width. Words longer than the
+ * width are hard-split via `chunked`. Used by `flow(...)`; mirrors the
+ * runtime journal wrapper so authoring-time and runtime wrap agree.
+ */
+private fun wrapToWidth(
+    text: String,
+    width: Int,
+): List<String> {
+    if (width <= 0 || text.length <= width) return listOf(text)
+    val tokens = text.split(' ').flatMap { word -> if (word.length > width) word.chunked(width) else listOf(word) }
+    return buildList {
+        var current = ""
+        for (token in tokens) {
+            val candidate = if (current.isEmpty()) token else "$current $token"
+            if (candidate.length <= width) {
+                current = candidate
+            } else {
+                add(current)
+                current = token
+            }
+        }
+        add(current)
+    }
+}
 
 /** Builder sink for collecting structured text lines. */
 interface TextLineSink {
@@ -224,7 +304,7 @@ fun TextLineSink.line(vararg parts: Any) {
 
 /** Adds multiple literal lines to a text-line sink. */
 fun TextLineSink.lines(vararg lines: String) {
-    lines.forEach { line(it) }
+    expandMultiline(lines).forEach { line(it) }
 }
 
 /** Executes a nested structured-text builder block against this sink. */

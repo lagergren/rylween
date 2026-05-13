@@ -1621,3 +1621,49 @@ hosts should not re-enter the authored `Op` interpreter in compiled mode.
   ]
 }
 ```
+
+## Deferred: deferred-wrap `TextBlock.Flow` variant
+
+The current `flow(...)` builder in `core/src/main/kotlin/rylween/dsl/TextDsl.kt`
+wraps prose to a column width at **authoring time**, baking the resulting lines
+into a `TextBlock.Structured`. The default width is the constant
+`DEFAULT_TEXT_WINDOW_COLUMNS = 26`, which matches the current ANSI text-window
+region declared in `RylweenGame.kt`.
+
+This is fine for the single ANSI renderer that ships today, but it bakes the
+target width into the compiled bundle. A bitmap / browser / non-ANSI renderer
+would either honor a too-narrow column count or have to unwrap and re-wrap the
+flowed prose.
+
+The screen-agnostic answer is a deferred-wrap variant:
+
+```kotlin
+sealed interface TextBlock {
+    data class Ref(...)
+    data class Inline(...)
+    data class Structured(...)
+    data class Flow(val paragraphs: List<TextLine>)   // new
+}
+```
+
+`flow(...)` would emit `TextBlock.Flow` carrying the un-wrapped paragraphs.
+Each renderer wraps at output time using its own measurement function:
+
+- ANSI: `wrapTextLine(line, screen.textColumns)`.
+- Browser/CSS: emit `<p>` tags and let the viewport flow.
+- Bitmap font: measure glyph advance widths and wrap pixel-by-pixel.
+
+Call-site syntax (`screen(flow("""..."""))`) doesn't change, so the existing
+migrations in `RylweenGame.kt` stay correct after the cutover.
+
+Also pending under this banner:
+
+- Apply the same wrap discipline to non-journal text-window writers
+  (interlude, shop catalog footer, NPC dialogue). Today these still
+  hard-truncate at column 26 in `RuntimeScreen.writeText`. The `flow(...)`
+  authoring path covers most of them once the deferred-wrap variant lands.
+- Decide whether `writeText` should reserve a 1-column right margin by
+  default. A previous attempt at this broke verbatim-substring asserts in
+  `RuntimeReplayPlanTest` for lines that are exactly 26 chars long
+  ("The smith is disappointed."). The fix is either DSL-side shortening
+  via `flow`, or test assertions taught to tolerate wrapped output.

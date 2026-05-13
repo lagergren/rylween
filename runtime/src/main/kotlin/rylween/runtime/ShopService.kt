@@ -219,13 +219,27 @@ internal class ShopService(
                 catalog.intro?.let { addAll(it.renderTextLines(content)) }
                 page.entries.forEach { offer ->
                     val label = offer.labelString?.let(content.strings::value) ?: itemName(offer.item)
-                    add(offer.binding.mnemonicLine(content, "$label  ${unitPrice(offer, party)} au"))
+                    add(formatOfferLine(offer.binding, label, unitPrice(offer, party)))
                 }
                 page.navigation.previous?.let { add(it.optionLine(content)) }
                 page.navigation.next?.let { add(it.optionLine(content)) }
                 page.footer?.let { addAll(it.renderTextLines(content)) }
             }
         screen.writeText(lines)
+    }
+
+    private fun formatOfferLine(
+        binding: CompiledInputBinding,
+        label: String,
+        unitPrice: Int,
+    ): String {
+        val prefix = "(${binding.primaryInputLabel(content).uppercase()}) $label"
+        val price = "$unitPrice au"
+        // Reserve one trailing column so the price doesn't butt against the
+        // window's right frame border.
+        val width = screen.textColumns?.let { it - 1 } ?: (prefix.length + 2 + price.length)
+        val padding = (width - prefix.length - price.length).coerceAtLeast(1)
+        return prefix + " ".repeat(padding) + price
     }
 
     private fun CompiledShopCatalog.navigationTarget(
