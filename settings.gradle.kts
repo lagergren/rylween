@@ -14,6 +14,8 @@ rootProject.name = "rylween"
 
 include("runtime")
 include("runtime-web")
+include("runtime-bitmap-web")
+include("web-common")
 include("core")
 include("game")
 include("tools")

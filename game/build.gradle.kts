@@ -53,8 +53,6 @@ sourceSets.named("main") {
 
 dependencies {
     api(project(":core"))
-    testImplementation(kotlin("test"))
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {

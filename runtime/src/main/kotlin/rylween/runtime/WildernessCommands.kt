@@ -2,9 +2,9 @@
  * Wilderness command bindings for the runtime.
  *
  * The keys come from `runtimeSystems.commands.wilderness` in the J1/J2 bundle,
- * not from Kotlin constants in the old runtime. Raw arrow escape sequences are
- * normalized by `:terminal` before this matcher sees them, so movement can
- * be driven by either numpad digits or terminal arrows.
+ * not from Kotlin constants in the old runtime. Physical key tokens are
+ * normalized before this matcher sees them, so movement can be driven by either
+ * numpad digits or terminal arrows.
  */
 
 package rylween.runtime

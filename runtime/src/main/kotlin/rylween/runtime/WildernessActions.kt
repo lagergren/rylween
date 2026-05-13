@@ -50,8 +50,8 @@ internal class WildernessActions(
     private val combat: ExternalRuntimeCombat,
     private val wilderness: ExternalWildernessRuntime,
     private val commands: Map<String, List<ExternalRuntimeCommand>>,
-    private val input: RuntimeInput,
-    private val screen: RuntimeScreen,
+    private val input: RuntimeInputPort,
+    private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
 ) {
     private companion object {
@@ -266,12 +266,12 @@ internal class WildernessActions(
         return ran.copy(dungeon = ran.dungeon?.copy(pendingMission = mission.id))
     }
 
-    private fun RuntimeInput.readCommandFromPrompt(lines: List<String>): Char? {
+    private fun RuntimeInputPort.readCommandFromPrompt(lines: List<String>): Char? {
         screen.writeText(lines)
         return readCommand()
     }
 
-    private fun RuntimeInput.readIntFromPrompt(lines: List<String>): Int? {
+    private fun RuntimeInputPort.readIntFromPrompt(lines: List<String>): Int? {
         screen.writeText(lines)
         return readCommand()?.digitToIntOrNull()
     }

@@ -1,4 +1,4 @@
-package rylween.web
+package rylween.webcommon
 
 import java.io.Closeable
 import java.io.EOFException
@@ -16,7 +16,7 @@ private const val PAYLOAD_16_BIT = 126
 private const val PAYLOAD_64_BIT = 127
 private const val MAX_FRAME_BYTES = 65_536
 
-internal class WebSocketConnection(
+class WebSocketConnection(
     private val input: InputStream,
     private val output: OutputStream,
 ) : Closeable {

@@ -3,6 +3,8 @@ package rylween.web
 import rylween.runtime.RuntimeLog
 import rylween.runtime.RuntimeSessionConfig
 import rylween.runtime.RuntimeSessionFactory
+import rylween.webcommon.WebSocketConnection
+import rylween.webcommon.WebSocketProtocol
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.File
@@ -13,8 +15,6 @@ import java.net.Socket
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.security.MessageDigest
-import java.util.Base64
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
@@ -30,7 +30,6 @@ private const val DEFAULT_BUNDLE = "/app/rylween-bundle.json"
 private const val DEFAULT_DATA_DIR = "/data"
 private const val DEFAULT_STATE = "fresh-replay"
 private const val MAX_HTTP_LINE_BYTES = 16_384
-private const val WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 fun main(args: Array<String>) {
     val config = WebRuntimeConfig.parse(args)
@@ -414,12 +413,7 @@ private data class HttpRequest(
 ) {
     fun header(name: String): String? = headers[name.lowercase(Locale.ROOT)]
 
-    fun isWebSocketUpgrade(): Boolean {
-        val upgrade = header("upgrade") ?: return false
-        val connection = header("connection") ?: return false
-        if (!upgrade.equals("websocket", ignoreCase = true)) return false
-        return connection.lowercase(Locale.ROOT).contains("upgrade")
-    }
+    fun isWebSocketUpgrade(): Boolean = WebSocketProtocol.isUpgrade(header("upgrade"), header("connection"))
 }
 
 private fun readHttpRequest(input: InputStream): HttpRequest? {
@@ -511,19 +505,5 @@ private fun writeWebSocketHandshake(
     request: HttpRequest,
 ) {
     val key = request.header("sec-websocket-key") ?: error("missing websocket key")
-    val accept = websocketAccept(key)
-    val response =
-        "HTTP/1.1 101 Switching Protocols\r\n" +
-            "Upgrade: websocket\r\n" +
-            "Connection: Upgrade\r\n" +
-            "Sec-WebSocket-Accept: $accept\r\n" +
-            "\r\n"
-    output.write(response.toByteArray(StandardCharsets.ISO_8859_1))
-    output.flush()
-}
-
-private fun websocketAccept(key: String): String {
-    val sha1 = MessageDigest.getInstance("SHA-1")
-    val bytes = sha1.digest((key.trim() + WEBSOCKET_GUID).toByteArray(StandardCharsets.ISO_8859_1))
-    return Base64.getEncoder().encodeToString(bytes)
+    WebSocketProtocol.writeHandshake(output, key)
 }

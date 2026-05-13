@@ -78,6 +78,7 @@ private enum class NativeSmokeTextBlockTag(
     Ref(0),
     Inline(1),
     Structured(2),
+    Flow(3),
 }
 
 private enum class NativeSmokeTextPartTag(
@@ -312,6 +313,7 @@ private class NativeSmokeArtifactWriter {
             is CompiledTextBlock.Ref -> tag(NativeSmokeTextBlockTag.Ref) { handleRef(block.text) }
             is CompiledTextBlock.Inline -> tag(NativeSmokeTextBlockTag.Inline) { stringIds(block.lineStrings) }
             is CompiledTextBlock.Structured -> tag(NativeSmokeTextBlockTag.Structured) { list(block.lines, ::textLine) }
+            is CompiledTextBlock.Flow -> tag(NativeSmokeTextBlockTag.Flow) { list(block.paragraphs, ::textLine) }
         }
     }
 
@@ -844,6 +846,7 @@ private class NativeSmokeArtifactReader(
             NativeSmokeTextBlockTag.Ref -> handleRef()
             NativeSmokeTextBlockTag.Inline -> stringRefList()
             NativeSmokeTextBlockTag.Structured -> repeatCount(u32("text line count")) { textLine() }
+            NativeSmokeTextBlockTag.Flow -> repeatCount(u32("text paragraph count")) { textLine() }
         }
     }
 

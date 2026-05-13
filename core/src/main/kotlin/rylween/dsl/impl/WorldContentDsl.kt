@@ -203,6 +203,7 @@ data class MonsterModel(
     val spellPower: Int,
     val tier: EncounterTier?,
     val immune: Boolean,
+    val encounterImage: ImageId? = null,
 )
 
 data class MissionModel(

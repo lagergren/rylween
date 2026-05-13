@@ -1307,6 +1307,20 @@ private fun validateTextBlock(
                 line.parts.forEach(::validatePart)
             }
         }
+        is TextBlock.Flow -> {
+            check(block.paragraphs.isNotEmpty()) { "$label flow text has no paragraphs" }
+            check(
+                block.paragraphs.any { line ->
+                    line.parts.any { it !is TextPart.Literal || it.text.isNotBlank() }
+                },
+            ) {
+                "$label flow text is blank"
+            }
+            block.paragraphs.forEachIndexed { index, line ->
+                check(line.parts.isNotEmpty()) { "$label paragraph $index has no parts" }
+                line.parts.forEach(::validatePart)
+            }
+        }
     }
 }
 
@@ -2445,6 +2459,10 @@ private fun validateImageReferences(content: GameModel) {
             content.combat.standardBattle?.let { battle ->
                 battle.opening.banners.forEach { add(it to "battle opening banner") }
                 battle.victoryImage?.let { add(it to "battle victory image") }
+                battle.defeatImage?.let { add(it to "battle defeat image") }
+            }
+            content.monsters.forEach { monster ->
+                monster.encounterImage?.let { add(it to "monster ${monster.id.slug} encounter image") }
             }
             content.scriptSourceRoots().forEach { root -> addAll(root.imageReferences()) }
         }

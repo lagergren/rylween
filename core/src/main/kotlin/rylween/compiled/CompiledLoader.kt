@@ -277,6 +277,7 @@ private class CompiledBundleValidator(
         handle(monster.id, "monster")
         string(monster.nameString, "monster name")
         monster.tier?.let { handle(it, "monster tier") }
+        monster.encounterImage?.let { handle(it, "monster encounter image") }
     }
 
     private fun mission(mission: CompiledMission) {
@@ -497,6 +498,10 @@ private class CompiledBundleValidator(
             is CompiledTextBlock.Inline -> block.lineStrings.forEach { string(it, "inline text") }
             is CompiledTextBlock.Structured ->
                 block.lines.forEach { line ->
+                    line.parts.forEach(::textPart)
+                }
+            is CompiledTextBlock.Flow ->
+                block.paragraphs.forEach { line ->
                     line.parts.forEach(::textPart)
                 }
         }

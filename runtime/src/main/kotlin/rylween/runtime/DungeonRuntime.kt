@@ -20,7 +20,7 @@ import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RuntimeMode
 
 /** Savable dungeon state. */
-internal data class DungeonState(
+data class DungeonState(
     val dungeon: CompiledHandleRef,
     val maxDepth: Int,
     val depth: Int,

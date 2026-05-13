@@ -414,10 +414,16 @@ private class NativePathCollector {
     }
 
     private fun collect(block: TextBlock) {
-        if (block is TextBlock.Structured) {
-            block.lines.forEach { line ->
-                line.parts.forEach(::collect)
+        val lines =
+            when (block) {
+                is TextBlock.Structured -> block.lines
+                is TextBlock.Flow -> block.paragraphs
+                is TextBlock.Ref,
+                is TextBlock.Inline,
+                -> emptyList()
             }
+        lines.forEach { line ->
+            line.parts.forEach(::collect)
         }
     }
 

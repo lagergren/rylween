@@ -15,6 +15,9 @@ tasks.check {
     dependsOn(":tools:check")
     dependsOn(":terminal:check")
     dependsOn(":runtime:check")
+    dependsOn(":runtime-web:check")
+    dependsOn(":runtime-bitmap-web:check")
+    dependsOn(":web-common:check")
 }
 
 tasks.clean {
