@@ -36,8 +36,10 @@ import rylween.dsl.impl.FlagRef
 import rylween.dsl.impl.FlagScope
 import rylween.dsl.impl.FlagState
 import rylween.dsl.impl.GameModel
+import rylween.dsl.impl.GamePacingModel
 import rylween.dsl.impl.GameProgressModel
 import rylween.dsl.impl.GamePromptsModel
+import rylween.dsl.impl.Gender
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.HuntRulesModel
 import rylween.dsl.impl.ItemRecordModel
@@ -214,6 +216,7 @@ data class ExternalRuntimeSystems(
     val castles: List<String>,
     val commands: Map<String, List<ExternalRuntimeCommand>>,
     val prompts: ExternalRuntimePrompts,
+    val pacing: ExternalRuntimePacing,
     val realm: ExternalRuntimeRealm,
     val combat: ExternalRuntimeCombat,
     val score: ExternalRuntimeScore,
@@ -236,6 +239,38 @@ data class ExternalRuntimePrompts(
     val party: ExternalPartyPrompts,
     val wilderness: ExternalWildernessPrompts,
     val characterCreation: ExternalCharacterCreationPrompts,
+)
+
+data class ExternalRuntimePacing(
+    val battle: ExternalBattlePacing = ExternalBattlePacing(),
+    val characterCreation: ExternalCharacterCreationPacing = ExternalCharacterCreationPacing(),
+    val shop: ExternalShopPacing = ExternalShopPacing(),
+    val speak: ExternalSpeakPacing = ExternalSpeakPacing(),
+    val wilderness: ExternalWildernessPacing = ExternalWildernessPacing(),
+)
+
+data class ExternalBattlePacing(
+    val messagePauseMs: Int = 900,
+    val openingPauseMs: Int = 1_200,
+    val victoryPauseMs: Int = 4_000,
+)
+
+data class ExternalCharacterCreationPacing(
+    val classRejectionPauseMs: Int = 1_000,
+    val saveConfirmationPauseMs: Int = 2_000,
+)
+
+data class ExternalShopPacing(
+    val interludePagePauseMs: Int = 2_000,
+)
+
+data class ExternalSpeakPacing(
+    val promptReplyPauseMs: Int = 650,
+    val responsePauseMs: Int = 1_600,
+)
+
+data class ExternalWildernessPacing(
+    val campMessagePauseMs: Int = 1_300,
 )
 
 data class ExternalTitleMenuPrompts(
@@ -305,6 +340,7 @@ data class ExternalWildernessPrompts(
     val outOfMoves: ExternalRuntimeTextBlock,
     val notInWilderness: ExternalRuntimeTextBlock,
     val nothingToEnter: ExternalRuntimeTextBlock,
+    val impassable: ExternalRuntimeTextBlock,
     val quitConfirm: ExternalRuntimeTextBlock,
     val dungeonHandoff: ExternalRuntimeTextBlock,
 )
@@ -321,6 +357,7 @@ data class ExternalCharacterCreationPrompts(
     val race: ExternalRuntimeTextBlock,
     val classMenu: ExternalRuntimeTextBlock,
     val saving: ExternalRuntimeTextBlock,
+    val saveConfirmationSuffix: String,
 )
 
 data class ExternalRuntimeCharacterCreation(
@@ -328,6 +365,7 @@ data class ExternalRuntimeCharacterCreation(
     val start: ExternalCharacterCreationStart,
     val races: List<ExternalCharacterCreationRaceOption>,
     val classes: List<ExternalCharacterCreationClassOption>,
+    val portraits: List<ExternalCharacterCreationPortrait>,
 )
 
 data class ExternalCharacterCreationStatRoll(
@@ -356,6 +394,13 @@ data class ExternalCharacterCreationClassOption(
     val requiredStat: CharacterCreationStat?,
     val minimum: Int?,
     val failureText: ExternalRuntimeTextBlock?,
+)
+
+data class ExternalCharacterCreationPortrait(
+    val gender: Gender?,
+    val race: Race?,
+    val pcClass: PcClass?,
+    val image: String,
 )
 
 /** Score and Hall-of-Heroes metadata exported for direct bundle runtimes. */
@@ -975,6 +1020,7 @@ data class ExternalImageAsset(
     val kind: String,
     val resource: String,
     val placement: String,
+    val transition: String,
 )
 
 /** Static screen route from the stable runtime-system presentation data. */
@@ -1107,9 +1153,10 @@ private class ExternalBundleArtifactWriter {
 
     private fun runtimeSystemsJson(game: GameModel): JsonValue =
         jsonObject(
-            "schemaVersion" to JsonNumber("2"),
+            "schemaVersion" to JsonNumber("3"),
             "realm" to realmJson(game.realm),
             "prompts" to promptsJson(game.prompts),
+            "pacing" to pacingJson(game.pacing),
             "presentation" to presentationJson(game),
             "commands" to commandsJson(game),
             "combat" to combatJson(game.combat, game.leveling),
@@ -1140,6 +1187,17 @@ private class ExternalBundleArtifactWriter {
                     },
                 ),
             "classes" to JsonArray(characterCreation.classes.map(::characterCreationClassJson)),
+            "portraits" to
+                JsonArray(
+                    characterCreation.portraits.map { portrait ->
+                        jsonObject(
+                            "gender" to portrait.gender?.let { JsonString(it.name) }.orJsonNull(),
+                            "race" to portrait.race?.let { JsonString(it.name) }.orJsonNull(),
+                            "pcClass" to portrait.klass?.let { JsonString(it.name) }.orJsonNull(),
+                            "image" to JsonString(portrait.image.slug),
+                        )
+                    },
+                ),
         )
 
     private fun characterCreationStartJson(start: rylween.dsl.impl.CharacterCreationStartModel): JsonValue {
@@ -1489,6 +1547,7 @@ private class ExternalBundleArtifactWriter {
                             textField("race", prompts.characterCreation.race),
                             textField("classMenu", prompts.characterCreation.classMenu),
                             textField("saving", prompts.characterCreation.saving),
+                            stringField("saveConfirmationSuffix", prompts.characterCreation.saveConfirmationSuffix),
                         ),
                         promptGroupJson(
                             "priest",
@@ -1550,6 +1609,7 @@ private class ExternalBundleArtifactWriter {
                             textField("outOfMoves", prompts.wilderness.outOfMoves),
                             textField("notInWilderness", prompts.wilderness.notInWilderness),
                             textField("nothingToEnter", prompts.wilderness.nothingToEnter),
+                            textField("impassable", prompts.wilderness.impassable),
                             textField("quitConfirm", prompts.wilderness.quitConfirm),
                             textField("dungeonHandoff", prompts.wilderness.dungeonHandoff),
                         ),
@@ -1562,6 +1622,34 @@ private class ExternalBundleArtifactWriter {
                             textField("leaveCavern", prompts.dungeon.leaveCavern),
                         ),
                     ),
+                ),
+        )
+
+    private fun pacingJson(pacing: GamePacingModel): JsonValue =
+        jsonObject(
+            "battle" to
+                jsonObject(
+                    "messagePauseMs" to JsonNumber(pacing.battle.messagePauseMs.toString()),
+                    "openingPauseMs" to JsonNumber(pacing.battle.openingPauseMs.toString()),
+                    "victoryPauseMs" to JsonNumber(pacing.battle.victoryPauseMs.toString()),
+                ),
+            "characterCreation" to
+                jsonObject(
+                    "classRejectionPauseMs" to JsonNumber(pacing.characterCreation.classRejectionPauseMs.toString()),
+                    "saveConfirmationPauseMs" to JsonNumber(pacing.characterCreation.saveConfirmationPauseMs.toString()),
+                ),
+            "shop" to
+                jsonObject(
+                    "interludePagePauseMs" to JsonNumber(pacing.shop.interludePagePauseMs.toString()),
+                ),
+            "speak" to
+                jsonObject(
+                    "promptReplyPauseMs" to JsonNumber(pacing.speak.promptReplyPauseMs.toString()),
+                    "responsePauseMs" to JsonNumber(pacing.speak.responsePauseMs.toString()),
+                ),
+            "wilderness" to
+                jsonObject(
+                    "campMessagePauseMs" to JsonNumber(pacing.wilderness.campMessagePauseMs.toString()),
                 ),
         )
 
@@ -1597,6 +1685,7 @@ private class ExternalBundleArtifactWriter {
                             "kind" to JsonString(image.kind.name),
                             "resource" to JsonString(image.resource),
                             "placement" to JsonString(image.placement.name),
+                            "transition" to JsonString(image.transition.name),
                         )
                     },
                 ),
@@ -2428,6 +2517,13 @@ private class ExternalRuntimeSystemsReader(
             castles = castleRows.map(ExternalRuntimeCastle::id),
             commands = commandGroups,
             prompts = prompts.readPrompts(),
+            pacing =
+                systems
+                    .optional("pacing")
+                    ?.takeUnless { it is JsonNull }
+                    ?.asObject("pacing")
+                    ?.readPacing()
+                    ?: ExternalRuntimePacing(),
             realm = systems.requiredObject("realm").readRealm(),
             combat = systems.requiredObject("combat").readCombat(),
             score = systems.requiredObject("score").readScore(),
@@ -2530,6 +2626,7 @@ private class ExternalRuntimeSystemsReader(
                     outOfMoves = wilderness.requiredTextPrompt("outOfMoves"),
                     notInWilderness = wilderness.requiredTextPrompt("notInWilderness"),
                     nothingToEnter = wilderness.requiredTextPrompt("nothingToEnter"),
+                    impassable = wilderness.optionalTextPrompt("impassable", inlineRuntimeText("Impassable.")),
                     quitConfirm = wilderness.requiredTextPrompt("quitConfirm"),
                     dungeonHandoff = wilderness.requiredTextPrompt("dungeonHandoff"),
                 ),
@@ -2546,6 +2643,53 @@ private class ExternalRuntimeSystemsReader(
                     race = characterCreation.requiredTextPrompt("race"),
                     classMenu = characterCreation.requiredTextPrompt("classMenu"),
                     saving = characterCreation.requiredTextPrompt("saving"),
+                    saveConfirmationSuffix = characterCreation.optionalStringPrompt("saveConfirmationSuffix", "OK"),
+                ),
+        )
+    }
+
+    private fun JsonObject.readPacing(): ExternalRuntimePacing {
+        val defaults = ExternalRuntimePacing()
+        val battle = optional("battle")?.takeUnless { it is JsonNull }?.asObject("battle")
+        val characterCreation =
+            optional("characterCreation")
+                ?.takeUnless { it is JsonNull }
+                ?.asObject("characterCreation")
+        val shop = optional("shop")?.takeUnless { it is JsonNull }?.asObject("shop")
+        val speak = optional("speak")?.takeUnless { it is JsonNull }?.asObject("speak")
+        val wilderness = optional("wilderness")?.takeUnless { it is JsonNull }?.asObject("wilderness")
+        return ExternalRuntimePacing(
+            battle =
+                ExternalBattlePacing(
+                    messagePauseMs = battle.optionalInt("messagePauseMs", defaults.battle.messagePauseMs),
+                    openingPauseMs = battle.optionalInt("openingPauseMs", defaults.battle.openingPauseMs),
+                    victoryPauseMs = battle.optionalInt("victoryPauseMs", defaults.battle.victoryPauseMs),
+                ),
+            characterCreation =
+                ExternalCharacterCreationPacing(
+                    classRejectionPauseMs =
+                        characterCreation.optionalInt(
+                            "classRejectionPauseMs",
+                            defaults.characterCreation.classRejectionPauseMs,
+                        ),
+                    saveConfirmationPauseMs =
+                        characterCreation.optionalInt(
+                            "saveConfirmationPauseMs",
+                            defaults.characterCreation.saveConfirmationPauseMs,
+                        ),
+                ),
+            shop =
+                ExternalShopPacing(
+                    interludePagePauseMs = shop.optionalInt("interludePagePauseMs", defaults.shop.interludePagePauseMs),
+                ),
+            speak =
+                ExternalSpeakPacing(
+                    promptReplyPauseMs = speak.optionalInt("promptReplyPauseMs", defaults.speak.promptReplyPauseMs),
+                    responsePauseMs = speak.optionalInt("responsePauseMs", defaults.speak.responsePauseMs),
+                ),
+            wilderness =
+                ExternalWildernessPacing(
+                    campMessagePauseMs = wilderness.optionalInt("campMessagePauseMs", defaults.wilderness.campMessagePauseMs),
                 ),
         )
     }
@@ -2567,8 +2711,26 @@ private class ExternalRuntimeSystemsReader(
         return field.required("value").readTextBlock()
     }
 
+    private fun Map<String, JsonObject>.optionalTextPrompt(
+        name: String,
+        default: ExternalRuntimeTextBlock,
+    ): ExternalRuntimeTextBlock {
+        val field = this[name] ?: return default
+        check(field.requiredString("kind") == "text") { "prompt field $name must be text" }
+        return field.required("value").readTextBlock()
+    }
+
     private fun Map<String, JsonObject>.requiredStringPrompt(name: String): String {
         val field = this[name] ?: error("missing prompt field $name")
+        check(field.requiredString("kind") == "string") { "prompt field $name must be string" }
+        return field.requiredString("value")
+    }
+
+    private fun Map<String, JsonObject>.optionalStringPrompt(
+        name: String,
+        default: String,
+    ): String {
+        val field = this[name] ?: return default
         check(field.requiredString("kind") == "string") { "prompt field $name must be string" }
         return field.requiredString("value")
     }
@@ -2601,6 +2763,17 @@ private class ExternalRuntimeSystemsReader(
                             requiredStat = option.optionalNullableEnum("requiredStat"),
                             minimum = option.optionalNullableInt("minimum"),
                             failureText = option.optional("failureText")?.takeUnless { it is JsonNull }?.readTextBlock(),
+                        )
+                    }
+                },
+            portraits =
+                optionalArray("portraits")?.values.orEmpty().map { value ->
+                    value.asObject("character creation portrait").let { portrait ->
+                        ExternalCharacterCreationPortrait(
+                            gender = portrait.optionalNullableEnum("gender"),
+                            race = portrait.optionalNullableEnum("race"),
+                            pcClass = portrait.optionalNullableEnum("pcClass"),
+                            image = portrait.requiredString("image"),
                         )
                     }
                 },
@@ -3303,6 +3476,7 @@ private class ExternalRuntimeSystemsReader(
                         kind = row.requiredString("kind"),
                         resource = row.requiredString("resource"),
                         placement = row.requiredString("placement"),
+                        transition = row.optionalString("transition") ?: "None",
                     )
                 },
             staticScreens =
@@ -4105,6 +4279,9 @@ private fun JsonObject.requiredString(name: String): String = required(name).asS
 private fun JsonObject.requiredInt(name: String): Int =
     (required(name) as? JsonNumber)?.value?.toIntOrNull() ?: error("expected integer for $name")
 
+private fun inlineRuntimeText(vararg lines: String): ExternalRuntimeTextBlock =
+    ExternalRuntimeTextBlock(lines.map { line -> listOf(ExternalRuntimeTextPart.Literal(line)) })
+
 private fun JsonObject.optionalString(name: String): String? = optional(name)?.asString(name)
 
 private fun JsonObject.optionalNullableString(name: String): String? = optional(name)?.takeUnless { it is JsonNull }?.asString(name)
@@ -4113,6 +4290,11 @@ private fun JsonObject.optionalNullableInt(name: String): Int? {
     val value = optional(name)?.takeUnless { it is JsonNull } ?: return null
     return (value as? JsonNumber)?.value?.toIntOrNull() ?: error("expected integer for $name")
 }
+
+private fun JsonObject?.optionalInt(
+    name: String,
+    default: Int,
+): Int = this?.optionalNullableInt(name) ?: default
 
 private inline fun <reified T : Enum<T>> JsonObject.requiredEnum(name: String): T = enumValueOf(requiredString(name))
 

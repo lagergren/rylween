@@ -1,6 +1,9 @@
 package rylween.runtime
 
 import rylween.compiled.ExternalRuntimeCastle
+import rylween.dsl.impl.Gender
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.Race
 
 /**
  * Renderer-neutral input consumed by the compiled-bundle runtime loop.
@@ -18,6 +21,41 @@ interface RuntimeInputPort {
     fun readInt(maxDigits: Int = 6): Int?
 
     fun readText(maxLength: Int? = null): String?
+}
+
+/**
+ * Shared normalization from transport key tokens to the runtime's current
+ * single-character command contract.
+ *
+ * Browser runtimes may report symbolic key names such as ARROW_UP while the
+ * local terminal reports already-decoded keypad tokens. Keep that translation
+ * here so transports do not grow their own game-command tables.
+ */
+object RuntimeInputTokens {
+    fun commandChar(token: String): Char? {
+        if (token == " ") return ' '
+        val normalized = token.trim()
+        if (normalized.isEmpty()) return '\n'
+        return when (normalized.uppercase()) {
+            "ARROW_UP",
+            "UP",
+            -> '8'
+            "ARROW_DOWN",
+            "DOWN",
+            -> '2'
+            "ARROW_LEFT",
+            "LEFT",
+            -> '4'
+            "ARROW_RIGHT",
+            "RIGHT",
+            -> '6'
+            "ENTER",
+            "RETURN",
+            -> '\n'
+            "SPACE" -> ' '
+            else -> normalized.singleOrNull()?.uppercaseChar()
+        }
+    }
 }
 
 /**
@@ -41,6 +79,20 @@ interface RuntimeScreenPort {
         runtime: RuntimeState,
         advance: () -> Char?,
     )
+
+    fun showTitleMenu(lines: List<String>) {
+        bootFrame()
+        writeText(lines)
+    }
+
+    fun showCharacterPortrait(preview: RuntimeCharacterPortraitPreview?): Unit = Unit
+
+    fun showPartyPage(
+        page: RuntimePartyPageView,
+        pauseLine: String,
+    ) {
+        writeText(page.lines + "" + pauseLine)
+    }
 
     fun renderWilderness(
         runtime: RuntimeState,
@@ -74,3 +126,63 @@ interface RuntimeScreenPort {
 
     fun flashLogLine(line: String)
 }
+
+data class RuntimeCharacterPortraitPreview(
+    val memberNumber: Int,
+    val memberName: String?,
+    val gender: Gender?,
+    val genderLabel: String?,
+    val race: Race?,
+    val raceLabel: String?,
+    val pcClass: PcClass?,
+    val classLabel: String?,
+    val imageSlug: String,
+)
+
+enum class RuntimePartyPageKind { Summary, Member, Inventory }
+
+data class RuntimePartyPageView(
+    val kind: RuntimePartyPageKind,
+    val lines: List<String>,
+    val summary: RuntimePartySummaryView? = null,
+    val member: RuntimePartyMemberView? = null,
+    val inventory: RuntimePartyInventoryView? = null,
+) {
+    val memberIndex: Int? get() = member?.index
+}
+
+data class RuntimePartySummaryView(
+    val partyName: String,
+    val gold: Int,
+    val food: Int,
+    val torches: Int,
+    val moves: Int,
+    val rest: Int,
+    val kills: Int,
+    val memberCount: Int,
+)
+
+data class RuntimePartyMemberView(
+    val index: Int,
+    val name: String,
+    val gender: String,
+    val race: String,
+    val pcClass: String,
+    val weaponSkill: Int,
+    val health: Int,
+    val wisdom: Int,
+    val charisma: Int,
+    val hitPoints: Int,
+    val hitPointMax: Int,
+    val mana: Int,
+    val manaMax: Int,
+    val level: Int,
+    val experience: Int,
+    val weapon: String,
+    val armor: String,
+    val status: String,
+)
+
+data class RuntimePartyInventoryView(
+    val entries: List<String>,
+)

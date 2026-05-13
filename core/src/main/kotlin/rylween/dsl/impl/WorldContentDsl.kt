@@ -302,11 +302,19 @@ data class CharacterClassOptionModel(
     }
 }
 
+data class CharacterPortraitModel(
+    val gender: Gender?,
+    val race: Race?,
+    val klass: PcClass?,
+    val image: ImageId,
+)
+
 data class CharacterCreationModel(
     val statRoll: CharacterCreationStatRollModel,
     val start: CharacterCreationStartModel,
     val races: List<CharacterRaceOptionModel>,
     val classes: List<CharacterClassOptionModel>,
+    val portraits: List<CharacterPortraitModel>,
 )
 
 enum class EngineService {

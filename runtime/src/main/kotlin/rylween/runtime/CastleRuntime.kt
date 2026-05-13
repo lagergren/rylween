@@ -13,7 +13,6 @@ import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.ExternalRuntimeCastle
-import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.PcClass
@@ -30,7 +29,7 @@ data class CastleState(
 
 /** Runs one generic castle from stable runtime-system rows. */
 internal class CastleRuntime(
-    private val context: RuntimeLoopContext,
+    context: RuntimeLoopContext,
 ) {
     private val content = context.content
     private val systems = context.systems
@@ -108,7 +107,7 @@ internal class CastleRuntime(
             navigation.matches(
                 "viewParty",
                 command,
-            ) -> runtime.also { showCastlePages(it, castle, PartyPages.partyPages(content, it.party)) }
+            ) -> runtime.also { showCastlePageViews(it, castle) }
 
             navigation.matches("drop", command) -> utility.drop(runtime).also { redrawCastleIfCurrent(it, castle) }
             navigation.matches("removeArmor", command) -> utility.removeArmor(runtime).also { redrawCastleIfCurrent(it, castle) }
@@ -155,7 +154,7 @@ internal class CastleRuntime(
     ): RuntimeState {
         screen.writeText(castle.text.roomMonster.renderCastle())
         val battle =
-            BattleRunner(content, systems.combat, input, screen, log, PausePrompts(systems.prompts))
+            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))
                 .runTier(runtime, castle.monsterTier)
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         return battle.runtime.copy(
@@ -303,17 +302,21 @@ internal class CastleRuntime(
         input.readCommand()
     }
 
-    private fun showCastlePages(
+    private fun showCastlePageViews(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
-        pages: List<List<String>>,
     ) {
-        val pausePrompts = PausePrompts(systems.prompts)
-        for (page in pages) {
-            screen.writeText(page + "" + pausePrompts.line())
-            if (input.readCommand() == null) return
+        if (
+            PartyPages.showPartyPageViews(
+                content = content,
+                systems = systems,
+                input = input,
+                screen = screen,
+                runtime = runtime,
+            )
+        ) {
+            redrawCastleIfCurrent(runtime, castle)
         }
-        redrawCastleIfCurrent(runtime, castle)
     }
 
     private fun redrawCastleIfCurrent(
@@ -418,15 +421,6 @@ private fun rylween.compiled.CompiledPartyMember.withDamage(damage: Int): rylwee
 }
 
 private fun ExternalRuntimeTextBlock.renderCastle(): List<String> = render { null }
-
-private fun List<ExternalRuntimeCommand>.matches(
-    action: String,
-    command: Char,
-): Boolean =
-    firstOrNull { candidate -> candidate.action == action }
-        ?.binding
-        ?.matches(command)
-        ?: false
 
 private data class SeededCastleRooms(
     val runtime: RuntimeState,

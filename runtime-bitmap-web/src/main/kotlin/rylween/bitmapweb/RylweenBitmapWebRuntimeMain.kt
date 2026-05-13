@@ -34,30 +34,35 @@ private const val DEFAULT_HOST = "127.0.0.1"
 private const val DEFAULT_PORT = 8081
 private const val DEFAULT_STATE = "fresh-replay"
 private const val MAX_HTTP_LINE_BYTES = 16_384
+private val BITMAP_WEB_STATIC =
+    mapOf(
+        "styles.css" to ServedResource("bitmap-web/styles.css", "text/css; charset=utf-8"),
+        "client.js" to ServedResource("bitmap-web/client.js", "application/javascript; charset=utf-8"),
+    )
 private val BITMAP_ASSETS =
     mapOf(
-        "title-rider.png" to "bitmap-assets/title-rider.png",
-        "screen-frame.png" to "bitmap-assets/screen-frame.png",
-        "town-mainstreet.png" to "bitmap-assets/town-mainstreet.png",
-        "encounter-scorpion.png" to "bitmap-assets/encounter-scorpion.png",
-        "encounter-bestiary.png" to "bitmap-assets/encounter-bestiary.png",
-        "scene-atlas.png" to "bitmap-assets/scene-atlas.png",
-        "terrain-atlas.png" to "bitmap-assets/terrain-atlas.png",
-        "scene-thord-mainstreet.png" to "bitmap-assets/scene-thord-mainstreet.png",
-        "scene-merchant.png" to "bitmap-assets/scene-merchant.png",
-        "scene-smith.png" to "bitmap-assets/scene-smith.png",
-        "scene-inn.png" to "bitmap-assets/scene-inn.png",
-        "scene-tavern.png" to "bitmap-assets/scene-tavern.png",
-        "scene-church.png" to "bitmap-assets/scene-church.png",
-        "scene-guild-closed.png" to "bitmap-assets/scene-guild-closed.png",
-        "monster-goblinoid.png" to "bitmap-assets/monster-goblinoid.png",
-        "monster-undead.png" to "bitmap-assets/monster-undead.png",
-        "monster-beast.png" to "bitmap-assets/monster-beast.png",
-        "monster-flying.png" to "bitmap-assets/monster-flying.png",
-        "monster-vermin.png" to "bitmap-assets/monster-vermin.png",
-        "monster-brute.png" to "bitmap-assets/monster-brute.png",
-        "monster-humanoid-magic.png" to "bitmap-assets/monster-humanoid-magic.png",
-        "monster-boss.png" to "bitmap-assets/monster-boss.png",
+        "title-rider.png" to "bitmap/assets/title-rider.png",
+        "screen-frame.png" to "bitmap/assets/screen-frame.png",
+        "town-mainstreet.png" to "bitmap/assets/town-mainstreet.png",
+        "encounter-scorpion.png" to "bitmap/assets/encounter-scorpion.png",
+        "encounter-bestiary.png" to "bitmap/assets/encounter-bestiary.png",
+        "scene-atlas.png" to "bitmap/assets/scene-atlas.png",
+        "terrain-atlas.png" to "bitmap/assets/terrain-atlas.png",
+        "scene-thord-mainstreet.png" to "bitmap/assets/scene-thord-mainstreet.png",
+        "scene-merchant.png" to "bitmap/assets/scene-merchant.png",
+        "scene-smith.png" to "bitmap/assets/scene-smith.png",
+        "scene-inn.png" to "bitmap/assets/scene-inn.png",
+        "scene-tavern.png" to "bitmap/assets/scene-tavern.png",
+        "scene-church.png" to "bitmap/assets/scene-church.png",
+        "scene-guild-closed.png" to "bitmap/assets/scene-guild-closed.png",
+        "monster-goblinoid.png" to "bitmap/assets/monster-goblinoid.png",
+        "monster-undead.png" to "bitmap/assets/monster-undead.png",
+        "monster-beast.png" to "bitmap/assets/monster-beast.png",
+        "monster-flying.png" to "bitmap/assets/monster-flying.png",
+        "monster-vermin.png" to "bitmap/assets/monster-vermin.png",
+        "monster-brute.png" to "bitmap/assets/monster-brute.png",
+        "monster-humanoid-magic.png" to "bitmap/assets/monster-humanoid-magic.png",
+        "monster-boss.png" to "bitmap/assets/monster-boss.png",
     )
 
 fun main(args: Array<String>) {
@@ -76,6 +81,10 @@ private data class BitmapWebConfig(
     val port: Int,
     val stateSlug: String,
     val bundleFile: File?,
+    val userId: String?,
+    val loadFile: File?,
+    val saveFile: File?,
+    val showTitleMenu: Boolean,
     val mapTiles: Int,
     val tileSize: Int,
 ) {
@@ -85,12 +94,15 @@ private data class BitmapWebConfig(
             var port = envOrDefault("RYLWEEN_BITMAP_PORT", envOrDefault("RYLWEEN_PORT", DEFAULT_PORT.toString())).toInt()
             var stateSlug = envOrDefault("RYLWEEN_BITMAP_STATE", envOrDefault("RYLWEEN_STATE", DEFAULT_STATE))
             var bundleFile = optionalFileEnv("RYLWEEN_BITMAP_BUNDLE")
+            var userId = optionalEnv("RYLWEEN_BITMAP_USER") ?: optionalEnv("RYLWEEN_USER")
+            var loadFile = optionalFileEnv("RYLWEEN_BITMAP_LOAD_FILE") ?: optionalFileEnv("RYLWEEN_LOAD_FILE")
+            var saveFile = optionalFileEnv("RYLWEEN_BITMAP_SAVE_FILE") ?: optionalFileEnv("RYLWEEN_SAVE_FILE")
+            var showTitleMenu = optionalEnv("RYLWEEN_BITMAP_NO_TITLE") != "true"
             var mapTiles = envOrDefault("RYLWEEN_BITMAP_MAP_TILES", DEFAULT_BITMAP_VIEWPORT_TILES.toString()).toInt()
             var tileSize = envOrDefault("RYLWEEN_BITMAP_TILE_SIZE", DEFAULT_BITMAP_TILE_SIZE.toString()).toInt()
             var index = 0
             while (index < args.size) {
-                val arg = args[index]
-                when (arg) {
+                when (val arg = args[index]) {
                     "--host" -> {
                         index += 1
                         host = requiredValue(args, index, arg)
@@ -106,6 +118,24 @@ private data class BitmapWebConfig(
                     "--bundle" -> {
                         index += 1
                         bundleFile = File(requiredValue(args, index, arg))
+                    }
+                    "--user" -> {
+                        index += 1
+                        userId = requiredValue(args, index, arg)
+                    }
+                    "--load" -> {
+                        index += 1
+                        loadFile = File(requiredValue(args, index, arg))
+                    }
+                    "--save" -> {
+                        index += 1
+                        saveFile = File(requiredValue(args, index, arg))
+                    }
+                    "--title" -> {
+                        showTitleMenu = true
+                    }
+                    "--no-title" -> {
+                        showTitleMenu = false
                     }
                     "--map-tiles" -> {
                         index += 1
@@ -123,13 +153,15 @@ private data class BitmapWebConfig(
                 }
                 index += 1
             }
-            return BitmapWebConfig(host, port, stateSlug, bundleFile, mapTiles, tileSize)
+            return BitmapWebConfig(host, port, stateSlug, bundleFile, userId, loadFile, saveFile, showTitleMenu, mapTiles, tileSize)
         }
 
         private fun envOrDefault(
             key: String,
             defaultValue: String,
         ): String = System.getenv(key) ?: defaultValue
+
+        private fun optionalEnv(key: String): String? = System.getenv(key)?.takeIf(String::isNotBlank)
 
         private fun optionalFileEnv(key: String): File? {
             val value = System.getenv(key)?.takeIf(String::isNotBlank) ?: return null
@@ -145,7 +177,7 @@ private data class BitmapWebConfig(
         private fun printUsage() {
             println(
                 """
-                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--state SLUG] [--bundle FILE] [--map-tiles N] [--tile-size PX]
+                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--state SLUG] [--bundle FILE] [--user ID] [--load FILE] [--save FILE] [--title|--no-title] [--map-tiles N] [--tile-size PX]
 
                 The bitmap runtime uses the embedded :game bundle by default. --bundle can point
                 at build/compiled/rylween-bundle.json to exercise an emitted artifact instead.
@@ -189,6 +221,11 @@ private class BitmapWebServer(
     private val game: BitmapGameBundle,
 ) : Closeable {
     private val runtimeFactory = RuntimeSessionFactory.load(game.bundle, game.systems, game.contentHash)
+    private val bitmapImageById =
+        game.systems.presentation.images
+            .filter { image ->
+                image.kind == "Bitmap"
+            }.associateBy { image -> image.id }
     private val executor: ExecutorService = Executors.newCachedThreadPool()
     private val serverSocket = ServerSocket()
     private val clientIds = AtomicLong(0)
@@ -198,7 +235,9 @@ private class BitmapWebServer(
         serverSocket.bind(InetSocketAddress(config.host, config.port))
         log(
             "bitmap.server.start host=${config.host} port=${config.port} " +
-                "state=${config.stateSlug} mapTiles=${config.mapTiles} tileSize=${config.tileSize} bundle=${game.source}",
+                "state=${config.stateSlug} user=${config.userId.orEmpty()} load=${config.loadFile?.path.orEmpty()} " +
+                "save=${config.saveFile?.path.orEmpty()} title=${config.showTitleMenu} " +
+                "mapTiles=${config.mapTiles} tileSize=${config.tileSize} bundle=${game.source}",
         )
         while (!serverSocket.isClosed) {
             val socket = serverSocket.accept()
@@ -237,12 +276,52 @@ private class BitmapWebServer(
             "/healthz" -> respondText(socket, "200 OK", "text/plain; charset=utf-8", "ok\n")
             "/ws/play" -> servePlaySocket(socket, input, request, clientId)
             else ->
-                if (request.path.startsWith("/assets/")) {
+                if (request.path.startsWith("/static/")) {
+                    serveStaticResource(socket, request.path.removePrefix("/static/"))
+                } else if (request.path.startsWith("/assets/game-image/")) {
+                    serveBundleBitmapImage(socket, urlDecode(request.path.removePrefix("/assets/game-image/")))
+                } else if (request.path.startsWith("/assets/")) {
                     serveAsset(socket, request.path.removePrefix("/assets/"))
                 } else {
                     respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "not found\n")
                 }
         }
+    }
+
+    private fun serveBundleBitmapImage(
+        socket: Socket,
+        imageId: String,
+    ) {
+        val image = bitmapImageById[imageId]
+        if (image == null || !image.resource.startsWith("bitmap/assets/")) {
+            respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "image not found\n")
+            return
+        }
+        val bytes =
+            javaClass.classLoader.getResourceAsStream(image.resource)?.use(InputStream::readBytes)
+                ?: run {
+                    respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "image not found\n")
+                    return
+                }
+        respondBytes(socket, "image/png", bytes)
+    }
+
+    private fun serveStaticResource(
+        socket: Socket,
+        assetName: String,
+    ) {
+        val resource = BITMAP_WEB_STATIC[assetName]
+        if (resource == null) {
+            respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "asset not found\n")
+            return
+        }
+        val bytes =
+            javaClass.classLoader.getResourceAsStream(resource.path)?.use(InputStream::readBytes)
+                ?: run {
+                    respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "asset not found\n")
+                    return
+                }
+        respondBytes(socket, resource.contentType, bytes)
     }
 
     private fun serveAsset(
@@ -260,7 +339,7 @@ private class BitmapWebServer(
                     respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "asset not found\n")
                     return
                 }
-        respondBytes(socket, "200 OK", "image/png", bytes)
+        respondBytes(socket, "image/png", bytes)
     }
 
     private fun servePlaySocket(
@@ -285,9 +364,12 @@ private class BitmapWebServer(
                 mapTiles = config.mapTiles,
                 tileSize = config.tileSize,
             )
+        runtimeInput.textInputChanged = screen::setTextInput
         val logFile = File("build/logs/runtime-bitmap-web/client-$clientId.log")
-        val saveFile = File("build/saves/runtime-bitmap-web/client-$clientId.rsave")
-        log("bitmap.websocket.open id=$clientId")
+        val userId = config.userId ?: "bitmap-$clientId"
+        val saveFile = config.saveFile ?: File("build/saves/runtime-bitmap-web/client-$clientId.rsave")
+        saveFile.parentFile?.mkdirs()
+        log("bitmap.websocket.open id=$clientId user=$userId save=${saveFile.path}")
         val runtime =
             executor.submit<Any?> {
                 RuntimeLog.open(logFile).use { runtimeLog ->
@@ -296,10 +378,11 @@ private class BitmapWebServer(
                         screen = screen,
                         config =
                             RuntimeSessionConfig(
-                                userId = "bitmap-$clientId",
+                                userId = userId,
                                 stateSlug = config.stateSlug,
+                                loadFile = config.loadFile,
                                 saveFile = saveFile,
-                                showTitleMenu = true,
+                                showTitleMenu = config.showTitleMenu,
                             ),
                         log = runtimeLog,
                     )
@@ -418,12 +501,11 @@ private fun respondText(
 
 private fun respondBytes(
     socket: Socket,
-    status: String,
     contentType: String,
     bytes: ByteArray,
 ) {
     val header =
-        "HTTP/1.1 $status\r\n" +
+        "HTTP/1.1 200 OK\r\n" +
             "Content-Type: $contentType\r\n" +
             "Content-Length: ${bytes.size}\r\n" +
             "Connection: close\r\n" +
@@ -442,3 +524,8 @@ private fun writeWebSocketHandshake(
     val key = request.header("sec-websocket-key") ?: error("missing websocket key")
     WebSocketProtocol.writeHandshake(output, key)
 }
+
+private data class ServedResource(
+    val path: String,
+    val contentType: String,
+)

@@ -1,3 +1,5 @@
+@file:Suppress("SpellCheckingInspection")
+
 // RylweenTestScenarios.kt -- optional runtime replay fixtures.
 //
 // Designer note: this file contains deterministic replay seeds used by
@@ -10,7 +12,7 @@ package rylween.game
 import rylween.dsl.*
 import rylween.dsl.impl.*
 
-val replayRandomNpcIds =
+private val replayRandomNpcIds: List<NpcId> =
     listOf(
         Npcs.nrimTo,
         Npcs.areth,
@@ -37,7 +39,7 @@ val replayRandomNpcIds =
         Npcs.azaaza,
     )
 
-fun NpcStateBuilder.stageRandomNpcsAwayFromTownServices(vararg keepPlaced: NpcId) {
+private fun NpcStateBuilder.stageRandomNpcsAwayFromTownServices(vararg keepPlaced: NpcId) {
     val keep = keepPlaced.toSet()
     replayRandomNpcIds
         .filterNot(keep::contains)
@@ -45,6 +47,192 @@ fun NpcStateBuilder.stageRandomNpcsAwayFromTownServices(vararg keepPlaced: NpcId
             npc at Wilderness.xy(8 + index, 8)
         }
 }
+
+private data class ReplayMemberFixture(
+    val name: String,
+    val gender: Gender,
+    val race: Race,
+    val klass: PcClass,
+    val level: Int,
+    val health: Int,
+    val hitPoints: HitPoints,
+    val weaponSkill: Int,
+    val wisdom: Int,
+    val mana: Mana,
+    val charisma: Int,
+    val weapon: ItemId,
+    val armor: ItemId,
+    val experience: Int = 0,
+    val dead: Boolean = false,
+)
+
+private fun replayMember(
+    name: String,
+    gender: Gender,
+    race: Race,
+    klass: PcClass,
+    level: Int,
+    health: Int,
+    hitPoints: HitPoints,
+    weaponSkill: Int,
+    wisdom: Int,
+    mana: Mana,
+    charisma: Int,
+    weapon: ItemId = Items.none,
+    armor: ItemId = Items.none,
+    experience: Int = 0,
+    dead: Boolean = false,
+): ReplayMemberFixture =
+    ReplayMemberFixture(
+        name = name,
+        gender = gender,
+        race = race,
+        klass = klass,
+        level = level,
+        health = health,
+        hitPoints = hitPoints,
+        weaponSkill = weaponSkill,
+        wisdom = wisdom,
+        mana = mana,
+        charisma = charisma,
+        weapon = weapon,
+        armor = armor,
+        experience = experience,
+        dead = dead,
+    )
+
+private fun overpoweredMember(
+    name: String,
+    gender: Gender,
+    race: Race,
+    klass: PcClass,
+    health: Int = 50_000,
+    hitPoints: HitPoints = health of health,
+    wisdom: Int = 90,
+    mana: Mana = 0 of wisdom,
+    charisma: Int = 90,
+    dead: Boolean = false,
+): ReplayMemberFixture =
+    replayMember(
+        name = name,
+        gender = gender,
+        race = race,
+        klass = klass,
+        level = 28,
+        health = health,
+        hitPoints = hitPoints,
+        weaponSkill = 100,
+        wisdom = wisdom,
+        mana = mana,
+        charisma = charisma,
+        weapon = Items.deathBlade,
+        armor = Items.admtMail,
+        dead = dead,
+    )
+
+private fun PartyMembersBuilder.member(fixture: ReplayMemberFixture): Unit =
+    member(fixture.name) {
+        gender = fixture.gender
+        race = fixture.race
+        klass = fixture.klass
+        level = fixture.level
+        health = fixture.health
+        hitPoints = fixture.hitPoints
+        weaponSkill = fixture.weaponSkill
+        wisdom = fixture.wisdom
+        mana = fixture.mana
+        charisma = fixture.charisma
+        equipped {
+            weapon = fixture.weapon
+            armor = fixture.armor
+        }
+        experience = fixture.experience
+        if (fixture.dead) dead() else alive()
+    }
+
+private fun PartyMembersBuilder.members(fixtures: List<ReplayMemberFixture>) {
+    fixtures.forEach(::member)
+}
+
+private val freshReplayMembers: List<ReplayMemberFixture> =
+    listOf(
+        replayMember("Aragorn", Gender.Male, Race.Human, PcClass.Fighter, 1, 68, 68 of 68, 64, 32, 0 of 32, 46),
+        replayMember("Legolas", Gender.Female, Race.Elf, PcClass.Ranger, 1, 62, 62 of 62, 58, 48, 0 of 48, 56),
+        replayMember("Gandalf", Gender.Male, Race.Elf, PcClass.Mage, 1, 44, 44 of 44, 31, 67, 67 of 67, 52),
+        replayMember("Mira", Gender.Female, Race.Human, PcClass.Priest, 1, 54, 54 of 54, 39, 64, 64 of 64, 61),
+    )
+
+private val strongReplayMembers: List<ReplayMemberFixture> =
+    listOf(
+        replayMember(
+            "Aragorn",
+            Gender.Male,
+            Race.Human,
+            PcClass.Fighter,
+            1,
+            88,
+            88 of 88,
+            95,
+            72,
+            0 of 72,
+            78,
+            Items.magicSword,
+            Items.mithrilMail,
+        ),
+        replayMember(
+            "Legolas",
+            Gender.Female,
+            Race.Elf,
+            PcClass.Ranger,
+            1,
+            84,
+            84 of 84,
+            88,
+            74,
+            0 of 74,
+            86,
+            Items.crossbow,
+            Items.elvinCloak,
+        ),
+        replayMember(
+            "Gandalf",
+            Gender.Male,
+            Race.Elf,
+            PcClass.Mage,
+            1,
+            76,
+            76 of 76,
+            72,
+            92,
+            92 of 92,
+            74,
+            Items.magicDagger,
+            Items.leather,
+        ),
+        replayMember(
+            "Mira",
+            Gender.Female,
+            Race.Human,
+            PcClass.Priest,
+            1,
+            82,
+            82 of 82,
+            74,
+            90,
+            90 of 90,
+            80,
+            Items.magicAxe,
+            Items.chainMail,
+        ),
+    )
+
+private val townServiceReplayMembers: List<ReplayMemberFixture> =
+    listOf(
+        strongReplayMembers[0].copy(hitPoints = 40 of 88),
+        strongReplayMembers[1].copy(hitPoints = 0 of 84, dead = true),
+        strongReplayMembers[2].copy(mana = 10 of 92),
+        strongReplayMembers[3],
+    )
 
 fun RylweenModel.withReplayScenarios(): RylweenModel =
     withStateModule {
@@ -96,83 +284,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                     slot(1).empty()
                 }
 
-                members {
-                    member("Aragorn") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 1
-                        health = 68
-                        hitPoints = 68 of 68
-                        weaponSkill = 64
-                        wisdom = 32
-                        mana = 0 of 32
-                        charisma = 46
-                        equipped {
-                            weapon = Items.none
-                            armor = Items.none
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Legolas") {
-                        gender = Gender.Female
-                        race = Race.Elf
-                        klass = PcClass.Ranger
-                        level = 1
-                        health = 62
-                        hitPoints = 62 of 62
-                        weaponSkill = 58
-                        wisdom = 48
-                        mana = 0 of 48
-                        charisma = 56
-                        equipped {
-                            weapon = Items.none
-                            armor = Items.none
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Gandalf") {
-                        gender = Gender.Male
-                        race = Race.Elf
-                        klass = PcClass.Mage
-                        level = 1
-                        health = 44
-                        hitPoints = 44 of 44
-                        weaponSkill = 31
-                        wisdom = 67
-                        mana = 67 of 67
-                        charisma = 52
-                        equipped {
-                            weapon = Items.none
-                            armor = Items.none
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Mira") {
-                        gender = Gender.Female
-                        race = Race.Human
-                        klass = PcClass.Priest
-                        level = 1
-                        health = 54
-                        hitPoints = 54 of 54
-                        weaponSkill = 39
-                        wisdom = 64
-                        mana = 64 of 64
-                        charisma = 61
-                        equipped {
-                            weapon = Items.none
-                            armor = Items.none
-                        }
-                        experience = 0
-                        alive()
-                    }
-                }
+                members { members(freshReplayMembers) }
             }
         }
 
@@ -229,83 +341,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                     slot(12).item(Items.ration)
                 }
 
-                members {
-                    member("Aragorn") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 1
-                        health = 88
-                        hitPoints = 88 of 88
-                        weaponSkill = 95
-                        wisdom = 72
-                        mana = 0 of 72
-                        charisma = 78
-                        equipped {
-                            weapon = Items.magicSword
-                            armor = Items.mithrilMail
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Legolas") {
-                        gender = Gender.Female
-                        race = Race.Elf
-                        klass = PcClass.Ranger
-                        level = 1
-                        health = 84
-                        hitPoints = 84 of 84
-                        weaponSkill = 88
-                        wisdom = 74
-                        mana = 0 of 74
-                        charisma = 86
-                        equipped {
-                            weapon = Items.crossbow
-                            armor = Items.elvinCloak
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Gandalf") {
-                        gender = Gender.Male
-                        race = Race.Elf
-                        klass = PcClass.Mage
-                        level = 1
-                        health = 76
-                        hitPoints = 76 of 76
-                        weaponSkill = 72
-                        wisdom = 92
-                        mana = 92 of 92
-                        charisma = 74
-                        equipped {
-                            weapon = Items.magicDagger
-                            armor = Items.leather
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Mira") {
-                        gender = Gender.Female
-                        race = Race.Human
-                        klass = PcClass.Priest
-                        level = 1
-                        health = 82
-                        hitPoints = 82 of 82
-                        weaponSkill = 74
-                        wisdom = 90
-                        mana = 90 of 90
-                        charisma = 80
-                        equipped {
-                            weapon = Items.magicAxe
-                            armor = Items.chainMail
-                        }
-                        experience = 0
-                        alive()
-                    }
-                }
+                members { members(strongReplayMembers) }
             }
         }
 
@@ -351,83 +387,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                     slot(8).empty()
                 }
 
-                members {
-                    member("Aragorn") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 1
-                        health = 88
-                        hitPoints = 40 of 88
-                        weaponSkill = 95
-                        wisdom = 72
-                        mana = 0 of 72
-                        charisma = 78
-                        equipped {
-                            weapon = Items.magicSword
-                            armor = Items.mithrilMail
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Legolas") {
-                        gender = Gender.Female
-                        race = Race.Elf
-                        klass = PcClass.Ranger
-                        level = 1
-                        health = 84
-                        hitPoints = 0 of 84
-                        weaponSkill = 88
-                        wisdom = 74
-                        mana = 0 of 74
-                        charisma = 86
-                        equipped {
-                            weapon = Items.crossbow
-                            armor = Items.elvinCloak
-                        }
-                        experience = 0
-                        dead()
-                    }
-
-                    member("Gandalf") {
-                        gender = Gender.Male
-                        race = Race.Elf
-                        klass = PcClass.Mage
-                        level = 1
-                        health = 76
-                        hitPoints = 76 of 76
-                        weaponSkill = 72
-                        wisdom = 92
-                        mana = 10 of 92
-                        charisma = 74
-                        equipped {
-                            weapon = Items.magicDagger
-                            armor = Items.leather
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Mira") {
-                        gender = Gender.Female
-                        race = Race.Human
-                        klass = PcClass.Priest
-                        level = 1
-                        health = 82
-                        hitPoints = 82 of 82
-                        weaponSkill = 74
-                        wisdom = 90
-                        mana = 90 of 90
-                        charisma = 80
-                        equipped {
-                            weapon = Items.magicAxe
-                            armor = Items.chainMail
-                        }
-                        experience = 0
-                        alive()
-                    }
-                }
+                members { members(townServiceReplayMembers) }
             }
         }
 
@@ -511,43 +471,40 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 }
 
                 members {
-                    member("Fighter") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 8
-                        health = 188
-                        hitPoints = 188 of 188
-                        weaponSkill = 95
-                        wisdom = 72
-                        mana = 0 of 72
-                        charisma = 78
-                        equipped {
-                            weapon = Items.magicSword
-                            armor = Items.mithrilMail
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Ranger") {
-                        gender = Gender.Female
-                        race = Race.Elf
-                        klass = PcClass.Ranger
-                        level = 8
-                        health = 184
-                        hitPoints = 184 of 184
-                        weaponSkill = 88
-                        wisdom = 74
-                        mana = 0 of 74
-                        charisma = 86
-                        equipped {
-                            weapon = Items.crossbow
-                            armor = Items.elvinCloak
-                        }
-                        experience = 0
-                        alive()
-                    }
+                    member(
+                        replayMember(
+                            "Fighter",
+                            Gender.Male,
+                            Race.Human,
+                            PcClass.Fighter,
+                            8,
+                            188,
+                            188 of 188,
+                            95,
+                            72,
+                            0 of 72,
+                            78,
+                            Items.magicSword,
+                            Items.mithrilMail,
+                        ),
+                    )
+                    member(
+                        replayMember(
+                            "Ranger",
+                            Gender.Female,
+                            Race.Elf,
+                            PcClass.Ranger,
+                            8,
+                            184,
+                            184 of 184,
+                            88,
+                            74,
+                            0 of 74,
+                            86,
+                            Items.crossbow,
+                            Items.elvinCloak,
+                        ),
+                    )
                 }
             }
         }
@@ -591,24 +548,23 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 }
 
                 members {
-                    member("Fighter") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 8
-                        health = 188
-                        hitPoints = 188 of 188
-                        weaponSkill = 95
-                        wisdom = 72
-                        mana = 0 of 72
-                        charisma = 78
-                        equipped {
-                            weapon = Items.magicSword
-                            armor = Items.mithrilMail
-                        }
-                        experience = 0
-                        alive()
-                    }
+                    member(
+                        replayMember(
+                            "Fighter",
+                            Gender.Male,
+                            Race.Human,
+                            PcClass.Fighter,
+                            8,
+                            188,
+                            188 of 188,
+                            95,
+                            72,
+                            0 of 72,
+                            78,
+                            Items.magicSword,
+                            Items.mithrilMail,
+                        ),
+                    )
                 }
             }
         }
@@ -652,30 +608,13 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 }
 
                 members {
-                    member("Fighter") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 28
-                        health = 50000
-                        hitPoints = 50000 of 50000
-                        weaponSkill = 100
-                        wisdom = 72
-                        mana = 0 of 72
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        alive()
-                    }
+                    member(overpoweredMember("Fighter", Gender.Male, Race.Human, PcClass.Fighter, wisdom = 72, mana = 0 of 72))
                 }
             }
         }
 
-        // Long deterministic Master Crown chain fixture for the runtime
-        // runtime replay planner. It keeps the story clean but gives the
+        // Long deterministic Master Crown chain fixture for the runtime replay
+        // planner. It keeps the story clean but gives the
         // party enough stamina, inventory room, and combat power to drive the
         // kobold, skullweed, Borin, and Nolrim mission legs as one route.
         stateFixture(States.masterCrownChainReplay) {
@@ -736,24 +675,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 }
 
                 members {
-                    member("Fighter") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 28
-                        health = 50_000
-                        hitPoints = 50_000 of 50_000
-                        weaponSkill = 100
-                        wisdom = 72
-                        mana = 0 of 72
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        alive()
-                    }
+                    member(overpoweredMember("Fighter", Gender.Male, Race.Human, PcClass.Fighter, wisdom = 72, mana = 0 of 72))
                 }
             }
         }
@@ -827,81 +749,33 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 }
 
                 members {
-                    member("Mira") {
-                        gender = Gender.Female
-                        race = Race.Human
-                        klass = PcClass.Priest
-                        level = 28
-                        health = 5_000_000
-                        hitPoints = 5_000_000 of 5_000_000
-                        weaponSkill = 100
-                        wisdom = 5_000
-                        mana = 5_000 of 5_000
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Shade") {
-                        gender = Gender.Female
-                        race = Race.Halfling
-                        klass = PcClass.Thief
-                        level = 28
-                        health = 50_000
-                        hitPoints = 0 of 50_000
-                        weaponSkill = 100
-                        wisdom = 90
-                        mana = 0 of 90
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        dead()
-                    }
-
-                    member("Gandalf") {
-                        gender = Gender.Male
-                        race = Race.Elf
-                        klass = PcClass.Mage
-                        level = 28
-                        health = 50_000
-                        hitPoints = 0 of 50_000
-                        weaponSkill = 100
-                        wisdom = 5_000
-                        mana = 0 of 5_000
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        dead()
-                    }
-
-                    member("Aragorn") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 28
-                        health = 50_000
-                        hitPoints = 0 of 50_000
-                        weaponSkill = 100
-                        wisdom = 90
-                        mana = 0 of 90
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        dead()
-                    }
+                    member(
+                        overpoweredMember(
+                            "Mira",
+                            Gender.Female,
+                            Race.Human,
+                            PcClass.Priest,
+                            health = 5_000_000,
+                            wisdom = 5_000,
+                            mana =
+                                5_000 of 5_000,
+                        ),
+                    )
+                    member(overpoweredMember("Shade", Gender.Female, Race.Halfling, PcClass.Thief, hitPoints = 0 of 50_000, dead = true))
+                    member(
+                        overpoweredMember(
+                            "Gandalf",
+                            Gender.Male,
+                            Race.Elf,
+                            PcClass.Mage,
+                            hitPoints = 0 of 50_000,
+                            wisdom = 5_000,
+                            mana =
+                                0 of 5_000,
+                            dead = true,
+                        ),
+                    )
+                    member(overpoweredMember("Aragorn", Gender.Male, Race.Human, PcClass.Fighter, hitPoints = 0 of 50_000, dead = true))
                 }
 
                 visited(Npcs.garth, Npcs.bernak)
@@ -973,81 +847,12 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 }
 
                 members {
-                    member("Aragorn") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 28
-                        health = 50_000
-                        hitPoints = 50_000 of 50_000
-                        weaponSkill = 100
-                        wisdom = 70
-                        mana = 0 of 70
-                        charisma = 49
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Legolas") {
-                        gender = Gender.Female
-                        race = Race.Elf
-                        klass = PcClass.Ranger
-                        level = 28
-                        health = 50_000
-                        hitPoints = 0 of 50_000
-                        weaponSkill = 100
-                        wisdom = 90
-                        mana = 0 of 90
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        dead()
-                    }
-
-                    member("Gandalf") {
-                        gender = Gender.Male
-                        race = Race.Elf
-                        klass = PcClass.Mage
-                        level = 28
-                        health = 50_000
-                        hitPoints = 0 of 50_000
-                        weaponSkill = 100
-                        wisdom = 90
-                        mana = 0 of 90
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        dead()
-                    }
-
-                    member("Mira") {
-                        gender = Gender.Female
-                        race = Race.Human
-                        klass = PcClass.Priest
-                        level = 28
-                        health = 50_000
-                        hitPoints = 0 of 50_000
-                        weaponSkill = 100
-                        wisdom = 90
-                        mana = 0 of 90
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        dead()
-                    }
+                    member(
+                        overpoweredMember("Aragorn", Gender.Male, Race.Human, PcClass.Fighter, wisdom = 70, mana = 0 of 70, charisma = 49),
+                    )
+                    member(overpoweredMember("Legolas", Gender.Female, Race.Elf, PcClass.Ranger, hitPoints = 0 of 50_000, dead = true))
+                    member(overpoweredMember("Gandalf", Gender.Male, Race.Elf, PcClass.Mage, hitPoints = 0 of 50_000, dead = true))
+                    member(overpoweredMember("Mira", Gender.Female, Race.Human, PcClass.Priest, hitPoints = 0 of 50_000, dead = true))
                 }
 
                 visited(Npcs.garth, Npcs.bernak)
@@ -1148,81 +953,10 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 }
 
                 members {
-                    member("Aragorn") {
-                        gender = Gender.Male
-                        race = Race.Human
-                        klass = PcClass.Fighter
-                        level = 28
-                        health = 50_000
-                        hitPoints = 50_000 of 50_000
-                        weaponSkill = 100
-                        wisdom = 90
-                        mana = 0 of 90
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        alive()
-                    }
-
-                    member("Legolas") {
-                        gender = Gender.Female
-                        race = Race.Elf
-                        klass = PcClass.Ranger
-                        level = 28
-                        health = 50_000
-                        hitPoints = 50_000 of 50_000
-                        weaponSkill = 100
-                        wisdom = 90
-                        mana = 0 of 90
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        dead()
-                    }
-
-                    member("Gandalf") {
-                        gender = Gender.Male
-                        race = Race.Elf
-                        klass = PcClass.Mage
-                        level = 28
-                        health = 50_000
-                        hitPoints = 0 of 50_000
-                        weaponSkill = 100
-                        wisdom = 90
-                        mana = 0 of 90
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        dead()
-                    }
-
-                    member("Mira") {
-                        gender = Gender.Female
-                        race = Race.Human
-                        klass = PcClass.Priest
-                        level = 28
-                        health = 50_000
-                        hitPoints = 0 of 50_000
-                        weaponSkill = 100
-                        wisdom = 90
-                        mana = 0 of 90
-                        charisma = 90
-                        equipped {
-                            weapon = Items.deathBlade
-                            armor = Items.admtMail
-                        }
-                        experience = 0
-                        dead()
-                    }
+                    member(overpoweredMember("Aragorn", Gender.Male, Race.Human, PcClass.Fighter))
+                    member(overpoweredMember("Legolas", Gender.Female, Race.Elf, PcClass.Ranger, dead = true))
+                    member(overpoweredMember("Gandalf", Gender.Male, Race.Elf, PcClass.Mage, hitPoints = 0 of 50_000, dead = true))
+                    member(overpoweredMember("Mira", Gender.Female, Race.Human, PcClass.Priest, hitPoints = 0 of 50_000, dead = true))
                 }
 
                 npcVisits {

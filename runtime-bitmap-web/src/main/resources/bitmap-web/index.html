@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rylween Bitmap</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">R</div>
+        <div class="title">Rylween Bitmap</div>
+      </div>
+      <div class="top-actions">
+        <button id="commandToggle" type="button" hidden>Commands</button>
+        <div class="status">
+          <span id="connectionDot" class="dot"></span>
+          <span id="connectionText">Connecting</span>
+        </div>
+      </div>
+    </header>
+    <section class="stage">
+      <canvas id="game" width="1280" height="720" tabindex="0" aria-label="Rylween bitmap game"></canvas>
+      <aside id="commandPopover" class="command-popover" hidden aria-label="Rylween command palette"></aside>
+      <div id="canvasTooltip" class="canvas-tooltip" hidden></div>
+    </section>
+  </main>
+  <script src="/static/client.js"></script>
+</body>
+</html>

@@ -13,6 +13,10 @@ internal data class BitmapFrame(
     val status: BitmapStatus? = null,
     val statusLines: List<String>,
     val textLines: List<String>,
+    val textInput: BitmapTextInput? = null,
+    val portrait: BitmapPortrait? = null,
+    val partyPage: BitmapPartyPage? = null,
+    val visualTransition: String = "None",
     val commands: List<BitmapCommandHint>,
     val map: BitmapMap? = null,
     val message: String? = null,
@@ -30,10 +34,129 @@ internal data class BitmapFrame(
             "status" to (status?.toJson() ?: "null"),
             "statusLines" to statusLines.jsonArray(),
             "textLines" to textLines.jsonArray(),
+            "textInput" to (textInput?.toJson() ?: "null"),
+            "portrait" to (portrait?.toJson() ?: "null"),
+            "partyPage" to (partyPage?.toJson() ?: "null"),
+            "visualTransition" to visualTransition.json(),
             "commands" to commands.joinToString(prefix = "[", postfix = "]") { command -> command.toJson() },
             "map" to (map?.toJson() ?: "null"),
             "message" to (message?.json() ?: "null"),
             "artLines" to artLines.jsonArray(),
+        )
+}
+
+internal data class BitmapPartyPage(
+    val kind: String,
+    val lines: List<String>,
+    val pauseLine: String,
+    val summary: BitmapPartySummary? = null,
+    val member: BitmapPartyMember? = null,
+    val inventory: List<String> = emptyList(),
+) {
+    fun toJson(): String =
+        jsonObject(
+            "kind" to kind.json(),
+            "lines" to lines.jsonArray(),
+            "pauseLine" to pauseLine.json(),
+            "summary" to (summary?.toJson() ?: "null"),
+            "member" to (member?.toJson() ?: "null"),
+            "inventory" to inventory.jsonArray(),
+        )
+}
+
+internal data class BitmapPartySummary(
+    val partyName: String,
+    val gold: Int,
+    val food: Int,
+    val torches: Int,
+    val moves: Int,
+    val rest: Int,
+    val kills: Int,
+    val memberCount: Int,
+) {
+    fun toJson(): String =
+        jsonObject(
+            "partyName" to partyName.json(),
+            "gold" to gold.toString(),
+            "food" to food.toString(),
+            "torches" to torches.toString(),
+            "moves" to moves.toString(),
+            "rest" to rest.toString(),
+            "kills" to kills.toString(),
+            "memberCount" to memberCount.toString(),
+        )
+}
+
+internal data class BitmapPartyMember(
+    val index: Int,
+    val name: String,
+    val gender: String,
+    val race: String,
+    val pcClass: String,
+    val weaponSkill: Int,
+    val health: Int,
+    val wisdom: Int,
+    val charisma: Int,
+    val hitPoints: Int,
+    val hitPointMax: Int,
+    val mana: Int,
+    val manaMax: Int,
+    val level: Int,
+    val experience: Int,
+    val weapon: String,
+    val armor: String,
+    val status: String,
+) {
+    fun toJson(): String =
+        jsonObject(
+            "index" to index.toString(),
+            "name" to name.json(),
+            "gender" to gender.json(),
+            "race" to race.json(),
+            "pcClass" to pcClass.json(),
+            "weaponSkill" to weaponSkill.toString(),
+            "health" to health.toString(),
+            "wisdom" to wisdom.toString(),
+            "charisma" to charisma.toString(),
+            "hitPoints" to hitPoints.toString(),
+            "hitPointMax" to hitPointMax.toString(),
+            "mana" to mana.toString(),
+            "manaMax" to manaMax.toString(),
+            "level" to level.toString(),
+            "experience" to experience.toString(),
+            "weapon" to weapon.json(),
+            "armor" to armor.json(),
+            "status" to status.json(),
+        )
+}
+
+internal data class BitmapPortrait(
+    val imageSlug: String,
+    val memberNumber: Int,
+    val memberName: String?,
+    val gender: String?,
+    val race: String?,
+    val pcClass: String?,
+) {
+    fun toJson(): String =
+        jsonObject(
+            "imageSlug" to imageSlug.json(),
+            "memberNumber" to memberNumber.toString(),
+            "memberName" to (memberName?.json() ?: "null"),
+            "gender" to (gender?.json() ?: "null"),
+            "race" to (race?.json() ?: "null"),
+            "pcClass" to (pcClass?.json() ?: "null"),
+        )
+}
+
+internal data class BitmapTextInput(
+    val value: String,
+    val maxLength: Int,
+) {
+    fun toJson(): String =
+        jsonObject(
+            "value" to value.json(),
+            "maxLength" to maxLength.toString(),
         )
 }
 

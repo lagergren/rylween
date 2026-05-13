@@ -570,6 +570,7 @@ class PlayerCombatActionsBuilder {
         useMagicItem(inputKey(key), DslDefaultKeyActions.useItem, prompt)
     }
 
+    @Suppress("unused")
     fun useMagicItem(
         binding: InputBindingModel,
         prompt: StructuredTextBlockBuilder.() -> Unit,
@@ -577,6 +578,7 @@ class PlayerCombatActionsBuilder {
         useMagicItem(binding, DslDefaultKeyActions.useItem, prompt)
     }
 
+    @Suppress("unused")
     fun useMagicItem(
         binding: InputBindingModel,
         action: KeyActionId,
@@ -614,6 +616,7 @@ class PlayerCombatActionsBuilder {
         castMageSpell(inputKey(key), DslDefaultKeyActions.castSpell, prompt)
     }
 
+    @Suppress("unused")
     fun castMageSpell(
         binding: InputBindingModel,
         prompt: StructuredTextBlockBuilder.() -> Unit,
@@ -621,6 +624,7 @@ class PlayerCombatActionsBuilder {
         castMageSpell(binding, DslDefaultKeyActions.castSpell, prompt)
     }
 
+    @Suppress("unused")
     fun castMageSpell(
         binding: InputBindingModel,
         action: KeyActionId,

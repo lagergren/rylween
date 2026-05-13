@@ -11,16 +11,22 @@ package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleRef
+import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.CompiledSpell
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.dsl.impl.InventorySaveSlotMax
 import rylween.dsl.impl.ItemConsumePolicy
 import rylween.dsl.impl.ItemKind
 import rylween.dsl.impl.ItemStorageKind
 import rylween.dsl.impl.ItemUseContext
 import rylween.dsl.impl.PcClass
+
+private const val INVENTORY_FIRST_KEY = 'A'
+private const val INVENTORY_ENTRY_WIDTH = 12
+private const val INVENTORY_ITEM_WIDTH = 9
 
 /** Direct compiled implementations for reusable party utility commands. */
 internal class UtilityActions(
@@ -37,9 +43,7 @@ internal class UtilityActions(
             systems.prompts.party.dropPrompt
                 .renderUtility() + inventoryLines(choices),
         )
-        val slot =
-            input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
-                ?: return runtime
+        val slot = chooseInventorySlot(choices) ?: return runtime
         return runtime.withParty(runtime.party.withInventoryItem(slot, null))
     }
 
@@ -54,18 +58,10 @@ internal class UtilityActions(
         }
 
     fun removeWeapon(runtime: RuntimeState): RuntimeState =
-        chooseMember(runtime)?.let { memberIndex ->
-            runtime.updateMember(memberIndex) { member ->
-                member.copy(equipment = member.equipment.copy(weapon = content.emptyItem()))
-            }
-        } ?: runtime
+        removeEquipment(runtime) { member -> member.copy(equipment = member.equipment.copy(weapon = content.emptyItem())) }
 
     fun removeArmor(runtime: RuntimeState): RuntimeState =
-        chooseMember(runtime)?.let { memberIndex ->
-            runtime.updateMember(memberIndex) { member ->
-                member.copy(equipment = member.equipment.copy(armor = content.emptyItem()))
-            }
-        } ?: runtime
+        removeEquipment(runtime) { member -> member.copy(equipment = member.equipment.copy(armor = content.emptyItem())) }
 
     fun quaff(runtime: RuntimeState): RuntimeState {
         val choices =
@@ -80,9 +76,7 @@ internal class UtilityActions(
             systems.prompts.inventoryUse.quaff
                 .renderUtility() + inventoryLines(choices),
         )
-        val slot =
-            input.readCommand()?.inventorySlotFromKey()?.takeIf { selected -> choices.any { it.slot == selected } }
-                ?: return runtime
+        val slot = chooseInventorySlot(choices) ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
         val use =
             content.itemUses.firstOrNull { candidate -> candidate.item == item && ItemUseContext.Inventory in candidate.contexts }
@@ -147,12 +141,7 @@ internal class UtilityActions(
             systems.prompts.equipment.inventory
                 .renderUtility() + inventoryLines(choices),
         )
-        val slot =
-            input
-                .readCommand()
-                ?.inventorySlotFromKey()
-                ?.takeIf { selected -> choices.any { it.slot == selected } }
-                ?: return runtime
+        val slot = chooseInventorySlot(choices) ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
         screen.writeText(
             systems.prompts.equipment.equipped
@@ -168,7 +157,18 @@ internal class UtilityActions(
             else -> "item"
         }
 
-    private fun inventoryLines(choices: List<rylween.compiled.CompiledInventorySlot>): List<String> =
+    private fun removeEquipment(
+        runtime: RuntimeState,
+        update: (rylween.compiled.CompiledPartyMember) -> rylween.compiled.CompiledPartyMember,
+    ): RuntimeState = chooseMember(runtime)?.let { memberIndex -> runtime.updateMember(memberIndex, update) } ?: runtime
+
+    private fun chooseInventorySlot(choices: List<CompiledInventorySlot>): Int? =
+        input
+            .readCommand()
+            ?.inventorySlotFromKey()
+            ?.takeIf { selected -> choices.any { it.slot == selected } }
+
+    private fun inventoryLines(choices: List<CompiledInventorySlot>): List<String> =
         choices.map { slot ->
             "${inventorySlotKey(slot.slot)}. ${slot.item?.let(::itemName).orEmpty()}"
         }
@@ -250,3 +250,25 @@ internal fun RuntimeState.updateMember(
     )
 
 private const val PRIEST_SPELL_PREFIX = "priest."
+
+internal fun inventorySlotKey(slot: Int): Char = (INVENTORY_FIRST_KEY.code + slot - 1).toChar()
+
+internal fun Char.inventorySlotFromKey(): Int? {
+    val slot = uppercaseChar().code - INVENTORY_FIRST_KEY.code + 1
+    return slot.takeIf { it in 1..InventorySaveSlotMax }
+}
+
+internal fun List<CompiledInventorySlot>.normalizedInventorySlots(): List<CompiledInventorySlot> {
+    val bySlot = filter { it.slot in 1..InventorySaveSlotMax }.associateBy(CompiledInventorySlot::slot)
+    return (1..InventorySaveSlotMax).map { slot -> bySlot[slot] ?: CompiledInventorySlot(slot, null) }
+}
+
+internal fun inventoryMenuLines(entries: List<Pair<Char, String>>): List<String> =
+    entries
+        .chunked(2)
+        .map { row ->
+            row
+                .joinToString(" ") { (key, itemName) ->
+                    "$key. ${itemName.take(INVENTORY_ITEM_WIDTH)}".padEnd(INVENTORY_ENTRY_WIDTH)
+                }.trimEnd()
+        }

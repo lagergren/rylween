@@ -28,11 +28,29 @@ dependencies {
     implementation(project(":runtime"))
 }
 
-val runtimeBitmapWebJar: TaskProvider<Jar> = tasks.named<Jar>("jar")
+val runtimeBitmapWebJar: TaskProvider<Jar> = tasks.jar
 val runtimeBitmapWebJarFile: Provider<RegularFile> = runtimeBitmapWebJar.flatMap { it.archiveFile }
 val runtimeBitmapWebClasspathConfig: Configuration = configurations.runtimeClasspath.get()
 val runtimeBitmapWebJars: FileCollection =
     runtimeBitmapWebClasspathConfig.filter { file -> file.isFile && file.extension == "jar" }
+val bitmapWebGeneratedResources: Provider<Directory> = layout.buildDirectory.dir("generated/resources/bitmapWeb")
+val generateBitmapWebClientJs: TaskProvider<Copy> by tasks.registering(Copy::class) {
+    group = "generation"
+    description = "Copies the authored bitmap web TypeScript client to the served JavaScript resource."
+
+    from(layout.projectDirectory.file("src/main/resources/bitmap-web/client.ts")) {
+        rename { "client.js" }
+    }
+    into(bitmapWebGeneratedResources.map { directory -> directory.dir("bitmap-web") })
+}
+
+sourceSets.named("main") {
+    resources.srcDir(bitmapWebGeneratedResources)
+}
+
+tasks.processResources {
+    dependsOn(generateBitmapWebClientJs)
+}
 
 tasks.jar {
     archiveBaseName.set("rylween-runtime-bitmap-web")

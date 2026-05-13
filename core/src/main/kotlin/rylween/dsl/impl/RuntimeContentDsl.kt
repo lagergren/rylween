@@ -35,6 +35,7 @@ data class RuntimeContent(
     val itemRecords: List<ItemRecordModel> = emptyList(),
     val realm: RealmContentModel = RealmContentModel(),
     val prompts: GamePromptsModel = GamePromptsModel(),
+    val pacing: GamePacingModel = GamePacingModel(),
     val progress: GameProgressModel = GameProgressModel(emptyList(), null),
     val characterCreation: CharacterCreationModel? = null,
     val dungeons: DungeonSystemModel = DungeonSystemModel(),
@@ -61,6 +62,7 @@ data class GameModel(
     val itemPools: List<ItemPoolId>,
     val realm: RealmContentModel = RealmContentModel(),
     val prompts: GamePromptsModel,
+    val pacing: GamePacingModel = GamePacingModel(),
     val visuals: VisualsModel,
     val worldMaps: List<WorldMapModel>,
     val terrain: TerrainCatalogModel,
@@ -108,6 +110,7 @@ fun GameModel.runtimeContent(): RuntimeContent =
         itemRecords = itemCatalog,
         realm = realm,
         prompts = prompts,
+        pacing = pacing,
         progress = progress,
         characterCreation = characterCreation,
         dungeons = dungeons,
@@ -272,6 +275,47 @@ data class GamePromptsModel(
     val characterCreation: CharacterCreationPromptsModel = CharacterCreationPromptsModel(),
 )
 
+/**
+ * Authored runtime pacing for reusable systems that are not inside a script
+ * body. Script-authored pauses still use [rylween.dsl.ScriptScope.pause].
+ */
+data class GamePacingModel(
+    val battle: BattlePacingModel = BattlePacingModel(),
+    val characterCreation: CharacterCreationPacingModel = CharacterCreationPacingModel(),
+    val shop: ShopPacingModel = ShopPacingModel(),
+    val speak: SpeakPacingModel = SpeakPacingModel(),
+    val wilderness: WildernessPacingModel = WildernessPacingModel(),
+)
+
+/** Millisecond pauses between generated battle message pages. */
+data class BattlePacingModel(
+    val messagePauseMs: Int = 900,
+    val openingPauseMs: Int = 1_200,
+    val victoryPauseMs: Int = 4_000,
+)
+
+/** Millisecond pauses used by the reusable character-creation flow. */
+data class CharacterCreationPacingModel(
+    val classRejectionPauseMs: Int = 1_000,
+    val saveConfirmationPauseMs: Int = 2_000,
+)
+
+/** Millisecond pauses used by reusable shop interlude pages. */
+data class ShopPacingModel(
+    val interludePagePauseMs: Int = 2_000,
+)
+
+/** Millisecond pauses used by reusable NPC conversation beats. */
+data class SpeakPacingModel(
+    val promptReplyPauseMs: Int = 650,
+    val responsePauseMs: Int = 1_600,
+)
+
+/** Millisecond pauses used by reusable wilderness subsystem beats. */
+data class WildernessPacingModel(
+    val campMessagePauseMs: Int = 1_300,
+)
+
 data class TitleMenuPromptsModel(
     val header: TextBlock = inlineText("Rylween", ""),
     val createNewParty: InputBindingModel = inputKey("C", label = "Create New Party"),
@@ -305,6 +349,7 @@ data class CharacterCreationPromptsModel(
     val race: TextBlock = missingPrompt("character_creation.race"),
     val classMenu: TextBlock = missingPrompt("character_creation.class_menu"),
     val saving: TextBlock = missingPrompt("character_creation.saving"),
+    val saveConfirmationSuffix: String = "OK",
 )
 
 data class PriestSpellPromptsModel(
@@ -381,6 +426,7 @@ data class WildernessPromptsModel(
     val outOfMoves: TextBlock = missingPrompt("wilderness.out_of_moves"),
     val notInWilderness: TextBlock = missingPrompt("wilderness.not_in_wilderness"),
     val nothingToEnter: TextBlock = missingPrompt("wilderness.nothing_to_enter"),
+    val impassable: TextBlock = inlineText("Impassable."),
     val quitConfirm: TextBlock = missingPrompt("wilderness.quit_confirm"),
     val dungeonHandoff: TextBlock = missingPrompt("wilderness.dungeon_handoff"),
 )
