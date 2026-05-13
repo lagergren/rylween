@@ -44,6 +44,15 @@ internal class WildernessCommands private constructor(
 internal fun ExternalRuntimeInputBinding.matches(command: Char): Boolean =
     (listOf(primary) + aliases).any { token -> token.matchesCommand(command) }
 
+internal fun List<ExternalRuntimeCommand>.matches(
+    action: String,
+    command: Char,
+): Boolean =
+    firstOrNull { candidate -> candidate.action == action }
+        ?.binding
+        ?.matches(command)
+        ?: false
+
 private fun String.matchesCommand(command: Char): Boolean =
     when (this) {
         "SPACE" -> command == ' '

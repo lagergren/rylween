@@ -2258,6 +2258,14 @@ private fun validateCharacterCreation(
         check(option.label.isNotBlank()) { "character creation class ${option.klass.name} has blank label" }
         option.failureText?.let { validateTextBlock(it, "character creation ${option.klass.name} failure text") }
     }
+    check(
+        model.portraits
+            .map { portrait -> Triple(portrait.gender, portrait.race, portrait.klass) }
+            .toSet()
+            .size == model.portraits.size,
+    ) {
+        "character creation has duplicate portrait selectors"
+    }
 
     check(model.start.resources.gold >= 0) { "character creation starting gold must be non-negative" }
     check(model.start.resources.torches >= 0) { "character creation starting torches must be non-negative" }
@@ -2463,6 +2471,9 @@ private fun validateImageReferences(content: GameModel) {
             }
             content.monsters.forEach { monster ->
                 monster.encounterImage?.let { add(it to "monster ${monster.id.slug} encounter image") }
+            }
+            content.characterCreation?.portraits?.forEach { portrait ->
+                add(portrait.image to "character creation portrait")
             }
             content.scriptSourceRoots().forEach { root -> addAll(root.imageReferences()) }
         }
@@ -2702,6 +2713,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("limits") { validateGameLimits(content.limits, content.worldMaps, content.layouts) }
         captureValidation("flags.catalog") { validateFlagCatalog(content.flags) }
         captureValidation("prompts") { validateGamePrompts(content.prompts) }
+        captureValidation("pacing") { validateGamePacing(content.pacing) }
         captureValidation("realm") { validateRealmContent(content.realm) }
         captureValidation("visuals") { validateVisuals(content.visuals) }
         captureValidation("visuals.references") { validateImageReferences(content) }
@@ -2866,6 +2878,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.wilderness.outOfMoves, "wilderness out-of-moves prompt")
     validateTextBlock(prompts.wilderness.notInWilderness, "wilderness not-in-wilderness prompt")
     validateTextBlock(prompts.wilderness.nothingToEnter, "wilderness nothing-to-enter prompt")
+    validateTextBlock(prompts.wilderness.impassable, "wilderness impassable prompt")
     validateTextBlock(prompts.wilderness.quitConfirm, "wilderness quit-confirm prompt")
     validateTextBlock(
         prompts.wilderness.dungeonHandoff,
@@ -2886,6 +2899,22 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.party.dropCapacityReduced, "party drop-capacity-reduced prompt")
     validateTextBlock(prompts.party.dropOverflowConfirm, "party drop-overflow-confirm prompt")
     validateTextBlock(prompts.party.dropOverflowPrompt, "party drop-overflow-prompt prompt")
+}
+
+private fun validateGamePacing(pacing: GamePacingModel) {
+    check(pacing.battle.messagePauseMs >= 0) { "battle message pause must not be negative" }
+    check(pacing.battle.openingPauseMs >= 0) { "battle opening pause must not be negative" }
+    check(pacing.battle.victoryPauseMs >= 0) { "battle victory pause must not be negative" }
+    check(pacing.characterCreation.classRejectionPauseMs >= 0) {
+        "character creation class-rejection pause must not be negative"
+    }
+    check(pacing.characterCreation.saveConfirmationPauseMs >= 0) {
+        "character creation save-confirmation pause must not be negative"
+    }
+    check(pacing.shop.interludePagePauseMs >= 0) { "shop interlude-page pause must not be negative" }
+    check(pacing.speak.promptReplyPauseMs >= 0) { "speak prompt-reply pause must not be negative" }
+    check(pacing.speak.responsePauseMs >= 0) { "speak response pause must not be negative" }
+    check(pacing.wilderness.campMessagePauseMs >= 0) { "wilderness camp-message pause must not be negative" }
 }
 
 private fun validateItemPools(

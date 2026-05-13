@@ -92,7 +92,13 @@ sealed interface VmDiagnostic {
                 "opcode=$opcode reason=$reason expected=$expected actual=$actual"
     }
 
-    /** A compiled handle reference could not be resolved in the loaded bundle. */
+    /**
+     * A compiled handle reference could not be resolved in the loaded bundle.
+     *
+     * Kept as public diagnostic contract even while current Kotlin paths do not
+     * emit it; native/server VMs should be able to report the same category.
+     */
+    @Suppress("unused", "MemberVisibilityCanBePrivate")
     data class MissingHandle(
         override val root: ScriptRootRef,
         override val instructionIndex: Int,
@@ -118,7 +124,13 @@ sealed interface VmDiagnostic {
         override fun message(): String = "compiled VM diagnostic: $kind ${location()} path=$path reason=$reason"
     }
 
-    /** A compiled lvalue cannot be assigned in the current VM context. */
+    /**
+     * A compiled lvalue cannot be assigned in the current VM context.
+     *
+     * [lvalue] stays public for serialized diagnostics and conformance checks,
+     * even though the Kotlin renderer currently only reads it in [message].
+     */
+    @Suppress("unused", "MemberVisibilityCanBePrivate")
     data class InvalidLValue(
         override val root: ScriptRootRef,
         override val instructionIndex: Int,
@@ -131,7 +143,13 @@ sealed interface VmDiagnostic {
         override fun message(): String = "compiled VM diagnostic: $kind ${location()} lvalue=$lvalue reason=$reason"
     }
 
-    /** A saved compiled continuation frame is malformed or incompatible. */
+    /**
+     * A saved compiled continuation frame is malformed or incompatible.
+     *
+     * This is a reserved continuation-resume diagnostic for parity with native
+     * and server VMs; the current Kotlin runtime does not emit it yet.
+     */
+    @Suppress("unused")
     data class BadContinuationFrame(
         override val root: ScriptRootRef,
         override val instructionIndex: Int,

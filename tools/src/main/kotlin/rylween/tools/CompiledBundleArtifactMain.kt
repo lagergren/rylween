@@ -31,6 +31,7 @@ object RylweenCompiledBundleArtifactMain {
             val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
             bundle.loadCompiledGame()
             bundle.writeNativeSmokeArtifact(output)
+            @Suppress("ReplacePrintlnWithLogging")
             println("Wrote native smoke bundle: ${output.path}")
         }
 }
@@ -43,6 +44,7 @@ object RylweenExternalBundleArtifactMain {
             val game = RylweenCompiledGame.nextRylween
             game.toCompiledGameBundle().loadCompiledGame()
             game.writeExternalBundleArtifact(output)
+            @Suppress("ReplacePrintlnWithLogging")
             println("Wrote external compiled bundle: ${output.path}")
         }
 }
@@ -56,15 +58,19 @@ object RylweenExternalBundleCheckMain {
             val runtimeSystems = input.readExternalRuntimeSystemsSummary()
             val materialized = input.readExternalCompiledGameBundle()
             val runtimeGame = input.readExternalRuntimeGame()
-            println(
-                "compiled bundle ok: strings=${summary.section(ExternalBundleSectionId.Strings).rowCount} " +
-                    "handles=${summary.section(ExternalBundleSectionId.Handles).rowCount} " +
-                    "scripts=${materialized.content.scripts.roots.size} " +
-                    "states=${materialized.states.size} " +
-                    "runtimeStates=${runtimeGame.states.size} " +
-                    "runtimeSystems=${runtimeSystems.schemaVersion} " +
-                    "castles=${runtimeSystems.castles.size}",
-            )
+            val checkSummary =
+                buildString {
+                    append("compiled bundle ok:")
+                    append(" strings=${summary.section(ExternalBundleSectionId.Strings).rowCount}")
+                    append(" handles=${summary.section(ExternalBundleSectionId.Handles).rowCount}")
+                    append(" scripts=${materialized.content.scripts.roots.size}")
+                    append(" states=${materialized.states.size}")
+                    append(" runtimeStates=${runtimeGame.states.size}")
+                    append(" runtimeSystems=${runtimeSystems.schemaVersion}")
+                    append(" castles=${runtimeSystems.castles.size}")
+                }
+            @Suppress("ReplacePrintlnWithLogging")
+            println(checkSummary)
         }
 }
 
@@ -75,6 +81,7 @@ object RylweenExternalBundleInspectMain {
             val input = File(args.getOrNull(0) ?: "build/compiled/rylween-bundle.json")
             val output = args.getOrNull(1)?.let(::File)
             val inspection = input.inspectExternalBundleArtifact()
+            @Suppress("ReplacePrintlnWithLogging")
             if (output == null) {
                 print(inspection)
             } else {

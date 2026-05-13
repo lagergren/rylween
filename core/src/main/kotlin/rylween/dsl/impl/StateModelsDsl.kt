@@ -29,7 +29,7 @@ val PcClass.sourceId: Int
             PcClass.Ranger -> 6
         }
 
-enum class RuntimeMode { TitleMenu, Wilderness, Town, Dungeon, Battle, Castle, GameOver }
+enum class RuntimeMode { Wilderness, Town, Dungeon, Battle, Castle, GameOver }
 
 enum class Facing { North, East, South, West }
 

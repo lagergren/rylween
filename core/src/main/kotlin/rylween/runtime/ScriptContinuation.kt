@@ -44,6 +44,7 @@ data class ScriptRootRef(
     }
 
     /** True when this ref identifies a real authored root. */
+    @Suppress("unused")
     val isSpecified: Boolean get() = kind != ScriptRootKind.Unspecified
 
     /** Compares root identity while ignoring optional dense ids. */
@@ -145,6 +146,7 @@ fun RuntimeContent.scriptRootCatalog(): ScriptRootCatalog =
     )
 
 /** Nested branch identifiers for resumable script execution. */
+@Suppress("unused")
 enum class ScriptBranch {
     IfThen,
     IfElse,
@@ -171,6 +173,7 @@ data class ScriptBlockRef(
     val segments: List<ScriptSegment> = emptyList(),
 ) {
     /** Returns a child block path under this block. */
+    @Suppress("unused")
     fun child(
         opIndex: Int,
         branch: ScriptBranch,
@@ -180,6 +183,7 @@ data class ScriptBlockRef(
 
     companion object {
         /** Root script-block path. */
+        @Suppress("unused")
         val Root: ScriptBlockRef = ScriptBlockRef()
     }
 }
@@ -197,7 +201,7 @@ data class ScriptFrame(
 /**
  * Portable script continuation stored in strict runtime snapshots.
  *
- * This record is deliberately independent from the old Kotlin session graph.
+ * This record is deliberately independent of the old Kotlin session graph.
  * New runtimes should deserialize it as data, validate the referenced compiled
  * root, and resume with their own implementation.
  */

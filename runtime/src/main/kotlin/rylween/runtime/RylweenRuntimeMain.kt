@@ -13,8 +13,6 @@
  * and compiled-script host services should be added here depth first instead
  * of calling back into the legacy session layer.
  */
-@file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
-
 package rylween.runtime
 
 import rylween.compiled.CompiledBuildingService
@@ -78,9 +76,6 @@ private const val SCORE_SCREEN = "score"
 private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
 private const val TEXT_WINDOW_PAGE_LINES = 9
-private const val CREATION_REJECTION_DELAY_MS = 1_000
-private const val CREATION_SAVE_CONFIRMATION_DELAY_MS = 2_000
-private const val CREATION_SAVE_CONFIRMATION_TEXT = "OK"
 private const val TOWN_MAIN_STREET_IMAGE = "blitgfx.towne_mainstreet"
 private const val TOWN_COMMAND_GROUP = "town"
 private const val TOWN_LEAVE_ACTION = "leave_town"
@@ -240,6 +235,7 @@ private object RuntimeCli {
     }
 
     private fun printHelp() {
+        @Suppress("ReplacePrintlnWithLogging")
         println(
             """
             |Usage: rylween --bundle build/compiled/rylween-bundle.json [options]
@@ -547,7 +543,7 @@ class GameRuntime private constructor(
                                     .copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain)
                                     .withParty(move.party)
                             moveEvent = move.event
-                            true
+                            move.moved
                         }
 
                         commands.matches("moveSouth", command) -> {
@@ -557,7 +553,7 @@ class GameRuntime private constructor(
                                     .copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain)
                                     .withParty(move.party)
                             moveEvent = move.event
-                            true
+                            move.moved
                         }
 
                         commands.matches("moveWest", command) -> {
@@ -567,7 +563,7 @@ class GameRuntime private constructor(
                                     .copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain)
                                     .withParty(move.party)
                             moveEvent = move.event
-                            true
+                            move.moved
                         }
 
                         commands.matches("moveEast", command) -> {
@@ -577,7 +573,7 @@ class GameRuntime private constructor(
                                     .copy(lastTerrain = move.event?.fromTerrain?.id ?: runtime.lastTerrain)
                                     .withParty(move.party)
                             moveEvent = move.event
-                            true
+                            move.moved
                         }
 
                         commands.matches("pass", command) -> {
@@ -601,13 +597,17 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches("viewParty", command) -> {
-                            showWildernessPages(
-                                screen,
-                                input,
-                                runtime,
-                                world,
-                                PartyPages.partyPages(content, runtime.party),
-                            )
+                            if (
+                                PartyPages.showPartyPageViews(
+                                    content = content,
+                                    systems = systems,
+                                    input = input,
+                                    screen = screen,
+                                    runtime = runtime,
+                                )
+                            ) {
+                                redrawWildernessIfCurrent(screen, runtime, world)
+                            }
                             false
                         }
 
@@ -731,8 +731,7 @@ class GameRuntime private constructor(
         if (input.readCommand() == null) return null
         while (true) {
             val savedRuntime = loadSavedRuntimeOrNull(save, log)
-            screen.bootFrame()
-            screen.writeText(titleMenuLines(hasSavedGame = savedRuntime != null))
+            screen.showTitleMenu(titleMenuLines(hasSavedGame = savedRuntime != null))
             val command = input.readCommand() ?: return null
             when {
                 savedRuntime == null && matches("createNewParty", command) -> {
@@ -872,11 +871,13 @@ class GameRuntime private constructor(
         val memberNames = mutableListOf<String>()
         while (members.size < rules.start.partyMemberMax) {
             val memberNumber = members.size + 1
+            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, null, null, null, null))
             val statsResult = readAcceptedCreationStats(runtime, memberNumber, input, screen, log) ?: return null
             runtime = statsResult.runtime
             screen.writeText(prompts.memberName.renderCreation(memberNumber = memberNumber))
             val memberName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
             log.event("creation.member_name member=$memberNumber name=$memberName")
+            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, null, null, null))
             val gender =
                 readCreationChoice(
                     screen,
@@ -887,6 +888,7 @@ class GameRuntime private constructor(
                     "gender",
                 )
                     ?: return null
+            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, null, null))
             val race =
                 readCreationChoice(
                     screen,
@@ -903,6 +905,7 @@ class GameRuntime private constructor(
                     "race",
                 )
                     ?: return null
+            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, null))
             val pcClass =
                 readCreationChoice(
                     screen,
@@ -919,13 +922,14 @@ class GameRuntime private constructor(
                     "class",
                 )
                     ?: return null
+            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, pcClass.pcClass))
             val failure = pcClass.failureFor(statsResult.stats)
             if (failure != null) {
                 log.event(
                     "creation.class_rejected member=$memberNumber class=${pcClass.pcClass} required=${pcClass.requiredStat} minimum=${pcClass.minimum}",
                 )
                 screen.writeText(failure.renderCreation())
-                input.pause(CREATION_REJECTION_DELAY_MS)
+                input.pause(systems.pacing.characterCreation.classRejectionPauseMs)
             } else {
                 log.event("creation.member_accepted member=$memberNumber gender=$gender race=$race class=${pcClass.pcClass}")
                 members += runtime.creationMember(memberNumber, gender, race, pcClass.pcClass, statsResult.stats)
@@ -938,9 +942,10 @@ class GameRuntime private constructor(
                 "position=${runtime.logPosition()} memberNames=${memberNames.joinToString(separator = ",", transform = ::logValue)}",
         )
         val savingPrompt = prompts.saving.renderCreation()
+        screen.showCharacterPortrait(null)
         screen.writeText(savingPrompt)
-        input.pause(CREATION_SAVE_CONFIRMATION_DELAY_MS)
-        screen.writeText(savingPrompt.withLastLineSuffix(" $CREATION_SAVE_CONFIRMATION_TEXT"))
+        input.pause(systems.pacing.characterCreation.saveConfirmationPauseMs)
+        screen.writeText(savingPrompt.withLastLineSuffix(" ${prompts.saveConfirmationSuffix}"))
         return runtime
     }
 
@@ -1146,8 +1151,11 @@ class GameRuntime private constructor(
         val sourceTerrain = world.terrainAt(source)
         val targetTerrain = world.terrainAt(target)
         if (targetTerrain == null || !targetTerrain.passable) {
-            screen.writeText(listOf("Blocked."))
-            return MoveResult(party)
+            screen.writeText(
+                systems.prompts.wilderness.impassable
+                    .render { null },
+            )
+            return MoveResult(party, moved = false)
         }
         return MoveResult(
             party =
@@ -1159,6 +1167,7 @@ class GameRuntime private constructor(
                         ),
                 ),
             event = MoveEvent(source, target, sourceTerrain, targetTerrain),
+            moved = true,
         )
     }
 
@@ -1937,6 +1946,7 @@ private fun List<String>.withLastLineSuffix(suffix: String): List<String> =
 internal data class MoveResult(
     val party: PartyState,
     val event: MoveEvent? = null,
+    val moved: Boolean = event != null,
 )
 
 private const val REFERENCE_RANDOM_MULTIPLIER: Long = 0x2545F4914F6CDD1DL

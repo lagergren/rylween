@@ -151,7 +151,7 @@ internal class ShopService(
             }.drop(1)
             .forEach { lines ->
                 screen.writeText(lines)
-                input.pause(SHOP_INTERLUDE_DELAY_MS)
+                input.pause(systems.pacing.shop.interludePagePauseMs)
             }
         if (!interlude.runsRumorAfterAccept) return runtime
         val rumor = rumorLines(runtime)
@@ -767,7 +767,6 @@ internal class ShopService(
     private fun ExternalRuntimeTextBlock.renderShopPrompt(): List<String> = render { null }
 }
 
-private const val SHOP_INTERLUDE_DELAY_MS = 2_000
 private const val STANDARD_TOWN_RUMOR_TABLE = "standard_town"
 private const val SPEAK_NO_RUMOR_SCREEN = "speak.no_rumor"
 

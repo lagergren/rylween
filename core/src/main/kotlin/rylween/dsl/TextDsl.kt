@@ -157,7 +157,7 @@ fun TextPart.fallbackText(): String =
         TextPart.ShopCarryCap -> "{cap}"
         TextPart.HuntMemberName -> "{who_name}"
         TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
-        TextPart.HuntFoodGained -> "{fdplus}"
+        TextPart.HuntFoodGained -> "{hunt_food_gained}"
         TextPart.PartyMemberMax -> "{party_max}"
         TextPart.WildernessDungeonName -> "{dungeon}"
         TextPart.WildernessDungeonLevels -> "{levels}"
@@ -224,7 +224,7 @@ fun textLines(vararg lines: String): TextBlock = structuredText { lines(*expandM
 
 /**
  * Captures multi-paragraph prose without choosing a render width. Paragraphs
- * are separated by blank lines in the source and renderers wrap them at output
+ * are separated by blank lines in the source, and renderers wrap them at output
  * time using their own column or pixel measurement.
  */
 fun flow(text: String): TextBlock {

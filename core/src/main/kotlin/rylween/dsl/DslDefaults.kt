@@ -31,7 +31,6 @@ internal object DslDefaultMapLayers {
 
 internal object DslDefaultTerrain {
     val mountain = terrain("mountain", 'm')
-    val water = terrain("water", 'w')
     val town = terrain("town", '0')
     val hut = terrain("hut", '1')
     val castle = terrain("castle", '2')
@@ -79,12 +78,9 @@ internal object DslDefaultKeyActions {
 
 internal object DslDefaultNpcJobs {
     val merchant = npcJob("merchant")
-    val bargirl = npcJob("bargirl")
 }
 
 internal object DslDefaultFormulas {
-    val encounterH1Scaled = formula("encounter_h1_scaled")
-    val encounterH2Scaled = formula("encounter_h2_scaled")
     val rewardXpPerSurvivor = formula("reward_xp_per_survivor")
     val rewardGoldParty = formula("reward_gold_party")
     val levelUpHitPointFloor = formula("level_up_hp_floor")
@@ -107,9 +103,5 @@ internal object DslDefaultScenes {
         val tavern = sceneId("towne.tavern")
         val guild = sceneId("towne.guild")
         val hut = sceneId("towne.hut")
-    }
-
-    object Battle {
-        val monsterMelee = sceneId("battle.monster.melee")
     }
 }

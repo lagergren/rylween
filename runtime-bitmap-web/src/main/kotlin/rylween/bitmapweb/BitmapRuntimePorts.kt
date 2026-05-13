@@ -8,9 +8,11 @@ import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.TerrainSettlement
+import rylween.runtime.RuntimeCharacterPortraitPreview
 import rylween.runtime.RuntimeInputPort
 import rylween.runtime.RuntimeInputTokens
 import rylween.runtime.RuntimeMapCell
+import rylween.runtime.RuntimePartyPageView
 import rylween.runtime.RuntimeScreenPort
 import rylween.runtime.RuntimeState
 import rylween.runtime.RuntimeViewCommand
@@ -24,13 +26,15 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val BITMAP_TEXT_COLUMNS = 36
+private const val CLOSED_INPUT = "\u0004"
+
 internal const val DEFAULT_BITMAP_VIEWPORT_TILES = 8
 internal const val DEFAULT_BITMAP_TILE_SIZE = 64
-private const val CLOSED_INPUT = "\u0004"
 
 internal class BitmapRuntimeInput : RuntimeInputPort {
     private val input = LinkedBlockingQueue<String>()
     private val closed = AtomicBoolean(false)
+    var textInputChanged: ((BitmapTextInput?) -> Unit)? = null
 
     override val exhausted: Boolean get() = closed.get() && input.isEmpty()
 
@@ -46,9 +50,29 @@ internal class BitmapRuntimeInput : RuntimeInputPort {
         }
     }
 
-    override fun readInt(maxDigits: Int): Int? = readCommand()?.digitToIntOrNull()
+    override fun readInt(maxDigits: Int): Int? = readText(maxDigits)?.trim()?.toIntOrNull()
 
-    override fun readText(maxLength: Int?): String? = readCommand()?.toString()
+    override fun readText(maxLength: Int?): String? {
+        val limit = (maxLength ?: 80).coerceAtLeast(0)
+        val text = StringBuilder()
+        publishTextInput(text.toString(), limit)
+        while (true) {
+            when (val token = input.take()) {
+                CLOSED_INPUT -> return closeTextInput(null)
+                "ENTER", "RETURN" -> return closeTextInput(text.toString())
+                "ESCAPE" -> return closeTextInput(null)
+                "BACKSPACE" -> {
+                    if (text.isNotEmpty()) text.deleteAt(text.lastIndex)
+                    publishTextInput(text.toString(), limit)
+                }
+                else -> {
+                    val char = token.singleOrNull()?.takeIf { value -> !value.isISOControl() }
+                    if (char != null && text.length < limit) text.append(char)
+                    publishTextInput(text.toString(), limit)
+                }
+            }
+        }
+    }
 
     fun acceptClientMessage(message: String) {
         if (closed.get()) return
@@ -58,6 +82,18 @@ internal class BitmapRuntimeInput : RuntimeInputPort {
     fun close() {
         if (!closed.compareAndSet(false, true)) return
         input.offer(CLOSED_INPUT)
+    }
+
+    private fun publishTextInput(
+        value: String,
+        maxLength: Int,
+    ) {
+        textInputChanged?.invoke(BitmapTextInput(value, maxLength))
+    }
+
+    private fun closeTextInput(value: String?): String? {
+        textInputChanged?.invoke(null)
+        return value
     }
 }
 
@@ -69,6 +105,7 @@ internal class BitmapRuntimeScreen(
     tileSize: Int = DEFAULT_BITMAP_TILE_SIZE,
 ) : RuntimeScreenPort {
     private val content = bundle.content
+    private val imageTransitionById = systems.presentation.images.associate { image -> image.id to image.transition }
     private val viewportTiles = mapTiles.coerceIn(5, 12)
     private val mapTileSize = tileSize.coerceIn(40, 96)
     private var mode = "boot"
@@ -78,6 +115,10 @@ internal class BitmapRuntimeScreen(
     private var status: BitmapStatus? = null
     private var statusLines = emptyList<String>()
     private var textLines = emptyList<String>()
+    private var textInput: BitmapTextInput? = null
+    private var portrait: BitmapPortrait? = null
+    private var partyPage: BitmapPartyPage? = null
+    private var visualTransition = "None"
     private var commands = emptyList<BitmapCommandHint>()
     private var map: BitmapMap? = null
     private var message: String? = null
@@ -89,7 +130,12 @@ internal class BitmapRuntimeScreen(
         backdrop = "wilderness"
         status = null
         textLines = emptyList()
+        textInput = null
+        portrait = null
+        partyPage = null
         map = null
+        commands = emptyList()
+        message = null
         send()
     }
 
@@ -104,6 +150,9 @@ internal class BitmapRuntimeScreen(
         status = runtime.bitmapStatus()
         statusLines = runtime.runtimeStatusLines(content)
         textLines = emptyList()
+        textInput = null
+        portrait = null
+        partyPage = null
         map = null
         commands = emptyList()
         message = null
@@ -119,6 +168,23 @@ internal class BitmapRuntimeScreen(
         advance()
     }
 
+    override fun showTitleMenu(lines: List<String>) {
+        mode = "title_menu"
+        backdrop = "title_menu"
+        title = content.strings.value(content.universe.nameString)
+        subtitle = ""
+        status = null
+        statusLines = emptyList()
+        textLines = lines.flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
+        textInput = null
+        portrait = null
+        partyPage = null
+        commands = emptyList()
+        map = null
+        message = null
+        send()
+    }
+
     override fun renderWilderness(
         runtime: RuntimeState,
         world: WorldMap,
@@ -130,6 +196,9 @@ internal class BitmapRuntimeScreen(
         status = runtime.bitmapStatus()
         statusLines = runtime.runtimeStatusLines(content)
         textLines = wildernessTextLines(runtime, world)
+        textInput = null
+        portrait = null
+        partyPage = null
         commands = systems.bitmapCommands("wilderness")
         map = world.bitmapViewport(runtime.party.position, content, viewportTiles, mapTileSize)
         message = null
@@ -146,6 +215,9 @@ internal class BitmapRuntimeScreen(
         subtitle = "${runtime.party.position.x}, ${runtime.party.position.y}"
         status = runtime.bitmapStatus()
         textLines = world.paddedRows().take(18)
+        textInput = null
+        portrait = null
+        partyPage = null
         map = null
         commands = emptyList()
         message = null
@@ -160,6 +232,9 @@ internal class BitmapRuntimeScreen(
         subtitle = "Depth ${runtime.dungeon?.depth ?: 1}"
         status = runtime.bitmapStatus()
         statusLines = runtime.runtimeStatusLines(content)
+        textInput = null
+        portrait = null
+        partyPage = null
         commands = emptyList()
         map = null
         send()
@@ -175,6 +250,9 @@ internal class BitmapRuntimeScreen(
         subtitle = "Floor ${runtime.castle?.floor ?: 1}"
         status = runtime.bitmapStatus()
         statusLines = runtime.runtimeStatusLines(content)
+        textInput = null
+        portrait = null
+        partyPage = null
         commands = emptyList()
         map = null
         send()
@@ -182,6 +260,8 @@ internal class BitmapRuntimeScreen(
 
     override fun writeText(lines: List<String>) {
         textLines = lines.flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
+        textInput = null
+        partyPage = null
         commands = emptyList()
         message = null
         send()
@@ -217,6 +297,10 @@ internal class BitmapRuntimeScreen(
             subtitle = ""
         }
         map = null
+        textInput = null
+        portrait = null
+        partyPage = null
+        visualTransition = imageTransitionById[imageSlug] ?: "None"
         commands = emptyList()
         message = null
         send()
@@ -227,6 +311,41 @@ internal class BitmapRuntimeScreen(
     }
 
     override fun flashLogLine(line: String) = Unit
+
+    override fun showCharacterPortrait(preview: RuntimeCharacterPortraitPreview?) {
+        portrait = preview?.toBitmapPortrait()
+        partyPage = null
+        if (preview != null) {
+            mode = "character_portrait"
+            backdrop = "character_portrait"
+            map = null
+            visualTransition = imageTransitionById[preview.imageSlug] ?: "None"
+        }
+        send()
+    }
+
+    override fun showPartyPage(
+        page: RuntimePartyPageView,
+        pauseLine: String,
+    ) {
+        mode = "party_page"
+        backdrop = "party_page"
+        title = page.member?.name ?: page.summary?.partyName ?: page.kind.name.readableSlug()
+        subtitle = page.member?.let { member -> "${member.gender} ${member.race} ${member.pcClass}" }.orEmpty()
+        textLines = page.lines
+        textInput = null
+        partyPage = page.toBitmapPartyPage(pauseLine)
+        commands = emptyList()
+        map = null
+        message = null
+        send()
+    }
+
+    fun setTextInput(input: BitmapTextInput?) {
+        textInput = input
+        if (input != null) commands = emptyList()
+        send()
+    }
 
     private fun wildernessTextLines(
         runtime: RuntimeState,
@@ -246,11 +365,16 @@ internal class BitmapRuntimeScreen(
                 status = status,
                 statusLines = statusLines,
                 textLines = textLines,
+                textInput = textInput,
+                portrait = portrait,
+                partyPage = partyPage,
+                visualTransition = visualTransition,
                 commands = commands,
                 map = map,
                 message = message,
             ).toJson(),
         )
+        visualTransition = "None"
     }
 
     private fun RuntimeState.bitmapStatus(): BitmapStatus =
@@ -330,6 +454,60 @@ private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % mod
 
 private fun ExternalRuntimeSystems.bitmapCommands(group: String): List<BitmapCommandHint> =
     commands[group].orEmpty().map(ExternalRuntimeCommand::toBitmapCommand)
+
+private fun RuntimeCharacterPortraitPreview.toBitmapPortrait(): BitmapPortrait =
+    BitmapPortrait(
+        imageSlug = imageSlug,
+        memberNumber = memberNumber,
+        memberName = memberName,
+        gender = genderLabel,
+        race = raceLabel,
+        pcClass = classLabel,
+    )
+
+private fun RuntimePartyPageView.toBitmapPartyPage(pauseLine: String): BitmapPartyPage =
+    BitmapPartyPage(
+        kind = kind.name.lowercase(),
+        lines = lines,
+        pauseLine = pauseLine,
+        summary =
+            summary?.let { summary ->
+                BitmapPartySummary(
+                    partyName = summary.partyName,
+                    gold = summary.gold,
+                    food = summary.food,
+                    torches = summary.torches,
+                    moves = summary.moves,
+                    rest = summary.rest,
+                    kills = summary.kills,
+                    memberCount = summary.memberCount,
+                )
+            },
+        member =
+            member?.let { member ->
+                BitmapPartyMember(
+                    index = member.index,
+                    name = member.name,
+                    gender = member.gender,
+                    race = member.race,
+                    pcClass = member.pcClass,
+                    weaponSkill = member.weaponSkill,
+                    health = member.health,
+                    wisdom = member.wisdom,
+                    charisma = member.charisma,
+                    hitPoints = member.hitPoints,
+                    hitPointMax = member.hitPointMax,
+                    mana = member.mana,
+                    manaMax = member.manaMax,
+                    level = member.level,
+                    experience = member.experience,
+                    weapon = member.weapon,
+                    armor = member.armor,
+                    status = member.status,
+                )
+            },
+        inventory = inventory?.entries.orEmpty(),
+    )
 
 private fun ExternalRuntimeCommand.toBitmapCommand(): BitmapCommandHint =
     BitmapCommandHint(

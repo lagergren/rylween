@@ -54,6 +54,7 @@ class ScriptContext {
 annotation class RylNextDsl
 
 @RylNextDsl
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class ScriptScope(
     private val ctx: ScriptContext,
     private val ops: MutableList<Op>,
@@ -449,6 +450,7 @@ class ScriptScope(
 }
 
 @RylNextDsl
+@Suppress("unused")
 class ScriptRewardBuilder {
     private var goldAst: IntAst? = null
     private val itemIds = mutableListOf<ItemId>()
@@ -514,6 +516,7 @@ class RandomItemOfferTextBuilder : TextLineSink {
 }
 
 @RylNextDsl
+@Suppress("unused")
 class RandomItemOfferBuilder(
     private val pool: ItemPoolId,
 ) {
@@ -672,6 +675,7 @@ class SwitchBuilder(
 }
 
 @RylNextDsl
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class MenuBuilder(
     private val ctx: ScriptContext,
 ) {
@@ -715,6 +719,7 @@ class MenuBuilder(
     fun build(prompt: TextBlock): Op.Menu = Op.Menu(prompt, options.toList(), defaultOps)
 }
 
+@Suppress("unused")
 class AskScope(
     private val script: ScriptScope,
 ) {
@@ -780,6 +785,7 @@ class AskScope(
     }
 }
 
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class ChoiceScope(
     private val script: ScriptScope,
 ) {
@@ -1659,6 +1665,7 @@ class GameBuilder {
     private val itemPools = mutableListOf<ItemPoolId>()
     private var realmModel = RealmContentModel()
     private var promptsModel = GamePromptsModel()
+    private var pacingModel = GamePacingModel()
     private var visualsModel = VisualsModel()
     private val worldMaps = mutableListOf<WorldMapModel>()
     private var terrainModel = TerrainCatalogModel()
@@ -1710,6 +1717,10 @@ class GameBuilder {
 
     fun prompts(body: GamePromptsBuilder.() -> Unit) {
         promptsModel = GamePromptsBuilder(promptsModel).apply(body).build()
+    }
+
+    fun pacing(body: GamePacingBuilder.() -> Unit) {
+        pacingModel = GamePacingBuilder(pacingModel).apply(body).build()
     }
 
     fun visuals(body: VisualsBuilder.() -> Unit) {
@@ -1843,6 +1854,7 @@ class GameBuilder {
             itemPools = itemPools.toList(),
             realm = realmModel,
             prompts = promptsModel,
+            pacing = pacingModel,
             visuals = visualsModel,
             worldMaps = worldMaps.toList(),
             terrain = terrainModel,
@@ -1875,6 +1887,7 @@ class GameBuilder {
 }
 
 @RylNextDsl
+@Suppress("unused")
 class SecretSystemBuilder(
     initial: SecretSystemModel = SecretSystemModel(),
 ) {
@@ -2034,6 +2047,7 @@ class ImageAssetsBuilder {
         id: ImageId,
         resource: String,
         placement: ImagePlacement,
+        transition: ImageTransition = ImageTransition.None,
     ) {
         images +=
             ImageAssetModel(
@@ -2041,6 +2055,23 @@ class ImageAssetsBuilder {
                 kind = ImageAssetKind.Ansi,
                 resource = resource,
                 placement = placement,
+                transition = transition,
+            )
+    }
+
+    fun bitmap(
+        id: ImageId,
+        resource: String,
+        placement: ImagePlacement,
+        transition: ImageTransition = ImageTransition.None,
+    ) {
+        images +=
+            ImageAssetModel(
+                id = id,
+                kind = ImageAssetKind.Bitmap,
+                resource = resource,
+                placement = placement,
+                transition = transition,
             )
     }
 
@@ -2205,6 +2236,108 @@ class GamePromptsBuilder(
 }
 
 @RylNextDsl
+class GamePacingBuilder(
+    initial: GamePacingModel = GamePacingModel(),
+) {
+    private var battle = initial.battle
+    private var characterCreation = initial.characterCreation
+    private var shop = initial.shop
+    private var speak = initial.speak
+    private var wilderness = initial.wilderness
+
+    fun battle(body: BattlePacingBuilder.() -> Unit) {
+        battle = BattlePacingBuilder(battle).apply(body).build()
+    }
+
+    fun characterCreation(body: CharacterCreationPacingBuilder.() -> Unit) {
+        characterCreation = CharacterCreationPacingBuilder(characterCreation).apply(body).build()
+    }
+
+    fun shop(body: ShopPacingBuilder.() -> Unit) {
+        shop = ShopPacingBuilder(shop).apply(body).build()
+    }
+
+    fun speak(body: SpeakPacingBuilder.() -> Unit) {
+        speak = SpeakPacingBuilder(speak).apply(body).build()
+    }
+
+    fun wilderness(body: WildernessPacingBuilder.() -> Unit) {
+        wilderness = WildernessPacingBuilder(wilderness).apply(body).build()
+    }
+
+    fun build(): GamePacingModel =
+        GamePacingModel(
+            battle = battle,
+            characterCreation = characterCreation,
+            shop = shop,
+            speak = speak,
+            wilderness = wilderness,
+        )
+}
+
+@RylNextDsl
+class BattlePacingBuilder(
+    initial: BattlePacingModel = BattlePacingModel(),
+) {
+    var messagePauseMs: Int = initial.messagePauseMs
+    var openingPauseMs: Int = initial.openingPauseMs
+    var victoryPauseMs: Int = initial.victoryPauseMs
+
+    fun build(): BattlePacingModel =
+        BattlePacingModel(
+            messagePauseMs = messagePauseMs,
+            openingPauseMs = openingPauseMs,
+            victoryPauseMs = victoryPauseMs,
+        )
+}
+
+@RylNextDsl
+class CharacterCreationPacingBuilder(
+    initial: CharacterCreationPacingModel = CharacterCreationPacingModel(),
+) {
+    var classRejectionPauseMs: Int = initial.classRejectionPauseMs
+    var saveConfirmationPauseMs: Int = initial.saveConfirmationPauseMs
+
+    fun build(): CharacterCreationPacingModel =
+        CharacterCreationPacingModel(
+            classRejectionPauseMs = classRejectionPauseMs,
+            saveConfirmationPauseMs = saveConfirmationPauseMs,
+        )
+}
+
+@RylNextDsl
+class ShopPacingBuilder(
+    initial: ShopPacingModel = ShopPacingModel(),
+) {
+    var interludePagePauseMs: Int = initial.interludePagePauseMs
+
+    fun build(): ShopPacingModel = ShopPacingModel(interludePagePauseMs = interludePagePauseMs)
+}
+
+@RylNextDsl
+class SpeakPacingBuilder(
+    initial: SpeakPacingModel = SpeakPacingModel(),
+) {
+    var promptReplyPauseMs: Int = initial.promptReplyPauseMs
+    var responsePauseMs: Int = initial.responsePauseMs
+
+    fun build(): SpeakPacingModel =
+        SpeakPacingModel(
+            promptReplyPauseMs = promptReplyPauseMs,
+            responsePauseMs = responsePauseMs,
+        )
+}
+
+@RylNextDsl
+class WildernessPacingBuilder(
+    initial: WildernessPacingModel = WildernessPacingModel(),
+) {
+    var campMessagePauseMs: Int = initial.campMessagePauseMs
+
+    fun build(): WildernessPacingModel = WildernessPacingModel(campMessagePauseMs = campMessagePauseMs)
+}
+
+@RylNextDsl
 class TitleMenuPromptsBuilder(
     initial: TitleMenuPromptsModel = TitleMenuPromptsModel(),
 ) {
@@ -2293,6 +2426,7 @@ class InventoryUsePromptsBuilder(
 }
 
 @RylNextDsl
+@Suppress("unused")
 class EquipmentPromptsBuilder(
     initial: EquipmentPromptsModel = EquipmentPromptsModel(),
 ) {
@@ -2353,6 +2487,7 @@ class CharacterCreationPromptsBuilder(
     private var raceText: TextBlock = initial.race
     var classMenu: TextBlock = initial.classMenu
     var saving: TextBlock = initial.saving
+    var saveConfirmationSuffix: String = initial.saveConfirmationSuffix
 
     fun statsPage(body: CharacterCreationStatsPromptBuilder.() -> Unit) {
         statsPageText = CharacterCreationStatsPromptBuilder().apply(body).build()
@@ -2383,6 +2518,7 @@ class CharacterCreationPromptsBuilder(
             race = raceText,
             classMenu = classMenu,
             saving = saving,
+            saveConfirmationSuffix = saveConfirmationSuffix,
         )
 }
 
@@ -2445,6 +2581,7 @@ class PartyPromptsBuilder(
 }
 
 @RylNextDsl
+@Suppress("MemberVisibilityCanBePrivate")
 class WildernessPromptsBuilder(
     initial: WildernessPromptsModel = WildernessPromptsModel(),
 ) {
@@ -2453,6 +2590,7 @@ class WildernessPromptsBuilder(
     var outOfMoves: TextBlock = initial.outOfMoves
     var notInWilderness: TextBlock = initial.notInWilderness
     var nothingToEnter: TextBlock = initial.nothingToEnter
+    var impassable: TextBlock = initial.impassable
     var quitConfirm: TextBlock = initial.quitConfirm
     private var dungeonHandoffText: TextBlock = initial.dungeonHandoff
 
@@ -2467,6 +2605,7 @@ class WildernessPromptsBuilder(
             outOfMoves = outOfMoves,
             notInWilderness = notInWilderness,
             nothingToEnter = nothingToEnter,
+            impassable = impassable,
             quitConfirm = quitConfirm,
             dungeonHandoff = dungeonHandoffText,
         )
@@ -2541,6 +2680,7 @@ class SelectedItemPromptBuilder : TextLineSink {
 }
 
 @RylNextDsl
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class EquipmentKindPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
 
@@ -3552,6 +3692,7 @@ class RandomWildernessPlacementBuilder {
  * @param randomPlacementPolicy current catalog-level default for `randomPlacement()`.
  */
 @RylNextDsl
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class CharacterBuilder(
     private val id: NpcId,
     private val randomPlacementPolicy: RandomNpcPlacementPolicyModel,
@@ -3920,6 +4061,7 @@ class CharacterCreationBuilder {
     private var startModel: CharacterCreationStartModel? = null
     private val raceOptions = mutableListOf<CharacterRaceOptionModel>()
     private val classOptions = mutableListOf<CharacterClassOptionModel>()
+    private val portraitOptions = mutableListOf<CharacterPortraitModel>()
 
     fun statRoll(
         min: Int,
@@ -3947,12 +4089,22 @@ class CharacterCreationBuilder {
         classOptions += CharacterCreationClassBuilder(klass, label).apply(body).build()
     }
 
+    fun portrait(
+        image: ImageId,
+        gender: Gender? = null,
+        race: Race? = null,
+        klass: PcClass? = null,
+    ) {
+        portraitOptions += CharacterPortraitModel(gender, race, klass, image)
+    }
+
     fun build(): CharacterCreationModel =
         CharacterCreationModel(
             statRoll = checkNotNull(statRollModel) { "characterCreation requires statRoll(min, max)" },
             start = checkNotNull(startModel) { "characterCreation requires start { ... }" },
             races = raceOptions.toList(),
             classes = classOptions.toList(),
+            portraits = portraitOptions.toList(),
         )
 }
 
@@ -4026,6 +4178,7 @@ class FormulaCatalogBuilder {
 }
 
 @RylNextDsl
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class FormulaBuilder(
     private val id: FormulaId,
 ) {

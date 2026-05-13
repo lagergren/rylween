@@ -26,6 +26,8 @@ import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalWildernessFatigueRule
 import rylween.compiled.ExternalWildernessRuntime
+import rylween.compiled.applyCompiledBinary
+import rylween.compiled.compareCompiled
 import rylween.dsl.PronounCase
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.PcClass
@@ -54,10 +56,6 @@ internal class WildernessActions(
     private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
 ) {
-    private companion object {
-        const val CAMP_MESSAGE_DELAY_MS = 1_300
-    }
-
     fun applyTurnUpkeep(runtime: RuntimeState): WildernessActionResult {
         var party = runtime.party
         val messages = mutableListOf<String>()
@@ -439,7 +437,7 @@ internal class WildernessActions(
     private fun showCampBeat(lines: List<String>) {
         if (lines.isEmpty()) return
         screen.writeText(lines)
-        input.pause(CAMP_MESSAGE_DELAY_MS)
+        input.pause(systems.pacing.wilderness.campMessagePauseMs)
     }
 
     private fun RuntimeState.applyTemperature(rules: ExternalCampRules): CampMutation {
@@ -658,7 +656,8 @@ internal class WildernessActions(
             }
         }
 
-    private fun battleRunner(): BattleRunner = BattleRunner(content, combat, input, screen, log, PausePrompts(systems.prompts))
+    private fun battleRunner(): BattleRunner =
+        BattleRunner(content, combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))
 
     private fun PartyState.matches(expr: CompiledBoolExpr): Boolean =
         when (expr) {
@@ -763,15 +762,6 @@ private data class MissionTriggerResult(
     val runtime: RuntimeState,
     val mission: CompiledMission? = null,
 )
-
-private fun List<ExternalRuntimeCommand>.matches(
-    action: String,
-    command: Char,
-): Boolean =
-    firstOrNull { candidate -> candidate.action == action }
-        ?.binding
-        ?.matches(command)
-        ?: false
 
 private data class CampMutation(
     val runtime: RuntimeState,

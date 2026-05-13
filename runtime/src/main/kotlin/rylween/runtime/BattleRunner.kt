@@ -30,12 +30,15 @@ import rylween.compiled.CompiledSpell
 import rylween.compiled.CompiledStringExpr
 import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledViewCommand
+import rylween.compiled.ExternalBattlePacing
 import rylween.compiled.ExternalBattleText
 import rylween.compiled.ExternalCombatAction
 import rylween.compiled.ExternalLevelingRules
 import rylween.compiled.ExternalRuntimeCombat
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalStandardBattle
+import rylween.compiled.applyCompiledBinary
+import rylween.compiled.compareCompiled
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.NativeAllowlist
 import rylween.dsl.PronounCase
@@ -53,9 +56,6 @@ import rylween.dsl.pronoun
 
 private const val RANDOM_PERCENT_MAX = 99
 private const val SPELL_ABORT_SLOT = 7
-private const val BATTLE_MESSAGE_DELAY_MS = 900
-private const val BATTLE_OPENING_DELAY_MS = 1_200
-private const val BATTLE_VICTORY_DELAY_MS = 4_000
 
 private const val BATTLE_FOE_DISPLAY_NAME = "battleFoeDisplayName"
 private const val BATTLE_ATTACKER_NAME = "battleAttackerName"
@@ -79,6 +79,7 @@ internal data class BattleResult(
 internal class BattleRunner(
     private val content: CompiledContentBundle,
     private val combat: ExternalRuntimeCombat,
+    private val pacing: ExternalBattlePacing,
     private val input: RuntimeInputPort,
     private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
@@ -195,7 +196,7 @@ internal class BattleRunner(
     ): BattleResult {
         var encounter = initial
         if (initialMessages.isNotEmpty()) {
-            showBattleMessages(initialMessages, delayMs = BATTLE_OPENING_DELAY_MS)
+            showBattleMessages(initialMessages, delayMs = pacing.openingPauseMs)
             screen.writeViewCommand(RuntimeViewCommand.ClearText)
         }
         var round = 0
@@ -212,7 +213,7 @@ internal class BattleRunner(
         showBattleMessages(
             messages = finished.messages,
             pageLines = BATTLE_VICTORY_PAGE_LINES,
-            delayMs = BATTLE_VICTORY_DELAY_MS,
+            delayMs = pacing.victoryPauseMs,
         )
         return BattleResult(finished.runtime)
     }
@@ -220,7 +221,7 @@ internal class BattleRunner(
     private fun showBattleMessages(
         messages: List<String>,
         pageLines: Int = BATTLE_MESSAGE_PAGE_LINES,
-        delayMs: Int = BATTLE_MESSAGE_DELAY_MS,
+        delayMs: Int = pacing.messagePauseMs,
     ) {
         if (messages.isEmpty()) return
         messages.chunked(pageLines).forEach { page ->

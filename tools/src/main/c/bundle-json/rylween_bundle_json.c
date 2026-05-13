@@ -6,7 +6,7 @@
 
 enum {
     BUNDLE_SCHEMA_VERSION = 3,
-    RUNTIME_SYSTEMS_SCHEMA_VERSION = 2
+    RUNTIME_SYSTEMS_SCHEMA_VERSION = 3
 };
 
 static const char *SECTION_ORDER[] = {
@@ -454,6 +454,7 @@ static void validate_runtime_systems(const node *sections) {
     if (req_int(systems, "schemaVersion") != RUNTIME_SYSTEMS_SCHEMA_VERSION) {
         fail("runtimeSystems schemaVersion mismatch");
     }
+    (void)req_obj(systems, "pacing");
     validate_commands(req_obj(systems, "commands"), castles);
     validate_prompt_groups(req_obj(systems, "prompts"));
     validate_castles(castles);
