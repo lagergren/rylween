@@ -1004,7 +1004,10 @@ internal class BattleRunner(
                         pausePrompts?.let { prompts -> screen.writeText(currentTextLines.withPausePrompt(prompts)) }
                         input.readCommand()
                     }
-                CompiledOpcode.Pause -> false
+                CompiledOpcode.Pause ->
+                    false.also {
+                        input.pause((instruction.operands[0] as CompiledOperand.Integer).value)
+                    }
                 CompiledOpcode.View ->
                     false.also {
                         screen.writeViewCommand(

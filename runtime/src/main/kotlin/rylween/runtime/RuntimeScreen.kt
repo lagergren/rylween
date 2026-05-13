@@ -53,6 +53,10 @@ internal class RuntimeScreen(
     private val content = bundle.content
     private val regions: Map<String, ExternalScreenRegion> = systems.presentation.regions.associateBy { it.id }
     private val textWindow = regions.getValue(TEXT_WINDOW)
+
+    /** Width of the classic text window in columns, or null if the region declares none. */
+    val textColumns: Int? get() = textWindow.width
+
     private val mapWindow = regions.getValue(MAP_WINDOW)
     private val statusTop = regions.getValue(STATUS_LINE_TOP)
     private val statusBottom = regions.getValue(STATUS_LINE_BOTTOM)
@@ -736,3 +740,4 @@ internal fun String.readableSlug(): String =
 internal fun String.readableJob(): String = readableSlug().replaceFirstChar(Char::lowercaseChar)
 
 internal fun rylween.compiled.CompiledContentBundle.slug(ref: CompiledHandleRef): String = strings.value(handles.handle(ref).slugString)
+

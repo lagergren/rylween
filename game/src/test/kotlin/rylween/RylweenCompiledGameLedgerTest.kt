@@ -1259,7 +1259,7 @@ class RylweenCompiledGameLedgerTest {
         val gitIgnore = File(".gitignore").readText()
         val dockerIgnore = File(".dockerignore").readText()
         val gameBuild = File("game/build.gradle.kts").readText()
-        val gameDsl = File("game/src/main/dsl/RylweenGame.dsl.kts").readText()
+        val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
         val runtimeMain =
             File("runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
 
@@ -1288,27 +1288,22 @@ class RylweenCompiledGameLedgerTest {
             "IDEA import must name :game consistently with sibling modules"
         }
         check("`java-library`" in gameBuild && "api(project(\":core\"))" in gameBuild) {
-            "game module must expose core DSL types to Gradle-backed script/editor consumers"
+            "game module must expose core DSL types to editor consumers"
         }
         check(
-            "resources.srcDir(\"src/main/dsl\")" in gameBuild &&
-                "kotlin.srcDir(\"src/main/dsl\")" in gameBuild &&
-                "resourceDirs.add(layout.projectDirectory.dir(\"src/main/dsl\").asFile)" !in gameBuild &&
-                "\n        sourceDirs.add(layout.projectDirectory.dir(\"src/main/dsl\").asFile)" !in gameBuild,
+            File("game/src/main/kotlin/rylween/game/RylweenGame.kt").isFile &&
+                File("game/src/main/kotlin/rylween/game/RylweenTestScenarios.kt").isFile &&
+                File("game/src/main/kotlin/rylween/game/RylweenCompiledGame.kt").isFile &&
+                !File("game/src/main/dsl").exists() &&
+                "src/main/dsl" !in gameBuild &&
+                "kotlin.plugin.scripting" !in gameBuild &&
+                "kotlin.plugin.scripting" !in coreBuild,
         ) {
-            "game DSL scripts must be Gradle Kotlin sources for editor resolution and resources for bundle tooling"
-        }
-        check(
-            File("core/src/main/kotlin/rylween/dsl/RylweenDslScript.kt").isFile &&
-                File(
-                    "core/src/main/resources/META-INF/kotlin/script/templates/rylween.dsl.RylweenDslScript",
-                ).isFile &&
-                "kotlinScriptDef(project(\":core\"))" in gameBuild &&
-                "`java-library`" in coreBuild &&
-                "api(kotlin(\"scripting-common\"))" in coreBuild &&
-                "api(kotlin(\"scripting-jvm\"))" in coreBuild,
-        ) {
-            "game DSL scripts must have a registered Kotlin script definition for Gradle-backed editor resolution"
+            "authored game content must live as three regular Kotlin sources under " +
+                "game/src/main/kotlin/rylween/game/ (RylweenGame.kt for designer content, " +
+                "RylweenTestScenarios.kt for replay fixtures, RylweenCompiledGame.kt as the facade). " +
+                "The script template / .dsl.kts paradigm was removed because K2 IDE cannot analyze " +
+                "scripts in source roots; see KT-52735 / KTIJ-28064"
         }
         check(".dat" !in gitIgnore && "data/" !in gitIgnore) {
             ".gitignore must not preserve stale root data/dat artifact patterns"
@@ -1410,7 +1405,7 @@ class RylweenCompiledGameLedgerTest {
 
     @Test
     fun battleTextIsAuthoredInGameDslNotDslImplementation() {
-        val gameDsl = File("game/src/main/dsl/RylweenGame.dsl.kts").readText()
+        val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
         val dslImplementation =
             File("core/src/main/kotlin/rylween/dsl")
                 .walkTopDown()

@@ -379,6 +379,10 @@ class ShopInterludeBuilder(
         offerText = structuredText(body)
     }
 
+    fun offer(text: TextBlock) {
+        offerText = text
+    }
+
     fun accepted(vararg lines: String) {
         acceptedTexts += inlineText(*lines)
     }
@@ -387,12 +391,20 @@ class ShopInterludeBuilder(
         acceptedTexts += structuredText(body)
     }
 
+    fun accepted(text: TextBlock) {
+        acceptedTexts += text
+    }
+
     fun declined(vararg lines: String) {
         declinedText = inlineText(*lines)
     }
 
     fun declined(body: StructuredTextBlockBuilder.() -> Unit) {
         declinedText = structuredText(body)
+    }
+
+    fun declined(text: TextBlock) {
+        declinedText = text
     }
 
     fun build(): ShopInterludeModel =
