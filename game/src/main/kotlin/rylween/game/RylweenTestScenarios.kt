@@ -1,12 +1,14 @@
-// RylweenTestScenarios.dsl.kts -- optional runtime replay fixtures.
+// RylweenTestScenarios.kt -- optional runtime replay fixtures.
 //
-// This module is intentionally separate from the game-designer content file.
-// It can be included by build tooling when a bundle needs deterministic states
-// for replay, smoke, and save/load coverage.
+// Designer note: this file contains deterministic replay seeds used by
+// build tooling for smoke, save/load, and replay coverage. It is woven
+// into the authored game via RylweenModel.withReplayScenarios(), which
+// is called at the end of RylweenGame.kt.
+
+package rylween.game
 
 import rylween.dsl.*
 import rylween.dsl.impl.*
-import rylween.game.*
 
 val replayRandomNpcIds =
     listOf(
@@ -44,7 +46,7 @@ fun NpcStateBuilder.stageRandomNpcsAwayFromTownServices(vararg keepPlaced: NpcId
         }
 }
 
-nextRylween = nextRylween.withStateModule {
+fun RylweenModel.withReplayScenarios(): RylweenModel = withStateModule {
     // Authored start state fixture. It can stay compact and readable.
     stateFixture(States.freshReplay) {
         realm {

@@ -1,16 +1,16 @@
-// RylweenGame.dsl.kts -- game-specific Rylween content source.
+// RylweenGame.kt -- game-specific Rylween authored content.
 //
-// This file should contain game declarations: flags, progress milestones,
-// monsters, missions, and scripts. DSL implementation code belongs in
-// core/src/main/kotlin/rylween.
+// Designer note: this file is the single place to add new game content
+// (flags, missions, monsters, items, screens, scripts, ...). It compiles
+// as regular Kotlin source so IntelliJ resolves DSL imports directly;
+// reusable DSL/runtime implementation lives in core/src/main/kotlin/rylween.
 //
-// Validate with:
-//
-//   ./gradlew check
+// Validate with: ./gradlew check
+
+package rylween.game
 
 import rylween.dsl.*
 import rylween.dsl.impl.*
-import rylween.game.*
 
 // =============================================================================
 // 06. Full-game authoring area
@@ -25,7 +25,7 @@ import rylween.game.*
 // Add new game content here; reusable DSL/runtime implementation belongs in the
 // packages named above, not in this game-authoring file.
 
-var nextRylween: RylweenModel = rylween {
+val authoredRylween: RylweenModel = rylween {
     content {
         metadata {
             universe("Rylween", version = "kotlin-dsl")
@@ -3846,11 +3846,13 @@ var nextRylween: RylweenModel = rylween {
                 clearText()
                 statusLine()
                 screen(
-                    "You enter the church",
-                    "of Dalina, a beautiful",
-                    "goddess. This is one of",
-                    "her two temples.",
-                    "",
+                    """
+                    You enter the church
+                    of Dalina, a beautiful
+                    goddess. This is one of
+                    her two temples.
+
+                    """,
                 )
 
                 val churchPartyMemberMax = realm.partyMemberMax
@@ -4043,17 +4045,26 @@ var nextRylween: RylweenModel = rylween {
                 interlude(chancePercent = 9) {
                     forceFirstUntil(Story.smith.beerOffer.offered)
                     offer(
-                        "The smith offers you some",
-                        "beer, and the latest news",
-                        "from the realm.",
-                        "",
+                        flow(
+                            """
+                            The smith offers you some beer, and the latest news from the realm.
+                            """,
+                        ),
                     )
-                    accepted("You accept the invitation.")
-                    accepted("After a while the smith", "leaves to get more beer.")
+                    accepted(flow("""You accept."""))
                     accepted(
-                        "When he returns, you ask",
-                        "him for the latest news...",
-                        "",
+                        flow(
+                            """
+                            After a while the smith leaves to get more beer.
+                            """,
+                        ),
+                    )
+                    accepted(
+                        flow(
+                            """
+                            When he returns, you ask him for the latest news...
+                            """,
+                        ),
                     )
                     declined(
                         "The smith is disappointed.",
@@ -4480,20 +4491,24 @@ var nextRylween: RylweenModel = rylween {
             whenever(chance(priestBonus + 5)) {
                 clearText()
                 screen(
-                    "Just as you are about",
-                    "to sit down at a,",
-                    "table, a scruffy",
-                    "little man, pulls",
-                    "at your sleeve...",
-                    "",
+                    """
+                    Just as you are about
+                    to sit down at a,
+                    table, a scruffy
+                    little man, pulls
+                    at your sleeve...
+
+                    """,
                 )
                 pause3s()
                 screen(
-                    "- Hey, hey, hey! You!",
-                    "  yes... you! I have",
-                    "  and offer that may",
-                    "  interest you...",
-                    "",
+                    """
+                    - Hey, hey, hey! You!
+                      yes... you! I have
+                      and offer that may
+                      interest you...
+
+                    """,
                 )
                 pause3s()
                 clearText()
@@ -4843,15 +4858,18 @@ var nextRylween: RylweenModel = rylween {
             loop {
                 clearText()
                 statusLine()
+                // Flow-mode demo: designer writes natural prose, the wrap
+                // helper splits to fit the text-window width. Paragraphs are
+                // separated by blank lines.
                 screen(
-                    "Sorry. The Adventurers'",
-                    "Guild is permanently",
-                    "closed for renovation.",
-                    "",
-                    "Come back when Rylween",
-                    "v3 ships in 1994. Or",
-                    "thereabouts.",
-                    "",
+                    flow(
+                        """
+                        Sorry. The Adventurers' Guild is permanently closed for renovation.
+
+                        Come back when Rylween v3 ships in 1994. Or thereabouts.
+
+                        """,
+                    ),
                 )
 
                 menu(
@@ -6348,22 +6366,22 @@ var nextRylween: RylweenModel = rylween {
             npc(Npcs.garth) {
                 whenState(Story.garth.bandits.none) {
                     screen(
-                        "In fact, I have a mission",
-                        "for you. It will bring",
-                        "you much gold!",
-                        "",
+                        flow(
+                            """
+                            In fact, I have a mission for you. It will bring you much gold!
+                            """,
+                        ),
                     )
                     waitInput("after Garth mission offer")
                     clearText()
                     screen(
-                        "I was robbed by bandits",
-                        "just to the east of here.",
-                        "If you find these bandits,",
-                        "kill them, and return",
-                        "my cargo here, I'll pay",
-                        "you 2000 gold and a ruby",
-                        "my grandfather gave me.",
-                        "",
+                        flow(
+                            """
+                            I was robbed by bandits just to the east of here. If you find
+                            these bandits, kill them, and return my cargo here, I'll pay
+                            you 2,000 gold and a ruby my grandfather gave me.
+                            """,
+                        ),
                     )
                     waitInput("after Garth bandits story")
                     clearText()
@@ -6371,11 +6389,17 @@ var nextRylween: RylweenModel = rylween {
                 }
 
                 whenState(Story.garth.bandits.accepted) {
+                    // POC of triple-quoted authoring: each source line maps to
+                    // one rendered line, indentation is stripped, trailing
+                    // blank stays as a visual spacer. Legacy comma-separated
+                    // vararg form (see other branches) still works unchanged.
                     screen(
-                        "Find those bandits and",
-                        "bring my cargo back",
-                        "here. Then I'll pay you.",
-                        "",
+                        """
+                        Find those bandits and
+                        bring my cargo back
+                        here. Then I'll pay you.
+
+                        """,
                     )
                     waitInput("after Garth accepted reminder")
                     clearText()
@@ -6405,10 +6429,12 @@ var nextRylween: RylweenModel = rylween {
             npc(Npcs.nrimTo) {
                 whenState(Story.ranger.letter.none) {
                     say(
-                        "- Greetings, adventurers.",
-                        "I have a mission for you.",
-                        "He hands you a letter.",
-                        "",
+                        """
+                        - Greetings, adventurers.
+                        I have a mission for you.
+                        He hands you a letter.
+
+                        """,
                     )
                     say {
                         line("- If you deliver this")
@@ -6462,13 +6488,15 @@ var nextRylween: RylweenModel = rylween {
 
                 whenState(Story.fighter.priestBook.wizardRobbed) {
                     say(
-                        "- Oh! Thank you!!!",
-                        "",
-                        "He removes a floor board",
-                        "and gives you a WONDERFUL",
-                        "blade. It sparkles in",
-                        "the light!",
-                        "",
+                        """
+                        - Oh! Thank you!!!
+
+                        He removes a floor board
+                        and gives you a WONDERFUL
+                        blade. It sparkles in
+                        the light!
+
+                        """,
                     )
                     mark(Story.fighter.priestBook.fighterGrateful)
                     reward {
@@ -6484,15 +6512,13 @@ var nextRylween: RylweenModel = rylween {
             npc(Npcs.nevaak) {
                 whenState(Story.fighter.priestBook.priestVisited) {
                     say(
-                        "You persuade him to",
-                        "give you the book.",
-                        "After showing him your",
-                        "sharp weapons, he",
-                        "chickens out and pulls",
-                        "it out of his robe.",
-                        "He throws it at you and",
-                        "flees...",
-                        "",
+                        flow(
+                            """
+                            You persuade him to give you the book. After showing him your
+                            sharp weapons, he chickens out and pulls it out of his robe.
+                            He throws it at you and flees...
+                            """,
+                        ),
                     )
                     mark(Story.fighter.priestBook.wizardRobbed)
                 }
@@ -6512,13 +6538,13 @@ var nextRylween: RylweenModel = rylween {
                         line("")
                     }
                     say(
-                        "He quickly fled, but I",
-                        "know it's him, because",
-                        "he made inquiries about",
-                        "it, and tried to steal",
-                        "it from me when I was",
-                        "having dinner.",
-                        "",
+                        flow(
+                            """
+                            He quickly fled, but I know it's him, because he made
+                            inquiries about it, and tried to steal it from me when I
+                            was having dinner.
+                            """,
+                        ),
                     )
                     say {
                         line("I don't know his")
@@ -7083,6 +7109,6 @@ var nextRylween: RylweenModel = rylween {
             }
         }
     }
-}
+}.withReplayScenarios()
 
-val nextDsl = nextRylween.content
+val authoredDsl: GameModel = authoredRylween.content

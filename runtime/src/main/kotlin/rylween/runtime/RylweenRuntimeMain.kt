@@ -572,7 +572,9 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches("journal", command) -> {
-                            showWildernessPage(screen, input, runtime, world, PartyPages.journalLines(runtime.party))
+                            val width = screen.textColumns ?: Int.MAX_VALUE
+                            val wrapped = PartyPages.journalLines(runtime.party).flatMap { wrapTextLine(it, width) }
+                            showWildernessPage(screen, input, runtime, world, wrapped)
                             false
                         }
 
@@ -1779,6 +1781,32 @@ private fun CompiledContentBundle.journalEntryText(entry: CompiledJournalEntry):
         is CompiledJournalEntry.Line -> strings.value(entry.textString)
         is CompiledJournalEntry.Text -> slug(entry.text).readableSlug()
     }
+
+/**
+ * Greedy word-wrap of a single source line to `width` columns. Preserves blank
+ * input lines as blank output lines. Words longer than `width` are hard-split
+ * via `chunked`.
+ */
+internal fun wrapTextLine(
+    line: String,
+    width: Int,
+): List<String> {
+    if (width <= 0 || line.length <= width) return listOf(line)
+    val tokens = line.split(' ').flatMap { word -> if (word.length > width) word.chunked(width) else listOf(word) }
+    return buildList {
+        var current = ""
+        for (token in tokens) {
+            val candidate = if (current.isEmpty()) token else "$current $token"
+            if (candidate.length <= width) {
+                current = candidate
+            } else {
+                add(current)
+                current = token
+            }
+        }
+        add(current)
+    }
+}
 
 internal data class RandomDraw(
     val value: Int,
