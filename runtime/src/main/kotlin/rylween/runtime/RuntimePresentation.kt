@@ -7,12 +7,6 @@ import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.dsl.impl.PcClass
 
-fun RuntimeState.runtimeTextValue(kind: String): String? =
-    when (kind) {
-        "partyMemberMax" -> partyMemberMax.toString()
-        else -> null
-    }
-
 fun runtimeWildernessContextLines(
     content: CompiledContentBundle,
     systems: ExternalRuntimeSystems,

@@ -276,11 +276,14 @@ enum class ImageAssetKind { Ansi, Bitmap }
 
 enum class ImagePlacement { FullScreen, MapWindow }
 
+enum class ImageTransition { None, Fade }
+
 data class ImageAssetModel(
     val id: ImageId,
     val kind: ImageAssetKind,
     val resource: String,
     val placement: ImagePlacement,
+    val transition: ImageTransition = ImageTransition.None,
 )
 
 enum class StaticScreenRuntimeReport { Score, VerboseScore, HallOfHeroes }

@@ -1,3 +1,5 @@
+@file:Suppress("SpellCheckingInspection")
+
 package rylween.gradle
 
 import org.gradle.api.DefaultTask
@@ -219,73 +221,6 @@ abstract class RunInstalledLauncherWithJavaTask
         }
     }
 
-/**
- * Wraps the authored game DSL script in a generated Kotlin object for tests.
- */
-abstract class GenerateCompiledGameHarnessTask : DefaultTask() {
-    @get:InputFile
-    abstract val gameSource: RegularFileProperty
-
-    @get:InputFiles
-    abstract val gameSources: ConfigurableFileCollection
-
-    @get:Input
-    abstract val sourceLabel: Property<String>
-
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
-
-    @TaskAction
-    fun generate() {
-        val sourcePath = sourceLabel.get()
-        val sourceFiles = orderedGameSources(gameSource.get().asFile, gameSources.files)
-        val gameLines = sourceFiles.flatMap { file -> file.readLines() }
-        val importLines = gameLines.filter { it.trimStart().startsWith("import ") }
-        val bodyLines = gameLines.filterNot { it.trimStart().startsWith("import ") }
-        val indentedGame =
-            bodyLines
-                .joinToString(separator = "\n") { line -> "        $line" }
-        val imports =
-            (importLines + "import rylween.dsl.*" + "import rylween.dsl.impl.*")
-                .distinct()
-                .joinToString(separator = "\n")
-                .let { if (it.isBlank()) "" else "$it\n\n" }
-        val output = outputFile.get().asFile
-        output.parentFile.parentFile
-            ?.parentFile
-            ?.resolve(output.name)
-            ?.takeIf { it != output }
-            ?.delete()
-        output.apply {
-            parentFile.mkdirs()
-            writeText(
-                """
-                |// Generated from $sourcePath.
-                |// Do not edit directly.
-
-                |@file:Suppress("UNNECESSARY_SAFE_CALL")
-
-                |package rylween.game
-
-                |$imports
-
-                |object RylweenCompiledGame {
-                |    val nextRylween: RylweenModel
-                |    val nextDsl: GameModel
-
-                |    init {
-                |$indentedGame
-
-                |        this.nextRylween = nextRylween
-                |        this.nextDsl = nextDsl
-                |    }
-                |}
-                """.trimMargin() + "\n",
-            )
-        }
-    }
-}
-
 private fun orderedGameSources(
     mainSource: File,
     moduleSources: Set<File>,
@@ -294,7 +229,7 @@ private fun orderedGameSources(
         .sortedWith(compareBy<File> { it.canonicalFile != mainSource.canonicalFile }.thenBy { it.name })
 
 /**
- * Generates typed current-game handles from `game/src/main/dsl/RylweenGame.dsl.kts`.
+ * Generates typed current-game handles from `game/src/main/kotlin/rylween/game/RylweenGame.kt`.
  *
  * This is intentionally build logic rather than game runtime code: it gives
  * authored Kotlin helper sources typed handles while keeping the compiled JSON
@@ -1398,11 +1333,6 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
     }
 
     private fun sourceSlice(source: String): SourceSlice = SourceSlice(fullSource = source, text = source, startOffset = 0)
-
-    private fun declarationBlock(
-        source: String,
-        name: String,
-    ): String = declarationSlice(sourceSlice(source), name).text
 
     private fun declarationSlice(
         source: String,

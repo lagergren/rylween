@@ -14,19 +14,22 @@ import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledPartyMember
+import rylween.compiled.ExternalRuntimeSystems
 
 /** Builds text-window pages for runtime party state. */
 internal object PartyPages {
     private const val TEXT_PAGE_LINES = 9
 
-    fun partyPages(
+    fun partyPageViews(
         content: CompiledContentBundle,
         party: PartyState,
-    ): List<List<String>> =
+    ): List<RuntimePartyPageView> =
         buildList {
-            add(partySummaryPage(party))
-            party.members.forEachIndexed { index, member -> add(memberPage(content, party, index, member)) }
-            addAll(inventoryPages(content, party))
+            add(summaryPageView(party))
+            party.members.forEachIndexed { index, member ->
+                add(memberPageView(content, party, index, member))
+            }
+            addAll(inventoryPageViews(content, party))
         }
 
     fun journalLines(party: PartyState): List<String> =
@@ -40,6 +43,28 @@ internal object PartyPages {
             }
         }
 
+    fun showPartyPageViews(
+        content: CompiledContentBundle,
+        systems: ExternalRuntimeSystems,
+        input: RuntimeInputPort,
+        screen: RuntimeScreenPort,
+        runtime: RuntimeState,
+    ): Boolean {
+        val pauseLine = PausePrompts(systems.prompts).line()
+        val creation = systems.characterCreation
+        return try {
+            partyPageViews(content, runtime.party).forEach { page ->
+                val preview = page.memberIndex?.let { index -> creation?.partyPortraitPreview(content, runtime.party, index) }
+                screen.showCharacterPortrait(preview)
+                screen.showPartyPage(page, pauseLine)
+                if (input.readCommand() == null) return false
+            }
+            true
+        } finally {
+            screen.showCharacterPortrait(null)
+        }
+    }
+
     private fun partySummaryPage(party: PartyState): List<String> =
         listOf(
             "Party: ${party.name}",
@@ -51,6 +76,23 @@ internal object PartyPages {
             "Rest: ${party.resources.restedHours}",
             "Kills: ${party.counters.kills}",
             "Members: ${party.members.size}",
+        )
+
+    private fun summaryPageView(party: PartyState): RuntimePartyPageView =
+        RuntimePartyPageView(
+            kind = RuntimePartyPageKind.Summary,
+            lines = partySummaryPage(party),
+            summary =
+                RuntimePartySummaryView(
+                    partyName = party.name,
+                    gold = party.resources.gold,
+                    food = party.resources.food,
+                    torches = party.resources.torches,
+                    moves = party.resources.timeLeft,
+                    rest = party.resources.restedHours,
+                    kills = party.counters.kills,
+                    memberCount = party.members.size,
+                ),
         )
 
     private fun memberPage(
@@ -71,6 +113,38 @@ internal object PartyPages {
             "Status: ${member.statusName()}",
         )
 
+    private fun memberPageView(
+        content: CompiledContentBundle,
+        party: PartyState,
+        index: Int,
+        member: CompiledPartyMember,
+    ): RuntimePartyPageView =
+        RuntimePartyPageView(
+            kind = RuntimePartyPageKind.Member,
+            lines = memberPage(content, party, index, member),
+            member =
+                RuntimePartyMemberView(
+                    index = index,
+                    name = party.memberName(content, index),
+                    gender = member.gender.readableName(),
+                    race = member.race.readableName(),
+                    pcClass = member.pcClass.readableName(),
+                    weaponSkill = member.weaponSkill,
+                    health = member.health,
+                    wisdom = member.wisdom,
+                    charisma = member.charisma,
+                    hitPoints = member.hitPoints.current,
+                    hitPointMax = member.hitPoints.max,
+                    mana = member.mana.current,
+                    manaMax = member.mana.max,
+                    level = member.level,
+                    experience = member.experience,
+                    weapon = content.itemDisplayName(member.equipment.weapon),
+                    armor = content.itemDisplayName(member.equipment.armor),
+                    status = member.statusName(),
+                ),
+        )
+
     private fun inventoryPages(
         content: CompiledContentBundle,
         party: PartyState,
@@ -78,6 +152,18 @@ internal object PartyPages {
         val inventory = inventoryLines(content, party)
         return inventory.chunked(TEXT_PAGE_LINES - 1).map { page -> listOf("Inventory:") + page }
     }
+
+    private fun inventoryPageViews(
+        content: CompiledContentBundle,
+        party: PartyState,
+    ): List<RuntimePartyPageView> =
+        inventoryPages(content, party).map { lines ->
+            RuntimePartyPageView(
+                kind = RuntimePartyPageKind.Inventory,
+                lines = lines,
+                inventory = RuntimePartyInventoryView(lines.drop(1)),
+            )
+        }
 
     private fun inventoryLines(
         content: CompiledContentBundle,

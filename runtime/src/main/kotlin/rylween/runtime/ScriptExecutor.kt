@@ -44,6 +44,8 @@ import rylween.compiled.ExternalRuntimeSpeak
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalRuntimeTextPart
+import rylween.compiled.applyCompiledBinary
+import rylween.compiled.compareCompiled
 import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.NativeAllowlist
@@ -625,7 +627,7 @@ internal class ScriptExecutor(
                     "speak_chitchat" ->
                         continueAfter {
                             chitchat(speak, npc)
-                            input.pause(1600)
+                            input.pause(systems.pacing.speak.responsePauseMs)
                         }
 
                     "speak_question" -> executeQuestionMenu(speak, npc, insideLoop)
@@ -666,7 +668,7 @@ internal class ScriptExecutor(
             }
         if (action != null) return executeQuestionAction(action.scriptRoot, insideLoop)
         screen.writeText(speak.questionReply(topic, npc)?.renderExternal(npc) ?: speak.noRumorLines())
-        input.pause(1600)
+        input.pause(systems.pacing.speak.responsePauseMs)
         return ScriptSignal.Continue
     }
 
@@ -739,7 +741,7 @@ internal class ScriptExecutor(
         val promptLines = promptVariant?.text?.renderExternal(npc).orEmpty()
         val replyLines = reply?.renderExternal(npc).orEmpty()
         screen.writeText(promptLines + "")
-        input.pause(650)
+        input.pause(systems.pacing.speak.promptReplyPauseMs)
         screen.writeText(promptLines + "" + replyLines)
     }
 
@@ -793,7 +795,7 @@ internal class ScriptExecutor(
         mandatory: Boolean,
     ) {
         val battle =
-            BattleRunner(content, systems.combat, input, screen, log, pausePrompts)
+            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, pausePrompts)
                 .runMonster(runtime, monster, mandatory = mandatory)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)

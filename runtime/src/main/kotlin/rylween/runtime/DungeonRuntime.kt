@@ -31,7 +31,7 @@ data class DungeonState(
 
 /** Runs dungeon exploration directly from compiled content and runtime-system rows. */
 internal class DungeonRuntime(
-    private val context: RuntimeLoopContext,
+    context: RuntimeLoopContext,
 ) {
     private val content = context.content
     private val systems = context.systems
@@ -57,7 +57,7 @@ internal class DungeonRuntime(
                     commands.matches(
                         "viewParty",
                         command,
-                    ) -> runtime.also { showDungeonPages(it, PartyPages.partyPages(content, it.party)) }
+                    ) -> runtime.also(::showDungeonPageViews)
                     commands.matches("save", command) -> runtime.also { saveRuntime(it) }
                     commands.matches("drop", command) -> utility.drop(runtime).also(::redrawDungeonIfCurrent)
                     commands.matches("removeArmor", command) -> utility.removeArmor(runtime).also(::redrawDungeonIfCurrent)
@@ -133,7 +133,7 @@ internal class DungeonRuntime(
         val randomEncounterTier = event.randomEncounterTier
         next =
             if (randomEncounterTier != null && program.instructions.isEmpty()) {
-                BattleRunner(content, systems.combat, input, screen, log, PausePrompts(systems.prompts))
+                BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))
                     .runTier(next, content.slug(randomEncounterTier))
                     .let { battle ->
                         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
@@ -184,16 +184,18 @@ internal class DungeonRuntime(
         redrawDungeonIfCurrent(runtime)
     }
 
-    private fun showDungeonPages(
-        runtime: RuntimeState,
-        pages: List<List<String>>,
-    ) {
-        val pausePrompts = PausePrompts(systems.prompts)
-        for (page in pages) {
-            screen.writeText(page + "" + pausePrompts.line())
-            if (input.readCommand() == null) return
+    private fun showDungeonPageViews(runtime: RuntimeState) {
+        if (
+            PartyPages.showPartyPageViews(
+                content = content,
+                systems = systems,
+                input = input,
+                screen = screen,
+                runtime = runtime,
+            )
+        ) {
+            redrawDungeonIfCurrent(runtime)
         }
-        redrawDungeonIfCurrent(runtime)
     }
 
     private fun redrawDungeonIfCurrent(runtime: RuntimeState) {
@@ -309,14 +311,5 @@ private fun List<CompiledDungeonRandomEvent>.drawDungeonEvent(
     )
     return DungeonEventDraw(draw.party, event)
 }
-
-private fun List<rylween.compiled.ExternalRuntimeCommand>.matches(
-    action: String,
-    command: Char,
-): Boolean =
-    firstOrNull { candidate -> candidate.action == action }
-        ?.binding
-        ?.matches(command)
-        ?: false
 
 private const val DUNGEON_COMMAND_GROUP = "dungeon"

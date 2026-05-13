@@ -71,6 +71,7 @@ import rylween.dsl.impl.HitPoints
 import rylween.dsl.impl.ImageAssetKind
 import rylween.dsl.impl.ImageAssetModel
 import rylween.dsl.impl.ImagePlacement
+import rylween.dsl.impl.ImageTransition
 import rylween.dsl.impl.ItemConsumePolicy
 import rylween.dsl.impl.ItemKind
 import rylween.dsl.impl.ItemRecordModel
@@ -143,7 +144,7 @@ data class CompiledGameBundle(
 )
 
 /**
- * Dense compiled content tables emitted from [rylween.dsl.GameModel].
+ * Dense compiled content tables emitted from [GameModel].
  *
  * This is the main host-facing bundle payload. Handles and strings are interned once, and every other section refers to
  * those tables through compact integer ids. For example, [characters] contains NPC rows whose `nameString`, `job`, roles,
@@ -436,6 +437,7 @@ data class CompiledImageAsset(
     val kind: ImageAssetKind,
     val resourceString: Int,
     val placement: ImagePlacement,
+    val transition: ImageTransition,
 )
 
 /** Static full-screen resource such as title, help, score, or hall-of-heroes screens. */
@@ -997,6 +999,19 @@ sealed interface CompiledIntExpr {
 /** Arithmetic operator for [CompiledIntExpr.Binary]. */
 enum class CompiledBinaryOp { Add, Sub, Mul, Div, Mod }
 
+/** Applies a compiled integer binary operator using runtime-compatible divide-by-zero semantics. */
+fun Int.applyCompiledBinary(
+    op: CompiledBinaryOp,
+    right: Int,
+): Int =
+    when (op) {
+        CompiledBinaryOp.Add -> this + right
+        CompiledBinaryOp.Sub -> this - right
+        CompiledBinaryOp.Mul -> this * right
+        CompiledBinaryOp.Div -> this / (right.takeUnless { value -> value == 0 } ?: 1)
+        CompiledBinaryOp.Mod -> this % (right.takeUnless { value -> value == 0 } ?: 1)
+    }
+
 /** Compiled boolean expression tree evaluated by scripts and runtime conditions. */
 sealed interface CompiledBoolExpr {
     data class Cmp(
@@ -1049,6 +1064,20 @@ sealed interface CompiledBoolExpr {
 
 /** Integer comparison operator for [CompiledBoolExpr.Cmp]. */
 enum class CompiledComparisonOp { Eq, Ne, Lt, Lte, Gt, Gte }
+
+/** Applies a compiled integer comparison operator. */
+fun Int.compareCompiled(
+    op: CompiledComparisonOp,
+    right: Int,
+): Boolean =
+    when (op) {
+        CompiledComparisonOp.Eq -> this == right
+        CompiledComparisonOp.Ne -> this != right
+        CompiledComparisonOp.Lt -> this < right
+        CompiledComparisonOp.Lte -> this <= right
+        CompiledComparisonOp.Gt -> this > right
+        CompiledComparisonOp.Gte -> this >= right
+    }
 
 /** Compiled string expression, currently limited to engine-native string functions. */
 sealed interface CompiledStringExpr {
@@ -2410,6 +2439,7 @@ private class CompiledBundleCompiler(
             kind = image.kind,
             resourceString = strings.id(image.resource),
             placement = image.placement,
+            transition = image.transition,
         )
 
     private fun compileStaticScreen(screen: StaticScreenModel): CompiledStaticScreen =

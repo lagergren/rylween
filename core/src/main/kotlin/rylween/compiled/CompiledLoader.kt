@@ -417,7 +417,21 @@ private class CompiledBundleValidator(
                 ),
             )
         }
-        val actualSlots = List(argsOperand.ids.size) { NativeServiceArgSlot.StringValue }
+        val actualArity = argsOperand.ids.size
+        if (actualArity != descriptor.arity) {
+            fail(
+                VmDiagnostic.BadOperand(
+                    root = root,
+                    instructionIndex = instructionIndex,
+                    operandPath = operandPath + listOf(1),
+                    opcode = instruction.opcode,
+                    reason = "NativeServiceWrongArity",
+                    expected = descriptor.arity.toString(),
+                    actual = actualArity.toString(),
+                ),
+            )
+        }
+        val actualSlots = List(actualArity) { NativeServiceArgSlot.StringValue }
         if (actualSlots != descriptor.argSlots) {
             fail(
                 VmDiagnostic.BadOperand(

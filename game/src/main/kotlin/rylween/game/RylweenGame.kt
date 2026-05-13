@@ -23,6 +23,31 @@ private object EncounterImages {
     val boss = image("blitgfx.monster_boss")
 }
 
+private object CharacterPortraitImages {
+    val default = image("portrait.character.default")
+    val fighter = image("portrait.class.fighter")
+    val thief = image("portrait.class.thief")
+    val mage = image("portrait.class.mage")
+    val priest = image("portrait.class.priest")
+    val bard = image("portrait.class.bard")
+    val ranger = image("portrait.class.ranger")
+    val femaleDefault = image("portrait.gender.female")
+    val femaleFighter = image("portrait.gender.female.class.fighter")
+    val femaleThief = image("portrait.gender.female.class.thief")
+    val femaleMage = image("portrait.gender.female.class.mage")
+    val femalePriest = image("portrait.gender.female.class.priest")
+    val femaleBard = image("portrait.gender.female.class.bard")
+    val femaleRanger = image("portrait.gender.female.class.ranger")
+    val maleHuman = image("portrait.gender.male.race.human")
+    val maleDwarf = image("portrait.gender.male.race.dwarf")
+    val maleElf = image("portrait.gender.male.race.elf")
+    val maleHalfling = image("portrait.gender.male.race.halfling")
+    val femaleHuman = image("portrait.gender.female.race.human")
+    val femaleDwarf = image("portrait.gender.female.race.dwarf")
+    val femaleElf = image("portrait.gender.female.race.elf")
+    val femaleHalfling = image("portrait.gender.female.race.halfling")
+}
+
 private fun MonsterBuilder.goblinoid() = encounterImage(EncounterImages.goblinoid)
 
 private fun MonsterBuilder.undead() = encounterImage(EncounterImages.undead)
@@ -214,6 +239,41 @@ val authoredRylween: RylweenModel =
                     ansi(Images.Scene.towneMainstreet, resource = "tiles/towne-mainstreet.ans", placement = ImagePlacement.MapWindow)
                     ansi(Images.Scene.wildernessNoTent, resource = "tiles/wilderness-no-tent.ans", placement = ImagePlacement.MapWindow)
                     ansi(Images.Scene.towneGuild, resource = "tiles/towne-guild.ans", placement = ImagePlacement.MapWindow)
+
+                    fun portraitBitmap(
+                        image: ImageId,
+                        resource: String,
+                    ) {
+                        bitmap(
+                            image,
+                            resource = resource,
+                            placement = ImagePlacement.MapWindow,
+                            transition = ImageTransition.Fade,
+                        )
+                    }
+
+                    portraitBitmap(CharacterPortraitImages.default, "bitmap/assets/portrait-default.png")
+                    portraitBitmap(CharacterPortraitImages.fighter, "bitmap/assets/portrait-fighter.png")
+                    portraitBitmap(CharacterPortraitImages.thief, "bitmap/assets/portrait-thief.png")
+                    portraitBitmap(CharacterPortraitImages.mage, "bitmap/assets/portrait-mage.png")
+                    portraitBitmap(CharacterPortraitImages.priest, "bitmap/assets/portrait-priest.png")
+                    portraitBitmap(CharacterPortraitImages.bard, "bitmap/assets/portrait-bard.png")
+                    portraitBitmap(CharacterPortraitImages.ranger, "bitmap/assets/portrait-ranger.png")
+                    portraitBitmap(CharacterPortraitImages.femaleDefault, "bitmap/assets/portrait-female-default.png")
+                    portraitBitmap(CharacterPortraitImages.femaleFighter, "bitmap/assets/portrait-female-fighter.png")
+                    portraitBitmap(CharacterPortraitImages.femaleThief, "bitmap/assets/portrait-female-thief.png")
+                    portraitBitmap(CharacterPortraitImages.femaleMage, "bitmap/assets/portrait-female-mage.png")
+                    portraitBitmap(CharacterPortraitImages.femalePriest, "bitmap/assets/portrait-female-priest.png")
+                    portraitBitmap(CharacterPortraitImages.femaleBard, "bitmap/assets/portrait-female-bard.png")
+                    portraitBitmap(CharacterPortraitImages.femaleRanger, "bitmap/assets/portrait-female-ranger.png")
+                    portraitBitmap(CharacterPortraitImages.maleHuman, "bitmap/assets/portrait-male-human.png")
+                    portraitBitmap(CharacterPortraitImages.maleDwarf, "bitmap/assets/portrait-male-dwarf.png")
+                    portraitBitmap(CharacterPortraitImages.maleElf, "bitmap/assets/portrait-male-elf.png")
+                    portraitBitmap(CharacterPortraitImages.maleHalfling, "bitmap/assets/portrait-male-halfling.png")
+                    portraitBitmap(CharacterPortraitImages.femaleHuman, "bitmap/assets/portrait-female-human.png")
+                    portraitBitmap(CharacterPortraitImages.femaleDwarf, "bitmap/assets/portrait-female-dwarf.png")
+                    portraitBitmap(CharacterPortraitImages.femaleElf, "bitmap/assets/portrait-female-elf.png")
+                    portraitBitmap(CharacterPortraitImages.femaleHalfling, "bitmap/assets/portrait-female-halfling.png")
                 }
 
                 staticScreens {
@@ -889,6 +949,7 @@ val authoredRylween: RylweenModel =
                             "",
                         )
                     saving = inlineText("Saving...")
+                    saveConfirmationSuffix = "OK"
                 }
                 town {
                     unavailableSuffix = " is not available here."
@@ -931,6 +992,7 @@ val authoredRylween: RylweenModel =
                     outOfMoves = inlineText("You are out of moves", "for today.", "", "(S)ave and Quit", "(Q)uit (no save)")
                     notInWilderness = inlineText("The active party is not in the wilderness.")
                     nothingToEnter = inlineText("There is nothing to enter here.")
+                    impassable = inlineText("Impassable.")
                     quitConfirm = inlineText("Do you really want", "to quit?", "")
                     dungeonHandoff {
                         line("Entering ", dungeonName, ".")
@@ -951,6 +1013,28 @@ val authoredRylween: RylweenModel =
                     atMaxDepth = inlineText("The cave doesn't", "go deeper.")
                     noTorches = inlineText("You have used your last", "torch. You can't go", "any further.", "")
                     leaveCavern = inlineText("You leave the", "hideous cavern!", "")
+                }
+            }
+
+            pacing {
+                battle {
+                    messagePauseMs = 900
+                    openingPauseMs = 1_200
+                    victoryPauseMs = 4_000
+                }
+                characterCreation {
+                    classRejectionPauseMs = 1_000
+                    saveConfirmationPauseMs = 2_000
+                }
+                shop {
+                    interludePagePauseMs = 2_000
+                }
+                speak {
+                    promptReplyPauseMs = 650
+                    responsePauseMs = 1_600
+                }
+                wilderness {
+                    campMessagePauseMs = 1_300
                 }
             }
 
@@ -1297,6 +1381,29 @@ val authoredRylween: RylweenModel =
                     requires(CharacterCreationStat.Charisma, minimum = 50, failureText = inlineText("Charisma must be", "at least 50."))
                 }
                 playerClass(PcClass.Ranger, "Ranger")
+
+                portrait(CharacterPortraitImages.default)
+                portrait(CharacterPortraitImages.fighter, klass = PcClass.Fighter)
+                portrait(CharacterPortraitImages.thief, klass = PcClass.Thief)
+                portrait(CharacterPortraitImages.mage, klass = PcClass.Mage)
+                portrait(CharacterPortraitImages.priest, klass = PcClass.Priest)
+                portrait(CharacterPortraitImages.bard, klass = PcClass.Bard)
+                portrait(CharacterPortraitImages.ranger, klass = PcClass.Ranger)
+                portrait(CharacterPortraitImages.femaleDefault, gender = Gender.Female)
+                portrait(CharacterPortraitImages.femaleFighter, gender = Gender.Female, klass = PcClass.Fighter)
+                portrait(CharacterPortraitImages.femaleThief, gender = Gender.Female, klass = PcClass.Thief)
+                portrait(CharacterPortraitImages.femaleMage, gender = Gender.Female, klass = PcClass.Mage)
+                portrait(CharacterPortraitImages.femalePriest, gender = Gender.Female, klass = PcClass.Priest)
+                portrait(CharacterPortraitImages.femaleBard, gender = Gender.Female, klass = PcClass.Bard)
+                portrait(CharacterPortraitImages.femaleRanger, gender = Gender.Female, klass = PcClass.Ranger)
+                portrait(CharacterPortraitImages.maleHuman, gender = Gender.Male, race = Race.Human)
+                portrait(CharacterPortraitImages.maleDwarf, gender = Gender.Male, race = Race.Dwarf)
+                portrait(CharacterPortraitImages.maleElf, gender = Gender.Male, race = Race.Elf)
+                portrait(CharacterPortraitImages.maleHalfling, gender = Gender.Male, race = Race.Halfling)
+                portrait(CharacterPortraitImages.femaleHuman, gender = Gender.Female, race = Race.Human)
+                portrait(CharacterPortraitImages.femaleDwarf, gender = Gender.Female, race = Race.Dwarf)
+                portrait(CharacterPortraitImages.femaleElf, gender = Gender.Female, race = Race.Elf)
+                portrait(CharacterPortraitImages.femaleHalfling, gender = Gender.Female, race = Race.Halfling)
             }
 
             formulas {
@@ -2937,7 +3044,7 @@ val authoredRylween: RylweenModel =
                         rumor {
                             lines {
                                 line(town(Towns.murn).name, " is situated")
-                                line("somewhere near ", town(Towns.murn).near(radius = 5), "!")
+                                line("somewhere near ", town(Towns.murn).near(), "!")
                             }
                         }
                         rumor(Rumors.templeOfThunSeer) {
@@ -2965,7 +3072,7 @@ val authoredRylween: RylweenModel =
                         rumor {
                             lines {
                                 line(town(Towns.ollk).name, " is situated")
-                                line("somewhere near ", town(Towns.ollk).near(radius = 5), "!")
+                                line("somewhere near ", town(Towns.ollk).near(), "!")
                             }
                         }
                     }
