@@ -1,5 +1,7 @@
 package rylween.runtime
 
+import rylween.compiled.CompiledGameBundle
+import rylween.compiled.ExternalRuntimeSystems
 import rylween.terminal.AnsiTerminal
 import java.io.File
 import java.time.LocalDate
@@ -70,6 +72,27 @@ class RuntimeSessionFactory private constructor(
             log = log,
         )
 
+    fun start(
+        input: RuntimeInputPort,
+        screen: RuntimeScreenPort,
+        config: RuntimeSessionConfig,
+        log: RuntimeLog,
+    ): RuntimeSessionResult =
+        runtime.runWilderness(
+            input = input,
+            screen = screen,
+            userId = config.userId,
+            stateSlug = config.stateSlug,
+            loadFile = config.loadFile,
+            saveFile = config.saveFile,
+            seed = config.seed,
+            showTitleMenu = config.showTitleMenu,
+            debugLogFlash = config.debugLogFlash,
+            debugSecrets = config.debugSecrets,
+            sessionDate = config.sessionDate,
+            log = log,
+        )
+
     fun renderStaticScreen(
         terminal: AnsiTerminal,
         config: RuntimeStaticScreenConfig,
@@ -87,5 +110,12 @@ class RuntimeSessionFactory private constructor(
     companion object {
         /** Loads and validates the compiled bundle once for future sessions. */
         fun load(bundleFile: File): RuntimeSessionFactory = RuntimeSessionFactory(GameRuntime.load(bundleFile))
+
+        /** Creates a runtime factory from already-loaded bundle/runtime-system tables. */
+        fun load(
+            bundle: CompiledGameBundle,
+            systems: ExternalRuntimeSystems,
+            bundleContentHash: String,
+        ): RuntimeSessionFactory = RuntimeSessionFactory(GameRuntime.load(bundle, systems, bundleContentHash))
     }
 }

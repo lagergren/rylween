@@ -10,23 +10,58 @@ package rylween.compiled
 
 import rylween.dsl.BoolAst
 import rylween.dsl.BuildingId
-import rylween.dsl.impl.BuildingServiceModel
-import rylween.dsl.impl.CharacterModel
-import rylween.dsl.impl.CharacterPlacementModel
 import rylween.dsl.DungeonEventDisposition
 import rylween.dsl.DungeonEventId
 import rylween.dsl.DungeonEventModel
 import rylween.dsl.DungeonId
 import rylween.dsl.DungeonScenarioModel
 import rylween.dsl.EncounterTier
+import rylween.dsl.FormulaId
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.ImageId
+import rylween.dsl.InputBindingModel
+import rylween.dsl.IntAst
+import rylween.dsl.ItemId
+import rylween.dsl.ItemPoolId
+import rylween.dsl.ItemUseModel
+import rylween.dsl.KeyActionId
+import rylween.dsl.LValueAst
+import rylween.dsl.LocationId
+import rylween.dsl.LootTableId
+import rylween.dsl.MapLayerId
+import rylween.dsl.MissionId
+import rylween.dsl.MonsterId
+import rylween.dsl.NativeStringArg
+import rylween.dsl.NpcId
+import rylween.dsl.NpcJobId
+import rylween.dsl.NpcRole
+import rylween.dsl.Op
+import rylween.dsl.PartyId
+import rylween.dsl.RewardBundleId
+import rylween.dsl.RumorTableId
+import rylween.dsl.SceneId
+import rylween.dsl.ScreenRegionId
+import rylween.dsl.SpellId
+import rylween.dsl.SpellModel
+import rylween.dsl.StateId
+import rylween.dsl.StaticScreenId
+import rylween.dsl.StrAst
+import rylween.dsl.TerrainId
+import rylween.dsl.TerrainTagId
+import rylween.dsl.TextBlock
+import rylween.dsl.TextPart
+import rylween.dsl.TownId
+import rylween.dsl.ViewCommand
+import rylween.dsl.WorldMapId
+import rylween.dsl.impl.BuildingServiceModel
+import rylween.dsl.impl.CharacterModel
+import rylween.dsl.impl.CharacterPlacementModel
 import rylween.dsl.impl.EngineServiceUse
 import rylween.dsl.impl.Facing
 import rylween.dsl.impl.FlagContentModel
 import rylween.dsl.impl.FlagScope
 import rylween.dsl.impl.FlagState
-import rylween.dsl.FormulaId
 import rylween.dsl.impl.FormulaModel
-import rylween.dsl.GameMilestoneId
 import rylween.dsl.impl.GameModel
 import rylween.dsl.impl.GameUniverseModel
 import rylween.dsl.impl.Gender
@@ -35,36 +70,17 @@ import rylween.dsl.impl.GridSize
 import rylween.dsl.impl.HitPoints
 import rylween.dsl.impl.ImageAssetKind
 import rylween.dsl.impl.ImageAssetModel
-import rylween.dsl.ImageId
 import rylween.dsl.impl.ImagePlacement
-import rylween.dsl.InputBindingModel
-import rylween.dsl.IntAst
 import rylween.dsl.impl.ItemConsumePolicy
-import rylween.dsl.ItemId
 import rylween.dsl.impl.ItemKind
-import rylween.dsl.ItemPoolId
 import rylween.dsl.impl.ItemRecordModel
 import rylween.dsl.impl.ItemStorageKind
 import rylween.dsl.impl.ItemUseContext
-import rylween.dsl.ItemUseModel
 import rylween.dsl.impl.JournalEntryState
-import rylween.dsl.KeyActionId
-import rylween.dsl.LValueAst
-import rylween.dsl.LocationId
-import rylween.dsl.LootTableId
 import rylween.dsl.impl.LootTableModel
 import rylween.dsl.impl.Mana
-import rylween.dsl.MapLayerId
-import rylween.dsl.MissionId
 import rylween.dsl.impl.MissionModel
-import rylween.dsl.MonsterId
 import rylween.dsl.impl.MonsterModel
-import rylween.dsl.NativeStringArg
-import rylween.dsl.NpcId
-import rylween.dsl.NpcJobId
-import rylween.dsl.NpcRole
-import rylween.dsl.Op
-import rylween.dsl.PartyId
 import rylween.dsl.impl.PartyMemberState
 import rylween.dsl.impl.PartyResources
 import rylween.dsl.impl.PartyState
@@ -76,14 +92,10 @@ import rylween.dsl.impl.RandomNpcPlacementPolicyModel
 import rylween.dsl.impl.RealmState
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RewardApplicationModel
-import rylween.dsl.RewardBundleId
 import rylween.dsl.impl.RewardBundleModel
 import rylween.dsl.impl.RewardMessageModel
-import rylween.dsl.RumorTableId
 import rylween.dsl.impl.RuntimeMode
 import rylween.dsl.impl.RylweenModel
-import rylween.dsl.SceneId
-import rylween.dsl.ScreenRegionId
 import rylween.dsl.impl.ScreenRegionModel
 import rylween.dsl.impl.ScriptRewardModel
 import rylween.dsl.impl.ShopBuyModel
@@ -97,28 +109,16 @@ import rylween.dsl.impl.ShopSellHaggleModel
 import rylween.dsl.impl.ShopSellModel
 import rylween.dsl.impl.ShopServiceModel
 import rylween.dsl.impl.ShopZeroQuantityDealPolicy
-import rylween.dsl.SpellId
-import rylween.dsl.SpellModel
-import rylween.dsl.StateId
 import rylween.dsl.impl.StateKind
 import rylween.dsl.impl.StateModel
-import rylween.dsl.StaticScreenId
 import rylween.dsl.impl.StaticScreenModel
 import rylween.dsl.impl.StaticScreenRuntimeReport
-import rylween.dsl.StrAst
 import rylween.dsl.impl.TemperatureBand
-import rylween.dsl.TerrainId
 import rylween.dsl.impl.TerrainSemanticsModel
 import rylween.dsl.impl.TerrainSettlement
-import rylween.dsl.TerrainTagId
-import rylween.dsl.TextBlock
-import rylween.dsl.TextPart
-import rylween.dsl.TownId
 import rylween.dsl.impl.TownKind
 import rylween.dsl.impl.TownModel
 import rylween.dsl.impl.Trigger
-import rylween.dsl.ViewCommand
-import rylween.dsl.WorldMapId
 import rylween.dsl.impl.WorldMapModel
 import rylween.dsl.impl.WorldPosition
 import rylween.dsl.impl.runtimeContent
@@ -537,6 +537,7 @@ data class CompiledMonster(
     val spellPower: Int,
     val tier: CompiledHandleRef?,
     val immune: Boolean,
+    val encounterImage: CompiledHandleRef? = null,
 )
 
 /** Mission trigger and action binding evaluated by runtime mission logic. */
@@ -795,7 +796,7 @@ data class CompiledTextAnswer(
     val maxLength: Int?,
 )
 
-/** Compiled text block, either a handle ref, inline literal lines, or structured dynamic lines. */
+/** Compiled text block, either a handle ref, inline literal lines, structured lines, or deferred-wrap prose. */
 sealed interface CompiledTextBlock {
     data class Ref(
         val text: CompiledHandleRef,
@@ -807,6 +808,10 @@ sealed interface CompiledTextBlock {
 
     data class Structured(
         val lines: List<CompiledTextLine>,
+    ) : CompiledTextBlock
+
+    data class Flow(
+        val paragraphs: List<CompiledTextLine>,
     ) : CompiledTextBlock
 }
 
@@ -2135,6 +2140,11 @@ private class CompiledBundleCompiler(
                 CompiledTextBlock.Structured(
                     block.lines.map { line -> CompiledTextLine(line.parts.map(::textPart)) },
                 )
+
+            is TextBlock.Flow ->
+                CompiledTextBlock.Flow(
+                    block.paragraphs.map { line -> CompiledTextLine(line.parts.map(::textPart)) },
+                )
         }
 
     private fun textPart(part: TextPart): CompiledTextPart =
@@ -2484,6 +2494,7 @@ private class CompiledBundleCompiler(
             spellPower = monster.spellPower,
             tier = monster.tier?.let(::encounterTierRef),
             immune = monster.immune,
+            encounterImage = monster.encounterImage?.let(::imageRef),
         )
 
     private fun compileMission(mission: MissionModel): CompiledMission =
@@ -2786,6 +2797,13 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
 
                 is TextBlock.Structured ->
                     block.lines.forEach { line ->
+                        line.parts.forEach { part ->
+                            if (part is TextPart.LocationCoordinate) add(part.location)
+                        }
+                    }
+
+                is TextBlock.Flow ->
+                    block.paragraphs.forEach { line ->
                         line.parts.forEach { part ->
                             if (part is TextPart.LocationCoordinate) add(part.location)
                         }

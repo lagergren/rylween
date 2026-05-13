@@ -75,8 +75,8 @@ private const val SCRIPT_ROOT_KIND_QUESTION_ACTION = "QuestionAction"
 internal class ScriptExecutor(
     private val content: CompiledContentBundle,
     private val systems: ExternalRuntimeSystems,
-    private val input: RuntimeInput,
-    private val screen: RuntimeScreen,
+    private val input: RuntimeInputPort,
+    private val screen: RuntimeScreenPort,
     initialRuntime: RuntimeState,
     initialLocals: Map<String, Int> = emptyMap(),
     private var activeInventorySlot: Int? = null,
@@ -925,7 +925,11 @@ internal class ScriptExecutor(
         party: PartyState,
         leadLines: List<String>,
     ): Int? {
-        screen.writeText(leadLines + "" + systems.prompts.party.dropOverflowConfirm.renderSimplePrompt())
+        screen.writeText(
+            leadLines + "" +
+                systems.prompts.party.dropOverflowConfirm
+                    .renderSimplePrompt(),
+        )
         val confirm = input.readCommand()?.uppercaseChar() ?: return null
         if (confirm != 'Y') return null
         screen.writeText(inventoryReplaceLines(party))
@@ -977,7 +981,8 @@ internal class ScriptExecutor(
     }
 
     private fun inventoryReplaceLines(party: PartyState): List<String> =
-        systems.prompts.party.dropOverflowPrompt.renderSimplePrompt() +
+        systems.prompts.party.dropOverflowPrompt
+            .renderSimplePrompt() +
             inventoryMenuLines(
                 party.inventory.map { slot ->
                     inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")

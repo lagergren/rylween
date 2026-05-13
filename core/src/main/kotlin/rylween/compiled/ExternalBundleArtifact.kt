@@ -7,8 +7,15 @@
  */
 package rylween.compiled
 
-import rylween.dsl.impl.BattleTextModel
 import rylween.dsl.BoolAst
+import rylween.dsl.DungeonSystemModel
+import rylween.dsl.InputBindingModel
+import rylween.dsl.IntAst
+import rylween.dsl.NativeStringArg
+import rylween.dsl.StrAst
+import rylween.dsl.TextBlock
+import rylween.dsl.TextPart
+import rylween.dsl.impl.BattleTextModel
 import rylween.dsl.impl.CampRulesModel
 import rylween.dsl.impl.CastleContentModel
 import rylween.dsl.impl.CastleTextModel
@@ -23,7 +30,6 @@ import rylween.dsl.impl.CombatActionModel
 import rylween.dsl.impl.CombatActionRequirement
 import rylween.dsl.impl.CombatSystemModel
 import rylween.dsl.impl.DefendRulesModel
-import rylween.dsl.DungeonSystemModel
 import rylween.dsl.impl.EncounterOpeningModel
 import rylween.dsl.impl.EngineServiceUse
 import rylween.dsl.impl.FlagRef
@@ -34,15 +40,12 @@ import rylween.dsl.impl.GameProgressModel
 import rylween.dsl.impl.GamePromptsModel
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.HuntRulesModel
-import rylween.dsl.InputBindingModel
-import rylween.dsl.IntAst
 import rylween.dsl.impl.ItemRecordModel
 import rylween.dsl.impl.JobTextModel
 import rylween.dsl.impl.LevelingModel
 import rylween.dsl.impl.MandatoryRunRule
 import rylween.dsl.impl.MonsterMeleeRulesModel
 import rylween.dsl.impl.MonsterRoundModel
-import rylween.dsl.NativeStringArg
 import rylween.dsl.impl.PartyResources
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.PlayerRoundModel
@@ -56,10 +59,7 @@ import rylween.dsl.impl.SpeakSystemModel
 import rylween.dsl.impl.SpeakTextTablesModel
 import rylween.dsl.impl.StandardBattleModel
 import rylween.dsl.impl.StandardConversationModel
-import rylween.dsl.StrAst
 import rylween.dsl.impl.TemperatureBand
-import rylween.dsl.TextBlock
-import rylween.dsl.TextPart
 import rylween.dsl.impl.TownSystemModel
 import rylween.dsl.impl.WildernessFatigueMatch
 import rylween.dsl.impl.WildernessSystemModel
@@ -79,6 +79,7 @@ import kotlin.reflect.typeOf
 
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
+private const val DEFAULT_RUNTIME_TEXT_WRAP_COLUMNS = rylween.dsl.DEFAULT_TEXT_WINDOW_COLUMNS
 
 /** Serializes this game into the canonical strict JSON J1 artifact bytes. */
 fun RylweenModel.toExternalBundleArtifact(): ByteArray = ExternalBundleArtifactWriter().write(this)
@@ -521,6 +522,7 @@ data class ExternalStandardBattle(
     val encounterHitPointMinFormula: String,
     val encounterHitPointMaxFormula: String,
     val victoryImage: String?,
+    val defeatImage: String?,
     val nativeServices: List<ExternalEngineServiceUse>,
 )
 
@@ -751,12 +753,36 @@ data class ExternalDungeonPrompts(
 /** Portable text block in runtime-system JSON, rendered by direct runtimes. */
 data class ExternalRuntimeTextBlock(
     val lines: List<List<ExternalRuntimeTextPart>>,
+    val flow: Boolean = false,
 ) {
     /** Renders this block with runtime token substitution. */
-    fun render(values: (String) -> String?): List<String> = renderParts { part -> values(part.kind) }
+    fun render(values: (String) -> String?): List<String> = render(values, DEFAULT_RUNTIME_TEXT_WRAP_COLUMNS)
+
+    /** Renders this block with runtime token substitution and an explicit flow wrap width. */
+    fun render(
+        values: (String) -> String?,
+        wrapWidth: Int?,
+    ): List<String> = renderParts({ part -> values(part.kind) }, wrapWidth)
 
     /** Renders this block with access to token attributes such as role/town ids. */
     fun renderParts(values: (ExternalRuntimeTextPart.Runtime) -> String?): List<String> =
+        renderParts(
+            values,
+            DEFAULT_RUNTIME_TEXT_WRAP_COLUMNS,
+        )
+
+    /** Renders this block with token attributes and an explicit flow wrap width. */
+    fun renderParts(
+        values: (ExternalRuntimeTextPart.Runtime) -> String?,
+        wrapWidth: Int?,
+    ): List<String> {
+        val rendered = renderUnwrappedParts(values)
+        if (!flow) return rendered
+        return rendered.flowWrapped(wrapWidth)
+    }
+
+    /** Renders without applying flow wrapping. Intended for renderers with their own measurement. */
+    fun renderUnwrappedParts(values: (ExternalRuntimeTextPart.Runtime) -> String?): List<String> =
         lines.map { line ->
             line.joinToString(separator = "") { part ->
                 when (part) {
@@ -765,6 +791,33 @@ data class ExternalRuntimeTextBlock(
                 }
             }
         }
+}
+
+private fun List<String>.flowWrapped(wrapWidth: Int?): List<String> =
+    flatMapIndexed { index, paragraph ->
+        val wrapped = wrapWidth?.let { wrapExternalTextLine(paragraph, it) } ?: listOf(paragraph)
+        if (index < lastIndex) wrapped + "" else wrapped
+    }
+
+private fun wrapExternalTextLine(
+    text: String,
+    width: Int,
+): List<String> {
+    if (width <= 0 || text.length <= width) return listOf(text)
+    val tokens = text.split(' ').flatMap { word -> if (word.length > width) word.chunked(width) else listOf(word) }
+    return buildList {
+        var current = ""
+        for (token in tokens) {
+            val candidate = if (current.isEmpty()) token else "$current $token"
+            if (candidate.length <= width) {
+                current = candidate
+            } else {
+                if (current.isNotEmpty()) add(current)
+                current = token
+            }
+        }
+        add(current)
+    }
 }
 
 /** Text parts supported by runtime-system prompt rows. */
@@ -1186,6 +1239,7 @@ private class ExternalBundleArtifactWriter {
             "encounterHitPointMinFormula" to JsonString(battle.encounterHitPointMinFormula.slug),
             "encounterHitPointMaxFormula" to JsonString(battle.encounterHitPointMaxFormula.slug),
             "victoryImage" to battle.victoryImage?.let { JsonString(it.slug) }.orJsonNull(),
+            "defeatImage" to battle.defeatImage?.let { JsonString(it.slug) }.orJsonNull(),
             "nativeServices" to nativeServicesJson(battle.nativeServices),
         )
 
@@ -2004,6 +2058,17 @@ private class ExternalBundleArtifactWriter {
                     "lines" to
                         JsonArray(
                             block.lines.map { line ->
+                                jsonObject("parts" to JsonArray(line.parts.map(::textPartJson)))
+                            },
+                        ),
+                )
+
+            is TextBlock.Flow ->
+                jsonObject(
+                    "kind" to JsonString("flow"),
+                    "paragraphs" to
+                        JsonArray(
+                            block.paragraphs.map { line ->
                                 jsonObject("parts" to JsonArray(line.parts.map(::textPartJson)))
                             },
                         ),
@@ -2853,6 +2918,7 @@ private class ExternalRuntimeSystemsReader(
             encounterHitPointMinFormula = requiredString("encounterHitPointMinFormula"),
             encounterHitPointMaxFormula = requiredString("encounterHitPointMaxFormula"),
             victoryImage = optionalNullableString("victoryImage"),
+            defeatImage = optionalNullableString("defeatImage"),
             nativeServices = requiredArray("nativeServices").values.map { row -> row.asObject("native service").readNativeService() },
         )
 
@@ -3114,6 +3180,20 @@ private class ExternalRuntimeSystemsReader(
                             .map { part -> part.readTextPart() }
                     },
                 )
+
+            "flow" ->
+                ExternalRuntimeTextBlock(
+                    lines =
+                        block.requiredArray("paragraphs").values.map { line ->
+                            line
+                                .asObject("flow text paragraph")
+                                .requiredArray("parts")
+                                .values
+                                .map { part -> part.readTextPart() }
+                        },
+                    flow = true,
+                )
+
             else -> error("unsupported runtime text block kind $kind")
         }
     }

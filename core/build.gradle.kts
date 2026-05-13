@@ -22,8 +22,6 @@ kotlin {
 
 dependencies {
     implementation(kotlin("reflect"))
-    testImplementation(kotlin("test"))
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.jar {

@@ -3,14 +3,16 @@ package rylween.web
 import rylween.terminal.AnsiCodes
 import rylween.terminal.AnsiInput
 import rylween.terminal.AnsiTerminal
+import rylween.webcommon.WebSocketConnection
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TEXT_INPUT_CURSOR_ON = "${AnsiCodes.CSI}2 q${AnsiCodes.CSI}?25h"
 private const val TEXT_INPUT_CURSOR_OFF = "${AnsiCodes.CSI}?25l"
-private const val INPUT_PREFIX = "key:"
 private const val EOF_CODE = -1
+
+internal const val BROWSER_INPUT_PREFIX = "key:"
 
 /**
  * Browser-backed implementation of the same terminal interface used by the
@@ -61,8 +63,8 @@ internal class BrowserAnsiTerminal(
     }
 
     fun acceptClientMessage(message: String) {
-        if (!message.startsWith(INPUT_PREFIX)) return
-        val payload = message.removePrefix(INPUT_PREFIX)
+        if (!message.startsWith(BROWSER_INPUT_PREFIX)) return
+        val payload = message.removePrefix(BROWSER_INPUT_PREFIX)
         payload.forEach { inputCodes.offer(it.code) }
     }
 

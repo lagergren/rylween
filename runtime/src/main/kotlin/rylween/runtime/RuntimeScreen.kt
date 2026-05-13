@@ -49,13 +49,13 @@ internal class RuntimeScreen(
     private val terminal: AnsiTerminal,
     private val systems: ExternalRuntimeSystems,
     private val log: RuntimeLog,
-) {
+) : RuntimeScreenPort {
     private val content = bundle.content
     private val regions: Map<String, ExternalScreenRegion> = systems.presentation.regions.associateBy { it.id }
     private val textWindow = regions.getValue(TEXT_WINDOW)
 
     /** Width of the classic text window in columns, or null if the region declares none. */
-    val textColumns: Int? get() = textWindow.width
+    override val textColumns: Int? get() = textWindow.width
 
     private val mapWindow = regions.getValue(MAP_WINDOW)
     private val statusTop = regions.getValue(STATUS_LINE_TOP)
@@ -70,7 +70,7 @@ internal class RuntimeScreen(
     private var activeMapImage: String? = null
 
     /** Clears the terminal and renders the compiled frame image, if present. */
-    fun bootFrame() {
+    override fun bootFrame() {
         classicFrameActive = true
         activeMapImage = null
         log.event("screen.boot_frame")
@@ -82,7 +82,7 @@ internal class RuntimeScreen(
     }
 
     /** Renders a compiled static screen route and returns without waiting. */
-    fun showStaticScreen(
+    override fun showStaticScreen(
         screenSlug: String,
         runtime: RuntimeState,
     ) {
@@ -94,7 +94,7 @@ internal class RuntimeScreen(
     }
 
     /** Renders a compiled static screen route and pages long text with a key between pages. */
-    fun showPagedStaticScreen(
+    override fun showPagedStaticScreen(
         screenSlug: String,
         runtime: RuntimeState,
         advance: () -> Char?,
@@ -112,7 +112,7 @@ internal class RuntimeScreen(
     }
 
     /** Renders wilderness HUD, map viewport, and text panel. */
-    fun renderWilderness(
+    override fun renderWilderness(
         runtime: RuntimeState,
         world: WorldMap,
     ) {
@@ -120,11 +120,11 @@ internal class RuntimeScreen(
         log.event("screen.render_wilderness position=${runtime.party.position.x},${runtime.party.position.y}")
         renderStatus(runtime)
         renderMap(runtime.party.position, world)
-        writeText(wildernessContextLines(runtime, world) + "" + systems.wilderness.commandHint.render(runtime))
+        writeText(runtimeWildernessContextLines(content, systems, runtime, world) + "" + systems.wilderness.commandHint.render(runtime))
     }
 
     /** Shows the whole wilderness map with debug annotations for authored settlements and the party. */
-    fun showDebugWorldMap(
+    override fun showDebugWorldMap(
         runtime: RuntimeState,
         world: WorldMap,
         advance: () -> Char?,
@@ -136,7 +136,7 @@ internal class RuntimeScreen(
     }
 
     /** Renders the dungeon backdrop, status lines, and authored depth prompt. */
-    fun renderDungeon(runtime: RuntimeState) {
+    override fun renderDungeon(runtime: RuntimeState) {
         ensureClassicFrame()
         log.event("screen.render_dungeon depth=${runtime.dungeon?.depth ?: 1}")
         renderStatus(runtime)
@@ -149,7 +149,7 @@ internal class RuntimeScreen(
     }
 
     /** Renders the active castle backdrop, status lines, and navigation prompt. */
-    fun renderCastle(
+    override fun renderCastle(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ) {
@@ -180,7 +180,7 @@ internal class RuntimeScreen(
     }
 
     /** Clears the classic text window and writes the supplied lines inside it. */
-    fun writeText(lines: List<String>) {
+    override fun writeText(lines: List<String>) {
         ensureClassicFrame()
         log.event("screen.write_text lines=${lines.size} first=${lines.firstOrNull().orEmpty().take(40)}")
         clearRegion(textWindow)
@@ -191,14 +191,18 @@ internal class RuntimeScreen(
         terminal.flush()
     }
 
+    override fun showMessage(lines: List<String>) {
+        writeText(lines)
+    }
+
     /** Rewrites just the status bar after service-side party mutations. */
-    fun updateStatus(runtime: RuntimeState) {
+    override fun updateStatus(runtime: RuntimeState) {
         ensureClassicFrame()
         renderStatus(runtime)
     }
 
     /** Applies one compiled view command to the ANSI screen. */
-    fun writeViewCommand(command: RuntimeViewCommand) {
+    override fun writeViewCommand(command: RuntimeViewCommand) {
         when (command) {
             RuntimeViewCommand.ClearText -> clearText()
             RuntimeViewCommand.ClearMapWindow -> clearMapWindow()
@@ -224,7 +228,7 @@ internal class RuntimeScreen(
     }
 
     /** Renders a compiled image asset by slug. */
-    fun showImage(imageSlug: String) {
+    override fun showImage(imageSlug: String) {
         ensureClassicFrame()
         renderImage(imageSlug, rememberMapImage = true)
         terminal.writeRaw("${AnsiCodes.FG_WHITE}${AnsiCodes.BG_BLACK}")
@@ -232,13 +236,13 @@ internal class RuntimeScreen(
     }
 
     /** Repaints the remembered map-window image and supplied text panel. */
-    fun redrawCurrentView(lines: List<String>) {
+    override fun redrawCurrentView(lines: List<String>) {
         activeMapImage?.let { imageSlug -> renderImage(imageSlug) }
         writeText(lines)
     }
 
     /** Shows a one-line forensic log mirror below the classic 24-line frame. */
-    fun flashLogLine(line: String) {
+    override fun flashLogLine(line: String) {
         val cleaned = line.replace(Regex("\\s+"), " ").take(FULL_SCREEN_WIDTH)
         terminal.writeRaw(
             "${AnsiCodes.CSI}s" +
@@ -250,19 +254,6 @@ internal class RuntimeScreen(
         )
         terminal.flush()
     }
-
-    private fun wildernessContextLines(
-        runtime: RuntimeState,
-        world: WorldMap,
-    ): List<String> =
-        buildList {
-            add("Wilderness")
-            world.terrainAt(runtime.party.position)?.let { terrain -> add("Terrain: ${content.slug(terrain.id).readableSlug()}") }
-            content.towns.firstOrNull { town -> town.position == runtime.party.position }?.let { town ->
-                add("At: ${content.strings.value(town.nameString)}")
-                add("Press E to enter.")
-            }
-        }
 
     private fun debugWorldMapLines(
         runtime: RuntimeState,
@@ -361,7 +352,7 @@ internal class RuntimeScreen(
     private fun renderStatus(runtime: RuntimeState) {
         val party = runtime.party
         val food = party.resources.food.coerceAtLeast(0)
-        val status = foodStatus(food, party.members)
+        val status = foodStatus(runtime.runtimeFoodStatusLabel())
         val top =
             buildString {
                 append(AnsiCodes.FG_GREEN)
@@ -401,12 +392,9 @@ internal class RuntimeScreen(
     private fun HitPoints.statusPoolText(label: String): String =
         "$label${currentAnsiColor()}$current${AnsiCodes.FG_YELLOW}/$max${AnsiCodes.FG_GREEN}"
 
-    private fun foodStatus(
-        food: Int,
-        members: List<CompiledPartyMember>,
-    ): String {
-        if (food == 0) return "${AnsiCodes.FG_RED}STARVING${AnsiCodes.FG_GREEN} "
-        if (food < members.count { member -> !member.dead } * 3) return "${AnsiCodes.FG_MAGENTA}HUNGRY  "
+    private fun foodStatus(label: String): String {
+        if (label == "STARVING") return "${AnsiCodes.FG_RED}STARVING${AnsiCodes.FG_GREEN} "
+        if (label == "HUNGRY") return "${AnsiCodes.FG_MAGENTA}HUNGRY  "
         return "${AnsiCodes.FG_YELLOW}OK    "
     }
 
@@ -663,7 +651,7 @@ internal class RuntimeScreen(
 }
 
 /** Compiled-runtime view commands normalized away from DSL/runtime classes. */
-internal sealed interface RuntimeViewCommand {
+sealed interface RuntimeViewCommand {
     data object ClearText : RuntimeViewCommand
 
     data object ClearMapWindow : RuntimeViewCommand
@@ -678,7 +666,8 @@ internal sealed interface RuntimeViewCommand {
 }
 
 /** One rendered map cell in a runtime viewport. */
-internal data class RuntimeMapCell(
+data class RuntimeMapCell(
+    val point: GridPoint,
     val terrain: rylween.compiled.CompiledTerrain?,
     val center: Boolean,
 )
@@ -694,7 +683,7 @@ private data class ScoreEntry(
     val powerItems: List<String>,
 )
 
-internal fun WorldMap.viewport(
+fun WorldMap.viewport(
     center: GridPoint,
     rows: Int,
     columns: Int,
@@ -708,7 +697,7 @@ internal fun WorldMap.viewport(
     return (minY..maxY).map { y ->
         (minX..maxX).map { x ->
             val point = GridPoint(x, y)
-            RuntimeMapCell(terrainAt(point), point == center)
+            RuntimeMapCell(point, terrainAt(point), point == center)
         }
     }
 }
@@ -740,4 +729,3 @@ internal fun String.readableSlug(): String =
 internal fun String.readableJob(): String = readableSlug().replaceFirstChar(Char::lowercaseChar)
 
 internal fun rylween.compiled.CompiledContentBundle.slug(ref: CompiledHandleRef): String = strings.value(handles.handle(ref).slugString)
-

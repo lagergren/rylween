@@ -1792,4 +1792,5 @@ private fun TextBlock.textParts(): List<TextPart> =
         is TextBlock.Ref -> emptyList()
         is TextBlock.Inline -> emptyList()
         is TextBlock.Structured -> lines.flatMap { line -> line.parts }
+        is TextBlock.Flow -> paragraphs.flatMap { line -> line.parts }
     }

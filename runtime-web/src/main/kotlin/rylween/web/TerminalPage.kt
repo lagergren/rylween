@@ -185,12 +185,6 @@ internal fun terminalPageHtml(): String =
           box-shadow: inset 0 0 0 1px currentColor;
         }
 
-        .value-flash {
-          color: var(--black);
-          background: var(--yellow);
-          text-decoration: none;
-        }
-
         @media (max-width: 720px) {
           .topbar {
             align-items: flex-start;
@@ -243,7 +237,6 @@ internal fun terminalPageHtml(): String =
         const DEC_PRIVATE_CURSOR_VISIBILITY_MODE = 25;
         const ANSI_STEADY_BLOCK_CURSOR_SHAPE = 2;
         const DEFAULT_CURSOR_SHAPE = "box";
-        const STATUS_FLASH_DURATION_MS = 520;
         const cursorShapeClassByAnsiCode = new Map([
           [ANSI_STEADY_BLOCK_CURSOR_SHAPE, DEFAULT_CURSOR_SHAPE],
         ]);
@@ -257,14 +250,8 @@ internal fun terminalPageHtml(): String =
           cursorVisible: false,
           cursorShape: DEFAULT_CURSOR_SHAPE,
           cells: [],
-          flashUntil: [],
-        };
-        const statusSnapshot = {
-          timeText: null,
-          characterText: null,
         };
         let socket = null;
-        let flashTimer = null;
 
         function cloneStyle() {
           return { fg: state.fg, bg: state.bg };
@@ -276,23 +263,17 @@ internal fun terminalPageHtml(): String =
 
         function resetCells() {
           state.cells = [];
-          state.flashUntil = [];
           for (let row = 0; row < rows; row += 1) {
             const line = [];
-            const flashLine = [];
             for (let col = 0; col < columns; col += 1) {
               line.push(blankCell());
-              flashLine.push(0);
             }
             state.cells.push(line);
-            state.flashUntil.push(flashLine);
           }
           state.row = 0;
           state.col = 0;
           state.fg = "white";
           state.bg = "black";
-          statusSnapshot.timeText = null;
-          statusSnapshot.characterText = null;
         }
 
         function setStatus(text, connected) {
@@ -311,11 +292,8 @@ internal fun terminalPageHtml(): String =
           return Math.max(0, Math.min(columns - 1, state.col));
         }
 
-        function classFor(cell, row, col, now) {
+        function classFor(cell, row, col) {
           let classes = "fg-" + cell.fg + " bg-" + cell.bg;
-          if (cell.ch !== " " && state.flashUntil[row][col] > now) {
-            classes += " value-flash";
-          }
           if (state.cursorVisible && row === state.row && col === cursorColumn()) {
             classes += " cursor-" + state.cursorShape;
           }
@@ -323,14 +301,13 @@ internal fun terminalPageHtml(): String =
         }
 
         function render() {
-          const now = Date.now();
           const html = [];
           for (let row = 0; row < state.cells.length; row += 1) {
             const line = state.cells[row];
             let currentClass = "";
             for (let col = 0; col < line.length; col += 1) {
               const cell = line[col];
-              const cellClass = classFor(cell, row, col, now);
+              const cellClass = classFor(cell, row, col);
               if (cellClass !== currentClass) {
                 if (currentClass !== "") {
                   html.push("</span>");
@@ -350,9 +327,7 @@ internal fun terminalPageHtml(): String =
 
         function scroll() {
           state.cells.shift();
-          state.flashUntil.shift();
           state.cells.push(Array.from({ length: columns }, blankCell));
-          state.flashUntil.push(Array.from({ length: columns }, () => 0));
           state.row = rows - 1;
         }
 
@@ -377,13 +352,11 @@ internal fun terminalPageHtml(): String =
             newline();
           }
           state.cells[state.row][state.col] = { ch, ...cloneStyle() };
-          state.flashUntil[state.row][state.col] = 0;
           state.col += 1;
         }
 
         function clearCell(row, col) {
           state.cells[row][col] = blankCell();
-          state.flashUntil[row][col] = 0;
         }
 
         function clearDisplay(mode) {
@@ -424,86 +397,6 @@ internal fun terminalPageHtml(): String =
           for (let col = state.col; col < columns; col += 1) {
             clearCell(state.row, col);
           }
-        }
-
-        function lineText(row) {
-          return state.cells[row].map(cell => cell.ch).join("");
-        }
-
-        function findStatusTopRow() {
-          for (let row = 0; row < rows; row += 1) {
-            const line = lineText(row);
-            const timeIndex = line.indexOf("TIME:");
-            const statusIndex = line.indexOf("ST:");
-            if (timeIndex >= 0 && statusIndex > timeIndex) {
-              return row;
-            }
-          }
-          return -1;
-        }
-
-        function markFlash(row, start, end, now) {
-          for (let col = start; col < end; col += 1) {
-            if (col >= 0 && col < columns && state.cells[row][col].ch !== " ") {
-              state.flashUntil[row][col] = now + STATUS_FLASH_DURATION_MS;
-            }
-          }
-        }
-
-        function markChangedCharacters(row, previous, current, now) {
-          const width = Math.min(columns, current.length);
-          for (let col = 0; col < width; col += 1) {
-            if (current[col] !== " " && current[col] !== previous[col]) {
-              state.flashUntil[row][col] = now + STATUS_FLASH_DURATION_MS;
-            }
-          }
-        }
-
-        function scheduleFlashClear(now) {
-          let nextClear = Number.POSITIVE_INFINITY;
-          for (const line of state.flashUntil) {
-            for (const until of line) {
-              if (until > now && until < nextClear) {
-                nextClear = until;
-              }
-            }
-          }
-          if (nextClear === Number.POSITIVE_INFINITY) {
-            return;
-          }
-          if (flashTimer !== null) {
-            window.clearTimeout(flashTimer);
-          }
-          flashTimer = window.setTimeout(() => {
-            flashTimer = null;
-            render();
-          }, Math.max(0, nextClear - now));
-        }
-
-        function markStatusChanges() {
-          const topRow = findStatusTopRow();
-          if (topRow < 0 || topRow + 1 >= rows) {
-            statusSnapshot.timeText = null;
-            statusSnapshot.characterText = null;
-            return;
-          }
-
-          const now = Date.now();
-          const topLine = lineText(topRow);
-          const timeStart = topLine.indexOf("TIME:");
-          const timeEnd = topLine.indexOf("ST:");
-          const timeText = topLine.slice(timeStart, timeEnd);
-          if (statusSnapshot.timeText !== null && statusSnapshot.timeText !== timeText) {
-            markFlash(topRow, timeStart, timeEnd, now);
-          }
-          statusSnapshot.timeText = timeText;
-
-          const characterText = lineText(topRow + 1);
-          if (statusSnapshot.characterText !== null && statusSnapshot.characterText !== characterText) {
-            markChangedCharacters(topRow + 1, statusSnapshot.characterText, characterText, now);
-          }
-          statusSnapshot.characterText = characterText;
-          scheduleFlashClear(now);
         }
 
         function numberParam(params, index, fallback) {
@@ -601,7 +494,6 @@ internal fun terminalPageHtml(): String =
             putChar(ch);
             index += 1;
           }
-          markStatusChanges();
           render();
         }
 
@@ -640,7 +532,7 @@ internal fun terminalPageHtml(): String =
           if (!socket || socket.readyState !== WebSocket.OPEN) {
             return;
           }
-          socket.send("key:" + value);
+          socket.send("$BROWSER_INPUT_PREFIX" + value);
         }
 
         terminal.addEventListener("keydown", event => {

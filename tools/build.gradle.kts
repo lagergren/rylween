@@ -24,8 +24,6 @@ kotlin {
 dependencies {
     implementation(project(":core"))
     implementation(project(":game"))
-    testImplementation(kotlin("test"))
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.jar {

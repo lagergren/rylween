@@ -40,8 +40,8 @@ import kotlin.math.max
 internal class ShopService(
     private val content: CompiledContentBundle,
     private val systems: ExternalRuntimeSystems,
-    private val input: RuntimeInput,
-    private val screen: RuntimeScreen,
+    private val input: RuntimeInputPort,
+    private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
 ) {
     private val realm = systems.realm
@@ -348,11 +348,15 @@ internal class ShopService(
         screen.writeText(
             buy.cantCarry.renderTextLines(content) +
                 "" +
-                systems.prompts.party.dropOverflowConfirm.renderShopPrompt(),
+                systems.prompts.party.dropOverflowConfirm
+                    .renderShopPrompt(),
         )
         val confirm = input.readCommand()?.uppercaseChar() ?: return null
         if (confirm != 'Y') return null
-        screen.writeText(systems.prompts.party.dropOverflowPrompt.renderShopPrompt() + inventoryLines(party))
+        screen.writeText(
+            systems.prompts.party.dropOverflowPrompt
+                .renderShopPrompt() + inventoryLines(party),
+        )
         val choice = input.readCommand() ?: return null
         val slot = choice.inventorySlotFromKey() ?: return null
         return slot.takeIf { party.inventoryItem(it) != null }

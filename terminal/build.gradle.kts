@@ -21,6 +21,4 @@ kotlin {
 
 dependencies {
     implementation(libs.jline)
-    testImplementation(kotlin("test"))
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

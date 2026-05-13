@@ -13,7 +13,7 @@ package rylween.runtime
 import rylween.compiled.CompiledHandleRef
 
 /** A resumable point inside one compiled script root. */
-internal data class ScriptContinuationState(
+data class ScriptContinuationState(
     val root: CompiledHandleRef,
     val frames: List<ScriptFrameState>,
     val locals: Map<String, Int>,
@@ -22,7 +22,7 @@ internal data class ScriptContinuationState(
 )
 
 /** One stack frame for a resumable compiled instruction block. */
-internal data class ScriptFrameState(
+data class ScriptFrameState(
     val blockPath: List<Int>,
     val nextIndex: Int,
     val insideLoop: Boolean,
