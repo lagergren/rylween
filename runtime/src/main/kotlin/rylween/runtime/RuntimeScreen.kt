@@ -38,10 +38,6 @@ private const val WILDERNESS_MAP_ROW_STRIDE = 2
 private const val FULL_SCREEN_WIDTH = 79
 private const val FULL_SCREEN_HEIGHT = 24
 private const val FULL_SCREEN_PAGE_LINES = FULL_SCREEN_HEIGHT - 1
-private const val SCORE_WIDTH = 76
-private const val SCORE_REPORT = "Score"
-private const val VERBOSE_SCORE_REPORT = "VerboseScore"
-private const val HALL_OF_HEROES_REPORT = "HallOfHeroes"
 
 /** Screen model owned by the runtime. */
 internal class RuntimeScreen(
@@ -92,7 +88,9 @@ internal class RuntimeScreen(
         log.event("screen.static slug=$screenSlug")
         val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
         screen.image?.let { image -> renderImage(image) }
-        staticScreenText(screen, runtime).takeIf(List<String>::isNotEmpty)?.let(::writeFullScreenText)
+        runtimeStaticScreenText(content, systems, screen, runtime)
+            .takeIf(List<String>::isNotEmpty)
+            ?.let(::writeFullScreenText)
     }
 
     /** Renders a compiled static screen route and pages long text with a key between pages. */
@@ -105,7 +103,7 @@ internal class RuntimeScreen(
         log.event("screen.static_paged slug=$screenSlug")
         val screen = staticScreenById[screenSlug.screenSlug()] ?: error("unknown static screen $screenSlug")
         screen.image?.let { image -> renderImage(image) }
-        val lines = staticScreenText(screen, runtime)
+        val lines = runtimeStaticScreenText(content, systems, screen, runtime)
         if (lines.isEmpty()) {
             advance()
             return
@@ -357,7 +355,7 @@ internal class RuntimeScreen(
         }
         activeMapImage = null
         terminal.writeRaw("${AnsiCodes.CSI}2J${AnsiCodes.CSI}1;1H")
-        terminal.writeRaw(resourceText(image.resource))
+        terminal.writeRaw(runtimeResourceText(image.resource))
         terminal.flush()
     }
 
@@ -432,7 +430,8 @@ internal class RuntimeScreen(
         val viewport = world.viewport(center, rows = WILDERNESS_MAP_TILES, columns = WILDERNESS_MAP_TILES)
         log.event(
             "screen.render_map center=${center.x},${center.y} rows=${viewport.size} " +
-                "columns=${viewport.firstOrNull()?.size ?: 0} region=${mapWindow.width}x${mapWindow.height} rowStride=$WILDERNESS_MAP_ROW_STRIDE",
+                "columns=${viewport.firstOrNull()?.size ?: 0} " +
+                "region=${mapWindow.width}x${mapWindow.height} rowStride=$WILDERNESS_MAP_ROW_STRIDE",
         )
         viewport.forEachIndexed { rowIndex, cells ->
             gotoMapRow(rowIndex)
@@ -479,140 +478,12 @@ internal class RuntimeScreen(
         }
     }
 
-    private fun staticScreenText(
-        screen: ExternalStaticScreen,
-        runtime: RuntimeState,
-    ): List<String> =
-        buildList {
-            screen.resource?.let { resource -> addAll(resourceText(resource).lines()) }
-            screen.runtimeReport?.let { report -> addAll(runtime.runtimeReportLines(report)) }
-            if (screen.commandHelp) {
-                add("Compiled command groups: ${systems.commandGroups.joinToString()}")
-            }
-        }
-
-    private fun RuntimeState.runtimeReportLines(report: String): List<String> =
-        when (report) {
-            SCORE_REPORT -> scoreEntries().summaryScoreLines()
-            VERBOSE_SCORE_REPORT -> scoreEntries().verboseScoreLines()
-            HALL_OF_HEROES_REPORT -> hallOfHeroesLines()
-            else -> emptyList()
-        }
-
-    private fun RuntimeState.scoreEntries(): List<ScoreEntry> =
-        listOf(
-            ScoreEntry(
-                rank = 1,
-                partyName = party.name,
-                leaderName =
-                    party.members
-                        .firstOrNull()
-                        ?.let { member -> content.strings.value(member.nameString) }
-                        .orEmpty(),
-                classes = party.members.map(CompiledPartyMember::pcClass),
-                kills = party.counters.kills,
-                averageExperience = party.members.averageOf(CompiledPartyMember::experience),
-                averageLevel = party.members.averageOf(CompiledPartyMember::level),
-                powerItems =
-                    systems.score.powerItems
-                        .filter { item -> party.milestones.any { milestone -> content.slug(milestone) == item.milestone } }
-                        .sortedWith(compareBy({ it.sourceOrder ?: Int.MAX_VALUE }, { it.itemName }))
-                        .map { item -> item.itemName },
-            ),
-        )
-
-    private fun List<ScoreEntry>.summaryScoreLines(): List<String> =
-        buildList {
-            addAll(scoreHeaderLines("ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES"))
-            add("")
-            add("        #     Party Name                    Experience       Level")
-            add("")
-            this@summaryScoreLines.forEach { entry ->
-                add(
-                    "        ${entry.rank.toString().padStart(2)}.    " +
-                        "${entry.partyName.padEnd(30)}  " +
-                        "${entry.averageExperience.toString().padStart(6)}          " +
-                        entry.averageLevel.toString().padStart(3),
-                )
-            }
-            add("")
-        }
-
-    private fun List<ScoreEntry>.verboseScoreLines(): List<String> =
-        buildList {
-            addAll(scoreHeaderLines("ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES"))
-            add("")
-            this@verboseScoreLines.forEach { entry ->
-                add("${entry.rank.toString().padStart(2)}. ${entry.partyName.padEnd(30)}")
-                add(" +${"-".repeat(SCORE_WIDTH - 2)}+")
-                add("  Leader             : ${entry.leaderName}")
-                add("  Classes            : ${entry.classes.joinToString(", ") { it.scoreName() }}")
-                add("  Confirmed Kills    : ${entry.kills.toString().padEnd(4)}")
-                add(
-                    "  Average Experience : ${
-                        entry.averageExperience.toString().padEnd(
-                            6,
-                        )
-                    } (level ${entry.averageLevel.toString().padEnd(3)})",
-                )
-                add("")
-                add("  Power Items        :")
-                add("")
-                if (entry.powerItems.isEmpty()) add("  None.") else entry.powerItems.forEach { item -> add("  $item") }
-                add(" +${"-".repeat(SCORE_WIDTH - 2)}+")
-                add("")
-            }
-        }
-
-    private fun RuntimeState.hallOfHeroesLines(): List<String> =
-        buildList {
-            addAll(scoreHeaderLines("ADVENTURERS OF RYLWEEN - HALL OF NATIONAL HEROES"))
-            add("")
-            val completedBy = systems.score.completedBy
-            val hasCompleted = completedBy != null && party.milestones.any { milestone -> content.slug(milestone) == completedBy }
-            if (hasCompleted) {
-                add("  ${systems.score.hallOfHeroesEntryText.replace("{party}", party.name)}")
-            } else {
-                add("  ${systems.score.hallOfHeroesEmptyText}")
-            }
-            add("")
-        }
-
-    private fun scoreHeaderLines(title: String): List<String> =
-        listOf(
-            " +${"=".repeat(SCORE_WIDTH - 2)}+",
-            " I${title.centered(SCORE_WIDTH - 2)}I",
-            " +${"=".repeat(SCORE_WIDTH - 2)}+",
-        )
-
-    private fun List<CompiledPartyMember>.averageOf(value: (CompiledPartyMember) -> Int): Int {
-        val divisor = size.coerceAtLeast(1)
-        return sumOf(value) / divisor
-    }
-
-    private fun String.centered(width: Int): String {
-        if (length >= width) return take(width)
-        val left = (width - length) / 2
-        val right = width - length - left
-        return " ".repeat(left) + this + " ".repeat(right)
-    }
-
-    private fun PcClass.scoreName(): String =
-        when (this) {
-            PcClass.Fighter -> "Fighter"
-            PcClass.Thief -> "Thief"
-            PcClass.Mage -> "Mage"
-            PcClass.Priest -> "Priest"
-            PcClass.Bard -> "Bard"
-            PcClass.Ranger -> "Ranger"
-        }
-
     private fun renderAnsiAt(
         resource: String,
         x: Int,
         y: Int,
     ) {
-        resourceText(resource)
+        runtimeResourceText(resource)
             .lineSequence()
             .map { line -> line.trimEnd('\r').replace("\t", "") }
             .forEachIndexed { row, line ->
@@ -648,13 +519,6 @@ internal class RuntimeScreen(
         terminal.writeRaw("${AnsiCodes.CSI}${region.y + rowOffset};1H\r${AnsiCodes.CSI}${region.x}C")
     }
 
-    private fun resourceText(resource: String): String {
-        val stream =
-            Thread.currentThread().contextClassLoader.getResourceAsStream(resource)
-                ?: error("missing runtime resource $resource")
-        return stream.bufferedReader().readText()
-    }
-
     private fun timeLabel(hour: Int): String {
         val normalizedHour = hour.mod(24)
         val label =
@@ -686,17 +550,6 @@ data class RuntimeMapCell(
     val point: GridPoint,
     val terrain: rylween.compiled.CompiledTerrain?,
     val center: Boolean,
-)
-
-private data class ScoreEntry(
-    val rank: Int,
-    val partyName: String,
-    val leaderName: String,
-    val classes: List<PcClass>,
-    val kills: Int,
-    val averageExperience: Int,
-    val averageLevel: Int,
-    val powerItems: List<String>,
 )
 
 fun WorldMap.viewport(

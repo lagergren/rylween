@@ -112,8 +112,21 @@ interface RuntimeScreenPort {
         castle: ExternalRuntimeCastle,
     )
 
+    /**
+     * Replaces the renderer's owned text panel with blocking prose, menus, prompts,
+     * or scene text. This clears any sticky non-blocking notice previously shown
+     * with [showMessage].
+     */
     fun writeText(lines: List<String>)
 
+    /**
+     * Shows a non-blocking notice produced by free-roaming runtime actions, such
+     * as impassable terrain, terrain transition descriptions, or upkeep warnings.
+     *
+     * Renderers should keep this in their normal text/notice region until the next
+     * [writeText], clear-text command, or major mode change. It must not pause the
+     * game and must not cover the map/image region with an unrelated overlay.
+     */
     fun showMessage(lines: List<String>)
 
     fun updateStatus(runtime: RuntimeState)

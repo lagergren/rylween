@@ -109,7 +109,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unknown argument: $arg" >&2
-      echo "Use --name Strong to load the named save from $DEFAULT_SAVE_FILE." >&2
+      echo "Use --name Strong or --name StrongEndgame to load a named save from $DEFAULT_SAVE_FILE." >&2
       exit 2
       ;;
   esac
@@ -152,32 +152,68 @@ else
   fi
 fi
 
-ensure_strong_save() {
-  if [[ "$run_name" != "Strong" && "$run_name" != "strong" ]]; then
+named_state_for_run_name() {
+  case "$1" in
+    Strong|strong)
+      echo "strong-replay"
+      ;;
+    StrongEndgame|strong-endgame|strong_endgame|Endgame|endgame|Ydarg|ydarg)
+      echo "strong-endgame-replay"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+named_party_for_run_name() {
+  case "$1" in
+    Strong|strong)
+      echo "Strong"
+      ;;
+    StrongEndgame|strong-endgame|strong_endgame|Endgame|endgame|Ydarg|ydarg)
+      echo "Strong Endgame"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+normalized_run_user() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g'
+}
+
+ensure_named_save() {
+  if [[ -z "$run_name" ]]; then
     return
   fi
+  seed_state="$(named_state_for_run_name "$run_name")" || return
+  expected_party="$(named_party_for_run_name "$run_name")" || return
+  expected_user="$(normalized_run_user "$run_name")"
   bundle_hash="$(sed -n 's/.*"bundleContentHash": "\([^"]*\)".*/\1/p' "$BUNDLE" | head -n 1)"
   save_hash=""
   if [[ -f "$DEFAULT_SAVE_FILE" ]]; then
     save_hash="$(sed -n 's/^bundleHash=//p' "$DEFAULT_SAVE_FILE" | head -n 1)"
   fi
-  if [[ -f "$DEFAULT_SAVE_FILE" ]] && grep -q '^user\.[0-9][0-9]*\.id=strong$' "$DEFAULT_SAVE_FILE"; then
-    if [[ -n "$bundle_hash" && "$save_hash" == "$bundle_hash" ]] && grep -q '^user\.[0-9][0-9]*\.party\.name=Strong$' "$DEFAULT_SAVE_FILE"; then
+  if [[ -f "$DEFAULT_SAVE_FILE" ]] && grep -q "^user\\.[0-9][0-9]*\\.id=$expected_user$" "$DEFAULT_SAVE_FILE"; then
+    if [[ -n "$bundle_hash" && "$save_hash" == "$bundle_hash" ]] &&
+      grep -q "^user\\.[0-9][0-9]*\\.party\\.name=$expected_party$" "$DEFAULT_SAVE_FILE"; then
       return
     fi
   fi
   "$LAUNCHER" \
     --bundle "$BUNDLE" \
-    --user Strong \
-    --state strong-replay \
+    --user "$run_name" \
+    --state "$seed_state" \
     --save "$DEFAULT_SAVE_FILE" \
     --script SX \
     --no-title \
-    --log "$DATA_DIR/logs/runtime/seed-strong.log" \
+    --log "$DATA_DIR/logs/runtime/seed-${run_name}.log" \
     >/dev/null
 }
 
-ensure_strong_save
+ensure_named_save
 
 if [[ "$title_seen" == false ]]; then
   args=("--title" "${args[@]}")

@@ -1,4 +1,4 @@
-@file:Suppress("SpellCheckingInspection")
+@file:Suppress("SpellCheckingInspection", "ktlint:standard:no-wildcard-imports")
 
 // RylweenTestScenarios.kt -- optional runtime replay fixtures.
 //
@@ -226,6 +226,14 @@ private val strongReplayMembers: List<ReplayMemberFixture> =
         ),
     )
 
+private val strongEndgameReplayMembers: List<ReplayMemberFixture> =
+    listOf(
+        overpoweredMember("Aragorn", Gender.Male, Race.Human, PcClass.Fighter, wisdom = 500, mana = 0 of 500),
+        overpoweredMember("Legolas", Gender.Female, Race.Elf, PcClass.Ranger, wisdom = 500, mana = 0 of 500),
+        overpoweredMember("Gandalf", Gender.Male, Race.Elf, PcClass.Mage, wisdom = 5_000, mana = 5_000 of 5_000),
+        overpoweredMember("Mira", Gender.Female, Race.Human, PcClass.Priest, wisdom = 5_000, mana = 5_000 of 5_000),
+    )
+
 private val townServiceReplayMembers: List<ReplayMemberFixture> =
     listOf(
         strongReplayMembers[0].copy(hitPoints = 40 of 88),
@@ -342,6 +350,84 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 }
 
                 members { members(strongReplayMembers) }
+            }
+        }
+
+        // Endgame playtest fixture for manually exercising Castle Ydarg. The
+        // party starts two steps north of the castle with every required power
+        // milestone and visible special artifact, but without the final victory
+        // milestone.
+        stateFixture(States.strongEndgameReplay) {
+            realm {
+                day = 14
+                hour = 22
+                rngState = 1L
+                activeParty = Parties.playtest
+                wilderness(Maps.wilderness)
+            }
+
+            locations {
+                Locations.silverKeyPit at xy(45, 13)
+                Locations.hobgoblinCave at xy(46, 13)
+                Locations.beastCave at xy(11, 23)
+            }
+
+            npcs {
+                Npcs.garth at Towns.thord.inn
+                Npcs.bernak at Towns.wilor.inn
+                Npcs.azaaza at Towns.ollk.inn
+                stageRandomNpcsAwayFromTownServices(Npcs.garth, Npcs.bernak, Npcs.azaaza)
+            }
+
+            party(Parties.playtest) {
+                player = "StrongEndgame"
+                name = "Strong Endgame"
+                position = Wilderness.xy(14, 28)
+                facing = Facing.South
+
+                resources {
+                    gold = 100_000
+                    torches = 120
+                    food = 500
+                    timeLeft = 1_200
+                    restedHours = 500
+                }
+
+                flags {
+                    mark(Story.garth.bandits.recovered)
+                    mark(Story.silverKey.keyTaken)
+                    mark(Story.bracelets.thun.braceletsTaken)
+                    mark(Story.masterCrown.crownTaken)
+                    mark(Story.jazzy.ogre.jazzyDefeated)
+                    mark(Story.hermit.trollTooth.fireShieldAcquired)
+                }
+
+                milestones {
+                    achieved(Milestones.fireShield)
+                    achieved(Milestones.braceletsOfThun)
+                    achieved(Milestones.masterCrown)
+                    achieved(Milestones.footOfJazzy)
+                    achieved(Milestones.silverKey)
+                }
+
+                inventory {
+                    slot(1).item(Items.fireWand)
+                    slot(2).item(Items.staffOfHealing)
+                    slot(3).item(Items.gemOfResurrection)
+                    slot(4).item(Items.redPotion)
+                    slot(5).item(Items.bluePotion)
+                    slot(6).item(Items.torch)
+                    slot(7).item(Items.ration)
+                }
+
+                members { members(strongEndgameReplayMembers) }
+
+                visited(Npcs.garth, Npcs.bernak)
+                journal {
+                    line("All five artifacts")
+                    line("needed to challenge")
+                    line("Baron Ydarg are held.")
+                }
             }
         }
 

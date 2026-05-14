@@ -12,18 +12,33 @@ import rylween.game.RylweenCompiledGame
 import rylween.runtime.RuntimeLog
 import rylween.runtime.RuntimeSessionConfig
 import rylween.runtime.RuntimeSessionFactory
+import rylween.webcommon.WebHttpRequest
+import rylween.webcommon.WebServerStatus
 import rylween.webcommon.WebSocketConnection
 import rylween.webcommon.WebSocketProtocol
-import java.io.ByteArrayOutputStream
+import rylween.webcommon.auth.WebAccount
+import rylween.webcommon.auth.WebAuthBootstrapAccount
+import rylween.webcommon.auth.WebAuthBootstrapResult
+import rylween.webcommon.auth.WebAuthCookies
+import rylween.webcommon.auth.WebAuthPageMode
+import rylween.webcommon.auth.WebAuthResult
+import rylween.webcommon.auth.WebSessionStore
+import rylween.webcommon.auth.WebUserStore
+import rylween.webcommon.auth.slugFrom
+import rylween.webcommon.auth.webAuthPageHtml
+import rylween.webcommon.readHttpRequest
+import rylween.webcommon.redirect
+import rylween.webcommon.respondBytes
+import rylween.webcommon.respondText
+import rylween.webcommon.urlDecode
 import java.io.Closeable
 import java.io.File
 import java.io.InputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
-import java.util.Locale
+import java.nio.file.Files
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -32,8 +47,8 @@ import kotlin.system.exitProcess
 
 private const val DEFAULT_HOST = "127.0.0.1"
 private const val DEFAULT_PORT = 8081
+private const val DEFAULT_DATA_DIR = "build/rylween-data"
 private const val DEFAULT_STATE = "fresh-replay"
-private const val MAX_HTTP_LINE_BYTES = 16_384
 private val BITMAP_WEB_STATIC =
     mapOf(
         "styles.css" to ServedResource("bitmap-web/styles.css", "text/css; charset=utf-8"),
@@ -70,8 +85,11 @@ private val BITMAP_ASSETS =
 fun main(args: Array<String>) {
     runCatching {
         val config = BitmapWebConfig.parse(args)
+        config.ensureDataDirectories()
         val game = BitmapGameBundle.load(config.bundleFile)
-        BitmapWebServer(config, game).use { server -> server.serveForever() }
+        RuntimeLog.open(config.serverLogFile, listOf(::streamServerLog)).use { serverLog ->
+            BitmapWebServer(config, game, serverLog).use { server -> server.serveForever() }
+        }
     }.getOrElse { error ->
         System.err.println("bitmap web runtime failed: ${error.message ?: error::class.simpleName}")
         exitProcess(1)
@@ -81,24 +99,48 @@ fun main(args: Array<String>) {
 private data class BitmapWebConfig(
     val host: String,
     val port: Int,
+    val dataDir: File,
     val stateSlug: String,
     val bundleFile: File?,
     val userId: String?,
     val loadFile: File?,
     val saveFile: File?,
+    val bootstrapAccount: WebAuthBootstrapAccount?,
+    val secureCookies: Boolean,
     val showTitleMenu: Boolean,
     val mapTiles: Int,
     val tileSize: Int,
 ) {
+    val saveDir: File get() = dataDir.resolve("saves")
+    val logDir: File get() = dataDir.resolve("logs/runtime-bitmap-web")
+    val authDir: File get() = dataDir.resolve("auth")
+    val serverLogFile: File get() = logDir.resolve("server.log")
+    val worldSaveFile: File get() = saveFile ?: saveDir.resolve("world.rsave")
+    val authRequired: Boolean get() = userId == null
+
+    fun ensureDataDirectories() {
+        Files.createDirectories(saveDir.toPath())
+        Files.createDirectories(logDir.toPath())
+        Files.createDirectories(authDir.toPath())
+        worldSaveFile.parentFile?.let { parent -> Files.createDirectories(parent.toPath()) }
+    }
+
+    fun logFile(user: WebAccount): File = logDir.resolve("${user.slug}-${System.currentTimeMillis()}.log")
+
     companion object {
         fun parse(args: Array<String>): BitmapWebConfig {
             var host = envOrDefault("RYLWEEN_BITMAP_HOST", envOrDefault("RYLWEEN_HOST", DEFAULT_HOST))
             var port = envOrDefault("RYLWEEN_BITMAP_PORT", envOrDefault("RYLWEEN_PORT", DEFAULT_PORT.toString())).toInt()
+            var dataDir = File(envOrDefault("RYLWEEN_DATA_DIR", DEFAULT_DATA_DIR))
             var stateSlug = envOrDefault("RYLWEEN_BITMAP_STATE", envOrDefault("RYLWEEN_STATE", DEFAULT_STATE))
             var bundleFile = optionalFileEnv("RYLWEEN_BITMAP_BUNDLE")
             var userId = optionalEnv("RYLWEEN_BITMAP_USER") ?: optionalEnv("RYLWEEN_USER")
             var loadFile = optionalFileEnv("RYLWEEN_BITMAP_LOAD_FILE") ?: optionalFileEnv("RYLWEEN_LOAD_FILE")
             var saveFile = optionalFileEnv("RYLWEEN_BITMAP_SAVE_FILE") ?: optionalFileEnv("RYLWEEN_SAVE_FILE")
+            var accountName = optionalEnv("RYLWEEN_AUTH_ACCOUNT")
+            var accountEmail = optionalEnv("RYLWEEN_AUTH_EMAIL")
+            var accountPassword = optionalEnv("RYLWEEN_AUTH_PASSWORD")
+            var secureCookies = optionalEnv("RYLWEEN_AUTH_SECURE_COOKIES") == "true"
             var showTitleMenu = optionalEnv("RYLWEEN_BITMAP_NO_TITLE") != "true"
             var mapTiles = envOrDefault("RYLWEEN_BITMAP_MAP_TILES", DEFAULT_BITMAP_VIEWPORT_TILES.toString()).toInt()
             var tileSize = envOrDefault("RYLWEEN_BITMAP_TILE_SIZE", DEFAULT_BITMAP_TILE_SIZE.toString()).toInt()
@@ -112,6 +154,10 @@ private data class BitmapWebConfig(
                     "--port" -> {
                         index += 1
                         port = requiredValue(args, index, arg).toInt()
+                    }
+                    "--data" -> {
+                        index += 1
+                        dataDir = File(requiredValue(args, index, arg))
                     }
                     "--state" -> {
                         index += 1
@@ -132,6 +178,21 @@ private data class BitmapWebConfig(
                     "--save" -> {
                         index += 1
                         saveFile = File(requiredValue(args, index, arg))
+                    }
+                    "--account" -> {
+                        index += 1
+                        accountName = requiredValue(args, index, arg)
+                    }
+                    "--email" -> {
+                        index += 1
+                        accountEmail = requiredValue(args, index, arg)
+                    }
+                    "--password" -> {
+                        index += 1
+                        accountPassword = requiredValue(args, index, arg)
+                    }
+                    "--secure-cookies" -> {
+                        secureCookies = true
                     }
                     "--title" -> {
                         showTitleMenu = true
@@ -155,7 +216,22 @@ private data class BitmapWebConfig(
                 }
                 index += 1
             }
-            return BitmapWebConfig(host, port, stateSlug, bundleFile, userId, loadFile, saveFile, showTitleMenu, mapTiles, tileSize)
+            val bootstrapAccount = parseBootstrapAccount(accountName, accountEmail, accountPassword)
+            return BitmapWebConfig(
+                host,
+                port,
+                dataDir,
+                stateSlug,
+                bundleFile,
+                userId,
+                loadFile,
+                saveFile,
+                bootstrapAccount,
+                secureCookies,
+                showTitleMenu,
+                mapTiles,
+                tileSize,
+            )
         }
 
         private fun envOrDefault(
@@ -176,13 +252,27 @@ private data class BitmapWebConfig(
             option: String,
         ): String = args.getOrNull(index) ?: error("$option requires a value")
 
+        private fun parseBootstrapAccount(
+            name: String?,
+            email: String?,
+            password: String?,
+        ): WebAuthBootstrapAccount? {
+            if (name == null && email == null && password == null) return null
+            val accountName = name ?: error("--account or RYLWEEN_AUTH_ACCOUNT is required when bootstrapping an account")
+            val accountPassword = password ?: error("--password or RYLWEEN_AUTH_PASSWORD is required when bootstrapping an account")
+            return WebAuthBootstrapAccount(accountName, email, accountPassword)
+        }
+
         private fun printUsage() {
             println(
                 """
-                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--state SLUG] [--bundle FILE] [--user ID] [--load FILE] [--save FILE] [--title|--no-title] [--map-tiles N] [--tile-size PX]
+                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--data DIR] [--state SLUG] [--bundle FILE] [--user ID] [--load FILE] [--save FILE] [--account NAME --password PASSWORD [--email EMAIL]] [--secure-cookies] [--title|--no-title] [--map-tiles N] [--tile-size PX]
 
                 The bitmap runtime uses the embedded :game bundle by default. --bundle can point
                 at build/compiled/rylween-bundle.json to exercise an emitted artifact instead.
+                Authenticated saves and logs live under --data. --user keeps the local dev bypass.
+                --account/--password ensures an auth account exists before the server starts.
+                --secure-cookies adds the Secure cookie attribute for HTTPS deployments.
                 Map defaults: ${DEFAULT_BITMAP_VIEWPORT_TILES}x${DEFAULT_BITMAP_VIEWPORT_TILES} tiles at ${DEFAULT_BITMAP_TILE_SIZE}px.
                 """.trimIndent(),
             )
@@ -221,8 +311,12 @@ private data class BitmapGameBundle(
 private class BitmapWebServer(
     private val config: BitmapWebConfig,
     private val game: BitmapGameBundle,
+    private val serverLog: RuntimeLog,
 ) : Closeable {
     private val runtimeFactory = RuntimeSessionFactory.load(game.bundle, game.systems, game.contentHash)
+    private val userStore = WebUserStore(config.authDir)
+    private val sessions = WebSessionStore()
+    private val activeUsers = ConcurrentHashMap.newKeySet<String>()
     private val bitmapImageById =
         game.systems.presentation.images
             .filter { image ->
@@ -233,13 +327,15 @@ private class BitmapWebServer(
     private val clientIds = AtomicLong(0)
 
     fun serveForever() {
+        ensureBootstrapAccount()
         serverSocket.reuseAddress = true
         serverSocket.bind(InetSocketAddress(config.host, config.port))
-        log(
+        serverLog.event(
             "bitmap.server.start host=${config.host} port=${config.port} " +
-                "state=${config.stateSlug} user=${config.userId.orEmpty()} load=${config.loadFile?.path.orEmpty()} " +
-                "save=${config.saveFile?.path.orEmpty()} title=${config.showTitleMenu} " +
-                "mapTiles=${config.mapTiles} tileSize=${config.tileSize} bundle=${game.source}",
+                "data=${config.dataDir.path} auth=${config.authRequired} secureCookies=${config.secureCookies} state=${config.stateSlug} " +
+                "devUser=${config.userId.orEmpty()} load=${config.loadFile?.path.orEmpty()} " +
+                "save=${config.worldSaveFile.path} title=${config.showTitleMenu} mapTiles=${config.mapTiles} " +
+                "tileSize=${config.tileSize} bundle=${game.source}",
         )
         while (!serverSocket.isClosed) {
             val socket = serverSocket.accept()
@@ -252,15 +348,34 @@ private class BitmapWebServer(
         executor.shutdownNow()
     }
 
+    private fun ensureBootstrapAccount() {
+        val bootstrap = config.bootstrapAccount ?: return
+        when (val result = userStore.ensureAccount(bootstrap)) {
+            is WebAuthBootstrapResult.Created ->
+                serverLog.event("bitmap.auth.bootstrap_created user=${result.account.slug} email=${serverLogValue(result.account.email)}")
+            is WebAuthBootstrapResult.Existing ->
+                serverLog.event("bitmap.auth.bootstrap_existing user=${result.account.slug} email=${serverLogValue(result.account.email)}")
+            is WebAuthBootstrapResult.Failure ->
+                error("Could not bootstrap account: ${result.message}")
+        }
+    }
+
     private fun handleClient(socket: Socket) {
         val clientId = clientIds.incrementAndGet()
+        val remote = socket.remoteSocketAddress?.toString().orEmpty()
+        serverLog.event("bitmap.client.connect id=$clientId remote=${serverLogValue(remote)}")
         socket.use { client ->
             runCatching { route(client, clientId) }
                 .onFailure { failure ->
-                    log("bitmap.client.error id=$clientId error=${failure.message ?: failure::class.simpleName}")
+                    serverLog.event(
+                        "bitmap.client.error id=$clientId remote=${serverLogValue(
+                            remote,
+                        )} error=${serverLogValue(failure.message ?: failure::class.simpleName.orEmpty())}",
+                    )
                     runCatching { respondText(client, "500 Internal Server Error", "text/plain; charset=utf-8", "server error\n") }
                 }
         }
+        serverLog.event("bitmap.client.disconnect id=$clientId remote=${serverLogValue(remote)}")
     }
 
     private fun route(
@@ -269,89 +384,309 @@ private class BitmapWebServer(
     ) {
         val input = socket.getInputStream()
         val request = readHttpRequest(input) ?: return
-        if (request.method != "GET") {
+        serverLog.event("bitmap.http.request id=$clientId method=${request.method} path=${request.path}")
+        if (request.method !in setOf("GET", "POST")) {
+            serverLog.event("bitmap.http.response id=$clientId status=405 path=${request.path}")
             respondText(socket, "405 Method Not Allowed", "text/plain; charset=utf-8", "GET required\n")
             return
         }
         when (request.path) {
-            "/", "/play" -> respondText(socket, "200 OK", "text/html; charset=utf-8", bitmapPageHtml())
-            "/healthz" -> respondText(socket, "200 OK", "text/plain; charset=utf-8", "ok\n")
+            "/" -> routeHome(socket, request, clientId)
+            "/play" -> routePlayPage(socket, request, clientId)
+            "/login" -> routeLoginPage(socket, request, clientId)
+            "/register" -> routeRegisterPage(socket, request, clientId)
+            "/api/login" -> routeLogin(socket, request, clientId)
+            "/api/register" -> routeRegister(socket, request, clientId)
+            "/api/logout" -> routeLogout(socket, request, clientId)
+            "/api/status" -> routeStatus(socket, request, clientId)
+            "/auth.css" -> serveCommonResource(socket, "auth.css", "text/css; charset=utf-8", clientId)
+            "/healthz" -> {
+                serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
+                respondText(socket, "200 OK", "text/plain; charset=utf-8", "ok\n")
+            }
             "/ws/play" -> servePlaySocket(socket, input, request, clientId)
             else ->
                 if (request.path.startsWith("/static/")) {
-                    serveStaticResource(socket, request.path.removePrefix("/static/"))
+                    serveStaticResource(socket, request.path.removePrefix("/static/"), clientId)
                 } else if (request.path.startsWith("/assets/game-image/")) {
-                    serveBundleBitmapImage(socket, urlDecode(request.path.removePrefix("/assets/game-image/")))
+                    serveBundleBitmapImage(socket, urlDecode(request.path.removePrefix("/assets/game-image/")), clientId)
                 } else if (request.path.startsWith("/assets/")) {
-                    serveAsset(socket, request.path.removePrefix("/assets/"))
+                    serveAsset(socket, request.path.removePrefix("/assets/"), clientId)
                 } else {
+                    serverLog.event("bitmap.http.response id=$clientId status=404 path=${request.path}")
                     respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "not found\n")
                 }
         }
     }
 
+    private fun routeHome(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        if (config.authRequired && authenticatedAccount(request) == null) {
+            serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/login")
+            redirect(socket, "/login")
+            return
+        }
+        serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
+        redirect(socket, "/play")
+    }
+
+    private fun routePlayPage(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        if (config.authRequired && authenticatedAccount(request) == null) {
+            serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/login")
+            redirect(socket, "/login")
+            return
+        }
+        serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
+        respondText(socket, "200 OK", "text/html; charset=utf-8", bitmapPageHtml())
+    }
+
+    private fun routeLoginPage(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        if (!config.authRequired || authenticatedAccount(request) != null) {
+            serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
+            redirect(socket, "/play")
+            return
+        }
+        serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
+        respondText(
+            socket,
+            "200 OK",
+            "text/html; charset=utf-8",
+            webAuthPageHtml(WebAuthPageMode.Login, backgroundImage = "/assets/title-rider.png"),
+        )
+    }
+
+    private fun routeRegisterPage(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        if (!config.authRequired || authenticatedAccount(request) != null) {
+            serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
+            redirect(socket, "/play")
+            return
+        }
+        serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
+        respondText(
+            socket,
+            "200 OK",
+            "text/html; charset=utf-8",
+            webAuthPageHtml(WebAuthPageMode.Register, backgroundImage = "/assets/title-rider.png"),
+        )
+    }
+
+    private fun routeLogin(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        val form = request.formFields()
+        val email = form["email"].orEmpty()
+        when (val result = userStore.authenticate(email, form["password"].orEmpty())) {
+            is WebAuthResult.Success -> {
+                val token = sessions.create(result.account)
+                serverLog.event("bitmap.auth.login id=$clientId user=${result.account.slug} email=${serverLogValue(result.account.email)}")
+                serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
+                redirect(socket, "/play", listOf(WebAuthCookies.login(token, secure = config.secureCookies)))
+            }
+            is WebAuthResult.Failure -> {
+                serverLog.event(
+                    "bitmap.auth.login_failed id=$clientId email=${serverLogValue(email)} reason=${serverLogValue(result.message)}",
+                )
+                serverLog.event("bitmap.http.response id=$clientId status=401 path=${request.path}")
+                respondText(
+                    socket,
+                    "401 Unauthorized",
+                    "text/html; charset=utf-8",
+                    webAuthPageHtml(WebAuthPageMode.Login, result.message, email, backgroundImage = "/assets/title-rider.png"),
+                )
+            }
+        }
+    }
+
+    private fun routeRegister(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        val form = request.formFields()
+        val name = form["name"].orEmpty()
+        val email = form["email"].orEmpty()
+        when (val result = userStore.register(name, email, form["password"].orEmpty())) {
+            is WebAuthResult.Success -> {
+                val token = sessions.create(result.account)
+                serverLog.event(
+                    "bitmap.auth.register id=$clientId user=${result.account.slug} email=${serverLogValue(
+                        result.account.email,
+                    )} confirmed=${result.account.emailConfirmed}",
+                )
+                serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
+                redirect(socket, "/play", listOf(WebAuthCookies.login(token, secure = config.secureCookies)))
+            }
+            is WebAuthResult.Failure -> {
+                serverLog.event(
+                    "bitmap.auth.register_failed id=$clientId email=${serverLogValue(
+                        email,
+                    )} name=${serverLogValue(name)} reason=${serverLogValue(result.message)}",
+                )
+                serverLog.event("bitmap.http.response id=$clientId status=400 path=${request.path}")
+                respondText(
+                    socket,
+                    "400 Bad Request",
+                    "text/html; charset=utf-8",
+                    webAuthPageHtml(WebAuthPageMode.Register, result.message, email, name, backgroundImage = "/assets/title-rider.png"),
+                )
+            }
+        }
+    }
+
+    private fun routeLogout(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        val token = WebAuthCookies.token(request.headers)
+        sessions.remove(token)
+        serverLog.event("bitmap.auth.logout id=$clientId hadToken=${token != null}")
+        serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/login")
+        redirect(socket, "/login", listOf(WebAuthCookies.logout(secure = config.secureCookies)))
+    }
+
+    private fun routeStatus(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        val account = authenticatedAccount(request)
+        if (config.authRequired && account == null) {
+            serverLog.event("bitmap.http.response id=$clientId status=401 path=${request.path}")
+            respondText(socket, "401 Unauthorized", "application/json; charset=utf-8", """{"error":"login required"}""")
+            return
+        }
+        val body =
+            WebServerStatus(
+                serverType = "bitmap",
+                authRequired = config.authRequired,
+                currentUser = account?.displayName ?: account?.slug,
+                activeUsers = activeUsers.toList().sorted(),
+            ).toJson()
+        serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
+        respondText(socket, "200 OK", "application/json; charset=utf-8", body)
+    }
+
     private fun serveBundleBitmapImage(
         socket: Socket,
         imageId: String,
+        clientId: Long,
     ) {
         val image = bitmapImageById[imageId]
         if (image == null || !image.resource.startsWith("bitmap/assets/")) {
+            serverLog.event("bitmap.http.response id=$clientId status=404 image=${serverLogValue(imageId)}")
             respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "image not found\n")
             return
         }
         val bytes =
             javaClass.classLoader.getResourceAsStream(image.resource)?.use(InputStream::readBytes)
                 ?: run {
+                    serverLog.event("bitmap.http.response id=$clientId status=404 image=${serverLogValue(imageId)}")
                     respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "image not found\n")
                     return
                 }
+        serverLog.event("bitmap.http.response id=$clientId status=200 image=${serverLogValue(imageId)}")
         respondBytes(socket, "image/png", bytes)
     }
 
     private fun serveStaticResource(
         socket: Socket,
         assetName: String,
+        clientId: Long,
     ) {
         val resource = BITMAP_WEB_STATIC[assetName]
         if (resource == null) {
+            serverLog.event("bitmap.http.response id=$clientId status=404 static=${serverLogValue(assetName)}")
             respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "asset not found\n")
             return
         }
         val bytes =
             javaClass.classLoader.getResourceAsStream(resource.path)?.use(InputStream::readBytes)
                 ?: run {
+                    serverLog.event("bitmap.http.response id=$clientId status=404 static=${serverLogValue(assetName)}")
                     respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "asset not found\n")
                     return
                 }
+        serverLog.event("bitmap.http.response id=$clientId status=200 static=${serverLogValue(assetName)}")
         respondBytes(socket, resource.contentType, bytes)
     }
 
     private fun serveAsset(
         socket: Socket,
         assetName: String,
+        clientId: Long,
     ) {
         val resourcePath = BITMAP_ASSETS[assetName]
         if (resourcePath == null) {
+            serverLog.event("bitmap.http.response id=$clientId status=404 asset=${serverLogValue(assetName)}")
             respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "asset not found\n")
             return
         }
         val bytes =
             javaClass.classLoader.getResourceAsStream(resourcePath)?.use(InputStream::readBytes)
                 ?: run {
+                    serverLog.event("bitmap.http.response id=$clientId status=404 asset=${serverLogValue(assetName)}")
                     respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "asset not found\n")
                     return
                 }
+        serverLog.event("bitmap.http.response id=$clientId status=200 asset=${serverLogValue(assetName)}")
         respondBytes(socket, "image/png", bytes)
+    }
+
+    private fun serveCommonResource(
+        socket: Socket,
+        resourcePath: String,
+        contentType: String,
+        clientId: Long,
+    ) {
+        val bytes =
+            javaClass.classLoader.getResourceAsStream(resourcePath)?.use(InputStream::readBytes)
+                ?: run {
+                    serverLog.event("bitmap.http.response id=$clientId status=404 resource=${serverLogValue(resourcePath)}")
+                    respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "resource not found\n")
+                    return
+                }
+        serverLog.event("bitmap.http.response id=$clientId status=200 resource=${serverLogValue(resourcePath)}")
+        respondBytes(socket, contentType, bytes)
     }
 
     private fun servePlaySocket(
         socket: Socket,
         input: InputStream,
-        request: HttpRequest,
+        request: WebHttpRequest,
         clientId: Long,
     ) {
         if (!request.isWebSocketUpgrade()) {
+            serverLog.event("bitmap.websocket.reject id=$clientId reason=missing_upgrade")
             respondText(socket, "400 Bad Request", "text/plain; charset=utf-8", "websocket required\n")
+            return
+        }
+        val account = authenticatedAccount(request)
+        if (account == null) {
+            serverLog.event("bitmap.websocket.reject id=$clientId reason=auth_required")
+            respondText(socket, "401 Unauthorized", "text/plain; charset=utf-8", "login required\n")
+            return
+        }
+        if (!activeUsers.add(account.slug)) {
+            serverLog.event("bitmap.websocket.reject id=$clientId user=${account.slug} reason=user_already_active")
+            respondText(socket, "409 Conflict", "text/plain; charset=utf-8", "session already active\n")
             return
         }
         val output = socket.getOutputStream()
@@ -367,161 +702,87 @@ private class BitmapWebServer(
                 tileSize = config.tileSize,
             )
         runtimeInput.textInputChanged = screen::setTextInput
-        val logFile = File("build/logs/runtime-bitmap-web/client-$clientId.log")
-        val userId = config.userId ?: "bitmap-$clientId"
-        val saveFile = config.saveFile ?: File("build/saves/runtime-bitmap-web/client-$clientId.rsave")
+        val logFile = config.logFile(account)
+        val saveFile = config.worldSaveFile
+        val loadFile = sessionLoadFile(saveFile, account)
+        val showTitleMenu = config.showTitleMenu
         saveFile.parentFile?.mkdirs()
-        log("bitmap.websocket.open id=$clientId user=$userId save=${saveFile.path}")
+        serverLog.event(
+            "bitmap.websocket.open id=$clientId user=${account.slug} load=${loadFile?.path.orEmpty()} " +
+                "save=${saveFile.path} title=$showTitleMenu sessionLog=${logFile.path}",
+        )
         val runtime =
             executor.submit<Any?> {
                 RuntimeLog.open(logFile).use { runtimeLog ->
-                    runtimeFactory.start(
-                        input = runtimeInput,
-                        screen = screen,
-                        config =
-                            RuntimeSessionConfig(
-                                userId = userId,
-                                stateSlug = config.stateSlug,
-                                loadFile = config.loadFile,
-                                saveFile = saveFile,
-                                showTitleMenu = config.showTitleMenu,
-                            ),
-                        log = runtimeLog,
+                    runtimeInput.logEvent = runtimeLog::event
+                    runtimeLog.event(
+                        "bitmap.session.start user=${account.slug} load=${loadFile?.path.orEmpty()} " +
+                            "save=${saveFile.path} title=$showTitleMenu",
                     )
+                    runtimeFactory
+                        .start(
+                            input = runtimeInput,
+                            screen = screen,
+                            config =
+                                RuntimeSessionConfig(
+                                    userId = account.slug,
+                                    stateSlug = config.stateSlug,
+                                    loadFile = loadFile,
+                                    saveFile = saveFile,
+                                    showTitleMenu = showTitleMenu,
+                                ),
+                            log = runtimeLog,
+                        ).also { result ->
+                            runtimeLog.event("bitmap.session.end user=${account.slug} reason=${result.reason}")
+                            serverLog.event("bitmap.session.close user=${account.slug} reason=${result.reason} sessionLog=${logFile.path}")
+                        }
                 }
                 connection.close()
                 null
             }
         try {
-            connection.readClientMessages(runtimeInput::acceptClientMessage)
+            connection.readClientMessages { message ->
+                serverLog.event("bitmap.websocket.input id=$clientId user=${account.slug} token=${serverLogValue(message)}")
+                runtimeInput.acceptClientMessage(message)
+            }
         } finally {
             runtimeInput.close()
             runCatching { runtime.get(5, TimeUnit.SECONDS) }
+            activeUsers.remove(account.slug)
         }
-        log("bitmap.websocket.close id=$clientId")
+        serverLog.event("bitmap.websocket.close id=$clientId user=${account.slug}")
     }
+
+    private fun authenticatedAccount(request: WebHttpRequest): WebAccount? {
+        config.userId?.let { userId ->
+            val slug = slugFrom(userId) ?: userId
+            return WebAccount(slug, userId, "$slug@local.invalid", emailConfirmed = true)
+        }
+        return sessions.account(WebAuthCookies.token(request.headers))
+    }
+
+    private fun sessionLoadFile(
+        saveFile: File,
+        account: WebAccount,
+    ): File? {
+        if (saveFile.hasUserSave(account.slug)) return saveFile
+        val initialLoadFile = config.loadFile ?: return saveFile.takeIf(File::isFile)
+        if (initialLoadFile.isFile) return initialLoadFile
+        return saveFile.takeIf(File::isFile)
+    }
+
+    private fun File.hasUserSave(userId: String): Boolean = runtimeFactory.hasUserSave(this, userId)
 }
 
-private fun log(line: String) {
+private fun streamServerLog(line: String) {
     println("[rylween-bitmap] $line")
 }
 
-private data class HttpRequest(
-    val method: String,
-    val target: String,
-    val path: String,
-    val query: Map<String, String>,
-    val headers: Map<String, String>,
-) {
-    fun header(name: String): String? = headers[name.lowercase(Locale.ROOT)]
-
-    fun isWebSocketUpgrade(): Boolean = WebSocketProtocol.isUpgrade(header("upgrade"), header("connection"))
-}
-
-private fun readHttpRequest(input: InputStream): HttpRequest? {
-    val requestLine = readHttpLine(input) ?: return null
-    if (requestLine.isBlank()) return null
-    val parts = requestLine.split(" ", limit = 3)
-    if (parts.size < 2) return null
-    val headers = linkedMapOf<String, String>()
-    while (true) {
-        val line = readHttpLine(input) ?: return null
-        if (line.isEmpty()) break
-        val separator = line.indexOf(':')
-        if (separator < 1) continue
-        val name = line.substring(0, separator).trim().lowercase(Locale.ROOT)
-        val value = line.substring(separator + 1).trim()
-        headers[name] = value
-    }
-    val target = parts[1]
-    val parsed = parseTarget(target)
-    return HttpRequest(parts[0], target, parsed.path, parsed.query, headers)
-}
-
-private fun readHttpLine(input: InputStream): String? {
-    val out = ByteArrayOutputStream()
-    while (out.size() < MAX_HTTP_LINE_BYTES) {
-        val next = input.read()
-        if (next < 0) {
-            if (out.size() == 0) return null
-            break
-        }
-        if (next == '\n'.code) break
-        if (next != '\r'.code) out.write(next)
-    }
-    return out.toString(StandardCharsets.ISO_8859_1)
-}
-
-private data class ParsedTarget(
-    val path: String,
-    val query: Map<String, String>,
-)
-
-private fun parseTarget(target: String): ParsedTarget {
-    val queryStart = target.indexOf('?')
-    if (queryStart < 0) return ParsedTarget(target, emptyMap())
-    val path = target.substring(0, queryStart)
-    val query = parseQuery(target.substring(queryStart + 1))
-    return ParsedTarget(path, query)
-}
-
-private fun parseQuery(raw: String): Map<String, String> {
-    if (raw.isBlank()) return emptyMap()
-    val values = linkedMapOf<String, String>()
-    raw.split('&').forEach { part ->
-        val separator = part.indexOf('=')
-        if (separator < 0) {
-            values[urlDecode(part)] = ""
-            return@forEach
-        }
-        values[urlDecode(part.substring(0, separator))] = urlDecode(part.substring(separator + 1))
-    }
-    return values
-}
-
-private fun urlDecode(value: String): String = URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8)
-
-private fun respondText(
-    socket: Socket,
-    status: String,
-    contentType: String,
-    body: String,
-) {
-    val bytes = body.toByteArray(StandardCharsets.UTF_8)
-    val header =
-        "HTTP/1.1 $status\r\n" +
-            "Content-Type: $contentType\r\n" +
-            "Content-Length: ${bytes.size}\r\n" +
-            "Cache-Control: no-store\r\n" +
-            "Connection: close\r\n" +
-            "\r\n"
-    val output = socket.getOutputStream()
-    output.write(header.toByteArray(StandardCharsets.ISO_8859_1))
-    output.write(bytes)
-    output.flush()
-}
-
-private fun respondBytes(
-    socket: Socket,
-    contentType: String,
-    bytes: ByteArray,
-) {
-    val header =
-        "HTTP/1.1 200 OK\r\n" +
-            "Content-Type: $contentType\r\n" +
-            "Content-Length: ${bytes.size}\r\n" +
-            "Connection: close\r\n" +
-            "Cache-Control: no-store\r\n" +
-            "\r\n"
-    val output = socket.getOutputStream()
-    output.write(header.toByteArray(StandardCharsets.ISO_8859_1))
-    output.write(bytes)
-    output.flush()
-}
+private fun serverLogValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 private fun writeWebSocketHandshake(
     output: java.io.OutputStream,
-    request: HttpRequest,
+    request: WebHttpRequest,
 ) {
     val key = request.header("sec-websocket-key") ?: error("missing websocket key")
     WebSocketProtocol.writeHandshake(output, key)

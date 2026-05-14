@@ -177,6 +177,62 @@ class RuntimeSessionFactoryTest {
         assertEquals("Replay", reloadedValues["${localPrefix}party.name"])
     }
 
+    @Test
+    fun scoreAndHeroesAreSharedAcrossSavedUsers() {
+        val saveFile = testTmp.resolve("session-api-score-heroes.rsave").freshSaveFile()
+        val firstLog = testTmp.resolve("session-api-score-heroes-first.log")
+        val secondLog = testTmp.resolve("session-api-score-heroes-second.log")
+
+        runRuntimeSession(saveFile, firstLog, sessionDate = LocalDate.of(2026, 5, 11))
+        val withBeta =
+            saveFile
+                .readSaveValues()
+                .withDuplicatedUser("local", "beta") +
+                mapOf(
+                    "user.1.party.name" to "Alpha Party",
+                    "user.2.party.name" to "Beta Party",
+                    "user.2.party.milestones" to "ydarg_victory",
+                )
+        saveFile.writeText(SaveCodec.encodeValues(withBeta))
+
+        runRuntimeSession(saveFile, secondLog, loadFile = saveFile, sessionDate = LocalDate.of(2026, 5, 11))
+
+        val scoreTerminal = RecordingAnsiTerminal()
+        val heroesTerminal = RecordingAnsiTerminal()
+        RuntimeLog.open(testTmp.resolve("session-api-score-screen.log")).use { log ->
+            RuntimeSessionFactory
+                .load(bundleFile)
+                .renderStaticScreen(
+                    scoreTerminal,
+                    RuntimeStaticScreenConfig(
+                        screenSlug = "score",
+                        stateSlug = "fresh-replay",
+                        loadFile = saveFile,
+                        userId = "local",
+                    ),
+                    log,
+                )
+        }
+        RuntimeLog.open(testTmp.resolve("session-api-heroes-screen.log")).use { log ->
+            RuntimeSessionFactory
+                .load(bundleFile)
+                .renderStaticScreen(
+                    heroesTerminal,
+                    RuntimeStaticScreenConfig(
+                        screenSlug = "heroes",
+                        stateSlug = "fresh-replay",
+                        loadFile = saveFile,
+                        userId = "local",
+                    ),
+                    log,
+                )
+        }
+
+        assertContains(scoreTerminal.output, "Alpha Party")
+        assertContains(scoreTerminal.output, "Beta Party")
+        assertContains(heroesTerminal.output, "Beta Party defeated Baron Ydarg")
+    }
+
     private fun runRuntimeSession(
         saveFile: File,
         logFile: File,

@@ -181,7 +181,7 @@ val checkRuntimeNewPartyCreation: TaskProvider<RunInstalledLauncherWithJavaTask>
     script.set(
         listOf(
             "x",
-            "C",
+            "N",
             "\"Debuggers\"",
             "Y",
             "Y",

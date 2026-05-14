@@ -318,13 +318,21 @@ data class WildernessPacingModel(
 
 data class TitleMenuPromptsModel(
     val header: TextBlock = inlineText("Rylween", ""),
-    val createNewParty: InputBindingModel = inputKey("C", label = "Create New Party"),
+    val createNewParty: InputBindingModel = inputKey("N", label = "Create New Party"),
     val continueSavedGame: InputBindingModel = inputKey("C", label = "Continue Saved Game"),
     val terminateParty: InputBindingModel = inputKey("T", label = "Terminate Party"),
     val scoreboard: InputBindingModel = inputKey("S", label = "Scoreboard"),
     val hallOfFame: InputBindingModel = inputKey("H", label = "Hall of Fame"),
     val documentation: InputBindingModel = inputKey("D", label = "Documentation"),
     val leave: InputBindingModel = inputKey("L", label = "Leave"),
+    val continueUnavailable: TextBlock = inlineText("No saved party exists for this user."),
+    val overwriteConfirm: TextBlock =
+        inlineText(
+            "Creating a new party will overwrite the saved party for this user.",
+            "",
+            "(Y)es",
+            "(N)o",
+        ),
     val terminateConfirm: TextBlock = inlineText("Terminate saved party?", "", "(Y)es", "(N)o"),
     val terminated: TextBlock = inlineText("Saved party terminated."),
     val terminateFailed: TextBlock = inlineText("Could not delete saved party."),

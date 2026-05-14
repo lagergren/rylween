@@ -114,6 +114,12 @@ class RylweenCompiledGameLedgerTest {
                     SecretPlayerMatcherModel.Named(listOf("Karl Skagerberg")),
                 ),
         )
+        check(
+            nextDsl.secrets.players
+                .first()
+                .alwaysRunFromNonMandatoryEncounters,
+        )
+        check(!nextDsl.secrets.players[1].alwaysRunFromNonMandatoryEncounters)
         check(nextDsl.progress.milestones.size == 6)
         check(
             nextDsl.progress.win
@@ -1043,7 +1049,7 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.missions.single { it.id == Missions.jazzyFoot }.trigger == Trigger.OnTerrain(Terrain.foothills))
         check(nextDsl.missions.single { it.id == Missions.silverKey }.trigger == Trigger.AtLocation(Locations.silverKeyPit))
         check(nextDsl.missions.single { it.id == Missions.hobgoblinCaravan }.trigger == Trigger.RandomStep(9))
-        check(nextRylween.states.size == 10)
+        check(nextRylween.states.size == 11)
 
         val freshParty =
             nextRylween.states
@@ -1058,6 +1064,11 @@ class RylweenCompiledGameLedgerTest {
         val strongParty =
             nextRylween.states
                 .single { it.id == States.strongReplay }
+                .parties
+                .single()
+        val strongEndgameParty =
+            nextRylween.states
+                .single { it.id == States.strongEndgameReplay }
                 .parties
                 .single()
         val townMissionParty =
@@ -1190,6 +1201,22 @@ class RylweenCompiledGameLedgerTest {
             ).all { item -> strongParty.inventory.any { slot -> slot.item == item } },
         )
         check(!isWinningConfiguration(nextDsl, strongParty))
+        check(strongEndgameParty.player == "StrongEndgame")
+        check(strongEndgameParty.name == "Strong Endgame")
+        check(strongEndgameParty.position == Wilderness.xy(14, 28))
+        check(strongEndgameParty.facing == Facing.South)
+        check(
+            specialInventoryItems(nextDsl, strongEndgameParty).toSet() ==
+                setOf(
+                    Items.fireshield,
+                    Items.bracelets,
+                    Items.mastercrown,
+                    Items.jazzyfoot,
+                    Items.silverkey,
+                ),
+        )
+        check(!isWinningConfiguration(nextDsl, strongEndgameParty))
+        check(Milestones.ydargVictory !in strongEndgameParty.milestones)
         check(specialInventoryItems(nextDsl, nearWinningParty).size == 5)
         check(!isWinningConfiguration(nextDsl, nearWinningParty))
         check(specialInventoryItems(nextDsl, winningParty).size == 5)
@@ -1353,7 +1380,7 @@ class RylweenCompiledGameLedgerTest {
         check("--title" in launcher && "--no-title" in launcher && "title_seen=false" in launcher) {
             "run.sh must show the title screen by default and require --no-title to skip it"
         }
-        check("--name" in launcher && "RYLWEEN_DATA_DIR" in launcher && "world.rsave" in launcher) {
+        check("--name" in launcher && "RYLWEEN_DATA_DIR" in launcher && "world.rsave" in launcher && "strong-endgame-replay" in launcher) {
             "run.sh must expose named local save loading from the default data directory"
         }
         check("--name" in serverLauncher && "RYLWEEN_NAME" in serverLauncher && "run.sh\" --build --name" in serverLauncher) {
@@ -1371,7 +1398,7 @@ class RylweenCompiledGameLedgerTest {
         }
         check(
             "titleMenu" in gameDsl &&
-                "createNewParty = inputKey(\"C\", label = \"Create New Party\")" in gameDsl &&
+                "createNewParty = inputKey(\"N\", label = \"Create New Party\")" in gameDsl &&
                 "leave = inputKey(\"L\", label = \"Leave\")" in gameDsl &&
                 "E(x)it" !in gameDsl,
         ) {
@@ -1557,8 +1584,8 @@ class RylweenCompiledGameLedgerTest {
         check(File("runtime/src/main/kotlin/rylween/runtime/SaveFile.kt").isFile) {
             "runtime must own its direct save/load adapter"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/SaveCodec.kt").isFile) {
-            "runtime save escaping must stay in a persistence codec, not terminal input/color code"
+        check("internal object SaveCodec" in File("runtime/src/main/kotlin/rylween/runtime/SaveFile.kt").readText()) {
+            "runtime save escaping must stay in the save adapter, not terminal input/color code"
         }
         check(File("runtime/src/main/kotlin/rylween/runtime/PartyPages.kt").isFile) {
             "runtime must own direct party and journal pages"
@@ -1669,9 +1696,11 @@ class RylweenCompiledGameLedgerTest {
             "ExternalRuntimeDungeon",
             "ExternalRuntimeCastle",
             "ExternalRuntimeScore",
+            "ExternalRuntimeSecrets",
             "readCastle",
             "readDungeon",
             "readScore",
+            "readSecrets",
         ).forEach { token ->
             check(token in externalRuntimeSystemsSource) {
                 "runtimeSystems must expose typed dungeon/castle rows for direct runtimes: missing $token"

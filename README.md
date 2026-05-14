@@ -7,6 +7,18 @@ DSL/compiler and compiled-bundle contracts live under `:core`, authored game
 DSL and resources live under `:game`, bundle emitters and native probes live
 under `:tools`, and terminal transport/protocol code lives under `:terminal`.
 
+Module guides:
+
+- [`:core`](core/README.md) - DSL, validation, compiled bundle contracts.
+- [`:game`](game/README.md) - authored Rylween game script, fixtures, assets.
+- [`:runtime`](runtime/README.md) - shared game runtime and direct ANSI terminal.
+- [`:runtime-web`](runtime-web/README.md) - browser-served ANSI runtime.
+- [`:runtime-bitmap-web`](runtime-bitmap-web/README.md) - canvas bitmap runtime.
+- [`:web-common`](web-common/README.md) - shared web HTTP, WebSocket, auth, status.
+- [`:terminal`](terminal/README.md) - ANSI terminal primitives.
+- [`:tools`](tools/README.md) - compiled-bundle artifact tools and native probes.
+- [`build-logic`](build-logic/README.md) - Gradle conventions and custom tasks.
+
 The original game text and manual live in
 [`adventurers-of-rylween.md`](game/src/main/resources/adventurers-of-rylween.md).
 
@@ -39,6 +51,7 @@ Build and run the direct runtime:
 ./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain
 ./run.sh --build --seed 1
 ./run.sh --build --name Strong
+./run.sh --build --name StrongEndgame
 runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --user local --state fresh-replay --seed 1
 ```
 
@@ -55,8 +68,9 @@ game screen.
 
 `run.sh` shows the title flow by default. Press RETURN at the splash screen,
 then `C` to create a new party. Use `--name Strong` to load the seeded Strong
-party from the default save file. Use `--no-title` only when you intentionally
-want to boot a state or feed a direct script.
+party outside Thord, or `--name StrongEndgame` to load a Strong party two steps
+north of Castle Ydarg with the five required power artifacts. Use `--no-title`
+only when you intentionally want to boot a state or feed a direct script.
 Use `--log <file>` to keep a named capture instead of replacing `latest.log`.
 For manual forensics, `--debug-log` flashes the latest log line below the game
 frame, and `--debug-secrets` enables hidden wilderness triggers: `[` forces a
@@ -74,11 +88,52 @@ Run the browser ANSI proof of concept in Docker:
 ```sh
 ./run-server.sh --build
 ./run-server.sh --build --name Strong
+./run-server.sh --build --name StrongEndgame
+./run-server.sh --account Strong --email strong@example.test --password 'change-this-password'
 ```
 
-The second form seeds `~/.rylween/data/saves/world.rsave` with the Strong party
-before starting the container. In the browser, enter `Strong` as the adventurer
-name to use that save.
+The named forms seed `~/.rylween/data/saves/world.rsave` before starting the
+container and use the local development auth bypass. The account form creates
+or verifies a persisted web account before the server starts.
+
+Run the bitmap web runtime locally:
+
+```sh
+./run-bitmap-server.sh --build
+./run-bitmap-server.sh --build --name Strong
+./run-bitmap-server.sh --build --name StrongEndgame
+./run-bitmap-server.sh --account Strong --email strong@example.test --password 'change-this-password'
+```
+
+Back up web game state and users as one artifact:
+
+```sh
+./backup-web-data.sh --data ~/.rylween/data --output rylween-backup.tar.gz
+```
+
+The data directory is split by ownership: `saves/world.rsave` is game state,
+`auth/users` is account state, and `logs` is operational history. The exact file
+layout and field meanings are documented in
+[`web-common/README.md`](web-common/README.md) and
+[`runtime/README.md`](runtime/README.md).
+
+Build the production-oriented ANSI web image for reverse-proxy deployment:
+
+```sh
+docker build -f Dockerfile.production -t rylween-web-prod .
+```
+
+Build the bitmap production image:
+
+```sh
+docker build -f Dockerfile.bitmap-production -t rylween-bitmap-prod .
+```
+
+The production image still serves plain HTTP internally. Bind it to loopback or
+a private container network, terminate HTTPS at nginx/Caddy/HAProxy/a load
+balancer, and keep `RYLWEEN_AUTH_SECURE_COOKIES=true`. See
+[`web-common/README.md`](web-common/README.md) for the auth model and production
+hardening checklist.
 
 The runtime boots directly from the compiled bundle, renders static screens and
 wilderness frames, runs wilderness/town/services/battle/dungeon and castle flows
