@@ -18,7 +18,7 @@ import rylween.runtime.RuntimeScreenPort
 import rylween.runtime.RuntimeState
 import rylween.runtime.RuntimeViewCommand
 import rylween.runtime.WorldMap
-import rylween.runtime.runtimeFoodStatusLabel
+import rylween.runtime.runtimeStatusLabel
 import rylween.runtime.runtimeStatusLines
 import rylween.runtime.runtimeWildernessContextLines
 import rylween.runtime.viewport
@@ -153,7 +153,7 @@ internal class BitmapRuntimeScreen(
         title = screenSlug.readableSlug()
         subtitle = runtime.party.name
         status = runtime.bitmapStatus()
-        statusLines = runtime.runtimeStatusLines(content)
+        statusLines = runtime.runtimeStatusLines(content, systems)
         textLines = emptyList()
         textInput = null
         portrait = null
@@ -199,14 +199,13 @@ internal class BitmapRuntimeScreen(
         title = "Wilderness"
         subtitle = ""
         status = runtime.bitmapStatus()
-        statusLines = runtime.runtimeStatusLines(content)
+        statusLines = runtime.runtimeStatusLines(content, systems)
         textLines = wildernessTextLines(runtime, world)
         textInput = null
         portrait = null
         partyPage = null
         commands = systems.bitmapCommands("wilderness")
         map = world.bitmapViewport(runtime.party.position, content, viewportTiles, mapTileSize)
-        message = null
         send()
     }
 
@@ -236,7 +235,7 @@ internal class BitmapRuntimeScreen(
         title = "Dungeon"
         subtitle = "Depth ${runtime.dungeon?.depth ?: 1}"
         status = runtime.bitmapStatus()
-        statusLines = runtime.runtimeStatusLines(content)
+        statusLines = runtime.runtimeStatusLines(content, systems)
         textInput = null
         portrait = null
         partyPage = null
@@ -254,7 +253,7 @@ internal class BitmapRuntimeScreen(
         title = castle.id.readableSlug()
         subtitle = "Floor ${runtime.castle?.floor ?: 1}"
         status = runtime.bitmapStatus()
-        statusLines = runtime.runtimeStatusLines(content)
+        statusLines = runtime.runtimeStatusLines(content, systems)
         textInput = null
         portrait = null
         partyPage = null
@@ -279,13 +278,16 @@ internal class BitmapRuntimeScreen(
 
     override fun updateStatus(runtime: RuntimeState) {
         status = runtime.bitmapStatus()
-        statusLines = runtime.runtimeStatusLines(content)
+        statusLines = runtime.runtimeStatusLines(content, systems)
         send()
     }
 
     override fun writeViewCommand(command: RuntimeViewCommand) {
         when (command) {
-            RuntimeViewCommand.ClearText -> textLines = emptyList()
+            RuntimeViewCommand.ClearText -> {
+                textLines = emptyList()
+                message = null
+            }
             RuntimeViewCommand.ClearMapWindow -> map = null
             RuntimeViewCommand.RenderMap -> Unit
             RuntimeViewCommand.StatusLine -> Unit
@@ -385,7 +387,7 @@ internal class BitmapRuntimeScreen(
     private fun RuntimeState.bitmapStatus(): BitmapStatus =
         BitmapStatus(
             time = timeLabel(hour),
-            condition = runtimeFoodStatusLabel(),
+            condition = runtimeStatusLabel(systems),
             x = party.position.x,
             y = party.position.y,
             food = party.resources.food.coerceAtLeast(0),

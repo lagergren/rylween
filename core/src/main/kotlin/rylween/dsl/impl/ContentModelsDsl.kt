@@ -68,12 +68,13 @@ fun defaultTimeOfDayBands(): List<TimeOfDayBandModel> =
 /** Match mode for a wilderness fatigue rule threshold. */
 enum class WildernessFatigueMatch { Equal, LessThan }
 
-/** One authored fatigue threshold and message/drain effect. */
+/** One authored fatigue threshold, message/drain effect, and optional HUD status label. */
 data class WildernessFatigueRule(
     val threshold: Int,
     val text: TextBlock,
     val match: WildernessFatigueMatch = WildernessFatigueMatch.Equal,
     val drain: Boolean = false,
+    val statusLabel: String? = null,
 )
 
 /**

@@ -58,7 +58,7 @@ tasks.jar {
     }
 }
 
-fun runtimeBattleMacro(): String = "F" + "A".repeat(5)
+fun runtimeBattleMacro(): String = "F" + "AA".repeat(5)
 
 fun runtimeCastleStep(command: Char): String = command.toString() + runtimeBattleMacro()
 

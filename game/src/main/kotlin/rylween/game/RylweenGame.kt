@@ -394,10 +394,10 @@ val authoredRylween: RylweenModel =
                     starveDamage = 2
                     manaRegenChance = 50
                     restedHoursCostPerTurn = 1
-                    fatigueAt(0, inlineText("You begin to feel tired"))
-                    fatigueAt(-4, inlineText("You are exhausted!!!"), drain = true)
-                    fatigueAt(-8, inlineText("You begin to feel weak", "from lack of sleep.", ""), drain = true)
-                    fatigueBelow(-8, inlineText("You faint from lack", "of well needed sleep."), drain = true)
+                    fatigueAt(0, inlineText("You begin to feel tired"), statusLabel = "TIRED")
+                    fatigueAt(-4, inlineText("You are exhausted!!!"), drain = true, statusLabel = "EXHAUSTED")
+                    fatigueAt(-8, inlineText("You begin to feel weak", "from lack of sleep.", ""), drain = true, statusLabel = "WEAK")
+                    fatigueBelow(-8, inlineText("You faint from lack", "of well needed sleep."), drain = true, statusLabel = "FAINT")
                 }
                 hunt {
                     successChancePercent = 45
@@ -5194,6 +5194,7 @@ val authoredRylween: RylweenModel =
                     )
 
                     menu(
+                        "",
                         "(L)eave",
                     ) {
                         option('L') {

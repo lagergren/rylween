@@ -1,23 +1,155 @@
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const commandToggle = document.getElementById("commandToggle");
-const commandPopover = document.getElementById("commandPopover");
-const canvasTooltip = document.getElementById("canvasTooltip");
-const connectionDot = document.getElementById("connectionDot");
-const connectionText = document.getElementById("connectionText");
-let socket = null;
-let frame = null;
-let currentCommands = [];
-let statusHotspots = [];
-let titleFade = null;
-let sceneFade = null;
-const assetVersion = "20260514-chess-knight";
-const layout = {
+type Bounds = { x: number; y: number; w: number; h: number };
+type Layout = { map: Bounds; text: Bounds; status: Bounds };
+type BitmapAssets = Record<string, HTMLImageElement>;
+type StatusHotspot = Bounds & { text: string };
+type SceneFadeSnapshot = { image: HTMLCanvasElement; bounds: Bounds };
+type ImageFade = { image: HTMLImageElement; started: number; duration: number };
+type SceneFade = { image: HTMLCanvasElement; bounds: Bounds; started: number; duration: number };
+type TerrainAtlasIndex = { row: number; col: number };
+type TileColors = { base: string; shadow: string };
+type PartyStat = [string, string | number | undefined | null];
+
+type BitmapCommand = {
+  label: string;
+  caption: string;
+  input: string;
+};
+
+type BitmapTextInput = {
+  value?: string;
+  maxLength?: number;
+};
+
+type BitmapTile = {
+  slug?: string;
+  settlement?: string;
+  variant?: number;
+  passable?: boolean;
+  center?: boolean;
+  waterMask?: number;
+};
+
+type BitmapMap = {
+  rows?: BitmapTile[][];
+  tileSize?: number;
+};
+
+type BitmapStatusMember = {
+  slot: string | number;
+  name: string;
+  hp: number;
+  hpMax: number;
+  mana?: number;
+  manaMax?: number;
+  dead?: boolean;
+};
+
+type BitmapStatus = {
+  time: string;
+  condition: string;
+  x: number;
+  y: number;
+  food: number;
+  moves: number;
+  gold: number;
+  members?: BitmapStatusMember[];
+};
+
+type BitmapPortrait = {
+  imageSlug?: string;
+  memberName?: string;
+  memberNumber?: number;
+  gender?: string;
+  race?: string;
+  pcClass?: string;
+};
+
+type BitmapPartyMemberPage = {
+  name?: string;
+  gender?: string;
+  race?: string;
+  pcClass?: string;
+  level?: number;
+  experience?: number;
+  hitPoints?: number;
+  hitPointMax?: number;
+  mana?: number;
+  manaMax?: number;
+  weaponSkill?: number;
+  health?: number;
+  wisdom?: number;
+  charisma?: number;
+  weapon?: string;
+  armor?: string;
+  status?: string;
+};
+
+type BitmapPartySummaryPage = {
+  partyName?: string;
+  memberCount?: number;
+  gold?: number;
+  food?: number;
+  torches?: number;
+  moves?: number;
+  rest?: number;
+  kills?: number;
+};
+
+type BitmapPartyPage = {
+  kind?: string;
+  pauseLine?: string;
+  member?: BitmapPartyMemberPage;
+  summary?: BitmapPartySummaryPage;
+  inventory?: string[];
+};
+
+type BitmapFrame = {
+  width?: number;
+  height?: number;
+  mode?: string;
+  backdrop?: string;
+  subtitle?: string;
+  title?: string;
+  textLines?: string[];
+  textInput?: BitmapTextInput | null;
+  status?: BitmapStatus | null;
+  statusLines?: string[];
+  commands?: BitmapCommand[];
+  map?: BitmapMap;
+  message?: string;
+  portrait?: BitmapPortrait;
+  partyPage?: BitmapPartyPage;
+  visualTransition?: string;
+};
+
+function requireElement<T extends HTMLElement>(id: string, elementType: { new (): T }): T {
+  const element = document.getElementById(id);
+  if (!(element instanceof elementType)) throw new Error("Missing #" + id);
+  return element;
+}
+
+const canvas = requireElement("game", HTMLCanvasElement);
+const context = canvas.getContext("2d");
+if (!context) throw new Error("Canvas 2D context is unavailable");
+const ctx = context;
+const commandToggle = requireElement("commandToggle", HTMLButtonElement);
+const commandPopover = requireElement("commandPopover", HTMLElement);
+const canvasTooltip = requireElement("canvasTooltip", HTMLElement);
+const connectionDot = requireElement("connectionDot", HTMLElement);
+const connectionText = requireElement("connectionText", HTMLElement);
+let socket: WebSocket | null = null;
+let frame: BitmapFrame | null = null;
+let currentCommands: BitmapCommand[] = [];
+let statusHotspots: StatusHotspot[] = [];
+let titleFade: ImageFade | null = null;
+let sceneFade: SceneFade | null = null;
+const assetVersion = "20260514-water-meanders";
+const layout: Layout = {
   map: { x: 114, y: 64, w: 420, h: 482 },
   text: { x: 746, y: 64, w: 420, h: 482 },
   status: { x: 154, y: 566, w: 972, h: 92 }
 };
-const bitmapAssets = {
+const bitmapAssets: BitmapAssets = {
   title: loadAsset(assetUrl("/assets/title-rider.png")),
   frame: loadAsset(assetUrl("/assets/screen-frame.png")),
   town: loadAsset(assetUrl("/assets/town-mainstreet.png")),
@@ -25,6 +157,7 @@ const bitmapAssets = {
   bestiary: loadAsset(assetUrl("/assets/encounter-bestiary.png")),
   scenes: loadAsset(assetUrl("/assets/scene-atlas.png")),
   terrain: loadAsset(assetUrl("/assets/terrain-atlas.png")),
+  waterConnect: loadAsset(assetUrl("/assets/water-connect-atlas.png")),
   partyMarker: loadAsset(assetUrl("/assets/party-rider.png")),
   sceneMainstreet: loadAsset(assetUrl("/assets/scene-thord-mainstreet.png")),
   sceneMerchant: loadAsset(assetUrl("/assets/scene-merchant.png")),
@@ -42,13 +175,13 @@ const bitmapAssets = {
   monsterHumanoidMagic: loadAsset(assetUrl("/assets/monster-humanoid-magic.png")),
   monsterBoss: loadAsset(assetUrl("/assets/monster-boss.png"))
 };
-const portraitAssets = new Map();
+const portraitAssets = new Map<string, HTMLImageElement>();
 
-function assetUrl(path) {
+function assetUrl(path: string): string {
   return path + "?v=" + assetVersion;
 }
 
-function loadAsset(src) {
+function loadAsset(src: string): HTMLImageElement {
   const image = new Image();
   image.src = src;
   image.addEventListener("load", () => {
@@ -57,15 +190,15 @@ function loadAsset(src) {
   return image;
 }
 
-function portraitAsset(imageSlug) {
+function portraitAsset(imageSlug: string | undefined): HTMLImageElement | null {
   if (!imageSlug) return null;
   if (!portraitAssets.has(imageSlug)) {
     portraitAssets.set(imageSlug, loadAsset(assetUrl("/assets/game-image/" + encodeURIComponent(imageSlug))));
   }
-  return portraitAssets.get(imageSlug);
+  return portraitAssets.get(imageSlug) ?? null;
 }
 
-function connect() {
+function connect(): void {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   socket = new WebSocket(protocol + "//" + location.host + "/ws/play");
   socket.addEventListener("open", () => {
@@ -74,7 +207,7 @@ function connect() {
     canvas.focus();
   });
   socket.addEventListener("message", (event) => {
-    const nextFrame = JSON.parse(event.data);
+    const nextFrame = JSON.parse(event.data) as BitmapFrame;
     const fadeFromTitle = isTitleFrame(frame) && !isTitleFrame(nextFrame);
     const sceneFadeSnapshot = shouldFadeVisual(frame, nextFrame) ? captureScenePanel() : null;
     if (fadeFromTitle) beginTitleFade();
@@ -89,19 +222,19 @@ function connect() {
   });
 }
 
-function send(token) {
+function send(token: string): void {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(token);
 }
 
-function isTitleFrame(candidate) {
+function isTitleFrame(candidate: BitmapFrame | null): boolean {
   if (!candidate) return false;
   if (candidate.mode === "title_menu") return false;
   const kind = (candidate.backdrop || candidate.mode || "").toLowerCase();
   return candidate.mode === "title" || kind.includes("title");
 }
 
-function beginTitleFade() {
+function beginTitleFade(): void {
   if (!canvas.width || !canvas.height) return;
   const image = new Image();
   image.addEventListener("load", () => {
@@ -111,7 +244,7 @@ function beginTitleFade() {
   image.src = canvas.toDataURL("image/png");
 }
 
-function drawTitleFade() {
+function drawTitleFade(): void {
   if (!titleFade || !frame) return;
   const elapsed = performance.now() - titleFade.started;
   const alpha = Math.max(0, 1 - elapsed / titleFade.duration);
@@ -127,7 +260,7 @@ function drawTitleFade() {
   }
 }
 
-function shouldFadeVisual(previous, next) {
+function shouldFadeVisual(previous: BitmapFrame | null, next: BitmapFrame | null): boolean {
   if (!previous || !next) return false;
   if (isTitleFrame(previous) || isTitleFrame(next)) return false;
   const previousKey = visualKey(previous);
@@ -136,7 +269,7 @@ function shouldFadeVisual(previous, next) {
   return (next.visualTransition || "None") === "Fade" || isSceneSurface(previous) || isSceneSurface(next);
 }
 
-function visualKey(candidate) {
+function visualKey(candidate: BitmapFrame | null): string {
   if (!candidate) return "";
   if (candidate.mode === "boot") return "";
   if (candidate.portrait) return "portrait:" + candidate.portrait.imageSlug;
@@ -145,7 +278,7 @@ function visualKey(candidate) {
   return "scene:" + (candidate.mode || "") + ":" + (candidate.backdrop || "");
 }
 
-function isSceneSurface(candidate) {
+function isSceneSurface(candidate: BitmapFrame | null): boolean {
   if (!candidate) return false;
   if (candidate.mode === "boot" || candidate.mode === "title_menu") return false;
   if (candidate.portrait || candidate.partyPage || candidate.map) return true;
@@ -153,22 +286,24 @@ function isSceneSurface(candidate) {
   return Boolean(kind) && !kind.includes("title");
 }
 
-function captureScenePanel() {
+function captureScenePanel(): SceneFadeSnapshot | null {
   if (!canvas.width || !canvas.height) return null;
   const bounds = scenePanelBounds();
   const image = document.createElement("canvas");
   image.width = bounds.w;
   image.height = bounds.h;
-  image.getContext("2d").drawImage(canvas, bounds.x, bounds.y, bounds.w, bounds.h, 0, 0, bounds.w, bounds.h);
+  const snapshotContext = image.getContext("2d");
+  if (!snapshotContext) return null;
+  snapshotContext.drawImage(canvas, bounds.x, bounds.y, bounds.w, bounds.h, 0, 0, bounds.w, bounds.h);
   return { image, bounds };
 }
 
-function beginSceneFade(snapshot) {
+function beginSceneFade(snapshot: SceneFadeSnapshot): void {
   sceneFade = { image: snapshot.image, bounds: snapshot.bounds, started: performance.now(), duration: 360 };
   requestAnimationFrame(drawSceneFade);
 }
 
-function drawSceneFade() {
+function drawSceneFade(): void {
   if (!sceneFade || !frame) return;
   const elapsed = performance.now() - sceneFade.started;
   const progress = Math.min(1, elapsed / sceneFade.duration);
@@ -185,11 +320,11 @@ function drawSceneFade() {
   }
 }
 
-function easeOutCubic(t) {
+function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
-window.addEventListener("keydown", (event) => {
+window.addEventListener("keydown", (event: KeyboardEvent) => {
   if (event.key === "?" && !(frame && frame.textInput) && currentCommands.length > 0) {
     event.preventDefault();
     toggleCommandPalette();
@@ -206,7 +341,7 @@ window.addEventListener("keydown", (event) => {
   send(token);
 });
 
-canvas.addEventListener("mousemove", (event) => {
+canvas.addEventListener("mousemove", (event: MouseEvent) => {
   const point = canvasPoint(event);
   const hit = statusHotspots.find((hotspot) => (
     point.x >= hotspot.x &&
@@ -220,7 +355,7 @@ canvas.addEventListener("mousemove", (event) => {
 
 canvas.addEventListener("mouseleave", hideCanvasTooltip);
 
-function keyToken(event) {
+function keyToken(event: KeyboardEvent): string | null {
   if (event.key === "ArrowUp") return "ARROW_UP";
   if (event.key === "ArrowDown") return "ARROW_DOWN";
   if (event.key === "ArrowLeft") return "ARROW_LEFT";
@@ -234,7 +369,7 @@ function keyToken(event) {
   return null;
 }
 
-function canvasPoint(event) {
+function canvasPoint(event: MouseEvent): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
   return {
     x: (event.clientX - rect.left) * canvas.width / rect.width,
@@ -242,8 +377,9 @@ function canvasPoint(event) {
   };
 }
 
-function showCanvasTooltip(text, event) {
-  const stage = canvas.parentElement.getBoundingClientRect();
+function showCanvasTooltip(text: string, event: MouseEvent): void {
+  const stage = canvas.parentElement?.getBoundingClientRect();
+  if (!stage) return;
   canvasTooltip.hidden = false;
   canvasTooltip.textContent = text;
   const x = Math.min(stage.width - canvasTooltip.offsetWidth - 12, event.clientX - stage.left + 14);
@@ -252,7 +388,7 @@ function showCanvasTooltip(text, event) {
   canvasTooltip.style.top = Math.max(12, y) + "px";
 }
 
-function hideCanvasTooltip() {
+function hideCanvasTooltip(): void {
   canvasTooltip.hidden = true;
 }
 
@@ -261,7 +397,7 @@ commandToggle.addEventListener("click", () => {
   canvas.focus();
 });
 
-function renderCommandPalette(commands) {
+function renderCommandPalette(commands: BitmapCommand[]): void {
   currentCommands = commands;
   commandToggle.hidden = commands.length === 0;
   if (commands.length === 0) {
@@ -293,16 +429,16 @@ function renderCommandPalette(commands) {
   commandPopover.appendChild(grid);
 }
 
-function toggleCommandPalette() {
+function toggleCommandPalette(): void {
   if (currentCommands.length === 0) return;
   commandPopover.hidden = !commandPopover.hidden;
 }
 
-function closeCommandPalette() {
+function closeCommandPalette(): void {
   commandPopover.hidden = true;
 }
 
-function draw(frame) {
+function draw(frame: BitmapFrame): void {
   canvas.width = frame.width || 1280;
   canvas.height = frame.height || 720;
   ctx.imageSmoothingEnabled = false;
@@ -320,7 +456,7 @@ function draw(frame) {
   drawMessage(frame.message || "");
 }
 
-function drawBackdrop(frame) {
+function drawBackdrop(frame: BitmapFrame): void {
   const kind = (frame.backdrop || frame.mode || "").toLowerCase();
   ctx.fillStyle = "#10130d";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -335,7 +471,7 @@ function drawBackdrop(frame) {
   }
 }
 
-function drawTitleBackdrop(frame) {
+function drawTitleBackdrop(frame: BitmapFrame): void {
   drawCoverImage(bitmapAssets.title, "#111927");
   drawTitleGradient();
   drawGothicTitle(canvas.width / 2, 76);
@@ -352,7 +488,7 @@ function drawTitleBackdrop(frame) {
   ctx.restore();
 }
 
-function drawTitleMenu(frame) {
+function drawTitleMenu(frame: BitmapFrame): void {
   drawCoverImage(bitmapAssets.title, "#111927");
   drawTitleGradient();
   drawGothicTitle(canvas.width / 2, 76);
@@ -381,7 +517,7 @@ function drawTitleMenu(frame) {
   ctx.restore();
 }
 
-function drawTitleGradient() {
+function drawTitleGradient(): void {
   const top = ctx.createLinearGradient(0, 0, 0, 210);
   top.addColorStop(0, "rgba(0, 0, 0, 0.74)");
   top.addColorStop(1, "rgba(0, 0, 0, 0)");
@@ -394,7 +530,7 @@ function drawTitleGradient() {
   ctx.fillRect(0, canvas.height - 190, canvas.width, 190);
 }
 
-function drawGothicTitle(cx, y) {
+function drawGothicTitle(cx: number, y: number): void {
   ctx.save();
   ctx.textAlign = "center";
   ctx.lineJoin = "round";
@@ -432,12 +568,12 @@ function drawGothicTitle(cx, y) {
   ctx.restore();
 }
 
-function drawGamePanels() {
+function drawGamePanels(): void {
   drawFullImage(bitmapAssets.frame, "#10130d");
   drawImageShade("#020503", 0.1);
 }
 
-function drawCoverImage(image, fallback) {
+function drawCoverImage(image: HTMLImageElement, fallback: string): void {
   ctx.fillStyle = fallback;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   if (!image.complete || image.naturalWidth === 0) return;
@@ -449,14 +585,14 @@ function drawCoverImage(image, fallback) {
   ctx.drawImage(image, x, y, w, h);
 }
 
-function drawFullImage(image, fallback) {
+function drawFullImage(image: HTMLImageElement, fallback: string): void {
   ctx.fillStyle = fallback;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   if (!image.complete || image.naturalWidth === 0) return;
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 }
 
-function drawImageShade(color, alpha) {
+function drawImageShade(color: string, alpha: number): void {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.fillStyle = color;
@@ -464,7 +600,7 @@ function drawImageShade(color, alpha) {
   ctx.restore();
 }
 
-function drawMap(map) {
+function drawMap(map: BitmapMap): void {
   const rows = map.rows || [];
   const cols = rows[0] ? rows[0].length : 0;
   if (rows.length === 0 || cols === 0) return;
@@ -482,7 +618,7 @@ function drawMap(map) {
   }
 }
 
-function drawScenePanel(frame) {
+function drawScenePanel(frame: BitmapFrame): void {
   if (frame.portrait) {
     drawPortraitPanel(frame.portrait);
     return;
@@ -507,7 +643,7 @@ function drawScenePanel(frame) {
   drawSceneVignette(bounds);
 }
 
-function drawPortraitPanel(portrait) {
+function drawPortraitPanel(portrait: BitmapPortrait): void {
   const bounds = scenePanelBounds();
   ctx.fillStyle = "#070a06";
   ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
@@ -532,13 +668,13 @@ function drawPortraitPanel(portrait) {
   ctx.textAlign = "left";
 }
 
-function drawPartyOverviewPanel(page) {
+function drawPartyOverviewPanel(page: BitmapPartyPage): void {
   const bounds = scenePanelBounds();
   ctx.fillStyle = "#070a06";
   ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
   drawSemanticSceneTile("party", bounds.x, bounds.y, bounds.w, bounds.h);
   drawSceneVignette(bounds);
-  const heading = page.summary ? page.summary.partyName : (page.kind || "Party").toUpperCase();
+  const heading = page.summary ? page.summary.partyName || "Party" : (page.kind || "Party").toUpperCase();
   const caption = page.summary ? "Company Ledger" : "Inventory Ledger";
   softPanel(bounds.x + 34, bounds.y + bounds.h - 126, bounds.w - 68, 78, "rgba(5, 8, 6, 0.70)");
   ctx.textAlign = "center";
@@ -551,7 +687,7 @@ function drawPartyOverviewPanel(page) {
   ctx.textAlign = "left";
 }
 
-function scenePanelBounds() {
+function scenePanelBounds(): Bounds {
   return {
     x: layout.map.x + 10,
     y: layout.map.y + 12,
@@ -560,7 +696,7 @@ function scenePanelBounds() {
   };
 }
 
-function sceneImageFor(kind) {
+function sceneImageFor(kind: string): HTMLImageElement | null {
   if (kind.includes("encounter") || kind.includes("scorpion")) return bitmapAssets.encounter;
   if (kind.includes("towne_mainstreet") || kind.includes("towne-mainstreet")) return bitmapAssets.sceneMainstreet;
   if (kind.includes("merchant")) return bitmapAssets.sceneMerchant;
@@ -580,7 +716,7 @@ function sceneImageFor(kind) {
   return null;
 }
 
-function sceneAtlasIndex(kind) {
+function sceneAtlasIndex(kind: string): number | null {
   if (kind.includes("battle_victory") || kind.includes("battle-victory")) return 0;
   if (kind.includes("cave_entrance") || kind.includes("cave-entrance") || kind.endsWith(".cave")) return 1;
   if (kind.includes("inside_cave") || kind.includes("inside-cave") || kind.includes("cave_interior") || kind.includes("cave-interior")) return 2;
@@ -599,7 +735,7 @@ function sceneAtlasIndex(kind) {
   return null;
 }
 
-function drawSceneAtlasTile(kind, bounds) {
+function drawSceneAtlasTile(kind: string, bounds: Bounds): boolean {
   const index = sceneAtlasIndex(kind);
   const image = bitmapAssets.scenes;
   if (index === null || !image.complete || image.naturalWidth === 0) return false;
@@ -614,7 +750,7 @@ function drawSceneAtlasTile(kind, bounds) {
   return true;
 }
 
-function drawEncounterBanner(kind, bounds) {
+function drawEncounterBanner(kind: string, bounds: Bounds): boolean {
   const match = kind.match(/encounter[_-]banner[_-]?(\d+)/);
   if (!match) return false;
   const fallback = randomEncounterImage(Number(match[1]));
@@ -624,7 +760,7 @@ function drawEncounterBanner(kind, bounds) {
   return true;
 }
 
-function randomEncounterImage(index) {
+function randomEncounterImage(index: number): HTMLImageElement {
   return [
     bitmapAssets.monsterGoblinoid,
     bitmapAssets.monsterFlying,
@@ -634,7 +770,14 @@ function randomEncounterImage(index) {
   ][Math.max(0, Math.min(4, index - 1))];
 }
 
-function drawAtlasCellCover(image, sourceX, sourceY, sourceW, sourceH, bounds) {
+function drawAtlasCellCover(
+  image: HTMLImageElement,
+  sourceX: number,
+  sourceY: number,
+  sourceW: number,
+  sourceH: number,
+  bounds: Bounds
+): void {
   let sx = sourceX;
   let sy = sourceY;
   let sw = sourceW;
@@ -651,7 +794,7 @@ function drawAtlasCellCover(image, sourceX, sourceY, sourceW, sourceH, bounds) {
   ctx.drawImage(image, sx, sy, sw, sh, bounds.x, bounds.y, bounds.w, bounds.h);
 }
 
-function drawCroppedImage(image, x, y, w, h) {
+function drawCroppedImage(image: HTMLImageElement, x: number, y: number, w: number, h: number): void {
   if (!image.complete || image.naturalWidth === 0) {
     drawDither(x, y, w, h, "#151b12", "#0b0f0a", 8);
     return;
@@ -669,7 +812,7 @@ function drawCroppedImage(image, x, y, w, h) {
   ctx.restore();
 }
 
-function drawSceneVignette(bounds) {
+function drawSceneVignette(bounds: Bounds): void {
   const gradient = ctx.createRadialGradient(
     bounds.x + bounds.w / 2,
     bounds.y + bounds.h / 2,
@@ -684,14 +827,14 @@ function drawSceneVignette(bounds) {
   ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
 }
 
-function drawSemanticSceneTile(kind, x, y, w, h) {
+function drawSemanticSceneTile(kind: string, x: number, y: number, w: number, h: number): void {
   drawDither(x, y, w, h, "#151b12", "#0b0f0a", 8);
   ctx.fillStyle = "#7e9365";
   ctx.font = "18px Menlo, Monaco, Consolas, monospace";
   ctx.fillText(truncateToWidth(kind.replace(/_/g, " "), w - 32), x + 16, y + h / 2);
 }
 
-function drawTile(tile, x, y, size) {
+function drawTile(tile: BitmapTile, x: number, y: number, size: number): void {
   const slug = (tile.slug || "").toLowerCase();
   const settlement = (tile.settlement || "").toLowerCase();
   const variant = tile.variant || 0;
@@ -700,7 +843,7 @@ function drawTile(tile, x, y, size) {
     if (tile.center) drawPartyMarker(x + size / 2, y + size / 2, size);
     return;
   }
-  if (drawTerrainAtlasTile(slug, settlement, variant, x, y, size, tile.center)) return;
+  if (drawTerrainAtlasTile(slug, settlement, variant, x, y, size, tile.center === true)) return;
   const colors = tileColors(slug, settlement, tile.passable);
   ctx.fillStyle = colors.base;
   ctx.fillRect(x, y, size, size);
@@ -726,7 +869,15 @@ function drawTile(tile, x, y, size) {
   }
 }
 
-function drawTerrainAtlasTile(slug, settlement, variant, x, y, size, center) {
+function drawTerrainAtlasTile(
+  slug: string,
+  settlement: string,
+  variant: number,
+  x: number,
+  y: number,
+  size: number,
+  center: boolean
+): boolean {
   const atlas = bitmapAssets.terrain;
   const index = terrainAtlasIndex(slug, settlement);
   if (!index || !atlas.complete || atlas.naturalWidth === 0) return false;
@@ -746,7 +897,7 @@ function drawTerrainAtlasTile(slug, settlement, variant, x, y, size, center) {
   return true;
 }
 
-function drawPartyMarker(cx, cy, size) {
+function drawPartyMarker(cx: number, cy: number, size: number): void {
   const marker = bitmapAssets.partyMarker;
   if (!marker.complete || marker.naturalWidth === 0) return;
   ctx.save();
@@ -759,7 +910,7 @@ function drawPartyMarker(cx, cy, size) {
   ctx.restore();
 }
 
-function terrainAtlasIndex(slug, settlement) {
+function terrainAtlasIndex(slug: string, settlement: string): TerrainAtlasIndex {
   if (settlement === "town") return { row: 3, col: 4 };
   if (settlement === "castle") return { row: 4, col: 4 };
   if (settlement === "hut") return { row: 4, col: 0 };
@@ -773,7 +924,7 @@ function terrainAtlasIndex(slug, settlement) {
   return { row: 0, col: 0 };
 }
 
-function tileColors(slug, settlement, passable) {
+function tileColors(slug: string, settlement: string, passable: boolean | undefined): TileColors {
   if (settlement === "town") return { base: "#6e7b45", shadow: "#4c5730" };
   if (settlement === "castle") return { base: "#74706a", shadow: "#504d49" };
   if (settlement === "hut") return { base: "#617348", shadow: "#3e4b30" };
@@ -787,7 +938,7 @@ function tileColors(slug, settlement, passable) {
   return { base: "#617b44", shadow: "#435c31" };
 }
 
-function drawPlain(x, y, size, variant) {
+function drawPlain(x: number, y: number, size: number, variant: number): void {
   const tufts = 10 + variant * 2;
   ctx.fillStyle = variant % 2 === 0 ? "#96ad61" : "#86a55a";
   for (let i = 0; i < tufts; i += 1) {
@@ -802,7 +953,7 @@ function drawPlain(x, y, size, variant) {
   }
 }
 
-function drawForest(x, y, size, variant) {
+function drawForest(x: number, y: number, size: number, variant: number): void {
   const trees = [4, 5, 6, 5][variant % 4];
   for (let i = 0; i < trees; i += 1) {
     const tx = x + 8 + ((i * 19 + variant * 11) % (size - 24));
@@ -816,7 +967,7 @@ function drawForest(x, y, size, variant) {
   }
 }
 
-function drawMountain(x, y, size, variant) {
+function drawMountain(x: number, y: number, size: number, variant: number): void {
   const peaks = [
     [[0.04, 0.88, 0.34, 0.12, 0.66, 0.88], [0.38, 0.9, 0.68, 0.24, 0.96, 0.9]],
     [[0.02, 0.9, 0.42, 0.18, 0.78, 0.9], [0.24, 0.88, 0.62, 0.08, 0.98, 0.88]],
@@ -833,7 +984,7 @@ function drawMountain(x, y, size, variant) {
   }
 }
 
-function drawFoothills(x, y, size, variant) {
+function drawFoothills(x: number, y: number, size: number, variant: number): void {
   ctx.fillStyle = variant % 2 === 0 ? "#a4aa6d" : "#909e5c";
   for (let i = 0; i < 3; i += 1) {
     const left = x + (i * 0.28 + 0.02 + variant * 0.015) * size;
@@ -844,93 +995,32 @@ function drawFoothills(x, y, size, variant) {
   ctx.fillRect(x + 6, y + size - 11, size - 12, 4);
 }
 
-function isWaterTerrain(slug) {
+function isWaterTerrain(slug: string): boolean {
   return slug.includes("water") || slug.includes("sea") || slug.includes("river");
 }
 
-function drawConnectedWater(tile, x, y, size) {
-  const mask = tile.waterMask || 0;
-  const variant = tile.variant || 0;
-  ctx.fillStyle = variant % 2 === 0 ? "#40553d" : "#364b39";
-  ctx.fillRect(x, y, size, size);
-  drawRiverBankTexture(x, y, size, variant);
-  drawRiverChannel(x, y, size, mask);
-  drawWaterGlyph(tile.waterGlyph, x, y, size);
-  ctx.strokeStyle = "rgba(4, 10, 9, 0.44)";
-  ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
-}
-
-function drawRiverBankTexture(x, y, size, variant) {
-  ctx.fillStyle = "rgba(190, 176, 113, 0.2)";
-  for (let i = 0; i < 9; i += 1) {
-    const tx = x + 4 + ((i * 17 + variant * 23) % Math.max(1, size - 10));
-    const ty = y + 5 + ((i * 13 + variant * 11) % Math.max(1, size - 12));
-    ctx.fillRect(tx, ty, 5, 2);
-  }
-}
-
-function drawRiverChannel(x, y, size, mask) {
-  const cx = x + size / 2;
-  const cy = y + size / 2;
-  const width = Math.max(18, size * 0.44);
-  ctx.save();
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = "#0b3147";
-  ctx.lineWidth = width + 8;
-  strokeRiverMask(cx, cy, size, mask);
-  ctx.strokeStyle = "#176c8d";
-  ctx.lineWidth = width;
-  strokeRiverMask(cx, cy, size, mask);
-  ctx.strokeStyle = "rgba(143, 211, 211, 0.72)";
-  ctx.lineWidth = Math.max(2, size * 0.055);
-  strokeRiverMask(cx, cy, size, mask);
-  ctx.restore();
-}
-
-function strokeRiverMask(cx, cy, size, mask) {
-  const half = size / 2;
-  const hasNorth = (mask & 1) !== 0;
-  const hasEast = (mask & 2) !== 0;
-  const hasSouth = (mask & 4) !== 0;
-  const hasWest = (mask & 8) !== 0;
-  if (mask === 0) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, half * 0.34, 0, Math.PI * 2);
-    ctx.stroke();
+function drawConnectedWater(tile: BitmapTile, x: number, y: number, size: number): void {
+  const atlas = bitmapAssets.waterConnect;
+  const mask = Math.max(0, Math.min(15, tile.waterMask || 0));
+  if (!atlas.complete || atlas.naturalWidth === 0) {
+    drawTerrainAtlasTile("water", "", tile.variant || 0, x, y, size, false);
     return;
   }
-  if (hasNorth || hasSouth) {
-    ctx.beginPath();
-    ctx.moveTo(cx, hasNorth ? cy - half : cy);
-    ctx.lineTo(cx, hasSouth ? cy + half : cy);
-    ctx.stroke();
-  }
-  if (hasWest || hasEast) {
-    ctx.beginPath();
-    ctx.moveTo(hasWest ? cx - half : cx, cy);
-    ctx.lineTo(hasEast ? cx + half : cx, cy);
-    ctx.stroke();
-  }
-  if ((hasNorth || hasEast || hasSouth || hasWest) && mask !== 5 && mask !== 10) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, half * 0.18, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-}
-
-function drawWaterGlyph(glyph, x, y, size) {
-  if (!glyph) return;
+  const cols = 4;
+  const maskRows = 4;
+  const sourceW = atlas.naturalWidth / cols;
+  const sourceH = sourceW;
+  const variantCount = Math.max(1, Math.floor(atlas.naturalHeight / (sourceH * maskRows)));
+  const variant = Math.max(0, tile.variant || 0) % variantCount;
+  const sourceX = (mask % cols) * sourceW;
+  const sourceY = (variant * maskRows + Math.floor(mask / cols)) * sourceH;
   ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = "700 " + Math.max(12, Math.floor(size * 0.26)) + "px Menlo, Monaco, Consolas, monospace";
-  ctx.fillStyle = "rgba(232, 246, 231, 0.5)";
-  ctx.fillText(glyph, x + size / 2, y + size / 2 + 1);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(atlas, sourceX, sourceY, sourceW, sourceH, x, y, size, size);
   ctx.restore();
 }
 
-function drawDesert(x, y, size, variant) {
+function drawDesert(x: number, y: number, size: number, variant: number): void {
   ctx.strokeStyle = "#f0d98b";
   ctx.lineWidth = 2;
   for (let i = 0; i < 4; i += 1) {
@@ -952,7 +1042,7 @@ function drawDesert(x, y, size, variant) {
   }
 }
 
-function drawSwamp(x, y, size, variant) {
+function drawSwamp(x: number, y: number, size: number, variant: number): void {
   ctx.fillStyle = "#394a35";
   ctx.beginPath();
   ctx.ellipse(x + size * 0.48, y + size * 0.55, size * 0.32, size * 0.18, 0, 0, Math.PI * 2);
@@ -966,7 +1056,7 @@ function drawSwamp(x, y, size, variant) {
   }
 }
 
-function drawHouse(x, y, w, h) {
+function drawHouse(x: number, y: number, w: number, h: number): void {
   ctx.fillStyle = "#7c5334";
   ctx.fillRect(x, y + h * 0.35, w, h * 0.65);
   ctx.fillStyle = "#4b2e24";
@@ -977,14 +1067,14 @@ function drawHouse(x, y, w, h) {
   ctx.fillRect(x + w * 0.58, y + h * 0.58, w * 0.18, h * 0.42);
 }
 
-function drawHut(x, y, w, h) {
+function drawHut(x: number, y: number, w: number, h: number): void {
   ctx.fillStyle = "#6b4a2a";
   ctx.fillRect(x, y + h * 0.4, w, h * 0.6);
   ctx.fillStyle = "#3d2c1e";
   triangle(x - 3, y + h * 0.45, x + w / 2, y, x + w + 3, y + h * 0.45);
 }
 
-function drawCastle(x, y, w, h) {
+function drawCastle(x: number, y: number, w: number, h: number): void {
   ctx.fillStyle = "#aaa69a";
   ctx.fillRect(x, y + h * 0.25, w, h * 0.75);
   ctx.fillRect(x + 2, y, w * 0.22, h);
@@ -993,7 +1083,7 @@ function drawCastle(x, y, w, h) {
   ctx.fillRect(x + w * 0.42, y + h * 0.58, w * 0.16, h * 0.42);
 }
 
-function drawStatus(status, lines) {
+function drawStatus(status: BitmapStatus | null | undefined, lines: string[]): void {
   statusHotspots = [];
   const x = layout.status.x;
   const y = layout.status.y;
@@ -1029,7 +1119,7 @@ function drawStatus(status, lines) {
   }
 }
 
-function drawStatusChip(x, y, w, label, value, color) {
+function drawStatusChip(x: number, y: number, w: number, label: string, value: string, color: string): void {
   ctx.font = "10px Menlo, Monaco, Consolas, monospace";
   ctx.fillStyle = "#899a72";
   ctx.fillText(label, x + 8, y + 14);
@@ -1038,7 +1128,7 @@ function drawStatusChip(x, y, w, label, value, color) {
   ctx.fillText(truncateToWidth(value, w - 48), x + 42, y + 14);
 }
 
-function drawMemberStatus(member, x, y, w) {
+function drawMemberStatus(member: BitmapStatusMember, x: number, y: number, w: number): void {
   const label = member.slot + " " + member.name;
   const barX = x + 6;
   const barY = y + 15;
@@ -1054,7 +1144,7 @@ function drawMemberStatus(member, x, y, w) {
   }
 }
 
-function drawTinyBar(x, y, w, h, value, max, color) {
+function drawTinyBar(x: number, y: number, w: number, h: number, value: number, max: number, color: string): void {
   const ratio = Math.max(0, Math.min(1, value / Math.max(1, max)));
   ctx.fillStyle = "rgba(5, 8, 5, 0.66)";
   ctx.fillRect(x, y, w, h);
@@ -1062,13 +1152,13 @@ function drawTinyBar(x, y, w, h, value, max, color) {
   ctx.fillRect(x, y, Math.max(1, Math.floor(w * ratio)), h);
 }
 
-function statusColor(condition) {
+function statusColor(condition: string): string {
   if (condition === "STARVING") return "#dc6b57";
   if (condition === "HUNGRY") return "#e0ad55";
   return "#9bd073";
 }
 
-function drawTextPanel(frame) {
+function drawTextPanel(frame: BitmapFrame): void {
   if (frame.partyPage) {
     drawPartyTextPanel(frame.partyPage);
     return;
@@ -1097,7 +1187,7 @@ function drawTextPanel(frame) {
   drawTextInput(frame.textInput, x, layout.text.y + layout.text.h - 72, maxWidth);
 }
 
-function drawPartyTextPanel(page) {
+function drawPartyTextPanel(page: BitmapPartyPage): void {
   const x = layout.text.x + 28;
   const y = layout.text.y + 48;
   const maxWidth = layout.text.w - 56;
@@ -1107,7 +1197,7 @@ function drawPartyTextPanel(page) {
   drawPartyPause(page.pauseLine || "", x, layout.text.y + layout.text.h - 30, maxWidth);
 }
 
-function drawPartyMemberText(member, x, y, maxWidth) {
+function drawPartyMemberText(member: BitmapPartyMemberPage, x: number, y: number, maxWidth: number): void {
   ctx.font = "700 28px Palatino, 'Palatino Linotype', Georgia, serif";
   ctx.fillStyle = "#f1df9f";
   ctx.fillText(truncateToWidth(member.name || "", maxWidth), x, y);
@@ -1131,7 +1221,7 @@ function drawPartyMemberText(member, x, y, maxWidth) {
   drawPartyInfoRow("Status", member.status, x, y + 334, maxWidth);
 }
 
-function drawPartySummaryText(summary, x, y, maxWidth) {
+function drawPartySummaryText(summary: BitmapPartySummaryPage, x: number, y: number, maxWidth: number): void {
   ctx.font = "700 28px Palatino, 'Palatino Linotype', Georgia, serif";
   ctx.fillStyle = "#f1df9f";
   ctx.fillText(truncateToWidth(summary.partyName || "Party", maxWidth), x, y);
@@ -1150,7 +1240,7 @@ function drawPartySummaryText(summary, x, y, maxWidth) {
   ], x, y + 70, maxWidth);
 }
 
-function drawPartyInventoryText(page, x, y, maxWidth) {
+function drawPartyInventoryText(page: BitmapPartyPage, x: number, y: number, maxWidth: number): void {
   ctx.font = "700 28px Palatino, 'Palatino Linotype', Georgia, serif";
   ctx.fillStyle = "#f1df9f";
   ctx.fillText("Inventory", x, y);
@@ -1169,7 +1259,7 @@ function drawPartyInventoryText(page, x, y, maxWidth) {
   }
 }
 
-function drawPartyStatGrid(stats, x, y, maxWidth) {
+function drawPartyStatGrid(stats: PartyStat[], x: number, y: number, maxWidth: number): void {
   const colGap = 24;
   const colW = Math.floor((maxWidth - colGap) / 2);
   stats.forEach((stat, index) => {
@@ -1179,35 +1269,35 @@ function drawPartyStatGrid(stats, x, y, maxWidth) {
   });
 }
 
-function drawPartySection(label, x, y, maxWidth) {
+function drawPartySection(label: string, x: number, y: number, maxWidth: number): void {
   ctx.font = "700 15px Menlo, Monaco, Consolas, monospace";
   ctx.fillStyle = "#d9bd70";
   ctx.fillText(label.toUpperCase(), x, y);
   drawPartyDivider(x, y + 10, maxWidth);
 }
 
-function drawPartyInfoRow(label, value, x, y, width) {
+function drawPartyInfoRow(label: string, value: string | number | undefined | null, x: number, y: number, width: number): void {
   ctx.font = "12px Menlo, Monaco, Consolas, monospace";
   ctx.fillStyle = "#9a937b";
   ctx.fillText(label, x, y);
   ctx.font = "700 16px Menlo, Monaco, Consolas, monospace";
   ctx.fillStyle = "#f1ead6";
-  ctx.fillText(truncateToWidth(value || "-", width), x, y + 18);
+  ctx.fillText(truncateToWidth(String(value || "-"), width), x, y + 18);
 }
 
-function drawPartyDivider(x, y, width) {
+function drawPartyDivider(x: number, y: number, width: number): void {
   ctx.fillStyle = "rgba(203, 176, 104, 0.42)";
   ctx.fillRect(x, y, width, 1);
 }
 
-function drawPartyPause(text, x, y, maxWidth) {
+function drawPartyPause(text: string, x: number, y: number, maxWidth: number): void {
   if (!text) return;
   ctx.font = "13px Menlo, Monaco, Consolas, monospace";
   ctx.fillStyle = "#bdb496";
   ctx.fillText(truncateToWidth(text, maxWidth), x, y);
 }
 
-function drawTextInput(input, x, y, maxWidth) {
+function drawTextInput(input: BitmapTextInput | null | undefined, x: number, y: number, maxWidth: number): void {
   if (!input) return;
   const boxY = y - 26;
   const boxHeight = 46;
@@ -1229,7 +1319,7 @@ function drawTextInput(input, x, y, maxWidth) {
   ctx.textAlign = "left";
 }
 
-function drawMessage(message) {
+function drawMessage(message: string): void {
   if (!message) return;
   const y = layout.text.y + layout.text.h - 104;
   softPanel(layout.text.x + 24, y, layout.text.w - 48, 82, "rgba(20, 24, 17, 0.78)");
@@ -1238,7 +1328,15 @@ function drawMessage(message) {
   wrapCanvasText(message, layout.text.x + 48, y + 36, layout.text.w - 96, 25);
 }
 
-function drawFittedText(text, x, y, maxWidth, startSize, minSize, color) {
+function drawFittedText(
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  startSize: number,
+  minSize: number,
+  color: string
+): void {
   ctx.fillStyle = color;
   let size = startSize;
   do {
@@ -1249,7 +1347,7 @@ function drawFittedText(text, x, y, maxWidth, startSize, minSize, color) {
   ctx.fillText(truncateToWidth(text, maxWidth), x, y);
 }
 
-function truncateToWidth(text, maxWidth) {
+function truncateToWidth(text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) return text;
   let end = text.length;
   while (end > 0 && ctx.measureText(text.slice(0, end) + "...").width > maxWidth) {
@@ -1258,30 +1356,12 @@ function truncateToWidth(text, maxWidth) {
   return text.slice(0, end) + "...";
 }
 
-function drawAnsiArt(lines, x, y, fontSize, color, lineHeight, maxLines) {
-  ctx.textBaseline = "top";
-  ctx.font = fontSize + "px Menlo, Monaco, Consolas, monospace";
-  ctx.fillStyle = color;
-  for (const [index, line] of lines.slice(0, maxLines).entries()) {
-    ctx.fillText(line, x, y + index * lineHeight);
-  }
-  ctx.textBaseline = "alphabetic";
-}
-
-function softPanel(x, y, w, h, fill) {
+function softPanel(x: number, y: number, w: number, h: number, fill: string): void {
   ctx.fillStyle = fill;
   ctx.fillRect(x, y, w, h);
 }
 
-function drawMountains(x, baseY, color) {
-  ctx.fillStyle = color;
-  for (let i = 0; i < 9; i += 1) {
-    const start = x + i * 160 - 40;
-    triangle(start, baseY, start + 95, baseY - 122 - (i % 3) * 28, start + 210, baseY);
-  }
-}
-
-function drawDither(x, y, w, h, a, b, step) {
+function drawDither(x: number, y: number, w: number, h: number, a: string, b: string, step: number): void {
   ctx.fillStyle = a;
   ctx.fillRect(x, y, w, h);
   ctx.fillStyle = b;
@@ -1292,50 +1372,7 @@ function drawDither(x, y, w, h, a, b, step) {
   }
 }
 
-function drawScorpionMark(x, y, scale, color) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(scale, scale);
-  ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.lineWidth = 10;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.ellipse(0, 0, 58, 34, 0, 0, Math.PI * 2);
-  ctx.fill();
-  for (let i = -2; i <= 2; i += 1) {
-    const lx = i * 22;
-    ctx.beginPath();
-    ctx.moveTo(lx, 12);
-    ctx.lineTo(lx - 42, 50 + Math.abs(i) * 8);
-    ctx.lineTo(lx - 70, 44 + Math.abs(i) * 10);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(lx, 12);
-    ctx.lineTo(lx + 42, 50 + Math.abs(i) * 8);
-    ctx.lineTo(lx + 70, 44 + Math.abs(i) * 10);
-    ctx.stroke();
-  }
-  ctx.lineWidth = 14;
-  ctx.beginPath();
-  ctx.moveTo(50, -4);
-  ctx.quadraticCurveTo(94, -48, 128, -12);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-50, -4);
-  ctx.quadraticCurveTo(-94, -48, -128, -12);
-  ctx.stroke();
-  ctx.lineWidth = 12;
-  ctx.beginPath();
-  ctx.moveTo(0, -26);
-  ctx.quadraticCurveTo(36, -74, 8, -114);
-  ctx.quadraticCurveTo(-18, -150, 20, -178);
-  ctx.stroke();
-  triangle(20, -194, 36, -160, 4, -166);
-  ctx.restore();
-}
-
-function triangle(x1, y1, x2, y2, x3, y3) {
+function triangle(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): void {
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);
@@ -1344,16 +1381,16 @@ function triangle(x1, y1, x2, y2, x3, y3) {
   ctx.fill();
 }
 
-function wrapCanvasText(text, x, y, maxWidth, lineHeight) {
+function wrapCanvasText(text: string, x: number, y: number, maxWidth: number, lineHeight: number): void {
   for (const line of wrapCanvasLines(text, maxWidth)) {
     ctx.fillText(line, x, y);
     y += lineHeight;
   }
 }
 
-function wrapCanvasLines(text, maxWidth) {
+function wrapCanvasLines(text: string, maxWidth: number): string[] {
   const words = String(text || "").split(" ");
-  const lines = [];
+  const lines: string[] = [];
   let line = "";
   for (const word of words) {
     const test = line ? line + " " + word : word;

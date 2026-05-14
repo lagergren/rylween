@@ -68,11 +68,13 @@ internal class RuntimeScreen(
 
     private var classicFrameActive = false
     private var activeMapImage: String? = null
+    private var stickyMessageLines: List<String> = emptyList()
 
     /** Clears the terminal and renders the compiled frame image, if present. */
     override fun bootFrame() {
         classicFrameActive = true
         activeMapImage = null
+        stickyMessageLines = emptyList()
         log.event("screen.boot_frame")
         terminal.writeRaw("${AnsiCodes.CSI}?25l")
         staticScreenById["frame"]?.image?.let { image -> renderImage(image) }
@@ -120,7 +122,10 @@ internal class RuntimeScreen(
         log.event("screen.render_wilderness position=${runtime.party.position.x},${runtime.party.position.y}")
         renderStatus(runtime)
         renderMap(runtime.party.position, world)
-        writeText(runtimeWildernessContextLines(content, systems, runtime, world) + "" + systems.wilderness.commandHint.render(runtime))
+        writeTextWindow(
+            stickyMessageLines.takeIf { lines -> lines.isNotEmpty() }
+                ?: runtimeWildernessContextLines(content, systems, runtime, world) + "" + systems.wilderness.commandHint.render(runtime),
+        )
     }
 
     /** Shows the whole wilderness map with debug annotations for authored settlements and the party. */
@@ -181,6 +186,11 @@ internal class RuntimeScreen(
 
     /** Clears the classic text window and writes the supplied lines inside it. */
     override fun writeText(lines: List<String>) {
+        stickyMessageLines = emptyList()
+        writeTextWindow(lines)
+    }
+
+    private fun writeTextWindow(lines: List<String>) {
         ensureClassicFrame()
         log.event("screen.write_text lines=${lines.size} first=${lines.firstOrNull().orEmpty().take(40)}")
         clearRegion(textWindow)
@@ -192,7 +202,8 @@ internal class RuntimeScreen(
     }
 
     override fun showMessage(lines: List<String>) {
-        writeText(lines)
+        stickyMessageLines = lines
+        writeTextWindow(lines)
     }
 
     /** Rewrites just the status bar after service-side party mutations. */
@@ -215,6 +226,7 @@ internal class RuntimeScreen(
     /** Clears only the text window region. */
     private fun clearText() {
         ensureClassicFrame()
+        stickyMessageLines = emptyList()
         clearRegion(textWindow)
         terminal.flush()
     }
@@ -352,7 +364,7 @@ internal class RuntimeScreen(
     private fun renderStatus(runtime: RuntimeState) {
         val party = runtime.party
         val food = party.resources.food.coerceAtLeast(0)
-        val status = foodStatus(runtime.runtimeFoodStatusLabel())
+        val status = conditionStatus(runtime.runtimeStatusLabel(systems))
         val top =
             buildString {
                 append(AnsiCodes.FG_GREEN)
@@ -392,10 +404,14 @@ internal class RuntimeScreen(
     private fun HitPoints.statusPoolText(label: String): String =
         "$label${currentAnsiColor()}$current${AnsiCodes.FG_YELLOW}/$max${AnsiCodes.FG_GREEN}"
 
-    private fun foodStatus(label: String): String {
-        if (label == "STARVING") return "${AnsiCodes.FG_RED}STARVING${AnsiCodes.FG_GREEN} "
-        if (label == "HUNGRY") return "${AnsiCodes.FG_MAGENTA}HUNGRY  "
-        return "${AnsiCodes.FG_YELLOW}OK    "
+    private fun conditionStatus(label: String): String {
+        val color =
+            when (label) {
+                "STARVING" -> AnsiCodes.FG_RED
+                "HUNGRY", "EXHAUSTED", "FAINT" -> AnsiCodes.FG_MAGENTA
+                else -> AnsiCodes.FG_YELLOW
+            }
+        return "$color${label.take(8).padEnd(8)}${AnsiCodes.FG_GREEN}"
     }
 
     private fun HitPoints.currentAnsiColor(): String {
