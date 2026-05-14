@@ -1097,12 +1097,14 @@ class WildernessUpkeepRulesBuilder(
         restedHours: Int,
         text: TextBlock,
         drain: Boolean = false,
+        statusLabel: String? = null,
     ) {
         fatigue +=
             WildernessFatigueRule(
                 threshold = restedHours,
                 text = text,
                 drain = drain,
+                statusLabel = statusLabel,
             )
     }
 
@@ -1110,6 +1112,7 @@ class WildernessUpkeepRulesBuilder(
         restedHours: Int,
         text: TextBlock,
         drain: Boolean = false,
+        statusLabel: String? = null,
     ) {
         fatigue +=
             WildernessFatigueRule(
@@ -1117,6 +1120,7 @@ class WildernessUpkeepRulesBuilder(
                 text = text,
                 match = WildernessFatigueMatch.LessThan,
                 drain = drain,
+                statusLabel = statusLabel,
             )
     }
 

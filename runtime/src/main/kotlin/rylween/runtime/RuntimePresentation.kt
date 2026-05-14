@@ -6,6 +6,7 @@ import rylween.compiled.CompiledPartyMember
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.WildernessFatigueMatch
 
 fun runtimeWildernessContextLines(
     content: CompiledContentBundle,
@@ -24,11 +25,14 @@ fun runtimeWildernessContextLines(
         }
     }
 
-fun RuntimeState.runtimeStatusLines(content: CompiledContentBundle): List<String> {
+fun RuntimeState.runtimeStatusLines(
+    content: CompiledContentBundle,
+    systems: ExternalRuntimeSystems,
+): List<String> {
     val food = party.resources.food.coerceAtLeast(0)
     return buildList {
         add("TIME ${hour.mod(24).toString().padStart(2, '0')}:00")
-        add("ST ${runtimeFoodStatusLabel()}")
+        add("ST ${runtimeStatusLabel(systems)}")
         add("FD ${food.toString().padStart(4)}")
         add("MV ${party.resources.timeLeft.toString().padStart(3)}")
         add("AU ${party.resources.gold.toString().padStart(6)}")
@@ -38,11 +42,32 @@ fun RuntimeState.runtimeStatusLines(content: CompiledContentBundle): List<String
     }
 }
 
+fun RuntimeState.runtimeStatusLabel(systems: ExternalRuntimeSystems): String =
+    runtimeFoodStatusLabel().takeUnless { label -> label == "OK" }
+        ?: runtimeFatigueStatusLabel(systems)
+        ?: "OK"
+
 fun RuntimeState.runtimeFoodStatusLabel(): String {
     val food = party.resources.food.coerceAtLeast(0)
     if (food == 0) return "STARVING"
     if (food < party.members.count { member -> !member.dead }.coerceAtLeast(1) * 3) return "HUNGRY"
     return "OK"
+}
+
+private fun RuntimeState.runtimeFatigueStatusLabel(systems: ExternalRuntimeSystems): String? {
+    val restedHours = party.resources.restedHours
+    val fatigueRules =
+        systems.realm.upkeep.fatigue
+            .filter { rule -> rule.statusLabel != null }
+    val belowRule =
+        fatigueRules
+            .filter { rule -> rule.match == WildernessFatigueMatch.LessThan && restedHours < rule.threshold }
+            .minByOrNull { rule -> rule.threshold }
+    val thresholdRule =
+        fatigueRules
+            .filter { rule -> rule.match == WildernessFatigueMatch.Equal && restedHours <= rule.threshold }
+            .minByOrNull { rule -> rule.threshold }
+    return belowRule?.statusLabel ?: thresholdRule?.statusLabel
 }
 
 fun CompiledPartyMember.runtimeStatusText(content: CompiledContentBundle): String =

@@ -13,6 +13,8 @@
 .kotlin/
 build/
 **/build/
+node_modules/
+**/node_modules/
 
 # Native probe artifacts
 *.o

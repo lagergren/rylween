@@ -1151,7 +1151,7 @@ class GameRuntime private constructor(
         val sourceTerrain = world.terrainAt(source)
         val targetTerrain = world.terrainAt(target)
         if (targetTerrain == null || !targetTerrain.passable) {
-            screen.writeText(
+            screen.showMessage(
                 systems.prompts.wilderness.impassable
                     .render { null },
             )

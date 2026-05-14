@@ -284,8 +284,7 @@ internal class BattleRunner(
         member: CompiledPartyMember,
         messages: MutableList<String>,
     ): BattleEncounter {
-        val targetIndex = monsterHp.indexOfFirst { hp -> hp > 0 }
-        if (targetIndex < 0) return this
+        val targetIndex = selectMonsterTarget(messages) ?: return copy(actionRetry = true)
         val hit = runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
         val skill =
             when {
@@ -314,6 +313,14 @@ internal class BattleRunner(
             )
         if (killed) messages += rules.text.killed.renderBattle()
         return copy(runtime = runtime.withParty(damageDraw.party), monsterHp = nextHp)
+    }
+
+    private fun BattleEncounter.selectMonsterTarget(messages: MutableList<String>): Int? {
+        screen.writeText(rules.text.targetPrompt.renderBattle() + monsterTargetLines())
+        val targetIndex = input.readCommand()?.monsterTargetIndex()
+        targetIndex?.let(livingMonsterIndices()::getOrNull)?.let { return it }
+        messages += rules.text.notPossible.renderBattle()
+        return null
     }
 
     private fun BattleEncounter.defend(
@@ -666,6 +673,7 @@ internal class BattleRunner(
             monster = monster,
             monsterCount = count,
             monsterHp = hitPoints,
+            monsterHpMax = hitPoints,
             hitPointMax = hpRange.last,
             monsterWeaponSkill = monster.weaponSkill + firstLevel,
             bannerIndex = bannerDraw?.value,
@@ -954,11 +962,31 @@ internal class BattleRunner(
         return slot.takeIf { candidate -> candidate > 0 }
     }
 
+    private fun Char.monsterTargetIndex(): Int? = (uppercaseChar() - 'A').takeIf { index -> index >= 0 }
+
     private fun BattleEncounter.monsterTargetLines(): List<String> =
-        monsterHp.mapIndexed { index, hp ->
-            val state = if (hp > 0) "Alive." else "Dead."
-            "${'A' + index}. $state (${hp.toString().padStart(3)} hp)"
+        buildList {
+            var key = 'A'
+            monsterHp.forEachIndexed { index, hp ->
+                val maxHp = monsterHpMax.getOrElse(index) { hitPointMax }
+                if (hp > 0) {
+                    add("${key++}. ${monsterName()} $hp/$maxHp HP")
+                } else {
+                    add("   ${monsterName()} dead 0/$maxHp HP")
+                }
+            }
         }
+
+    private fun BattleEncounter.livingMonsterIndices(): List<Int> =
+        monsterHp.mapIndexedNotNull { index, hp ->
+            if (hp > 0) {
+                index
+            } else {
+                null
+            }
+        }
+
+    private fun BattleEncounter.firstAliveMonsterIndex(): Int = monsterHp.indexOfFirst { hp -> hp > 0 }.coerceAtLeast(0)
 
     private inner class CompiledCombatScriptRunner(
         initialEncounter: BattleEncounter,
@@ -1113,16 +1141,12 @@ internal class BattleRunner(
                         screen.writeText(
                             instruction.textBlockOperand(0).renderScriptLines() + encounter.monsterTargetLines(),
                         )
-                        val target = input.readCommand()?.uppercaseChar()?.let { key -> key - 'A' }
+                        val target = input.readCommand()?.monsterTargetIndex()?.let(encounter.livingMonsterIndices()::getOrNull)
                         locals =
                             locals +
                             (
                                 content.strings.value(instruction.stringIdOperand(1)) to
-                                    (
-                                        target?.takeIf { targetIndex ->
-                                            encounter.monsterHp.getOrNull(targetIndex)?.let { hp -> hp > 0 } == true
-                                        } ?: 0
-                                    )
+                                    (target ?: encounter.firstAliveMonsterIndex())
                             )
                     }
 
@@ -1698,6 +1722,10 @@ private fun BattleEncounter.withMonsterHitPoints(
             monsterHp.mapIndexed { monsterIndex, current ->
                 current.takeUnless { monsterIndex == index } ?: hitPoints.coerceAtLeast(0)
             },
+        monsterHpMax =
+            monsterHpMax.mapIndexed { monsterIndex, current ->
+                current.takeUnless { monsterIndex == index } ?: maxOf(current, hitPoints)
+            },
     )
 
 private data class BattleEncounter(
@@ -1708,6 +1736,7 @@ private data class BattleEncounter(
     val monster: CompiledMonster,
     val monsterCount: Int,
     val monsterHp: List<Int>,
+    val monsterHpMax: List<Int>,
     val hitPointMax: Int,
     val monsterWeaponSkill: Int,
     val defendCount: Int = 0,

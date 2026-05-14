@@ -34,14 +34,26 @@ val runtimeBitmapWebClasspathConfig: Configuration = configurations.runtimeClass
 val runtimeBitmapWebJars: FileCollection =
     runtimeBitmapWebClasspathConfig.filter { file -> file.isFile && file.extension == "jar" }
 val bitmapWebGeneratedResources: Provider<Directory> = layout.buildDirectory.dir("generated/resources/bitmapWeb")
-val generateBitmapWebClientJs: TaskProvider<Copy> by tasks.registering(Copy::class) {
+val npmInstallBitmapWeb: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "generation"
-    description = "Copies the authored bitmap web TypeScript client to the served JavaScript resource."
+    description = "Installs the bitmap web TypeScript compiler."
 
-    from(layout.projectDirectory.file("src/main/resources/bitmap-web/client.ts")) {
-        rename { "client.js" }
-    }
-    into(bitmapWebGeneratedResources.map { directory -> directory.dir("bitmap-web") })
+    workingDir = layout.projectDirectory.asFile
+    inputs.file(layout.projectDirectory.file("package.json"))
+    inputs.file(layout.projectDirectory.file("package-lock.json"))
+    outputs.dir(layout.projectDirectory.dir("node_modules"))
+    commandLine("npm", "ci", "--ignore-scripts")
+}
+val generateBitmapWebClientJs: TaskProvider<Exec> by tasks.registering(Exec::class) {
+    group = "generation"
+    description = "Compiles the authored bitmap web TypeScript client to the served JavaScript resource."
+
+    dependsOn(npmInstallBitmapWeb)
+    workingDir = layout.projectDirectory.asFile
+    inputs.file(layout.projectDirectory.file("src/main/resources/bitmap-web/client.ts"))
+    inputs.file(layout.projectDirectory.file("tsconfig.json"))
+    outputs.file(bitmapWebGeneratedResources.map { directory -> directory.file("bitmap-web/client.js") })
+    commandLine("npm", "run", "build")
 }
 
 sourceSets.named("main") {
