@@ -13,19 +13,24 @@ MAP_TILES="${RYLWEEN_BITMAP_MAP_TILES:-8}"
 TILE_SIZE="${RYLWEEN_BITMAP_TILE_SIZE:-64}"
 RUN_NAME="${RYLWEEN_BITMAP_NAME:-${RYLWEEN_NAME:-}}"
 RUN_USER="${RYLWEEN_BITMAP_USER:-${RYLWEEN_USER:-}}"
+AUTH_ACCOUNT="${RYLWEEN_AUTH_ACCOUNT:-}"
+AUTH_EMAIL="${RYLWEEN_AUTH_EMAIL:-}"
+AUTH_PASSWORD="${RYLWEEN_AUTH_PASSWORD:-}"
+AUTH_SECURE_COOKIES="${RYLWEEN_AUTH_SECURE_COOKIES:-}"
 LOAD_FILE="${RYLWEEN_BITMAP_LOAD_FILE:-${RYLWEEN_LOAD_FILE:-}}"
 SAVE_FILE="${RYLWEEN_BITMAP_SAVE_FILE:-${RYLWEEN_SAVE_FILE:-}}"
 DEFAULT_SAVE_FILE="$DATA_DIR/saves/world.rsave"
 BUILD=false
-TITLE_SEEN=false
 args=()
 
 usage() {
   cat <<'EOF'
 Usage: ./run-bitmap-server.sh [--build] [--name NAME] [--host HOST] [--port PORT] [--state SLUG] [--map-tiles N] [--tile-size PX]
+       ./run-bitmap-server.sh --account NAME --password PASSWORD [--email EMAIL]
 
 Environment:
-  RYLWEEN_BITMAP_NAME       Optional named local save to seed/load. Example: Strong
+  RYLWEEN_DATA_DIR          Authenticated save/log/user data directory. Default: ~/.rylween/data
+  RYLWEEN_BITMAP_NAME       Optional named local save to seed/load. Examples: Strong, StrongEndgame
   RYLWEEN_BITMAP_USER       Save/load user id when not using --name.
   RYLWEEN_BITMAP_HOST       Bind host. Default: RYLWEEN_HOST or 127.0.0.1
   RYLWEEN_BITMAP_PORT       Bind port. Default: RYLWEEN_PORT or 8081
@@ -35,6 +40,10 @@ Environment:
   RYLWEEN_BITMAP_MAP_TILES  Wilderness viewport edge length. Default: 8
   RYLWEEN_BITMAP_TILE_SIZE  Wilderness tile size in px. Default: 64
   RYLWEEN_BITMAP_BUNDLE     Optional external bundle path. Embedded game is used when omitted.
+  RYLWEEN_AUTH_ACCOUNT      Optional account to create/verify before startup.
+  RYLWEEN_AUTH_EMAIL        Optional email for RYLWEEN_AUTH_ACCOUNT.
+  RYLWEEN_AUTH_PASSWORD     Required when RYLWEEN_AUTH_ACCOUNT is set.
+  RYLWEEN_AUTH_SECURE_COOKIES Set true when served through HTTPS.
 EOF
 }
 
@@ -69,6 +78,33 @@ while [[ $# -gt 0 ]]; do
     --user=*)
       RUN_USER="${arg#--user=}"
       ;;
+    --account)
+      require_next_arg "$arg" "$@"
+      AUTH_ACCOUNT="$1"
+      shift
+      ;;
+    --account=*)
+      AUTH_ACCOUNT="${arg#--account=}"
+      ;;
+    --email)
+      require_next_arg "$arg" "$@"
+      AUTH_EMAIL="$1"
+      shift
+      ;;
+    --email=*)
+      AUTH_EMAIL="${arg#--email=}"
+      ;;
+    --password)
+      require_next_arg "$arg" "$@"
+      AUTH_PASSWORD="$1"
+      shift
+      ;;
+    --password=*)
+      AUTH_PASSWORD="${arg#--password=}"
+      ;;
+    --secure-cookies)
+      AUTH_SECURE_COOKIES=true
+      ;;
     --load)
       require_next_arg "$arg" "$@"
       LOAD_FILE="$1"
@@ -86,7 +122,6 @@ while [[ $# -gt 0 ]]; do
       SAVE_FILE="${arg#--save=}"
       ;;
     --title|--no-title)
-      TITLE_SEEN=true
       args+=("$arg")
       ;;
     --host)
@@ -159,14 +194,25 @@ if [[ -n "$RUN_NAME" ]]; then
     "$ROOT_DIR/run.sh" --build --name "$RUN_NAME" --script X >"$seed_console" 2>&1
   RUN_USER="$RUN_NAME"
   LOAD_FILE="$SAVE_FILE"
-  if [[ "$TITLE_SEEN" == false ]]; then
-    args=("--no-title" "${args[@]}")
-    TITLE_SEEN=true
-  fi
 fi
 
 if [[ -n "$RUN_USER" ]]; then
   args=("--user" "$RUN_USER" "${args[@]}")
+fi
+
+if [[ -n "$AUTH_ACCOUNT" || -n "$AUTH_EMAIL" || -n "$AUTH_PASSWORD" ]]; then
+  if [[ -z "$AUTH_ACCOUNT" || -z "$AUTH_PASSWORD" ]]; then
+    echo "--account and --password are both required when bootstrapping an account." >&2
+    exit 2
+  fi
+  args=("--account" "$AUTH_ACCOUNT" "--password" "$AUTH_PASSWORD" "${args[@]}")
+  if [[ -n "$AUTH_EMAIL" ]]; then
+    args=("--email" "$AUTH_EMAIL" "${args[@]}")
+  fi
+fi
+
+if [[ "$AUTH_SECURE_COOKIES" == "true" ]]; then
+  args=("--secure-cookies" "${args[@]}")
 fi
 
 if [[ -n "$LOAD_FILE" ]]; then
@@ -183,4 +229,4 @@ if [[ -n "$bundle" ]]; then
 fi
 
 echo "[rylween-bitmap] URL: http://$HOST:$PORT/"
-exec "$LAUNCHER" --host "$HOST" --port "$PORT" --state "$STATE" --map-tiles "$MAP_TILES" --tile-size "$TILE_SIZE" "${args[@]}"
+exec "$LAUNCHER" --host "$HOST" --port "$PORT" --data "$DATA_DIR" --state "$STATE" --map-tiles "$MAP_TILES" --tile-size "$TILE_SIZE" "${args[@]}"

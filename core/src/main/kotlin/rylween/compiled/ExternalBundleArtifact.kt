@@ -56,6 +56,9 @@ import rylween.dsl.impl.Race
 import rylween.dsl.impl.RealmContentModel
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RylweenModel
+import rylween.dsl.impl.SecretPlayerMatcherModel
+import rylween.dsl.impl.SecretPlayerModel
+import rylween.dsl.impl.SecretSystemModel
 import rylween.dsl.impl.SourceSpecialField
 import rylween.dsl.impl.SpeakSystemModel
 import rylween.dsl.impl.SpeakTextTablesModel
@@ -225,7 +228,18 @@ data class ExternalRuntimeSystems(
     val castleRows: List<ExternalRuntimeCastle>,
     val speak: ExternalRuntimeSpeak?,
     val wilderness: ExternalWildernessRuntime,
+    val secrets: ExternalRuntimeSecrets,
     val presentation: ExternalRuntimePresentation,
+)
+
+data class ExternalRuntimeSecrets(
+    val players: List<ExternalRuntimeSecretPlayer> = emptyList(),
+)
+
+data class ExternalRuntimeSecretPlayer(
+    val anyPlayer: Boolean,
+    val names: List<String>,
+    val alwaysRunFromNonMandatoryEncounters: Boolean,
 )
 
 data class ExternalRuntimePrompts(
@@ -275,6 +289,8 @@ data class ExternalWildernessPacing(
 
 data class ExternalTitleMenuPrompts(
     val header: ExternalRuntimeTextBlock,
+    val continueUnavailable: ExternalRuntimeTextBlock,
+    val overwriteConfirm: ExternalRuntimeTextBlock,
     val terminateConfirm: ExternalRuntimeTextBlock,
     val terminated: ExternalRuntimeTextBlock,
     val terminateFailed: ExternalRuntimeTextBlock,
@@ -1168,7 +1184,26 @@ private class ExternalBundleArtifactWriter {
             "town" to townRuntimeJson(game.townSystem),
             "speak" to speakRuntimeJson(game.speak),
             "castles" to JsonArray(game.castles.map(::castleJson)),
+            "secrets" to secretsJson(game.secrets),
         )
+
+    private fun secretsJson(secrets: SecretSystemModel): JsonValue =
+        jsonObject(
+            "players" to JsonArray(secrets.players.map(::secretPlayerJson)),
+        )
+
+    private fun secretPlayerJson(player: SecretPlayerModel): JsonValue {
+        val names =
+            when (val matcher = player.matcher) {
+                SecretPlayerMatcherModel.Any -> emptyList()
+                is SecretPlayerMatcherModel.Named -> matcher.names
+            }
+        return jsonObject(
+            "anyPlayer" to JsonBoolean(player.matcher == SecretPlayerMatcherModel.Any),
+            "names" to JsonArray(names.map(::JsonString)),
+            "alwaysRunFromNonMandatoryEncounters" to JsonBoolean(player.alwaysRunFromNonMandatoryEncounters),
+        )
+    }
 
     private fun characterCreationJson(characterCreation: CharacterCreationModel): JsonValue =
         jsonObject(
@@ -1531,6 +1566,8 @@ private class ExternalBundleArtifactWriter {
                         promptGroupJson(
                             "titleMenu",
                             textField("header", prompts.titleMenu.header),
+                            textField("continueUnavailable", prompts.titleMenu.continueUnavailable),
+                            textField("overwriteConfirm", prompts.titleMenu.overwriteConfirm),
                             textField("terminateConfirm", prompts.titleMenu.terminateConfirm),
                             textField("terminated", prompts.titleMenu.terminated),
                             textField("terminateFailed", prompts.titleMenu.terminateFailed),
@@ -2544,9 +2581,32 @@ private class ExternalRuntimeSystemsReader(
                     ?.asObject("speak")
                     ?.readSpeak(),
             wilderness = systems.requiredObject("wilderness").readWilderness(),
+            secrets =
+                systems
+                    .optional("secrets")
+                    ?.takeUnless { it is JsonNull }
+                    ?.asObject("secrets")
+                    ?.readSecrets()
+                    ?: ExternalRuntimeSecrets(),
             presentation = systems.requiredObject("presentation").readPresentation(),
         )
     }
+
+    private fun JsonObject.readSecrets(): ExternalRuntimeSecrets =
+        ExternalRuntimeSecrets(
+            players =
+                optionalArray("players")
+                    ?.values
+                    ?.map { player -> player.asObject("secret player").readSecretPlayer() }
+                    .orEmpty(),
+        )
+
+    private fun JsonObject.readSecretPlayer(): ExternalRuntimeSecretPlayer =
+        ExternalRuntimeSecretPlayer(
+            anyPlayer = optionalBoolean("anyPlayer") ?: false,
+            names = optionalArray("names")?.values?.map { name -> name.asString("secret player name") }.orEmpty(),
+            alwaysRunFromNonMandatoryEncounters = optionalBoolean("alwaysRunFromNonMandatoryEncounters") ?: false,
+        )
 
     private fun JsonObject.readPrompts(): ExternalRuntimePrompts {
         val titleMenu = promptGroupFields("titleMenu")
@@ -2563,6 +2623,8 @@ private class ExternalRuntimeSystemsReader(
             titleMenu =
                 ExternalTitleMenuPrompts(
                     header = titleMenu.requiredTextPrompt("header"),
+                    continueUnavailable = titleMenu.requiredTextPrompt("continueUnavailable"),
+                    overwriteConfirm = titleMenu.requiredTextPrompt("overwriteConfirm"),
                     terminateConfirm = titleMenu.requiredTextPrompt("terminateConfirm"),
                     terminated = titleMenu.requiredTextPrompt("terminated"),
                     terminateFailed = titleMenu.requiredTextPrompt("terminateFailed"),
@@ -4276,6 +4338,8 @@ private fun JsonObject.requiredObject(name: String): JsonObject = required(name)
 private fun JsonObject.requiredArray(name: String): JsonArray = required(name) as? JsonArray ?: error("expected array for $name")
 
 private fun JsonObject.optionalArray(name: String): JsonArray? = optional(name) as? JsonArray
+
+private fun JsonObject.optionalBoolean(name: String): Boolean? = (optional(name) as? JsonBoolean)?.value
 
 private fun JsonObject.requiredString(name: String): String = required(name).asString(name)
 

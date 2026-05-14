@@ -11,12 +11,13 @@ internal data class RuntimeSaveContext(
     val file: File,
     val bundleContentHash: String,
     val userId: String,
+    val hallOfHeroesCompletedBy: String?,
 ) {
     fun write(
         runtime: RuntimeState,
         content: CompiledContentBundle,
     ) {
-        SaveFile.write(file, runtime, bundleContentHash, content, userId)
+        SaveFile.write(file, runtime, bundleContentHash, content, userId, hallOfHeroesCompletedBy)
     }
 }
 
@@ -115,6 +116,11 @@ class RuntimeSessionFactory private constructor(
             sessionDate = config.sessionDate,
             log = log,
         )
+
+    fun hasUserSave(
+        file: File,
+        userId: String,
+    ): Boolean = runtime.hasUserSave(file, userId)
 
     fun renderStaticScreen(
         terminal: AnsiTerminal,

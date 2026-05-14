@@ -267,12 +267,7 @@ private fun String.validatedRuntimeUserId(): String =
     trim()
         .also { userId -> require(userId.any(Char::isLetterOrDigit)) { "--user must contain a letter or digit" } }
 
-internal fun String.screenSlug(): String =
-    when (val normalized = lowercase().replace('-', '_')) {
-        "vscore", "verbose", "verbose_score" -> "verbose_score"
-        "hall", "hall_of_heroes" -> "heroes"
-        else -> normalized
-    }
+internal fun String.screenSlug(): String = runtimeScreenSlug(this)
 
 private fun RuntimeState.logPosition(): String = "${party.position.x},${party.position.y}"
 
@@ -358,11 +353,17 @@ class GameRuntime private constructor(
                     content = content,
                     stateLookup = ::stateBySlug,
                     userId = checkNotNull(userId) { "--user is required when rendering a saved runtime screen" },
+                    hallOfHeroesCompletedBy = systems.score.completedBy,
                 )
             } ?: RuntimeState.from(stateBySlug(stateSlug), content)
         RuntimeScreen(bundle, terminal, systems, log).showStaticScreen(screenSlug, runtime)
         return RuntimeSessionResult(RuntimeSessionExitReason.StaticScreenRendered)
     }
+
+    fun hasUserSave(
+        file: File,
+        userId: String,
+    ): Boolean = SaveFile.hasUserParty(file, bundleContentHash, userId)
 
     /** Runs the runtime wilderness loop from one compiled state image. */
     fun runWilderness(
@@ -452,8 +453,10 @@ class GameRuntime private constructor(
                     content = content,
                     stateLookup = ::stateBySlug,
                     userId = userId,
+                    hallOfHeroesCompletedBy = systems.score.completedBy,
                 )
             } ?: RuntimeState.from(stateBySlug(stateSlug), content)
+        runtime = runtime.withActiveUser(userId).withSecretRules(systems)
         runtime = seed?.let(runtime::withSeed) ?: runtime
         val world = WorldMap.from(content, runtime.currentMap)
         val flashLogSink =
@@ -464,7 +467,7 @@ class GameRuntime private constructor(
             }
         flashLogSink.use {
             log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
-            val saveContext = RuntimeSaveContext(saveFile, bundleContentHash, userId)
+            val saveContext = RuntimeSaveContext(saveFile, bundleContentHash, userId, systems.score.completedBy)
             val loopContext = RuntimeLoopContext(content, systems, input, screen, saveContext, log)
             val hasUserSave = loadFile?.let { file -> SaveFile.hasUserParty(file, bundleContentHash, userId) } ?: false
             if (showTitleMenu || loadFile != null && !hasUserSave) {
@@ -726,23 +729,60 @@ class GameRuntime private constructor(
             command: Char,
         ): Boolean = titleCommands.firstOrNull { title -> title.action == action }?.binding?.matches(command) == true
 
+        fun acceptsTitleCommand(
+            command: Char,
+            hasSavedGame: Boolean,
+        ): Boolean =
+            when {
+                matches("createNewParty", command) -> true
+                matches("continueSavedGame", command) -> true
+                matches("scoreboard", command) -> true
+                matches("hallOfFame", command) -> true
+                matches("documentation", command) -> true
+                matches("leave", command) -> true
+                hasSavedGame && matches("terminateParty", command) -> true
+                else -> false
+            }
+
         screen.showStaticScreen(TITLE_SCREEN, runtime)
         log.event("title.splash")
-        if (input.readCommand() == null) return null
+        var pendingTitleCommand: Char? = input.readCommand() ?: return null
         while (true) {
             val savedRuntime = loadSavedRuntimeOrNull(save, log)
             screen.showTitleMenu(titleMenuLines(hasSavedGame = savedRuntime != null))
-            val command = input.readCommand() ?: return null
+            val command =
+                pendingTitleCommand
+                    ?.takeIf { candidate -> acceptsTitleCommand(candidate, savedRuntime != null) }
+                    ?: input.readCommand()
+                    ?: return null
+            pendingTitleCommand = null
             when {
-                savedRuntime == null && matches("createNewParty", command) -> {
-                    log.event("title.new state=$stateSlug")
-                    val creationRuntime = seed?.let(runtime::withSeed) ?: runtime
-                    return runCharacterCreation(creationRuntime, input, screen, log)
+                matches("createNewParty", command) -> {
+                    if (savedRuntime != null && !confirmOverwriteSavedParty(input, screen, log)) {
+                        log.event("title.new.cancelled save=${save.file.path}")
+                    } else {
+                        log.event("title.new state=$stateSlug overwrites=${savedRuntime != null}")
+                        return runCharacterCreation(
+                            newPartyRuntime(stateSlug, seed, save.userId, savedRuntime),
+                            input,
+                            screen,
+                            log,
+                        )
+                    }
                 }
 
                 savedRuntime != null && matches("continueSavedGame", command) -> {
                     log.event("title.continue save=${save.file.path}")
                     return seed?.let(savedRuntime::withSeed) ?: savedRuntime
+                }
+
+                savedRuntime == null && matches("continueSavedGame", command) -> {
+                    log.event("title.continue.unavailable")
+                    screen.writeText(
+                        systems.prompts.titleMenu.continueUnavailable
+                            .render { null },
+                    )
+                    input.readCommand()
                 }
 
                 savedRuntime != null && matches("terminateParty", command) -> {
@@ -761,6 +801,15 @@ class GameRuntime private constructor(
                         )
                         input.readCommand()
                     }
+                }
+
+                savedRuntime == null && matches("terminateParty", command) -> {
+                    log.event("title.terminate.unavailable")
+                    screen.writeText(
+                        systems.prompts.titleMenu.terminateFailed
+                            .render { null },
+                    )
+                    input.readCommand()
                 }
 
                 matches("scoreboard", command) -> {
@@ -795,6 +844,38 @@ class GameRuntime private constructor(
         }
     }
 
+    private fun confirmOverwriteSavedParty(
+        input: RuntimeInputPort,
+        screen: RuntimeScreenPort,
+        log: RuntimeLog,
+    ): Boolean {
+        screen.writeText(
+            systems.prompts.titleMenu.overwriteConfirm
+                .render { null },
+        )
+        val command = input.readCommand()
+        val accepted = command == 'Y'
+        log.event("title.new.overwrite_confirm key=${command ?: ""} accepted=$accepted")
+        return accepted
+    }
+
+    private fun newPartyRuntime(
+        stateSlug: String,
+        seed: Long?,
+        userId: String,
+        savedRuntime: RuntimeState?,
+    ): RuntimeState {
+        val fresh =
+            RuntimeState
+                .from(stateBySlug(stateSlug), content)
+                .copy(
+                    scoreParties = savedRuntime?.scoreParties.orEmpty(),
+                    hallOfHeroes = savedRuntime?.hallOfHeroes.orEmpty(),
+                ).withActiveUser(userId)
+                .withSecretRules(systems)
+        return seed?.let(fresh::withSeed) ?: fresh
+    }
+
     private fun loadSavedRuntimeOrNull(
         save: RuntimeSaveContext,
         log: RuntimeLog,
@@ -809,7 +890,10 @@ class GameRuntime private constructor(
                 content = content,
                 stateLookup = ::stateBySlug,
                 userId = save.userId,
+                hallOfHeroesCompletedBy = save.hallOfHeroesCompletedBy,
             )
+        }.map { runtime ->
+            runtime.withSecretRules(systems)
         }.onFailure { error ->
             log.event("title.save_load_failed save=${save.file.path} error=${error.message.orEmpty()}")
         }.getOrNull()
@@ -822,12 +906,9 @@ class GameRuntime private constructor(
                     systems.prompts.titleMenu.header
                         .render { null },
                 )
-                if (hasSavedGame) {
-                    add(commands.menuLine("continueSavedGame"))
-                    add(commands.menuLine("terminateParty"))
-                } else {
-                    add(commands.menuLine("createNewParty"))
-                }
+                add(commands.menuLine("createNewParty"))
+                add(commands.menuLine("continueSavedGame").withAvailability(hasSavedGame, "no save"))
+                if (hasSavedGame) add(commands.menuLine("terminateParty"))
                 add(commands.menuLine("scoreboard"))
                 add(commands.menuLine("hallOfFame"))
                 add(commands.menuLine("documentation"))
@@ -844,6 +925,11 @@ class GameRuntime private constructor(
     private fun List<ExternalRuntimeCommand>.menuLine(action: String): String = first { command -> command.action == action }.mnemonicLine()
 
     private fun ExternalRuntimeCommand.mnemonicLine(): String = binding.mnemonicLine(label ?: binding.label)
+
+    private fun String.withAvailability(
+        enabled: Boolean,
+        reason: String,
+    ): String = if (enabled) this else "$this ($reason)"
 
     private fun ExternalRuntimeTextBlock.renderTown(town: rylween.compiled.CompiledTown): List<String> =
         render { kind ->
@@ -1710,8 +1796,24 @@ data class RuntimeState(
     val dungeon: DungeonState?,
     val castle: CastleState?,
     val party: PartyState,
+    val activeUserId: String? = null,
+    val scoreParties: List<RuntimeScoreParty> = emptyList(),
+    val hallOfHeroes: List<RuntimeHeroEntry> = emptyList(),
+    val alwaysRunFromNonMandatoryEncounters: Boolean = false,
 ) {
-    fun withParty(party: PartyState): RuntimeState = copy(party = party)
+    fun withParty(party: PartyState): RuntimeState = copy(party = party).withCurrentScoreParty()
+
+    fun withActiveUser(userId: String): RuntimeState = copy(activeUserId = userId.normalizedSaveUser())
+
+    fun withSecretRules(systems: ExternalRuntimeSystems): RuntimeState {
+        val user = activeUserId ?: return this
+        val alwaysRun =
+            systems.secrets.players.any { player ->
+                player.alwaysRunFromNonMandatoryEncounters &&
+                    (player.anyPlayer || player.names.any { name -> user in name.normalizedSecretPlayerNameAliases() })
+            }
+        return copy(alwaysRunFromNonMandatoryEncounters = alwaysRun)
+    }
 
     fun withCompletedMission(mission: CompiledHandleRef): RuntimeState = copy(completedMissions = (completedMissions + mission).distinct())
 
@@ -1754,7 +1856,33 @@ data class RuntimeState(
                 party = PartyState.from(content, state.activeParty(), state.realm.rngState),
             )
     }
+
+    private fun withCurrentScoreParty(): RuntimeState {
+        val userId = activeUserId ?: return this
+        val current = party.toRuntimeScoreParty(userId)
+        return copy(
+            scoreParties =
+                (scoreParties.filterNot { entry -> entry.userId == userId } + current)
+                    .sortedBy { entry -> entry.partyName.lowercase() },
+        )
+    }
 }
+
+data class RuntimeScoreParty(
+    val userId: String,
+    val partyName: String,
+    val leaderName: String,
+    val classes: List<PcClass>,
+    val kills: Int,
+    val averageExperience: Int,
+    val averageLevel: Int,
+    val milestones: List<CompiledHandleRef>,
+)
+
+data class RuntimeHeroEntry(
+    val userId: String,
+    val partyName: String,
+)
 
 data class PartyState(
     val id: CompiledHandleRef,
@@ -1858,6 +1986,31 @@ internal fun PartyState.memberName(
         .getOrNull(index)
         ?.takeIf(String::isNotBlank)
         ?: members.getOrNull(index)?.let { member -> content.strings.value(member.nameString) }.orEmpty()
+
+internal fun PartyState.toRuntimeScoreParty(userId: String): RuntimeScoreParty =
+    RuntimeScoreParty(
+        userId = userId.normalizedSaveUser(),
+        partyName = name,
+        leaderName = memberNames.firstOrNull().orEmpty(),
+        classes = members.map(CompiledPartyMember::pcClass),
+        kills = counters.kills,
+        averageExperience = members.averageOf(CompiledPartyMember::experience),
+        averageLevel = members.averageOf(CompiledPartyMember::level),
+        milestones = milestones,
+    )
+
+private fun String.normalizedSecretPlayerNameAliases(): Set<String> {
+    val lowered = trim().lowercase()
+    return listOf(
+        lowered.map { char -> char.takeIf { it.isLetterOrDigit() || it == '-' || it == '_' } ?: '_' }.joinToString(""),
+        lowered.map { char -> char.takeIf { it.isLetterOrDigit() || it == '-' || it == '_' } ?: '-' }.joinToString(""),
+    ).mapTo(mutableSetOf()) { value -> value.trim('-', '_') }
+}
+
+private fun List<CompiledPartyMember>.averageOf(value: (CompiledPartyMember) -> Int): Int {
+    val divisor = size.coerceAtLeast(1)
+    return sumOf(value) / divisor
+}
 
 private fun CompiledContentBundle.journalEntryText(entry: CompiledJournalEntry): String =
     when (entry) {
@@ -1985,16 +2138,32 @@ internal class RuntimeInput(
 
     override fun readInt(maxDigits: Int): Int? {
         val scriptedValue = readScriptedUnsignedInt()
-        if (scriptedValue != null) return scriptedValue
-        if (scripted != null) return null
-        return terminal.readTextLine(maxDigits)?.trim()?.toIntOrNull()
+        if (scriptedValue != null) {
+            log.event("input.int value=$scriptedValue scripted=true")
+            return scriptedValue
+        }
+        if (scripted != null) {
+            log.event("input.int eof scripted=true")
+            return null
+        }
+        return terminal.readTextLine(maxDigits)?.trim()?.toIntOrNull().also { value ->
+            log.event("input.int value=${value ?: "null"} scripted=false")
+        }
     }
 
     override fun readText(maxLength: Int?): String? {
         val scriptedValue = readScriptedText()
-        if (scriptedValue != null) return scriptedValue
-        if (scripted != null) return null
-        return terminal.readTextLine(maxLength ?: DEFAULT_TEXT_INPUT_LIMIT)
+        if (scriptedValue != null) {
+            log.event("input.text value=${inputLogValue(scriptedValue)} length=${scriptedValue.length} scripted=true")
+            return scriptedValue
+        }
+        if (scripted != null) {
+            log.event("input.text eof scripted=true")
+            return null
+        }
+        return terminal.readTextLine(maxLength ?: DEFAULT_TEXT_INPUT_LIMIT).also { value ->
+            log.event("input.text value=${inputLogValue(value.orEmpty())} length=${value?.length ?: 0} scripted=false")
+        }
     }
 
     private fun readScriptedCommand(): Char? {
@@ -2045,6 +2214,8 @@ internal class RuntimeInput(
         return value.takeIf(String::isNotEmpty)
     }
 }
+
+private fun inputLogValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 private fun RuntimeInputPort.exitResult(): RuntimeSessionResult = RuntimeSessionResult(exitReason())
 

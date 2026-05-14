@@ -33,8 +33,147 @@ private const val SAVE_VERSION = "1"
 private const val SAVE_MODEL = "shared-world"
 private const val PARTY_MEMBER_RECORD_COUNT = "party.members"
 private const val USERS_COUNT = "users.count"
+private const val HEROES_COUNT = "heroes.count"
 
 private val MEMBER_FIELD_KEY = Regex("""^member\.(\d+)\.""")
+
+/**
+ * Encodes and decodes the runtime's sorted key/value save file.
+ *
+ * This is persistence syntax, not terminal or web protocol. It lives in this
+ * file because only the runtime save boundary should know these escaping rules.
+ */
+internal object SaveCodec {
+    fun encodeValues(values: Map<String, String>): String =
+        values
+            .toSortedMap()
+            .entries
+            .joinToString(separator = "\n", postfix = "\n") { (key, value) ->
+                "${escapeLineField(key)}=${escapeLineField(value)}"
+            }
+
+    fun decodeValues(lines: List<String>): Map<String, String> =
+        lines
+            .asSequence()
+            .map(String::trim)
+            .filter { line -> line.isNotEmpty() && !line.startsWith("#") }
+            .associate { line ->
+                val separator = line.indexOf('=')
+                require(separator > 0) { "invalid save line: $line" }
+                unescapeLineField(line.substring(0, separator)) to unescapeLineField(line.substring(separator + 1))
+            }
+
+    fun encodeFrames(frames: List<ScriptFrameState>): String =
+        frames.joinToString("|") { frame ->
+            "${frame.blockPath.joinToString(",")}:${frame.nextIndex}:${frame.insideLoop}"
+        }
+
+    fun decodeFrames(value: String): List<ScriptFrameState> =
+        value
+            .split('|')
+            .filter(String::isNotEmpty)
+            .map { token ->
+                val parts = token.split(':')
+                ScriptFrameState(
+                    blockPath =
+                        parts[0]
+                            .takeIf(String::isNotEmpty)
+                            ?.split(',')
+                            ?.map(String::toInt)
+                            .orEmpty(),
+                    nextIndex = parts[1].toInt(),
+                    insideLoop = parts[2].toBooleanStrict(),
+                )
+            }
+
+    fun encodeIntMap(values: Map<String, Int>): String =
+        values
+            .entries
+            .sortedBy(Map.Entry<String, Int>::key)
+            .joinToString("|") { (key, value) -> "${escapeSegment(key)}:$value" }
+
+    fun decodeIntMap(value: String): Map<String, Int> = decodeStringMap(value).mapValues { (_, mapValue) -> mapValue.toInt() }
+
+    fun encodeStringMap(values: Map<String, String>): String =
+        values
+            .entries
+            .sortedBy(Map.Entry<String, String>::key)
+            .joinToString("|") { (key, value) -> "${escapeSegment(key)}:${escapeSegment(value)}" }
+
+    fun decodeStringMap(value: String): Map<String, String> {
+        if (value.isEmpty()) return emptyMap()
+        return value
+            .split('|')
+            .filter(String::isNotEmpty)
+            .associate { token ->
+                val separator = token.indexOf(':')
+                require(separator >= 0) { "invalid compiled continuation map token: $token" }
+                unescapeSegment(token.substring(0, separator)) to unescapeSegment(token.substring(separator + 1))
+            }
+    }
+
+    private fun escapeLineField(value: String): String =
+        buildString {
+            value.forEach { char ->
+                when (char) {
+                    '\\' -> append("\\\\")
+                    '\n' -> append("\\n")
+                    '\r' -> append("\\r")
+                    '=' -> append("\\=")
+                    else -> append(char)
+                }
+            }
+        }
+
+    private fun unescapeLineField(value: String): String =
+        unescape(value) { marker ->
+            when (marker) {
+                'n' -> '\n'
+                'r' -> '\r'
+                else -> marker
+            }
+        }
+
+    private fun escapeSegment(value: String): String =
+        buildString {
+            value.forEach { char ->
+                when (char) {
+                    '\\' -> append("\\\\")
+                    '|' -> append("\\p")
+                    ':' -> append("\\c")
+                    else -> append(char)
+                }
+            }
+        }
+
+    private fun unescapeSegment(value: String): String =
+        unescape(value) { marker ->
+            when (marker) {
+                'p' -> '|'
+                'c' -> ':'
+                else -> marker
+            }
+        }
+
+    private fun unescape(
+        value: String,
+        mapped: (Char) -> Char,
+    ): String =
+        buildString {
+            var escaped = false
+            value.forEach { char ->
+                if (escaped) {
+                    append(mapped(char))
+                    escaped = false
+                } else if (char == '\\') {
+                    escaped = true
+                } else {
+                    append(char)
+                }
+            }
+            if (escaped) append('\\')
+        }
+}
 
 /** Reads and writes runtime shared-world saves. */
 internal object SaveFile {
@@ -44,18 +183,25 @@ internal object SaveFile {
         bundleHash: String,
         content: CompiledContentBundle,
         userId: String,
+        hallOfHeroesCompletedBy: String?,
     ) {
         val activeUser = userId.normalizedSaveUser()
-        val preservedUsers =
-            file
-                .existingSaveValuesOrEmpty()
-                .userRecords()
-                .filterNot { record -> record.id == activeUser }
+        val existingValues = file.existingSaveValuesOrEmpty()
+        val preservedUsers = existingValues.userRecords().filterNot { record -> record.id == activeUser }
         val userRecords = preservedUsers + UserSaveRecord(activeUser, runtime.userSaveValues(content))
+        val scoreParties =
+            runtime.scoreParties
+                .filterNot { party -> party.userId == activeUser } +
+                runtime.party.toRuntimeScoreParty(activeUser)
+        val heroes =
+            existingValues
+                .heroEntries()
+                .withDerivedHeroes(scoreParties, hallOfHeroesCompletedBy, content)
         val values =
             runtime
                 .worldSaveValues(bundleHash, content)
                 .toMutableMap()
+        values.putHeroEntries(heroes)
         values.putUserRecords(userRecords)
         file.parentFile?.mkdirs()
         file.writeText(SaveCodec.encodeValues(values))
@@ -67,13 +213,17 @@ internal object SaveFile {
         content: CompiledContentBundle,
         stateLookup: (String) -> CompiledStateImage,
         userId: String,
+        hallOfHeroesCompletedBy: String? = null,
     ): RuntimeState {
         val values = file.readSaveValues()
         values.requireCompatibleSave(expectedBundleHash)
 
+        val saveUser = userId.normalizedSaveUser()
         val baseState = RuntimeState.from(stateLookup(values.required("state")), content)
         val userValues = values.userValuesFor(userId)
         if (userValues.hasPartyFields()) validateSavedPartyMemberCount(userValues, baseState.partyMemberMax)
+        val activeParty = userValues.readParty(baseState.party, content)
+        val scoreParties = values.scoreParties(baseState.party, content, saveUser)
         return baseState.copy(
             day = values.intOrDefault("realm.day", baseState.day),
             hour = values.intOrDefault("realm.hour", baseState.hour),
@@ -93,7 +243,10 @@ internal object SaveFile {
                 values.handleListOrDefault("missions.completed", CompiledHandleKind.Mission, content, baseState.completedMissions),
             dungeon = userValues.readDungeon(content) ?: baseState.dungeon,
             castle = userValues.readCastle() ?: baseState.castle,
-            party = userValues.readParty(baseState.party, content),
+            party = activeParty,
+            activeUserId = saveUser,
+            scoreParties = scoreParties,
+            hallOfHeroes = values.heroEntries().withDerivedHeroes(scoreParties, hallOfHeroesCompletedBy, content),
         )
     }
 
@@ -625,6 +778,27 @@ internal object SaveFile {
         }
     }
 
+    private fun Map<String, String>.scoreParties(
+        base: PartyState,
+        content: CompiledContentBundle,
+        legacyUserId: String,
+    ): List<RuntimeScoreParty> {
+        val records = userRecords()
+        val parties =
+            if (records.isEmpty()) {
+                if (hasPartyFields()) listOf(UserSaveRecord(legacyUserId, this)) else emptyList()
+            } else {
+                records.filter { record -> record.values.hasPartyFields() }
+            }
+        return parties
+            .map { record -> record.values.readParty(base, content).toRuntimeScoreParty(record.id) }
+            .sortedWith(
+                compareByDescending<RuntimeScoreParty> {
+                    it.averageExperience
+                }.thenByDescending { it.averageLevel }.thenBy { it.partyName },
+            )
+    }
+
     private fun MutableMap<String, String>.putUserRecords(records: List<UserSaveRecord>) {
         val sorted = records.sortedBy(UserSaveRecord::id)
         put(USERS_COUNT, sorted.size.toString())
@@ -642,20 +816,39 @@ internal object SaveFile {
             key != USERS_COUNT && !key.startsWith("user.")
         }
 
-    private fun String.normalizedSaveUser(): String {
-        val normalized =
-            trim()
-                .lowercase()
-                .map { char ->
-                    when {
-                        char.isLetterOrDigit() -> char
-                        char == '-' -> char
-                        char == '_' -> char
-                        else -> '_'
-                    }
-                }.joinToString("")
-        require(normalized.any(Char::isLetterOrDigit)) { "runtime user id must contain a letter or digit" }
-        return normalized
+    private fun Map<String, String>.heroEntries(): List<RuntimeHeroEntry> {
+        val count = optionalInt(HEROES_COUNT) ?: return emptyList()
+        return (1..count).mapNotNull { number ->
+            val prefix = "hero.$number"
+            val userId = get("$prefix.user")?.takeIf(String::isNotBlank)?.normalizedSaveUser()
+            val partyName = get("$prefix.party")?.takeIf(String::isNotBlank)
+            if (userId == null || partyName == null) null else RuntimeHeroEntry(userId, partyName)
+        }
+    }
+
+    private fun MutableMap<String, String>.putHeroEntries(entries: List<RuntimeHeroEntry>) {
+        val sorted = entries.distinctBy { entry -> entry.userId to entry.partyName }.sortedBy(RuntimeHeroEntry::partyName)
+        put(HEROES_COUNT, sorted.size.toString())
+        sorted.forEachIndexed { index, entry ->
+            val prefix = "hero.${index + 1}"
+            put("$prefix.user", entry.userId)
+            put("$prefix.party", entry.partyName)
+        }
+    }
+
+    private fun List<RuntimeHeroEntry>.withDerivedHeroes(
+        scoreParties: List<RuntimeScoreParty>,
+        completedBy: String?,
+        content: CompiledContentBundle,
+    ): List<RuntimeHeroEntry> {
+        if (completedBy == null) return this
+        val derived =
+            scoreParties
+                .filter { party -> party.milestones.any { milestone -> content.slug(milestone) == completedBy } }
+                .map { party -> RuntimeHeroEntry(party.userId, party.partyName) }
+        return (this + derived)
+            .distinctBy { entry -> entry.userId to entry.partyName }
+            .sortedBy(RuntimeHeroEntry::partyName)
     }
 
     private fun Map<String, String>.savedMemberSlots(): Set<Int> =
@@ -743,6 +936,22 @@ internal object SaveFile {
             ?.filter(String::isNotEmpty)
             ?.map { slug -> content.ref(kind, slug) }
             ?: default
+}
+
+internal fun String.normalizedSaveUser(): String {
+    val normalized =
+        trim()
+            .lowercase()
+            .map { char ->
+                when {
+                    char.isLetterOrDigit() -> char
+                    char == '-' -> char
+                    char == '_' -> char
+                    else -> '_'
+                }
+            }.joinToString("")
+    require(normalized.any(Char::isLetterOrDigit)) { "runtime user id must contain a letter or digit" }
+    return normalized
 }
 
 private data class UserSaveRecord(

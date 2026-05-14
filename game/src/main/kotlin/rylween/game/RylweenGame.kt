@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 // RylweenGame.kt -- game-specific Rylween authored content.
 //
 // Designer note: this file is the single place to add new game content
@@ -302,6 +304,7 @@ val authoredRylween: RylweenModel =
 
             secrets {
                 playersNamed("Marcus Lagergren", "Marcus") {
+                    alwaysRunFromNonMandatoryEncounters()
                     addTimeLeft('/', amount = 50, refreshStatus = true)
                     setInventory('(', slot = 12, item = Items.drumsOfDeath)
                     setInventory(')', slot = 11, item = Items.gemOfResurrection)
@@ -869,13 +872,21 @@ val authoredRylween: RylweenModel =
                 )
                 titleMenu {
                     header = inlineText("Rylween", "")
-                    createNewParty = inputKey("C", label = "Create New Party")
+                    createNewParty = inputKey("N", label = "Create New Party")
                     continueSavedGame = inputKey("C", label = "Continue Saved Game")
                     terminateParty = inputKey("T", label = "Terminate Party")
                     scoreboard = inputKey("S", label = "Scoreboard")
                     hallOfFame = inputKey("H", label = "Hall of Fame")
                     documentation = inputKey("D", label = "Documentation")
                     leave = inputKey("L", label = "Leave")
+                    continueUnavailable = inlineText("There is no saved party for this account.")
+                    overwriteConfirm =
+                        inlineText(
+                            "Creating a new party will overwrite the saved party for this account.",
+                            "",
+                            "(Y)es",
+                            "(N)o",
+                        )
                     terminateConfirm = inlineText("Terminate this party?", "", "(Y)es", "(N)o")
                     terminated = inlineText("Party terminated.")
                     terminateFailed = inlineText("No party to terminate.")

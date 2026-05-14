@@ -1,0 +1,67 @@
+package rylween.webcommon.auth
+
+import kotlin.io.path.createTempDirectory
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+
+class WebAuthTest {
+    @Test
+    fun registeredAccountCanAuthenticateByEmailAndSlug() {
+        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+
+        val registered = assertIs<WebAuthResult.Success>(store.register("Strong Party", "strong@example.test", "password123"))
+        val byEmail = assertIs<WebAuthResult.Success>(store.authenticate("strong@example.test", "password123"))
+        val bySlug = assertIs<WebAuthResult.Success>(store.authenticate("strong-party", "password123"))
+
+        assertEquals("strong-party", registered.account.slug)
+        assertEquals(registered.account, byEmail.account)
+        assertEquals(registered.account, bySlug.account)
+    }
+
+    @Test
+    fun bootstrapAccountIsCreatedOrVerified() {
+        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+        val bootstrap = WebAuthBootstrapAccount("Strong Party", "strong@example.test", "password123")
+
+        val created = assertIs<WebAuthBootstrapResult.Created>(store.ensureAccount(bootstrap))
+        val existing = assertIs<WebAuthBootstrapResult.Existing>(store.ensureAccount(bootstrap))
+        val byEmail = assertIs<WebAuthResult.Success>(store.authenticate("strong@example.test", "password123"))
+
+        assertEquals("strong-party", created.account.slug)
+        assertEquals(created.account, existing.account)
+        assertEquals(created.account, byEmail.account)
+    }
+
+    @Test
+    fun bootstrapAccountRejectsMismatchedExistingPassword() {
+        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+
+        store.ensureAccount(WebAuthBootstrapAccount("Strong", "strong@example.test", "password123"))
+
+        assertIs<WebAuthBootstrapResult.Failure>(
+            store.ensureAccount(WebAuthBootstrapAccount("Strong", "strong@example.test", "different123")),
+        )
+    }
+
+    @Test
+    fun wrongPasswordIsRejected() {
+        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+
+        store.register("Strong", "strong@example.test", "password123")
+
+        assertIs<WebAuthResult.Failure>(store.authenticate("strong@example.test", "nope"))
+    }
+
+    @Test
+    fun sessionsResolveAndCanBeRemoved() {
+        val sessions = WebSessionStore()
+        val account = WebAccount("strong", "Strong", "strong@example.test", emailConfirmed = true)
+        val token = sessions.create(account)
+
+        assertEquals(account, sessions.account(token))
+        sessions.remove(token)
+        assertNull(sessions.account(token))
+    }
+}

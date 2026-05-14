@@ -13,6 +13,10 @@ HOST_PORT="${RYLWEEN_HOST_PORT:-$CONTAINER_PORT}"
 PUBLISH_HOST="${RYLWEEN_PUBLISH_HOST:-127.0.0.1}"
 BUILD_IMAGE="${RYLWEEN_BUILD:-false}"
 RUN_NAME="${RYLWEEN_NAME:-}"
+AUTH_ACCOUNT="${RYLWEEN_AUTH_ACCOUNT:-}"
+AUTH_EMAIL="${RYLWEEN_AUTH_EMAIL:-}"
+AUTH_PASSWORD="${RYLWEEN_AUTH_PASSWORD:-}"
+AUTH_SECURE_COOKIES="${RYLWEEN_AUTH_SECURE_COOKIES:-}"
 CONTAINER_SAVE_FILE="${RYLWEEN_SAVE_FILE:-$CONTAINER_DATA_DIR/saves/world.rsave}"
 HOST_SAVE_FILE=""
 
@@ -23,11 +27,12 @@ log() {
 usage() {
   cat <<'EOF'
 Usage: ./run-server.sh [--build] [--name NAME]
+       ./run-server.sh --account NAME --password PASSWORD [--email EMAIL]
 
 Environment:
   RYLWEEN_IMAGE              Docker image tag. Default: rylween:latest
   RYLWEEN_BUILD              Build image before running when set to true.
-  RYLWEEN_NAME               Optional named local save to seed before running. Example: Strong
+  RYLWEEN_NAME               Optional named local save to seed before running. Examples: Strong, StrongEndgame
   RYLWEEN_CONTAINER_NAME     Docker container name. Default: rylween-web
   RYLWEEN_HOST_DATA_DIR      Host data directory. Default: ~/.rylween/data
   RYLWEEN_HOST_PORT          Host port to publish. Default: container port
@@ -36,6 +41,10 @@ Environment:
   RYLWEEN_STATE              Optional initial runtime state slug.
   RYLWEEN_SAVE_FILE          Optional shared world save path inside the container. Default: /data/saves/world.rsave
   RYLWEEN_LOAD_FILE          Optional initial world save path used only when RYLWEEN_SAVE_FILE does not exist.
+  RYLWEEN_AUTH_ACCOUNT       Optional account to create/verify before startup.
+  RYLWEEN_AUTH_EMAIL         Optional email for RYLWEEN_AUTH_ACCOUNT.
+  RYLWEEN_AUTH_PASSWORD      Required when RYLWEEN_AUTH_ACCOUNT is set.
+  RYLWEEN_AUTH_SECURE_COOKIES Set true when served through HTTPS.
   RYLWEEN_SEED               Optional runtime RNG seed.
 EOF
 }
@@ -57,6 +66,42 @@ while [[ $# -gt 0 ]]; do
       ;;
     --name=*)
       RUN_NAME="${arg#--name=}"
+      ;;
+    --account)
+      if [[ $# -eq 0 ]]; then
+        echo "--account requires a value" >&2
+        exit 2
+      fi
+      AUTH_ACCOUNT="$1"
+      shift
+      ;;
+    --account=*)
+      AUTH_ACCOUNT="${arg#--account=}"
+      ;;
+    --email)
+      if [[ $# -eq 0 ]]; then
+        echo "--email requires a value" >&2
+        exit 2
+      fi
+      AUTH_EMAIL="$1"
+      shift
+      ;;
+    --email=*)
+      AUTH_EMAIL="${arg#--email=}"
+      ;;
+    --password)
+      if [[ $# -eq 0 ]]; then
+        echo "--password requires a value" >&2
+        exit 2
+      fi
+      AUTH_PASSWORD="$1"
+      shift
+      ;;
+    --password=*)
+      AUTH_PASSWORD="${arg#--password=}"
+      ;;
+    --secure-cookies)
+      AUTH_SECURE_COOKIES=true
       ;;
     --help|-h)
       usage
@@ -119,6 +164,27 @@ forward_env RYLWEEN_SAVE_FILE
 forward_env RYLWEEN_LOAD_FILE
 forward_env RYLWEEN_SEED
 forward_env RYLWEEN_BUNDLE
+forward_env RYLWEEN_AUTH_DEV_USER
+
+if [[ -n "$AUTH_ACCOUNT" || -n "$AUTH_EMAIL" || -n "$AUTH_PASSWORD" ]]; then
+  if [[ -z "$AUTH_ACCOUNT" || -z "$AUTH_PASSWORD" ]]; then
+    echo "--account and --password are both required when bootstrapping an account." >&2
+    exit 2
+  fi
+  env_args+=(-e "RYLWEEN_AUTH_ACCOUNT=$AUTH_ACCOUNT")
+  env_args+=(-e "RYLWEEN_AUTH_PASSWORD=$AUTH_PASSWORD")
+  if [[ -n "$AUTH_EMAIL" ]]; then
+    env_args+=(-e "RYLWEEN_AUTH_EMAIL=$AUTH_EMAIL")
+  fi
+fi
+
+if [[ "$AUTH_SECURE_COOKIES" == "true" ]]; then
+  env_args+=(-e "RYLWEEN_AUTH_SECURE_COOKIES=true")
+fi
+
+if [[ -n "$RUN_NAME" && -z "${RYLWEEN_AUTH_DEV_USER:-}" ]]; then
+  env_args+=(-e "RYLWEEN_AUTH_DEV_USER=$RUN_NAME")
+fi
 
 log "image: $IMAGE"
 log "container: $CONTAINER_NAME"
@@ -135,9 +201,9 @@ if [[ -n "$HOST_SAVE_FILE" ]]; then
 fi
 if [[ -n "$RUN_NAME" ]]; then
   log "seeded name: $RUN_NAME"
-  log "browser user name to enter: $RUN_NAME"
+  log "dev auth bypass user: $RUN_NAME"
 fi
-for name in RYLWEEN_STATE RYLWEEN_SAVE_FILE RYLWEEN_LOAD_FILE RYLWEEN_SEED RYLWEEN_BUNDLE; do
+for name in RYLWEEN_STATE RYLWEEN_SAVE_FILE RYLWEEN_LOAD_FILE RYLWEEN_SEED RYLWEEN_BUNDLE RYLWEEN_AUTH_DEV_USER RYLWEEN_AUTH_ACCOUNT RYLWEEN_AUTH_EMAIL RYLWEEN_AUTH_SECURE_COOKIES; do
   value="${!name:-}"
   if [[ -n "$value" ]]; then
     log "forward env: $name=$value"

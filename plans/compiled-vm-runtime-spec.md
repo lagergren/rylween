@@ -445,6 +445,5 @@ That file is not the cross-language save-file standard; it is the direct
 runtime's first persistent adapter and shows the required policy:
 store portable runtime ids, bind the save to the verified bundle hash, and
 restore only at game-policy boundaries the runtime can complete without hidden
-session state. Its line-format escaping lives in
-`runtime/src/main/kotlin/rylween/runtime/SaveCodec.kt`
-because it is persistence syntax, not ANSI/input character handling.
+session state. Its line-format escaping lives with `SaveFile` because it is
+persistence syntax, not ANSI/input character handling.

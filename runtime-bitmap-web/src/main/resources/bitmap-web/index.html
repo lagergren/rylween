@@ -14,6 +14,8 @@
         <div class="title">Rylween Bitmap</div>
       </div>
       <div class="top-actions">
+        <button id="serverInfoToggle" type="button" class="server-pill">Bitmap</button>
+        <span id="userAccount" class="account-pill">Account</span>
         <button id="commandToggle" type="button" hidden>Commands</button>
         <div class="status">
           <span id="connectionDot" class="dot"></span>
@@ -23,6 +25,7 @@
     </header>
     <section class="stage">
       <canvas id="game" width="1280" height="720" tabindex="0" aria-label="Rylween bitmap game"></canvas>
+      <aside id="serverInfoPopover" class="server-info-popover" hidden aria-label="Rylween server status"></aside>
       <aside id="commandPopover" class="command-popover" hidden aria-label="Rylween command palette"></aside>
       <div id="canvasTooltip" class="canvas-tooltip" hidden></div>
     </section>

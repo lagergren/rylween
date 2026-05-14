@@ -1,0 +1,51 @@
+# Production-oriented bitmap web runtime image for running behind a reverse proxy.
+#
+# This image serves plain HTTP/WebSocket internally. Terminate TLS at nginx,
+# Caddy, HAProxy, or a managed load balancer, and connect the proxy to this
+# container over loopback or a private network.
+#
+# Example:
+#   docker build -f Dockerfile.bitmap-production -t rylween-bitmap-prod .
+#   docker run --rm \
+#     -e RYLWEEN_AUTH_ACCOUNT=admin \
+#     -e RYLWEEN_AUTH_EMAIL=admin@example.test \
+#     -e RYLWEEN_AUTH_PASSWORD='change-this-password' \
+#     -p 127.0.0.1:8081:8081 \
+#     -v rylween-data:/data \
+#     rylween-bitmap-prod
+
+FROM eclipse-temurin:25-jdk AS builder
+
+WORKDIR /src
+
+COPY gradle/wrapper gradle/wrapper
+COPY gradlew ./
+RUN ./gradlew --no-daemon --version
+
+COPY gradle/libs.versions.toml gradle/libs.versions.toml
+COPY settings.gradle.kts build.gradle.kts ./
+COPY build-logic build-logic
+COPY . .
+RUN ./gradlew --no-daemon :runtime-bitmap-web:installRuntimeBitmapWeb --console=plain
+
+FROM eclipse-temurin:25-jre AS runtime
+
+ARG RYLWEEN_DATA_DIR=/data
+ENV RYLWEEN_DATA_DIR="${RYLWEEN_DATA_DIR}"
+ENV RYLWEEN_BITMAP_HOST=0.0.0.0
+ENV RYLWEEN_BITMAP_PORT=8081
+ENV RYLWEEN_BITMAP_STATE=fresh-replay
+ENV RYLWEEN_BITMAP_MAP_TILES=8
+ENV RYLWEEN_BITMAP_TILE_SIZE=64
+ENV RYLWEEN_BITMAP_SAVE_FILE=/data/saves/world.rsave
+ENV RYLWEEN_AUTH_SECURE_COOKIES=true
+
+WORKDIR /app
+COPY --from=builder /src/runtime-bitmap-web/build/install/rylween-bitmap-web /app/rylween-bitmap-web
+
+ENV PATH="/app/rylween-bitmap-web/bin:${PATH}"
+VOLUME ["/data"]
+EXPOSE 8081
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["sh", "-c", "mkdir -p \"$RYLWEEN_DATA_DIR/saves\" \"$RYLWEEN_DATA_DIR/logs/runtime-bitmap-web\" \"$RYLWEEN_DATA_DIR/auth\" && exec /app/rylween-bitmap-web/bin/rylween-bitmap-web --data \"$RYLWEEN_DATA_DIR\" --host \"$RYLWEEN_BITMAP_HOST\" --port \"$RYLWEEN_BITMAP_PORT\" --state \"$RYLWEEN_BITMAP_STATE\" --map-tiles \"$RYLWEEN_BITMAP_MAP_TILES\" --tile-size \"$RYLWEEN_BITMAP_TILE_SIZE\" --save \"$RYLWEEN_BITMAP_SAVE_FILE\" \"$@\"", "rylween-bitmap-web"]
