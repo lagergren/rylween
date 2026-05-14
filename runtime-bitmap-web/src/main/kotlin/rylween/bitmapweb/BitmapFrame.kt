@@ -244,6 +244,8 @@ internal data class BitmapTile(
     val passable: Boolean,
     val settlement: String?,
     val center: Boolean,
+    val waterMask: Int = 0,
+    val waterGlyph: String? = null,
 ) {
     fun toJson(): String =
         jsonObject(
@@ -255,6 +257,8 @@ internal data class BitmapTile(
             "passable" to passable.toString(),
             "settlement" to (settlement?.json() ?: "null"),
             "center" to center.toString(),
+            "waterMask" to waterMask.toString(),
+            "waterGlyph" to (waterGlyph?.json() ?: "null"),
         )
 }
 
