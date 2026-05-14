@@ -48,6 +48,7 @@ private val BITMAP_ASSETS =
         "encounter-bestiary.png" to "bitmap/assets/encounter-bestiary.png",
         "scene-atlas.png" to "bitmap/assets/scene-atlas.png",
         "terrain-atlas.png" to "bitmap/assets/terrain-atlas.png",
+        "party-rider.png" to "bitmap/assets/party-rider.png",
         "scene-thord-mainstreet.png" to "bitmap/assets/scene-thord-mainstreet.png",
         "scene-merchant.png" to "bitmap/assets/scene-merchant.png",
         "scene-smith.png" to "bitmap/assets/scene-smith.png",

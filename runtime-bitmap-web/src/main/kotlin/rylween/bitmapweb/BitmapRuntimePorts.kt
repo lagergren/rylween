@@ -3,6 +3,7 @@ package rylween.bitmapweb
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledGameBundle
 import rylween.compiled.CompiledHandleRef
+import rylween.compiled.CompiledTerrain
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeSystems
@@ -27,6 +28,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private const val BITMAP_TEXT_COLUMNS = 36
 private const val CLOSED_INPUT = "\u0004"
+private const val WATER_NORTH = 1
+private const val WATER_EAST = 2
+private const val WATER_SOUTH = 4
+private const val WATER_WEST = 8
 
 internal const val DEFAULT_BITMAP_VIEWPORT_TILES = 8
 internal const val DEFAULT_BITMAP_TILE_SIZE = 64
@@ -423,13 +428,22 @@ private fun WorldMap.bitmapViewport(
         tileSize = tileSize,
         rows =
             viewport(center, tiles, tiles).map { row ->
-                row.map { cell -> cell.toBitmapTile(content) }
+                row.map { cell -> cell.toBitmapTile(this, content) }
             },
     )
 
-private fun RuntimeMapCell.toBitmapTile(content: CompiledContentBundle): BitmapTile =
-    BitmapTile(
-        slug = terrain?.let { content.slug(it.id) } ?: "void",
+private fun RuntimeMapCell.toBitmapTile(
+    world: WorldMap,
+    content: CompiledContentBundle,
+): BitmapTile {
+    val slug = terrain?.let { content.slug(it.id) } ?: "void"
+    val waterMask =
+        terrain
+            ?.takeIf { terrain -> terrain.isBitmapWater(content) }
+            ?.let { waterMask(world, point, content) }
+            ?: 0
+    return BitmapTile(
+        slug = slug,
         code = terrain?.mapCode?.toString().orEmpty(),
         x = point.x,
         y = point.y,
@@ -437,7 +451,50 @@ private fun RuntimeMapCell.toBitmapTile(content: CompiledContentBundle): BitmapT
         passable = terrain?.passable ?: false,
         settlement = terrain?.settlement?.runtimeName(),
         center = center,
+        waterMask = waterMask,
+        waterGlyph = waterMask.takeIf { terrain?.isBitmapWater(content) == true }?.waterGlyph(),
     )
+}
+
+private fun waterMask(
+    world: WorldMap,
+    point: GridPoint,
+    content: CompiledContentBundle,
+): Int {
+    var mask = 0
+    if (world.terrainAt(GridPoint(point.x, point.y - 1)).isBitmapWater(content)) mask = mask or WATER_NORTH
+    if (world.terrainAt(GridPoint(point.x + 1, point.y)).isBitmapWater(content)) mask = mask or WATER_EAST
+    if (world.terrainAt(GridPoint(point.x, point.y + 1)).isBitmapWater(content)) mask = mask or WATER_SOUTH
+    if (world.terrainAt(GridPoint(point.x - 1, point.y)).isBitmapWater(content)) mask = mask or WATER_WEST
+    return mask
+}
+
+private fun CompiledTerrain?.isBitmapWater(content: CompiledContentBundle): Boolean =
+    this
+        ?.let { terrain -> content.slug(terrain.id).lowercase() }
+        ?.let { slug -> "water" in slug || "river" in slug || "sea" in slug }
+        ?: false
+
+private fun Int.waterGlyph(): String =
+    when (this) {
+        0 -> "•"
+        WATER_NORTH -> "╵"
+        WATER_EAST -> "╶"
+        WATER_SOUTH -> "╷"
+        WATER_WEST -> "╴"
+        WATER_NORTH or WATER_SOUTH -> "│"
+        WATER_EAST or WATER_WEST -> "─"
+        WATER_NORTH or WATER_EAST -> "└"
+        WATER_EAST or WATER_SOUTH -> "┌"
+        WATER_SOUTH or WATER_WEST -> "┐"
+        WATER_WEST or WATER_NORTH -> "┘"
+        WATER_NORTH or WATER_EAST or WATER_SOUTH -> "├"
+        WATER_EAST or WATER_SOUTH or WATER_WEST -> "┬"
+        WATER_SOUTH or WATER_WEST or WATER_NORTH -> "┤"
+        WATER_WEST or WATER_NORTH or WATER_EAST -> "┴"
+        WATER_NORTH or WATER_EAST or WATER_SOUTH or WATER_WEST -> "┼"
+        else -> "•"
+    }
 
 private fun stableVariant(
     point: GridPoint,
