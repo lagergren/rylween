@@ -120,6 +120,71 @@ internal fun terminalPageHtml(): String =
           white-space: nowrap;
         }
 
+        .top-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .server-pill {
+          padding: 6px 10px;
+          border: 1px solid #45645b;
+          background: #263d36;
+          color: #cce6dd;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .account-pill {
+          max-width: 280px;
+          overflow: hidden;
+          padding: 6px 10px;
+          border: 1px solid #3d514b;
+          background: #1f312c;
+          color: #e6ded0;
+          font-size: 12px;
+          font-weight: 700;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .server-popover {
+          position: absolute;
+          top: 58px;
+          right: 16px;
+          z-index: 3;
+          width: min(320px, calc(100% - 32px));
+          padding: 14px;
+          border: 1px solid #45645b;
+          background: rgb(18 22 20 / 97%);
+          color: var(--text);
+          box-shadow: 0 18px 44px rgb(0 0 0 / 45%);
+          font-size: 13px;
+        }
+
+        .server-popover h2 {
+          margin: 0 0 12px;
+          font-size: 13px;
+        }
+
+        .server-popover dl {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 8px 12px;
+          margin: 0;
+        }
+
+        .server-popover dt {
+          color: var(--muted);
+        }
+
+        .server-popover dd {
+          margin: 0;
+          text-align: right;
+        }
+
         .dot {
           width: 8px;
           height: 8px;
@@ -215,11 +280,16 @@ internal fun terminalPageHtml(): String =
             <div class="mark">R</div>
             <div class="title">Rylween</div>
           </div>
-          <div class="status">
-            <span id="connectionDot" class="dot"></span>
-            <span id="connectionText">Connecting</span>
+          <div class="top-actions">
+            <button id="serverInfoToggle" type="button" class="server-pill">ANSI</button>
+            <span id="userAccount" class="account-pill">Account</span>
+            <div class="status">
+              <span id="connectionDot" class="dot"></span>
+              <span id="connectionText">Connecting</span>
+            </div>
           </div>
         </header>
+        <aside id="serverInfoPopover" class="server-popover" hidden aria-label="Rylween server status"></aside>
         <section class="stage">
           <div class="terminal-frame">
             <pre id="terminal" tabindex="0" aria-label="Rylween terminal"></pre>
@@ -232,6 +302,9 @@ internal fun terminalPageHtml(): String =
         const terminal = document.getElementById("terminal");
         const connectionDot = document.getElementById("connectionDot");
         const connectionText = document.getElementById("connectionText");
+        const serverInfoToggle = document.getElementById("serverInfoToggle");
+        const serverInfoPopover = document.getElementById("serverInfoPopover");
+        const userAccount = document.getElementById("userAccount");
         const colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
         const blankStyle = { fg: "white", bg: "black" };
         const DEC_PRIVATE_CURSOR_VISIBILITY_MODE = 25;
@@ -497,30 +570,13 @@ internal fun terminalPageHtml(): String =
           render();
         }
 
-        function userName() {
-          const stored = window.localStorage.getItem("rylweenUser");
-          if (stored && stored.trim() !== "") {
-            return stored;
-          }
-          const entered = window.prompt("Adventurer name", "");
-          if (!entered || entered.trim() === "") {
-            return null;
-          }
-          window.localStorage.setItem("rylweenUser", entered.trim());
-          return entered.trim();
-        }
-
         function connect() {
-          const name = userName();
-          if (!name) {
-            setStatus("Name required", false);
-            return;
-          }
           const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-          const path = "/ws/play?user=" + encodeURIComponent(name);
+          const path = "/ws/play";
           socket = new WebSocket(scheme + "://" + window.location.host + path);
           socket.addEventListener("open", () => {
             setStatus("Connected", true);
+            refreshServerInfo().catch(() => {});
             terminal.focus();
           });
           socket.addEventListener("message", event => consumeAnsi(String(event.data)));
@@ -534,6 +590,38 @@ internal fun terminalPageHtml(): String =
           }
           socket.send("$BROWSER_INPUT_PREFIX" + value);
         }
+
+        async function refreshServerInfo() {
+          const response = await fetch("/api/status", { credentials: "same-origin" });
+          if (!response.ok) {
+            throw new Error("status " + response.status);
+          }
+          const status = await response.json();
+          const user = status.currentUser || "not signed in";
+          serverInfoToggle.textContent = status.serverType === "ansi" ? "ANSI" : "Bitmap";
+          userAccount.textContent = user + " · " + String(status.connectedUsers) + " online";
+          userAccount.title = "Logged in as " + user;
+          serverInfoPopover.innerHTML =
+            "<h2>Server</h2>" +
+            "<dl>" +
+            "<dt>Runtime</dt><dd>" + escapeHtml(String(status.serverType)) + "</dd>" +
+            "<dt>Account</dt><dd>" + escapeHtml(String(user)) + "</dd>" +
+            "<dt>Auth</dt><dd>" + (status.authRequired ? "enabled" : "dev bypass") + "</dd>" +
+            "<dt>Connected</dt><dd>" + String(status.connectedUsers) + "</dd>" +
+            "<dt>Users</dt><dd>" + escapeHtml((status.activeUsers || []).join(", ") || "none") + "</dd>" +
+            "</dl>";
+        }
+
+        serverInfoToggle.addEventListener("click", () => {
+          const opening = serverInfoPopover.hidden;
+          serverInfoPopover.hidden = !opening;
+          if (opening) {
+            refreshServerInfo().catch(() => {
+              serverInfoPopover.innerHTML = "<h2>Server</h2><p>Unavailable</p>";
+            });
+          }
+          terminal.focus();
+        });
 
         terminal.addEventListener("keydown", event => {
           let value = "";
@@ -560,6 +648,7 @@ internal fun terminalPageHtml(): String =
 
         resetCells();
         render();
+        refreshServerInfo().catch(() => {});
         connect();
       </script>
     </body>

@@ -1,0 +1,51 @@
+# Production-oriented ANSI web runtime image for running behind a reverse proxy.
+#
+# This image still serves plain HTTP internally. TLS, HSTS, request/body limits,
+# and public internet hardening belong at the reverse proxy or load balancer.
+#
+# Example:
+#   docker build -f Dockerfile.production -t rylween-web-prod .
+#   docker run --rm \
+#     -e RYLWEEN_AUTH_ACCOUNT=admin \
+#     -e RYLWEEN_AUTH_EMAIL=admin@example.test \
+#     -e RYLWEEN_AUTH_PASSWORD='change-this-password' \
+#     -p 127.0.0.1:8080:8080 \
+#     -v rylween-data:/data \
+#     rylween-web-prod
+#
+# Point nginx/Caddy/HAProxy at http://127.0.0.1:8080 and terminate HTTPS there.
+
+FROM eclipse-temurin:25-jdk AS builder
+
+WORKDIR /src
+
+COPY gradle/wrapper gradle/wrapper
+COPY gradlew ./
+RUN ./gradlew --no-daemon --version
+
+COPY gradle/libs.versions.toml gradle/libs.versions.toml
+COPY settings.gradle.kts build.gradle.kts ./
+COPY build-logic build-logic
+COPY . .
+RUN ./gradlew --no-daemon :tools:emitExternalCompiledBundle :runtime-web:installRuntimeWeb --console=plain
+
+FROM eclipse-temurin:25-jre AS runtime
+
+ARG RYLWEEN_DATA_DIR=/data
+ENV RYLWEEN_DATA_DIR="${RYLWEEN_DATA_DIR}"
+ENV RYLWEEN_BUNDLE=/app/rylween-bundle.json
+ENV RYLWEEN_HOST=0.0.0.0
+ENV RYLWEEN_PORT=8080
+ENV RYLWEEN_SAVE_FILE=/data/saves/world.rsave
+ENV RYLWEEN_AUTH_SECURE_COOKIES=true
+
+WORKDIR /app
+COPY --from=builder /src/build/compiled/rylween-bundle.json /app/rylween-bundle.json
+COPY --from=builder /src/runtime-web/build/install/rylween-web /app/rylween-web
+
+ENV PATH="/app/rylween-web/bin:${PATH}"
+VOLUME ["/data"]
+EXPOSE 8080
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["sh", "-c", "mkdir -p \"$RYLWEEN_DATA_DIR/saves\" \"$RYLWEEN_DATA_DIR/logs\" \"$RYLWEEN_DATA_DIR/auth\" && exec /app/rylween-web/bin/rylween-web --bundle \"$RYLWEEN_BUNDLE\" --data \"$RYLWEEN_DATA_DIR\" --host \"$RYLWEEN_HOST\" --port \"$RYLWEEN_PORT\" \"$@\"", "rylween-web"]

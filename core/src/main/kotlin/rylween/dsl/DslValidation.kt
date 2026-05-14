@@ -2814,6 +2814,8 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
         "pause prompt return key name must not be blank"
     }
     validateTextBlock(prompts.titleMenu.header, "title menu header prompt")
+    validateTextBlock(prompts.titleMenu.continueUnavailable, "title menu continue-unavailable prompt")
+    validateTextBlock(prompts.titleMenu.overwriteConfirm, "title menu overwrite-confirm prompt")
     validateTextBlock(prompts.titleMenu.terminateConfirm, "title menu terminate-confirm prompt")
     validateTextBlock(prompts.titleMenu.terminated, "title menu terminated prompt")
     validateTextBlock(prompts.titleMenu.terminateFailed, "title menu terminate-failed prompt")

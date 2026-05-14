@@ -59,4 +59,4 @@ COPY --from=builder /src/runtime-web/build/install/rylween-web /app/rylween-web
 ENV PATH="/app/rylween-web/bin:${PATH}"
 VOLUME ["/data"]
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "mkdir -p \"$RYLWEEN_DATA_DIR/saves\" \"$RYLWEEN_DATA_DIR/logs\" && exec /app/rylween-web/bin/rylween-web --bundle \"$RYLWEEN_BUNDLE\" --data \"$RYLWEEN_DATA_DIR\" --host \"$RYLWEEN_HOST\" --port \"$RYLWEEN_PORT\" \"$@\"", "rylween-web"]
+ENTRYPOINT ["sh", "-c", "mkdir -p \"$RYLWEEN_DATA_DIR/saves\" \"$RYLWEEN_DATA_DIR/logs\" \"$RYLWEEN_DATA_DIR/auth\" && exec /app/rylween-web/bin/rylween-web --bundle \"$RYLWEEN_BUNDLE\" --data \"$RYLWEEN_DATA_DIR\" --host \"$RYLWEEN_HOST\" --port \"$RYLWEEN_PORT\" \"$@\"", "rylween-web"]

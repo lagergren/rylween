@@ -2,7 +2,7 @@ package rylween.runtime
 
 import rylween.compiled.ExternalRuntimePrompts
 
-internal class PausePrompts(
+class PausePrompts(
     private val verbs: List<String>,
     private val returnKeyName: String,
 ) {

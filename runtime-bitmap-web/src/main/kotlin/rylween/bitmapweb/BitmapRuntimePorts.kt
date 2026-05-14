@@ -7,8 +7,10 @@ import rylween.compiled.CompiledTerrain
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.compiled.ExternalStaticScreen
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.TerrainSettlement
+import rylween.runtime.PausePrompts
 import rylween.runtime.RuntimeCharacterPortraitPreview
 import rylween.runtime.RuntimeInputPort
 import rylween.runtime.RuntimeInputTokens
@@ -18,6 +20,8 @@ import rylween.runtime.RuntimeScreenPort
 import rylween.runtime.RuntimeState
 import rylween.runtime.RuntimeViewCommand
 import rylween.runtime.WorldMap
+import rylween.runtime.runtimeScreenSlug
+import rylween.runtime.runtimeStaticScreenText
 import rylween.runtime.runtimeStatusLabel
 import rylween.runtime.runtimeStatusLines
 import rylween.runtime.runtimeWildernessContextLines
@@ -27,6 +31,8 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val BITMAP_TEXT_COLUMNS = 36
+private const val BITMAP_DOCUMENT_COLUMNS = 88
+private const val BITMAP_DOCUMENT_PAGE_LINES = 22
 private const val CLOSED_INPUT = "\u0004"
 private const val WATER_NORTH = 1
 private const val WATER_EAST = 2
@@ -40,6 +46,7 @@ internal class BitmapRuntimeInput : RuntimeInputPort {
     private val input = LinkedBlockingQueue<String>()
     private val closed = AtomicBoolean(false)
     var textInputChanged: ((BitmapTextInput?) -> Unit)? = null
+    var logEvent: ((String) -> Unit)? = null
 
     override val exhausted: Boolean get() = closed.get() && input.isEmpty()
 
@@ -51,21 +58,28 @@ internal class BitmapRuntimeInput : RuntimeInputPort {
         while (true) {
             val token = input.take()
             if (token == CLOSED_INPUT) return null
-            RuntimeInputTokens.commandChar(token)?.let { command -> return command }
+            RuntimeInputTokens.commandChar(token)?.let { command ->
+                logEvent?.invoke("input.command key=$command transport=bitmap")
+                return command
+            }
         }
     }
 
-    override fun readInt(maxDigits: Int): Int? = readText(maxDigits)?.trim()?.toIntOrNull()
+    override fun readInt(maxDigits: Int): Int? =
+        readText(maxDigits)?.trim()?.toIntOrNull().also { value ->
+            logEvent?.invoke("input.int value=${value ?: "null"} transport=bitmap")
+        }
 
     override fun readText(maxLength: Int?): String? {
         val limit = (maxLength ?: 80).coerceAtLeast(0)
         val text = StringBuilder()
+        logEvent?.invoke("input.text.start maxLength=$limit transport=bitmap")
         publishTextInput(text.toString(), limit)
         while (true) {
             when (val token = input.take()) {
-                CLOSED_INPUT -> return closeTextInput(null)
-                "ENTER", "RETURN" -> return closeTextInput(text.toString())
-                "ESCAPE" -> return closeTextInput(null)
+                CLOSED_INPUT -> return closeTextInput(null, "closed")
+                "ENTER", "RETURN" -> return closeTextInput(text.toString(), "submit")
+                "ESCAPE" -> return closeTextInput(null, "escape")
                 "BACKSPACE" -> {
                     if (text.isNotEmpty()) text.deleteAt(text.lastIndex)
                     publishTextInput(text.toString(), limit)
@@ -96,11 +110,17 @@ internal class BitmapRuntimeInput : RuntimeInputPort {
         textInputChanged?.invoke(BitmapTextInput(value, maxLength))
     }
 
-    private fun closeTextInput(value: String?): String? {
+    private fun closeTextInput(
+        value: String?,
+        reason: String,
+    ): String? {
+        logEvent?.invoke("input.text.end reason=$reason value=${logValue(value.orEmpty())} length=${value?.length ?: 0} transport=bitmap")
         textInputChanged?.invoke(null)
         return value
     }
 }
+
+private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 internal class BitmapRuntimeScreen(
     private val bundle: CompiledGameBundle,
@@ -110,7 +130,9 @@ internal class BitmapRuntimeScreen(
     tileSize: Int = DEFAULT_BITMAP_TILE_SIZE,
 ) : RuntimeScreenPort {
     private val content = bundle.content
+    private val staticScreenById = systems.presentation.staticScreens.associateBy { screen -> screen.id }
     private val imageTransitionById = systems.presentation.images.associate { image -> image.id to image.transition }
+    private val pausePrompts = PausePrompts(systems.prompts)
     private val viewportTiles = mapTiles.coerceIn(5, 12)
     private val mapTileSize = tileSize.coerceIn(40, 96)
     private var mode = "boot"
@@ -127,6 +149,7 @@ internal class BitmapRuntimeScreen(
     private var commands = emptyList<BitmapCommandHint>()
     private var map: BitmapMap? = null
     private var message: String? = null
+    private var stickyMessageLines = emptyList<String>()
 
     override val textColumns: Int get() = BITMAP_TEXT_COLUMNS
 
@@ -141,6 +164,7 @@ internal class BitmapRuntimeScreen(
         map = null
         commands = emptyList()
         message = null
+        stickyMessageLines = emptyList()
         send()
     }
 
@@ -148,20 +172,12 @@ internal class BitmapRuntimeScreen(
         screenSlug: String,
         runtime: RuntimeState,
     ) {
-        mode = "static"
-        backdrop = screenSlug
-        title = screenSlug.readableSlug()
-        subtitle = runtime.party.name
-        status = runtime.bitmapStatus()
-        statusLines = runtime.runtimeStatusLines(content, systems)
-        textLines = emptyList()
-        textInput = null
-        portrait = null
-        partyPage = null
-        map = null
-        commands = emptyList()
-        message = null
-        send()
+        val screen = staticScreen(screenSlug)
+        val lines =
+            runtimeStaticScreenText(content, systems, screen, runtime)
+                .flatMap { line -> line.wrap(BITMAP_DOCUMENT_COLUMNS) }
+                .take(BITMAP_DOCUMENT_PAGE_LINES + 2)
+        showStaticScreenFrame(screenSlug, runtime, lines, subtitleText = runtime.party.name)
     }
 
     override fun showPagedStaticScreen(
@@ -169,8 +185,14 @@ internal class BitmapRuntimeScreen(
         runtime: RuntimeState,
         advance: () -> Char?,
     ) {
-        showStaticScreen(screenSlug, runtime)
-        advance()
+        val screen = staticScreen(screenSlug)
+        val pages = bitmapDocumentPages(runtimeStaticScreenText(content, systems, screen, runtime))
+        for ((index, page) in pages.withIndex()) {
+            val lastPage = index == pages.lastIndex
+            val prompt = pausePrompts.line(if (lastPage) "to return" else "for more")
+            showStaticScreenFrame(screenSlug, runtime, page + "" + prompt, "Page ${index + 1}/${pages.size}")
+            if (advance() == null) return
+        }
     }
 
     override fun showTitleMenu(lines: List<String>) {
@@ -180,13 +202,14 @@ internal class BitmapRuntimeScreen(
         subtitle = ""
         status = null
         statusLines = emptyList()
-        textLines = lines.flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
+        textLines = lines
         textInput = null
         portrait = null
         partyPage = null
         commands = emptyList()
         map = null
         message = null
+        stickyMessageLines = emptyList()
         send()
     }
 
@@ -200,12 +223,13 @@ internal class BitmapRuntimeScreen(
         subtitle = ""
         status = runtime.bitmapStatus()
         statusLines = runtime.runtimeStatusLines(content, systems)
-        textLines = wildernessTextLines(runtime, world)
+        textLines = stickyMessageLines.takeIf(List<String>::isNotEmpty) ?: wildernessTextLines(runtime, world)
         textInput = null
         portrait = null
         partyPage = null
         commands = systems.bitmapCommands("wilderness")
         map = world.bitmapViewport(runtime.party.position, content, viewportTiles, mapTileSize)
+        message = null
         send()
     }
 
@@ -225,6 +249,7 @@ internal class BitmapRuntimeScreen(
         map = null
         commands = emptyList()
         message = null
+        stickyMessageLines = emptyList()
         send()
         advance()
     }
@@ -241,6 +266,8 @@ internal class BitmapRuntimeScreen(
         partyPage = null
         commands = emptyList()
         map = null
+        message = null
+        stickyMessageLines = emptyList()
         send()
     }
 
@@ -259,10 +286,13 @@ internal class BitmapRuntimeScreen(
         partyPage = null
         commands = emptyList()
         map = null
+        message = null
+        stickyMessageLines = emptyList()
         send()
     }
 
     override fun writeText(lines: List<String>) {
+        stickyMessageLines = emptyList()
         textLines = lines.flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
         textInput = null
         partyPage = null
@@ -272,7 +302,11 @@ internal class BitmapRuntimeScreen(
     }
 
     override fun showMessage(lines: List<String>) {
-        message = lines.joinToString(" ").takeIf(String::isNotBlank)
+        stickyMessageLines = lines.flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
+        textLines = stickyMessageLines
+        textInput = null
+        partyPage = null
+        message = null
         send()
     }
 
@@ -287,6 +321,7 @@ internal class BitmapRuntimeScreen(
             RuntimeViewCommand.ClearText -> {
                 textLines = emptyList()
                 message = null
+                stickyMessageLines = emptyList()
             }
             RuntimeViewCommand.ClearMapWindow -> map = null
             RuntimeViewCommand.RenderMap -> Unit
@@ -310,6 +345,7 @@ internal class BitmapRuntimeScreen(
         visualTransition = imageTransitionById[imageSlug] ?: "None"
         commands = emptyList()
         message = null
+        stickyMessageLines = emptyList()
         send()
     }
 
@@ -345,6 +381,7 @@ internal class BitmapRuntimeScreen(
         commands = emptyList()
         map = null
         message = null
+        stickyMessageLines = emptyList()
         send()
     }
 
@@ -382,6 +419,33 @@ internal class BitmapRuntimeScreen(
             ).toJson(),
         )
         visualTransition = "None"
+    }
+
+    private fun staticScreen(screenSlug: String): ExternalStaticScreen =
+        staticScreenById[runtimeScreenSlug(screenSlug)] ?: error("unknown static screen $screenSlug")
+
+    private fun showStaticScreenFrame(
+        screenSlug: String,
+        runtime: RuntimeState,
+        lines: List<String>,
+        subtitleText: String,
+    ) {
+        val document = lines.isNotEmpty()
+        mode = if (document) "static_document" else "static"
+        backdrop = runtimeScreenSlug(screenSlug)
+        title = staticScreenTitle(screenSlug)
+        subtitle = subtitleText
+        status = runtime.bitmapStatus().takeUnless { document }
+        statusLines = runtime.runtimeStatusLines(content, systems).takeUnless { document }.orEmpty()
+        textLines = lines
+        textInput = null
+        portrait = null
+        partyPage = null
+        map = null
+        commands = emptyList()
+        message = null
+        stickyMessageLines = emptyList()
+        send()
     }
 
     private fun RuntimeState.bitmapStatus(): BitmapStatus =
@@ -513,6 +577,21 @@ private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % mod
 
 private fun ExternalRuntimeSystems.bitmapCommands(group: String): List<BitmapCommandHint> =
     commands[group].orEmpty().map(ExternalRuntimeCommand::toBitmapCommand)
+
+private fun bitmapDocumentPages(lines: List<String>): List<List<String>> =
+    lines
+        .flatMap { line -> line.wrap(BITMAP_DOCUMENT_COLUMNS) }
+        .ifEmpty { listOf("") }
+        .chunked(BITMAP_DOCUMENT_PAGE_LINES)
+
+private fun staticScreenTitle(screenSlug: String): String =
+    when (runtimeScreenSlug(screenSlug)) {
+        "manual" -> "Documentation"
+        "score" -> "Party Scores"
+        "verbose_score" -> "Detailed Scores"
+        "heroes" -> "Hall of Heroes"
+        else -> screenSlug.readableSlug()
+    }
 
 private fun RuntimeCharacterPortraitPreview.toBitmapPortrait(): BitmapPortrait =
     BitmapPortrait(

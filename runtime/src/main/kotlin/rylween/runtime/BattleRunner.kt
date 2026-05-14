@@ -150,6 +150,12 @@ internal class BattleRunner(
                 rules.openingKeys.run.matches(choice) ->
                     return if (mandatory) {
                         finishFight(started, rules.text.runFailAway.renderBattle())
+                    } else if (started.runtime.alwaysRunFromNonMandatoryEncounters) {
+                        log.event("battle.flee_secret_always user=${started.runtime.activeUserId.orEmpty()}")
+                        BattleResult(
+                            started.runtimeAfterBattle(),
+                            rules.text.runEscaped.renderBattle(),
+                        )
                     } else {
                         attemptRun(started)
                     }

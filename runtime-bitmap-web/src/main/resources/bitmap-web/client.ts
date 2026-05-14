@@ -3,7 +3,7 @@ type Layout = { map: Bounds; text: Bounds; status: Bounds };
 type BitmapAssets = Record<string, HTMLImageElement>;
 type StatusHotspot = Bounds & { text: string };
 type SceneFadeSnapshot = { image: HTMLCanvasElement; bounds: Bounds };
-type ImageFade = { image: HTMLImageElement; started: number; duration: number };
+type TitleFade = { image: HTMLCanvasElement; frame: BitmapFrame; started: number; duration: number };
 type SceneFade = { image: HTMLCanvasElement; bounds: Bounds; started: number; duration: number };
 type TerrainAtlasIndex = { row: number; col: number };
 type TileColors = { base: string; shadow: string };
@@ -122,6 +122,14 @@ type BitmapFrame = {
   visualTransition?: string;
 };
 
+type ServerStatus = {
+  activeUsers: string[];
+  authRequired: boolean;
+  connectedUsers: number;
+  currentUser?: string | null;
+  serverType: string;
+};
+
 function requireElement<T extends HTMLElement>(id: string, elementType: { new (): T }): T {
   const element = document.getElementById(id);
   if (!(element instanceof elementType)) throw new Error("Missing #" + id);
@@ -134,6 +142,9 @@ if (!context) throw new Error("Canvas 2D context is unavailable");
 const ctx = context;
 const commandToggle = requireElement("commandToggle", HTMLButtonElement);
 const commandPopover = requireElement("commandPopover", HTMLElement);
+const serverInfoToggle = requireElement("serverInfoToggle", HTMLButtonElement);
+const serverInfoPopover = requireElement("serverInfoPopover", HTMLElement);
+const userAccount = requireElement("userAccount", HTMLElement);
 const canvasTooltip = requireElement("canvasTooltip", HTMLElement);
 const connectionDot = requireElement("connectionDot", HTMLElement);
 const connectionText = requireElement("connectionText", HTMLElement);
@@ -141,7 +152,7 @@ let socket: WebSocket | null = null;
 let frame: BitmapFrame | null = null;
 let currentCommands: BitmapCommand[] = [];
 let statusHotspots: StatusHotspot[] = [];
-let titleFade: ImageFade | null = null;
+let titleFade: TitleFade | null = null;
 let sceneFade: SceneFade | null = null;
 const assetVersion = "20260514-water-meanders";
 const layout: Layout = {
@@ -185,7 +196,7 @@ function loadAsset(src: string): HTMLImageElement {
   const image = new Image();
   image.src = src;
   image.addEventListener("load", () => {
-    if (frame) draw(frame);
+    if (frame && !titleFade && !sceneFade) draw(frame);
   });
   return image;
 }
@@ -204,13 +215,18 @@ function connect(): void {
   socket.addEventListener("open", () => {
     connectionDot.classList.add("connected");
     connectionText.textContent = "Connected";
+    refreshServerInfo().catch(() => undefined);
     canvas.focus();
   });
   socket.addEventListener("message", (event) => {
     const nextFrame = JSON.parse(event.data) as BitmapFrame;
     const fadeFromTitle = isTitleFrame(frame) && !isTitleFrame(nextFrame);
     const sceneFadeSnapshot = shouldFadeVisual(frame, nextFrame) ? captureScenePanel() : null;
-    if (fadeFromTitle) beginTitleFade();
+    if (fadeFromTitle && beginTitleFade(nextFrame)) {
+      renderCommandPalette(nextFrame.commands || []);
+      return;
+    }
+    titleFade = null;
     frame = nextFrame;
     draw(frame);
     renderCommandPalette(frame.commands || []);
@@ -219,6 +235,37 @@ function connect(): void {
   socket.addEventListener("close", () => {
     connectionDot.classList.remove("connected");
     connectionText.textContent = "Disconnected";
+  });
+}
+
+async function refreshServerInfo(): Promise<void> {
+  const response = await fetch("/api/status", { credentials: "same-origin" });
+  if (!response.ok) throw new Error("status " + response.status);
+  const status = (await response.json()) as ServerStatus;
+  const user = status.currentUser || "not signed in";
+  serverInfoToggle.textContent = status.serverType === "ansi" ? "ANSI" : "Bitmap";
+  userAccount.textContent = user + " · " + status.connectedUsers.toString() + " online";
+  userAccount.title = "Logged in as " + user;
+  serverInfoPopover.innerHTML =
+    "<h2>Server</h2>" +
+    "<dl>" +
+    "<dt>Runtime</dt><dd>" + escapeHtml(status.serverType) + "</dd>" +
+    "<dt>Account</dt><dd>" + escapeHtml(user) + "</dd>" +
+    "<dt>Auth</dt><dd>" + (status.authRequired ? "enabled" : "dev bypass") + "</dd>" +
+    "<dt>Connected</dt><dd>" + status.connectedUsers.toString() + "</dd>" +
+    "<dt>Users</dt><dd>" + escapeHtml(status.activeUsers.join(", ") || "none") + "</dd>" +
+    "</dl>";
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&": return "&amp;";
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case '"': return "&quot;";
+      default: return "&#39;";
+    }
   });
 }
 
@@ -234,29 +281,34 @@ function isTitleFrame(candidate: BitmapFrame | null): boolean {
   return candidate.mode === "title" || kind.includes("title");
 }
 
-function beginTitleFade(): void {
-  if (!canvas.width || !canvas.height) return;
-  const image = new Image();
-  image.addEventListener("load", () => {
-    titleFade = { image, started: performance.now(), duration: 520 };
-    requestAnimationFrame(drawTitleFade);
-  });
-  image.src = canvas.toDataURL("image/png");
+function beginTitleFade(nextFrame: BitmapFrame): boolean {
+  if (!canvas.width || !canvas.height) return false;
+  const image = document.createElement("canvas");
+  image.width = canvas.width;
+  image.height = canvas.height;
+  const snapshotContext = image.getContext("2d");
+  if (!snapshotContext) return false;
+  snapshotContext.drawImage(canvas, 0, 0);
+  frame = nextFrame;
+  titleFade = { image, frame: nextFrame, started: performance.now(), duration: 520 };
+  requestAnimationFrame(drawTitleFade);
+  return true;
 }
 
 function drawTitleFade(): void {
-  if (!titleFade || !frame) return;
-  const elapsed = performance.now() - titleFade.started;
-  const alpha = Math.max(0, 1 - elapsed / titleFade.duration);
-  draw(frame);
+  const fade = titleFade;
+  if (!fade) return;
+  const elapsed = performance.now() - fade.started;
+  const alpha = Math.max(0, 1 - elapsed / fade.duration);
+  draw(fade.frame);
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.drawImage(titleFade.image, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(fade.image, 0, 0, canvas.width, canvas.height);
   ctx.restore();
-  if (alpha > 0) requestAnimationFrame(drawTitleFade);
+  if (alpha > 0 && titleFade === fade) requestAnimationFrame(drawTitleFade);
   else {
-    titleFade = null;
-    draw(frame);
+    if (titleFade === fade) titleFade = null;
+    if (frame) draw(frame);
   }
 }
 
@@ -397,6 +449,18 @@ commandToggle.addEventListener("click", () => {
   canvas.focus();
 });
 
+serverInfoToggle.addEventListener("click", () => {
+  const opening = serverInfoPopover.hidden;
+  commandPopover.hidden = true;
+  serverInfoPopover.hidden = !opening;
+  if (opening) {
+    refreshServerInfo().catch(() => {
+      serverInfoPopover.innerHTML = "<h2>Server</h2><p>Unavailable</p>";
+    });
+  }
+  canvas.focus();
+});
+
 function renderCommandPalette(commands: BitmapCommand[]): void {
   currentCommands = commands;
   commandToggle.hidden = commands.length === 0;
@@ -445,6 +509,10 @@ function draw(frame: BitmapFrame): void {
   ctx.textBaseline = "alphabetic";
   if (frame.mode === "title_menu") {
     drawTitleMenu(frame);
+    return;
+  }
+  if (frame.mode === "static_document") {
+    drawStaticDocument(frame);
     return;
   }
   drawBackdrop(frame);
@@ -507,13 +575,48 @@ function drawTitleMenu(frame: BitmapFrame): void {
   ctx.textAlign = "center";
   lines.forEach((line, index) => {
     const isHeader = index === 0;
+    const isDisabled = line.toLowerCase().includes("no save");
     ctx.font = isHeader ? "700 25px Palatino, 'Palatino Linotype', Georgia, serif" : "17px Menlo, Monaco, Consolas, monospace";
-    ctx.fillStyle = isHeader ? "#ead68a" : "#f0ead4";
+    ctx.fillStyle = isHeader ? "#ead68a" : isDisabled ? "rgba(174, 166, 144, 0.55)" : "#f0ead4";
     ctx.fillText(truncateToWidth(line, panelW - 58), canvas.width / 2, y + 58 + index * rowH);
   });
   ctx.fillStyle = "rgba(206, 184, 118, 0.72)";
   ctx.font = "13px Menlo, Monaco, Consolas, monospace";
   ctx.fillText("Choose an option", canvas.width / 2, y + panelH - 28);
+  ctx.restore();
+}
+
+function drawStaticDocument(frame: BitmapFrame): void {
+  drawCoverImage(bitmapAssets.town, "#10130d");
+  drawImageShade("#020503", 0.55);
+  const x = 140;
+  const y = 78;
+  const w = canvas.width - x * 2;
+  const h = canvas.height - 136;
+  ctx.save();
+  ctx.fillStyle = "rgba(4, 7, 5, 0.78)";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "rgba(218, 189, 107, 0.56)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#ead68a";
+  ctx.font = "700 30px Palatino, 'Book Antiqua', Georgia, serif";
+  ctx.fillText(truncateToWidth(frame.title || "", w - 64), x + 34, y + 48);
+  ctx.textAlign = "right";
+  ctx.font = "14px Menlo, Monaco, Consolas, monospace";
+  ctx.fillStyle = "rgba(218, 201, 150, 0.78)";
+  ctx.fillText(truncateToWidth(frame.subtitle || "", 260), x + w - 34, y + 45);
+  ctx.textAlign = "left";
+  ctx.font = "16px Menlo, Monaco, Consolas, monospace";
+  const lines = frame.textLines || [];
+  const promptIndex = Math.max(0, lines.length - 1);
+  let ty = y + 92;
+  lines.forEach((line, index) => {
+    ctx.fillStyle = index === promptIndex ? "#d7bc6c" : "#efe4c6";
+    ctx.fillText(truncateToWidth(line, w - 68), x + 34, ty);
+    ty += index === promptIndex - 1 ? 28 : 20;
+  });
   ctx.restore();
 }
 
@@ -1321,11 +1424,11 @@ function drawTextInput(input: BitmapTextInput | null | undefined, x: number, y: 
 
 function drawMessage(message: string): void {
   if (!message) return;
-  const y = layout.text.y + layout.text.h - 104;
-  softPanel(layout.text.x + 24, y, layout.text.w - 48, 82, "rgba(20, 24, 17, 0.78)");
-  ctx.font = "20px Menlo, Monaco, Consolas, monospace";
+  const y = layout.text.y + 24;
+  softPanel(layout.text.x + 24, y, layout.text.w - 48, 74, "rgba(20, 24, 17, 0.78)");
+  ctx.font = "18px Menlo, Monaco, Consolas, monospace";
   ctx.fillStyle = "#f0d58a";
-  wrapCanvasText(message, layout.text.x + 48, y + 36, layout.text.w - 96, 25);
+  wrapCanvasText(message, layout.text.x + 48, y + 32, layout.text.w - 96, 23);
 }
 
 function drawFittedText(
@@ -1405,4 +1508,5 @@ function wrapCanvasLines(text: string, maxWidth: number): string[] {
   return lines.length > 0 ? lines : [""];
 }
 
+refreshServerInfo().catch(() => undefined);
 connect();

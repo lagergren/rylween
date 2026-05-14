@@ -1,0 +1,340 @@
+package rylween.webcommon.auth
+
+import rylween.webcommon.WebHttpHeader
+import java.io.File
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.time.Duration
+import java.time.Instant
+import java.util.Base64
+import java.util.Locale
+import java.util.Properties
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
+import kotlin.concurrent.withLock
+
+private const val SESSION_COOKIE = "rylween_session"
+private const val PASSWORD_ALGORITHM = "PBKDF2WithHmacSHA256"
+private const val PASSWORD_ITERATIONS = 120_000
+private const val PASSWORD_BITS = 256
+private const val SALT_BYTES = 16
+private const val TOKEN_BYTES = 32
+
+data class WebAccount(
+    val slug: String,
+    val displayName: String,
+    val email: String,
+    val emailConfirmed: Boolean,
+)
+
+data class WebAuthBootstrapAccount(
+    val displayName: String,
+    val email: String?,
+    val password: String,
+)
+
+sealed class WebAuthResult {
+    data class Success(
+        val account: WebAccount,
+    ) : WebAuthResult()
+
+    data class Failure(
+        val message: String,
+    ) : WebAuthResult()
+}
+
+sealed class WebAuthBootstrapResult {
+    data class Created(
+        val account: WebAccount,
+    ) : WebAuthBootstrapResult()
+
+    data class Existing(
+        val account: WebAccount,
+    ) : WebAuthBootstrapResult()
+
+    data class Failure(
+        val message: String,
+    ) : WebAuthBootstrapResult()
+}
+
+class WebUserStore(
+    private val dataDir: File,
+) {
+    private val lock = ReentrantLock(true)
+    private val usersDir = dataDir.resolve("users/by-slug")
+    private val emailIndexFile = dataDir.resolve("users/email-index.properties")
+
+    fun register(
+        displayName: String,
+        email: String,
+        password: String,
+    ): WebAuthResult =
+        lock.withLock {
+            val normalizedEmail = normalizeEmail(email) ?: return WebAuthResult.Failure("Enter a valid email address.")
+            val cleanName = displayName.trim().take(40).ifBlank { normalizedEmail.substringBefore('@') }
+            val slug = slugFrom(cleanName) ?: return WebAuthResult.Failure("Enter an adventurer name.")
+            if (password.length < 8) return WebAuthResult.Failure("Password must be at least 8 characters.")
+            usersDir.mkdirs()
+            emailIndexFile.parentFile?.mkdirs()
+            val emailIndex = loadProperties(emailIndexFile)
+            if (emailIndex.getProperty(normalizedEmail) != null) return WebAuthResult.Failure("That email is already registered.")
+            val userFile = userFile(slug)
+            if (userFile.isFile) return WebAuthResult.Failure("That adventurer name is already registered.")
+            val passwordHash = PasswordHasher.hash(password)
+            val now = Instant.now().toString()
+            val properties =
+                Properties().apply {
+                    setProperty("slug", slug)
+                    setProperty("displayName", cleanName)
+                    setProperty("email", normalizedEmail)
+                    setProperty("emailConfirmed", "true")
+                    setProperty("password.algorithm", PASSWORD_ALGORITHM)
+                    setProperty("password.iterations", passwordHash.iterations.toString())
+                    setProperty("password.salt", passwordHash.salt)
+                    setProperty("password.hash", passwordHash.hash)
+                    setProperty("createdAt", now)
+                    setProperty("updatedAt", now)
+                }
+            storeProperties(userFile, properties)
+            emailIndex.setProperty(normalizedEmail, slug)
+            storeProperties(emailIndexFile, emailIndex)
+            WebAuthResult.Success(properties.account())
+        }
+
+    fun ensureAccount(account: WebAuthBootstrapAccount): WebAuthBootstrapResult =
+        lock.withLock {
+            val requestedSlug = slugFrom(account.displayName) ?: return WebAuthBootstrapResult.Failure("Enter an adventurer name.")
+            val normalizedEmail =
+                normalizeEmail(account.email ?: "$requestedSlug@local.invalid")
+                    ?: return WebAuthBootstrapResult.Failure("Enter a valid email address.")
+            val cleanName =
+                account.displayName
+                    .trim()
+                    .take(40)
+                    .ifBlank { normalizedEmail.substringBefore('@') }
+            val slug = slugFrom(cleanName) ?: return WebAuthBootstrapResult.Failure("Enter an adventurer name.")
+            if (account.password.length < 8) return WebAuthBootstrapResult.Failure("Password must be at least 8 characters.")
+            usersDir.mkdirs()
+            emailIndexFile.parentFile?.mkdirs()
+            val emailIndex = loadProperties(emailIndexFile)
+            val existingProperties =
+                emailIndex.getProperty(normalizedEmail)?.let { indexedSlug -> loadUserProperties(indexedSlug) }
+                    ?: loadUserProperties(slug)
+            if (existingProperties != null) {
+                if (!existingProperties.passwordMatches(account.password)) {
+                    return WebAuthBootstrapResult.Failure("Account already exists but the password did not match.")
+                }
+                return WebAuthBootstrapResult.Existing(existingProperties.account())
+            }
+            val now = Instant.now().toString()
+            val passwordHash = PasswordHasher.hash(account.password)
+            val properties =
+                Properties().apply {
+                    setProperty("slug", slug)
+                    setProperty("displayName", cleanName)
+                    setProperty("email", normalizedEmail)
+                    setProperty("emailConfirmed", "true")
+                    setProperty("password.algorithm", PASSWORD_ALGORITHM)
+                    setProperty("password.iterations", passwordHash.iterations.toString())
+                    setProperty("password.salt", passwordHash.salt)
+                    setProperty("password.hash", passwordHash.hash)
+                    setProperty("createdAt", now)
+                    setProperty("updatedAt", now)
+                }
+            storeProperties(userFile(slug), properties)
+            emailIndex.setProperty(normalizedEmail, slug)
+            storeProperties(emailIndexFile, emailIndex)
+            WebAuthBootstrapResult.Created(properties.account())
+        }
+
+    fun authenticate(
+        login: String,
+        password: String,
+    ): WebAuthResult =
+        lock.withLock {
+            val account =
+                findProperties(login)
+                    ?: return WebAuthResult.Failure("Unknown account.")
+            val stored =
+                StoredPasswordHash(
+                    iterations = account.getProperty("password.iterations")?.toIntOrNull() ?: PASSWORD_ITERATIONS,
+                    salt = account.getProperty("password.salt").orEmpty(),
+                    hash = account.getProperty("password.hash").orEmpty(),
+                )
+            if (!PasswordHasher.verify(password, stored)) return WebAuthResult.Failure("Wrong password.")
+            WebAuthResult.Success(account.account())
+        }
+
+    private fun findProperties(login: String): Properties? {
+        val raw = login.trim()
+        if (raw.isBlank()) return null
+        val slug =
+            if (raw.contains('@')) {
+                val emailIndex = loadProperties(emailIndexFile)
+                emailIndex.getProperty(raw.lowercase(Locale.ROOT))
+            } else {
+                slugFrom(raw)
+            } ?: return null
+        val file = userFile(slug)
+        if (!file.isFile) return null
+        return loadProperties(file)
+    }
+
+    private fun loadUserProperties(slug: String): Properties? {
+        val file = userFile(slug)
+        if (!file.isFile) return null
+        return loadProperties(file)
+    }
+
+    private fun userFile(slug: String): File = usersDir.resolve("$slug.properties")
+
+    private fun Properties.account(): WebAccount =
+        WebAccount(
+            slug = getProperty("slug"),
+            displayName = getProperty("displayName"),
+            email = getProperty("email"),
+            emailConfirmed = getProperty("emailConfirmed") == "true",
+        )
+
+    private fun Properties.passwordMatches(password: String): Boolean {
+        val stored =
+            StoredPasswordHash(
+                iterations = getProperty("password.iterations")?.toIntOrNull() ?: PASSWORD_ITERATIONS,
+                salt = getProperty("password.salt").orEmpty(),
+                hash = getProperty("password.hash").orEmpty(),
+            )
+        return PasswordHasher.verify(password, stored)
+    }
+}
+
+class WebSessionStore(
+    private val ttl: Duration = Duration.ofHours(12),
+) {
+    private val sessions = ConcurrentHashMap<String, WebSession>()
+
+    fun create(account: WebAccount): String {
+        val token = randomToken()
+        sessions[token] = WebSession(account, Instant.now())
+        return token
+    }
+
+    fun account(token: String?): WebAccount? {
+        val session = token?.let(sessions::get) ?: return null
+        if (session.createdAt.plus(ttl).isBefore(Instant.now())) {
+            sessions.remove(token)
+            return null
+        }
+        return session.account
+    }
+
+    fun remove(token: String?) {
+        if (token != null) sessions.remove(token)
+    }
+}
+
+object WebAuthCookies {
+    fun token(headers: Map<String, String>): String? =
+        headers["cookie"]
+            ?.split(';')
+            ?.firstNotNullOfOrNull { part ->
+                val separator = part.indexOf('=')
+                val name = part.substring(0, separator.coerceAtLeast(0)).trim()
+                part.substring(separator + 1).trim().takeIf { separator > 0 && name == SESSION_COOKIE }
+            }
+
+    fun login(
+        token: String,
+        secure: Boolean = false,
+    ): WebHttpHeader =
+        WebHttpHeader("Set-Cookie", "$SESSION_COOKIE=$token; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200${secureAttribute(secure)}")
+
+    fun logout(secure: Boolean = false): WebHttpHeader =
+        WebHttpHeader("Set-Cookie", "$SESSION_COOKIE=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureAttribute(secure)}")
+
+    private fun secureAttribute(secure: Boolean): String = if (secure) "; Secure" else ""
+}
+
+fun slugFrom(value: String): String? {
+    val lowered = value.lowercase(Locale.ROOT)
+    val cleaned = lowered.replace(Regex("[^a-z0-9_-]+"), "-").trim('-')
+    if (cleaned.isBlank()) return null
+    return cleaned.take(48)
+}
+
+private fun normalizeEmail(email: String): String? =
+    email
+        .trim()
+        .lowercase(Locale.ROOT)
+        .takeIf { value -> value.length <= 254 && value.contains('@') }
+
+private data class PasswordHash(
+    val iterations: Int,
+    val salt: String,
+    val hash: String,
+)
+
+private data class StoredPasswordHash(
+    val iterations: Int,
+    val salt: String,
+    val hash: String,
+)
+
+private data class WebSession(
+    val account: WebAccount,
+    val createdAt: Instant,
+)
+
+private object PasswordHasher {
+    private val random = SecureRandom()
+
+    fun hash(password: String): PasswordHash {
+        val salt = ByteArray(SALT_BYTES)
+        random.nextBytes(salt)
+        val hash = derive(password, salt, PASSWORD_ITERATIONS)
+        return PasswordHash(
+            iterations = PASSWORD_ITERATIONS,
+            salt = Base64.getEncoder().encodeToString(salt),
+            hash = Base64.getEncoder().encodeToString(hash),
+        )
+    }
+
+    fun verify(
+        password: String,
+        stored: StoredPasswordHash,
+    ): Boolean {
+        val salt = runCatching { Base64.getDecoder().decode(stored.salt) }.getOrNull() ?: return false
+        val expected = runCatching { Base64.getDecoder().decode(stored.hash) }.getOrNull() ?: return false
+        val actual = derive(password, salt, stored.iterations)
+        return MessageDigest.isEqual(expected, actual)
+    }
+
+    private fun derive(
+        password: String,
+        salt: ByteArray,
+        iterations: Int,
+    ): ByteArray {
+        val spec = PBEKeySpec(password.toCharArray(), salt, iterations, PASSWORD_BITS)
+        return SecretKeyFactory.getInstance(PASSWORD_ALGORITHM).generateSecret(spec).encoded
+    }
+}
+
+private fun randomToken(): String {
+    val bytes = ByteArray(TOKEN_BYTES)
+    SecureRandom().nextBytes(bytes)
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+}
+
+private fun loadProperties(file: File): Properties =
+    Properties().apply {
+        if (file.isFile) file.inputStream().use(::load)
+    }
+
+private fun storeProperties(
+    file: File,
+    properties: Properties,
+) {
+    file.parentFile?.mkdirs()
+    file.outputStream().use { output -> properties.store(output, null) }
+}

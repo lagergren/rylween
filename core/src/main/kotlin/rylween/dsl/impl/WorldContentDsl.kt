@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 /**
  * World, character, progress, reward, conversation, and secret content records.
  *
@@ -8,6 +10,7 @@
  * live in `Dsl.kt` and specialized DSL files; Rylween-specific rows live in the
  * game DSL.
  */
+
 package rylween.dsl.impl
 
 import rylween.dsl.*
@@ -582,6 +585,7 @@ data class SecretPlayerModel(
     val matcher: SecretPlayerMatcherModel,
     val keyActions: List<SecretKeyActionModel> = emptyList(),
     val stepTrigger: SecretStepTriggerModel? = null,
+    val alwaysRunFromNonMandatoryEncounters: Boolean = false,
 ) {
     val playerNames: List<String>
         get() =

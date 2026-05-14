@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 /**
  * Kotlin implementation for the Rylween authoring DSL.
  *
@@ -1924,6 +1926,7 @@ class SecretPlayerBuilder(
 ) {
     private val keyActions = mutableListOf<SecretKeyActionModel>()
     private var stepTrigger: SecretStepTriggerModel? = null
+    private var alwaysRunFromNonMandatoryEncounters: Boolean = false
 
     fun addTimeLeft(
         key: Char,
@@ -1956,6 +1959,10 @@ class SecretPlayerBuilder(
         stepTrigger = SecretStepTriggerModel(everySteps, SecretActionModel.SpawnEncounter(monster))
     }
 
+    fun alwaysRunFromNonMandatoryEncounters(enabled: Boolean = true) {
+        alwaysRunFromNonMandatoryEncounters = enabled
+    }
+
     private fun onKey(
         key: Char,
         action: SecretActionModel,
@@ -1968,6 +1975,7 @@ class SecretPlayerBuilder(
             matcher = matcher,
             keyActions = keyActions.toList(),
             stepTrigger = stepTrigger,
+            alwaysRunFromNonMandatoryEncounters = alwaysRunFromNonMandatoryEncounters,
         )
 }
 
@@ -2353,6 +2361,8 @@ class TitleMenuPromptsBuilder(
     var hallOfFame: InputBindingModel = initial.hallOfFame
     var documentation: InputBindingModel = initial.documentation
     var leave: InputBindingModel = initial.leave
+    var continueUnavailable: TextBlock = initial.continueUnavailable
+    var overwriteConfirm: TextBlock = initial.overwriteConfirm
     var terminateConfirm: TextBlock = initial.terminateConfirm
     var terminated: TextBlock = initial.terminated
     var terminateFailed: TextBlock = initial.terminateFailed
@@ -2368,6 +2378,8 @@ class TitleMenuPromptsBuilder(
             hallOfFame = hallOfFame,
             documentation = documentation,
             leave = leave,
+            continueUnavailable = continueUnavailable,
+            overwriteConfirm = overwriteConfirm,
             terminateConfirm = terminateConfirm,
             terminated = terminated,
             terminateFailed = terminateFailed,
