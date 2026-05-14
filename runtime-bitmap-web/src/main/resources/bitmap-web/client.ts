@@ -11,7 +11,7 @@ let currentCommands = [];
 let statusHotspots = [];
 let titleFade = null;
 let sceneFade = null;
-const assetVersion = "20260513-race-portraits";
+const assetVersion = "20260514-chess-knight";
 const layout = {
   map: { x: 114, y: 64, w: 420, h: 482 },
   text: { x: 746, y: 64, w: 420, h: 482 },
@@ -25,6 +25,7 @@ const bitmapAssets = {
   bestiary: loadAsset(assetUrl("/assets/encounter-bestiary.png")),
   scenes: loadAsset(assetUrl("/assets/scene-atlas.png")),
   terrain: loadAsset(assetUrl("/assets/terrain-atlas.png")),
+  partyMarker: loadAsset(assetUrl("/assets/party-rider.png")),
   sceneMainstreet: loadAsset(assetUrl("/assets/scene-thord-mainstreet.png")),
   sceneMerchant: loadAsset(assetUrl("/assets/scene-merchant.png")),
   sceneSmith: loadAsset(assetUrl("/assets/scene-smith.png")),
@@ -128,15 +129,28 @@ function drawTitleFade() {
 
 function shouldFadeVisual(previous, next) {
   if (!previous || !next) return false;
-  if ((next.visualTransition || "None") !== "Fade") return false;
-  return visualKey(previous) !== visualKey(next);
+  if (isTitleFrame(previous) || isTitleFrame(next)) return false;
+  const previousKey = visualKey(previous);
+  const nextKey = visualKey(next);
+  if (!previousKey || !nextKey || previousKey === nextKey) return false;
+  return (next.visualTransition || "None") === "Fade" || isSceneSurface(previous) || isSceneSurface(next);
 }
 
 function visualKey(candidate) {
   if (!candidate) return "";
+  if (candidate.mode === "boot") return "";
   if (candidate.portrait) return "portrait:" + candidate.portrait.imageSlug;
-  if (candidate.map) return "map";
+  if (candidate.partyPage) return "party:" + (candidate.partyPage.kind || "");
+  if (candidate.map) return "map:" + (candidate.backdrop || "wilderness");
   return "scene:" + (candidate.mode || "") + ":" + (candidate.backdrop || "");
+}
+
+function isSceneSurface(candidate) {
+  if (!candidate) return false;
+  if (candidate.mode === "boot" || candidate.mode === "title_menu") return false;
+  if (candidate.portrait || candidate.partyPage || candidate.map) return true;
+  const kind = (candidate.backdrop || candidate.mode || "").toLowerCase();
+  return Boolean(kind) && !kind.includes("title");
 }
 
 function captureScenePanel() {
@@ -150,14 +164,15 @@ function captureScenePanel() {
 }
 
 function beginSceneFade(snapshot) {
-  sceneFade = { image: snapshot.image, bounds: snapshot.bounds, started: performance.now(), duration: 320 };
+  sceneFade = { image: snapshot.image, bounds: snapshot.bounds, started: performance.now(), duration: 360 };
   requestAnimationFrame(drawSceneFade);
 }
 
 function drawSceneFade() {
   if (!sceneFade || !frame) return;
   const elapsed = performance.now() - sceneFade.started;
-  const alpha = Math.max(0, 1 - elapsed / sceneFade.duration);
+  const progress = Math.min(1, elapsed / sceneFade.duration);
+  const alpha = Math.max(0, 1 - easeOutCubic(progress));
   draw(frame);
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -168,6 +183,10 @@ function drawSceneFade() {
     sceneFade = null;
     draw(frame);
   }
+}
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
 }
 
 window.addEventListener("keydown", (event) => {
@@ -676,6 +695,11 @@ function drawTile(tile, x, y, size) {
   const slug = (tile.slug || "").toLowerCase();
   const settlement = (tile.settlement || "").toLowerCase();
   const variant = tile.variant || 0;
+  if (isWaterTerrain(slug)) {
+    drawConnectedWater(tile, x, y, size);
+    if (tile.center) drawPartyMarker(x + size / 2, y + size / 2, size);
+    return;
+  }
   if (drawTerrainAtlasTile(slug, settlement, variant, x, y, size, tile.center)) return;
   const colors = tileColors(slug, settlement, tile.passable);
   ctx.fillStyle = colors.base;
@@ -687,7 +711,7 @@ function drawTile(tile, x, y, size) {
   else if (settlement === "hut") drawHut(x + 8, y + 12, size - 16, size - 15);
   else if (slug.includes("forest")) drawForest(x, y, size, variant);
   else if (slug.includes("mountain")) drawMountain(x, y, size, variant);
-  else if (slug.includes("water") || slug.includes("sea") || slug.includes("river")) drawWater(x, y, size, variant);
+  else if (isWaterTerrain(slug)) drawConnectedWater(tile, x, y, size);
   else if (slug.includes("desert")) drawDesert(x, y, size, variant);
   else if (slug.includes("foothills")) drawFoothills(x, y, size, variant);
   else if (slug.includes("swamp")) drawSwamp(x, y, size, variant);
@@ -723,61 +747,15 @@ function drawTerrainAtlasTile(slug, settlement, variant, x, y, size, center) {
 }
 
 function drawPartyMarker(cx, cy, size) {
+  const marker = bitmapAssets.partyMarker;
+  if (!marker.complete || marker.naturalWidth === 0) return;
   ctx.save();
-  ctx.translate(cx, cy);
-  const s = size / 64;
-  ctx.scale(s, s);
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.fillStyle = "rgba(4, 6, 4, 0.64)";
-  ctx.beginPath();
-  ctx.ellipse(0, 24, 27, 6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(10, 11, 7, 0.94)";
-  ctx.lineWidth = 5;
-  ctx.fillStyle = "#f0d65f";
-  ctx.beginPath();
-  ctx.moveTo(-29, 3);
-  ctx.quadraticCurveTo(-18, -11, 2, -10);
-  ctx.quadraticCurveTo(17, -10, 25, -2);
-  ctx.lineTo(25, 8);
-  ctx.quadraticCurveTo(11, 15, -10, 13);
-  ctx.quadraticCurveTo(-24, 12, -30, 7);
-  ctx.closePath();
-  ctx.stroke();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(17, -7);
-  ctx.quadraticCurveTo(25, -18, 36, -16);
-  ctx.quadraticCurveTo(45, -13, 41, -4);
-  ctx.quadraticCurveTo(35, -2, 33, 4);
-  ctx.quadraticCurveTo(28, 2, 23, 6);
-  ctx.quadraticCurveTo(22, -1, 17, -7);
-  ctx.closePath();
-  ctx.stroke();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(-28, 2);
-  ctx.quadraticCurveTo(-40, -4, -39, -14);
-  ctx.quadraticCurveTo(-32, -9, -27, 1);
-  ctx.stroke();
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(-15, 10);
-  ctx.lineTo(-20, 25);
-  ctx.moveTo(-3, 12);
-  ctx.lineTo(-2, 26);
-  ctx.moveTo(11, 10);
-  ctx.lineTo(14, 25);
-  ctx.moveTo(21, 6);
-  ctx.lineTo(25, 22);
-  ctx.stroke();
-  ctx.strokeStyle = "#fff1a8";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-18, -8);
-  ctx.quadraticCurveTo(-3, -15, 13, -9);
-  ctx.stroke();
+  ctx.imageSmoothingEnabled = true;
+  ctx.shadowColor = "rgba(0, 0, 0, 0.72)";
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
+  const markerSize = size * 1.12;
+  ctx.drawImage(marker, cx - markerSize / 2, cy - markerSize / 2, markerSize, markerSize);
   ctx.restore();
 }
 
@@ -787,7 +765,7 @@ function terrainAtlasIndex(slug, settlement) {
   if (settlement === "hut") return { row: 4, col: 0 };
   if (slug.includes("forest")) return { row: 0, col: 4 };
   if (slug.includes("mountain")) return { row: 1, col: 0 };
-  if (slug.includes("water") || slug.includes("sea") || slug.includes("river")) return { row: 3, col: 0 };
+  if (isWaterTerrain(slug)) return { row: 3, col: 0 };
   if (slug.includes("desert")) return { row: 2, col: 0 };
   if (slug.includes("foothills")) return { row: 1, col: 4 };
   if (slug.includes("swamp")) return { row: 2, col: 4 };
@@ -801,7 +779,7 @@ function tileColors(slug, settlement, passable) {
   if (settlement === "hut") return { base: "#617348", shadow: "#3e4b30" };
   if (slug.includes("forest")) return { base: "#295738", shadow: "#1f3b29" };
   if (slug.includes("mountain")) return { base: "#6b6c64", shadow: "#484a44" };
-  if (slug.includes("water") || slug.includes("sea") || slug.includes("river")) return { base: "#2a5d74", shadow: "#1b3d4c" };
+  if (isWaterTerrain(slug)) return { base: "#2a5d74", shadow: "#1b3d4c" };
   if (slug.includes("desert")) return { base: "#c7ad64", shadow: "#8b7040" };
   if (slug.includes("foothills")) return { base: "#7b8150", shadow: "#555b38" };
   if (slug.includes("swamp")) return { base: "#46563a", shadow: "#2d3828" };
@@ -866,16 +844,90 @@ function drawFoothills(x, y, size, variant) {
   ctx.fillRect(x + 6, y + size - 11, size - 12, 4);
 }
 
-function drawWater(x, y, size, variant) {
-  ctx.strokeStyle = "#8cc5c6";
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 5; i += 1) {
+function isWaterTerrain(slug) {
+  return slug.includes("water") || slug.includes("sea") || slug.includes("river");
+}
+
+function drawConnectedWater(tile, x, y, size) {
+  const mask = tile.waterMask || 0;
+  const variant = tile.variant || 0;
+  ctx.fillStyle = variant % 2 === 0 ? "#40553d" : "#364b39";
+  ctx.fillRect(x, y, size, size);
+  drawRiverBankTexture(x, y, size, variant);
+  drawRiverChannel(x, y, size, mask);
+  drawWaterGlyph(tile.waterGlyph, x, y, size);
+  ctx.strokeStyle = "rgba(4, 10, 9, 0.44)";
+  ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
+}
+
+function drawRiverBankTexture(x, y, size, variant) {
+  ctx.fillStyle = "rgba(190, 176, 113, 0.2)";
+  for (let i = 0; i < 9; i += 1) {
+    const tx = x + 4 + ((i * 17 + variant * 23) % Math.max(1, size - 10));
+    const ty = y + 5 + ((i * 13 + variant * 11) % Math.max(1, size - 12));
+    ctx.fillRect(tx, ty, 5, 2);
+  }
+}
+
+function drawRiverChannel(x, y, size, mask) {
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const width = Math.max(18, size * 0.44);
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#0b3147";
+  ctx.lineWidth = width + 8;
+  strokeRiverMask(cx, cy, size, mask);
+  ctx.strokeStyle = "#176c8d";
+  ctx.lineWidth = width;
+  strokeRiverMask(cx, cy, size, mask);
+  ctx.strokeStyle = "rgba(143, 211, 211, 0.72)";
+  ctx.lineWidth = Math.max(2, size * 0.055);
+  strokeRiverMask(cx, cy, size, mask);
+  ctx.restore();
+}
+
+function strokeRiverMask(cx, cy, size, mask) {
+  const half = size / 2;
+  const hasNorth = (mask & 1) !== 0;
+  const hasEast = (mask & 2) !== 0;
+  const hasSouth = (mask & 4) !== 0;
+  const hasWest = (mask & 8) !== 0;
+  if (mask === 0) {
     ctx.beginPath();
-    ctx.moveTo(x + 6, y + 10 + i * 10 + variant);
-    ctx.quadraticCurveTo(x + size * 0.42, y + 4 + i * 10 + variant * 2, x + size - 6, y + 10 + i * 10);
+    ctx.arc(cx, cy, half * 0.34, 0, Math.PI * 2);
+    ctx.stroke();
+    return;
+  }
+  if (hasNorth || hasSouth) {
+    ctx.beginPath();
+    ctx.moveTo(cx, hasNorth ? cy - half : cy);
+    ctx.lineTo(cx, hasSouth ? cy + half : cy);
     ctx.stroke();
   }
-  ctx.lineWidth = 1;
+  if (hasWest || hasEast) {
+    ctx.beginPath();
+    ctx.moveTo(hasWest ? cx - half : cx, cy);
+    ctx.lineTo(hasEast ? cx + half : cx, cy);
+    ctx.stroke();
+  }
+  if ((hasNorth || hasEast || hasSouth || hasWest) && mask !== 5 && mask !== 10) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, half * 0.18, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function drawWaterGlyph(glyph, x, y, size) {
+  if (!glyph) return;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "700 " + Math.max(12, Math.floor(size * 0.26)) + "px Menlo, Monaco, Consolas, monospace";
+  ctx.fillStyle = "rgba(232, 246, 231, 0.5)";
+  ctx.fillText(glyph, x + size / 2, y + size / 2 + 1);
+  ctx.restore();
 }
 
 function drawDesert(x, y, size, variant) {
