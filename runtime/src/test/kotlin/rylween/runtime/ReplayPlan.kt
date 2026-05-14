@@ -788,7 +788,7 @@ internal object ReplayPlans {
 
     private fun waitForInput(count: Int = 1): String = "A".repeat(count)
 
-    private fun battle(attacks: Int = 5): String = "F" + "A".repeat(attacks)
+    private fun battle(attacks: Int = 5): String = "F" + "AA".repeat(attacks)
 }
 
 private data class ReplayRoute(

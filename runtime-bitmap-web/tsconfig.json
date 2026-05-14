@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["DOM", "ES2020"],
+    "module": "none",
+    "strict": true,
+    "noEmitOnError": true,
+    "removeComments": false,
+    "outDir": "build/generated/resources/bitmapWeb/bitmap-web"
+  },
+  "files": ["src/main/resources/bitmap-web/client.ts"]
+}

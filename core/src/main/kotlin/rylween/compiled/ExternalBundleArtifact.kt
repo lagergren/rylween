@@ -716,6 +716,7 @@ data class ExternalWildernessFatigueRule(
     val threshold: Int,
     val match: WildernessFatigueMatch,
     val drain: Boolean,
+    val statusLabel: String?,
     val text: ExternalRuntimeTextBlock,
 )
 
@@ -1452,6 +1453,7 @@ private class ExternalBundleArtifactWriter {
                             "threshold" to JsonNumber(rule.threshold.toString()),
                             "match" to JsonString(rule.match.name),
                             "drain" to JsonBoolean(rule.drain),
+                            "statusLabel" to rule.statusLabel?.let(::JsonString).orJsonNull(),
                             "text" to textBlockJson(rule.text),
                         )
                     },
@@ -3255,6 +3257,7 @@ private class ExternalRuntimeSystemsReader(
                         threshold = rule.requiredInt("threshold"),
                         match = rule.requiredEnum("match"),
                         drain = rule.required("drain").asBoolean("fatigue drain"),
+                        statusLabel = rule.optionalNullableString("statusLabel"),
                         text = rule.required("text").readTextBlock(),
                     )
                 },

@@ -922,6 +922,10 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
         check(nextDsl.realm.upkeep.fatigue.size == 4)
         check(
+            nextDsl.realm.upkeep.fatigue
+                .map { it.statusLabel } == listOf("TIRED", "EXHAUSTED", "WEAK", "FAINT"),
+        )
+        check(
             nextDsl.realm.hunt?.let {
                 it.successChancePercent == 45 && it.timeCost == 5 && it.foodMin == 10 && it.foodMax == 19
             } == true,
