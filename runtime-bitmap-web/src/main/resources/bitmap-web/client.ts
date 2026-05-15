@@ -84,6 +84,13 @@ type BitmapPortrait = {
     pcClass?: string;
 };
 
+type BitmapImageAsset = {
+    id: string;
+    resource?: string;
+    placement?: string;
+    transition?: string;
+};
+
 type BitmapPartyMemberPage = {
     name?: string;
     gender?: string;
@@ -141,6 +148,7 @@ type BitmapFrame = {
     portrait?: BitmapPortrait;
     partyPage?: BitmapPartyPage;
     visualTransition?: string;
+    imageAssets?: BitmapImageAsset[];
 };
 
 type ServerStatus = {
@@ -348,6 +356,7 @@ const bitmapAssets: BitmapAssets = {
 };
 const portraitAssets = new Map<string, HTMLImageElement>();
 const gameImageAssets = new Map<string, HTMLImageElement>();
+const compiledBitmapAssets = new Map<string, BitmapImageAsset>();
 
 function storedBoolean(key: string, fallback: boolean): boolean {
     const value = window.localStorage.getItem(key);
@@ -452,6 +461,17 @@ function portraitAsset(imageSlug: string | undefined): HTMLImageElement | null {
     return portraitAssets.get(imageSlug) ?? null;
 }
 
+function recordCompiledImageAssets(assets: BitmapImageAsset[]): void {
+    assets.forEach((asset) => {
+        if (asset.id) compiledBitmapAssets.set(asset.id, asset);
+    });
+}
+
+function compiledGameImage(imageSlug: string | undefined): HTMLImageElement | null {
+    if (!imageSlug || !compiledBitmapAssets.has(imageSlug)) return null;
+    return gameImageAsset(imageSlug);
+}
+
 function gameImageAsset(imageSlug: string): HTMLImageElement {
     if (!gameImageAssets.has(imageSlug)) gameImageAssets.set(imageSlug, loadGameImageAsset(imageSlug));
     return gameImageAssets.get(imageSlug) as HTMLImageElement;
@@ -473,6 +493,7 @@ function connect(): void {
     });
     socket.addEventListener("message", (event) => {
         const nextFrame = JSON.parse(event.data) as BitmapFrame;
+        recordCompiledImageAssets(nextFrame.imageAssets || []);
         const previousFrame = frame;
         const fadeFromTitle = isTitleFrame(frame) && !isTitleFrame(nextFrame);
         const sceneFadeSnapshot = shouldFadeVisual(frame, nextFrame) ? captureScenePanel() : null;
@@ -1436,11 +1457,11 @@ function drawScenePanel(frame: BitmapFrame): void {
     const bounds = scenePanelBounds();
     ctx.fillStyle = "#070a06";
     ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
-    if (drawEncounterBanner(kind, bounds)) return;
     const image = sceneImageFor(kind);
     if (image) {
         drawCroppedImage(image, bounds.x, bounds.y, bounds.w, bounds.h);
     } else {
+        if (drawEncounterBanner(kind, bounds)) return;
         if (drawSceneAtlasTile(kind, bounds)) return;
         drawSemanticSceneTile(kind, bounds.x, bounds.y, bounds.w, bounds.h);
     }
@@ -1451,7 +1472,7 @@ function drawPortraitPanel(portrait: BitmapPortrait): void {
     const bounds = scenePanelBounds();
     ctx.fillStyle = "#070a06";
     ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
-    const image = portraitAsset(portrait.imageSlug);
+    const image = compiledGameImage(portrait.imageSlug) || portraitAsset(portrait.imageSlug);
     if (image && image.complete && image.naturalWidth > 0) {
         drawCroppedImage(image, bounds.x, bounds.y, bounds.w, bounds.h);
     } else {
@@ -1499,6 +1520,8 @@ function scenePanelBounds(): Bounds {
 }
 
 function sceneImageFor(kind: string): HTMLImageElement | null {
+    const compiled = compiledGameImage(kind);
+    if (compiled) return compiled;
     if (kind.includes("encounter") || kind.includes("scorpion")) return bitmapAssets.encounter;
     if (kind.includes("towne_mainstreet") || kind.includes("towne-mainstreet")) return bitmapAssets.sceneMainstreet;
     if (kind.includes("merchant")) return bitmapAssets.sceneMerchant;
@@ -1517,7 +1540,6 @@ function sceneImageFor(kind: string): HTMLImageElement | null {
     if (kind.includes("monster_brute") || kind.includes("monster-brute") || kind.includes("monster.brute")) return bitmapAssets.monsterBrute;
     if (kind.includes("monster_humanoid_magic") || kind.includes("monster-humanoid-magic") || kind.includes("monster.humanoid_magic")) return bitmapAssets.monsterHumanoidMagic;
     if (kind.includes("monster_boss") || kind.includes("monster-boss") || kind.includes("monster.boss")) return bitmapAssets.monsterBoss;
-    if (kind.startsWith("blitgfx.")) return gameImageAsset(kind);
     return null;
 }
 

@@ -471,7 +471,6 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
                 |package rylween.game
                 |
                 |import rylween.dsl.*
-                |import rylween.dsl.impl.*
                 |
                 |$sections
                 """.trimMargin() + "\n",
@@ -1184,7 +1183,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
         }
         val buildingLines =
             positionBuildings.joinToString(separator = "\n") { building ->
-                """    val $building: WorldPosition get() = WorldPosition.Town(id, Buildings.$building)"""
+                """    val $building: WorldPosition get() = townPosition(id, Buildings.$building)"""
             }
         val townLines =
             townNames.joinToString(separator = "\n") { town ->
