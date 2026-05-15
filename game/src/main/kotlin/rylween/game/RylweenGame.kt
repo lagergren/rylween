@@ -4455,6 +4455,9 @@ val authoredRylween: RylweenModel =
                         tooExpensive("Too expensive...")
                         cantCarry("You cannot carry more.")
                         deal("Deal!")
+                        bought {
+                            line("Bought ", itemName, ".")
+                        }
                         singlePrice {
                             line("Price: ", price)
                             line("")
@@ -4768,6 +4771,9 @@ val authoredRylween: RylweenModel =
                         tooExpensive("Too expensive!")
                         cantCarry("You cannot carry more.")
                         deal("Deal!")
+                        bought {
+                            line("Bought ", itemName, ".")
+                        }
                         unitPrice {
                             line(price, " gold each, sir.")
                         }

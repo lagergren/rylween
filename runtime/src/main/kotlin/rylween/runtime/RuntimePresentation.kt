@@ -10,6 +10,8 @@ import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeInputBinding
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.compiled.RuntimeCommandActionId
+import rylween.compiled.RuntimeCommandGroupId
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.WildernessFatigueMatch
 
@@ -136,7 +138,7 @@ fun CompiledPartyMember.runtimeStatusText(content: CompiledContentBundle): Strin
     }
 
 private fun ExternalRuntimeSystems.wildernessEnterCommand(): ExternalRuntimeCommand? =
-    commands["wilderness"].orEmpty().firstOrNull { command -> command.action == "enter" }
+    commands[RuntimeCommandGroupId.Wilderness.id].orEmpty().firstOrNull { command -> command.action == RuntimeCommandActionId.Enter.id }
 
 private fun ExternalRuntimeCommand.enterPromptLine(): String {
     val label = label ?: binding.label

@@ -301,6 +301,8 @@ data class ExternalTitleMenuPrompts(
 data class ExternalPriestSpellPrompts(
     val who: ExternalRuntimeTextBlock,
     val none: ExternalRuntimeTextBlock,
+    val noneKey: String,
+    val firstSpellKey: String,
     val mageCombatOnly: ExternalRuntimeTextBlock,
     val wrongClass: ExternalRuntimeTextBlock,
     val dead: ExternalRuntimeTextBlock,
@@ -355,6 +357,8 @@ data class ExternalTownEntryTax(
 data class ExternalPartyPrompts(
     val viewWho: ExternalRuntimeTextBlock,
     val journalHeader: ExternalRuntimeTextBlock,
+    val journalEmpty: ExternalRuntimeTextBlock,
+    val inventoryHeader: ExternalRuntimeTextBlock,
     val dropPrompt: ExternalRuntimeTextBlock,
     val dropEmptySlot: ExternalRuntimeTextBlock,
     val dropAborted: ExternalRuntimeTextBlock,
@@ -1609,6 +1613,8 @@ private class ExternalBundleArtifactWriter {
                             "priest",
                             textField("who", prompts.priest.who),
                             textField("none", prompts.priest.none),
+                            stringField("noneKey", prompts.priest.noneKey.toString()),
+                            stringField("firstSpellKey", prompts.priest.firstSpellKey.toString()),
                             textField("mageCombatOnly", prompts.priest.mageCombatOnly),
                             textField("wrongClass", prompts.priest.wrongClass),
                             textField("dead", prompts.priest.dead),
@@ -1651,6 +1657,8 @@ private class ExternalBundleArtifactWriter {
                             "party",
                             textField("viewWho", prompts.party.viewWho),
                             textField("journalHeader", prompts.party.journalHeader),
+                            textField("journalEmpty", prompts.party.journalEmpty),
+                            textField("inventoryHeader", prompts.party.inventoryHeader),
                             textField("dropPrompt", prompts.party.dropPrompt),
                             textField("dropEmptySlot", prompts.party.dropEmptySlot),
                             textField("dropAborted", prompts.party.dropAborted),
@@ -1763,78 +1771,146 @@ private class ExternalBundleArtifactWriter {
 
     private fun commandsJson(game: GameModel): JsonValue =
         jsonObject(
-            "title" to
+            RuntimeCommandGroupId.Title.id to
                 commandListJson(
-                    runtimeCommand("createNewParty", game.prompts.titleMenu.createNewParty),
-                    runtimeCommand("continueSavedGame", game.prompts.titleMenu.continueSavedGame),
-                    runtimeCommand("terminateParty", game.prompts.titleMenu.terminateParty),
-                    runtimeCommand("scoreboard", game.prompts.titleMenu.scoreboard),
-                    runtimeCommand("hallOfFame", game.prompts.titleMenu.hallOfFame),
-                    runtimeCommand("documentation", game.prompts.titleMenu.documentation),
-                    runtimeCommand("leave", game.prompts.titleMenu.leave),
+                    runtimeCommand(RuntimeCommandActionId.CreateNewParty, game.prompts.titleMenu.createNewParty),
+                    runtimeCommand(RuntimeCommandActionId.ContinueSavedGame, game.prompts.titleMenu.continueSavedGame),
+                    runtimeCommand(RuntimeCommandActionId.TerminateParty, game.prompts.titleMenu.terminateParty),
+                    runtimeCommand(RuntimeCommandActionId.Scoreboard, game.prompts.titleMenu.scoreboard),
+                    runtimeCommand(RuntimeCommandActionId.HallOfFame, game.prompts.titleMenu.hallOfFame),
+                    runtimeCommand(RuntimeCommandActionId.Documentation, game.prompts.titleMenu.documentation),
+                    runtimeCommand(RuntimeCommandActionId.Leave, game.prompts.titleMenu.leave),
                 ),
-            "wilderness" to
+            RuntimeCommandGroupId.Wilderness.id to
                 commandListJson(
-                    runtimeCommand("moveNorth", game.wilderness.keys.moveNorth, game.wilderness.keys.commandLabels.moveNorth),
-                    runtimeCommand("moveSouth", game.wilderness.keys.moveSouth, game.wilderness.keys.commandLabels.moveSouth),
-                    runtimeCommand("moveWest", game.wilderness.keys.moveWest, game.wilderness.keys.commandLabels.moveWest),
-                    runtimeCommand("moveEast", game.wilderness.keys.moveEast, game.wilderness.keys.commandLabels.moveEast),
-                    runtimeCommand("pass", game.wilderness.keys.pass, game.wilderness.keys.commandLabels.pass),
-                    runtimeCommand("save", game.wilderness.keys.save, game.wilderness.keys.commandLabels.save),
-                    runtimeCommand("readyWeapon", game.wilderness.keys.readyWeapon, game.wilderness.keys.commandLabels.readyWeapon),
-                    runtimeCommand("readyArmor", game.wilderness.keys.readyArmor, game.wilderness.keys.commandLabels.readyArmor),
-                    runtimeCommand("redraw", game.wilderness.keys.redraw, game.wilderness.keys.commandLabels.redraw),
-                    runtimeCommand("journal", game.wilderness.keys.journal, game.wilderness.keys.commandLabels.journal),
-                    runtimeCommand("help", game.wilderness.keys.help, game.wilderness.keys.commandLabels.help),
-                    runtimeCommand("hunt", game.wilderness.keys.hunt, game.wilderness.keys.commandLabels.hunt),
-                    runtimeCommand("viewParty", game.wilderness.keys.viewParty, game.wilderness.keys.commandLabels.viewParty),
-                    runtimeCommand("removeArmor", game.wilderness.keys.removeArmor, game.wilderness.keys.commandLabels.removeArmor),
-                    runtimeCommand("removeWeapon", game.wilderness.keys.removeWeapon, game.wilderness.keys.commandLabels.removeWeapon),
-                    runtimeCommand("enter", game.wilderness.keys.enter, game.wilderness.keys.commandLabels.enter),
-                    runtimeCommand("drop", game.wilderness.keys.drop, game.wilderness.keys.commandLabels.drop),
-                    runtimeCommand("camp", game.wilderness.keys.camp, game.wilderness.keys.commandLabels.camp),
-                    runtimeCommand("castSpell", game.wilderness.keys.castSpell, game.wilderness.keys.commandLabels.castSpell),
-                    runtimeCommand("quaff", game.wilderness.keys.quaff, game.wilderness.keys.commandLabels.quaff),
-                    runtimeCommand("quit", game.wilderness.keys.quit, game.wilderness.keys.commandLabels.quit),
+                    runtimeCommand(
+                        RuntimeCommandActionId.MoveNorth,
+                        game.wilderness.keys.moveNorth,
+                        game.wilderness.keys.commandLabels.moveNorth,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.MoveSouth,
+                        game.wilderness.keys.moveSouth,
+                        game.wilderness.keys.commandLabels.moveSouth,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.MoveWest,
+                        game.wilderness.keys.moveWest,
+                        game.wilderness.keys.commandLabels.moveWest,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.MoveEast,
+                        game.wilderness.keys.moveEast,
+                        game.wilderness.keys.commandLabels.moveEast,
+                    ),
+                    runtimeCommand(RuntimeCommandActionId.Pass, game.wilderness.keys.pass, game.wilderness.keys.commandLabels.pass),
+                    runtimeCommand(RuntimeCommandActionId.Save, game.wilderness.keys.save, game.wilderness.keys.commandLabels.save),
+                    runtimeCommand(
+                        RuntimeCommandActionId.ReadyWeapon,
+                        game.wilderness.keys.readyWeapon,
+                        game.wilderness.keys.commandLabels.readyWeapon,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.ReadyArmor,
+                        game.wilderness.keys.readyArmor,
+                        game.wilderness.keys.commandLabels.readyArmor,
+                    ),
+                    runtimeCommand(RuntimeCommandActionId.Redraw, game.wilderness.keys.redraw, game.wilderness.keys.commandLabels.redraw),
+                    runtimeCommand(
+                        RuntimeCommandActionId.Journal,
+                        game.wilderness.keys.journal,
+                        game.wilderness.keys.commandLabels.journal,
+                    ),
+                    runtimeCommand(RuntimeCommandActionId.Help, game.wilderness.keys.help, game.wilderness.keys.commandLabels.help),
+                    runtimeCommand(RuntimeCommandActionId.Hunt, game.wilderness.keys.hunt, game.wilderness.keys.commandLabels.hunt),
+                    runtimeCommand(
+                        RuntimeCommandActionId.ViewParty,
+                        game.wilderness.keys.viewParty,
+                        game.wilderness.keys.commandLabels.viewParty,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.RemoveArmor,
+                        game.wilderness.keys.removeArmor,
+                        game.wilderness.keys.commandLabels.removeArmor,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.RemoveWeapon,
+                        game.wilderness.keys.removeWeapon,
+                        game.wilderness.keys.commandLabels.removeWeapon,
+                    ),
+                    runtimeCommand(RuntimeCommandActionId.Enter, game.wilderness.keys.enter, game.wilderness.keys.commandLabels.enter),
+                    runtimeCommand(RuntimeCommandActionId.Drop, game.wilderness.keys.drop, game.wilderness.keys.commandLabels.drop),
+                    runtimeCommand(RuntimeCommandActionId.Camp, game.wilderness.keys.camp, game.wilderness.keys.commandLabels.camp),
+                    runtimeCommand(
+                        RuntimeCommandActionId.CastSpell,
+                        game.wilderness.keys.castSpell,
+                        game.wilderness.keys.commandLabels.castSpell,
+                    ),
+                    runtimeCommand(RuntimeCommandActionId.Quaff, game.wilderness.keys.quaff, game.wilderness.keys.commandLabels.quaff),
+                    runtimeCommand(RuntimeCommandActionId.Quit, game.wilderness.keys.quit, game.wilderness.keys.commandLabels.quit),
                 ),
-            "wilderness.debug" to
+            RuntimeCommandGroupId.WildernessDebug.id to
                 commandListJson(
-                    "forceCave" to game.wilderness.keys.debugForceCave,
-                    "forceEncounter" to game.wilderness.keys.debugForceEncounter,
-                    "showMap" to game.wilderness.keys.debugShowMap,
+                    runtimeCommand(RuntimeCommandActionId.ForceCave, game.wilderness.keys.debugForceCave, label = null),
+                    runtimeCommand(RuntimeCommandActionId.ForceEncounter, game.wilderness.keys.debugForceEncounter, label = null),
+                    runtimeCommand(RuntimeCommandActionId.ShowMap, game.wilderness.keys.debugShowMap, label = null),
                 ),
-            "wilderness.cave" to
+            RuntimeCommandGroupId.WildernessCave.id to
                 commandListJson(
-                    "enter" to game.wilderness.keys.caveEnter,
-                    "leave" to game.wilderness.keys.caveLeave,
+                    runtimeCommand(RuntimeCommandActionId.Enter, game.wilderness.keys.caveEnter, label = null),
+                    runtimeCommand(RuntimeCommandActionId.Leave, game.wilderness.keys.caveLeave, label = null),
                 ),
-            "wilderness.outOfMoves" to
+            RuntimeCommandGroupId.WildernessOutOfMoves.id to
                 commandListJson(
-                    "save" to game.wilderness.keys.outOfMovesSave,
-                    "quit" to game.wilderness.keys.outOfMovesQuit,
+                    runtimeCommand(RuntimeCommandActionId.Save, game.wilderness.keys.outOfMovesSave, label = null),
+                    runtimeCommand(RuntimeCommandActionId.Quit, game.wilderness.keys.outOfMovesQuit, label = null),
                 ),
-            "wilderness.quitConfirm" to
+            RuntimeCommandGroupId.WildernessQuitConfirm.id to
                 commandListJson(
-                    "yes" to game.wilderness.keys.quitYes,
-                    "no" to game.wilderness.keys.quitNo,
+                    runtimeCommand(RuntimeCommandActionId.Yes, game.wilderness.keys.quitYes, label = null),
+                    runtimeCommand(RuntimeCommandActionId.No, game.wilderness.keys.quitNo, label = null),
                 ),
-            "dungeon" to
+            RuntimeCommandGroupId.Dungeon.id to
                 commandListJson(
-                    runtimeCommand("descend", game.dungeons.keys.descend, game.dungeons.keys.commandLabels.descend),
-                    runtimeCommand("ascend", game.dungeons.keys.ascend, game.dungeons.keys.commandLabels.ascend),
-                    runtimeCommand("help", game.dungeons.keys.help, game.dungeons.keys.commandLabels.help),
-                    runtimeCommand("drop", game.dungeons.keys.drop, game.dungeons.keys.commandLabels.drop),
-                    runtimeCommand("removeArmor", game.dungeons.keys.removeArmor, game.dungeons.keys.commandLabels.removeArmor),
-                    runtimeCommand("removeWeapon", game.dungeons.keys.removeWeapon, game.dungeons.keys.commandLabels.removeWeapon),
-                    runtimeCommand("readyWeapon", game.dungeons.keys.readyWeapon, game.dungeons.keys.commandLabels.readyWeapon),
-                    runtimeCommand("readyArmor", game.dungeons.keys.readyArmor, game.dungeons.keys.commandLabels.readyArmor),
-                    runtimeCommand("quaff", game.dungeons.keys.quaff, game.dungeons.keys.commandLabels.quaff),
-                    runtimeCommand("castSpell", game.dungeons.keys.castSpell, game.dungeons.keys.commandLabels.castSpell),
-                    runtimeCommand("viewParty", game.dungeons.keys.viewParty, game.dungeons.keys.commandLabels.viewParty),
-                    runtimeCommand("save", game.dungeons.keys.save, game.dungeons.keys.commandLabels.save),
+                    runtimeCommand(RuntimeCommandActionId.Descend, game.dungeons.keys.descend, game.dungeons.keys.commandLabels.descend),
+                    runtimeCommand(RuntimeCommandActionId.Ascend, game.dungeons.keys.ascend, game.dungeons.keys.commandLabels.ascend),
+                    runtimeCommand(RuntimeCommandActionId.Help, game.dungeons.keys.help, game.dungeons.keys.commandLabels.help),
+                    runtimeCommand(RuntimeCommandActionId.Drop, game.dungeons.keys.drop, game.dungeons.keys.commandLabels.drop),
+                    runtimeCommand(
+                        RuntimeCommandActionId.RemoveArmor,
+                        game.dungeons.keys.removeArmor,
+                        game.dungeons.keys.commandLabels.removeArmor,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.RemoveWeapon,
+                        game.dungeons.keys.removeWeapon,
+                        game.dungeons.keys.commandLabels.removeWeapon,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.ReadyWeapon,
+                        game.dungeons.keys.readyWeapon,
+                        game.dungeons.keys.commandLabels.readyWeapon,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.ReadyArmor,
+                        game.dungeons.keys.readyArmor,
+                        game.dungeons.keys.commandLabels.readyArmor,
+                    ),
+                    runtimeCommand(RuntimeCommandActionId.Quaff, game.dungeons.keys.quaff, game.dungeons.keys.commandLabels.quaff),
+                    runtimeCommand(
+                        RuntimeCommandActionId.CastSpell,
+                        game.dungeons.keys.castSpell,
+                        game.dungeons.keys.commandLabels.castSpell,
+                    ),
+                    runtimeCommand(
+                        RuntimeCommandActionId.ViewParty,
+                        game.dungeons.keys.viewParty,
+                        game.dungeons.keys.commandLabels.viewParty,
+                    ),
+                    runtimeCommand(RuntimeCommandActionId.Save, game.dungeons.keys.save, game.dungeons.keys.commandLabels.save),
                 ),
             *castleCommandJsonEntries(game).toTypedArray(),
-            "town" to
+            RuntimeCommandGroupId.Town.id to
                 game.townSystem
                     ?.menu
                     ?.let { menu ->
@@ -1850,7 +1926,7 @@ private class ExternalBundleArtifactWriter {
                             },
                         )
                     }.orJsonNull(),
-            "speak" to
+            RuntimeCommandGroupId.Speak.id to
                 game.speak.standardConversation
                     ?.menu
                     ?.actions
@@ -1866,7 +1942,7 @@ private class ExternalBundleArtifactWriter {
                             },
                         )
                     }.orJsonNull(),
-            "speak.questions" to
+            RuntimeCommandGroupId.SpeakQuestions.id to
                 game.speak.standardConversation
                     ?.menu
                     ?.questions
@@ -1922,37 +1998,36 @@ private class ExternalBundleArtifactWriter {
 
     private fun castleCommandJsonEntries(game: GameModel): List<Pair<String, JsonValue>> =
         game.castles.flatMap { castle ->
-            val prefix = "castle.${castle.id.slug}"
             val keys = castle.keys
             val labels = keys.commandLabels
             listOf(
-                "$prefix.navigation" to
+                RuntimeCommandGroupId.castleNavigation(castle.id.slug) to
                     commandListJson(
-                        runtimeCommand("moveNorth", keys.moveNorth, labels.moveNorth),
-                        runtimeCommand("moveSouth", keys.moveSouth, labels.moveSouth),
-                        runtimeCommand("moveWest", keys.moveWest, labels.moveWest),
-                        runtimeCommand("moveEast", keys.moveEast, labels.moveEast),
-                        runtimeCommand("save", keys.save, labels.save),
-                        runtimeCommand("help", keys.help, labels.help),
-                        runtimeCommand("viewParty", keys.viewParty, labels.viewParty),
-                        runtimeCommand("removeArmor", keys.removeArmor, labels.removeArmor),
-                        runtimeCommand("removeWeapon", keys.removeWeapon, labels.removeWeapon),
-                        runtimeCommand("drop", keys.drop, labels.drop),
-                        runtimeCommand("readyWeapon", keys.readyWeapon, labels.readyWeapon),
-                        runtimeCommand("readyArmor", keys.readyArmor, labels.readyArmor),
-                        runtimeCommand("quaff", keys.quaff, labels.quaff),
-                        runtimeCommand("castSpell", keys.castSpell, labels.castSpell),
+                        runtimeCommand(RuntimeCommandActionId.MoveNorth, keys.moveNorth, labels.moveNorth),
+                        runtimeCommand(RuntimeCommandActionId.MoveSouth, keys.moveSouth, labels.moveSouth),
+                        runtimeCommand(RuntimeCommandActionId.MoveWest, keys.moveWest, labels.moveWest),
+                        runtimeCommand(RuntimeCommandActionId.MoveEast, keys.moveEast, labels.moveEast),
+                        runtimeCommand(RuntimeCommandActionId.Save, keys.save, labels.save),
+                        runtimeCommand(RuntimeCommandActionId.Help, keys.help, labels.help),
+                        runtimeCommand(RuntimeCommandActionId.ViewParty, keys.viewParty, labels.viewParty),
+                        runtimeCommand(RuntimeCommandActionId.RemoveArmor, keys.removeArmor, labels.removeArmor),
+                        runtimeCommand(RuntimeCommandActionId.RemoveWeapon, keys.removeWeapon, labels.removeWeapon),
+                        runtimeCommand(RuntimeCommandActionId.Drop, keys.drop, labels.drop),
+                        runtimeCommand(RuntimeCommandActionId.ReadyWeapon, keys.readyWeapon, labels.readyWeapon),
+                        runtimeCommand(RuntimeCommandActionId.ReadyArmor, keys.readyArmor, labels.readyArmor),
+                        runtimeCommand(RuntimeCommandActionId.Quaff, keys.quaff, labels.quaff),
+                        runtimeCommand(RuntimeCommandActionId.CastSpell, keys.castSpell, labels.castSpell),
                     ),
-                "$prefix.treasure" to
+                RuntimeCommandGroupId.castleTreasure(castle.id.slug) to
                     commandListJson(
-                        runtimeCommand("take", keys.treasureTake, labels.treasureTake),
-                        runtimeCommand("leave", keys.treasureLeave, labels.treasureLeave),
+                        runtimeCommand(RuntimeCommandActionId.Take, keys.treasureTake, labels.treasureTake),
+                        runtimeCommand(RuntimeCommandActionId.Leave, keys.treasureLeave, labels.treasureLeave),
                     ),
-                "$prefix.stairs" to
+                RuntimeCommandGroupId.castleStairs(castle.id.slug) to
                     commandListJson(
-                        runtimeCommand("teleportOut", keys.stairsTeleport, labels.stairsTeleport),
-                        runtimeCommand("giveItem", keys.stairsGive, labels.stairsGive),
-                        runtimeCommand("leave", keys.stairsLeave, labels.stairsLeave),
+                        runtimeCommand(RuntimeCommandActionId.TeleportOut, keys.stairsTeleport, labels.stairsTeleport),
+                        runtimeCommand(RuntimeCommandActionId.GiveItem, keys.stairsGive, labels.stairsGive),
+                        runtimeCommand(RuntimeCommandActionId.Leave, keys.stairsLeave, labels.stairsLeave),
                     ),
             )
         }
@@ -2444,6 +2519,13 @@ private class ExternalBundleArtifactWriter {
         topic: String? = null,
     ): RuntimeCommandSpec = RuntimeCommandSpec(action, binding, label, topic)
 
+    private fun runtimeCommand(
+        action: RuntimeCommandActionId,
+        binding: InputBindingModel,
+        label: String? = binding.label,
+        topic: String? = null,
+    ): RuntimeCommandSpec = runtimeCommand(action.id, binding, label, topic)
+
     private fun commandListJson(vararg commands: Pair<String, InputBindingModel>): JsonValue =
         commandListJson(
             *commands
@@ -2662,6 +2744,8 @@ private class ExternalRuntimeSystemsReader(
                 ExternalPriestSpellPrompts(
                     who = priest.requiredTextPrompt("who"),
                     none = priest.requiredTextPrompt("none"),
+                    noneKey = priest.optionalStringPrompt("noneKey", "N"),
+                    firstSpellKey = priest.optionalStringPrompt("firstSpellKey", "A"),
                     mageCombatOnly = priest.requiredTextPrompt("mageCombatOnly"),
                     wrongClass = priest.requiredTextPrompt("wrongClass"),
                     dead = priest.requiredTextPrompt("dead"),
@@ -2704,6 +2788,8 @@ private class ExternalRuntimeSystemsReader(
                 ExternalPartyPrompts(
                     viewWho = party.requiredTextPrompt("viewWho"),
                     journalHeader = party.requiredTextPrompt("journalHeader"),
+                    journalEmpty = party.requiredTextPrompt("journalEmpty"),
+                    inventoryHeader = party.requiredTextPrompt("inventoryHeader"),
                     dropPrompt = party.requiredTextPrompt("dropPrompt"),
                     dropEmptySlot = party.requiredTextPrompt("dropEmptySlot"),
                     dropAborted = party.requiredTextPrompt("dropAborted"),

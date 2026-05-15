@@ -380,6 +380,8 @@ data class CharacterCreationPromptsModel(
 data class PriestSpellPromptsModel(
     val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberCount, ")") },
     val none: TextBlock = inlineText("(N)one"),
+    val noneKey: Char = 'N',
+    val firstSpellKey: Char = 'A',
     val mageCombatOnly: TextBlock = inlineText("Sorry. Mage spells are", "combat-only."),
     val wrongClass: TextBlock = inlineText("Wrong class."),
     val dead: TextBlock = inlineText("Dead."),
@@ -433,6 +435,8 @@ data class TownPromptsModel(
 data class PartyPromptsModel(
     val viewWho: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberCount, "/Q/A)") },
     val journalHeader: TextBlock = missingPrompt("party.journal_header"),
+    val journalEmpty: TextBlock = inlineText("No journal entries."),
+    val inventoryHeader: TextBlock = inlineText("Inventory:"),
     val dropPrompt: TextBlock = inlineText("Drop what?"),
     val dropEmptySlot: TextBlock = inlineText("Nothing to drop."),
     val dropAborted: TextBlock = inlineText("Aborted."),

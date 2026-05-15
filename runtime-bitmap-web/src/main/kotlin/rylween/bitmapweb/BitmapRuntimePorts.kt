@@ -15,6 +15,7 @@ import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalStaticScreen
+import rylween.compiled.RuntimeCommandGroupId
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.TerrainSettlement
@@ -288,7 +289,7 @@ internal class BitmapRuntimeScreen(
         textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
-        commands = systems.bitmapCommands("wilderness")
+        commands = systems.bitmapCommands(RuntimeCommandGroupId.Wilderness)
         map = world.bitmapViewport(runtime.party.position, content, viewportTiles, mapTileSize)
         message = null
         send()
@@ -349,7 +350,7 @@ internal class BitmapRuntimeScreen(
         textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
-        commands = systems.bitmapCommands("castle.${castle.id}.navigation")
+        commands = systems.bitmapCommands(RuntimeCommandGroupId.castleNavigation(castle.id))
         map = runtime.bitmapCastleMap(castle)
         message = null
         send()
@@ -733,6 +734,8 @@ private fun stableVariant(
 }
 
 private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
+
+private fun ExternalRuntimeSystems.bitmapCommands(group: RuntimeCommandGroupId): List<BitmapCommandHint> = bitmapCommands(group.id)
 
 private fun ExternalRuntimeSystems.bitmapCommands(group: String): List<BitmapCommandHint> =
     commands[group].orEmpty().map(ExternalRuntimeCommand::toBitmapCommand)

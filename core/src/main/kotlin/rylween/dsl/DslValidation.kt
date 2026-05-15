@@ -1940,6 +1940,13 @@ fun validateScriptRewards(
             validateTextBlock(buy.tooExpensive, "shop ${shop.building.slug} too-expensive")
             validateTextBlock(buy.cantCarry, "shop ${shop.building.slug} cant-carry")
             validateTextBlock(buy.deal, "shop ${shop.building.slug} deal")
+            buy.bought?.let {
+                validateTextBlock(
+                    it,
+                    "shop ${shop.building.slug} bought",
+                    allowedRuntimeBindings = SelectedItemTextBindings,
+                )
+            }
             buy.unitPrice?.let {
                 validateTextBlock(
                     it,
@@ -1968,6 +1975,9 @@ fun validateScriptRewards(
             }
             check(buy.singlePrice != null || buyOffers.none { offer -> offer.purchase == ShopPurchaseModel.InventoryItem }) {
                 "shop ${shop.building.slug} inventory purchases must author single-price text"
+            }
+            check(buy.bought != null || buyOffers.none { offer -> offer.purchase == ShopPurchaseModel.InventoryItem }) {
+                "shop ${shop.building.slug} inventory purchases must author bought text"
             }
             buy.catalogs.forEach { catalog ->
                 validateInputChoiceBinding(catalog.binding, "shop ${shop.building.slug} catalog ${catalog.title} key")
@@ -2819,6 +2829,11 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.titleMenu.invalidInput, "title menu invalid-input prompt")
     validateTextBlock(prompts.priest.who, "priest who prompt", allowedRuntimeBindings = HuntTextBindings)
     validateTextBlock(prompts.priest.none, "priest none prompt")
+    check(prompts.priest.noneKey.isLetterOrDigit()) { "priest none key must be a visible letter or digit" }
+    check(prompts.priest.firstSpellKey.isLetterOrDigit()) { "priest first-spell key must be a visible letter or digit" }
+    check(prompts.priest.noneKey.uppercaseChar() != prompts.priest.firstSpellKey.uppercaseChar()) {
+        "priest none key must not overlap the first spell key"
+    }
     validateTextBlock(prompts.priest.mageCombatOnly, "priest mage-combat-only prompt")
     validateTextBlock(prompts.priest.wrongClass, "priest wrong-class prompt")
     validateTextBlock(prompts.priest.dead, "priest dead prompt")
@@ -2892,6 +2907,8 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.dungeon.leaveCavern, "dungeon leave-cavern prompt")
     validateTextBlock(prompts.party.viewWho, "party view-who prompt", allowedRuntimeBindings = HuntTextBindings)
     validateTextBlock(prompts.party.journalHeader, "party journal-header prompt")
+    validateTextBlock(prompts.party.journalEmpty, "party journal-empty prompt")
+    validateTextBlock(prompts.party.inventoryHeader, "party inventory-header prompt")
     validateTextBlock(prompts.party.dropPrompt, "party drop prompt")
     validateTextBlock(prompts.party.dropEmptySlot, "party drop-empty-slot prompt")
     validateTextBlock(prompts.party.dropAborted, "party drop-aborted prompt")

@@ -12,29 +12,31 @@ package rylween.runtime
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeInputBinding
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.compiled.RuntimeCommandActionId
+import rylween.compiled.RuntimeCommandGroupId
 
-private const val WILDERNESS_COMMAND_GROUP = "wilderness"
+private val WILDERNESS_COMMAND_GROUP = RuntimeCommandGroupId.Wilderness
 
 /** Matches runtime wilderness input against runtime-system bindings. */
 internal class WildernessCommands private constructor(
     private val commands: Map<String, ExternalRuntimeCommand>,
 ) {
     fun matches(
-        action: String,
+        action: RuntimeCommandActionId,
         command: Char,
-    ): Boolean = commands[action]?.binding?.matches(command) == true
+    ): Boolean = commands[action.id]?.binding?.matches(command) == true
 
     companion object {
         fun from(
             systems: ExternalRuntimeSystems,
-            group: String = WILDERNESS_COMMAND_GROUP,
+            group: RuntimeCommandGroupId = WILDERNESS_COMMAND_GROUP,
         ): WildernessCommands =
             WildernessCommands(
                 (
                     if (group == WILDERNESS_COMMAND_GROUP) {
-                        systems.commands.getValue(group)
+                        systems.commands.getValue(group.id)
                     } else {
-                        systems.commands[group].orEmpty()
+                        systems.commands[group.id].orEmpty()
                     }
                 ).associateBy(ExternalRuntimeCommand::action),
             )
@@ -45,10 +47,10 @@ internal fun ExternalRuntimeInputBinding.matches(command: Char): Boolean =
     (listOf(primary) + aliases).any { token -> token.matchesCommand(command) }
 
 internal fun List<ExternalRuntimeCommand>.matches(
-    action: String,
+    action: RuntimeCommandActionId,
     command: Char,
 ): Boolean =
-    firstOrNull { candidate -> candidate.action == action }
+    firstOrNull { candidate -> candidate.action == action.id }
         ?.binding
         ?.matches(command)
         ?: false

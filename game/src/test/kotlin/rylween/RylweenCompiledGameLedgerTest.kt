@@ -677,6 +677,7 @@ class RylweenCompiledGameLedgerTest {
         check(smithBuy.inventoryApplication.overflow == RewardOverflowPolicy.PromptDropThenPlace)
         check(smithBuy.paymentKeys.decline.primaryChar == 'N')
         check(smithBuy.singlePrice != null)
+        check(smithBuy.bought != null)
         check(smithSell.declined != null)
         check(smithSell.sold != null)
         check(
@@ -736,6 +737,7 @@ class RylweenCompiledGameLedgerTest {
         check(merchantBuy.inventoryApplication.overflow == RewardOverflowPolicy.PromptDropThenPlace)
         check(merchantBuy.unitPrice != null)
         check(merchantBuy.singlePrice != null)
+        check(merchantBuy.bought != null)
         check(merchantSell.declined != null)
         check(merchantSell.sold != null)
         check(
@@ -1004,6 +1006,8 @@ class RylweenCompiledGameLedgerTest {
             nextDsl.prompts.priest.none
                 .fallbackText() == "(N)one",
         )
+        check(nextDsl.prompts.priest.noneKey == 'N')
+        check(nextDsl.prompts.priest.firstSpellKey == 'A')
         check(
             nextDsl.prompts.priest.wrongClass
                 .fallbackText() == "Not a spellcaster!",
@@ -1471,7 +1475,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             "TITLE_COMMAND_GROUP" in runtimeMain &&
                 "systems.prompts.titleMenu.header" in runtimeMain &&
-                "commands.menuLine(\"createNewParty\")" in runtimeMain,
+                "commands.menuLine(RuntimeCommandActionId.CreateNewParty)" in runtimeMain,
         ) {
             "runtime title menu must render compiled DSL prompts and command labels"
         }
@@ -1580,15 +1584,21 @@ class RylweenCompiledGameLedgerTest {
             File("core/src/main/kotlin/rylween/dsl/impl/RuntimeContentDsl.kt").readText()
         val externalBundle =
             File("core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt").readText()
+        val commandIds =
+            File("core/src/main/kotlin/rylween/compiled/RuntimeCommandIds.kt").readText()
         val runtimeMain =
             File("runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
         val runtimeScreen =
             File("runtime/src/main/kotlin/rylween/runtime/RuntimeScreen.kt").readText()
 
-        check("debugShowMap" in runtimeContentDsl && "\"showMap\"" in externalBundle) {
+        check(
+            "debugShowMap" in runtimeContentDsl &&
+                "RuntimeCommandActionId.ShowMap" in externalBundle &&
+                "ShowMap(\"showMap\")" in commandIds,
+        ) {
             "wilderness debug map key must be compiled into the external command bundle"
         }
-        check("debugSecrets && debugCommands.matches(\"showMap\", command)" in runtimeMain) {
+        check("debugSecrets && debugCommands.matches(RuntimeCommandActionId.ShowMap, command)" in runtimeMain) {
             "runtime must dispatch the compiled debug map command only through the debug secret path"
         }
         check(
@@ -1846,7 +1856,12 @@ class RylweenCompiledGameLedgerTest {
         val castleRuntimeSource =
             File("runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt")
                 .readText()
-        listOf("ExternalRuntimeCastle", "seedRooms", "completeCastle", $$"castle.${castle.id}").forEach { token ->
+        listOf(
+            "ExternalRuntimeCastle",
+            "seedRooms",
+            "completeCastle",
+            "RuntimeCommandGroupId.castleNavigation(castle.id)",
+        ).forEach { token ->
             check(token in castleRuntimeSource) {
                 "runtime castle runtime must stay generic and runtime-system backed: missing $token"
             }
