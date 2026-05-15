@@ -285,50 +285,27 @@ sealed class NativeSpec(
     val path: String get() = id.slug
 }
 
-class NativeEffectSpec(
-    id: NativeOpId,
-    reason: String,
-) : NativeSpec(id, reason)
-
-class NativeIntSpec(
-    id: NativeOpId,
-    reason: String,
-) : NativeSpec(id, reason)
-
 class NativeStringSpec(
     id: NativeOpId,
     reason: String,
 ) : NativeSpec(id, reason)
 
 class NativeAllowlistRefs {
-    val inventoryAdd: NativeEffectSpec = effect(NativeOps.inventoryAdd, "inventory slot mutation")
-    val townEnterService: NativeEffectSpec = effect(NativeOps.townEnterService, "town building-service trampoline")
-
-    val inputKeyUpper: NativeIntSpec =
-        NativeIntSpec(NativeOps.inputKeyUpper, "keyboard input normalization")
-
     val partyMemberName: NativeStringSpec = string(NativeOps.partyMemberName, "party-member display name binding")
     val combatMonsterName: NativeStringSpec = string(NativeOps.combatMonsterName, "combat monster display name binding")
     val partyPronounSubject: NativeStringSpec = string(NativeOps.partyPronounSubject, "party-member pronoun binding")
     val partyPronounObject: NativeStringSpec = string(NativeOps.partyPronounObject, "party-member pronoun binding")
     val partyPronounPossessive: NativeStringSpec = string(NativeOps.partyPronounPossessive, "party-member pronoun binding")
     val townNpcName: NativeStringSpec = string(NativeOps.townNpcName, "current-town NPC display name binding")
-    val npcRoleName: NativeStringSpec = string(NativeOps.npcRoleName, "role-resolved NPC name binding")
-    val npcRoleLocation: NativeStringSpec = string(NativeOps.npcRoleLocation, "role-resolved NPC location binding")
 
     val all: List<NativeSpec> =
         listOf(
-            inventoryAdd,
-            townEnterService,
-            inputKeyUpper,
             partyMemberName,
             combatMonsterName,
             partyPronounSubject,
             partyPronounObject,
             partyPronounPossessive,
             townNpcName,
-            npcRoleName,
-            npcRoleLocation,
         )
 
     val byPath: Map<String, NativeSpec> = all.associateBy { it.path }
@@ -336,11 +313,6 @@ class NativeAllowlistRefs {
     init {
         check(byPath.size == all.size) { "duplicate native allowlist path" }
     }
-
-    private fun effect(
-        id: NativeOpId,
-        reason: String,
-    ) = NativeEffectSpec(id, reason)
 
     private fun string(
         id: NativeOpId,
@@ -378,8 +350,6 @@ fun Gender.pronoun(case: PronounCase): String =
 
 fun townNpcName(job: NpcJobId): StrExpr =
     Str(StrAst.NativeString(NativeAllowlist.townNpcName.path, listOf(NativeStringArg.Literal(render(job)))))
-
-fun npcName(role: NpcRole): StrExpr = Str(StrAst.NativeString(NativeAllowlist.npcRoleName.path, listOf(NativeStringArg.Literal(role.slug))))
 
 fun render(ast: IntAst): String = ast.toString()
 

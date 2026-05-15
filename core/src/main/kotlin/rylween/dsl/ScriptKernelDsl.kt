@@ -70,11 +70,6 @@ sealed interface IntAst {
     data class InventorySlotCost(
         val slot: IntAst,
     ) : IntAst
-
-    data class NativeInt(
-        val path: String,
-        val args: List<String>,
-    ) : IntAst
 }
 
 sealed interface BoolAst {
@@ -244,11 +239,6 @@ sealed interface Op {
         val text: TextId,
     ) : Op
 
-    data class EmitIndexed(
-        val pattern: TextPattern,
-        val value: IntAst,
-    ) : Op
-
     data class WaitInput(
         val reason: String? = null,
     ) : Op
@@ -415,8 +405,6 @@ sealed interface Op {
         val quantity: IntAst,
     ) : Op
 
-    object ConsumeTorch : Op
-
     data class TeleportParty(
         val directionKey: IntAst,
         val distance: IntAst,
@@ -442,11 +430,6 @@ sealed interface Op {
 
     data class AchieveMilestone(
         val milestone: GameMilestoneId,
-    ) : Op
-
-    data class NativeCall(
-        val path: String,
-        val args: List<String>,
     ) : Op
 }
 
