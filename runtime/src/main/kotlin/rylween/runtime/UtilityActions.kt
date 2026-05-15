@@ -192,7 +192,7 @@ internal class UtilityActions(
             "${inventorySlotKey(slot.slot)}. ${slot.item?.let(::itemName).orEmpty()}"
         }
 
-    private fun List<String>.withReturnCancelLine(): List<String> = this + "RETURN leaves."
+    private fun List<String>.withReturnCancelLine(): List<String> = this + systems.prompts.returnLeavesLine()
 
     private fun chooseCaster(runtime: RuntimeState): Int? {
         if (runtime.party.members.none { member -> !member.dead && member.pcClass == PcClass.Priest }) {
@@ -262,7 +262,7 @@ internal class UtilityActions(
                 indexes.map { index ->
                     "${index + 1}. ${runtime.party.memberName(content, index)}"
                 } +
-                "RETURN leaves."
+                systems.prompts.returnLeavesLine()
         screen.writeText(lines)
         return input
             .readValidDigitChoice(

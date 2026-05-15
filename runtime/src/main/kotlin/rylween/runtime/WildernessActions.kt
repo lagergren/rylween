@@ -94,9 +94,7 @@ internal class WildernessActions(
     }
 
     fun hunt(runtime: RuntimeState): WildernessActionResult {
-        val rules =
-            realm.hunt
-                ?: return WildernessActionResult(runtime, listOf("Hunt is not available in this bundle."))
+        val rules = checkNotNull(realm.hunt) { "wilderness hunt command requires authored hunt rules" }
         val whoPrompt = rules.text.whoPrompt.renderHunt(runtime)
         val memberNumber = input.readIntFromPrompt(whoPrompt) ?: return WildernessActionResult(runtime)
         val member = runtime.party.members.getOrNull(memberNumber - 1)

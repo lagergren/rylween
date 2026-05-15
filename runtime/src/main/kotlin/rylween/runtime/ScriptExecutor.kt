@@ -553,8 +553,13 @@ internal class ScriptExecutor(
     }
 
     private fun List<String>.withReturnCancelLine(): List<String> {
-        val hasReturn = any { line -> "RETURN" in line || "return" in line }
-        return takeIf { hasReturn } ?: (this + "RETURN leaves.")
+        val returnLabel = systems.prompts.returnKeyLabel()
+        val hasReturn =
+            any { line ->
+                line.contains(returnLabel, ignoreCase = true) ||
+                    line.contains(systems.prompts.returnKeyName, ignoreCase = true)
+            }
+        return takeIf { hasReturn } ?: (this + systems.prompts.returnLeavesLine())
     }
 
     private fun executeAskText(
