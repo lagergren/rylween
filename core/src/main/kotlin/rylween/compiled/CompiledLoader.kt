@@ -251,7 +251,6 @@ private class CompiledBundleValidator(
         when (val placement = character.placement) {
             is CompiledCharacterPlacement.Fixed -> position(placement.position)
             is CompiledCharacterPlacement.Randomized -> randomNpcPlacementPolicy(placement.policy)
-            is CompiledCharacterPlacement.RandomizedWilderness -> randomNpcPlacementPolicy(placement.policy)
             CompiledCharacterPlacement.Unplaced -> Unit
         }
     }
