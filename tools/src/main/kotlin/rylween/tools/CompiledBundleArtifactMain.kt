@@ -7,6 +7,7 @@
  */
 package rylween.tools
 
+import rylween.compiled.CompiledGameBundle
 import rylween.compiled.ExternalBundleSectionId
 import rylween.compiled.inspectExternalBundleArtifact
 import rylween.compiled.loadCompiledGame
@@ -19,6 +20,7 @@ import rylween.compiled.writeExternalBundleArtifact
 import rylween.compiled.writeNativeSmokeArtifact
 import rylween.dsl.RylweenValidationException
 import rylween.game.RylweenCompiledGame
+import rylween.runtime.RuntimeLog
 import java.io.File
 import java.io.IOException
 import kotlin.system.exitProcess
@@ -26,11 +28,15 @@ import kotlin.system.exitProcess
 object RylweenCompiledBundleArtifactMain {
     @JvmStatic
     fun main(args: Array<String>): Unit =
-        runRylweenToolCli {
-            val output = File(args.singleOrNull() ?: "build/compiled/rylween-native-smoke.rsmoke")
+        runRylweenToolCli(args) { cli ->
+            val output = File(cli.positionals.singleOrNull() ?: "build/compiled/rylween-native-smoke.rsmoke")
+            cli.diagnostics.event("native_smoke.emit.start output=${output.path}")
             val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
+            cli.diagnostics.event("native_smoke.compile ${bundle.compileSummary()}")
             bundle.loadCompiledGame()
+            cli.diagnostics.event("native_smoke.validate loaded=true")
             bundle.writeNativeSmokeArtifact(output)
+            cli.diagnostics.event("native_smoke.emit.done output=${output.path} bytes=${output.length()}")
             @Suppress("ReplacePrintlnWithLogging")
             println("Wrote native smoke bundle: ${output.path}")
         }
@@ -39,11 +45,16 @@ object RylweenCompiledBundleArtifactMain {
 object RylweenExternalBundleArtifactMain {
     @JvmStatic
     fun main(args: Array<String>): Unit =
-        runRylweenToolCli {
-            val output = File(args.singleOrNull() ?: "build/compiled/rylween-bundle.json")
+        runRylweenToolCli(args) { cli ->
+            val output = File(cli.positionals.singleOrNull() ?: "build/compiled/rylween-bundle.json")
+            cli.diagnostics.event("external.emit.start output=${output.path}")
             val game = RylweenCompiledGame.nextRylween
-            game.toCompiledGameBundle().loadCompiledGame()
+            val bundle = game.toCompiledGameBundle()
+            cli.diagnostics.event("external.compile ${bundle.compileSummary()}")
+            bundle.loadCompiledGame()
+            cli.diagnostics.event("external.validate loaded=true")
             game.writeExternalBundleArtifact(output)
+            cli.diagnostics.event("external.emit.done output=${output.path} bytes=${output.length()}")
             @Suppress("ReplacePrintlnWithLogging")
             println("Wrote external compiled bundle: ${output.path}")
         }
@@ -52,8 +63,9 @@ object RylweenExternalBundleArtifactMain {
 object RylweenExternalBundleCheckMain {
     @JvmStatic
     fun main(args: Array<String>): Unit =
-        runRylweenToolCli {
-            val input = File(args.singleOrNull() ?: "build/compiled/rylween-bundle.json")
+        runRylweenToolCli(args) { cli ->
+            val input = File(cli.positionals.singleOrNull() ?: "build/compiled/rylween-bundle.json")
+            cli.diagnostics.event("external.check.start input=${input.path}")
             val summary = input.readExternalBundleArtifact()
             val runtimeSystems = input.readExternalRuntimeSystemsSummary()
             val materialized = input.readExternalCompiledGameBundle()
@@ -69,6 +81,7 @@ object RylweenExternalBundleCheckMain {
                     append(" runtimeSystems=${runtimeSystems.schemaVersion}")
                     append(" castles=${runtimeSystems.castles.size}")
                 }
+            cli.diagnostics.event("external.check.done $checkSummary")
             @Suppress("ReplacePrintlnWithLogging")
             println(checkSummary)
         }
@@ -77,41 +90,116 @@ object RylweenExternalBundleCheckMain {
 object RylweenExternalBundleInspectMain {
     @JvmStatic
     fun main(args: Array<String>): Unit =
-        runRylweenToolCli {
-            val input = File(args.getOrNull(0) ?: "build/compiled/rylween-bundle.json")
-            val output = args.getOrNull(1)?.let(::File)
+        runRylweenToolCli(args) { cli ->
+            val input = File(cli.positionals.getOrNull(0) ?: "build/compiled/rylween-bundle.json")
+            val output = cli.positionals.getOrNull(1)?.let(::File)
+            cli.diagnostics.event("external.inspect.start input=${input.path} output=${output?.path.orEmpty()}")
             val inspection = input.inspectExternalBundleArtifact()
             @Suppress("ReplacePrintlnWithLogging")
             if (output == null) {
                 print(inspection)
+                cli.diagnostics.event("external.inspect.done stdout=true lines=${inspection.lineSequence().count()}")
             } else {
                 output.parentFile?.mkdirs()
                 output.writeText(inspection)
+                cli.diagnostics.event("external.inspect.done output=${output.path} bytes=${output.length()}")
                 println("Wrote external compiled bundle inspection: ${output.path}")
             }
         }
 }
 
-private inline fun runRylweenToolCli(block: () -> Unit) {
-    runCatching(block).getOrElse { error ->
-        when (error) {
-            is RylweenValidationException -> {
-                System.err.println("Rylween bundle tool failed:")
-                error.diagnostics.forEach { diagnostic ->
-                    System.err.println("- $diagnostic")
+private data class ToolCli(
+    val positionals: List<String>,
+    val diagnostics: ToolDiagnostics,
+)
+
+private class ToolDiagnostics(
+    private val log: RuntimeLog?,
+) {
+    fun event(message: String) {
+        log?.event("tool.bundle.$message")
+    }
+}
+
+private data class ParsedToolArgs(
+    val positionals: List<String>,
+    val logFile: File?,
+)
+
+private fun parseToolArgs(args: Array<String>): ParsedToolArgs {
+    val positionals = mutableListOf<String>()
+    var logFile = System.getenv("RYLWEEN_TOOL_LOG")?.takeIf { value -> value.isNotBlank() }?.let(::File)
+    var index = 0
+    while (index < args.size) {
+        val arg = args[index]
+        when (arg) {
+            "--log" -> {
+                require(index + 1 < args.size) { "--log requires a file path" }
+                index += 1
+                logFile = File(args[index])
+            }
+            else -> {
+                if (arg.startsWith("--log=")) {
+                    logFile = File(arg.substringAfter("--log="))
+                } else {
+                    positionals += arg
                 }
+            }
+        }
+        index += 1
+    }
+    return ParsedToolArgs(positionals, logFile)
+}
+
+private fun runRylweenToolCli(
+    args: Array<String>,
+    block: (ToolCli) -> Unit,
+) {
+    val parsed =
+        runCatching { parseToolArgs(args) }
+            .getOrElse { error ->
+                printToolFailure(error)
                 exitProcess(1)
             }
+    val log = parsed.logFile?.let(RuntimeLog::open)
+    val diagnostics = ToolDiagnostics(log)
+    var exitCode = 0
+    var unexpected: Throwable? = null
+    try {
+        block(ToolCli(parsed.positionals, diagnostics))
+    } catch (error: Throwable) {
+        diagnostics.event("failure type=${error::class.simpleName.orEmpty()} message=${error.message.orEmpty()}")
+        when (error) {
+            is RylweenValidationException -> printValidationFailure(error)
             is IllegalArgumentException,
             is IllegalStateException,
             is IOException,
             -> printToolFailure(error)
-            else -> throw error
+            else -> unexpected = error
         }
+        if (unexpected == null) exitCode = 1
+    } finally {
+        log?.close()
+    }
+    unexpected?.let { throw it }
+    if (exitCode != 0) exitProcess(exitCode)
+}
+
+private fun printValidationFailure(error: RylweenValidationException) {
+    System.err.println("Rylween bundle tool failed:")
+    error.diagnostics.forEach { diagnostic ->
+        System.err.println("- $diagnostic")
     }
 }
 
-private fun printToolFailure(error: Throwable): Nothing {
+private fun printToolFailure(error: Throwable) {
     System.err.println("Rylween bundle tool failed: ${error.message ?: error::class.simpleName}")
-    exitProcess(1)
 }
+
+private fun CompiledGameBundle.compileSummary(): String =
+    "strings=${content.strings.entries.size} " +
+        "handles=${content.handles.handles.size} " +
+        "scripts=${content.scripts.roots.size} " +
+        "states=${states.size} " +
+        "instructions=${content.scripts.roots.sumOf { root -> root.instructions.size }} " +
+        "operands=${content.scripts.roots.sumOf { root -> root.instructions.sumOf { instruction -> instruction.operands.size } }}"

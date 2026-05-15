@@ -1670,6 +1670,30 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun compiledBundleDiagnosticsStayToolOwned() {
+        val toolsBuild = File("tools/build.gradle.kts").readText()
+        val toolMain = File("tools/src/main/kotlin/rylween/tools/CompiledBundleArtifactMain.kt").readText()
+        val compiledCoreSources =
+            File("core/src/main/kotlin/rylween/compiled")
+                .walkTopDown()
+                .filter { file -> file.isFile && file.extension == "kt" }
+                .joinToString("\n") { file -> file.readText() }
+
+        check("implementation(project(\":runtime\"))" in toolsBuild) {
+            "bundle tools must use the existing RuntimeLog sink instead of growing a core logger"
+        }
+        check("import rylween.runtime.RuntimeLog" in toolMain && "RYLWEEN_TOOL_LOG" in toolMain && "\"--log\"" in toolMain) {
+            "bundle tools must expose opt-in diagnostics through configured RuntimeLog sinks"
+        }
+        check("tool.bundle." in toolMain && "compileSummary()" in toolMain) {
+            "bundle tools must emit compile summaries only through the opt-in tool log"
+        }
+        check("RuntimeLog" !in compiledCoreSources && "logger" !in compiledCoreSources) {
+            "core compiled-bundle code must stay quiet and must not grow an independent logger API"
+        }
+    }
+
+    @Test
     fun runtimeDoesNotComposeOldKotlinSessions() {
         val sources =
             File("runtime/src/main/kotlin")
