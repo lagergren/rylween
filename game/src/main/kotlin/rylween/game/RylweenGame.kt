@@ -12,7 +12,6 @@
 package rylween.game
 
 import rylween.dsl.*
-import rylween.dsl.impl.*
 
 private object EncounterImages {
     val goblinoid = image("blitgfx.monster_goblinoid")

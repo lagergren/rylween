@@ -336,6 +336,10 @@ private class BitmapWebServer(
     private val serverSocket = ServerSocket()
     private val clientIds = AtomicLong(0)
 
+    init {
+        validateBitmapImageResources()
+    }
+
     fun serveForever() {
         ensureBootstrapAccount()
         serverSocket.reuseAddress = true
@@ -614,6 +618,19 @@ private class BitmapWebServer(
                 }
         serverLog.event("bitmap.http.response id=$clientId status=200 image=${serverLogValue(imageId)}")
         respondBytes(socket, "image/png", bytes)
+    }
+
+    private fun validateBitmapImageResources() {
+        bitmapImageById.values.forEach { image ->
+            require(image.resource.startsWith("bitmap/assets/")) {
+                "bitmap image ${image.id} resource must live under bitmap/assets/"
+            }
+            image.placement.toBitmapImagePlacement(image.id)
+            image.transition.toBitmapVisualTransition(image.id)
+            require(javaClass.classLoader.getResource(image.resource) != null) {
+                "bitmap image ${image.id} resource is not packaged: ${image.resource}"
+            }
+        }
     }
 
     private fun serveStaticResource(

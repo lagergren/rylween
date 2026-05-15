@@ -14,6 +14,24 @@ internal enum class BitmapTextEffect {
     Reveal,
 }
 
+internal enum class BitmapVisualTransition {
+    None,
+    Fade,
+}
+
+internal enum class BitmapImagePlacement {
+    FullScreen,
+    MapWindow,
+}
+
+internal fun String.toBitmapVisualTransition(imageId: String): BitmapVisualTransition =
+    BitmapVisualTransition.entries.firstOrNull { transition -> transition.name == this }
+        ?: error("bitmap image $imageId has unsupported transition $this")
+
+internal fun String.toBitmapImagePlacement(imageId: String): BitmapImagePlacement =
+    BitmapImagePlacement.entries.firstOrNull { placement -> placement.name == this }
+        ?: error("bitmap image $imageId has unsupported placement $this")
+
 internal data class BitmapFrame(
     val mode: String,
     val width: Int = VIRTUAL_WIDTH,
@@ -28,7 +46,8 @@ internal data class BitmapFrame(
     val textEffect: BitmapTextEffect = BitmapTextEffect.None,
     val portrait: BitmapPortrait? = null,
     val partyPage: BitmapPartyPage? = null,
-    val visualTransition: String = "None",
+    val visualTransition: BitmapVisualTransition = BitmapVisualTransition.None,
+    val imageAssets: List<BitmapImageAsset> = emptyList(),
     val commands: List<BitmapCommandHint>,
     val map: BitmapMap? = null,
     val message: String? = null,
@@ -50,11 +69,27 @@ internal data class BitmapFrame(
             "textEffect" to textEffect.name.json(),
             "portrait" to (portrait?.toJson() ?: "null"),
             "partyPage" to (partyPage?.toJson() ?: "null"),
-            "visualTransition" to visualTransition.json(),
+            "visualTransition" to visualTransition.name.json(),
+            "imageAssets" to imageAssets.joinToString(prefix = "[", postfix = "]") { asset -> asset.toJson() },
             "commands" to commands.joinToString(prefix = "[", postfix = "]") { command -> command.toJson() },
             "map" to (map?.toJson() ?: "null"),
             "message" to (message?.json() ?: "null"),
             "artLines" to artLines.jsonArray(),
+        )
+}
+
+internal data class BitmapImageAsset(
+    val id: String,
+    val resource: String,
+    val placement: BitmapImagePlacement,
+    val transition: BitmapVisualTransition,
+) {
+    fun toJson(): String =
+        jsonObject(
+            "id" to id.json(),
+            "resource" to resource.json(),
+            "placement" to placement.name.json(),
+            "transition" to transition.name.json(),
         )
 }
 

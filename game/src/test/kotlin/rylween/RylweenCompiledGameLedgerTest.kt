@@ -1500,6 +1500,94 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun authoredDslImportsUseRootFacadeInsteadOfImplWildcard() {
+        val facade = File("core/src/main/kotlin/rylween/dsl/AuthoringFacade.kt").readText()
+        val generatedCatalogTask = File("build-logic/src/main/kotlin/rylween/gradle/RylweenBuildTasks.kt").readText()
+        val authoredSources =
+            listOf(
+                "game/src/main/kotlin/rylween/game/RylweenGame.kt",
+                "game/src/main/kotlin/rylween/game/RylweenTestScenarios.kt",
+                "game/src/main/kotlin/rylween/game/RylweenCompiledGame.kt",
+            )
+        val implWildcardImports =
+            authoredSources.filter { path ->
+                "import rylween.dsl.impl.*" in File(path).readText()
+            }
+
+        check("Explicit authoring facade for game content sources" in facade) {
+            "AuthoringFacade.kt must document why the root DSL package re-exports author-facing impl concepts"
+        }
+        check("do not re-export the whole" in facade && "import rylween.dsl.*" in facade) {
+            "AuthoringFacade.kt must explain the import boundary and why the facade stays intentionally narrow"
+        }
+        check(implWildcardImports.isEmpty()) {
+            "authored game content must import the root DSL facade instead of impl wildcard imports: " +
+                implWildcardImports.joinToString()
+        }
+        check("import rylween.dsl.impl.*" !in generatedCatalogTask) {
+            "generated game handle catalogs must compile through the root DSL facade, not impl wildcard imports"
+        }
+    }
+
+    @Test
+    fun bitmapWebRuntimeConsumesCompiledBitmapAssets() {
+        val runtimeSystems = RylweenCompiledGame.nextRylween.toExternalBundleArtifact().readExternalRuntimeSystems()
+        val bitmapFrameSource = File("runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/BitmapFrame.kt").readText()
+        val bitmapPortsSource = File("runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/BitmapRuntimePorts.kt").readText()
+        val bitmapServerSource =
+            File("runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/RylweenBitmapWebRuntimeMain.kt").readText()
+        val bitmapClientSource = File("runtime-bitmap-web/src/main/resources/bitmap-web/client.ts").readText()
+        val compiledBitmapAssets = runtimeSystems.presentation.images.filter { image -> image.kind == "Bitmap" }
+        val requiredCompiledImages =
+            listOf(
+                "blitgfx.towne_mainstreet" to "bitmap/assets/scene-thord-mainstreet.png",
+                "blitgfx.merchant" to "bitmap/assets/scene-merchant.png",
+                "blitgfx.monster_goblinoid" to "bitmap/assets/monster-goblinoid.png",
+                "blitgfx.dungeon_chest" to "bitmap/assets/scene-dungeon-chest.png",
+                "blitgfx.jaara_gate" to "bitmap/assets/scene-jaara-gate.png",
+            )
+
+        requiredCompiledImages.forEach { (id, resource) ->
+            val image =
+                compiledBitmapAssets.singleOrNull { candidate -> candidate.id == id }
+                    ?: error("missing compiled bitmap asset $id")
+            check(image.resource == resource) {
+                "compiled bitmap asset $id must use $resource, was ${image.resource}"
+            }
+            check(File("game/src/main/resources/${image.resource}").isFile) {
+                "compiled bitmap asset $id must be packaged at ${image.resource}"
+            }
+        }
+        check("enum class BitmapVisualTransition" in bitmapFrameSource && "enum class BitmapImagePlacement" in bitmapFrameSource) {
+            "bitmap frame protocol should keep visual transition and placement typed on the Kotlin side"
+        }
+        check("val imageAssets: List<BitmapImageAsset>" in bitmapFrameSource && "\"imageAssets\"" in bitmapFrameSource) {
+            "bitmap frames must expose compiled image asset metadata to the browser client"
+        }
+        check("imageAssets = bitmapImageAssets" in bitmapPortsSource) {
+            "bitmap runtime must attach the compiled bitmap image table to outgoing frames"
+        }
+        check(
+            "validateBitmapImageResources()" in bitmapServerSource &&
+                "javaClass.classLoader.getResource(image.resource)" in bitmapServerSource &&
+                "image.placement.toBitmapImagePlacement(image.id)" in bitmapServerSource &&
+                "image.transition.toBitmapVisualTransition(image.id)" in bitmapServerSource,
+        ) {
+            "bitmap server must validate compiled resource presence and typed placement/transition rows before serving"
+        }
+        check(
+            "recordCompiledImageAssets(nextFrame.imageAssets || [])" in bitmapClientSource &&
+                "const compiledBitmapAssets = new Map<string, BitmapImageAsset>()" in bitmapClientSource &&
+                "const compiled = compiledGameImage(kind)" in bitmapClientSource,
+        ) {
+            "bitmap client must cache compiled image metadata and prefer compiled game images for scene rendering"
+        }
+        check("if (kind.startsWith(\"blitgfx.\")) return gameImageAsset(kind);" !in bitmapClientSource) {
+            "bitmap client must not infer arbitrary blitgfx assets without a compiled bitmap declaration"
+        }
+    }
+
+    @Test
     fun wildernessDebugSecretCanRenderAnnotatedWorldMap() {
         val runtimeContentDsl =
             File("core/src/main/kotlin/rylween/dsl/impl/RuntimeContentDsl.kt").readText()

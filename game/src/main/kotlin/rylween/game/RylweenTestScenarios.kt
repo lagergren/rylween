@@ -10,7 +10,6 @@
 package rylween.game
 
 import rylween.dsl.*
-import rylween.dsl.impl.*
 
 private val replayRandomNpcIds: List<NpcId> =
     listOf(
