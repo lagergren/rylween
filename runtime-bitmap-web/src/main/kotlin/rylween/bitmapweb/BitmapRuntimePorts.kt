@@ -9,6 +9,7 @@ import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledGameBundle
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledTerrain
+import rylween.compiled.ExternalImageAsset
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeSystems
@@ -163,7 +164,13 @@ internal class BitmapRuntimeScreen(
 ) : RuntimeScreenPort {
     private val content = bundle.content
     private val staticScreenById = systems.presentation.staticScreens.associateBy { screen -> screen.id }
-    private val imageTransitionById = systems.presentation.images.associate { image -> image.id to image.transition }
+    private val imageTransitionById =
+        systems.presentation.images.associate { image -> image.id to image.transition.toBitmapVisualTransition(image.id) }
+    private val bitmapImageAssets =
+        systems.presentation.images
+            .filter { image -> image.kind == "Bitmap" }
+            .sortedBy { image -> image.id }
+            .map { image -> image.toBitmapImageAsset() }
     private val viewportTiles = mapTiles.coerceIn(5, 12)
     private val mapTileSize = tileSize.coerceIn(40, 96)
     private var mode = "boot"
@@ -177,7 +184,7 @@ internal class BitmapRuntimeScreen(
     private var textEffect = BitmapTextEffect.None
     private var portrait: BitmapPortrait? = null
     private var partyPage: BitmapPartyPage? = null
-    private var visualTransition = "None"
+    private var visualTransition = BitmapVisualTransition.None
     private var commands = emptyList<BitmapCommandHint>()
     private var map: BitmapMap? = null
     private var message: String? = null
@@ -407,7 +414,7 @@ internal class BitmapRuntimeScreen(
         textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
-        visualTransition = imageTransitionById[imageSlug] ?: "None"
+        visualTransition = imageTransitionById[imageSlug] ?: BitmapVisualTransition.None
         commands = emptyList()
         message = null
         stickyMessageLines = emptyList()
@@ -427,7 +434,7 @@ internal class BitmapRuntimeScreen(
             mode = "character_portrait"
             backdrop = "character_portrait"
             map = null
-            visualTransition = imageTransitionById[preview.imageSlug] ?: "None"
+            visualTransition = imageTransitionById[preview.imageSlug] ?: BitmapVisualTransition.None
         }
         send()
     }
@@ -490,12 +497,13 @@ internal class BitmapRuntimeScreen(
                 portrait = portrait,
                 partyPage = partyPage,
                 visualTransition = visualTransition,
+                imageAssets = bitmapImageAssets,
                 commands = commands,
                 map = map,
                 message = message,
             ).toJson(),
         )
-        visualTransition = "None"
+        visualTransition = BitmapVisualTransition.None
     }
 
     private fun staticScreen(screenSlug: String): ExternalStaticScreen =
@@ -664,6 +672,14 @@ private fun RuntimeMapCell.toBitmapTile(
         waterGlyph = waterMask.takeIf { terrain?.isBitmapWater(content) == true }?.waterGlyph(),
     )
 }
+
+private fun ExternalImageAsset.toBitmapImageAsset(): BitmapImageAsset =
+    BitmapImageAsset(
+        id = id,
+        resource = resource,
+        placement = placement.toBitmapImagePlacement(id),
+        transition = transition.toBitmapVisualTransition(id),
+    )
 
 private fun waterMask(
     world: WorldMap,

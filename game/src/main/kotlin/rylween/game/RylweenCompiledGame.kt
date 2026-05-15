@@ -8,8 +8,8 @@
 
 package rylween.game
 
-import rylween.dsl.impl.GameModel
-import rylween.dsl.impl.RylweenModel
+import rylween.dsl.GameModel
+import rylween.dsl.RylweenModel
 
 object RylweenCompiledGame {
     val nextRylween: RylweenModel get() = authoredRylween
