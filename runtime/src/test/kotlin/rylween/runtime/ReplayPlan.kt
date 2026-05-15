@@ -722,6 +722,7 @@ internal object ReplayPlans {
     private fun castleVictoryRoute(): String =
         buildString {
             append('E')
+            append(waitForInput(4))
             append(battle())
             append(castleFloor('1'))
             append(castleFloor('2'))

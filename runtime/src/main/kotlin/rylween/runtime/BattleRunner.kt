@@ -55,7 +55,7 @@ import rylween.dsl.impl.sourceId
 import rylween.dsl.pronoun
 
 private const val RANDOM_PERCENT_MAX = 99
-private const val SPELL_ABORT_SLOT = 7
+private const val BATTLE_SPELL_CANCEL_KEY = 'N'
 
 private const val BATTLE_FOE_DISPLAY_NAME = "battleFoeDisplayName"
 private const val BATTLE_ATTACKER_NAME = "battleAttackerName"
@@ -400,8 +400,9 @@ internal class BattleRunner(
     ): BattleEncounter {
         val spells = mageSpells()
         screen.writeText(spellChoiceLines(member, spells))
-        val slot = input.readCommand()?.digitToIntOrNull() ?: return copy(actionRetry = true)
-        if (slot == SPELL_ABORT_SLOT) return copy(actionRetry = true)
+        val command = input.readCommand()?.uppercaseChar() ?: return copy(actionRetry = true)
+        if (command == BATTLE_SPELL_CANCEL_KEY) return copy(actionRetry = true)
+        val slot = command.digitToIntOrNull() ?: return copy(actionRetry = true)
         val spell = spells.firstOrNull { current -> current.slot == slot }
         if (spell == null) {
             messages += rules.text.notPossible.renderBattle()
@@ -1269,8 +1270,11 @@ internal class BattleRunner(
 
                 is CompiledBoolExpr.BattleFlag -> readBattleFlag(content.strings.value(expr.nameString)) != 0
                 is CompiledBoolExpr.RuntimeFlag ->
-                    content.strings.value(expr.nameString) == "in_dungeon" &&
-                        encounter.runtime.currentMode == RuntimeMode.Dungeon
+                    when (content.strings.value(expr.nameString)) {
+                        "in_dungeon" -> encounter.runtime.currentMode == RuntimeMode.Dungeon
+                        "in_castle" -> encounter.runtime.currentMode == RuntimeMode.Castle
+                        else -> false
+                    }
             }
 
         private fun random(

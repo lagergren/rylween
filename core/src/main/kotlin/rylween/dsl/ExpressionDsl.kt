@@ -143,6 +143,7 @@ class RealmRef(
 
 class RuntimeContextRef {
     val inDungeon: BoolExpr = Bool(BoolAst.RuntimeFlag("in_dungeon"))
+    val inCastle: BoolExpr = Bool(BoolAst.RuntimeFlag("in_castle"))
     val dungeonLevel: IntExpr = v("dungeon_level")
 }
 
