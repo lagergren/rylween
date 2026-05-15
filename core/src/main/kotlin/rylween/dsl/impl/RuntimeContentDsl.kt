@@ -362,6 +362,7 @@ data class CharacterCreationPromptsModel(
 
 data class PriestSpellPromptsModel(
     val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") },
+    val none: TextBlock = inlineText("(N)one"),
     val mageCombatOnly: TextBlock = inlineText("Sorry. Mage spells are", "combat-only."),
     val wrongClass: TextBlock = inlineText("Wrong class."),
     val dead: TextBlock = inlineText("Dead."),

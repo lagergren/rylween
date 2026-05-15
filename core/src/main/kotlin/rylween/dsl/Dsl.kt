@@ -2392,6 +2392,7 @@ class PriestSpellPromptsBuilder(
     initial: PriestSpellPromptsModel = PriestSpellPromptsModel(),
 ) {
     var who: TextBlock = initial.who
+    var none: TextBlock = initial.none
     var mageCombatOnly: TextBlock = initial.mageCombatOnly
     var wrongClass: TextBlock = initial.wrongClass
     var dead: TextBlock = initial.dead
@@ -2402,6 +2403,7 @@ class PriestSpellPromptsBuilder(
     fun build(): PriestSpellPromptsModel =
         PriestSpellPromptsModel(
             who = who,
+            none = none,
             mageCombatOnly = mageCombatOnly,
             wrongClass = wrongClass,
             dead = dead,

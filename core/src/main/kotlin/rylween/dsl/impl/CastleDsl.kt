@@ -10,17 +10,30 @@
  */
 package rylween.dsl.impl
 
-import rylween.dsl.*
+import rylween.dsl.CastleId
+import rylween.dsl.EncounterTier
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.ImageId
+import rylween.dsl.InputAliases
+import rylween.dsl.InputBindingModel
+import rylween.dsl.ItemId
+import rylween.dsl.RylNextDsl
+import rylween.dsl.SceneId
+import rylween.dsl.StructuredTextBlockBuilder
+import rylween.dsl.TextBlock
+import rylween.dsl.inlineText
+import rylween.dsl.inputKey
+import rylween.dsl.structuredText
 
 /** Room-event categories encoded in a generated castle room map. */
 enum class CastleRoomEvent { Empty, Monster, Pitfall, Treasure }
 
 /** Authored key bindings used by castle navigation and prompts. */
 data class CastleKeysModel(
-    val moveNorth: InputBindingModel = inputKey("8"),
-    val moveSouth: InputBindingModel = inputKey("2"),
-    val moveWest: InputBindingModel = inputKey("4"),
-    val moveEast: InputBindingModel = inputKey("6"),
+    val moveNorth: InputBindingModel = inputKey("8", InputAliases.ARROW_UP, "UP", "ARROW_UP", label = "8/↑"),
+    val moveSouth: InputBindingModel = inputKey("2", InputAliases.ARROW_DOWN, "DOWN", "ARROW_DOWN", label = "2/↓"),
+    val moveWest: InputBindingModel = inputKey("4", InputAliases.ARROW_LEFT, "LEFT", "ARROW_LEFT", label = "4/←"),
+    val moveEast: InputBindingModel = inputKey("6", InputAliases.ARROW_RIGHT, "RIGHT", "ARROW_RIGHT", label = "6/→"),
     val save: InputBindingModel = inputKey("S"),
     val help: InputBindingModel = inputKey("?"),
     val viewParty: InputBindingModel = inputKey("V"),
@@ -36,6 +49,30 @@ data class CastleKeysModel(
     val stairsTeleport: InputBindingModel = inputKey("T"),
     val stairsGive: InputBindingModel = inputKey("G"),
     val stairsLeave: InputBindingModel = inputKey("L"),
+    val commandLabels: CastleCommandLabelsModel = CastleCommandLabelsModel(),
+)
+
+/** Descriptive labels exported with castle command bindings for all renderers. */
+data class CastleCommandLabelsModel(
+    val moveNorth: String = "Move North",
+    val moveSouth: String = "Move South",
+    val moveWest: String = "Move West",
+    val moveEast: String = "Move East",
+    val save: String = "Save Game",
+    val help: String = "View this help",
+    val viewParty: String = "View Party",
+    val removeArmor: String = "Take off armor",
+    val removeWeapon: String = "Put down weapon",
+    val drop: String = "Leave (Discard) Item",
+    val readyWeapon: String = "Wield Weapon",
+    val readyArmor: String = "Ready Armor",
+    val quaff: String = "Quaff Potion",
+    val castSpell: String = "Cast Spell",
+    val treasureTake: String = "Take Treasure",
+    val treasureLeave: String = "Leave Treasure",
+    val stairsTeleport: String = "Teleport Out",
+    val stairsGive: String = "Give Item",
+    val stairsLeave: String = "Leave",
 )
 
 /** Treasure-generation tables and gates for castle rooms. */
@@ -87,6 +124,7 @@ data class CastleTextModel(
     val moveEast: TextBlock = inlineText(),
     val moveWest: TextBlock = inlineText(),
     val stairsIntro: TextBlock = inlineText(),
+    val stairsIllustration: ImageId? = null,
     val stairsGuardianOffer: TextBlock = inlineText(),
     val stairsMenu: TextBlock = inlineText(),
     val stairsLeave: TextBlock = inlineText(),
@@ -315,6 +353,7 @@ class CastleKeysBuilder(
     private var stairsTeleport = initial.stairsTeleport
     private var stairsGive = initial.stairsGive
     private var stairsLeave = initial.stairsLeave
+    var commandLabels: CastleCommandLabelsModel = initial.commandLabels
 
     /** Replaces the treasure-room take/leave bindings. */
     fun treasure(
@@ -374,6 +413,7 @@ class CastleKeysBuilder(
             stairsTeleport = stairsTeleport,
             stairsGive = stairsGive,
             stairsLeave = stairsLeave,
+            commandLabels = commandLabels,
         )
 }
 
@@ -393,6 +433,7 @@ class CastleTextBuilder(
     var moveEast: TextBlock = initial.moveEast
     var moveWest: TextBlock = initial.moveWest
     var stairsIntro: TextBlock = initial.stairsIntro
+    var stairsIllustration: ImageId? = initial.stairsIllustration
     var stairsGuardianOffer: TextBlock = initial.stairsGuardianOffer
     var stairsMenu: TextBlock = initial.stairsMenu
     var stairsLeave: TextBlock = initial.stairsLeave
@@ -421,6 +462,7 @@ class CastleTextBuilder(
             moveEast = moveEast,
             moveWest = moveWest,
             stairsIntro = stairsIntro,
+            stairsIllustration = stairsIllustration,
             stairsGuardianOffer = stairsGuardianOffer,
             stairsMenu = stairsMenu,
             stairsLeave = stairsLeave,

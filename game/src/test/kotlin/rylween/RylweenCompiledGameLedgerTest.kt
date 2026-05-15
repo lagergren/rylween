@@ -1,5 +1,8 @@
 package rylween
 
+import rylween.compiled.readExternalRuntimeSystems
+import rylween.compiled.toExternalBundleArtifact
+import rylween.dsl.BoolAst
 import rylween.dsl.BuildingId
 import rylween.dsl.DungeonEventDisposition
 import rylween.dsl.DungeonId
@@ -13,7 +16,9 @@ import rylween.dsl.SpellId
 import rylween.dsl.TextBlock
 import rylween.dsl.TextPart
 import rylween.dsl.TownHandle
+import rylween.dsl.ViewCommand
 import rylween.dsl.analyzeScriptSources
+import rylween.dsl.fallbackText
 import rylween.dsl.impl.CharacterCreationStat
 import rylween.dsl.impl.CharacterCreationStatRollModel
 import rylween.dsl.impl.CharacterPlacementModel
@@ -101,6 +106,7 @@ class RylweenCompiledGameLedgerTest {
         val standardConversation = checkNotNull(nextDsl.speak.standardConversation)
         val townSystem = checkNotNull(nextDsl.townSystem)
         val castleContent = nextDsl.castles.single { it.id == Castles.ydarg }
+        val runtimeSystems = nextRylween.toExternalBundleArtifact().readExternalRuntimeSystems()
 
         check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 14)
@@ -184,6 +190,7 @@ class RylweenCompiledGameLedgerTest {
         check(standardBattle.actions.map { it.key } == listOf('A', 'D', 'U', 'B', 'C'))
         check(standardBattle.actions.map { it.prompt }.first() == structuredText { line("(A)ttack") })
         check(standardBattle.text.useWhat == structuredText { lines("Use what?", "") })
+        check(standardBattle.text.spellAbort.fallbackText() == "(N)one")
         check(standardBattle.playerRound.attack.confusionDivisor == 3)
         check(standardBattle.playerRound.attack.hpDefenseDivisor == 12)
         check(standardBattle.playerRound.defend.cap == 250)
@@ -464,6 +471,60 @@ class RylweenCompiledGameLedgerTest {
         check(castleContent.entryRequirement == Milestones.silverKey)
         check(castleContent.completionMilestone == Milestones.ydargVictory)
         check(castleContent.scripts.completed?.slug == "castle.ydarg.completed")
+        check(castleContent.text.stairsIllustration?.slug == "blitgfx.castle_stairs_guardians")
+        check(
+            runtimeSystems.castleRows
+                .single { castle -> castle.id == "ydarg" }
+                .text
+                .stairsIllustration == "blitgfx.castle_stairs_guardians",
+        )
+        check(
+            runtimeSystems.presentation.images.any { image ->
+                image.id == "blitgfx.castle_stairs_guardians" &&
+                    image.kind == "Bitmap" &&
+                    image.resource == "bitmap/assets/scene-castle-stairs-guardians.png"
+            },
+        )
+        check(
+            runtimeSystems.presentation.images.any { image ->
+                image.id == "blitgfx.jaara_gate" &&
+                    image.kind == "Bitmap" &&
+                    image.resource == "bitmap/assets/scene-jaara-gate.png"
+            },
+        )
+        check(
+            runtimeSystems.presentation.images.any { image ->
+                image.id == "blitgfx.skullweed_swamp" &&
+                    image.kind == "Bitmap" &&
+                    image.resource == "bitmap/assets/scene-skullweed-swamp.png"
+            },
+        )
+        check(
+            runtimeSystems.commands
+                .getValue("castle.ydarg.navigation")
+                .take(4)
+                .map { command -> command.label } ==
+                listOf("Move North", "Move South", "Move West", "Move East"),
+        )
+        listOf("castle.ydarg.entry_blocked", "castle.ydarg.entered").forEach { sceneSlug ->
+            val scene = nextDsl.scenes.single { it.id.slug == sceneSlug }
+            val firstScreen = scene.ops.first { op -> op is Op.Screen } as Op.Screen
+            check("Jaara" in firstScreen.text.fallbackText()) {
+                "$sceneSlug must show Jaara immediately at the castle gate"
+            }
+            check(scene.ops.hasShowImage("blitgfx.jaara_gate")) {
+                "$sceneSlug must show the Jaara gate illustration"
+            }
+            check(scene.ops.any { op -> op is Op.WaitInput }) {
+                "$sceneSlug must page gate prose instead of blasting through all screens"
+            }
+        }
+        check(
+            nextDsl.scenes
+                .single { it.id == Scenes.Missions.skullweed }
+                .ops
+                .hasShowImage("blitgfx.skullweed_swamp"),
+        )
         check(
             nextDsl.scenes
                 .single { it.id.slug == "castle.ydarg.completed" }
@@ -565,7 +626,14 @@ class RylweenCompiledGameLedgerTest {
         requireSpell(Spells.Priest.teleport, slot = 6, baseCost = 35, name = "Teleport")
         requireSpell(Spells.Priest.earthquake, slot = 7, baseCost = 55, name = "Earthquake")
         check(checkNotNull(spellsById[Spells.Priest.teleport]).ops.anyNested { it is Op.TeleportParty })
-        check(checkNotNull(spellsById[Spells.Priest.earthquake]).ops.anyNested { it is Op.DiscoverCave })
+        val earthquakeSpell = checkNotNull(spellsById[Spells.Priest.earthquake])
+        check(earthquakeSpell.ops.anyNested { it is Op.DiscoverCave })
+        check(
+            earthquakeSpell.ops.anyNested { op ->
+                op is Op.If &&
+                    setOf("in_dungeon", "in_castle").all { flag -> flag in op.cond.runtimeFlags() }
+            },
+        )
 
         fun List<Op>.containsEnterDungeon(
             dungeon: DungeonId,
@@ -921,6 +989,14 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.prompts.pauseVerbs.size == 30)
         check(nextDsl.prompts.pauseVerbs.first() == "Smash")
         check(nextDsl.prompts.pauseVerbs.last() == "Decapitate")
+        check(
+            nextDsl.prompts.priest.none
+                .fallbackText() == "(N)one",
+        )
+        check(
+            nextDsl.prompts.priest.wrongClass
+                .fallbackText() == "Not a spellcaster!",
+        )
         check(nextDsl.prompts.inventoryUse.quaff == inlineText("Quaff what?"))
         check(nextDsl.prompts.equipment.readyArmors == inlineText("Do you want to ready", "any armors before", "leaving?", ""))
         check(nextDsl.prompts.town.closedSuffix == " is closed.")
@@ -1826,4 +1902,36 @@ private fun TextBlock.textParts(): List<TextPart> =
         is TextBlock.Inline -> emptyList()
         is TextBlock.Structured -> lines.flatMap { line -> line.parts }
         is TextBlock.Flow -> paragraphs.flatMap { line -> line.parts }
+    }
+
+private fun TextBlock.fallbackText(): String =
+    when (this) {
+        is TextBlock.Ref -> id.id
+        is TextBlock.Inline -> lines.joinToString("\n")
+        is TextBlock.Structured -> lines.joinToString("\n") { line -> line.parts.joinToString("", transform = TextPart::fallbackText) }
+        is TextBlock.Flow ->
+            paragraphs.joinToString("\n\n") { line ->
+                line.parts.joinToString("", transform = TextPart::fallbackText)
+            }
+    }
+
+private fun List<Op>.hasShowImage(slug: String): Boolean =
+    any { op ->
+        val command = (op as? Op.View)?.command as? ViewCommand.ShowImage
+        command?.image?.slug == slug
+    }
+
+private fun BoolAst.runtimeFlags(): Set<String> =
+    when (this) {
+        is BoolAst.And -> left.runtimeFlags() + right.runtimeFlags()
+        is BoolAst.Or -> left.runtimeFlags() + right.runtimeFlags()
+        is BoolAst.Not -> expr.runtimeFlags()
+        is BoolAst.RuntimeFlag -> setOf(name)
+        is BoolAst.BattleFlag,
+        is BoolAst.Cmp,
+        is BoolAst.FlagIs,
+        is BoolAst.MemberFlag,
+        is BoolAst.MilestoneAchieved,
+        is BoolAst.MonsterFlag,
+        -> emptySet()
     }

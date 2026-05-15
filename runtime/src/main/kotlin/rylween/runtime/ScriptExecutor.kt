@@ -1052,7 +1052,11 @@ internal class ScriptExecutor(
             -> false
 
             is CompiledBoolExpr.RuntimeFlag ->
-                content.strings.value(expr.nameString) == "in_dungeon" && runtime.currentMode == RuntimeMode.Dungeon
+                when (content.strings.value(expr.nameString)) {
+                    "in_dungeon" -> runtime.currentMode == RuntimeMode.Dungeon
+                    "in_castle" -> runtime.currentMode == RuntimeMode.Castle
+                    else -> false
+                }
         }
 
     private fun random(

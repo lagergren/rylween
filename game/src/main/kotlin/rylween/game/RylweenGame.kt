@@ -50,6 +50,15 @@ private object CharacterPortraitImages {
     val femaleHalfling = image("portrait.gender.female.race.halfling")
 }
 
+private object CastleImages {
+    val jaaraGate = image("blitgfx.jaara_gate")
+    val stairsGuardians = image("blitgfx.castle_stairs_guardians")
+}
+
+private object MissionImages {
+    val skullweedSwamp = image("blitgfx.skullweed_swamp")
+}
+
 private fun MonsterBuilder.goblinoid() = encounterImage(EncounterImages.goblinoid)
 
 private fun MonsterBuilder.undead() = encounterImage(EncounterImages.undead)
@@ -276,6 +285,24 @@ val authoredRylween: RylweenModel =
                     portraitBitmap(CharacterPortraitImages.femaleDwarf, "bitmap/assets/portrait-female-dwarf.png")
                     portraitBitmap(CharacterPortraitImages.femaleElf, "bitmap/assets/portrait-female-elf.png")
                     portraitBitmap(CharacterPortraitImages.femaleHalfling, "bitmap/assets/portrait-female-halfling.png")
+                    bitmap(
+                        CastleImages.jaaraGate,
+                        resource = "bitmap/assets/scene-jaara-gate.png",
+                        placement = ImagePlacement.MapWindow,
+                        transition = ImageTransition.Fade,
+                    )
+                    bitmap(
+                        CastleImages.stairsGuardians,
+                        resource = "bitmap/assets/scene-castle-stairs-guardians.png",
+                        placement = ImagePlacement.MapWindow,
+                        transition = ImageTransition.Fade,
+                    )
+                    bitmap(
+                        MissionImages.skullweedSwamp,
+                        resource = "bitmap/assets/scene-skullweed-swamp.png",
+                        placement = ImagePlacement.MapWindow,
+                        transition = ImageTransition.Fade,
+                    )
                 }
 
                 staticScreens {
@@ -582,6 +609,7 @@ val authoredRylween: RylweenModel =
                     moveEast = inlineText("East.")
                     moveWest = inlineText("West.")
                     stairsIntro = inlineText("You stand before the", "stairs to the next level.", "")
+                    stairsIllustration = CastleImages.stairsGuardians
                     stairsGuardianOffer =
                         inlineText(
                             "A mage imprisoned in a",
@@ -637,88 +665,64 @@ val authoredRylween: RylweenModel =
 
             scene(sceneId("castle.ydarg.entry_blocked")) {
                 showBackdrop(Images.Backdrop.ydargCastle)
+                showBackdrop(CastleImages.jaaraGate)
                 screen(
-                    "A black and foreboding",
-                    "castle looms over the",
-                    "horizon. Its cold, black",
-                    "stone walls are decorated",
-                    "with complex symbols and",
-                    "archaic runes of long",
-                    "forgotten language.",
+                    "At the gate of Zadraz,",
+                    "white mist thickens",
+                    "into the shape of Jaara.",
                     "",
-                )
-                screen(
-                    "A shape of white mist",
-                    "slowly thickens to human",
-                    "shape. A transparent image",
-                    "of a beautiful woman",
-                    "forms in front of you.",
-                    "",
-                )
-                screen(
                     "- Do not be afraid,",
                     "adventurers. I am Jaara,",
                     "guardian of the gate.",
                     "Baron Ydarg has imprisoned",
-                    "me here forever. I can't",
-                    "hurt you, just stop you",
-                    "from entering if you don't",
-                    "have the Silver Key!",
+                    "me here forever.",
                     "",
                 )
+                waitInput("after Jaara appears without the key")
                 screen(
                     "- You don't have the",
-                    "Key. The gate will",
+                    "Silver Key. The gate will",
                     "remain sealed.",
                     "",
                 )
+                waitInput("after Jaara blocks the gate")
             }
 
             scene(sceneId("castle.ydarg.entered")) {
                 showBackdrop(Images.Backdrop.ydargCastle)
+                showBackdrop(CastleImages.jaaraGate)
                 screen(
-                    "A black and foreboding",
-                    "castle looms over the",
-                    "horizon. Its cold, black",
-                    "stone walls are decorated",
-                    "with complex symbols and",
-                    "archaic runes of long",
-                    "forgotten language.",
+                    "At the gate of Zadraz,",
+                    "white mist thickens",
+                    "into the shape of Jaara.",
                     "",
-                )
-                screen(
-                    "A shape of white mist",
-                    "slowly thickens to human",
-                    "shape. A transparent image",
-                    "of a beautiful woman",
-                    "forms in front of you.",
-                    "",
-                )
-                screen(
                     "- Do not be afraid,",
                     "adventurers. I am Jaara,",
                     "guardian of the gate.",
                     "Baron Ydarg has imprisoned",
-                    "me here forever. I can't",
-                    "hurt you, just stop you",
-                    "from entering if you don't",
-                    "have the Silver Key!",
+                    "me here forever.",
                     "",
                 )
+                waitInput("after Jaara appears with the key")
                 screen(
                     "You show the Silver Key to",
-                    "the ghost. Her eyes widen,",
-                    "as she sees it. She smiles",
-                    "and waves her hand towards",
-                    "the drawbridge. It falls",
+                    "Jaara. Her eyes widen,",
+                    "then she smiles and waves",
+                    "towards the drawbridge.",
+                    "",
+                )
+                waitInput("after showing Jaara the key")
+                screen(
+                    "It falls",
                     "to the ground with a",
                     "resounding KRASH. Jaara",
                     "slowly fades away until",
                     "nothing remains.",
                     "",
                 )
-                screen("You enter.", "")
-                screen("The first door you enter", "slams shut behind you!")
+                waitInput("after Jaara opens the gate")
+                screen("You enter.", "", "The first door you enter", "slams shut behind you!")
+                waitInput("after entering castle Ydarg")
             }
 
             scene(sceneId("castle.ydarg.completed")) {
@@ -894,8 +898,9 @@ val authoredRylween: RylweenModel =
                 }
                 priest {
                     who = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") }
+                    none = inlineText("(N)one")
                     mageCombatOnly = inlineText("Sorry. Mage spells are", "combat-only.")
-                    wrongClass = inlineText("Wrong class.")
+                    wrongClass = inlineText("Not a spellcaster!")
                     dead = inlineText("Dead.")
                     invalidCaster = inlineText("Not a party member.")
                     invalidSpell = inlineText("Not possible.")
@@ -1499,7 +1504,7 @@ val authoredRylween: RylweenModel =
                         whatNow { lines("What now?", "") }
                         targetPrompt { lines("Who?", "") }
                         useWhat { lines("Use what?", "") }
-                        spellAbort { line("7. Abort") }
+                        spellAbort { line("(N)one") }
                         runCoward { lines("Coward. You won't get", "any EXP for this battle.") }
                         runDesperateFail { lines("You desperately try to", "get away, but fail!") }
                         runFailAway { line("You fail to get away!") }
@@ -5692,7 +5697,7 @@ val authoredRylween: RylweenModel =
                 val cost = lit(55) + caster.level
 
                 clearText()
-                whenever(context.inDungeon) {
+                whenever(context.inDungeon or context.inCastle) {
                     screen("The roof would cave", "in on you!", "")
                     waitInput("after earthquake dungeon warning")
                     clearText()
@@ -6348,6 +6353,7 @@ val authoredRylween: RylweenModel =
 
             scene(Scenes.Missions.skullweed) {
                 clearText()
+                showBackdrop(MissionImages.skullweedSwamp)
                 screen(
                     "On the ground before you",
                     "grows the skullweed plant.",

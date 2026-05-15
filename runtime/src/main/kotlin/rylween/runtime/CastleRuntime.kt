@@ -24,6 +24,7 @@ data class CastleState(
     val floor: Int,
     val point: GridPoint,
     val rooms: Map<GridPoint, String>,
+    val visited: Set<GridPoint> = emptySet(),
     val roomEntryPending: Boolean,
 )
 
@@ -45,6 +46,7 @@ internal class CastleRuntime(
             val castle =
                 runtime.castle?.let { state -> systems.castleRows.firstOrNull { row -> row.id == state.castleId } } ?: return runtime
             if (runtime.castle.roomEntryPending) {
+                screen.renderCastle(runtime, castle)
                 runtime = enterRoom(runtime, castle)
                 if (input.exhausted || runtime.currentMode != RuntimeMode.Castle) return runtime
             }
@@ -84,6 +86,7 @@ internal class CastleRuntime(
                         floor = 1,
                         point = GridPoint(1, 1),
                         rooms = seeded.rooms,
+                        visited = setOf(GridPoint(1, 1)),
                         roomEntryPending = true,
                     ),
                 dungeon = null,
@@ -145,7 +148,7 @@ internal class CastleRuntime(
         val next = GridPoint(state.point.x + dx, state.point.y + dy)
         if (next.x !in 1..castle.mapSize || next.y !in 1..castle.mapSize) return runtime
         screen.writeText(text.renderCastle())
-        return runtime.copy(castle = state.copy(point = next, roomEntryPending = true))
+        return runtime.copy(castle = state.copy(point = next, visited = state.visited + next, roomEntryPending = true))
     }
 
     private fun roomMonster(
@@ -227,6 +230,7 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
+        castle.text.stairsIllustration?.let(screen::showImage)
         screen.writeText(
             castle.text.stairsIntro.renderCastle() + castle.text.stairsGuardianOffer.renderCastle() + castle.text.stairsMenu.renderCastle(),
         )
@@ -246,7 +250,8 @@ internal class CastleRuntime(
     ): RuntimeState {
         screen.writeText(castle.text.stairsLeave.renderCastle())
         val state = runtime.castle ?: return runtime
-        return runtime.copy(castle = state.copy(point = state.point.copy(y = (state.point.y - 1).coerceAtLeast(1))))
+        val nextPoint = state.point.copy(y = (state.point.y - 1).coerceAtLeast(1))
+        return runtime.copy(castle = state.copy(point = nextPoint, visited = state.visited + nextPoint))
     }
 
     private fun teleportOut(
@@ -276,7 +281,15 @@ internal class CastleRuntime(
             runtime
                 .withParty(
                     nextParty,
-                ).copy(castle = state.copy(floor = nextFloor, point = GridPoint(1, 1), roomEntryPending = true))
+                ).copy(
+                    castle =
+                        state.copy(
+                            floor = nextFloor,
+                            point = GridPoint(1, 1),
+                            visited = setOf(GridPoint(1, 1)),
+                            roomEntryPending = true,
+                        ),
+                )
         if (nextFloor > castle.stairs.floorCount) return completeCastle(next, castle)
         screen.writeText(castle.text.stairsGuardianGrateful.renderCastle())
         return next
@@ -296,7 +309,7 @@ internal class CastleRuntime(
     private fun showNavigationHelp(castle: ExternalRuntimeCastle) {
         val lines =
             systems.commands.getValue("castle.${castle.id}.navigation").map { command ->
-                "${command.binding.primary}. ${command.label ?: command.binding.label}"
+                command.runtimeMnemonicLine()
             }
         screen.writeText(lines.withPausePrompt(PausePrompts(systems.prompts)))
         input.readCommand()
