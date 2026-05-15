@@ -351,7 +351,12 @@ internal class ShopService(
             party
                 .withInventoryItem(targetSlot, offer.item)
                 .withGold(party.resources.gold - totalPrice)
-        return ShopResult(updated, buy.deal.renderScreenTextLines() + "Bought ${itemName(offer.item)}.")
+        return ShopResult(
+            updated,
+            buy.deal.renderScreenTextLines() +
+                requireNotNull(buy.bought) { "shop inventory purchases require bought text" }
+                    .renderShopLines(item = offer.item),
+        )
     }
 
     private fun chooseDropSlot(

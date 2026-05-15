@@ -2386,6 +2386,8 @@ class PriestSpellPromptsBuilder(
 ) {
     var who: TextBlock = initial.who
     var none: TextBlock = initial.none
+    var noneKey: Char = initial.noneKey
+    var firstSpellKey: Char = initial.firstSpellKey
     var mageCombatOnly: TextBlock = initial.mageCombatOnly
     var wrongClass: TextBlock = initial.wrongClass
     var dead: TextBlock = initial.dead
@@ -2397,6 +2399,8 @@ class PriestSpellPromptsBuilder(
         PriestSpellPromptsModel(
             who = who,
             none = none,
+            noneKey = noneKey,
+            firstSpellKey = firstSpellKey,
             mageCombatOnly = mageCombatOnly,
             wrongClass = wrongClass,
             dead = dead,
@@ -2565,6 +2569,8 @@ class PartyPromptsBuilder(
 ) {
     var viewWho: TextBlock = initial.viewWho
     var journalHeader: TextBlock = initial.journalHeader
+    var journalEmpty: TextBlock = initial.journalEmpty
+    var inventoryHeader: TextBlock = initial.inventoryHeader
     var dropPrompt: TextBlock = initial.dropPrompt
     var dropEmptySlot: TextBlock = initial.dropEmptySlot
     var dropAborted: TextBlock = initial.dropAborted
@@ -2581,6 +2587,8 @@ class PartyPromptsBuilder(
         PartyPromptsModel(
             viewWho = viewWho,
             journalHeader = journalHeader,
+            journalEmpty = journalEmpty,
+            inventoryHeader = inventoryHeader,
             dropPrompt = dropPrompt,
             dropEmptySlot = dropEmptySlot,
             dropAborted = dropAborted,

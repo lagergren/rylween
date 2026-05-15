@@ -665,6 +665,7 @@ static void parse_shop_buy(Reader *reader) {
     parse_text_block(reader);
     parse_optional_text_block(reader);
     parse_optional_text_block(reader);
+    parse_optional_text_block(reader);
     parse_text_block(reader);
     parse_input_binding(reader);
     parse_input_binding(reader);

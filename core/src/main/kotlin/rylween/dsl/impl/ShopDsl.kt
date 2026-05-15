@@ -164,6 +164,7 @@ data class ShopBuyModel(
     val tooExpensive: TextBlock,
     val cantCarry: TextBlock,
     val deal: TextBlock,
+    val bought: TextBlock?,
     val unitPrice: TextBlock?,
     val singlePrice: TextBlock?,
     val payPrompt: TextBlock,
@@ -233,6 +234,7 @@ data class ShopServiceModel(
 class ShopTextBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
 
+    val itemName: TextPart = TextPart.SelectedItemName
     val price: TextPart = TextPart.ShopPrice
     val cap: TextPart = TextPart.ShopCarryCap
 
@@ -427,6 +429,7 @@ class ShopBuyBuilder {
     private var tooExpensiveText: TextBlock = inlineText("Too expensive!")
     private var cantCarryText: TextBlock = inlineText("You cannot carry more.")
     private var dealText: TextBlock = inlineText("Deal!")
+    private var boughtText: TextBlock? = null
     private var unitPriceText: TextBlock? = null
     private var singlePriceText: TextBlock? = null
     private var payPromptText: TextBlock = inlineText("(P)ay", "(N)one")
@@ -455,6 +458,10 @@ class ShopBuyBuilder {
 
     fun deal(vararg lines: String) {
         dealText = inlineText(*lines)
+    }
+
+    fun bought(body: ShopTextBuilder.() -> Unit) {
+        boughtText = ShopTextBuilder().apply(body).build()
     }
 
     fun unitPrice(body: ShopTextBuilder.() -> Unit) {
@@ -500,6 +507,7 @@ class ShopBuyBuilder {
             tooExpensive = tooExpensiveText,
             cantCarry = cantCarryText,
             deal = dealText,
+            bought = boughtText,
             unitPrice = unitPriceText,
             singlePrice = singlePriceText,
             payPrompt = payPromptText,

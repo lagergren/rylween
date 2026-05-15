@@ -16,6 +16,8 @@ import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.compiled.RuntimeCommandActionId
+import rylween.compiled.RuntimeCommandGroupId
 import rylween.dsl.DungeonEventDisposition
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RuntimeMode
@@ -41,7 +43,7 @@ internal class DungeonRuntime(
     private val save = context.save
     private val log = context.log
     private val utility = UtilityActions(content, systems, input, screen, log)
-    private val commands = systems.commands.getValue(DUNGEON_COMMAND_GROUP)
+    private val commands = systems.commands.getValue(RuntimeCommandGroupId.Dungeon.id)
 
     fun run(initialRuntime: RuntimeState): RuntimeState {
         var runtime = initialRuntime.withDungeonMode()
@@ -52,21 +54,36 @@ internal class DungeonRuntime(
             val command = input.readCommand() ?: return runtime
             runtime =
                 when {
-                    commands.matches("descend", command) -> descend(runtime)
-                    commands.matches("ascend", command) -> ascend(runtime)
-                    commands.matches("help", command) -> runtime.also { showHelp(it) }
+                    commands.matches(RuntimeCommandActionId.Descend, command) -> descend(runtime)
+                    commands.matches(RuntimeCommandActionId.Ascend, command) -> ascend(runtime)
+                    commands.matches(RuntimeCommandActionId.Help, command) -> runtime.also { showHelp(it) }
                     commands.matches(
-                        "viewParty",
+                        RuntimeCommandActionId.ViewParty,
                         command,
                     ) -> runtime.also(::showDungeonPageViews)
-                    commands.matches("save", command) -> runtime.also { saveRuntime(it) }
-                    commands.matches("drop", command) -> utility.drop(runtime).also(::redrawDungeonIfCurrent)
-                    commands.matches("removeArmor", command) -> utility.removeArmor(runtime).also(::redrawDungeonIfCurrent)
-                    commands.matches("removeWeapon", command) -> utility.removeWeapon(runtime).also(::redrawDungeonIfCurrent)
-                    commands.matches("readyWeapon", command) -> utility.readyWeapon(runtime).also(::redrawDungeonIfCurrent)
-                    commands.matches("readyArmor", command) -> utility.readyArmor(runtime).also(::redrawDungeonIfCurrent)
-                    commands.matches("quaff", command) -> utility.quaff(runtime).also(::redrawDungeonIfCurrent)
-                    commands.matches("castSpell", command) -> utility.castPriestSpell(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches(RuntimeCommandActionId.Save, command) -> runtime.also { saveRuntime(it) }
+                    commands.matches(RuntimeCommandActionId.Drop, command) -> utility.drop(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches(
+                        RuntimeCommandActionId.RemoveArmor,
+                        command,
+                    ) -> utility.removeArmor(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches(
+                        RuntimeCommandActionId.RemoveWeapon,
+                        command,
+                    ) -> utility.removeWeapon(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches(
+                        RuntimeCommandActionId.ReadyWeapon,
+                        command,
+                    ) -> utility.readyWeapon(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches(
+                        RuntimeCommandActionId.ReadyArmor,
+                        command,
+                    ) -> utility.readyArmor(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches(RuntimeCommandActionId.Quaff, command) -> utility.quaff(runtime).also(::redrawDungeonIfCurrent)
+                    commands.matches(
+                        RuntimeCommandActionId.CastSpell,
+                        command,
+                    ) -> utility.castPriestSpell(runtime).also(::redrawDungeonIfCurrent)
                     else ->
                         runtime.also {
                             screen.writeText(
@@ -323,5 +340,3 @@ private fun List<CompiledDungeonRandomEvent>.drawDungeonEvent(
     )
     return DungeonEventDraw(draw.party, event)
 }
-
-private const val DUNGEON_COMMAND_GROUP = "dungeon"

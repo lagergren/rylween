@@ -20,6 +20,7 @@ import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalScreenRegion
 import rylween.compiled.ExternalStaticScreen
 import rylween.compiled.ExternalTerminalTerrainStyle
+import rylween.compiled.RuntimeCommandGroupId
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.HitPoints
 import rylween.dsl.impl.PcClass
@@ -178,7 +179,7 @@ internal class RuntimeScreen(
                     add("")
                 }
                 addAll(
-                    systems.commands["castle.${castle.id}.navigation"].orEmpty().take(7).map { command ->
+                    systems.commands[RuntimeCommandGroupId.castleNavigation(castle.id)].orEmpty().take(7).map { command ->
                         command.runtimeMnemonicLine()
                     },
                 )

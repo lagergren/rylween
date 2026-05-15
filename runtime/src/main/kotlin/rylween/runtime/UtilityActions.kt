@@ -25,7 +25,6 @@ import rylween.dsl.impl.ItemUseContext
 import rylween.dsl.impl.PcClass
 
 private const val INVENTORY_FIRST_KEY = 'A'
-private const val PRIEST_SPELL_FIRST_KEY = 'A'
 private const val INVENTORY_ENTRY_WIDTH = 12
 private const val INVENTORY_ITEM_WIDTH = 9
 
@@ -104,16 +103,17 @@ internal class UtilityActions(
             )
             return runtime
         }
-        val choices = spells.withMenuKeys(PRIEST_SPELL_FIRST_KEY)
+        val choices = spells.withMenuKeys(priestSpellFirstKey())
         val lines = priestSpellLines(choices)
         screen.writeText(lines)
+        val cancelKey = priestCancelKey()
         val command =
             input
                 .readValidChoice(screen, lines) { candidate ->
                     val key = candidate.uppercaseChar()
-                    key == PRIEST_SPELL_CANCEL_KEY || choices.any { choice -> choice.key == key }
+                    key == cancelKey || choices.any { choice -> choice.key == key }
                 }?.uppercaseChar() ?: return runtime
-        if (command == PRIEST_SPELL_CANCEL_KEY) return runtime
+        if (command == cancelKey) return runtime
         val spell = choices.firstOrNull { choice -> choice.key == command }?.value ?: return runtime
         val program = programByRef(spell.scriptRoot)
         return ScriptExecutor(
@@ -214,7 +214,7 @@ internal class UtilityActions(
             val lines = baseLines + rejection
             screen.writeText(lines)
             val command = input.readCommand()?.uppercaseChar() ?: return null
-            if (command == PRIEST_SPELL_CANCEL_KEY) return null
+            if (command == priestCancelKey()) return null
             val index = command.digitToIntOrNull()?.minus(1)
             val member = index?.let(runtime.party.members::getOrNull)
             rejection =
@@ -242,6 +242,14 @@ internal class UtilityActions(
         } +
             systems.prompts.priest.none
                 .renderUtility()
+
+    private fun priestCancelKey(): Char =
+        systems.prompts.priest.noneKey
+            .singleRuntimeKey("priest none key")
+
+    private fun priestSpellFirstKey(): Char =
+        systems.prompts.priest.firstSpellKey
+            .singleRuntimeKey("priest first spell key")
 
     private fun chooseMember(runtime: RuntimeState): Int? {
         val choices =
@@ -327,8 +335,11 @@ internal fun RuntimeState.updateMember(
     )
 
 private const val PRIEST_SPELL_PREFIX = "priest."
-private const val PRIEST_SPELL_CANCEL_KEY = 'N'
 private val INVENTORY_CANCEL_KEYS = setOf('\n')
+
+private fun String.singleRuntimeKey(label: String): Char =
+    singleOrNull()?.uppercaseChar()
+        ?: error("$label must be exactly one character")
 
 internal fun inventorySlotKey(slot: Int): Char = (INVENTORY_FIRST_KEY.code + slot - 1).toChar()
 

@@ -716,6 +716,7 @@ private class CompiledBundleValidator(
         text(buy.tooExpensive, context)
         text(buy.cantCarry, context)
         text(buy.deal, context)
+        buy.bought?.let { text(it, context) }
         buy.unitPrice?.let { text(it, context) }
         buy.singlePrice?.let { text(it, context) }
         text(buy.payPrompt, context)

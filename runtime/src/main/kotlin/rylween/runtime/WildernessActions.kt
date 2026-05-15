@@ -27,6 +27,8 @@ import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalWildernessFatigueRule
 import rylween.compiled.ExternalWildernessRuntime
+import rylween.compiled.RuntimeCommandActionId
+import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.applyCompiledBinary
 import rylween.compiled.compareCompiled
 import rylween.dsl.PronounCase
@@ -283,14 +285,14 @@ internal class WildernessActions(
         log.event("wilderness.cave_discovery source=$source position=${party.position.x},${party.position.y}")
         if (messages.isNotEmpty()) screen.writeText(messages)
         wilderness.events.caveImage?.let(screen::showImage)
-        val caveCommands = commands["wilderness.cave"].orEmpty()
+        val caveCommands = commands[RuntimeCommandGroupId.WildernessCave.id].orEmpty()
         val lines = wilderness.events.caveFoundPrompt.renderText()
         screen.writeText(lines)
         val command =
             input.readValidChoice(screen, lines) { choice ->
-                caveCommands.matches("enter", choice) || caveCommands.matches("leave", choice)
+                caveCommands.matches(RuntimeCommandActionId.Enter, choice) || caveCommands.matches(RuntimeCommandActionId.Leave, choice)
             } ?: return WildernessActionResult(this)
-        if (!caveCommands.matches("enter", command)) return WildernessActionResult(this)
+        if (!caveCommands.matches(RuntimeCommandActionId.Enter, command)) return WildernessActionResult(this)
         if (party.resources.timeLeft <= wilderness.events.caveEntryCost) {
             screen.writeText(wilderness.events.caveNoMoves.renderText())
             return WildernessActionResult(this)

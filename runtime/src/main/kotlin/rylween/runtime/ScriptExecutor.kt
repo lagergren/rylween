@@ -45,6 +45,8 @@ import rylween.compiled.ExternalRuntimeSpeak
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalRuntimeTextPart
+import rylween.compiled.RuntimeCommandActionId
+import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.applyCompiledBinary
 import rylween.compiled.compareCompiled
 import rylween.dsl.InventorySlotChoiceFilter
@@ -66,8 +68,8 @@ import rylween.dsl.impl.sourceId
 import rylween.dsl.pronoun
 
 private const val STANDARD_TOWN_RUMOR_TABLE = "standard_town"
-private const val SPEAK_COMMAND_GROUP = "speak"
-private const val SPEAK_QUESTION_COMMAND_GROUP = "speak.questions"
+private val SPEAK_COMMAND_GROUP = RuntimeCommandGroupId.Speak
+private val SPEAK_QUESTION_COMMAND_GROUP = RuntimeCommandGroupId.SpeakQuestions
 private const val SPEAK_NO_NPC_SCREEN = "speak.no_npc"
 private const val SPEAK_NO_RUMOR_SCREEN = "speak.no_rumor"
 private const val SCRIPT_ROOT_KIND_DIALOGUE_BRANCH = "DialogueBranch"
@@ -660,19 +662,19 @@ internal class ScriptExecutor(
                     .readValidCommandChoice(
                         screen = screen,
                         lines = lines,
-                        commands = systems.commands[SPEAK_COMMAND_GROUP].orEmpty(),
+                        commands = systems.commands[SPEAK_COMMAND_GROUP.id].orEmpty(),
                     )
                     ?: return ScriptSignal.StopScript
             val signal =
                 when (command.action) {
-                    "speak_chitchat" ->
+                    RuntimeCommandActionId.SpeakChitchat.id ->
                         continueAfter {
                             chitchat(speak, npc)
                             input.pause(systems.pacing.speak.responsePauseMs)
                         }
 
-                    "speak_question" -> executeQuestionMenu(speak, npc, insideLoop)
-                    "speak_rumor" ->
+                    RuntimeCommandActionId.SpeakQuestion.id -> executeQuestionMenu(speak, npc, insideLoop)
+                    RuntimeCommandActionId.SpeakRumor.id ->
                         continueAfter {
                             if (rumorTold) {
                                 writeText(speak.noRumorLines())
@@ -683,7 +685,7 @@ internal class ScriptExecutor(
                             waitForCurrentText()
                         }
 
-                    "speak_bye" -> return ScriptSignal.Continue
+                    RuntimeCommandActionId.SpeakBye.id -> return ScriptSignal.Continue
                     else -> ScriptSignal.Continue
                 }
             if (signal != ScriptSignal.Continue) return signal
@@ -702,7 +704,7 @@ internal class ScriptExecutor(
                 .readValidCommandChoice(
                     screen = screen,
                     lines = lines,
-                    commands = systems.commands[SPEAK_QUESTION_COMMAND_GROUP].orEmpty(),
+                    commands = systems.commands[SPEAK_QUESTION_COMMAND_GROUP.id].orEmpty(),
                 )
                 ?: return ScriptSignal.StopScript
         val topic = command.questionTopic() ?: return ScriptSignal.Continue
@@ -1531,8 +1533,8 @@ internal class ScriptExecutor(
         return Math.floorMod(hash, span) - radius
     }
 
-    private fun Map<String, List<ExternalRuntimeCommand>>.mnemonicMenuLines(group: String): List<String> =
-        get(group).orEmpty().map { command -> command.mnemonicLine() }
+    private fun Map<String, List<ExternalRuntimeCommand>>.mnemonicMenuLines(group: RuntimeCommandGroupId): List<String> =
+        get(group.id).orEmpty().map { command -> command.mnemonicLine() }
 
     private fun ExternalRuntimeCommand.questionTopic(): QuestionTopic? =
         topic?.let { value ->
