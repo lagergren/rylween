@@ -18,6 +18,8 @@ Module guides:
 - [`:terminal`](terminal/README.md) - ANSI terminal primitives.
 - [`:tools`](tools/README.md) - compiled-bundle artifact tools and native probes.
 - [`build-logic`](build-logic/README.md) - Gradle conventions and custom tasks.
+- [`bin`](bin/README.md) - local developer/operator launcher scripts.
+- [`deploy/docker`](deploy/docker/README.md) - Docker images and reverse-proxy deployment notes.
 
 The original game text and manual live in
 [`adventurers-of-rylween.md`](game/src/main/resources/adventurers-of-rylween.md).
@@ -49,24 +51,24 @@ Build and run the direct runtime:
 
 ```sh
 ./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain
-./run.sh --build --seed 1
-./run.sh --build --name Strong
-./run.sh --build --name StrongEndgame
+./bin/run.sh --build --seed 1
+./bin/run.sh --build --name Strong
+./bin/run.sh --build --name StrongEndgame
 runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --user local --state fresh-replay --seed 1
 ```
 
-The root `run.sh` wrapper is now the closest current equivalent to
+The `bin/run.sh` wrapper is now the closest current equivalent to
 `rylween.exe`. It builds `build/compiled/rylween-bundle.json` and
 `:runtime:installRuntime` when needed, injects the bundle path,
 and runs outside Gradle so Gradle progress output and key echo do not share the
 game screen.
 
-`run.sh` uses `~/.rylween/data` by default. It stores the shared save at
+`bin/run.sh` uses `~/.rylween/data` by default. It stores the shared save at
 `~/.rylween/data/saves/world.rsave` and logs to
 `~/.rylween/data/logs/runtime/latest.log` unless `RYLWEEN_DATA_DIR`,
 `RYLWEEN_SAVE_FILE`, or `RYLWEEN_LOG_FILE` override those paths.
 
-`run.sh` shows the title flow by default. Press RETURN at the splash screen,
+`bin/run.sh` shows the title flow by default. Press RETURN at the splash screen,
 then `C` to create a new party. Use `--name Strong` to load the seeded Strong
 party outside Thord, or `--name StrongEndgame` to load a Strong party two steps
 north of Castle Ydarg with the five required power artifacts. Use `--no-title`
@@ -77,19 +79,19 @@ frame, and `--debug-secrets` enables hidden wilderness triggers: `[` forces a
 cave discovery and `]` forces a random encounter.
 
 ```sh
-./run.sh --screen title
-./run.sh --no-title --script 22SX --save build/saves/runtime.rsave
-./run.sh --load build/saves/runtime.rsave
-./run.sh --name Strong --debug-log --debug-secrets
+./bin/run.sh --screen title
+./bin/run.sh --no-title --script 22SX --save build/saves/runtime.rsave
+./bin/run.sh --load build/saves/runtime.rsave
+./bin/run.sh --name Strong --debug-log --debug-secrets
 ```
 
 Run the browser ANSI proof of concept in Docker:
 
 ```sh
-./run-server.sh --build
-./run-server.sh --build --name Strong
-./run-server.sh --build --name StrongEndgame
-./run-server.sh --account Strong --email strong@example.test --password 'change-this-password'
+./bin/run-server.sh --build
+./bin/run-server.sh --build --name Strong
+./bin/run-server.sh --build --name StrongEndgame
+./bin/run-server.sh --account Strong --email strong@example.test --password 'change-this-password'
 ```
 
 The named forms seed `~/.rylween/data/saves/world.rsave` before starting the
@@ -99,16 +101,16 @@ or verifies a persisted web account before the server starts.
 Run the bitmap web runtime locally:
 
 ```sh
-./run-bitmap-server.sh --build
-./run-bitmap-server.sh --build --name Strong
-./run-bitmap-server.sh --build --name StrongEndgame
-./run-bitmap-server.sh --account Strong --email strong@example.test --password 'change-this-password'
+./bin/run-bitmap-server.sh --build
+./bin/run-bitmap-server.sh --build --name Strong
+./bin/run-bitmap-server.sh --build --name StrongEndgame
+./bin/run-bitmap-server.sh --account Strong --email strong@example.test --password 'change-this-password'
 ```
 
 Back up web game state and users as one artifact:
 
 ```sh
-./backup-web-data.sh --data ~/.rylween/data --output rylween-backup.tar.gz
+./bin/backup-web-data.sh --data ~/.rylween/data --output rylween-backup.tar.gz
 ```
 
 The data directory is split by ownership: `saves/world.rsave` is game state,
@@ -120,13 +122,13 @@ layout and field meanings are documented in
 Build the production-oriented ANSI web image for reverse-proxy deployment:
 
 ```sh
-docker build -f Dockerfile.production -t rylween-web-prod .
+docker build -f deploy/docker/Dockerfile.production -t rylween-web-prod .
 ```
 
 Build the bitmap production image:
 
 ```sh
-docker build -f Dockerfile.bitmap-production -t rylween-bitmap-prod .
+docker build -f deploy/docker/Dockerfile.bitmap-production -t rylween-bitmap-prod .
 ```
 
 The production image still serves plain HTTP internally. Bind it to loopback or

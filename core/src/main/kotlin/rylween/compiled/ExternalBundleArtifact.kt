@@ -224,6 +224,7 @@ data class ExternalRuntimeSystems(
     val combat: ExternalRuntimeCombat,
     val score: ExternalRuntimeScore,
     val dungeon: ExternalRuntimeDungeon,
+    val town: ExternalRuntimeTown?,
     val characterCreation: ExternalRuntimeCharacterCreation?,
     val castleRows: List<ExternalRuntimeCastle>,
     val speak: ExternalRuntimeSpeak?,
@@ -267,6 +268,7 @@ data class ExternalBattlePacing(
     val messagePauseMs: Int = 900,
     val openingPauseMs: Int = 1_200,
     val victoryPauseMs: Int = 4_000,
+    val battleCryPauseMs: Int = 450,
 )
 
 data class ExternalCharacterCreationPacing(
@@ -337,6 +339,18 @@ data class ExternalTownPrompts(
     val entryWelcome: ExternalRuntimeTextBlock,
     val entryTax: ExternalRuntimeTextBlock,
     val entryTaxThanks: ExternalRuntimeTextBlock,
+)
+
+/** Town-system runtime rows consumed by direct runtimes. */
+data class ExternalRuntimeTown(
+    val entryTax: ExternalTownEntryTax?,
+)
+
+/** Town-entry tax gate exported from authored town-system content. */
+data class ExternalTownEntryTax(
+    val minimumLeaderLevel: Int,
+    val pay: ExternalRuntimeInputBinding,
+    val leave: ExternalRuntimeInputBinding,
 )
 
 data class ExternalPartyPrompts(
@@ -990,6 +1004,8 @@ data class ExternalCastleText(
     val trapTriesDisarmSuffix: ExternalRuntimeTextBlock,
     val trapDisarmSucceed: ExternalRuntimeTextBlock,
     val trapDisarmFail: ExternalRuntimeTextBlock,
+    val pitfallIllustration: String?,
+    val treasureIllustration: String?,
     val treasureMenu: ExternalRuntimeTextBlock,
     val treasureFull: ExternalRuntimeTextBlock,
     val treasureTaken: ExternalRuntimeTextBlock,
@@ -1674,6 +1690,7 @@ private class ExternalBundleArtifactWriter {
                     "messagePauseMs" to JsonNumber(pacing.battle.messagePauseMs.toString()),
                     "openingPauseMs" to JsonNumber(pacing.battle.openingPauseMs.toString()),
                     "victoryPauseMs" to JsonNumber(pacing.battle.victoryPauseMs.toString()),
+                    "battleCryPauseMs" to JsonNumber(pacing.battle.battleCryPauseMs.toString()),
                 ),
             "characterCreation" to
                 jsonObject(
@@ -1804,18 +1821,18 @@ private class ExternalBundleArtifactWriter {
                 ),
             "dungeon" to
                 commandListJson(
-                    "descend" to game.dungeons.keys.descend,
-                    "ascend" to game.dungeons.keys.ascend,
-                    "help" to game.dungeons.keys.help,
-                    "drop" to game.dungeons.keys.drop,
-                    "removeArmor" to game.dungeons.keys.removeArmor,
-                    "removeWeapon" to game.dungeons.keys.removeWeapon,
-                    "readyWeapon" to game.dungeons.keys.readyWeapon,
-                    "readyArmor" to game.dungeons.keys.readyArmor,
-                    "quaff" to game.dungeons.keys.quaff,
-                    "castSpell" to game.dungeons.keys.castSpell,
-                    "viewParty" to game.dungeons.keys.viewParty,
-                    "save" to game.dungeons.keys.save,
+                    runtimeCommand("descend", game.dungeons.keys.descend, game.dungeons.keys.commandLabels.descend),
+                    runtimeCommand("ascend", game.dungeons.keys.ascend, game.dungeons.keys.commandLabels.ascend),
+                    runtimeCommand("help", game.dungeons.keys.help, game.dungeons.keys.commandLabels.help),
+                    runtimeCommand("drop", game.dungeons.keys.drop, game.dungeons.keys.commandLabels.drop),
+                    runtimeCommand("removeArmor", game.dungeons.keys.removeArmor, game.dungeons.keys.commandLabels.removeArmor),
+                    runtimeCommand("removeWeapon", game.dungeons.keys.removeWeapon, game.dungeons.keys.commandLabels.removeWeapon),
+                    runtimeCommand("readyWeapon", game.dungeons.keys.readyWeapon, game.dungeons.keys.commandLabels.readyWeapon),
+                    runtimeCommand("readyArmor", game.dungeons.keys.readyArmor, game.dungeons.keys.commandLabels.readyArmor),
+                    runtimeCommand("quaff", game.dungeons.keys.quaff, game.dungeons.keys.commandLabels.quaff),
+                    runtimeCommand("castSpell", game.dungeons.keys.castSpell, game.dungeons.keys.commandLabels.castSpell),
+                    runtimeCommand("viewParty", game.dungeons.keys.viewParty, game.dungeons.keys.commandLabels.viewParty),
+                    runtimeCommand("save", game.dungeons.keys.save, game.dungeons.keys.commandLabels.save),
                 ),
             *castleCommandJsonEntries(game).toTypedArray(),
             "town" to
@@ -2166,6 +2183,8 @@ private class ExternalBundleArtifactWriter {
             "trapTriesDisarmSuffix" to textBlockJson(text.trapTriesDisarmSuffix),
             "trapDisarmSucceed" to textBlockJson(text.trapDisarmSucceed),
             "trapDisarmFail" to textBlockJson(text.trapDisarmFail),
+            "pitfallIllustration" to text.pitfallIllustration?.let { JsonString(it.slug) }.orJsonNull(),
+            "treasureIllustration" to text.treasureIllustration?.let { JsonString(it.slug) }.orJsonNull(),
             "treasureMenu" to textBlockJson(text.treasureMenu),
             "treasureFull" to textBlockJson(text.treasureFull),
             "treasureTaken" to textBlockJson(text.treasureTaken),
@@ -2252,6 +2271,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.HuntMemberName -> textTokenJson("huntMemberName")
             TextPart.HuntMemberSubjectPronoun -> textTokenJson("huntMemberSubjectPronoun")
             TextPart.HuntFoodGained -> textTokenJson("huntFoodGained")
+            TextPart.PartyMemberCount -> textTokenJson("partyMemberCount")
             TextPart.PartyMemberMax -> textTokenJson("partyMemberMax")
             TextPart.WildernessDungeonName -> textTokenJson("wildernessDungeonName")
             TextPart.WildernessDungeonLevels -> textTokenJson("wildernessDungeonLevels")
@@ -2576,6 +2596,12 @@ private class ExternalRuntimeSystemsReader(
             combat = systems.requiredObject("combat").readCombat(),
             score = systems.requiredObject("score").readScore(),
             dungeon = systems.requiredObject("dungeon").readDungeon(),
+            town =
+                systems
+                    .optional("town")
+                    ?.takeUnless { it is JsonNull }
+                    ?.asObject("town")
+                    ?.readTown(),
             characterCreation =
                 systems
                     .optional("characterCreation")
@@ -2738,6 +2764,7 @@ private class ExternalRuntimeSystemsReader(
                     messagePauseMs = battle.optionalInt("messagePauseMs", defaults.battle.messagePauseMs),
                     openingPauseMs = battle.optionalInt("openingPauseMs", defaults.battle.openingPauseMs),
                     victoryPauseMs = battle.optionalInt("victoryPauseMs", defaults.battle.victoryPauseMs),
+                    battleCryPauseMs = battle.optionalInt("battleCryPauseMs", defaults.battle.battleCryPauseMs),
                 ),
             characterCreation =
                 ExternalCharacterCreationPacing(
@@ -2851,6 +2878,22 @@ private class ExternalRuntimeSystemsReader(
                         )
                     }
                 },
+        )
+
+    private fun JsonObject.readTown(): ExternalRuntimeTown =
+        ExternalRuntimeTown(
+            entryTax =
+                optional("entryTax")
+                    ?.takeUnless { it is JsonNull }
+                    ?.asObject("town entry tax")
+                    ?.readTownEntryTax(),
+        )
+
+    private fun JsonObject.readTownEntryTax(): ExternalTownEntryTax =
+        ExternalTownEntryTax(
+            minimumLeaderLevel = requiredInt("minimumLeaderLevel"),
+            pay = requiredObject("pay").readBinding(),
+            leave = requiredObject("leave").readBinding(),
         )
 
     private fun JsonObject.readCharacterCreationStart(): ExternalCharacterCreationStart =
@@ -2976,6 +3019,8 @@ private class ExternalRuntimeSystemsReader(
             trapTriesDisarmSuffix = required("trapTriesDisarmSuffix").readTextBlock(),
             trapDisarmSucceed = required("trapDisarmSucceed").readTextBlock(),
             trapDisarmFail = required("trapDisarmFail").readTextBlock(),
+            pitfallIllustration = optionalNullableString("pitfallIllustration"),
+            treasureIllustration = optionalNullableString("treasureIllustration"),
             treasureMenu = required("treasureMenu").readTextBlock(),
             treasureFull = required("treasureFull").readTextBlock(),
             treasureTaken = required("treasureTaken").readTextBlock(),

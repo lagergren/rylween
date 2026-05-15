@@ -132,11 +132,17 @@ private class TerrainBindingIndex(
 }
 
 private val EmptyTextBindings: Set<TextPart> = emptySet()
+private val MemberChoiceTextBindings: Set<TextPart> =
+    setOf(
+        TextPart.PartyMemberCount,
+        TextPart.PartyMemberMax,
+    )
 private val HuntTextBindings: Set<TextPart> =
     setOf(
         TextPart.HuntMemberName,
         TextPart.HuntMemberSubjectPronoun,
         TextPart.HuntFoodGained,
+        TextPart.PartyMemberCount,
         TextPart.PartyMemberMax,
     )
 private val RandomItemOfferTextBindings: Set<TextPart> =
@@ -1256,6 +1262,7 @@ private fun validateTextBlock(
             TextPart.HuntMemberName,
             TextPart.HuntMemberSubjectPronoun,
             TextPart.HuntFoodGained,
+            TextPart.PartyMemberCount,
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
             TextPart.WildernessDungeonLevels,
@@ -2112,7 +2119,12 @@ fun validateScriptRewards(
                     }
                     checkUniqueBindings(op.bindings, "key choice prompt")
                 }
-                is Op.AskMember -> validateTextBlock(op.prompt, "member choice prompt")
+                is Op.AskMember ->
+                    validateTextBlock(
+                        op.prompt,
+                        "member choice prompt",
+                        allowedRuntimeBindings = MemberChoiceTextBindings,
+                    )
                 is Op.AskInventorySlot -> {
                     validateTextBlock(op.prompt, "inventory-slot choice prompt")
                     check(op.firstKey.isLetter()) { "inventory-slot choice first key must be a letter" }
@@ -2287,7 +2299,6 @@ private fun validateCampRules(camp: CampRulesModel) {
         "not tired" to camp.notTired,
         "not enough food" to camp.notEnoughFood,
         "guard prompt" to camp.guardPrompt,
-        "guard member prompt" to camp.guardMemberPrompt,
         "guard member dead" to camp.guardMemberDead,
         "stands guard" to camp.standsGuard,
         "sleeping" to camp.sleeping,
@@ -2297,6 +2308,11 @@ private fun validateCampRules(camp: CampRulesModel) {
     ).forEach { (label, block) ->
         validateTextBlock(block, "camp $label")
     }
+    validateTextBlock(
+        camp.guardMemberPrompt,
+        "camp guard member prompt",
+        allowedRuntimeBindings = MemberChoiceTextBindings,
+    )
     camp.temperatureMessage.forEach { (band, block) ->
         validateTextBlock(block, "camp ${band.name.lowercase()} temperature message")
     }
@@ -2395,7 +2411,7 @@ private fun validateLayouts(layouts: LayoutModel) {
 private fun validateVisuals(visuals: VisualsModel) {
     check(
         visuals.images
-            .map { it.id }
+            .map { it.id to it.kind }
             .toSet()
             .size == visuals.images.size,
     ) {
@@ -2463,6 +2479,9 @@ private fun validateImageReferences(content: GameModel) {
             content.dungeons.backdrop?.let { add(it to "dungeon backdrop") }
             content.castles.forEach { castle ->
                 castle.image?.let { add(it to "castle ${castle.id.slug} backdrop") }
+                castle.text.pitfallIllustration?.let { add(it to "castle ${castle.id.slug} pitfall illustration") }
+                castle.text.treasureIllustration?.let { add(it to "castle ${castle.id.slug} treasure illustration") }
+                castle.text.stairsIllustration?.let { add(it to "castle ${castle.id.slug} stairs illustration") }
             }
             content.combat.standardBattle?.let { battle ->
                 battle.opening.banners.forEach { add(it to "battle opening banner") }

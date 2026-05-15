@@ -12,6 +12,7 @@ package rylween.runtime
 import rylween.compiled.CompiledBoolExpr
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
+import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledMission
 import rylween.compiled.CompiledPartyMember
@@ -56,17 +57,20 @@ internal class WildernessActions(
     private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
 ) {
-    fun applyTurnUpkeep(runtime: RuntimeState): WildernessActionResult {
+    fun applyTurnUpkeep(
+        runtime: RuntimeState,
+        leadingMessages: List<String> = emptyList(),
+    ): WildernessActionResult {
         var party = runtime.party
-        val messages = mutableListOf<String>()
+        val upkeepMessages = mutableListOf<String>()
         party = party.regenerateMana(realm.upkeep.manaRegenChance)
 
         val foodTick = realm.upkeep.foodTickEvery > 0 && party.resources.timeLeft % realm.upkeep.foodTickEvery == 0
         val foodAfterTick = if (foodTick) (party.resources.food - party.foodTickCost()).coerceAtLeast(0) else party.resources.food
-        party = party.applyStarvation(foodAfterTick, realm.upkeep.starveFoodThreshold, realm.upkeep.starveDamage, messages)
+        party = party.applyStarvation(foodAfterTick, realm.upkeep.starveFoodThreshold, realm.upkeep.starveDamage, upkeepMessages)
 
         val restedHours = party.resources.restedHours - realm.upkeep.restedHoursCostPerTurn
-        party = party.applyFatigue(restedHours, realm.upkeep.fatigue, messages)
+        party = party.applyFatigue(restedHours, realm.upkeep.fatigue, upkeepMessages)
         party =
             party.copy(
                 resources =
@@ -85,7 +89,7 @@ internal class WildernessActions(
                     currentMode = mode,
                     party = party,
                 ),
-            messages = messages,
+            messages = leadingMessages + upkeepMessages,
         )
     }
 
@@ -281,9 +285,13 @@ internal class WildernessActions(
         log.event("wilderness.cave_discovery source=$source position=${party.position.x},${party.position.y}")
         if (messages.isNotEmpty()) screen.writeText(messages)
         wilderness.events.caveImage?.let(screen::showImage)
-        screen.writeText(wilderness.events.caveFoundPrompt.renderText())
         val caveCommands = commands["wilderness.cave"].orEmpty()
-        val command = input.readCommand() ?: return WildernessActionResult(this)
+        val lines = wilderness.events.caveFoundPrompt.renderText()
+        screen.writeText(lines)
+        val command =
+            input.readValidChoice(screen, lines) { choice ->
+                caveCommands.matches("enter", choice) || caveCommands.matches("leave", choice)
+            } ?: return WildernessActionResult(this)
         if (!caveCommands.matches("enter", command)) return WildernessActionResult(this)
         if (party.resources.timeLeft <= wilderness.events.caveEntryCost) {
             screen.writeText(wilderness.events.caveNoMoves.renderText())
@@ -421,6 +429,7 @@ internal class WildernessActions(
                     },
             )
         var runtime = copy(hour = (hour + rules.hoursAdvanced).positiveMod(24), party = party)
+        screen.showImage(runtime.campBackdrop())
         if (guardIndex != null) showCampBeat(rules.text.standsGuard.renderCamp(runtime))
         showCampBeat(rules.text.sleeping.renderCamp(runtime))
 
@@ -438,6 +447,17 @@ internal class WildernessActions(
         if (lines.isEmpty()) return
         screen.writeText(lines)
         input.pause(systems.pacing.wilderness.campMessagePauseMs)
+    }
+
+    private fun RuntimeState.campBackdrop(): String {
+        val itemsById = content.items.associateBy { item -> item.id }
+        return party.inventory.firstNotNullOfOrNull { slot ->
+            slot.item
+                ?.let(itemsById::get)
+                ?.campImage
+                ?.let(content::slug)
+        }
+            ?: "wilderness_no_tent"
     }
 
     private fun RuntimeState.applyTemperature(rules: ExternalCampRules): CampMutation {
@@ -648,13 +668,7 @@ internal class WildernessActions(
             .toSet()
     }
 
-    private fun ExternalRuntimeTextBlock.renderText(): List<String> =
-        render { kind ->
-            when (kind) {
-                "partyMemberMax" -> "?"
-                else -> null
-            }
-        }
+    private fun ExternalRuntimeTextBlock.renderText(): List<String> = render { null }
 
     private fun battleRunner(): BattleRunner =
         BattleRunner(content, combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))
@@ -721,7 +735,7 @@ internal class WildernessActions(
         }
     }
 
-    private fun PartyState.countInventoryPool(pool: rylween.compiled.CompiledHandleRef): Int {
+    private fun PartyState.countInventoryPool(pool: CompiledHandleRef): Int {
         val pooledItems =
             content.itemPools
                 .firstOrNull { itemPool -> itemPool.id == pool }
@@ -731,13 +745,7 @@ internal class WildernessActions(
         return inventory.count { slot -> slot.item in pooledItems }
     }
 
-    private fun ExternalRuntimeTextBlock.renderCamp(runtime: RuntimeState): List<String> =
-        render { kind ->
-            when (kind) {
-                "partyMemberMax" -> runtime.partyMemberMax.toString()
-                else -> null
-            }
-        }.map { line -> line.replace("{party_max}", runtime.partyMemberMax.toString()) }
+    private fun ExternalRuntimeTextBlock.renderCamp(runtime: RuntimeState): List<String> = renderRuntimeText(content, runtime)
 
     private fun ExternalRuntimeTextBlock.renderHunt(
         runtime: RuntimeState,
@@ -745,9 +753,8 @@ internal class WildernessActions(
         member: CompiledPartyMember? = memberNumber?.let { runtime.party.members.getOrNull(it - 1) },
         foodGained: Int? = null,
     ): List<String> =
-        render { kind ->
+        renderRuntimeText(content, runtime) { kind ->
             when (kind) {
-                "partyMemberMax" -> runtime.partyMemberMax.toString()
                 "huntMemberName" -> member?.let { content.strings.value(it.nameString) }
                 "huntMemberSubjectPronoun" -> member?.gender?.pronoun(PronounCase.Subject)
                 "huntFoodGained" -> foodGained?.toString()

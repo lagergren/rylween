@@ -26,6 +26,7 @@ import rylween.dsl.impl.DialogueBranchSelection
 import rylween.dsl.impl.EquipmentCommand
 import rylween.dsl.impl.Facing
 import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.ImageAssetKind
 import rylween.dsl.impl.ItemConsumePolicy
 import rylween.dsl.impl.ItemKind
 import rylween.dsl.impl.ItemUseContext
@@ -1031,13 +1032,18 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.limits.screenSize == cells(width = 80, height = 24))
         check(
             nextDsl.visuals.images
-                .single { it.id == Images.Static.screen }
+                .single { it.id == Images.Static.screen && it.kind == ImageAssetKind.Ansi }
                 .resource == "ansi/screen.ans",
         )
         check(
             nextDsl.visuals.images
-                .single { it.id == Images.Scene.tavern }
+                .single { it.id == Images.Scene.tavern && it.kind == ImageAssetKind.Ansi }
                 .resource == "tiles/towne-tavern.ans",
+        )
+        check(
+            nextDsl.visuals.images
+                .single { it.id == Images.Scene.tavern && it.kind == ImageAssetKind.Bitmap }
+                .resource == "bitmap/assets/scene-tavern.png",
         )
         check(nextDsl.visuals.staticScreens.size == 7)
         check(
@@ -1360,9 +1366,9 @@ class RylweenCompiledGameLedgerTest {
         val rootBuild = File("build.gradle.kts").readText()
         val settings = File("settings.gradle.kts").readText()
         val coreBuild = File("core/build.gradle.kts").readText()
-        val launcher = File("run.sh").readText()
-        val serverLauncher = File("run-server.sh").readText()
-        val dockerfile = File("Dockerfile").readText()
+        val launcher = File("bin/run.sh").readText()
+        val serverLauncher = File("bin/run-server.sh").readText()
+        val dockerfile = File("deploy/docker/Dockerfile").readText()
         val gitIgnore = File(".gitignore").readText()
         val dockerIgnore = File(".dockerignore").readText()
         val gameBuild = File("game/build.gradle.kts").readText()
@@ -1438,10 +1444,10 @@ class RylweenCompiledGameLedgerTest {
                 "runtime/build/install/rylween" in launcher &&
                 "RUN_LAUNCHER" in launcher,
         ) {
-            "run.sh must launch the runtime"
+            "bin/run.sh must launch the runtime"
         }
         check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in launcher }) {
-            "run.sh must not fall back to the archived interpreted ANSI runtime"
+            "bin/run.sh must not fall back to the archived interpreted ANSI runtime"
         }
         check(
             ":runtime-web:installRuntimeWeb" in dockerfile &&
@@ -1454,13 +1460,13 @@ class RylweenCompiledGameLedgerTest {
             "Dockerfile must not wire archived or probe launchers into the playable image"
         }
         check("--title" in launcher && "--no-title" in launcher && "title_seen=false" in launcher) {
-            "run.sh must show the title screen by default and require --no-title to skip it"
+            "bin/run.sh must show the title screen by default and require --no-title to skip it"
         }
         check("--name" in launcher && "RYLWEEN_DATA_DIR" in launcher && "world.rsave" in launcher && "strong-endgame-replay" in launcher) {
-            "run.sh must expose named local save loading from the default data directory"
+            "bin/run.sh must expose named local save loading from the default data directory"
         }
-        check("--name" in serverLauncher && "RYLWEEN_NAME" in serverLauncher && "run.sh\" --build --name" in serverLauncher) {
-            "run-server.sh must seed named local saves through the same run.sh path"
+        check("--name" in serverLauncher && "RYLWEEN_NAME" in serverLauncher && "bin/run.sh\" --build --name" in serverLauncher) {
+            "bin/run-server.sh must seed named local saves through the same bin/run.sh path"
         }
         check("--no-title" in runtimeMain && "skipTitleMenu" in runtimeMain && "!skipTitleMenu" in runtimeMain) {
             "runtime must support an explicit --no-title title-screen skip"
@@ -1474,11 +1480,12 @@ class RylweenCompiledGameLedgerTest {
         }
         check(
             "titleMenu" in gameDsl &&
-                "createNewParty = inputKey(\"N\", label = \"Create New Party\")" in gameDsl &&
-                "leave = inputKey(\"L\", label = \"Leave\")" in gameDsl &&
+                "createNewParty = inputKey(\"N\", label = \"New Party\")" in gameDsl &&
+                "continueSavedGame = inputKey(\"L\", label = \"Load Game\")" in gameDsl &&
+                "leave = inputKey(\"E\", label = \"Exit\")" in gameDsl &&
                 "E(x)it" !in gameDsl,
         ) {
-            "game DSL must own the title menu labels and use the L key for leaving"
+            "game DSL must own the title menu labels with first-letter title commands"
         }
     }
 
@@ -1820,8 +1827,8 @@ class RylweenCompiledGameLedgerTest {
             "runtime must not leak implementation status text into player screens: " +
                 statusTextOffenders.joinToString()
         }
-        check(File("run.sh").readText().contains(":runtime:installRuntime")) {
-            "run.sh must launch the runtime"
+        check(File("bin/run.sh").readText().contains(":runtime:installRuntime")) {
+            "bin/run.sh must launch the runtime"
         }
     }
 

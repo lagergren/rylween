@@ -58,9 +58,10 @@ tasks.jar {
     }
 }
 
-fun runtimeBattleMacro(): String = "F" + "AA".repeat(5)
+fun runtimeBattleMacro(attacks: Int = 5): String =
+    "F" + buildString { "ABCDEFGH".take(attacks).forEach { slot -> append('A').append(slot) } }
 
-fun runtimeCastleStep(command: Char): String = command.toString() + runtimeBattleMacro()
+fun runtimeCastleStep(command: Char): String = command.toString() + runtimeBattleMacro(attacks = 2)
 
 fun runtimeCastleFloor(itemDigit: Char): String =
     buildString {
@@ -80,7 +81,8 @@ fun runtimeWinningRoute(): String =
         append(runtimeCastleFloor('2'))
         append(runtimeCastleFloor('3'))
         append(runtimeCastleFloor('4'))
-        repeat(5) { append(runtimeBattleMacro()) }
+        append(runtimeBattleMacro(attacks = 3))
+        repeat(4) { append(runtimeBattleMacro(attacks = 1)) }
         append('S')
     }
 
@@ -305,8 +307,8 @@ val checkRuntimePartyJournalScript: TaskProvider<RunInstalledLauncherWithJavaTas
             "Party: Strong",
             "1. Aragorn",
             "4. Mira",
-            "Space = Pass",
-            "Z = Cast Spell",
+            "(Space) Pass",
+            "(Z) Cast Spell",
             "Journal",
         ),
     )

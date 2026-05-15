@@ -53,6 +53,13 @@ private object CharacterPortraitImages {
 private object CastleImages {
     val jaaraGate = image("blitgfx.jaara_gate")
     val stairsGuardians = image("blitgfx.castle_stairs_guardians")
+    val treasure = image("blitgfx.castle_treasure")
+    val pitfall = image("blitgfx.castle_pitfall")
+}
+
+private object DungeonImages {
+    val chest = image("blitgfx.dungeon_chest")
+    val trap = image("blitgfx.dungeon_trap")
 }
 
 private object MissionImages {
@@ -263,6 +270,51 @@ val authoredRylween: RylweenModel =
                         )
                     }
 
+                    fun sceneBitmap(
+                        image: ImageId,
+                        resource: String,
+                    ) {
+                        bitmap(
+                            image,
+                            resource = resource,
+                            placement = ImagePlacement.MapWindow,
+                            transition = ImageTransition.Fade,
+                        )
+                    }
+
+                    sceneBitmap(Images.Scene.ydargCastle, "bitmap/assets/scene-ydarg-castle.png")
+                    sceneBitmap(Images.Scene.tent, "bitmap/assets/scene-camp-tent.png")
+                    sceneBitmap(Images.Scene.battleVictory, "bitmap/assets/scene-battle-victory.png")
+                    sceneBitmap(Images.Scene.encounterBanner1, "bitmap/assets/monster-goblinoid.png")
+                    sceneBitmap(Images.Scene.encounterBanner2, "bitmap/assets/monster-flying.png")
+                    sceneBitmap(Images.Scene.encounterBanner3, "bitmap/assets/monster-undead.png")
+                    sceneBitmap(Images.Scene.encounterBanner4, "bitmap/assets/monster-beast.png")
+                    sceneBitmap(Images.Scene.encounterBanner5, "bitmap/assets/monster-vermin.png")
+                    sceneBitmap(EncounterImages.goblinoid, "bitmap/assets/monster-goblinoid.png")
+                    sceneBitmap(EncounterImages.undead, "bitmap/assets/monster-undead.png")
+                    sceneBitmap(EncounterImages.beast, "bitmap/assets/monster-beast.png")
+                    sceneBitmap(EncounterImages.flying, "bitmap/assets/monster-flying.png")
+                    sceneBitmap(EncounterImages.vermin, "bitmap/assets/monster-vermin.png")
+                    sceneBitmap(EncounterImages.brute, "bitmap/assets/monster-brute.png")
+                    sceneBitmap(EncounterImages.humanoidMagic, "bitmap/assets/monster-humanoid-magic.png")
+                    sceneBitmap(EncounterImages.boss, "bitmap/assets/monster-boss.png")
+                    sceneBitmap(Images.Scene.cave, "bitmap/assets/scene-cave-entrance.png")
+                    sceneBitmap(Images.Scene.insideCave, "bitmap/assets/scene-cave-interior.png")
+                    sceneBitmap(Images.Scene.church, "bitmap/assets/scene-church.png")
+                    sceneBitmap(Images.Scene.smith, "bitmap/assets/scene-smith.png")
+                    sceneBitmap(Images.Scene.inn, "bitmap/assets/scene-inn.png")
+                    sceneBitmap(Images.Scene.merchant, "bitmap/assets/scene-merchant.png")
+                    sceneBitmap(Images.Scene.tavern, "bitmap/assets/scene-tavern.png")
+                    sceneBitmap(Images.Scene.hut, "bitmap/assets/scene-wilderness-hut.png")
+                    sceneBitmap(Images.Scene.death, "bitmap/assets/scene-death.png")
+                    sceneBitmap(Images.Scene.towneMainstreet, "bitmap/assets/scene-thord-mainstreet.png")
+                    sceneBitmap(Images.Scene.wildernessNoTent, "bitmap/assets/scene-camp-night.png")
+                    sceneBitmap(Images.Scene.towneGuild, "bitmap/assets/scene-guild-closed.png")
+                    sceneBitmap(DungeonImages.chest, "bitmap/assets/scene-dungeon-chest.png")
+                    sceneBitmap(DungeonImages.trap, "bitmap/assets/scene-dungeon-trap.png")
+                    sceneBitmap(CastleImages.treasure, "bitmap/assets/scene-dungeon-chest.png")
+                    sceneBitmap(CastleImages.pitfall, "bitmap/assets/scene-dungeon-trap.png")
+
                     portraitBitmap(CharacterPortraitImages.default, "bitmap/assets/portrait-default.png")
                     portraitBitmap(CharacterPortraitImages.fighter, "bitmap/assets/portrait-fighter.png")
                     portraitBitmap(CharacterPortraitImages.thief, "bitmap/assets/portrait-thief.png")
@@ -436,7 +488,7 @@ val authoredRylween: RylweenModel =
                     foodMax = 19
                     whoPrompt =
                         structuredText {
-                            line("Who? (1-", HuntText.partyMemberMax, ")")
+                            line("Who? (1-", HuntText.partyMemberCount, ")")
                         }
                     dead = inlineText("Dead.")
                     notRanger =
@@ -469,7 +521,10 @@ val authoredRylween: RylweenModel =
                     notTired = inlineText("Not tired.")
                     notEnoughFood = inlineText("Not enough food.")
                     guardPrompt = inlineText("Camp.", "", "Post a guard?", "")
-                    guardMemberPrompt = inlineText("Who? (1-{party_max})")
+                    guardMemberPrompt =
+                        structuredText {
+                            line("Who? (1-", HuntText.partyMemberCount, ")")
+                        }
                     guardMemberDead = inlineText("Dead.")
                     standsGuard =
                         inlineText(
@@ -601,6 +656,7 @@ val authoredRylween: RylweenModel =
                     trapTriesDisarmSuffix = inlineText("tries to", "disarm it...", "")
                     trapDisarmSucceed = inlineText("AND SUCCEEDS!")
                     trapDisarmFail = inlineText("BUT FAILS!")
+                    treasureIllustration = CastleImages.treasure
                     treasureMenu = inlineText("(T)ake it", "(L)eave it")
                     treasureFull = inlineText("You can't carry more.")
                     treasureTaken = inlineText("", "Ok.")
@@ -610,6 +666,7 @@ val authoredRylween: RylweenModel =
                     moveWest = inlineText("West.")
                     stairsIntro = inlineText("You stand before the", "stairs to the next level.", "")
                     stairsIllustration = CastleImages.stairsGuardians
+                    pitfallIllustration = CastleImages.pitfall
                     stairsGuardianOffer =
                         inlineText(
                             "A mage imprisoned in a",
@@ -669,7 +726,8 @@ val authoredRylween: RylweenModel =
                 screen(
                     "At the gate of Zadraz,",
                     "white mist thickens",
-                    "into the shape of Jaara.",
+                    "into the shape of a young",
+                    "woman.",
                     "",
                     "- Do not be afraid,",
                     "adventurers. I am Jaara,",
@@ -875,13 +933,13 @@ val authoredRylween: RylweenModel =
                 )
                 titleMenu {
                     header = inlineText("Rylween", "")
-                    createNewParty = inputKey("N", label = "Create New Party")
-                    continueSavedGame = inputKey("C", label = "Continue Saved Game")
-                    terminateParty = inputKey("T", label = "Terminate Party")
-                    scoreboard = inputKey("S", label = "Scoreboard")
-                    hallOfFame = inputKey("H", label = "Hall of Fame")
-                    documentation = inputKey("D", label = "Documentation")
-                    leave = inputKey("L", label = "Leave")
+                    createNewParty = inputKey("N", label = "New Party")
+                    continueSavedGame = inputKey("L", label = "Load Game")
+                    terminateParty = inputKey("D", label = "Delete Save")
+                    scoreboard = inputKey("S", label = "Scores")
+                    hallOfFame = inputKey("H", label = "Heroes")
+                    documentation = inputKey("M", label = "Manual")
+                    leave = inputKey("E", label = "Exit")
                     continueUnavailable = inlineText("There is no saved party for this account.")
                     overwriteConfirm =
                         inlineText(
@@ -896,7 +954,7 @@ val authoredRylween: RylweenModel =
                     invalidInput = inlineText("Choose an option.")
                 }
                 priest {
-                    who = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") }
+                    who = structuredText { line("Who? (1-", HuntText.partyMemberCount, ")") }
                     none = inlineText("(N)one")
                     mageCombatOnly = inlineText("Sorry. Mage spells are", "combat-only.")
                     wrongClass = inlineText("Not a spellcaster!")
@@ -984,7 +1042,7 @@ val authoredRylween: RylweenModel =
                     entryTaxThanks = inlineText("Thank you!")
                 }
                 party {
-                    viewWho = structuredText { line("Who? (1-", HuntText.partyMemberMax, "/Q/A)") }
+                    viewWho = structuredText { line("Who? (1-", HuntText.partyMemberCount, "/Q/A)") }
                     journalHeader =
                         inlineText(
                             "",
@@ -1002,7 +1060,7 @@ val authoredRylween: RylweenModel =
                     dropCapacityReduced = inlineText("You are forced to", "leave some of your", "food behind...")
                 }
                 wilderness {
-                    pass = inlineText("Time passes...")
+                    pass = inlineText("You wait for an hour...")
                     noMoves = inlineText("No moves left.")
                     outOfMoves = inlineText("You are out of moves", "for today.", "", "(S)ave and Quit", "(Q)uit (no save)")
                     notInWilderness = inlineText("The active party is not in the wilderness.")
@@ -1036,6 +1094,7 @@ val authoredRylween: RylweenModel =
                     messagePauseMs = 900
                     openingPauseMs = 1_200
                     victoryPauseMs = 4_000
+                    battleCryPauseMs = 450
                 }
                 characterCreation {
                     classRejectionPauseMs = 1_000
@@ -1518,9 +1577,8 @@ val authoredRylween: RylweenModel =
                             lines(
                                 "HI-YAAAA!",
                                 "",
-                                "(You manage to scare your",
-                                " enemies enough to get",
-                                " them off guard.)",
+                                "(You scare them enough",
+                                "to catch them off guard.)",
                             )
                         }
                         playerHit {
@@ -1802,6 +1860,7 @@ val authoredRylween: RylweenModel =
                 event(DungeonEvents.goldChest) {
                     recurring()
                     script {
+                        showBackdrop(DungeonImages.chest)
                         menu(
                             "You find a chest!",
                             "",
@@ -1826,6 +1885,7 @@ val authoredRylween: RylweenModel =
 
                                 whenever(random(0..9) lt trapChance) {
                                     clearText()
+                                    showBackdrop(DungeonImages.trap)
                                     screen("A TRAP!")
                                     pause600ms()
                                     choose(random(0..2)) {
@@ -4164,8 +4224,7 @@ val authoredRylween: RylweenModel =
                     """,
                     )
 
-                    val churchPartyMemberMax = realm.partyMemberMax
-                    val churchWhoPrompt = structuredText { line("Who? (1-", churchPartyMemberMax, ")") }
+                    val churchWhoPrompt = structuredText { line("Who? (1-", HuntText.partyMemberCount, ")") }
 
                     menu(
                         "(H)eal person",

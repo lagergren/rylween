@@ -2293,12 +2293,14 @@ class BattlePacingBuilder(
     var messagePauseMs: Int = initial.messagePauseMs
     var openingPauseMs: Int = initial.openingPauseMs
     var victoryPauseMs: Int = initial.victoryPauseMs
+    var battleCryPauseMs: Int = initial.battleCryPauseMs
 
     fun build(): BattlePacingModel =
         BattlePacingModel(
             messagePauseMs = messagePauseMs,
             openingPauseMs = openingPauseMs,
             victoryPauseMs = victoryPauseMs,
+            battleCryPauseMs = battleCryPauseMs,
         )
 }
 
@@ -3011,6 +3013,7 @@ class DungeonKeysBuilder(
     var castSpell: InputBindingModel = initial.castSpell
     var viewParty: InputBindingModel = initial.viewParty
     var save: InputBindingModel = initial.save
+    var commandLabels: DungeonCommandLabelsModel = initial.commandLabels
     private var commandHintText = initial.commandHint
     private var helpPageText = initial.helpPages
 
@@ -3042,6 +3045,7 @@ class DungeonKeysBuilder(
             save = save,
             commandHint = commandHintText,
             helpPages = helpPageText,
+            commandLabels = commandLabels,
         )
 }
 

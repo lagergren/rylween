@@ -3,6 +3,12 @@ package rylween.bitmapweb
 private const val VIRTUAL_WIDTH = 1280
 private const val VIRTUAL_HEIGHT = 720
 
+internal enum class BitmapTextEffect {
+    None,
+    Fast,
+    Reveal,
+}
+
 internal data class BitmapFrame(
     val mode: String,
     val width: Int = VIRTUAL_WIDTH,
@@ -14,6 +20,7 @@ internal data class BitmapFrame(
     val statusLines: List<String>,
     val textLines: List<String>,
     val textInput: BitmapTextInput? = null,
+    val textEffect: BitmapTextEffect = BitmapTextEffect.None,
     val portrait: BitmapPortrait? = null,
     val partyPage: BitmapPartyPage? = null,
     val visualTransition: String = "None",
@@ -35,6 +42,7 @@ internal data class BitmapFrame(
             "statusLines" to statusLines.jsonArray(),
             "textLines" to textLines.jsonArray(),
             "textInput" to (textInput?.toJson() ?: "null"),
+            "textEffect" to textEffect.name.json(),
             "portrait" to (portrait?.toJson() ?: "null"),
             "partyPage" to (partyPage?.toJson() ?: "null"),
             "visualTransition" to visualTransition.json(),
@@ -165,6 +173,7 @@ internal data class BitmapStatus(
     val condition: String,
     val x: Int,
     val y: Int,
+    val torches: Int,
     val food: Int,
     val moves: Int,
     val gold: Int,
@@ -176,6 +185,7 @@ internal data class BitmapStatus(
             "condition" to condition.json(),
             "x" to x.toString(),
             "y" to y.toString(),
+            "torches" to torches.toString(),
             "food" to food.toString(),
             "moves" to moves.toString(),
             "gold" to gold.toString(),
@@ -190,6 +200,7 @@ internal data class BitmapMemberStatus(
     val hpMax: Int,
     val mana: Int?,
     val manaMax: Int?,
+    val manaRelevant: Boolean,
     val dead: Boolean,
 ) {
     fun toJson(): String =
@@ -200,6 +211,7 @@ internal data class BitmapMemberStatus(
             "hpMax" to hpMax.toString(),
             "mana" to (mana?.toString() ?: "null"),
             "manaMax" to (manaMax?.toString() ?: "null"),
+            "manaRelevant" to manaRelevant.toString(),
             "dead" to dead.toString(),
         )
 }

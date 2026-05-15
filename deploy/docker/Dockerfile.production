@@ -4,7 +4,7 @@
 # and public internet hardening belong at the reverse proxy or load balancer.
 #
 # Example:
-#   docker build -f Dockerfile.production -t rylween-web-prod .
+#   docker build -f deploy/docker/Dockerfile.production -t rylween-web-prod .
 #   docker run --rm \
 #     -e RYLWEEN_AUTH_ACCOUNT=admin \
 #     -e RYLWEEN_AUTH_EMAIL=admin@example.test \
