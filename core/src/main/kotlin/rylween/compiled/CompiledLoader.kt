@@ -2,7 +2,7 @@
  * Loader and validation boundary for compiled J1 game bundles.
  *
  * [CompiledBundleLoader] indexes `CompiledBundle.kt` data, enforces
- * [CompiledOpcodeContract], and checks `NativeCall` paths against
+ * [CompiledOpcodeContract], and checks native expression paths against
  * `runtime/vm/NativeServiceCatalog.kt` before runtime hosts see a bundle.
  */
 package rylween.compiled
@@ -10,7 +10,6 @@ package rylween.compiled
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.vm.NativeServiceArgSlot
 import rylween.runtime.vm.NativeServiceCatalog
-import rylween.runtime.vm.NativeServiceKind
 import rylween.runtime.vm.VmDiagnostic
 
 /**
@@ -18,7 +17,7 @@ import rylween.runtime.vm.VmDiagnostic
  *
  * `CompiledLoader.kt` is the J1/J2 boundary between compiled data and runtime
  * consumers. It validates cross-table references, script opcode shapes from
- * [CompiledOpcodeContract], and `NativeCall` paths from [NativeServiceCatalog],
+ * [CompiledOpcodeContract], and native expression paths from [NativeServiceCatalog],
  * then exposes lookup maps used by Kotlin hosts and future compiled VM code in
  * `runtime/vm`.
  */
@@ -57,7 +56,7 @@ data class LoadedCompiledContent(
  *
  * Pass a custom [nativeServices] catalog when testing host-specific service
  * binding. Production callers should normally use [NativeServiceCatalog.default]
- * so `NativeCall` loader checks match the DSL [rylween.dsl.NativeAllowlist].
+ * so native-expression loader checks match the DSL [rylween.dsl.NativeAllowlist].
  */
 fun CompiledGameBundle.loadCompiledGame(nativeServices: NativeServiceCatalog = NativeServiceCatalog.default): LoadedCompiledGame =
     CompiledBundleLoader.load(this, nativeServices)
@@ -68,7 +67,7 @@ object CompiledBundleLoader {
      * Validates [bundle] and returns indexed runtime-facing compiled content.
      *
      * Validation rejects malformed handle/string references, opcode operand
-     * shapes, and unallowlisted `NativeCall` paths before the existing authored
+     * shapes, and unallowlisted native-expression paths before the existing authored
      * interpreter or future compiled VM can execute the script stream.
      */
     fun load(
@@ -340,7 +339,15 @@ private class CompiledBundleValidator(
         instructions.forEachIndexed { instructionIndex, instruction ->
             validateInstruction(root, instructionIndex, operandPath, instruction)
             instruction.operands.forEachIndexed { operandIndex, operand ->
-                operand(root, operandPath + listOf(instructionIndex, operandIndex), operand)
+                operand(
+                    OperandValidationContext(
+                        root = root,
+                        instructionIndex = instructionIndex,
+                        operandPath = operandPath + listOf(instructionIndex, operandIndex),
+                        opcode = instruction.opcode,
+                    ),
+                    operand,
+                )
             }
         }
     }
@@ -377,81 +384,19 @@ private class CompiledBundleValidator(
                     ),
                 )
         }
-        validateNativeCall(root, instructionIndex, operandPath, instruction)
-    }
-
-    private fun validateNativeCall(
-        root: ScriptRootRef,
-        instructionIndex: Int,
-        operandPath: List<Int>,
-        instruction: CompiledInstruction,
-    ) {
-        if (instruction.opcode != CompiledOpcode.NativeCall) {
-            return
-        }
-        val pathOperand = instruction.operands.getOrNull(0) as? CompiledOperand.StringId ?: return
-        val argsOperand = instruction.operands.getOrNull(1) as? CompiledOperand.StringIdList ?: return
-        if (pathOperand.id !in 1..content.strings.entries.size) {
-            return
-        }
-        val path = content.strings.value(pathOperand.id)
-        val descriptor =
-            nativeServices.descriptor(path)
-                ?: fail(
-                    VmDiagnostic.MissingNativeOp(
-                        root = root,
-                        instructionIndex = instructionIndex,
-                        operandPath = operandPath + listOf(0),
-                        path = path,
-                        reason = "UnknownNativeService",
-                    ),
-                )
-        if (descriptor.kind != NativeServiceKind.Effect) {
-            fail(
-                VmDiagnostic.UnsupportedHostService(
-                    root = root,
-                    instructionIndex = instructionIndex,
-                    operandPath = operandPath + listOf(0),
-                    service = path,
-                    reason = "NativeCall requires ${NativeServiceKind.Effect}, got ${descriptor.kind}",
-                ),
-            )
-        }
-        val actualArity = argsOperand.ids.size
-        if (actualArity != descriptor.arity) {
-            fail(
-                VmDiagnostic.BadOperand(
-                    root = root,
-                    instructionIndex = instructionIndex,
-                    operandPath = operandPath + listOf(1),
-                    opcode = instruction.opcode,
-                    reason = "NativeServiceWrongArity",
-                    expected = descriptor.arity.toString(),
-                    actual = actualArity.toString(),
-                ),
-            )
-        }
-        val actualSlots = List(actualArity) { NativeServiceArgSlot.StringValue }
-        if (actualSlots != descriptor.argSlots) {
-            fail(
-                VmDiagnostic.BadOperand(
-                    root = root,
-                    instructionIndex = instructionIndex,
-                    operandPath = operandPath + listOf(1),
-                    opcode = instruction.opcode,
-                    reason = "NativeServiceWrongShape",
-                    expected = descriptor.argSlots.toString(),
-                    actual = actualSlots.toString(),
-                ),
-            )
-        }
     }
 
     private fun fail(diagnostic: VmDiagnostic): Nothing = throw IllegalArgumentException(diagnostic.message())
 
+    private data class OperandValidationContext(
+        val root: ScriptRootRef,
+        val instructionIndex: Int,
+        val operandPath: List<Int>,
+        val opcode: CompiledOpcode,
+    )
+
     private fun operand(
-        root: ScriptRootRef,
-        operandPath: List<Int>,
+        context: OperandValidationContext,
         operand: CompiledOperand,
     ) {
         when (operand) {
@@ -459,29 +404,29 @@ private class CompiledBundleValidator(
             is CompiledOperand.StringIdList -> operand.ids.forEach { string(it, "script string list") }
             is CompiledOperand.Handle -> handle(operand.ref, "script handle")
             is CompiledOperand.HandleList -> operand.refs.forEach { handle(it, "script handle list") }
-            is CompiledOperand.TextBlockValue -> text(operand.value)
-            is CompiledOperand.IntExprValue -> intExpr(operand.value)
-            is CompiledOperand.BoolExprValue -> boolExpr(operand.value)
-            is CompiledOperand.StringExprValue -> stringExpr(operand.value)
-            is CompiledOperand.LValueValue -> lvalue(operand.value)
+            is CompiledOperand.TextBlockValue -> text(operand.value, context)
+            is CompiledOperand.IntExprValue -> intExpr(operand.value, context)
+            is CompiledOperand.BoolExprValue -> boolExpr(operand.value, context)
+            is CompiledOperand.StringExprValue -> stringExpr(operand.value, context)
+            is CompiledOperand.LValueValue -> lvalue(operand.value, context)
             is CompiledOperand.ViewCommandValue -> view(operand.value)
-            is CompiledOperand.Instructions -> instructions(root, operand.instructions, operandPath)
+            is CompiledOperand.Instructions -> instructions(context.root, operand.instructions, context.operandPath)
             is CompiledOperand.SwitchCases ->
                 operand.cases.forEachIndexed { caseIndex, case ->
-                    instructions(root, case.body, operandPath + caseIndex)
+                    instructions(context.root, case.body, context.operandPath + caseIndex)
                 }
 
             is CompiledOperand.MenuOptions ->
                 operand.options.forEachIndexed { optionIndex, option ->
                     binding(option.binding)
-                    instructions(root, option.body, operandPath + optionIndex)
+                    instructions(context.root, option.body, context.operandPath + optionIndex)
                 }
 
             is CompiledOperand.InputBindings -> operand.bindings.forEach(::binding)
-            is CompiledOperand.TextAnswer -> textAnswer(root, operandPath, operand.answer)
-            is CompiledOperand.Reward -> scriptReward(operand.reward)
-            is CompiledOperand.RandomItemOffer -> randomItemOffer(operand.offer)
-            is CompiledOperand.ShopService -> shopService(operand.service)
+            is CompiledOperand.TextAnswer -> textAnswer(context.root, context.operandPath, operand.answer)
+            is CompiledOperand.Reward -> scriptReward(operand.reward, context)
+            is CompiledOperand.RandomItemOffer -> randomItemOffer(operand.offer, context)
+            is CompiledOperand.ShopService -> shopService(operand.service, context)
             is CompiledOperand.Integer,
             is CompiledOperand.BooleanValue,
             is CompiledOperand.Character,
@@ -506,26 +451,32 @@ private class CompiledBundleValidator(
         string(binding.labelString, "input label")
     }
 
-    private fun text(block: CompiledTextBlock) {
+    private fun text(
+        block: CompiledTextBlock,
+        context: OperandValidationContext? = null,
+    ) {
         when (block) {
             is CompiledTextBlock.Ref -> handle(block.text, "text ref")
             is CompiledTextBlock.Inline -> block.lineStrings.forEach { string(it, "inline text") }
             is CompiledTextBlock.Structured ->
                 block.lines.forEach { line ->
-                    line.parts.forEach(::textPart)
+                    line.parts.forEach { part -> textPart(part, context) }
                 }
             is CompiledTextBlock.Flow ->
                 block.paragraphs.forEach { line ->
-                    line.parts.forEach(::textPart)
+                    line.parts.forEach { part -> textPart(part, context) }
                 }
         }
     }
 
-    private fun textPart(part: CompiledTextPart) {
+    private fun textPart(
+        part: CompiledTextPart,
+        context: OperandValidationContext?,
+    ) {
         when (part) {
             is CompiledTextPart.Literal -> string(part.string, "text literal")
-            is CompiledTextPart.IntValue -> intExpr(part.value)
-            is CompiledTextPart.StringValue -> stringExpr(part.value)
+            is CompiledTextPart.IntValue -> intExpr(part.value, context)
+            is CompiledTextPart.StringValue -> stringExpr(part.value, context)
             is CompiledTextPart.RoleName -> handle(part.role, "role name")
             is CompiledTextPart.RoleJob -> handle(part.role, "role job")
             is CompiledTextPart.RoleLocation -> handle(part.role, "role location")
@@ -539,32 +490,35 @@ private class CompiledBundleValidator(
         }
     }
 
-    private fun intExpr(expr: CompiledIntExpr) {
+    private fun intExpr(
+        expr: CompiledIntExpr,
+        context: OperandValidationContext? = null,
+    ) {
         when (expr) {
             is CompiledIntExpr.Local -> string(expr.nameString, "local int name")
             is CompiledIntExpr.Binary -> {
-                intExpr(expr.left)
-                intExpr(expr.right)
+                intExpr(expr.left, context)
+                intExpr(expr.right, context)
             }
 
             is CompiledIntExpr.If -> {
-                boolExpr(expr.cond)
-                intExpr(expr.thenValue)
-                intExpr(expr.elseValue)
+                boolExpr(expr.cond, context)
+                intExpr(expr.thenValue, context)
+                intExpr(expr.elseValue, context)
             }
 
             is CompiledIntExpr.Random -> {
-                intExpr(expr.lo)
-                intExpr(expr.hi)
+                intExpr(expr.lo, context)
+                intExpr(expr.hi, context)
             }
 
             is CompiledIntExpr.MemberField -> {
-                intExpr(expr.member)
+                intExpr(expr.member, context)
                 string(expr.fieldString, "member field")
             }
 
             is CompiledIntExpr.MonsterField -> {
-                intExpr(expr.monster)
+                intExpr(expr.monster, context)
                 string(expr.fieldString, "monster field")
             }
 
@@ -573,32 +527,31 @@ private class CompiledBundleValidator(
             is CompiledIntExpr.RealmScalar -> string(expr.nameString, "realm scalar")
             is CompiledIntExpr.PartyScalar -> string(expr.nameString, "party scalar")
             is CompiledIntExpr.InventoryPoolCount -> handle(expr.pool, "inventory pool count")
-            is CompiledIntExpr.InventorySlotCost -> intExpr(expr.slot)
-            is CompiledIntExpr.NativeInt -> {
-                string(expr.pathString, "native int path")
-                expr.argStrings.forEach { string(it, "native int arg") }
-            }
+            is CompiledIntExpr.InventorySlotCost -> intExpr(expr.slot, context)
 
             is CompiledIntExpr.Literal -> Unit
         }
     }
 
-    private fun boolExpr(expr: CompiledBoolExpr) {
+    private fun boolExpr(
+        expr: CompiledBoolExpr,
+        context: OperandValidationContext? = null,
+    ) {
         when (expr) {
             is CompiledBoolExpr.Cmp -> {
-                intExpr(expr.left)
-                intExpr(expr.right)
+                intExpr(expr.left, context)
+                intExpr(expr.right, context)
             }
 
-            is CompiledBoolExpr.Not -> boolExpr(expr.expr)
+            is CompiledBoolExpr.Not -> boolExpr(expr.expr, context)
             is CompiledBoolExpr.And -> {
-                boolExpr(expr.left)
-                boolExpr(expr.right)
+                boolExpr(expr.left, context)
+                boolExpr(expr.right, context)
             }
 
             is CompiledBoolExpr.Or -> {
-                boolExpr(expr.left)
-                boolExpr(expr.right)
+                boolExpr(expr.left, context)
+                boolExpr(expr.right, context)
             }
 
             is CompiledBoolExpr.FlagIs -> {
@@ -614,26 +567,84 @@ private class CompiledBundleValidator(
         }
     }
 
-    private fun stringExpr(expr: CompiledStringExpr) {
+    private fun stringExpr(
+        expr: CompiledStringExpr,
+        context: OperandValidationContext? = null,
+    ) {
         when (expr) {
             is CompiledStringExpr.NativeString -> {
+                validateNativeString(expr, context)
                 string(expr.pathString, "native string path")
                 expr.args.forEach { arg ->
                     when (arg) {
                         is CompiledNativeStringArg.Literal -> string(arg.string, "native string literal arg")
-                        is CompiledNativeStringArg.IntValue -> intExpr(arg.value)
+                        is CompiledNativeStringArg.IntValue -> intExpr(arg.value, context)
                     }
                 }
             }
         }
     }
 
-    private fun lvalue(value: CompiledLValue) {
+    private fun validateNativeString(
+        expr: CompiledStringExpr.NativeString,
+        context: OperandValidationContext?,
+    ) {
+        string(expr.pathString, "native string path")
+        val path = content.strings.value(expr.pathString)
+        val descriptor = nativeServices.descriptor(path)
+        if (descriptor == null) {
+            if (context == null) {
+                require(false) { "native string path $path is not allowlisted" }
+            } else {
+                fail(
+                    VmDiagnostic.MissingNativeOp(
+                        root = context.root,
+                        instructionIndex = context.instructionIndex,
+                        operandPath = context.operandPath,
+                        path = path,
+                        reason = "UnknownNativeService",
+                    ),
+                )
+            }
+            return
+        }
+        val actualSlots =
+            expr.args.map { arg ->
+                when (arg) {
+                    is CompiledNativeStringArg.Literal -> NativeServiceArgSlot.StringValue
+                    is CompiledNativeStringArg.IntValue -> NativeServiceArgSlot.IntExprValue
+                }
+            }
+        if (actualSlots != descriptor.argSlots) {
+            if (context == null) {
+                require(false) {
+                    "native string path $path expects ${descriptor.argSlots}, got $actualSlots"
+                }
+            } else {
+                fail(
+                    VmDiagnostic.BadOperand(
+                        root = context.root,
+                        instructionIndex = context.instructionIndex,
+                        operandPath = context.operandPath,
+                        opcode = context.opcode,
+                        reason = "NativeServiceWrongShape",
+                        expected = descriptor.argSlots.toString(),
+                        actual = actualSlots.toString(),
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun lvalue(
+        value: CompiledLValue,
+        context: OperandValidationContext? = null,
+    ) {
         when (value) {
             is CompiledLValue.RealmScalar -> string(value.nameString, "realm lvalue")
             is CompiledLValue.PartyScalar -> string(value.nameString, "party lvalue")
-            is CompiledLValue.MemberField -> indexedName(value.member, value.fieldString, "member lvalue")
-            is CompiledLValue.MonsterField -> indexedName(value.monster, value.fieldString, "monster lvalue")
+            is CompiledLValue.MemberField -> indexedName(value.member, value.fieldString, "member lvalue", context)
+            is CompiledLValue.MonsterField -> indexedName(value.monster, value.fieldString, "monster lvalue", context)
             is CompiledLValue.BattleFlag -> string(value.nameString, "battle flag lvalue")
         }
     }
@@ -646,103 +657,128 @@ private class CompiledBundleValidator(
         index: CompiledIntExpr,
         nameString: Int,
         owner: String,
+        context: OperandValidationContext? = null,
     ) {
-        intExpr(index)
+        intExpr(index, context)
         string(nameString, owner)
     }
 
-    private fun scriptReward(reward: CompiledScriptReward) {
-        reward.gold?.let(::intExpr)
+    private fun scriptReward(
+        reward: CompiledScriptReward,
+        context: OperandValidationContext? = null,
+    ) {
+        reward.gold?.let { intExpr(it, context) }
         reward.items.forEach { handle(it, "script reward item") }
-        reward.messages.cantCarry?.let(::text)
-        reward.messages.pickedUp?.let(::text)
+        reward.messages.cantCarry?.let { text(it, context) }
+        reward.messages.pickedUp?.let { text(it, context) }
     }
 
-    private fun randomItemOffer(offer: CompiledRandomItemOffer) {
+    private fun randomItemOffer(
+        offer: CompiledRandomItemOffer,
+        context: OperandValidationContext? = null,
+    ) {
         handle(offer.pool, "random item offer pool")
-        text(offer.offer)
-        text(offer.choicePrompt)
-        text(offer.broke)
-        text(offer.deal)
-        offer.declined?.let(::text)
-        offer.messages.cantCarry?.let(::text)
-        offer.messages.pickedUp?.let(::text)
+        text(offer.offer, context)
+        text(offer.choicePrompt, context)
+        text(offer.broke, context)
+        text(offer.deal, context)
+        offer.declined?.let { text(it, context) }
+        offer.messages.cantCarry?.let { text(it, context) }
+        offer.messages.pickedUp?.let { text(it, context) }
         binding(offer.buy)
         binding(offer.decline)
     }
 
-    private fun shopService(service: CompiledShopService) {
+    private fun shopService(
+        service: CompiledShopService,
+        context: OperandValidationContext? = null,
+    ) {
         handle(service.building, "shop building")
         handle(service.image, "shop image")
-        text(service.closed)
-        text(service.intro)
-        text(service.menu)
+        text(service.closed, context)
+        text(service.intro, context)
+        text(service.menu, context)
         binding(service.keys.buy)
         binding(service.keys.sell)
         binding(service.keys.leave)
-        text(service.goodbye)
-        service.buy?.let(::shopBuy)
-        service.sell?.let(::shopSell)
-        service.interlude?.let(::shopInterlude)
+        text(service.goodbye, context)
+        service.buy?.let { shopBuy(it, context) }
+        service.sell?.let { shopSell(it, context) }
+        service.interlude?.let { shopInterlude(it, context) }
     }
 
-    private fun shopBuy(buy: CompiledShopBuy) {
-        text(buy.prompt)
-        buy.catalogs.forEach(::shopCatalog)
-        text(buy.tooExpensive)
-        text(buy.cantCarry)
-        text(buy.deal)
-        buy.unitPrice?.let(::text)
-        buy.singlePrice?.let(::text)
-        text(buy.payPrompt)
+    private fun shopBuy(
+        buy: CompiledShopBuy,
+        context: OperandValidationContext?,
+    ) {
+        text(buy.prompt, context)
+        buy.catalogs.forEach { shopCatalog(it, context) }
+        text(buy.tooExpensive, context)
+        text(buy.cantCarry, context)
+        text(buy.deal, context)
+        buy.unitPrice?.let { text(it, context) }
+        buy.singlePrice?.let { text(it, context) }
+        text(buy.payPrompt, context)
         binding(buy.paymentKeys.pay)
         binding(buy.paymentKeys.decline)
     }
 
-    private fun shopCatalog(catalog: CompiledShopCatalog) {
+    private fun shopCatalog(
+        catalog: CompiledShopCatalog,
+        context: OperandValidationContext?,
+    ) {
         binding(catalog.binding)
         string(catalog.titleString, "shop catalog title")
-        catalog.intro?.let(::text)
+        catalog.intro?.let { text(it, context) }
         catalog.pages.forEach { page ->
             page.entries.forEach { offer ->
                 binding(offer.binding)
                 handle(offer.item, "shop catalog item")
                 offer.labelString?.let { string(it, "shop item label") }
-                offer.description?.let(::text)
-                shopPurchase(offer.purchase)
+                offer.description?.let { text(it, context) }
+                shopPurchase(offer.purchase, context)
             }
-            page.footer?.let(::text)
+            page.footer?.let { text(it, context) }
             page.navigation.previous?.let(::binding)
             page.navigation.next?.let(::binding)
         }
     }
 
-    private fun shopPurchase(purchase: CompiledShopPurchase) {
+    private fun shopPurchase(
+        purchase: CompiledShopPurchase,
+        context: OperandValidationContext?,
+    ) {
         if (purchase is CompiledShopPurchase.Bulk) {
-            text(purchase.quantityPrompt)
-            text(purchase.tooMany)
+            text(purchase.quantityPrompt, context)
+            text(purchase.tooMany, context)
         }
     }
 
-    private fun shopSell(sell: CompiledShopSell) {
-        text(sell.prompt)
+    private fun shopSell(
+        sell: CompiledShopSell,
+        context: OperandValidationContext?,
+    ) {
+        text(sell.prompt, context)
         sell.acceptedItems.forEach { handle(it, "shop sell accepted item") }
         sell.rejectedItems.forEach { handle(it, "shop sell rejected item") }
-        text(sell.wrongKind)
-        text(sell.offer)
-        sell.declined?.let(::text)
-        sell.sold?.let(::text)
+        text(sell.wrongKind, context)
+        text(sell.offer, context)
+        sell.declined?.let { text(it, context) }
+        sell.sold?.let { text(it, context) }
         binding(sell.saleKeys.accept)
         binding(sell.saleKeys.decline)
         binding(sell.saleKeys.haggle)
     }
 
-    private fun shopInterlude(interlude: CompiledShopInterlude) {
-        text(interlude.offer)
+    private fun shopInterlude(
+        interlude: CompiledShopInterlude,
+        context: OperandValidationContext?,
+    ) {
+        text(interlude.offer, context)
         binding(interlude.accept)
         binding(interlude.decline)
-        interlude.accepted.forEach(::text)
-        text(interlude.declined)
+        interlude.accepted.forEach { text(it, context) }
+        text(interlude.declined, context)
         interlude.forceFirstUntil?.let { handle(it, "shop interlude first-offer flag") }
     }
 

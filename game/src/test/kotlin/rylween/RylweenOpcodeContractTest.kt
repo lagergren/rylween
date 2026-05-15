@@ -5,6 +5,7 @@ import rylween.compiled.CompiledInstruction
 import rylween.compiled.CompiledOpcode
 import rylween.compiled.CompiledOpcodeContract
 import rylween.compiled.CompiledOperand
+import rylween.compiled.CompiledStringExpr
 import rylween.compiled.loadCompiledGame
 import rylween.compiled.toCompiledGameBundle
 import rylween.game.RylweenCompiledGame
@@ -79,7 +80,7 @@ class RylweenOpcodeContractTest {
     }
 
     @Test
-    fun loaderRejectsRealBundleNativeCallOutsideCatalog() {
+    fun loaderRejectsRealBundleNativeStringOutsideCatalog() {
         val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
         val rootIndex =
             bundle.content.scripts
@@ -95,11 +96,11 @@ class RylweenOpcodeContractTest {
                 instructionIndex = 0,
                 instruction =
                     CompiledInstruction(
-                        opcode = CompiledOpcode.NativeCall,
+                        opcode = CompiledOpcode.BindText,
                         operands =
                             listOf(
                                 CompiledOperand.StringId(pathString),
-                                CompiledOperand.StringIdList(emptyList()),
+                                CompiledOperand.StringExprValue(CompiledStringExpr.NativeString(pathString, emptyList())),
                             ),
                     ),
             )
@@ -177,6 +178,16 @@ class RylweenOpcodeContractTest {
     @Test
     fun opcodeEnumIsNonEmpty() {
         assertTrue(CompiledOpcode.entries.isNotEmpty())
+    }
+
+    @Test
+    fun opcodeEnumDoesNotExposeRetiredAuthoringRemnants() {
+        val opcodes = CompiledOpcode.entries.map { it.name }.toSet()
+        val retired = setOf("EmitIndexed", "ConsumeTorch", "NativeCall")
+        assertTrue(
+            (opcodes intersect retired).isEmpty(),
+            "retired opcodes should stay out of the compiled VM surface: ${opcodes intersect retired}",
+        )
     }
 
     private fun hasFirstOperandOtherThanHandleList(instruction: CompiledInstruction): Boolean =

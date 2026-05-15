@@ -165,11 +165,6 @@ internal class ScriptExecutor(
                 }
 
             CompiledOpcode.Emit -> continueAfter { screen.writeText(listOf("[text:${content.slug(instruction.handleOperand(0))}]")) }
-            CompiledOpcode.EmitIndexed ->
-                continueAfter {
-                    val pattern = content.strings.value(instruction.stringIdOperand(0))
-                    screen.writeText(listOf(pattern.replace("%d", int(instruction.intOperand(1)).toString())))
-                }
 
             CompiledOpcode.WaitInput ->
                 continueAfter {
@@ -292,14 +287,6 @@ internal class ScriptExecutor(
                         )
                 }
 
-            CompiledOpcode.ConsumeTorch ->
-                continueAfter {
-                    runtime =
-                        runtime.withParty(
-                            runtime.party.withResource(Resource.Torches, runtime.party.resources.torches - 1),
-                        )
-                }
-
             CompiledOpcode.TeleportParty ->
                 continueAfter {
                     val direction = teleportDelta(int(instruction.intOperand(0)))
@@ -358,9 +345,6 @@ internal class ScriptExecutor(
                     val milestone = instruction.handleOperand(0)
                     runtime = runtime.withParty(runtime.party.copy(milestones = (runtime.party.milestones + milestone).distinct()))
                 }
-
-            CompiledOpcode.NativeCall ->
-                error("compiled native effect ${content.strings.value(instruction.stringIdOperand(0))} has no runtime host binding")
         }
 
     private fun continueAfter(body: () -> Unit): ScriptSignal {
@@ -1101,8 +1085,6 @@ internal class ScriptExecutor(
                     .inventoryItem(int(expr.slot))
                     ?.let(::itemRecord)
                     ?.cost ?: 0
-
-            is CompiledIntExpr.NativeInt -> 0
         }
 
     private fun bool(expr: CompiledBoolExpr): Boolean =

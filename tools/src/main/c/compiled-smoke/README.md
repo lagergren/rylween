@@ -304,47 +304,44 @@ The current opcodes are:
 ```text
 0 Screen
 1 Emit
-2 EmitIndexed
-3 WaitInput
-4 Pause
-5 View
-6 LetInt
-7 BindText
-8 Set
-9 Add
-10 Sub
-11 AddClamped
-12 SetFlag
-13 AppendJournal
-14 If
-15 Loop
-16 Break
-17 Stop
-18 Switch
-19 Menu
-20 AskKey
-21 AskMember
-22 AskInventorySlot
-23 AskText
-24 AskMonster
-25 ForEachMember
-26 ForEachMonster
-27 Speak
-28 TellRumour
-29 RunScene
-30 Encounter
-31 EnterDungeon
-32 ConsumeActiveItem
-33 ClearInventorySlot
-34 ConsumeInventoryPool
-35 ConsumeTorch
-36 TeleportParty
-37 DiscoverCave
-38 GrantReward
-39 RandomItemOffer
-40 ShopService
-41 AchieveMilestone
-42 NativeCall
+2 WaitInput
+3 Pause
+4 View
+5 LetInt
+6 BindText
+7 Set
+8 Add
+9 Sub
+10 AddClamped
+11 SetFlag
+12 AppendJournal
+13 If
+14 Loop
+15 Break
+16 Stop
+17 Switch
+18 Menu
+19 AskKey
+20 AskMember
+21 AskInventorySlot
+22 AskText
+23 AskMonster
+24 ForEachMember
+25 ForEachMonster
+26 Speak
+27 TellRumour
+28 RunScene
+29 Encounter
+30 EnterDungeon
+31 ConsumeActiveItem
+32 ClearInventorySlot
+33 ConsumeInventoryPool
+34 TeleportParty
+35 DiscoverCave
+36 GrantReward
+37 RandomItemOffer
+38 ShopService
+39 AchieveMilestone
 ```
 
 The compiler emits operands in this order:
@@ -352,7 +349,6 @@ The compiler emits operands in this order:
 ```text
 Screen(textBlock)
 Emit(textHandle)
-EmitIndexed(patternString, valueIntExpr)
 WaitInput(reasonString?)
 Pause(milliseconds)
 View(viewCommand)
@@ -385,14 +381,12 @@ EnterDungeon(dungeonHandle, levels)
 ConsumeActiveItem()
 ClearInventorySlot(slotIntExpr)
 ConsumeInventoryPool(itemPoolHandle, quantityIntExpr)
-ConsumeTorch()
 TeleportParty(directionKeyIntExpr, distanceIntExpr)
 DiscoverCave(dungeonHandle, levelsIntExpr, moveCostIntExpr)
 GrantReward(scriptReward)
 RandomItemOffer(randomItemOffer)
 ShopService(shopService)
 AchieveMilestone(milestoneHandle)
-NativeCall(pathString, argStrings)
 ```
 
 ## Operand Tags
@@ -508,7 +502,6 @@ intExpr:
     tag 10 PartyScalar(nameString)
     tag 11 InventoryPoolCount(itemPoolHandle)
     tag 12 InventorySlotCost(slot: intExpr)
-    tag 13 NativeInt(pathString, argStrings: list<stringId>)
 
 boolExpr:
     tag 0 Cmp(left: intExpr, op: enumName, right: intExpr)
@@ -537,8 +530,8 @@ lValue:
     tag 4 BattleFlag(nameString)
 ```
 
-`NativeInt`, `NativeString`, and `NativeCall` are narrow implementation hooks.
-The loader should reject unknown paths once J1 includes the native-op allowlist.
+`NativeString` is a narrow implementation hook for runtime display bindings.
+The loader rejects unknown paths against the native-op allowlist.
 
 ## Reward And Shop Records
 

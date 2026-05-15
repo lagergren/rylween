@@ -1758,7 +1758,6 @@ fun validateScriptRewards(
                 is IntAst.PartyScalar -> Unit
                 is IntAst.InventoryPoolCount -> validateSlottedItemPool(ast.pool, label)
                 is IntAst.InventorySlotCost -> validateIntExpression(ast.slot, label)
-                is IntAst.NativeInt -> Unit
             }
         }
 
@@ -2094,7 +2093,6 @@ fun validateScriptRewards(
         root.visitScriptOps { sourceOp ->
             when (val op = sourceOp.op) {
                 is Op.Screen -> validateTextBlock(op.text, "screen", knownRoles, knownNpcs, knownTowns)
-                is Op.EmitIndexed -> validateIntExpression(op.value, "indexed text emit")
                 is Op.LetInt -> validateIntExpression(op.value, "local int")
                 is Op.Set -> validateIntExpression(op.value, "state assignment")
                 is Op.Add -> validateIntExpression(op.value, "state add")
@@ -2570,7 +2568,6 @@ private fun validateFlagReferences(
                 is IntAst.RealmScalar,
                 is IntAst.PartyScalar,
                 is IntAst.InventoryPoolCount,
-                is IntAst.NativeInt,
                 -> Unit
                 is IntAst.Binary -> {
                     int(value.left)
