@@ -415,10 +415,7 @@ internal class ShopService(
         if (sell.saleKeys.decline.matchesInput(content, choice)) return runtime
         val slot = choice.inventorySlotFromKey() ?: return runtime
         val item = party.inventoryItem(slot)
-        if (item == null) {
-            writeTextAndWait(listOf("That slot is empty."))
-            return runtime
-        }
+        check(item != null) { "shop sell selected slot $slot was empty after input validation" }
         if (!sell.accepts(item)) {
             writeTextAndWait(sell.wrongKind.renderScreenTextLines())
             return runtime
@@ -441,7 +438,7 @@ internal class ShopService(
             screen.writeText(offerLines.withChoiceGap() + sellChoiceLines(sell))
             val confirm = input.readCommand() ?: return current
             if (sell.saleKeys.decline.matchesInput(content, confirm)) {
-                writeTextAndWait(sell.declined?.renderScreenTextLines() ?: listOf("No thanks."))
+                writeTextAndWait(requireNotNull(sell.declined).renderScreenTextLines())
                 return current
             }
             if (sell.haggle != null && sell.saleKeys.haggle.matchesInput(content, confirm)) {
@@ -449,7 +446,7 @@ internal class ShopService(
                 price =
                     quote.price
                         ?: return current.withParty(quote.party).also {
-                            writeTextAndWait(sell.declined?.renderScreenTextLines() ?: listOf("No thanks."))
+                            writeTextAndWait(requireNotNull(sell.declined).renderScreenTextLines())
                         }
                 current = current.withParty(quote.party)
                 continue
@@ -459,7 +456,7 @@ internal class ShopService(
                 current.party
                     .withInventoryItem(slot, null)
                     .withGold(current.party.resources.gold + price)
-            val soldLines = sell.sold?.renderScreenTextLines() ?: listOf("Sold!")
+            val soldLines = requireNotNull(sell.sold).renderScreenTextLines()
             screen.updateStatus(current.withParty(updated))
             writeTextAndWait(soldLines)
             return current.withParty(updated)
@@ -528,7 +525,7 @@ internal class ShopService(
                 is CompiledShopPurchase.Bulk -> unitPrice
                 CompiledShopPurchase.InventoryItem -> totalPrice
             }
-        return priceText?.renderShopLines(item = offer.item, price = renderedPrice) ?: listOf("Price: $totalPrice")
+        return requireNotNull(priceText).renderShopLines(item = offer.item, price = renderedPrice)
     }
 
     private fun unitPrice(
@@ -575,7 +572,7 @@ internal class ShopService(
     }
 
     private fun rumorLines(runtime: RuntimeState): RumorResult {
-        val speak = systems.speak ?: return RumorResult(runtime, listOf("No rumor."))
+        val speak = checkNotNull(systems.speak) { "shop interlude rumor requires authored speak runtime systems" }
         val entries =
             speak.textTables.rumorTables
                 .firstOrNull { table -> table.id == STANDARD_TOWN_RUMOR_TABLE }
@@ -588,11 +585,13 @@ internal class ShopService(
         if (entries.isEmpty()) {
             return RumorResult(
                 runtime,
-                speak.textTables.screens
-                    .firstOrNull { screen -> screen.id == SPEAK_NO_RUMOR_SCREEN }
-                    ?.text
-                    ?.renderExternal(runtime)
-                    .orEmpty(),
+                checkNotNull(
+                    speak.textTables.screens
+                        .firstOrNull { screen -> screen.id == SPEAK_NO_RUMOR_SCREEN }
+                        ?.text,
+                ) {
+                    "shop interlude rumor requires authored no-rumor screen"
+                }.renderExternal(runtime),
             )
         }
         val draw = runtime.party.drawRandom(0, entries.lastIndex)

@@ -4455,6 +4455,10 @@ val authoredRylween: RylweenModel =
                         tooExpensive("Too expensive...")
                         cantCarry("You cannot carry more.")
                         deal("Deal!")
+                        singlePrice {
+                            line("Price: ", price)
+                            line("")
+                        }
 
                         catalog('A', "Armor") {
                             intro("We have...", "")
@@ -4498,6 +4502,7 @@ val authoredRylween: RylweenModel =
                             line("")
                         }
                         declined("No thanks.")
+                        sold("Sold!")
                         haggle {
                             bonus(rollGreaterThan = 90, addCurrentDivisor = 4)
                             bonus(rollGreaterThan = 75, addCurrentDivisor = 6)
