@@ -10,6 +10,7 @@ import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalStaticScreen
 import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.TerrainSettlement
 import rylween.runtime.PausePrompts
 import rylween.runtime.RuntimeCharacterPortraitPreview
@@ -39,6 +40,7 @@ private const val WATER_NORTH = 1
 private const val WATER_EAST = 2
 private const val WATER_SOUTH = 4
 private const val WATER_WEST = 8
+private val manaStatusClasses = setOf(PcClass.Mage, PcClass.Priest)
 
 internal const val DEFAULT_BITMAP_VIEWPORT_TILES = 8
 internal const val DEFAULT_BITMAP_TILE_SIZE = 64
@@ -125,7 +127,7 @@ internal class BitmapRuntimeInput : RuntimeInputPort {
 private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 internal class BitmapRuntimeScreen(
-    private val bundle: CompiledGameBundle,
+    bundle: CompiledGameBundle,
     private val systems: ExternalRuntimeSystems,
     private val connection: WebSocketConnection,
     mapTiles: Int = DEFAULT_BITMAP_VIEWPORT_TILES,
@@ -145,6 +147,7 @@ internal class BitmapRuntimeScreen(
     private var statusLines = emptyList<String>()
     private var textLines = emptyList<String>()
     private var textInput: BitmapTextInput? = null
+    private var textEffect = BitmapTextEffect.None
     private var portrait: BitmapPortrait? = null
     private var partyPage: BitmapPartyPage? = null
     private var visualTransition = "None"
@@ -161,6 +164,7 @@ internal class BitmapRuntimeScreen(
         status = null
         textLines = emptyList()
         textInput = null
+        textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
         map = null
@@ -206,6 +210,7 @@ internal class BitmapRuntimeScreen(
         statusLines = emptyList()
         textLines = lines
         textInput = null
+        textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
         commands = emptyList()
@@ -226,6 +231,7 @@ internal class BitmapRuntimeScreen(
         statusLines = runtime.runtimeStatusLines(content, systems)
         textLines = stickyMessageLines.takeIf(List<String>::isNotEmpty) ?: wildernessTextLines(runtime, world)
         textInput = null
+        textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
         commands = systems.bitmapCommands("wilderness")
@@ -245,6 +251,7 @@ internal class BitmapRuntimeScreen(
         status = runtime.bitmapStatus()
         textLines = world.paddedRows().take(18)
         textInput = null
+        textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
         map = null
@@ -264,6 +271,7 @@ internal class BitmapRuntimeScreen(
         statusLines = runtime.runtimeStatusLines(content, systems)
         textLines = stickyMessageLines.takeIf(List<String>::isNotEmpty) ?: dungeonTextLines(runtime)
         textInput = null
+        textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
         commands = emptyList()
@@ -284,6 +292,7 @@ internal class BitmapRuntimeScreen(
         statusLines = runtime.runtimeStatusLines(content, systems)
         textLines = stickyMessageLines.takeIf(List<String>::isNotEmpty) ?: castleTextLines(runtime, castle)
         textInput = null
+        textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
         commands = systems.bitmapCommands("castle.${castle.id}.navigation")
@@ -296,6 +305,7 @@ internal class BitmapRuntimeScreen(
         stickyMessageLines = emptyList()
         textLines = lines.flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
         textInput = null
+        textEffect = BitmapTextEffect.Reveal
         partyPage = null
         commands = emptyList()
         message = null
@@ -306,6 +316,7 @@ internal class BitmapRuntimeScreen(
         stickyMessageLines = lines.flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
         textLines = stickyMessageLines
         textInput = null
+        textEffect = BitmapTextEffect.Fast
         partyPage = null
         message = null
         send()
@@ -321,6 +332,7 @@ internal class BitmapRuntimeScreen(
         when (command) {
             RuntimeViewCommand.ClearText -> {
                 textLines = emptyList()
+                textEffect = BitmapTextEffect.None
                 message = null
                 stickyMessageLines = emptyList()
             }
@@ -334,13 +346,18 @@ internal class BitmapRuntimeScreen(
 
     override fun showImage(imageSlug: String) {
         backdrop = imageSlug
-        if (mode == "wilderness" || imageSlug.hasSceneTitle()) {
+        if (imageSlug.isCampBackdrop()) {
+            mode = "camp"
+            title = displayTitle(imageSlug)
+            subtitle = ""
+        } else if (mode == "wilderness" || imageSlug.hasSceneTitle()) {
             mode = "scene"
             title = displayTitle(imageSlug)
             subtitle = ""
         }
         map = null
         textInput = null
+        textEffect = BitmapTextEffect.None
         portrait = null
         partyPage = null
         visualTransition = imageTransitionById[imageSlug] ?: "None"
@@ -378,6 +395,7 @@ internal class BitmapRuntimeScreen(
         subtitle = page.member?.let { member -> "${member.gender} ${member.race} ${member.pcClass}" }.orEmpty()
         textLines = page.lines
         textInput = null
+        textEffect = BitmapTextEffect.None
         partyPage = page.toBitmapPartyPage(pauseLine)
         commands = emptyList()
         map = null
@@ -388,6 +406,7 @@ internal class BitmapRuntimeScreen(
 
     fun setTextInput(input: BitmapTextInput?) {
         textInput = input
+        textEffect = BitmapTextEffect.None
         if (input != null) commands = emptyList()
         send()
     }
@@ -420,6 +439,7 @@ internal class BitmapRuntimeScreen(
                 statusLines = statusLines,
                 textLines = textLines,
                 textInput = textInput,
+                textEffect = textEffect,
                 portrait = portrait,
                 partyPage = partyPage,
                 visualTransition = visualTransition,
@@ -449,6 +469,7 @@ internal class BitmapRuntimeScreen(
         statusLines = runtime.runtimeStatusLines(content, systems).takeUnless { document }.orEmpty()
         textLines = lines
         textInput = null
+        textEffect = if (document) BitmapTextEffect.Reveal else BitmapTextEffect.None
         portrait = null
         partyPage = null
         map = null
@@ -464,6 +485,7 @@ internal class BitmapRuntimeScreen(
             condition = runtimeStatusLabel(systems),
             x = party.position.x,
             y = party.position.y,
+            torches = party.resources.torches.coerceAtLeast(0),
             food = party.resources.food.coerceAtLeast(0),
             moves = party.resources.timeLeft.coerceAtLeast(0),
             gold = party.resources.gold.coerceAtLeast(0),
@@ -480,6 +502,7 @@ internal class BitmapRuntimeScreen(
                         manaMax =
                             member.mana.max
                                 .takeIf { value -> value > 0 || member.mana.current > 0 },
+                        manaRelevant = member.pcClass in manaStatusClasses,
                         dead = member.dead,
                     )
                 },
@@ -745,7 +768,25 @@ private fun TerrainSettlement.runtimeName(): String = name.lowercase()
 private fun CompiledContentBundle.slug(ref: CompiledHandleRef): String = strings.value(handles.handle(ref).slugString)
 
 private fun displayTitle(slug: String): String =
+    // TODO: Create better titles.
     when (slug) {
+        "backdrop.cave" -> "Cave Entrance"
+        "backdrop_cave" -> "Cave Entrance"
+        "blitgfx.cave" -> "Cave Entrance"
+        "blitgfx.inside_cave" -> "Cave Interior"
+        "blitgfx.dungeon_chest" -> "Treasure Chest"
+        "blitgfx.dungeon_trap" -> "A Trap"
+        "blitgfx.castle_treasure" -> "Castle Treasure"
+        "blitgfx.castle_pitfall" -> "Pitfall"
+        "blitgfx.tent" -> "Camp With Tent"
+        "blitgfx.wilderness_no_tent" -> "Camp"
+        "blitgfx.battle_victory" -> "Victory"
+        "blitgfx.ydarg_castle" -> "Castle Ydarg"
+        "blitgfx.hut" -> "Wilderness Hut"
+        "wilderness_no_tent" -> "Camp"
+        "wilderness-no-tent" -> "Camp"
+        "wilderness_tent" -> "Camp With Tent"
+        "wilderness-tent" -> "Camp With Tent"
         "blitgfx.towne_mainstreet" -> "Town Main Street"
         "blitgfx.death" -> "The Party Has Fallen"
         "blitgfx.jaara_gate" -> "Jaara at Zadraz"
@@ -769,9 +810,24 @@ private fun displayTitle(slug: String): String =
 
 private fun String.hasSceneTitle(): Boolean =
     startsWith("blitgfx.monster_") ||
+        this == "blitgfx.battle_victory" ||
+        this == "blitgfx.cave" ||
+        this == "blitgfx.inside_cave" ||
         this == "blitgfx.death" ||
+        this == "blitgfx.dungeon_chest" ||
+        this == "blitgfx.dungeon_trap" ||
+        this == "blitgfx.castle_treasure" ||
+        this == "blitgfx.castle_pitfall" ||
         this == "blitgfx.jaara_gate" ||
         this == "blitgfx.skullweed_swamp"
+
+private fun String.isCampBackdrop(): Boolean {
+    val normalized = lowercase().replace(Regex("[^a-z0-9]+"), "")
+    return normalized.contains("camp") ||
+        normalized.endsWith("tent") ||
+        normalized.contains("wildernessnotent") ||
+        normalized.contains("wildernesstent")
+}
 
 private fun String.readableSlug(): String =
     split('_', '-', '.')

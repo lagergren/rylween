@@ -170,6 +170,7 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
+        castle.text.pitfallIllustration?.let(screen::showImage)
         var next = runtime
         val thiefIndex = next.party.members.indexOfFirst { member -> !member.dead && member.pcClass == PcClass.Thief }
         val disarmed =
@@ -209,6 +210,7 @@ internal class CastleRuntime(
         val roll = runtime.rollTreasure(castle)
         var next = roll.runtime
         val item = roll.item ?: return next
+        castle.text.treasureIllustration?.let(screen::showImage)
         val lines = listOf(itemName(item)) + castle.text.treasureMenu.renderCastle()
         screen.writeText(lines)
         val treasureCommands = systems.commands.getValue("castle.${castle.id}.treasure")
@@ -240,11 +242,16 @@ internal class CastleRuntime(
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
         castle.text.stairsIllustration?.let(screen::showImage)
-        screen.writeText(
-            castle.text.stairsIntro.renderCastle() + castle.text.stairsGuardianOffer.renderCastle() + castle.text.stairsMenu.renderCastle(),
-        )
-        val command = input.readCommand() ?: return runtime
+        val lines =
+            castle.text.stairsIntro.renderCastle() + castle.text.stairsGuardianOffer.renderCastle() + castle.text.stairsMenu.renderCastle()
+        screen.writeText(lines)
         val stairsCommands = systems.commands.getValue("castle.${castle.id}.stairs")
+        val command =
+            input.readValidChoice(screen, lines) { choice ->
+                stairsCommands.matches("teleportOut", choice) ||
+                    stairsCommands.matches("giveItem", choice) ||
+                    stairsCommands.matches("leave", choice)
+            } ?: return runtime
         return when {
             stairsCommands.matches("teleportOut", command) -> teleportOut(runtime, castle)
             stairsCommands.matches("giveItem", command) -> giveStairItem(runtime, castle)
@@ -275,8 +282,11 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
-        screen.writeText(castle.text.giveMenu.renderCastle())
-        val digit = input.readCommand()?.digitToIntOrNull() ?: return runtime
+        val lines = castle.text.giveMenu.renderCastle()
+        screen.writeText(lines)
+        val digits = castle.stairs.items.mapTo(mutableSetOf()) { stair -> stair.digit } + 5
+        val digit = input.readValidDigitChoice(screen, lines, digits) ?: return runtime
+        if (digit == 5) return runtime
         val item = castle.stairs.items.firstOrNull { stair -> stair.digit == digit } ?: return runtime
         val milestone = content.ref(CompiledHandleKind.Milestone, item.milestone)
         if (milestone !in runtime.party.milestones) {

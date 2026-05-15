@@ -25,6 +25,7 @@ import rylween.dsl.impl.ItemUseContext
 import rylween.dsl.impl.PcClass
 
 private const val INVENTORY_FIRST_KEY = 'A'
+private const val PRIEST_SPELL_FIRST_KEY = 'A'
 private const val INVENTORY_ENTRY_WIDTH = 12
 private const val INVENTORY_ITEM_WIDTH = 9
 
@@ -39,11 +40,11 @@ internal class UtilityActions(
     fun drop(runtime: RuntimeState): RuntimeState {
         val choices = runtime.party.inventory.filter { slot -> slot.item != null }
         if (choices.isEmpty()) return runtime
-        screen.writeText(
+        val lines =
             systems.prompts.party.dropPrompt
-                .renderUtility() + inventoryLines(choices),
-        )
-        val slot = chooseInventorySlot(choices) ?: return runtime
+                .renderUtility(runtime) + inventoryLines(choices).withReturnCancelLine()
+        screen.writeText(lines)
+        val slot = chooseInventorySlot(lines, choices) ?: return runtime
         return runtime.withParty(runtime.party.withInventoryItem(slot, null))
     }
 
@@ -72,11 +73,11 @@ internal class UtilityActions(
                 slot.takeIf { use != null && itemRecord(item).kind == ItemKind.Potion }
             }
         if (choices.isEmpty()) return runtime
-        screen.writeText(
+        val lines =
             systems.prompts.inventoryUse.quaff
-                .renderUtility() + inventoryLines(choices),
-        )
-        val slot = chooseInventorySlot(choices) ?: return runtime
+                .renderUtility(runtime) + inventoryLines(choices).withReturnCancelLine()
+        screen.writeText(lines)
+        val slot = chooseInventorySlot(lines, choices) ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
         val use =
             content.itemUses.firstOrNull { candidate -> candidate.item == item && ItemUseContext.Inventory in candidate.contexts }
@@ -99,21 +100,21 @@ internal class UtilityActions(
         if (spells.isEmpty()) {
             screen.showMessage(
                 systems.prompts.priest.noSpells
-                    .renderUtility(),
+                    .renderUtility(runtime),
             )
             return runtime
         }
-        screen.writeText(priestSpellLines(spells))
-        val command = input.readCommand()?.uppercaseChar() ?: return runtime
+        val choices = spells.withMenuKeys(PRIEST_SPELL_FIRST_KEY)
+        val lines = priestSpellLines(choices)
+        screen.writeText(lines)
+        val command =
+            input
+                .readValidChoice(screen, lines) { candidate ->
+                    val key = candidate.uppercaseChar()
+                    key == PRIEST_SPELL_CANCEL_KEY || choices.any { choice -> choice.key == key }
+                }?.uppercaseChar() ?: return runtime
         if (command == PRIEST_SPELL_CANCEL_KEY) return runtime
-        val spell =
-            command.digitToIntOrNull()?.let { slot -> spells.firstOrNull { it.slot == slot } }
-                ?: return runtime.also {
-                    screen.showMessage(
-                        systems.prompts.priest.invalidSpell
-                            .renderUtility(),
-                    )
-                }
+        val spell = choices.firstOrNull { choice -> choice.key == command }?.value ?: return runtime
         val program = programByRef(spell.scriptRoot)
         return ScriptExecutor(
             content = content,
@@ -146,19 +147,19 @@ internal class UtilityActions(
         if (choices.isEmpty()) {
             screen.writeText(
                 systems.prompts.equipment.noAvailable
-                    .renderUtility(equipmentKindName = equipmentName),
+                    .renderUtility(runtime, equipmentKindName = equipmentName),
             )
             return runtime
         }
-        screen.writeText(
+        val lines =
             systems.prompts.equipment.inventory
-                .renderUtility() + inventoryLines(choices),
-        )
-        val slot = chooseInventorySlot(choices) ?: return runtime
+                .renderUtility(runtime) + inventoryLines(choices).withReturnCancelLine()
+        screen.writeText(lines)
+        val slot = chooseInventorySlot(lines, choices) ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
         screen.writeText(
             systems.prompts.equipment.equipped
-                .renderUtility(selectedItem = item),
+                .renderUtility(runtime, selectedItem = item),
         )
         return runtime.updateMember(memberIndex) { current -> equip(current, item) }
     }
@@ -175,59 +176,69 @@ internal class UtilityActions(
         update: (rylween.compiled.CompiledPartyMember) -> rylween.compiled.CompiledPartyMember,
     ): RuntimeState = chooseMember(runtime)?.let { memberIndex -> runtime.updateMember(memberIndex, update) } ?: runtime
 
-    private fun chooseInventorySlot(choices: List<CompiledInventorySlot>): Int? =
-        input
-            .readCommand()
-            ?.inventorySlotFromKey()
-            ?.takeIf { selected -> choices.any { it.slot == selected } }
+    private fun chooseInventorySlot(
+        lines: List<String>,
+        choices: List<CompiledInventorySlot>,
+    ): Int? =
+        input.readValidInventorySlotChoice(
+            screen = screen,
+            lines = lines,
+            validSlots = choices.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
+            cancelKeys = INVENTORY_CANCEL_KEYS,
+        )
 
     private fun inventoryLines(choices: List<CompiledInventorySlot>): List<String> =
         choices.map { slot ->
             "${inventorySlotKey(slot.slot)}. ${slot.item?.let(::itemName).orEmpty()}"
         }
 
+    private fun List<String>.withReturnCancelLine(): List<String> = this + "RETURN leaves."
+
     private fun chooseCaster(runtime: RuntimeState): Int? {
         if (runtime.party.members.none { member -> !member.dead && member.pcClass == PcClass.Priest }) {
             screen.showMessage(
                 systems.prompts.priest.wrongClass
-                    .renderUtility(),
+                    .renderUtility(runtime),
             )
             return null
         }
-        screen.writeText(
+        val baseLines =
             systems.prompts.priest.who
-                .renderUtility() +
+                .renderUtility(runtime) +
                 systems.prompts.priest.none
                     .renderUtility() +
                 "" +
-                runtime.party.members.mapIndexed { index, _ -> "${index + 1}. ${runtime.party.memberName(content, index)}" },
-        )
-        val command = input.readCommand()?.uppercaseChar() ?: return null
-        if (command == PRIEST_SPELL_CANCEL_KEY) return null
-        val index =
-            command
-                .digitToIntOrNull()
-                ?.minus(1)
-                ?: return rejectPriestCaster(systems.prompts.priest.invalidCaster)
-        val member =
-            runtime.party.members
-                .getOrNull(index)
-                ?: return rejectPriestCaster(systems.prompts.priest.invalidCaster)
-        return when {
-            member.dead -> rejectPriestCaster(systems.prompts.priest.dead)
-            member.pcClass != PcClass.Priest -> rejectPriestCaster(systems.prompts.priest.wrongClass)
-            else -> index
+                runtime.party.members.mapIndexed { index, _ -> "${index + 1}. ${runtime.party.memberName(content, index)}" }
+        var rejection = emptyList<String>()
+        while (true) {
+            val lines = baseLines + rejection
+            screen.writeText(lines)
+            val command = input.readCommand()?.uppercaseChar() ?: return null
+            if (command == PRIEST_SPELL_CANCEL_KEY) return null
+            val index = command.digitToIntOrNull()?.minus(1)
+            val member = index?.let(runtime.party.members::getOrNull)
+            rejection =
+                when {
+                    index == null ->
+                        systems.prompts.priest.invalidCaster
+                            .renderUtility()
+                    member == null ->
+                        systems.prompts.priest.invalidCaster
+                            .renderUtility()
+                    member.dead ->
+                        systems.prompts.priest.dead
+                            .renderUtility()
+                    member.pcClass != PcClass.Priest ->
+                        systems.prompts.priest.wrongClass
+                            .renderUtility()
+                    else -> return index
+                }
         }
     }
 
-    private fun rejectPriestCaster(text: ExternalRuntimeTextBlock): Int? {
-        screen.showMessage(text.renderUtility())
-        return null
-    }
-
-    private fun priestSpellLines(spells: List<CompiledSpell>): List<String> =
-        spells.map { spell ->
-            "${spell.slot}. ${content.strings.value(spell.nameString)}"
+    private fun priestSpellLines(spells: List<MenuChoice<CompiledSpell>>): List<String> =
+        spells.map { choice ->
+            "(${choice.key})${content.strings.value(choice.value.nameString)}"
         } +
             systems.prompts.priest.none
                 .renderUtility()
@@ -244,19 +255,22 @@ internal class UtilityActions(
         indexes: List<Int>,
     ): Int? {
         if (indexes.isEmpty()) return null
-        screen.writeText(
+        val lines =
             systems.prompts.equipment.who
-                .renderUtility() +
+                .renderUtility(runtime) +
                 "" +
                 indexes.map { index ->
                     "${index + 1}. ${runtime.party.memberName(content, index)}"
-                },
-        )
+                } +
+                "RETURN leaves."
+        screen.writeText(lines)
         return input
-            .readCommand()
-            ?.digitToIntOrNull()
-            ?.minus(1)
-            ?.takeIf(indexes::contains)
+            .readValidDigitChoice(
+                screen = screen,
+                lines = lines,
+                validDigits = indexes.mapTo(mutableSetOf()) { index -> index + 1 },
+                cancelKeys = INVENTORY_CANCEL_KEYS,
+            )?.minus(1)
     }
 
     private fun programByRef(root: CompiledHandleRef): CompiledScriptProgram =
@@ -272,6 +286,7 @@ internal class UtilityActions(
     private fun itemName(item: CompiledHandleRef): String = content.strings.value(itemRecord(item).displayNameString)
 
     private fun ExternalRuntimeTextBlock.renderUtility(
+        runtime: RuntimeState? = null,
         selectedItem: CompiledHandleRef? = null,
         equipmentKindName: String? = null,
     ): List<String> =
@@ -279,6 +294,13 @@ internal class UtilityActions(
             when (kind) {
                 "selectedItemName" -> selectedItem?.let(::itemName)
                 "equipmentKindName" -> equipmentKindName
+                else -> runtime?.runtimeTextValue(content, kind)
+            } ?: when (kind) {
+                "partyMemberMax" ->
+                    systems.characterCreation
+                        ?.start
+                        ?.partyMemberMax
+                        ?.toString()
                 else -> null
             }
         }
@@ -303,6 +325,7 @@ internal fun RuntimeState.updateMember(
 
 private const val PRIEST_SPELL_PREFIX = "priest."
 private const val PRIEST_SPELL_CANCEL_KEY = 'N'
+private val INVENTORY_CANCEL_KEYS = setOf('\n')
 
 internal fun inventorySlotKey(slot: Int): Char = (INVENTORY_FIRST_KEY.code + slot - 1).toChar()
 

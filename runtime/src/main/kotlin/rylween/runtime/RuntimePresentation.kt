@@ -3,11 +3,15 @@ package rylween.runtime
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledPartyMember
+import rylween.compiled.CompiledRuntimeTextPart
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeInputBinding
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.WildernessFatigueMatch
+
+private const val PERCENT_DENOMINATOR = 100
 
 fun runtimeWildernessContextLines(
     content: CompiledContentBundle,
@@ -55,6 +59,44 @@ fun RuntimeState.runtimeFoodStatusLabel(): String {
     return "OK"
 }
 
+fun RuntimeState.runtimeTextValue(
+    content: CompiledContentBundle,
+    kind: String,
+): String? =
+    when (kind) {
+        "partyMemberCount" -> party.members.size.toString()
+        "partyMemberMax" -> partyMemberMax.toString()
+        "currentTownName" -> currentTown?.let(content::runtimeTownName)
+        "townTaxPercent" -> currentTown?.let(content::runtimeTown)?.taxPercent?.toString()
+        "townTaxAmount" -> runtimeTownTaxAmount(content)?.toString()
+        else -> null
+    }
+
+fun RuntimeState.runtimeTownTaxAmount(content: CompiledContentBundle): Int? =
+    currentTown
+        ?.let(content::runtimeTown)
+        ?.taxPercent
+        ?.let { tax -> party.resources.gold * tax / PERCENT_DENOMINATOR }
+
+fun RuntimeState.runtimeTextValue(
+    content: CompiledContentBundle,
+    part: CompiledRuntimeTextPart,
+): String? =
+    when (part) {
+        CompiledRuntimeTextPart.CurrentTownName -> runtimeTextValue(content, "currentTownName")
+        CompiledRuntimeTextPart.PartyMemberCount -> runtimeTextValue(content, "partyMemberCount")
+        CompiledRuntimeTextPart.PartyMemberMax -> runtimeTextValue(content, "partyMemberMax")
+        CompiledRuntimeTextPart.TownTaxPercent -> runtimeTextValue(content, "townTaxPercent")
+        CompiledRuntimeTextPart.TownTaxAmount -> runtimeTextValue(content, "townTaxAmount")
+        else -> null
+    }
+
+fun ExternalRuntimeTextBlock.renderRuntimeText(
+    content: CompiledContentBundle,
+    runtime: RuntimeState,
+    extraValues: (String) -> String? = { null },
+): List<String> = render { kind -> extraValues(kind) ?: runtime.runtimeTextValue(content, kind) }
+
 private fun RuntimeState.runtimeFatigueStatusLabel(systems: ExternalRuntimeSystems): String? {
     val restedHours = party.resources.restedHours
     val fatigueRules =
@@ -98,12 +140,23 @@ private fun ExternalRuntimeCommand.enterPromptLine(): String {
     return "Press ${binding.primary.uppercase()} to ${label.replaceFirstChar(Char::lowercaseChar)}."
 }
 
-fun ExternalRuntimeCommand.runtimeMnemonicLine(): String = binding.runtimeMnemonicLine(label ?: binding.label)
+fun ExternalRuntimeCommand.runtimeMnemonicLine(): String = binding.runtimeMnemonicLine(runtimeCommandDescription())
+
+private fun ExternalRuntimeCommand.runtimeCommandDescription(): String =
+    listOfNotNull(label, binding.label)
+        .firstOrNull { candidate -> candidate.isDescriptiveBindingLabel(binding) }
+        ?: action.readableSlug()
 
 private fun ExternalRuntimeInputBinding.runtimeMnemonicLine(text: String): String {
     val key = label.takeIf { value -> value.isNotBlank() } ?: primary.uppercase()
     return "($key)${text.afterMnemonic(primary)}"
 }
+
+private fun String.isDescriptiveBindingLabel(binding: ExternalRuntimeInputBinding): Boolean =
+    isNotBlank() &&
+        !equals(binding.primary, ignoreCase = true) &&
+        this !in binding.aliases &&
+        any(Char::isLetter)
 
 private fun String.afterMnemonic(key: String): String =
     removePrefix(key)
@@ -121,3 +174,8 @@ private fun PcClass.runtimeShortLabel(): String =
     }
 
 private fun CompiledContentBundle.runtimeSlug(ref: CompiledHandleRef): String = strings.value(handles.handle(ref).slugString)
+
+private fun CompiledContentBundle.runtimeTown(ref: CompiledHandleRef) = towns.firstOrNull { town -> town.id == ref }
+
+private fun CompiledContentBundle.runtimeTownName(ref: CompiledHandleRef): String =
+    runtimeTown(ref)?.let { town -> strings.value(town.nameString) } ?: runtimeSlug(ref)

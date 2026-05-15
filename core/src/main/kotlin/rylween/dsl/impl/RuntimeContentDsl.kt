@@ -258,6 +258,22 @@ data class DungeonKeysModel(
     val save: InputBindingModel = inputKey("S"),
     val commandHint: TextBlock = inlineText("Press ? for commands."),
     val helpPages: List<TextBlock> = emptyList(),
+    val commandLabels: DungeonCommandLabelsModel = DungeonCommandLabelsModel(),
+)
+
+data class DungeonCommandLabelsModel(
+    val descend: String = "Descend",
+    val ascend: String = "Ascend",
+    val help: String = "View this help",
+    val drop: String = "Leave (Discard) Item",
+    val removeArmor: String = "Take off armor",
+    val removeWeapon: String = "Put down weapon",
+    val readyWeapon: String = "Wield Weapon",
+    val readyArmor: String = "Ready Armor",
+    val quaff: String = "Quaff Potion",
+    val castSpell: String = "Cast Spell",
+    val viewParty: String = "View Party",
+    val save: String = "Save Game",
 )
 
 data class GamePromptsModel(
@@ -292,6 +308,7 @@ data class BattlePacingModel(
     val messagePauseMs: Int = 900,
     val openingPauseMs: Int = 1_200,
     val victoryPauseMs: Int = 4_000,
+    val battleCryPauseMs: Int = 450,
 )
 
 /** Millisecond pauses used by the reusable character-creation flow. */
@@ -318,13 +335,13 @@ data class WildernessPacingModel(
 
 data class TitleMenuPromptsModel(
     val header: TextBlock = inlineText("Rylween", ""),
-    val createNewParty: InputBindingModel = inputKey("N", label = "Create New Party"),
-    val continueSavedGame: InputBindingModel = inputKey("C", label = "Continue Saved Game"),
-    val terminateParty: InputBindingModel = inputKey("T", label = "Terminate Party"),
-    val scoreboard: InputBindingModel = inputKey("S", label = "Scoreboard"),
-    val hallOfFame: InputBindingModel = inputKey("H", label = "Hall of Fame"),
-    val documentation: InputBindingModel = inputKey("D", label = "Documentation"),
-    val leave: InputBindingModel = inputKey("L", label = "Leave"),
+    val createNewParty: InputBindingModel = inputKey("N", label = "New Party"),
+    val continueSavedGame: InputBindingModel = inputKey("L", label = "Load Game"),
+    val terminateParty: InputBindingModel = inputKey("D", label = "Delete Save"),
+    val scoreboard: InputBindingModel = inputKey("S", label = "Scores"),
+    val hallOfFame: InputBindingModel = inputKey("H", label = "Heroes"),
+    val documentation: InputBindingModel = inputKey("M", label = "Manual"),
+    val leave: InputBindingModel = inputKey("E", label = "Exit"),
     val continueUnavailable: TextBlock = inlineText("No saved party exists for this user."),
     val overwriteConfirm: TextBlock =
         inlineText(
@@ -361,7 +378,7 @@ data class CharacterCreationPromptsModel(
 )
 
 data class PriestSpellPromptsModel(
-    val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") },
+    val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberCount, ")") },
     val none: TextBlock = inlineText("(N)one"),
     val mageCombatOnly: TextBlock = inlineText("Sorry. Mage spells are", "combat-only."),
     val wrongClass: TextBlock = inlineText("Wrong class."),
@@ -414,7 +431,7 @@ data class TownPromptsModel(
 )
 
 data class PartyPromptsModel(
-    val viewWho: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, "/Q/A)") },
+    val viewWho: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberCount, "/Q/A)") },
     val journalHeader: TextBlock = missingPrompt("party.journal_header"),
     val dropPrompt: TextBlock = inlineText("Drop what?"),
     val dropEmptySlot: TextBlock = inlineText("Nothing to drop."),
@@ -426,7 +443,7 @@ data class PartyPromptsModel(
         },
     val dropCapacityReduced: TextBlock = inlineText("You are forced to", "leave some of your", "food behind..."),
     val dropOverflowConfirm: TextBlock = inlineText("Drop an item? (Y/N)"),
-    val dropOverflowPrompt: TextBlock = inlineText("Drop which item?", "Any other key leaves."),
+    val dropOverflowPrompt: TextBlock = inlineText("Drop which item?", "RETURN leaves."),
 )
 
 data class WildernessPromptsModel(

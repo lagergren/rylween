@@ -322,11 +322,11 @@ internal class BattleRunner(
     }
 
     private fun BattleEncounter.selectMonsterTarget(messages: MutableList<String>): Int? {
-        screen.writeText(rules.text.targetPrompt.renderBattle() + monsterTargetLines())
-        val targetIndex = input.readCommand()?.monsterTargetIndex()
-        targetIndex?.let(livingMonsterIndices()::getOrNull)?.let { return it }
-        messages += rules.text.notPossible.renderBattle()
-        return null
+        val lines = rules.text.targetPrompt.renderBattle() + monsterTargetLines()
+        screen.writeText(lines)
+        return input
+            .readValidChoice(screen, lines) { choice -> selectedMonsterTargetIndex(choice) != null }
+            ?.let { choice -> selectedMonsterTargetIndex(choice) }
     }
 
     private fun BattleEncounter.defend(
@@ -349,7 +349,14 @@ internal class BattleRunner(
     }
 
     private fun BattleEncounter.battleCry(messages: MutableList<String>): BattleEncounter {
-        messages += rules.text.battleCry.renderBattle()
+        val lines = rules.text.battleCry.renderBattle()
+        if (lines.size > 1) {
+            screen.writeText(lines.take(1))
+            input.pause(pacing.battleCryPauseMs)
+            messages += lines.drop(1)
+        } else {
+            messages += lines
+        }
         return copy(
             monsterWeaponSkill =
                 (monsterWeaponSkill - rules.playerRound.battleCry.weaponSkillPenalty).coerceAtLeast(
@@ -973,25 +980,19 @@ internal class BattleRunner(
 
     private fun BattleEncounter.monsterTargetLines(): List<String> =
         buildList {
-            var key = 'A'
             monsterHp.forEachIndexed { index, hp ->
+                val key = ('A'.code + index).toChar()
                 val maxHp = monsterHpMax.getOrElse(index) { hitPointMax }
                 if (hp > 0) {
-                    add("${key++}. ${monsterName()} $hp/$maxHp HP")
+                    add("$key. ${monsterName()} $hp/$maxHp HP")
                 } else {
-                    add("   ${monsterName()} dead 0/$maxHp HP")
+                    add("$key. ${monsterName()} dead 0/$maxHp HP")
                 }
             }
         }
 
-    private fun BattleEncounter.livingMonsterIndices(): List<Int> =
-        monsterHp.mapIndexedNotNull { index, hp ->
-            if (hp > 0) {
-                index
-            } else {
-                null
-            }
-        }
+    private fun BattleEncounter.selectedMonsterTargetIndex(choice: Char): Int? =
+        choice.monsterTargetIndex()?.takeIf { index -> monsterHp.getOrElse(index) { 0 } > 0 }
 
     private fun BattleEncounter.firstAliveMonsterIndex(): Int = monsterHp.indexOfFirst { hp -> hp > 0 }.coerceAtLeast(0)
 
@@ -1145,10 +1146,12 @@ internal class BattleRunner(
 
                 CompiledOpcode.AskMonster ->
                     false.also {
-                        screen.writeText(
-                            instruction.textBlockOperand(0).renderScriptLines() + encounter.monsterTargetLines(),
-                        )
-                        val target = input.readCommand()?.monsterTargetIndex()?.let(encounter.livingMonsterIndices()::getOrNull)
+                        val lines = instruction.textBlockOperand(0).renderScriptLines() + encounter.monsterTargetLines()
+                        screen.writeText(lines)
+                        val target =
+                            input
+                                .readValidChoice(screen, lines) { choice -> encounter.selectedMonsterTargetIndex(choice) != null }
+                                ?.let { choice -> encounter.selectedMonsterTargetIndex(choice) }
                         locals =
                             locals +
                             (

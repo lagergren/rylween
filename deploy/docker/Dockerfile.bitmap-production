@@ -5,7 +5,7 @@
 # container over loopback or a private network.
 #
 # Example:
-#   docker build -f Dockerfile.bitmap-production -t rylween-bitmap-prod .
+#   docker build -f deploy/docker/Dockerfile.bitmap-production -t rylween-bitmap-prod .
 #   docker run --rm \
 #     -e RYLWEEN_AUTH_ACCOUNT=admin \
 #     -e RYLWEEN_AUTH_EMAIL=admin@example.test \

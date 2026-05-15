@@ -249,7 +249,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "mission.hobgoblin_caravan_random_step",
-                        commands = "2" + waitForInput(2) + battle() + waitForInput(2) + "X",
+                        commands = "2" + waitForInput(2) + battle(attacks = 4) + waitForInput(2) + "X",
                         checkpoints =
                             listOf(
                                 "seed:first random-step draw below hobgoblin trigger",
@@ -281,7 +281,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.ollk_silver_key_chain",
-                        commands = "ETLLINNN" + speakInnNpc(2) + speakInnNpc(1) + "LLX",
+                        commands = enterTown() + "TNLINNN" + speakInnNpc(2) + speakInnNpc(1) + "LLX",
                         checkpoints =
                             listOf(
                                 "output:Tokawa, the keeper",
@@ -403,7 +403,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_service_social_circuit",
-                        commands = "ESDALI!NNNLTN",
+                        commands = enterTown() + "SDALI!NNNLTN",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
@@ -426,7 +426,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_merchant_buy_sell_matrix",
-                        commands = "EMBA1PABB100000ABCNBCPASANASAYASDAL",
+                        commands = enterTown() + "MBA1PABB100000ABCNBCPASANASAYASDAL",
                         checkpoints =
                             listOf(
                                 "output:Merchant",
@@ -465,7 +465,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_church_heal_raise_energy_matrix",
-                        commands = "ECH1PH4R2PE3PE1R1LL",
+                        commands = enterTown() + "CH1PH4R2PE3PE1R1LL",
                         checkpoints =
                             listOf(
                                 "output:You enter the church",
@@ -488,7 +488,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_tavern_drinks_rumor_niklas_story",
-                        commands = "ETOAOBOCODONRAS2CBS1QLYBT1TL",
+                        commands = enterTown() + "TOAOBOCODONRAS2CBS1QLYBT1TL",
                         checkpoints =
                             listOf(
                                 "output:Welcome! Have a seat",
@@ -527,7 +527,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_tavern_random_item_offer",
-                        commands = "ETBLL",
+                        commands = enterTown() + "TBLL",
                         checkpoints =
                             listOf(
                                 "output:scruffy",
@@ -572,7 +572,7 @@ internal object ReplayPlans {
 
         fun teleportAfterThun(): ReplayComponent {
             point = GridPoint(point.x - 18, point.y)
-            return ReplayComponent("wilderness.teleport_after_thun", "Z16AA49")
+            return ReplayComponent("wilderness.teleport_after_thun", "Z1FAA49")
         }
 
         return ReplayPlan(
@@ -763,7 +763,9 @@ internal object ReplayPlans {
             speakInnNpc(7) +
             "LLX"
 
-    private fun enterInnGuestChat(): String = "EINNN"
+    private fun enterTown(): String = "EP"
+
+    private fun enterInnGuestChat(): String = enterTown() + "INNN"
 
     private fun speakInnNpc(
         index: Int,
@@ -789,7 +791,9 @@ internal object ReplayPlans {
 
     private fun waitForInput(count: Int = 1): String = "A".repeat(count)
 
-    private fun battle(attacks: Int = 5): String = "F" + "AA".repeat(attacks)
+    private fun battle(attacks: Int = 5): String = "F" + buildString { targetSlots(attacks).forEach { slot -> append('A').append(slot) } }
+
+    private fun targetSlots(attacks: Int): String = "ABCDEFGH".take(attacks).ifEmpty { "A".repeat(attacks) }
 }
 
 private data class ReplayRoute(

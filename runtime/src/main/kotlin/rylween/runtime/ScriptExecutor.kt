@@ -20,6 +20,7 @@ import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInputBinding
 import rylween.compiled.CompiledInstruction
 import rylween.compiled.CompiledIntExpr
+import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledLValue
 import rylween.compiled.CompiledMenuOption
@@ -64,7 +65,6 @@ import rylween.dsl.impl.of
 import rylween.dsl.impl.sourceId
 import rylween.dsl.pronoun
 
-private const val PERCENT_DENOMINATOR = 100
 private const val STANDARD_TOWN_RUMOR_TABLE = "standard_town"
 private const val SPEAK_COMMAND_GROUP = "speak"
 private const val SPEAK_QUESTION_COMMAND_GROUP = "speak.questions"
@@ -527,9 +527,19 @@ internal class ScriptExecutor(
     private fun executeAskMember(instruction: CompiledInstruction): ScriptSignal {
         val accepting = enumValueOf<MemberChoiceFilter>(instruction.enumOperand(3))
         val choices = runtime.party.memberChoices(accepting)
-        screen.writeText(instruction.textBlockOperand(0).renderScriptLines().withChoiceGap() + memberChoiceLines(choices))
-        val member = input.readCommand()?.digitToIntOrNull()
-        locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to (member?.takeIf { it in choices } ?: 0))
+        if (choices.isEmpty()) {
+            locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to 0)
+            return ScriptSignal.Continue
+        }
+        val lines = instruction.textBlockOperand(0).renderScriptLines().withChoiceGap() + memberChoiceLines(choices)
+        screen.writeText(lines)
+        val member =
+            input.readValidDigitChoice(
+                screen = screen,
+                lines = lines,
+                validDigits = choices.toSet(),
+            )
+        locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to (member ?: 0))
         return ScriptSignal.Continue
     }
 
@@ -538,11 +548,29 @@ internal class ScriptExecutor(
         val slots = instruction.integerOperand(3)..instruction.integerOperand(4)
         val filter = enumValueOf<InventorySlotChoiceFilter>(instruction.enumOperand(5))
         val choices = runtime.party.inventorySlotChoices(filter, slots, firstKey)
-        screen.writeText(instruction.textBlockOperand(0).renderScriptLines() + inventoryChoiceLines(choices))
-        val choice = input.readCommand()
-        val slot = choices.firstOrNull { current -> choice?.uppercaseChar() == current.key.uppercaseChar() }?.slot ?: 0
+        if (choices.isEmpty()) {
+            locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to 0)
+            return ScriptSignal.Continue
+        }
+        val lines = instruction.textBlockOperand(0).renderScriptLines() + inventoryChoiceLines(choices).withReturnCancelLine()
+        screen.writeText(lines)
+        val choice =
+            input.readValidChoice(screen, lines) { candidate ->
+                candidate == '\n' ||
+                    choices.any { current -> candidate.uppercaseChar() == current.key.uppercaseChar() }
+            }
+        val slot =
+            when (choice?.uppercaseChar()) {
+                null -> 0
+                else -> choices.firstOrNull { current -> choice.uppercaseChar() == current.key.uppercaseChar() }?.slot ?: 0
+            }
         locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to slot)
         return ScriptSignal.Continue
+    }
+
+    private fun List<String>.withReturnCancelLine(): List<String> {
+        val hasReturn = any { line -> "RETURN" in line || "return" in line }
+        return takeIf { hasReturn } ?: (this + "RETURN leaves.")
     }
 
     private fun executeAskText(
@@ -620,12 +648,15 @@ internal class ScriptExecutor(
             return ScriptSignal.Continue
         }
 
-        screen.writeText(conversation.prompts.chooseNpc.renderExternal() + npcChoiceLines(npcs))
+        val chooseNpcLines = conversation.prompts.chooseNpc.renderExternal() + npcChoiceLines(npcs)
+        screen.writeText(chooseNpcLines)
         val npc =
             input
-                .readCommand()
-                ?.digitToIntOrNull()
-                ?.let { index -> npcs.getOrNull(index - 1) }
+                .readValidDigitChoice(
+                    screen = screen,
+                    lines = chooseNpcLines,
+                    validDigits = (1..npcs.size).toSet(),
+                )?.let { index -> npcs.getOrNull(index - 1) }
                 ?: return ScriptSignal.StopScript
         runtime = runtime.withParty(runtime.party.withNpcVisit(npc.id, visited = true))
         val branchSignal = executeDialogueBranch(npc, insideLoop)
@@ -633,11 +664,15 @@ internal class ScriptExecutor(
 
         var rumorTold = false
         while (true) {
-            screen.writeText(conversation.prompts.mainMenu.renderExternal(npc) + systems.commands.mnemonicMenuLines(SPEAK_COMMAND_GROUP))
+            val lines = conversation.prompts.mainMenu.renderExternal(npc) + systems.commands.mnemonicMenuLines(SPEAK_COMMAND_GROUP)
+            screen.writeText(lines)
             val command =
                 input
-                    .readCommand()
-                    ?.let { choice -> systems.commands.commandFor(SPEAK_COMMAND_GROUP, choice) }
+                    .readValidCommandChoice(
+                        screen = screen,
+                        lines = lines,
+                        commands = systems.commands[SPEAK_COMMAND_GROUP].orEmpty(),
+                    )
                     ?: return ScriptSignal.StopScript
             val signal =
                 when (command.action) {
@@ -671,11 +706,15 @@ internal class ScriptExecutor(
         npc: CompiledCharacter,
         insideLoop: Boolean,
     ): ScriptSignal {
-        screen.writeText(systems.commands.mnemonicMenuLines(SPEAK_QUESTION_COMMAND_GROUP))
+        val lines = systems.commands.mnemonicMenuLines(SPEAK_QUESTION_COMMAND_GROUP)
+        screen.writeText(lines)
         val command =
             input
-                .readCommand()
-                ?.let { choice -> systems.commands.commandFor(SPEAK_QUESTION_COMMAND_GROUP, choice) }
+                .readValidCommandChoice(
+                    screen = screen,
+                    lines = lines,
+                    commands = systems.commands[SPEAK_QUESTION_COMMAND_GROUP].orEmpty(),
+                )
                 ?: return ScriptSignal.StopScript
         val topic = command.questionTopic() ?: return ScriptSignal.Continue
         if (topic == QuestionTopic.Nothing) return ScriptSignal.Continue
@@ -879,8 +918,12 @@ internal class ScriptExecutor(
             details = mapOf("pool" to content.slug(offer.pool), "item" to content.slug(item), "price" to price),
         )
         val party = draw.party
-        screen.writeText(offer.offer.renderRewardLines(item, price) + offer.choicePrompt.renderRewardLines(item, price))
-        val choice = input.readCommand() ?: return party
+        val lines = offer.offer.renderRewardLines(item, price) + offer.choicePrompt.renderRewardLines(item, price)
+        screen.writeText(lines)
+        val choice =
+            input.readValidChoice(screen, lines) { candidate ->
+                offer.decline.matchesInput(content, candidate) || offer.buy.matchesInput(content, candidate)
+            } ?: return party
         return when {
             offer.decline.matchesInput(content, choice) ->
                 party.also {
@@ -889,7 +932,6 @@ internal class ScriptExecutor(
                     input.pause(offer.pauseMillis.declined)
                 }
 
-            !offer.buy.matchesInput(content, choice) -> party
             party.resources.gold < price ->
                 party.also {
                     log.event("script.random_item_offer.broke item=${content.slug(item)} price=$price gold=${party.resources.gold}")
@@ -944,18 +986,25 @@ internal class ScriptExecutor(
         party: PartyState,
         leadLines: List<String>,
     ): Int? {
-        screen.writeText(
+        val confirmLines =
             leadLines + "" +
                 systems.prompts.party.dropOverflowConfirm
-                    .renderSimplePrompt(),
-        )
-        val confirm = input.readCommand()?.uppercaseChar() ?: return null
+                    .renderSimplePrompt()
+        screen.writeText(confirmLines)
+        val confirm =
+            input
+                .readValidChoice(screen, confirmLines) { choice -> choice.uppercaseChar() == 'Y' || choice == '\n' }
+                ?.uppercaseChar()
+                ?: return null
         if (confirm != 'Y') return null
-        screen.writeText(inventoryReplaceLines(party))
-        return input
-            .readCommand()
-            ?.inventorySlotFromKey()
-            ?.takeIf { slot -> party.inventoryItem(slot) != null }
+        val slotLines = inventoryReplaceLines(party)
+        screen.writeText(slotLines)
+        return input.readValidInventorySlotChoice(
+            screen = screen,
+            lines = slotLines,
+            validSlots = party.inventory.filter { slot -> slot.item != null }.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
+            cancelKeys = setOf('\n'),
+        )
     }
 
     private fun CompiledTextBlock.renderRewardLines(
@@ -1294,21 +1343,20 @@ internal class ScriptExecutor(
         npc: CompiledCharacter?,
         journal: Boolean,
     ): String? =
-        when (part.kind) {
-            "conversationNpcName" -> npc?.let { content.strings.value(it.nameString) }
-            "partyMemberMax" -> runtime.partyMemberMax.toString()
-            "currentTownName" -> runtime.currentTown?.let { town -> content.townName(town) }
-            "townName" -> part.args["town"]?.let(::townNameBySlug)
-            "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
-            "roleName" -> part.args["role"]?.let(::roleName)
-            "roleJob" -> part.args["role"]?.let(::roleJob)
-            "roleLocation" -> part.args["role"]?.let { role -> if (journal) roleJournalLocation(role) else roleLocation(role) }
-            "npcName" -> part.args["npc"]?.let(::npcName)
-            "npcJob" -> part.args["npc"]?.let(::npcJob)
-            "npcLocation" -> part.args["npc"]?.let { npc -> if (journal) npcJournalLocation(npc) else npcLocation(npc) }
-            "locationCoordinate" -> part.args["location"]?.let(::locationTextBySlug)
-            else -> null
-        }
+        runtime.runtimeTextValue(content, part.kind)
+            ?: when (part.kind) {
+                "conversationNpcName" -> npc?.let { content.strings.value(it.nameString) }
+                "townName" -> part.args["town"]?.let(::townNameBySlug)
+                "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
+                "roleName" -> part.args["role"]?.let(::roleName)
+                "roleJob" -> part.args["role"]?.let(::roleJob)
+                "roleLocation" -> part.args["role"]?.let { role -> if (journal) roleJournalLocation(role) else roleLocation(role) }
+                "npcName" -> part.args["npc"]?.let(::npcName)
+                "npcJob" -> part.args["npc"]?.let(::npcJob)
+                "npcLocation" -> part.args["npc"]?.let { npc -> if (journal) npcJournalLocation(npc) else npcLocation(npc) }
+                "locationCoordinate" -> part.args["location"]?.let(::locationTextBySlug)
+                else -> null
+            }
 
     private fun ExternalRuntimeTextBlock.hasExactJournalLocation(): Boolean =
         lines
@@ -1495,31 +1543,10 @@ internal class ScriptExecutor(
     private fun Map<String, List<ExternalRuntimeCommand>>.mnemonicMenuLines(group: String): List<String> =
         get(group).orEmpty().map { command -> command.mnemonicLine() }
 
-    private fun Map<String, List<ExternalRuntimeCommand>>.commandFor(
-        group: String,
-        choice: Char,
-    ): ExternalRuntimeCommand? = get(group).orEmpty().firstOrNull { command -> command.matches(choice) }
-
-    private fun ExternalRuntimeCommand.matches(choice: Char): Boolean =
-        (listOf(binding.primary) + binding.aliases)
-            .any { value -> value.equals(choice.toString(), ignoreCase = true) }
-
-    private fun ExternalRuntimeCommand.mnemonicLine(): String {
-        val text = label ?: binding.label
-        val primary = binding.primary.uppercase()
-        val suffix = text.removePrefix(primary, ignoreCase = true)
-        return suffix?.let { "($primary)$it" } ?: "($primary) $text"
-    }
-
     private fun ExternalRuntimeCommand.questionTopic(): QuestionTopic? =
         topic?.let { value ->
             QuestionTopic.entries.firstOrNull { topic -> topic.name.equals(value, ignoreCase = true) }
         }
-
-    private fun String.removePrefix(
-        prefix: String,
-        ignoreCase: Boolean,
-    ): String? = takeIf { startsWith(prefix, ignoreCase) }?.drop(prefix.length)
 
     private fun matchesBranchState(slug: String): Boolean = flagStateRef(slug)?.let(::matchesFlagState) ?: false
 
@@ -1638,27 +1665,11 @@ internal class ScriptExecutor(
         }
 
     private fun runtimeText(part: CompiledRuntimeTextPart): String =
-        when (part) {
-            CompiledRuntimeTextPart.CurrentTownName ->
-                runtime.currentTown?.let { town -> content.townName(town) }.orEmpty()
-
-            CompiledRuntimeTextPart.PartyMemberMax -> runtime.partyMemberMax.toString()
-            CompiledRuntimeTextPart.TownTaxPercent ->
-                runtime.currentTown
-                    ?.let { town -> content.towns.firstOrNull { current -> current.id == town }?.taxPercent }
-                    ?.toString()
-                    .orEmpty()
-
-            CompiledRuntimeTextPart.TownTaxAmount ->
-                runtime.currentTown
-                    ?.let { town -> content.towns.firstOrNull { current -> current.id == town }?.taxPercent }
-                    ?.let { tax -> runtime.party.resources.gold * tax / PERCENT_DENOMINATOR }
-                    ?.toString()
-                    .orEmpty()
-
-            CompiledRuntimeTextPart.DungeonDepth -> locals["dungeon_level"]?.toString().orEmpty()
-            else -> "[${part.name}]"
-        }
+        runtime.runtimeTextValue(content, part)
+            ?: when (part) {
+                CompiledRuntimeTextPart.DungeonDepth -> locals["dungeon_level"]?.toString().orEmpty()
+                else -> "[${part.name}]"
+            }
 
     private fun CompiledNativeStringArg.argInt(): Int =
         when (this) {

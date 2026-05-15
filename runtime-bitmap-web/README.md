@@ -12,7 +12,8 @@ It contains:
 - the renderer-neutral runtime port implementation that emits bitmap frames,
 - the canvas client TypeScript, HTML, and CSS resources,
 - bitmap frame protocol data classes,
-- the installed `rylween-bitmap-web` launcher used by `run-bitmap-server.sh`.
+- the installed `rylween-bitmap-web` launcher used by
+  `bin/run-bitmap-server.sh`.
 
 Renderer-specific layout, art selection, transitions, and canvas presentation
 belong here. Shared gameplay behavior, command semantics, battle targeting,

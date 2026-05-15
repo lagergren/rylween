@@ -30,8 +30,8 @@ Both web servers can create or verify a startup account before accepting
 connections:
 
 ```sh
-./run-bitmap-server.sh --account Strong --email strong@example.test --password 'change-this-password'
-./run-server.sh --account Strong --email strong@example.test --password 'change-this-password'
+./bin/run-bitmap-server.sh --account Strong --email strong@example.test --password 'change-this-password'
+./bin/run-server.sh --account Strong --email strong@example.test --password 'change-this-password'
 ```
 
 Equivalent environment variables are:
@@ -188,8 +188,8 @@ also make the core runtime save format own web-server policy. Instead, use the
 backup helper from the repo root when you want one portable artifact:
 
 ```sh
-./backup-web-data.sh --data ~/.rylween/data --output rylween-backup.tar.gz
-./backup-web-data.sh --include-logs --output rylween-backup-with-logs.tar.gz
+./bin/backup-web-data.sh --data ~/.rylween/data --output rylween-backup.tar.gz
+./bin/backup-web-data.sh --include-logs --output rylween-backup-with-logs.tar.gz
 ```
 
 The default archive includes `saves/` and `auth/users/`. Logs are optional
@@ -211,8 +211,8 @@ Cookies are:
 For HTTPS deployments, start the server with secure cookies enabled:
 
 ```sh
-RYLWEEN_AUTH_SECURE_COOKIES=true ./run-bitmap-server.sh
-./run-bitmap-server.sh --secure-cookies
+RYLWEEN_AUTH_SECURE_COOKIES=true ./bin/run-bitmap-server.sh
+./bin/run-bitmap-server.sh --secure-cookies
 ```
 
 Local plain-HTTP development must not use `Secure` cookies because browsers will
@@ -225,9 +225,9 @@ authenticated account to its own runtime policy:
 
 - Normal browser sessions authenticate through the shared account store.
 - Existing local shortcuts keep working through a dev bypass user:
-  - bitmap: `run-bitmap-server.sh --name Strong` and `--name StrongEndgame`
+  - bitmap: `bin/run-bitmap-server.sh --name Strong` and `--name StrongEndgame`
     pass the selected name as `--user`
-  - ANSI web: `run-server.sh --name Strong` and `--name StrongEndgame`
+  - ANSI web: `bin/run-server.sh --name Strong` and `--name StrongEndgame`
     forward the selected name as `RYLWEEN_AUTH_DEV_USER`
 - The web runtime then decides whether to show the title screen or resume a
   saved user party.

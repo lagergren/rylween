@@ -20,7 +20,7 @@ import rylween.compiled.ExternalRuntimeSystems
 internal object PartyPages {
     private const val TEXT_PAGE_LINES = 9
 
-    fun partyPageViews(
+    private fun partyPageViews(
         content: CompiledContentBundle,
         party: PartyState,
     ): List<RuntimePartyPageView> =

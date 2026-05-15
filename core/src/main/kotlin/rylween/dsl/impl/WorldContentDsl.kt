@@ -402,6 +402,7 @@ object HuntText {
     val memberName: TextPart = TextPart.HuntMemberName
     val memberSubjectPronoun: TextPart = TextPart.HuntMemberSubjectPronoun
     val foodGained: TextPart = TextPart.HuntFoodGained
+    val partyMemberCount: TextPart = TextPart.PartyMemberCount
     val partyMemberMax: TextPart = TextPart.PartyMemberMax
 }
 

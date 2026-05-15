@@ -33,7 +33,7 @@ There is currently one active playable Kotlin runtime path in the Gradle build.
 Historical/reference paths were removed from the active checkout and preserved
 inside `scratch/legacy-archive.zip`:
 
-- `run.sh` installs and runs `rylween`, whose
+- `bin/run.sh` installs and runs `rylween`, whose
   entry point is
   `runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt`.
   This is now the active runtime. It reads

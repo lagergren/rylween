@@ -7,7 +7,7 @@ INCLUDE_LOGS=false
 
 usage() {
   cat <<'EOF'
-Usage: ./backup-web-data.sh [--data DIR] [--output FILE] [--include-logs]
+Usage: ./bin/backup-web-data.sh [--data DIR] [--output FILE] [--include-logs]
 
 Creates one compressed archive containing the shared world save and persisted
 web auth users. Logs are excluded by default because they can be large and may

@@ -329,13 +329,7 @@ internal class RuntimeScreen(
         }
     }
 
-    private fun ExternalRuntimeTextBlock.render(runtime: RuntimeState): List<String> =
-        render { kind ->
-            when (kind) {
-                "partyMemberMax" -> runtime.partyMemberMax.toString()
-                else -> null
-            }
-        }
+    private fun ExternalRuntimeTextBlock.render(runtime: RuntimeState): List<String> = renderRuntimeText(content, runtime)
 
     private fun ExternalRuntimeTextBlock.renderDungeon(depth: Int): List<String> =
         render { kind ->

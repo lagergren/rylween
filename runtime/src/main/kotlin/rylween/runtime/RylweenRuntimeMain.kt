@@ -48,6 +48,7 @@ import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeInputBinding
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.compiled.ExternalTownEntryTax
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
@@ -535,6 +536,7 @@ class GameRuntime private constructor(
                 val command = input.readCommand()
                 log.event("wilderness.command key=${command ?: "null"} position=${runtime.logPosition()}")
                 var moveEvent: MoveEvent? = null
+                var turnMessages: List<String> = emptyList()
                 val advanceTurn =
                     when {
                         command == null -> return input.exitResult()
@@ -580,6 +582,9 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches("pass", command) -> {
+                            turnMessages =
+                                systems.prompts.wilderness.pass
+                                    .renderRuntimeText(content, runtime)
                             runtime = runtime.withParty(runtime.party.passTurn())
                             true
                         }
@@ -700,7 +705,7 @@ class GameRuntime private constructor(
                         }
                     }
                 if (advanceTurn) {
-                    runtime = applyAction(actions.applyTurnUpkeep(runtime), screen, world)
+                    runtime = applyAction(actions.applyTurnUpkeep(runtime, turnMessages), screen, world)
                     if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
                     moveEvent?.let { event ->
                         runtime = applyAction(actions.applyMoveEvents(runtime, event), screen, world)
@@ -1306,7 +1311,7 @@ class GameRuntime private constructor(
     private fun generatedWildernessHelpPages(): List<List<String>> =
         systems.commands["wilderness"]
             .orEmpty()
-            .map { command -> "${command.binding.label} = ${command.label ?: command.action.readableSlug()}" }
+            .map(ExternalRuntimeCommand::runtimeMnemonicLine)
             .chunked(TEXT_WINDOW_PAGE_LINES)
             .ifEmpty { listOf(listOf("Press ? for commands.")) }
 
@@ -1414,8 +1419,17 @@ class GameRuntime private constructor(
             return runtime
         }
 
-        fun menuLines(): List<String> =
+        var current = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
+        val taxResult = collectTownEntryTaxIfNeeded(current, input, screen, town, log) ?: return runtime
+        current = taxResult.runtime
+        var menuNotice = taxResult.noticeLines
+
+        fun menuLines(noticeLines: List<String>): List<String> =
             buildList {
+                if (noticeLines.isNotEmpty()) {
+                    addAll(noticeLines)
+                    add("")
+                }
                 addAll(
                     systems.prompts.town.menuTitle
                         .renderTown(town),
@@ -1425,9 +1439,9 @@ class GameRuntime private constructor(
                 leaveCommand?.let { command -> add(command.mnemonicLine()) }
             }
 
-        var current = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
         while (true) {
-            val menu = menuLines()
+            val menu = menuLines(menuNotice)
+            menuNotice = emptyList()
             screen.showImage(TOWN_MAIN_STREET_IMAGE)
             screen.writeText(menu)
             var choice = input.readCommand() ?: return current
@@ -1455,6 +1469,50 @@ class GameRuntime private constructor(
             if (current.currentMode != RuntimeMode.Town || input.exhausted) return current
         }
     }
+
+    private fun collectTownEntryTaxIfNeeded(
+        runtime: RuntimeState,
+        input: RuntimeInputPort,
+        screen: RuntimeScreenPort,
+        town: rylween.compiled.CompiledTown,
+        log: RuntimeLog,
+    ): TownEntryTaxResult? {
+        val tax = systems.town?.entryTax ?: return TownEntryTaxResult(runtime)
+        val leaderLevel = runtime.party.leaderLevel
+        if (leaderLevel < tax.minimumLeaderLevel) return TownEntryTaxResult(runtime)
+        val amount = runtime.runtimeTownTaxAmount(content)?.takeIf { gold -> gold > 0 } ?: return TownEntryTaxResult(runtime)
+        val lines = townEntryTaxLines(runtime, tax)
+        log.event("town.tax.prompt town=${slug(town.id)} level=$leaderLevel amount=$amount gold=${runtime.party.resources.gold}")
+        screen.showImage(TOWN_MAIN_STREET_IMAGE)
+        screen.writeText(lines)
+        val choice =
+            input.readValidChoice(screen, lines) { candidate ->
+                tax.pay.matches(candidate) || tax.leave.matches(candidate)
+            } ?: return null
+        if (tax.leave.matches(choice)) {
+            log.event("town.tax.leave town=${slug(town.id)} key=$choice")
+            return null
+        }
+        val paid = runtime.withParty(runtime.party.withGold(runtime.party.resources.gold - amount))
+        log.event("town.tax.pay town=${slug(town.id)} key=$choice amount=$amount gold=${paid.party.resources.gold}")
+        return TownEntryTaxResult(
+            runtime = paid,
+            noticeLines =
+                systems.prompts.town.entryTaxThanks
+                    .renderRuntimeText(content, paid),
+        )
+    }
+
+    private fun townEntryTaxLines(
+        runtime: RuntimeState,
+        tax: ExternalTownEntryTax,
+    ): List<String> =
+        systems.prompts.town.entryTax
+            .renderRuntimeText(content, runtime) +
+            listOf(
+                tax.pay.mnemonicLine(tax.pay.label),
+                tax.leave.mnemonicLine(tax.leave.label),
+            )
 
     private fun runService(
         runtime: RuntimeState,
@@ -2082,6 +2140,14 @@ private data class TownMenuEntry(
 ) {
     fun menuLine(): String = command.binding.mnemonicLine(label)
 }
+
+private data class TownEntryTaxResult(
+    val runtime: RuntimeState,
+    val noticeLines: List<String> = emptyList(),
+)
+
+private val PartyState.leaderLevel: Int
+    get() = members.firstOrNull()?.level ?: 0
 
 private fun ExternalRuntimeInputBinding.mnemonicLine(text: String): String = "(${primary.uppercase()})${text.afterMnemonic(primary)}"
 
