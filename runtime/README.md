@@ -11,7 +11,7 @@ It contains:
 - Renderer-neutral input/screen ports used by both terminal and bitmap web
   hosts.
 - The ANSI `RuntimeScreen` implementation for the local terminal runtime.
-- The installed `rylween` launcher used by `run.sh` and tests.
+- The installed `rylween` launcher used by `bin/run.sh` and tests.
 
 The bitmap and browser ANSI servers reuse this backend. Keep game mechanics and
 input-command semantics here when they should behave identically across views.

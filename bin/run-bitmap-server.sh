@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 INSTALL_HOME="$ROOT_DIR/runtime-bitmap-web/build/install/rylween-bitmap-web"
 LAUNCHER="$INSTALL_HOME/bin/rylween-bitmap-web"
 
@@ -25,8 +25,8 @@ args=()
 
 usage() {
   cat <<'EOF'
-Usage: ./run-bitmap-server.sh [--build] [--name NAME] [--host HOST] [--port PORT] [--state SLUG] [--map-tiles N] [--tile-size PX]
-       ./run-bitmap-server.sh --account NAME --password PASSWORD [--email EMAIL]
+Usage: ./bin/run-bitmap-server.sh [--build] [--name NAME] [--host HOST] [--port PORT] [--state SLUG] [--map-tiles N] [--tile-size PX]
+       ./bin/run-bitmap-server.sh --account NAME --password PASSWORD [--email EMAIL]
 
 Environment:
   RYLWEEN_DATA_DIR          Authenticated save/log/user data directory. Default: ~/.rylween/data
@@ -191,7 +191,7 @@ if [[ -n "$RUN_NAME" ]]; then
   RYLWEEN_DATA_DIR="$DATA_DIR" \
     RYLWEEN_SAVE_FILE="$SAVE_FILE" \
     RYLWEEN_LOG_FILE="$DATA_DIR/logs/runtime-bitmap-web/seed-${RUN_NAME}.log" \
-    "$ROOT_DIR/run.sh" --build --name "$RUN_NAME" --script X >"$seed_console" 2>&1
+    "$ROOT_DIR/bin/run.sh" --build --name "$RUN_NAME" --script X >"$seed_console" 2>&1
   RUN_USER="$RUN_NAME"
   LOAD_FILE="$SAVE_FILE"
 fi

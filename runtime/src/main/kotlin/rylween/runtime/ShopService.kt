@@ -15,6 +15,7 @@ import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInputBinding
+import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledRuntimeTextPart
 import rylween.compiled.CompiledShopBuy
@@ -131,14 +132,17 @@ internal class ShopService(
     ): RuntimeState {
         val interlude = shop.interlude ?: return runtime
         screen.updateStatus(runtime)
-        screen.writeText(
+        val lines =
             (shop.intro.renderTextLines(content) + interlude.offer.renderTextLines(content)).withChoiceGap() +
                 listOf(
                     "(${interlude.accept.primaryInputLabel(content)})ccept",
                     "(${interlude.decline.primaryInputLabel(content)})ecline",
-                ),
-        )
-        val choice = input.readCommand() ?: return runtime
+                )
+        screen.writeText(lines)
+        val choice =
+            input.readValidChoice(screen, lines) { candidate ->
+                interlude.accept.matchesInput(content, candidate) || interlude.decline.matchesInput(content, candidate)
+            } ?: return runtime
         if (!interlude.accept.matchesInput(content, choice)) {
             writeTextAndWait(interlude.declined.renderTextLines(content))
             return runtime
@@ -345,21 +349,28 @@ internal class ShopService(
         party: PartyState,
     ): Int? {
         if (buy.inventoryApplication.overflow != RewardOverflowPolicy.PromptDropThenPlace) return null
-        screen.writeText(
+        val confirmLines =
             buy.cantCarry.renderTextLines(content) +
                 "" +
                 systems.prompts.party.dropOverflowConfirm
-                    .renderShopPrompt(),
-        )
-        val confirm = input.readCommand()?.uppercaseChar() ?: return null
+                    .renderShopPrompt()
+        screen.writeText(confirmLines)
+        val confirm =
+            input
+                .readValidChoice(screen, confirmLines) { choice -> choice.uppercaseChar() == 'Y' || choice == '\n' }
+                ?.uppercaseChar()
+                ?: return null
         if (confirm != 'Y') return null
-        screen.writeText(
+        val slotLines =
             systems.prompts.party.dropOverflowPrompt
-                .renderShopPrompt() + inventoryLines(party),
+                .renderShopPrompt() + inventoryLines(party)
+        screen.writeText(slotLines)
+        return input.readValidInventorySlotChoice(
+            screen = screen,
+            lines = slotLines,
+            validSlots = party.inventory.filter { slot -> slot.item != null }.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
+            cancelKeys = setOf('\n'),
         )
-        val choice = input.readCommand() ?: return null
-        val slot = choice.inventorySlotFromKey() ?: return null
-        return slot.takeIf { party.inventoryItem(it) != null }
     }
 
     private fun buyResource(
@@ -384,8 +395,14 @@ internal class ShopService(
         runtime: RuntimeState,
     ): RuntimeState {
         val party = runtime.party
-        screen.writeText(sellPromptLines(sell, party))
-        val choice = input.readCommand() ?: return runtime
+        val promptLines = sellPromptLines(sell, party) + "" + sell.saleKeys.decline.mnemonicLine(content, "Nothing")
+        screen.writeText(promptLines)
+        val choice =
+            input.readValidChoice(screen, promptLines) { candidate ->
+                sell.saleKeys.decline.matchesInput(content, candidate) ||
+                    candidate.inventorySlotFromKey()?.let { slot -> party.inventoryItem(slot) != null } == true
+            } ?: return runtime
+        if (sell.saleKeys.decline.matchesInput(content, choice)) return runtime
         val slot = choice.inventorySlotFromKey() ?: return runtime
         val item = party.inventoryItem(slot)
         if (item == null) {
@@ -576,20 +593,19 @@ internal class ShopService(
 
     private fun ExternalRuntimeTextBlock.renderExternal(runtime: RuntimeState): List<String> =
         renderParts { part ->
-            when (part.kind) {
-                "partyMemberMax" -> runtime.partyMemberMax.toString()
-                "currentTownName" -> runtime.currentTown?.let(::townName)
-                "townName" -> part.args["town"]?.let(::townNameBySlug)
-                "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
-                "roleName" -> part.args["role"]?.let(::roleName)
-                "roleJob" -> part.args["role"]?.let(::roleJob)
-                "roleLocation" -> part.args["role"]?.let { role -> roleLocation(role, runtime) }
-                "npcName" -> part.args["npc"]?.let(::npcName)
-                "npcJob" -> part.args["npc"]?.let(::npcJob)
-                "npcLocation" -> part.args["npc"]?.let { npc -> npcLocation(npc, runtime) }
-                "locationCoordinate" -> null
-                else -> null
-            }
+            runtime.runtimeTextValue(content, part.kind)
+                ?: when (part.kind) {
+                    "townName" -> part.args["town"]?.let(::townNameBySlug)
+                    "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
+                    "roleName" -> part.args["role"]?.let(::roleName)
+                    "roleJob" -> part.args["role"]?.let(::roleJob)
+                    "roleLocation" -> part.args["role"]?.let { role -> roleLocation(role, runtime) }
+                    "npcName" -> part.args["npc"]?.let(::npcName)
+                    "npcJob" -> part.args["npc"]?.let(::npcJob)
+                    "npcLocation" -> part.args["npc"]?.let { npc -> npcLocation(npc, runtime) }
+                    "locationCoordinate" -> null
+                    else -> null
+                }
         }
 
     private fun roleName(roleSlug: String): String? =
@@ -790,27 +806,5 @@ private data class SellQuote(
     val party: PartyState,
 )
 
-internal fun CompiledInputBinding.matchesInput(
-    content: CompiledContentBundle,
-    choice: Char,
-): Boolean {
-    val accepted = listOf(primaryString) + aliasStrings
-    return accepted
-        .map(content.strings::value)
-        .any { value -> value.equals(choice.toString(), ignoreCase = true) }
-}
-
-internal fun CompiledInputBinding.primaryInputLabel(content: CompiledContentBundle): String = content.strings.value(primaryString)
-
 private fun CompiledInputBinding.optionLine(content: CompiledContentBundle): String =
     mnemonicLine(content, content.strings.value(labelString))
-
-internal fun CompiledInputBinding.mnemonicLine(
-    content: CompiledContentBundle,
-    text: String,
-): String = "(${primaryInputLabel(content).uppercase()})${text.afterMnemonic(primaryInputLabel(content))}"
-
-private fun String.afterMnemonic(key: String): String =
-    removePrefix(key)
-        .removePrefix(key.uppercase())
-        .removePrefix(key.lowercase())

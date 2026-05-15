@@ -87,6 +87,8 @@ sealed interface TextPart {
 
     object HuntFoodGained : TextPart
 
+    object PartyMemberCount : TextPart
+
     object PartyMemberMax : TextPart
 
     object WildernessDungeonName : TextPart
@@ -158,6 +160,7 @@ fun TextPart.fallbackText(): String =
         TextPart.HuntMemberName -> "{who_name}"
         TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
         TextPart.HuntFoodGained -> "{hunt_food_gained}"
+        TextPart.PartyMemberCount -> "{party_count}"
         TextPart.PartyMemberMax -> "{party_max}"
         TextPart.WildernessDungeonName -> "{dungeon}"
         TextPart.WildernessDungeonLevels -> "{levels}"

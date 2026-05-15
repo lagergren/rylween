@@ -450,6 +450,7 @@ private class NativePathCollector {
             TextPart.HuntMemberName,
             TextPart.HuntMemberSubjectPronoun,
             TextPart.HuntFoodGained,
+            TextPart.PartyMemberCount,
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
             TextPart.WildernessDungeonLevels,

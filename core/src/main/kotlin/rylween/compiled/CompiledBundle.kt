@@ -889,6 +889,7 @@ enum class CompiledRuntimeTextPart {
     HuntMemberName,
     HuntMemberSubjectPronoun,
     HuntFoodGained,
+    PartyMemberCount,
     PartyMemberMax,
     WildernessDungeonName,
     WildernessDungeonLevels,
@@ -2199,6 +2200,7 @@ private class CompiledBundleCompiler(
             TextPart.HuntMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntMemberName)
             TextPart.HuntMemberSubjectPronoun -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntMemberSubjectPronoun)
             TextPart.HuntFoodGained -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntFoodGained)
+            TextPart.PartyMemberCount -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberCount)
             TextPart.PartyMemberMax -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberMax)
             TextPart.WildernessDungeonName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.WildernessDungeonName)
             TextPart.WildernessDungeonLevels -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.WildernessDungeonLevels)

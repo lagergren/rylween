@@ -116,6 +116,8 @@ data class CastleTextModel(
     val trapTriesDisarmSuffix: TextBlock = inlineText(),
     val trapDisarmSucceed: TextBlock = inlineText(),
     val trapDisarmFail: TextBlock = inlineText(),
+    val pitfallIllustration: ImageId? = null,
+    val treasureIllustration: ImageId? = null,
     val treasureMenu: TextBlock = inlineText(),
     val treasureFull: TextBlock = inlineText(),
     val treasureTaken: TextBlock = inlineText(),
@@ -425,6 +427,8 @@ class CastleTextBuilder(
     var trapTriesDisarmSuffix: TextBlock = initial.trapTriesDisarmSuffix
     var trapDisarmSucceed: TextBlock = initial.trapDisarmSucceed
     var trapDisarmFail: TextBlock = initial.trapDisarmFail
+    var pitfallIllustration: ImageId? = initial.pitfallIllustration
+    var treasureIllustration: ImageId? = initial.treasureIllustration
     var treasureMenu: TextBlock = initial.treasureMenu
     var treasureFull: TextBlock = initial.treasureFull
     var treasureTaken: TextBlock = initial.treasureTaken
@@ -454,6 +458,8 @@ class CastleTextBuilder(
             trapTriesDisarmSuffix = trapTriesDisarmSuffix,
             trapDisarmSucceed = trapDisarmSucceed,
             trapDisarmFail = trapDisarmFail,
+            pitfallIllustration = pitfallIllustration,
+            treasureIllustration = treasureIllustration,
             treasureMenu = treasureMenu,
             treasureFull = treasureFull,
             treasureTaken = treasureTaken,

@@ -14,6 +14,7 @@ import rylween.compiled.CompiledDungeonEvent
 import rylween.compiled.CompiledDungeonRandomEvent
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledScriptProgram
+import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.dsl.DungeonEventDisposition
 import rylween.dsl.impl.Resource
@@ -78,14 +79,14 @@ internal class DungeonRuntime(
         return when {
             dungeon.depth >= dungeon.maxDepth ->
                 runtime.also {
-                    screen.writeText(
+                    screen.showMessage(
                         systems.dungeon.prompts.atMaxDepth
                             .renderDungeon(dungeon.depth),
                     )
                 }
             runtime.party.resources.torches <= 0 ->
                 runtime.also {
-                    screen.writeText(
+                    screen.showMessage(
                         systems.dungeon.prompts.noTorches
                             .renderDungeon(dungeon.depth),
                     )
@@ -108,7 +109,7 @@ internal class DungeonRuntime(
     private fun ascend(runtime: RuntimeState): RuntimeState {
         val dungeon = runtime.dungeon ?: return runtime
         if (dungeon.depth <= 1) {
-            screen.writeText(
+            screen.showMessage(
                 systems.dungeon.prompts.leaveCavern
                     .renderDungeon(dungeon.depth),
             )
@@ -175,7 +176,7 @@ internal class DungeonRuntime(
         val pages =
             systems.dungeon.helpPages
                 .map { page -> page.renderDungeon(depth) }
-                .ifEmpty { listOf(commands.map { command -> "${command.binding.primary}. ${command.label ?: command.binding.label}" }) }
+                .ifEmpty { listOf(commands.map(ExternalRuntimeCommand::runtimeMnemonicLine)) }
         val pausePrompts = PausePrompts(systems.prompts)
         pages.forEach { page ->
             screen.writeText(page.withPausePrompt(pausePrompts))

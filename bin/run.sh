@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 INSTALL_HOME="$ROOT_DIR/runtime/build/install/rylween"
 LAUNCHER="$INSTALL_HOME/bin/rylween"
 BUNDLE="$ROOT_DIR/build/compiled/rylween-bundle.json"

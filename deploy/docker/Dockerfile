@@ -5,9 +5,9 @@
 # into this image.
 #
 # Usage:
-#   docker build -t rylween .
+#   docker build -f deploy/docker/Dockerfile -t rylween .
 #   docker run --rm -p 8080:8080 -v rylween-data:/data rylween
-#   ./run-server.sh --build --name Strong
+#   ./bin/run-server.sh --build --name Strong
 
 # ---------------------------------------------------------------------
 # Stage 1: builder - compile Kotlin and assemble the web runtime install dir.

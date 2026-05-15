@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
 IMAGE="${RYLWEEN_IMAGE:-rylween:latest}"
 CONTAINER_NAME="${RYLWEEN_CONTAINER_NAME:-rylween-web}"
@@ -26,8 +26,8 @@ log() {
 
 usage() {
   cat <<'EOF'
-Usage: ./run-server.sh [--build] [--name NAME]
-       ./run-server.sh --account NAME --password PASSWORD [--email EMAIL]
+Usage: ./bin/run-server.sh [--build] [--name NAME]
+       ./bin/run-server.sh --account NAME --password PASSWORD [--email EMAIL]
 
 Environment:
   RYLWEEN_IMAGE              Docker image tag. Default: rylween:latest
@@ -126,7 +126,7 @@ mkdir -p "$HOST_DATA_DIR/saves" "$HOST_DATA_DIR/logs"
 if [[ "$BUILD_IMAGE" == true ]]; then
   log "building image: $IMAGE"
   log "build context: $ROOT_DIR"
-  docker build -t "$IMAGE" "$ROOT_DIR"
+  docker build -f "$ROOT_DIR/deploy/docker/Dockerfile" -t "$IMAGE" "$ROOT_DIR"
 fi
 
 if [[ -n "$RUN_NAME" ]]; then
@@ -142,7 +142,7 @@ if [[ -n "$RUN_NAME" ]]; then
   RYLWEEN_DATA_DIR="$HOST_DATA_DIR" \
     RYLWEEN_SAVE_FILE="$HOST_SAVE_FILE" \
     RYLWEEN_LOG_FILE="$HOST_DATA_DIR/logs/runtime/latest.log" \
-    "$ROOT_DIR/run.sh" --build --name "$RUN_NAME" --script X >"$seed_console" 2>&1
+    "$ROOT_DIR/bin/run.sh" --build --name "$RUN_NAME" --script X >"$seed_console" 2>&1
 fi
 
 env_args=(
