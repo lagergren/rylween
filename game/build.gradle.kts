@@ -1,3 +1,4 @@
+// Builds authored Rylween content and generated catalog handles.
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import rylween.gradle.GenerateGameCatalogHandlesTask
 

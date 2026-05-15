@@ -1,3 +1,5 @@
+/** Programmatic runtime session API used by terminal, web, and tests. */
+
 package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle

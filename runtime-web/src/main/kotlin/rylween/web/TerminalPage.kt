@@ -1,3 +1,5 @@
+/** Browser HTML, CSS, and JavaScript shell for the ANSI terminal web runtime. */
+
 package rylween.web
 
 private const val ANSI_ROWS = 25

@@ -1,3 +1,5 @@
+/** Runtime pause prompt rotation used by text screens and paged views. */
+
 package rylween.runtime
 
 import rylween.compiled.ExternalRuntimePrompts

@@ -1,3 +1,4 @@
+// Builds the bitmap browser runtime, generated client resources, and launcher distribution.
 import org.gradle.jvm.application.tasks.CreateStartScripts
 
 plugins {

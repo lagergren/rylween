@@ -10,12 +10,15 @@ type TileColors = { base: string; shadow: string };
 type PartyStat = [string, string | number | undefined | null];
 type TextEffect = "None" | "Fast" | "Reveal";
 type TextRevealSettings = { enabled: boolean; charsPerSecond: number };
+type TextDisplaySettings = { bitmapFont: boolean; bitmapFontScale: number };
+type RuntimePreferenceSettings = { pauseDelayScale: number };
 type TextReveal = {
     complete: boolean;
     duration: number;
     effect: TextEffect;
     frameKey: string;
     started: number;
+    startOffset: number;
     totalChars: number;
 };
 type TextRevealDrawState = {
@@ -160,11 +163,19 @@ if (!context) throw new Error("Canvas 2D context is unavailable");
 const ctx = context;
 const commandToggle = requireElement("commandToggle", HTMLButtonElement);
 const commandPopover = requireElement("commandPopover", HTMLElement);
+const preferencesToggle = requireElement("preferencesToggle", HTMLButtonElement);
+const preferencesPopover = requireElement("preferencesPopover", HTMLElement);
 const serverInfoToggle = requireElement("serverInfoToggle", HTMLButtonElement);
 const serverInfoPopover = requireElement("serverInfoPopover", HTMLElement);
 const userAccount = requireElement("userAccount", HTMLElement);
 const textRevealToggle = requireElement("textRevealToggle", HTMLInputElement);
+const bitmapFontToggle = requireElement("bitmapFontToggle", HTMLInputElement);
+const bitmapFontScale = requireElement("bitmapFontScale", HTMLInputElement);
+const bitmapFontScaleValue = requireElement("bitmapFontScaleValue", HTMLElement);
 const textRevealSpeed = requireElement("textRevealSpeed", HTMLInputElement);
+const textRevealSpeedValue = requireElement("textRevealSpeedValue", HTMLElement);
+const pauseDelayScale = requireElement("pauseDelayScale", HTMLInputElement);
+const pauseDelayScaleValue = requireElement("pauseDelayScaleValue", HTMLElement);
 const canvasTooltip = requireElement("canvasTooltip", HTMLElement);
 const connectionDot = requireElement("connectionDot", HTMLElement);
 const connectionText = requireElement("connectionText", HTMLElement);
@@ -179,17 +190,134 @@ let textRevealAnimation = 0;
 const assetVersion = "20260515-scene-assets";
 const textRevealEnabledKey = "rylween.bitmap.textReveal.enabled";
 const textRevealSpeedKey = "rylween.bitmap.textReveal.speed";
+const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap";
+const bitmapFontScaleKey = "rylween.bitmap.textFont.scale";
+const pauseDelayScaleKey = "rylween.bitmap.pauseDelay.scale";
+const pauseDelayScaleMessagePrefix = "settings:pauseDelayScale=";
+const defaultBitmapFontScale = 1.75;
+const minBitmapFontScale = 1.45;
+const maxBitmapFontScale = 2.1;
+const defaultPauseDelayScale = 1.0;
+const minPauseDelayScale = 0.25;
+const maxPauseDelayScale = 2.0;
 const textRevealSettings: TextRevealSettings = {
     enabled: storedBoolean(textRevealEnabledKey, true),
-    charsPerSecond: storedNumber(textRevealSpeedKey, 220, 120, 360)
+    charsPerSecond: storedNumber(textRevealSpeedKey, 220, 90, 280)
+};
+const textDisplaySettings: TextDisplaySettings = {
+    bitmapFont: storedBoolean(bitmapFontEnabledKey, true),
+    bitmapFontScale: storedNumber(bitmapFontScaleKey, defaultBitmapFontScale, minBitmapFontScale, maxBitmapFontScale)
+};
+const runtimePreferenceSettings: RuntimePreferenceSettings = {
+    pauseDelayScale: storedNumber(pauseDelayScaleKey, defaultPauseDelayScale, minPauseDelayScale, maxPauseDelayScale)
 };
 const layout: Layout = {
     map: {x: 114, y: 64, w: 420, h: 482},
     text: {x: 746, y: 64, w: 420, h: 482},
     status: {x: 154, y: 566, w: 972, h: 92}
 };
+const fantasyFontHeight = 7;
+const fantasyFontAdvance = 5.5;
+const fantasyGlyphs: Record<string, string[]> = {
+    " ": ["00000", "00000", "00000", "00000", "00000", "00000", "00000"],
+    "!": ["00100", "00100", "00100", "00100", "00100", "00000", "00100"],
+    "\"": ["01010", "01010", "01010", "00000", "00000", "00000", "00000"],
+    "#": ["01010", "11111", "01010", "01010", "11111", "01010", "00000"],
+    "$": ["00100", "01111", "10100", "01110", "00101", "11110", "00100"],
+    "%": ["11001", "11010", "00100", "01000", "10110", "00110", "00000"],
+    "&": ["01100", "10010", "10100", "01000", "10101", "10010", "01101"],
+    "'": ["00100", "00100", "01000", "00000", "00000", "00000", "00000"],
+    "(": ["00010", "00100", "01000", "01000", "01000", "00100", "00010"],
+    ")": ["01000", "00100", "00010", "00010", "00010", "00100", "01000"],
+    "*": ["00000", "10101", "01110", "11111", "01110", "10101", "00000"],
+    "+": ["00000", "00100", "00100", "11111", "00100", "00100", "00000"],
+    ",": ["00000", "00000", "00000", "00000", "00110", "00100", "01000"],
+    "-": ["00000", "00000", "00000", "11111", "00000", "00000", "00000"],
+    ".": ["00000", "00000", "00000", "00000", "00000", "01100", "01100"],
+    "/": ["00001", "00010", "00100", "01000", "10000", "00000", "00000"],
+    "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+    "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+    "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+    "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+    "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+    "5": ["11111", "10000", "10000", "11110", "00001", "00001", "11110"],
+    "6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
+    "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+    "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+    "9": ["01110", "10001", "10001", "01111", "00001", "00010", "11100"],
+    ":": ["00000", "01100", "01100", "00000", "01100", "01100", "00000"],
+    ";": ["00000", "01100", "01100", "00000", "01100", "00100", "01000"],
+    "<": ["00010", "00100", "01000", "10000", "01000", "00100", "00010"],
+    "=": ["00000", "00000", "11111", "00000", "11111", "00000", "00000"],
+    ">": ["01000", "00100", "00010", "00001", "00010", "00100", "01000"],
+    "?": ["01110", "10001", "00001", "00010", "00100", "00000", "00100"],
+    "@": ["01110", "10001", "10111", "10101", "10111", "10000", "01110"],
+    "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+    "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+    "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+    "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+    "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+    "G": ["01111", "10000", "10000", "10111", "10001", "10001", "01111"],
+    "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "I": ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
+    "J": ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
+    "K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+    "L": ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+    "M": ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+    "N": ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
+    "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+    "Q": ["01110", "10001", "10001", "10001", "10101", "10010", "01101"],
+    "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+    "S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+    "T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+    "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "V": ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+    "W": ["10001", "10001", "10001", "10101", "10101", "11011", "10001"],
+    "X": ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
+    "Y": ["10001", "10001", "01010", "00100", "00100", "00100", "00100"],
+    "Z": ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+    "[": ["01110", "01000", "01000", "01000", "01000", "01000", "01110"],
+    "\\": ["10000", "01000", "00100", "00010", "00001", "00000", "00000"],
+    "]": ["01110", "00010", "00010", "00010", "00010", "00010", "01110"],
+    "^": ["00100", "01010", "10001", "00000", "00000", "00000", "00000"],
+    "_": ["00000", "00000", "00000", "00000", "00000", "00000", "11111"],
+    "`": ["01000", "00100", "00010", "00000", "00000", "00000", "00000"],
+    "a": ["00000", "00000", "01110", "00001", "01111", "10001", "01111"],
+    "b": ["10000", "10000", "10110", "11001", "10001", "10001", "11110"],
+    "c": ["00000", "00000", "01111", "10000", "10000", "10000", "01111"],
+    "d": ["00001", "00001", "01101", "10011", "10001", "10001", "01111"],
+    "e": ["00000", "00000", "01110", "10001", "11111", "10000", "01110"],
+    "f": ["00110", "01000", "01000", "11100", "01000", "01000", "01000"],
+    "g": ["00000", "00000", "01111", "10001", "10001", "01111", "00001"],
+    "h": ["10000", "10000", "10110", "11001", "10001", "10001", "10001"],
+    "i": ["00100", "00000", "01100", "00100", "00100", "00100", "01110"],
+    "j": ["00010", "00000", "00110", "00010", "00010", "10010", "01100"],
+    "k": ["10000", "10000", "10010", "10100", "11000", "10100", "10010"],
+    "l": ["01100", "00100", "00100", "00100", "00100", "00100", "01110"],
+    "m": ["00000", "00000", "11010", "10101", "10101", "10101", "10101"],
+    "n": ["00000", "00000", "10110", "11001", "10001", "10001", "10001"],
+    "o": ["00000", "00000", "01110", "10001", "10001", "10001", "01110"],
+    "p": ["00000", "00000", "11110", "10001", "11110", "10000", "10000"],
+    "q": ["00000", "00000", "01111", "10001", "01111", "00001", "00001"],
+    "r": ["00000", "00000", "10110", "11001", "10000", "10000", "10000"],
+    "s": ["00000", "00000", "01111", "10000", "01110", "00001", "11110"],
+    "t": ["01000", "01000", "11100", "01000", "01000", "01001", "00110"],
+    "u": ["00000", "00000", "10001", "10001", "10001", "10011", "01101"],
+    "v": ["00000", "00000", "10001", "10001", "10001", "01010", "00100"],
+    "w": ["00000", "00000", "10001", "10001", "10101", "10101", "01010"],
+    "x": ["00000", "00000", "10001", "01010", "00100", "01010", "10001"],
+    "y": ["00000", "00000", "10001", "10001", "01111", "00001", "01110"],
+    "z": ["00000", "00000", "11111", "00010", "00100", "01000", "11111"],
+    "{": ["00010", "00100", "00100", "01000", "00100", "00100", "00010"],
+    "|": ["00100", "00100", "00100", "00100", "00100", "00100", "00100"],
+    "}": ["01000", "00100", "00100", "00010", "00100", "00100", "01000"],
+    "~": ["00000", "00000", "01000", "10101", "00010", "00000", "00000"]
+};
 const bitmapAssets: BitmapAssets = {
     title: loadAsset(assetUrl("/assets/title-rider.png")),
+    titleLogo: loadAsset(assetUrl("/assets/title-logo.png")),
     frame: loadAsset(assetUrl("/assets/screen-frame.png")),
     town: loadAsset(assetUrl("/assets/town-mainstreet.png")),
     encounter: loadAsset(assetUrl("/assets/encounter-scorpion.png")),
@@ -237,6 +365,7 @@ function configureTextRevealControls(): void {
     textRevealToggle.checked = textRevealSettings.enabled;
     textRevealSpeed.value = String(textRevealSettings.charsPerSecond);
     textRevealSpeed.disabled = !textRevealSettings.enabled;
+    updateTextRevealSpeedValue();
     textRevealToggle.addEventListener("change", () => {
         textRevealSettings.enabled = textRevealToggle.checked;
         window.localStorage.setItem(textRevealEnabledKey, String(textRevealSettings.enabled));
@@ -245,9 +374,57 @@ function configureTextRevealControls(): void {
         if (frame) draw(frame);
     });
     textRevealSpeed.addEventListener("input", () => {
-        textRevealSettings.charsPerSecond = storedNumberFromInput(textRevealSpeed, 175, 90, 280);
+        textRevealSettings.charsPerSecond = storedNumberFromInput(textRevealSpeed, 220, 90, 280);
         window.localStorage.setItem(textRevealSpeedKey, String(textRevealSettings.charsPerSecond));
+        updateTextRevealSpeedValue();
     });
+}
+
+function configureTextDisplayControls(): void {
+    bitmapFontToggle.checked = textDisplaySettings.bitmapFont;
+    bitmapFontScale.value = String(textDisplaySettings.bitmapFontScale);
+    bitmapFontScale.disabled = !textDisplaySettings.bitmapFont;
+    updateBitmapFontScaleValue();
+    bitmapFontToggle.addEventListener("change", () => {
+        textDisplaySettings.bitmapFont = bitmapFontToggle.checked;
+        window.localStorage.setItem(bitmapFontEnabledKey, String(textDisplaySettings.bitmapFont));
+        bitmapFontScale.disabled = !textDisplaySettings.bitmapFont;
+        if (frame) draw(frame);
+    });
+    bitmapFontScale.addEventListener("input", () => {
+        textDisplaySettings.bitmapFontScale = storedNumberFromInput(bitmapFontScale, defaultBitmapFontScale, minBitmapFontScale, maxBitmapFontScale);
+        window.localStorage.setItem(bitmapFontScaleKey, String(textDisplaySettings.bitmapFontScale));
+        updateBitmapFontScaleValue();
+        if (frame) draw(frame);
+    });
+}
+
+function configureRuntimePreferenceControls(): void {
+    pauseDelayScale.value = runtimePreferenceSettings.pauseDelayScale.toFixed(2);
+    updatePauseDelayScaleValue();
+    pauseDelayScale.addEventListener("input", () => {
+        runtimePreferenceSettings.pauseDelayScale = storedNumberFromInput(
+            pauseDelayScale,
+            defaultPauseDelayScale,
+            minPauseDelayScale,
+            maxPauseDelayScale
+        );
+        window.localStorage.setItem(pauseDelayScaleKey, String(runtimePreferenceSettings.pauseDelayScale));
+        updatePauseDelayScaleValue();
+        sendRuntimePreferences();
+    });
+}
+
+function updateTextRevealSpeedValue(): void {
+    textRevealSpeedValue.textContent = Math.round(textRevealSettings.charsPerSecond).toString() + " cps";
+}
+
+function updateBitmapFontScaleValue(): void {
+    bitmapFontScaleValue.textContent = textDisplaySettings.bitmapFontScale.toFixed(2) + "x";
+}
+
+function updatePauseDelayScaleValue(): void {
+    pauseDelayScaleValue.textContent = runtimePreferenceSettings.pauseDelayScale.toFixed(2) + "x";
 }
 
 function storedNumberFromInput(input: HTMLInputElement, fallback: number, min: number, max: number): number {
@@ -291,20 +468,22 @@ function connect(): void {
         connectionDot.classList.add("connected");
         connectionText.textContent = "Connected";
         refreshServerInfo().catch(() => undefined);
+        sendRuntimePreferences();
         canvas.focus();
     });
     socket.addEventListener("message", (event) => {
         const nextFrame = JSON.parse(event.data) as BitmapFrame;
+        const previousFrame = frame;
         const fadeFromTitle = isTitleFrame(frame) && !isTitleFrame(nextFrame);
         const sceneFadeSnapshot = shouldFadeVisual(frame, nextFrame) ? captureScenePanel() : null;
         if (fadeFromTitle && beginTitleFade(nextFrame)) {
-            syncTextReveal(nextFrame, true);
+            syncTextReveal(nextFrame, true, previousFrame);
             renderCommandPalette(nextFrame.commands || []);
             return;
         }
         titleFade = null;
         frame = nextFrame;
-        syncTextReveal(frame, true);
+        syncTextReveal(frame, true, previousFrame);
         draw(frame);
         renderCommandPalette(frame.commands || []);
         if (sceneFadeSnapshot) beginSceneFade(sceneFadeSnapshot);
@@ -320,18 +499,25 @@ async function refreshServerInfo(): Promise<void> {
     if (!response.ok) throw new Error("status " + response.status);
     const status = (await response.json()) as ServerStatus;
     const user = status.currentUser || "not signed in";
-    serverInfoToggle.textContent = status.serverType === "ansi" ? "ANSI" : "Bitmap";
-    userAccount.textContent = user + " · " + status.connectedUsers.toString() + " online";
+    const runtimeName = runtimeDisplayName(status.serverType);
+    serverInfoToggle.textContent = "Status";
+    userAccount.textContent = user;
     userAccount.title = "Logged in as " + user;
     serverInfoPopover.innerHTML =
-        "<h2>Server</h2>" +
+        "<h2>Status</h2>" +
         "<dl>" +
-        "<dt>Runtime</dt><dd>" + escapeHtml(status.serverType) + "</dd>" +
+        "<dt>Runtime</dt><dd>" + escapeHtml(runtimeName) + "</dd>" +
         "<dt>Account</dt><dd>" + escapeHtml(user) + "</dd>" +
         "<dt>Auth</dt><dd>" + (status.authRequired ? "enabled" : "dev bypass") + "</dd>" +
-        "<dt>Connected</dt><dd>" + status.connectedUsers.toString() + "</dd>" +
-        "<dt>Users</dt><dd>" + escapeHtml(status.activeUsers.join(", ") || "none") + "</dd>" +
+        "<dt>Connected players</dt><dd>" + status.connectedUsers.toString() + "</dd>" +
+        "<dt>Active users</dt><dd>" + escapeHtml(status.activeUsers.join(", ") || "none") + "</dd>" +
         "</dl>";
+}
+
+function runtimeDisplayName(serverType: string): string {
+    if (serverType === "ansi") return "ANSI";
+    if (serverType === "bitmap") return "Illustrated";
+    return serverType;
 }
 
 function escapeHtml(text: string): string {
@@ -354,6 +540,10 @@ function escapeHtml(text: string): string {
 function send(token: string): void {
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
     socket.send(token);
+}
+
+function sendRuntimePreferences(): void {
+    send(pauseDelayScaleMessagePrefix + runtimePreferenceSettings.pauseDelayScale.toFixed(2));
 }
 
 function isTitleFrame(candidate: BitmapFrame | null): boolean {
@@ -458,7 +648,7 @@ function easeOutCubic(t: number): number {
     return 1 - Math.pow(1 - t, 3);
 }
 
-function syncTextReveal(candidate: BitmapFrame | null, resetExisting = false): void {
+function syncTextReveal(candidate: BitmapFrame | null, resetExisting = false, previousCandidate: BitmapFrame | null = null): void {
     if (!candidate) {
         finishTextReveal(false);
         textReveal = null;
@@ -467,7 +657,8 @@ function syncTextReveal(candidate: BitmapFrame | null, resetExisting = false): v
     const effect = effectiveTextEffect(candidate);
     const frameKey = textRevealKey(candidate);
     const totalChars = textRevealCharCount(candidate);
-    const duration = textRevealDuration(effect, totalChars);
+    const startOffset = resetExisting ? visibleTextPrefixCharCount(previousCandidate, candidate) : 0;
+    const duration = textRevealDuration(effect, totalChars - startOffset);
     if (duration <= 0) {
         finishTextReveal(false);
         textReveal = null;
@@ -477,6 +668,7 @@ function syncTextReveal(candidate: BitmapFrame | null, resetExisting = false): v
         textReveal &&
         textReveal.frameKey === frameKey &&
         textReveal.effect === effect &&
+        textReveal.startOffset === startOffset &&
         textReveal.totalChars === totalChars;
     if (sameReveal && !resetExisting) return;
     textReveal = {
@@ -485,6 +677,7 @@ function syncTextReveal(candidate: BitmapFrame | null, resetExisting = false): v
         effect,
         frameKey,
         started: performance.now(),
+        startOffset,
         totalChars
     };
     scheduleTextReveal();
@@ -507,17 +700,58 @@ function textRevealDuration(effect: TextEffect, totalChars: number): number {
 
 function textRevealKey(candidate: BitmapFrame): string {
     return JSON.stringify([
-        candidate.mode || "",
-        candidate.backdrop || "",
-        candidate.title || "",
-        candidate.subtitle || "",
-        candidate.textEffect || "None",
+        textRevealSurfaceKey(candidate),
         candidate.textLines || []
     ]);
 }
 
+function textRevealSurfaceKey(candidate: BitmapFrame): string {
+    return JSON.stringify([
+        candidate.mode || "",
+        candidate.backdrop || "",
+        candidate.title || "",
+        candidate.subtitle || "",
+        candidate.textEffect || "None"
+    ]);
+}
+
 function textRevealCharCount(candidate: BitmapFrame): number {
-    return (candidate.textLines || []).reduce((sum, line) => sum + Math.max(1, line.length), 0);
+    return (candidate.textLines || []).reduce((sum, line) => sum + textRevealLineCost(line), 0);
+}
+
+function visibleTextPrefixCharCount(previous: BitmapFrame | null, candidate: BitmapFrame): number {
+    if (!previous) return 0;
+    if (textRevealSurfaceKey(previous) !== textRevealSurfaceKey(candidate)) return 0;
+    const previousLines = previous.textLines || [];
+    const nextLines = candidate.textLines || [];
+    let visible = 0;
+    const lineCount = Math.min(previousLines.length, nextLines.length);
+    for (let index = 0; index < lineCount; index += 1) {
+        const previousLine = previousLines[index];
+        const nextLine = nextLines[index];
+        if (previousLine === nextLine) {
+            visible += textRevealLineCost(nextLine);
+            continue;
+        }
+        visible += commonPrefixLength(previousLine, nextLine);
+        break;
+    }
+    return Math.min(visible, textRevealCharCount(candidate));
+}
+
+function textRevealLineCost(line: string): number {
+    return Math.max(1, Array.from(line).length);
+}
+
+function commonPrefixLength(left: string, right: string): number {
+    const leftChars = Array.from(left);
+    const rightChars = Array.from(right);
+    const limit = Math.min(leftChars.length, rightChars.length);
+    let index = 0;
+    while (index < limit && leftChars[index] === rightChars[index]) {
+        index += 1;
+    }
+    return index;
 }
 
 function scheduleTextReveal(): void {
@@ -541,7 +775,8 @@ function textRevealLimit(candidate: BitmapFrame): number {
         textReveal.complete = true;
         return Number.POSITIVE_INFINITY;
     }
-    return Math.floor(textReveal.totalChars * progress);
+    const revealChars = Math.max(0, textReveal.totalChars - textReveal.startOffset);
+    return textReveal.startOffset + Math.floor(revealChars * progress);
 }
 
 function isTextRevealActive(): boolean {
@@ -560,6 +795,12 @@ function finishTextReveal(redraw = true): boolean {
 }
 
 window.addEventListener("keydown", (event: KeyboardEvent) => {
+    if (event.key === "Escape" && closeOpenPopover()) {
+        event.preventDefault();
+        canvas.focus();
+        return;
+    }
+    if (isInteractiveElement(event.target)) return;
     if (!(frame && frame.textInput) && isTextRevealActive()) {
         event.preventDefault();
         finishTextReveal();
@@ -570,15 +811,15 @@ window.addEventListener("keydown", (event: KeyboardEvent) => {
         toggleCommandPalette();
         return;
     }
-    if (event.key === "Escape" && !commandPopover.hidden) {
-        event.preventDefault();
-        closeCommandPalette();
-        return;
-    }
     const token = keyToken(event);
     if (!token) return;
     event.preventDefault();
     send(token);
+});
+
+window.addEventListener("pointerdown", (event: PointerEvent) => {
+    if (isPopoverControlTarget(event.target)) return;
+    closeOpenPopover();
 });
 
 canvas.addEventListener("mousemove", (event: MouseEvent) => {
@@ -637,10 +878,19 @@ commandToggle.addEventListener("click", () => {
     canvas.focus();
 });
 
+preferencesToggle.addEventListener("click", () => {
+    const opening = preferencesPopover.hidden;
+    closeCommandPalette();
+    closeServerInfoPopover();
+    setPreferencesOpen(opening);
+    if (!opening) canvas.focus();
+});
+
 serverInfoToggle.addEventListener("click", () => {
     const opening = serverInfoPopover.hidden;
-    commandPopover.hidden = true;
-    serverInfoPopover.hidden = !opening;
+    closeCommandPalette();
+    closePreferencesPopover();
+    setServerInfoOpen(opening);
     if (opening) {
         refreshServerInfo().catch(() => {
             serverInfoPopover.innerHTML = "<h2>Server</h2><p>Unavailable</p>";
@@ -687,11 +937,70 @@ function renderCommandPalette(commands: BitmapCommand[]): void {
 
 function toggleCommandPalette(): void {
     if (currentCommands.length === 0) return;
-    commandPopover.hidden = !commandPopover.hidden;
+    const opening = commandPopover.hidden;
+    closePreferencesPopover();
+    closeServerInfoPopover();
+    setCommandPaletteOpen(opening);
 }
 
 function closeCommandPalette(): void {
-    commandPopover.hidden = true;
+    setCommandPaletteOpen(false);
+}
+
+function closePreferencesPopover(): void {
+    setPreferencesOpen(false);
+}
+
+function closeServerInfoPopover(): void {
+    setServerInfoOpen(false);
+}
+
+function closeOpenPopover(): boolean {
+    if (!commandPopover.hidden) {
+        closeCommandPalette();
+        return true;
+    }
+    if (!preferencesPopover.hidden) {
+        closePreferencesPopover();
+        return true;
+    }
+    if (!serverInfoPopover.hidden) {
+        closeServerInfoPopover();
+        return true;
+    }
+    return false;
+}
+
+function setCommandPaletteOpen(open: boolean): void {
+    commandPopover.hidden = !open;
+    commandToggle.setAttribute("aria-expanded", String(open));
+}
+
+function setPreferencesOpen(open: boolean): void {
+    preferencesPopover.hidden = !open;
+    preferencesToggle.setAttribute("aria-expanded", String(open));
+}
+
+function setServerInfoOpen(open: boolean): void {
+    serverInfoPopover.hidden = !open;
+    serverInfoToggle.setAttribute("aria-expanded", String(open));
+}
+
+function isInteractiveElement(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return target.matches("button, input, textarea, select, option, label");
+}
+
+function isPopoverControlTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof Node)) return false;
+    return (
+        preferencesPopover.contains(target) ||
+        preferencesToggle.contains(target) ||
+        serverInfoPopover.contains(target) ||
+        serverInfoToggle.contains(target) ||
+        commandPopover.contains(target) ||
+        commandToggle.contains(target)
+    );
 }
 
 function draw(frame: BitmapFrame): void {
@@ -734,7 +1043,7 @@ function drawBackdrop(frame: BitmapFrame): void {
 function drawTitleBackdrop(frame: BitmapFrame): void {
     drawCoverImage(bitmapAssets.title, "#111927");
     drawTitleGradient();
-    drawGothicTitle(canvas.width / 2, 76);
+    drawTitleLogo(canvas.width / 2, 24);
     ctx.save();
     ctx.textAlign = "center";
     ctx.font = "15px Menlo, Monaco, Consolas, monospace";
@@ -751,11 +1060,11 @@ function drawTitleBackdrop(frame: BitmapFrame): void {
 function drawTitleMenu(frame: BitmapFrame): void {
     drawCoverImage(bitmapAssets.title, "#111927");
     drawTitleGradient();
-    drawGothicTitle(canvas.width / 2, 76);
+    drawTitleLogo(canvas.width / 2, 24);
     const lines = frame.textLines || [];
     const panelW = 430;
     const rowH = 30;
-    const panelH = Math.max(260, lines.length * rowH + 72);
+    const panelH = Math.max(246, lines.length * rowH + 58);
     const x = Math.floor((canvas.width - panelW) / 2);
     const y = 214;
     ctx.save();
@@ -772,21 +1081,18 @@ function drawTitleMenu(frame: BitmapFrame): void {
         ctx.fillStyle = isHeader ? "#ead68a" : isDisabled ? "rgba(174, 166, 144, 0.55)" : "#f0ead4";
         ctx.fillText(truncateToWidth(line, panelW - 58), canvas.width / 2, y + 58 + index * rowH);
     });
-    ctx.fillStyle = "rgba(206, 184, 118, 0.72)";
-    ctx.font = "13px Menlo, Monaco, Consolas, monospace";
-    ctx.fillText("Choose an option", canvas.width / 2, y + panelH - 28);
     ctx.restore();
 }
 
 function drawStaticDocument(frame: BitmapFrame): void {
     drawCoverImage(bitmapAssets.town, "#10130d");
     drawImageShade("#020503", 0.55);
-    const x = 140;
-    const y = 78;
+    const x = 58;
+    const y = 40;
     const w = canvas.width - x * 2;
-    const h = canvas.height - 136;
+    const h = canvas.height - 78;
     ctx.save();
-    ctx.fillStyle = "rgba(4, 7, 5, 0.78)";
+    ctx.fillStyle = "rgba(4, 7, 5, 0.82)";
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = "rgba(218, 189, 107, 0.56)";
     ctx.lineWidth = 1;
@@ -800,19 +1106,93 @@ function drawStaticDocument(frame: BitmapFrame): void {
     ctx.fillStyle = "rgba(218, 201, 150, 0.78)";
     ctx.fillText(truncateToWidth(frame.subtitle || "", 260), x + w - 34, y + 45);
     ctx.textAlign = "left";
-    ctx.font = "16px Menlo, Monaco, Consolas, monospace";
     const lines = frame.textLines || [];
-    const promptIndex = Math.max(0, lines.length - 1);
+    const promptLine = documentPromptLine(lines);
+    const bodyLines = documentBodyLines(lines, promptLine);
     const reveal = textRevealDrawState(frame);
-    let ty = y + 92;
-    lines.forEach((line, index) => {
-        const color = index === promptIndex ? "#d7bc6c" : "#efe4c6";
-        const dim = index === promptIndex ? "rgba(215, 188, 108, 0.26)" : "rgba(239, 228, 198, 0.25)";
-        drawRevealText(truncateToWidth(line, w - 68), x + 34, ty, color, dim, reveal);
-        ty += index === promptIndex - 1 ? 28 : 20;
+    let ty = y + 90;
+    let inCode = false;
+    const textX = x + 38;
+    const textW = w - 76;
+    const bottom = y + h - 72;
+    bodyLines.forEach((line) => {
+        if (ty > bottom) return;
+        const drawn = drawDocumentLine(line, textX, ty, textW, inCode, reveal);
+        inCode = drawn.inCode;
+        ty += drawn.height;
     });
     drawTextRevealCursor(reveal);
+    if (promptLine) {
+        ctx.textAlign = "center";
+        ctx.font = "700 15px Menlo, Monaco, Consolas, monospace";
+        ctx.fillStyle = "#d7bc6c";
+        ctx.fillText(markdownInlineText(promptLine), x + w / 2, y + h - 30);
+        ctx.textAlign = "left";
+    }
     ctx.restore();
+}
+
+function documentPromptLine(lines: string[]): string {
+    const candidate = lines.length > 0 ? lines[lines.length - 1] : "";
+    return /^\(.*RETURN.*\)/i.test(candidate) || candidate.includes("ESC to exit") ? candidate : "";
+}
+
+function documentBodyLines(lines: string[], promptLine: string): string[] {
+    const body = promptLine ? lines.slice(0, -1) : lines.slice();
+    while (body.length > 0 && body[body.length - 1].trim() === "") body.pop();
+    return body;
+}
+
+function drawDocumentLine(
+    line: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    inCode: boolean,
+    reveal: TextRevealDrawState
+): { height: number; inCode: boolean } {
+    if (line.startsWith("```")) {
+        return { height: inCode ? 12 : 8, inCode: !inCode };
+    }
+    if (line.trim() === "") return { height: 13, inCode };
+    if (inCode) {
+        ctx.fillStyle = "rgba(13, 18, 13, 0.7)";
+        ctx.fillRect(x - 10, y - 14, maxWidth + 20, 20);
+        ctx.font = "13px Menlo, Monaco, Consolas, monospace";
+        drawRevealText(truncateToWidth(markdownInlineText(line), maxWidth), x, y, "#d8d1b8", "rgba(216, 209, 184, 0.24)", reveal);
+        return { height: 20, inCode };
+    }
+    const heading = line.match(/^(#{1,3})\s+(.*)$/);
+    if (heading) {
+        const level = heading[1].length;
+        ctx.font =
+            level === 1 ? "700 25px Palatino, 'Book Antiqua', Georgia, serif" :
+            level === 2 ? "700 20px Palatino, 'Book Antiqua', Georgia, serif" :
+            "700 16px Palatino, 'Book Antiqua', Georgia, serif";
+        const color = level === 1 ? "#f1d77b" : level === 2 ? "#e8c96d" : "#d8bd73";
+        const height = level === 1 ? 32 : level === 2 ? 27 : 22;
+        drawRevealText(truncateToWidth(markdownInlineText(heading[2]), maxWidth), x, y, color, "rgba(232, 201, 109, 0.25)", reveal);
+        return { height, inCode };
+    }
+    if (line.startsWith(">")) {
+        const text = markdownInlineText(line.replace(/^>\s?/, ""));
+        ctx.fillStyle = "rgba(218, 189, 107, 0.42)";
+        ctx.fillRect(x - 12, y - 15, 3, 19);
+        ctx.font = "italic 15px Georgia, 'Times New Roman', serif";
+        drawRevealText(truncateToWidth(text, maxWidth - 10), x + 8, y, "#cfc39f", "rgba(207, 195, 159, 0.23)", reveal);
+        return { height: 21, inCode };
+    }
+    ctx.font = "15px Georgia, 'Times New Roman', serif";
+    drawRevealText(truncateToWidth(markdownInlineText(line), maxWidth), x, y, "#efe4c6", "rgba(239, 228, 198, 0.25)", reveal);
+    return { height: 19, inCode };
+}
+
+function markdownInlineText(line: string): string {
+    return line
+        .replace(/&mdash;/g, "-")
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/`([^`]+)`/g, "$1");
 }
 
 function drawTitleGradient(): void {
@@ -828,25 +1208,151 @@ function drawTitleGradient(): void {
     ctx.fillRect(0, canvas.height - 190, canvas.width, 190);
 }
 
+function drawTitleLogo(cx: number, y: number): void {
+    const logo = bitmapAssets.titleLogo;
+    if (!logo.complete || logo.naturalWidth === 0) {
+        drawGothicTitle(cx, y + 52);
+        return;
+    }
+    const width = 720;
+    const height = width * (logo.naturalHeight / logo.naturalWidth);
+    ctx.drawImage(logo, cx - width / 2, y, width, height);
+}
+
+function currentFantasyTextScale(): number {
+    return textDisplaySettings.bitmapFontScale;
+}
+
+function currentFantasyLineHeight(scale = currentFantasyTextScale()): number {
+    return Math.ceil(fantasyFontHeight * scale + 6);
+}
+
+function fantasyTextWidth(text: string, scale = currentFantasyTextScale()): number {
+    const glyphCount = Array.from(String(text)).length;
+    return glyphCount * fantasyFontAdvance * scale;
+}
+
+function truncateFantasyToWidth(text: string, maxWidth: number, scale = currentFantasyTextScale()): string {
+    if (fantasyTextWidth(text, scale) <= maxWidth) return text;
+    let end = text.length;
+    while (end > 0 && fantasyTextWidth(text.slice(0, end) + "...", scale) > maxWidth) {
+        end -= 1;
+    }
+    return text.slice(0, end) + "...";
+}
+
+function wrapFantasyLines(text: string, maxWidth: number, scale = currentFantasyTextScale()): string[] {
+    const words = String(text || "").trim().split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    const maxChars = Math.max(1, Math.floor(maxWidth / (fantasyFontAdvance * scale)));
+    let line = "";
+    for (const word of words) {
+        const wordChars = Array.from(word);
+        if (wordChars.length > maxChars) {
+            if (line) {
+                lines.push(line);
+                line = "";
+            }
+            for (let index = 0; index < wordChars.length; index += maxChars) {
+                const chunk = wordChars.slice(index, index + maxChars).join("");
+                if (index + maxChars < wordChars.length) lines.push(chunk);
+                else line = chunk;
+            }
+            continue;
+        }
+        const lineChars = Array.from(line).length;
+        if (line && lineChars + 1 + wordChars.length > maxChars) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = line ? line + " " + word : word;
+        }
+    }
+    if (line) lines.push(line);
+    return lines.length > 0 ? lines : [""];
+}
+
+function drawFantasyText(
+    text: string,
+    x: number,
+    y: number,
+    scale: number,
+    color: string,
+    align: CanvasTextAlign = "left",
+    strokeColor?: string,
+    shadowColor?: string
+): void {
+    const value = String(text || "");
+    let left = x;
+    const width = fantasyTextWidth(value, scale);
+    if (align === "center") left -= width / 2;
+    else if (align === "right") left -= width;
+    if (shadowColor) {
+        drawFantasyTextCells(value, left + scale, y + scale, scale, shadowColor);
+    }
+    if (strokeColor) {
+        drawFantasyTextCells(value, left - 1, y, scale, strokeColor);
+        drawFantasyTextCells(value, left + 1, y, scale, strokeColor);
+        drawFantasyTextCells(value, left, y - 1, scale, strokeColor);
+        drawFantasyTextCells(value, left, y + 1, scale, strokeColor);
+    }
+    drawFantasyTextCells(value, left, y, scale, color);
+}
+
+function drawFantasyRevealText(
+    text: string,
+    x: number,
+    baseline: number,
+    color: string,
+    dimColor: string,
+    reveal: TextRevealDrawState,
+    scale = currentFantasyTextScale()
+): void {
+    const top = baseline - fantasyFontHeight * scale;
+    const value = String(text || "");
+    if (!reveal.active) {
+        drawFantasyText(value, x, top, scale, color);
+        return;
+    }
+    const charCost = Math.max(1, value.length);
+    const visible = Math.max(0, Math.min(value.length, reveal.remaining));
+    drawFantasyText(value, x, top, scale, dimColor);
+    if (visible > 0) {
+        drawFantasyText(value.slice(0, visible), x, top, scale, color);
+    }
+    if (!reveal.cursor && visible < value.length) {
+        reveal.cursor = {
+            x: x + fantasyTextWidth(value.slice(0, visible), scale) + 4,
+            y: top + fantasyFontHeight * scale
+        };
+    }
+    reveal.remaining -= charCost;
+}
+
+function drawFantasyTextCells(text: string, x: number, y: number, scale: number, color: string): void {
+    ctx.fillStyle = color;
+    Array.from(text).forEach((char, index) => {
+        const glyph = fantasyGlyphs[char] || fantasyGlyphs[char.toUpperCase()] || fantasyGlyphs["?"];
+        const gx = x + index * fantasyFontAdvance * scale;
+        glyph.forEach((row, rowIndex) => {
+            Array.from(row).forEach((cell, columnIndex) => {
+                if (cell === "1") {
+                    ctx.fillRect(
+                        gx + columnIndex * scale,
+                        y + rowIndex * scale,
+                        Math.max(1, scale),
+                        Math.max(1, scale)
+                    );
+                }
+            });
+        });
+    });
+}
+
 function drawGothicTitle(cx: number, y: number): void {
     ctx.save();
-    ctx.textAlign = "center";
-    ctx.lineJoin = "round";
-    ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
-    ctx.shadowBlur = 18;
-    ctx.shadowOffsetY = 5;
-    ctx.font = "700 58px Palatino, 'Book Antiqua', Georgia, serif";
-    ctx.strokeStyle = "rgba(23, 8, 4, 0.92)";
-    ctx.lineWidth = 9;
-    ctx.strokeText("Adventurers", cx, y);
-    ctx.fillStyle = "#f0d07a";
-    ctx.fillText("Adventurers", cx, y);
-    ctx.font = "700 42px Palatino, 'Book Antiqua', Georgia, serif";
-    ctx.lineWidth = 7;
-    ctx.strokeText("of Rylween", cx, y + 47);
-    ctx.fillStyle = "#d9b764";
-    ctx.fillText("of Rylween", cx, y + 47);
-    ctx.shadowBlur = 0;
+    drawFantasyText("ADVENTURERS", cx, y - 38, 7, "#f0d07a", "center", "rgba(23, 8, 4, 0.95)", "rgba(0, 0, 0, 0.85)");
+    drawFantasyText("OF RYLWEEN", cx, y + 28, 5, "#d9b764", "center", "rgba(23, 8, 4, 0.95)", "rgba(0, 0, 0, 0.85)");
     ctx.strokeStyle = "rgba(196, 117, 41, 0.58)";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1515,13 +2021,13 @@ function drawStatus(status: BitmapStatus | null | undefined, lines: string[]): v
     }
 
     const chips = [
-        {label: "TIME", value: status.time, color: "#f0d46d", width: 132},
-        {label: "STATUS", value: status.condition, color: statusColor(status.condition), width: 154},
-        {label: "POS", value: status.x + "x" + status.y, color: "#9ec1e4", width: 104},
-        {label: "TORCHES", value: String(status.torches), color: "#d8c16d", width: 118},
-        {label: "FOOD", value: String(status.food), color: "#d6e68d", width: 96},
-        {label: "MOVES LEFT", value: String(status.moves), color: "#a9d4a2", width: 132},
-        {label: "GOLD", value: String(status.gold), color: "#e8c56a", width: 108}
+        {label: "TIME", value: status.time, color: "#f0d46d", width: 138},
+        {label: "STATUS", value: status.condition, color: statusColor(status.condition), width: 164},
+        {label: "POS", value: status.x + "x" + status.y, color: "#9ec1e4", width: 108},
+        {label: "TORCHES", value: String(status.torches), color: "#d8c16d", width: 126},
+        {label: "FOOD", value: String(status.food), color: "#d6e68d", width: 104},
+        {label: "MOVES LEFT", value: String(status.moves), color: "#a9d4a2", width: 142},
+        {label: "GOLD", value: String(status.gold), color: "#e8c56a", width: 116}
     ];
     const gap = 8;
     const total = chips.reduce((sum, chip) => sum + chip.width, 0) + gap * (chips.length - 1);
@@ -1533,49 +2039,49 @@ function drawStatus(status: BitmapStatus | null | undefined, lines: string[]): v
 
     const members = status.members || [];
     const memberGap = 10;
-    const memberW = Math.min(220, Math.floor((w - 48 - memberGap * Math.max(0, members.length - 1)) / Math.max(1, members.length)));
+    const memberW = Math.min(230, Math.floor((w - 36 - memberGap * Math.max(0, members.length - 1)) / Math.max(1, members.length)));
     let mx = x + Math.floor((w - (memberW * members.length + memberGap * Math.max(0, members.length - 1))) / 2);
     for (const member of members) {
-        drawMemberStatus(member, mx, y + 54, memberW);
+        drawMemberStatus(member, mx, y + 50, memberW);
         mx += memberW + memberGap;
     }
 }
 
 function drawStatusChip(x: number, y: number, w: number, label: string, value: string, color: string): void {
-    ctx.font = "10px Menlo, Monaco, Consolas, monospace";
+    ctx.font = "11px Menlo, Monaco, Consolas, monospace";
     ctx.fillStyle = "#899a72";
-    ctx.fillText(label, x + 8, y + 14);
-    const labelWidth = Math.min(w - 34, Math.ceil(ctx.measureText(label).width) + 18);
-    ctx.font = "700 13px Menlo, Monaco, Consolas, monospace";
+    ctx.fillText(label, x + 8, y + 17);
+    const labelWidth = Math.min(w - 42, Math.ceil(ctx.measureText(label).width) + 20);
+    ctx.font = "700 15px Menlo, Monaco, Consolas, monospace";
     ctx.fillStyle = color;
-    ctx.fillText(truncateToWidth(value, w - labelWidth - 8), x + labelWidth, y + 14);
+    ctx.fillText(truncateToWidth(value, w - labelWidth - 8), x + labelWidth, y + 17);
 }
 
 function drawMemberStatus(member: BitmapStatusMember, x: number, y: number, w: number): void {
     const label = member.slot + " " + member.name;
-    const barX = x + 6;
-    const barY = y + 15;
-    const barW = w - 12;
-    ctx.font = "11px Menlo, Monaco, Consolas, monospace";
+    const barX = x + 5;
+    const barY = y + 18;
+    const barW = w - 10;
+    ctx.font = "700 13px Menlo, Monaco, Consolas, monospace";
     ctx.fillStyle = member.dead ? "#b86f68" : "#d8d0ae";
-    ctx.fillText(truncateToWidth(label, w - 12), x + 6, y + 9);
-    drawTinyBar(barX, barY, barW, 5, member.hp, member.hpMax, member.dead ? "#7d3533" : "#b85748");
+    ctx.fillText(truncateToWidth(label, w - 10), x + 5, y + 11);
+    drawTinyBar(barX, barY, barW, 7, member.hp, member.hpMax, member.dead ? "#7d3533" : "#b85748");
     statusHotspots.push({
         x: barX,
         y: barY - 2,
         w: barW,
-        h: 9,
+        h: 11,
         text: member.name + " health: " + member.hp + "/" + member.hpMax
     });
     if (member.manaMax) {
         const relevantMana = member.manaRelevant !== false;
         const manaValue = relevantMana ? member.mana || 0 : member.manaMax;
-        drawTinyBar(barX, barY + 9, barW, 4, manaValue, member.manaMax, relevantMana ? "#5b8fce" : "#596170");
+        drawTinyBar(barX, barY + 12, barW, 6, manaValue, member.manaMax, relevantMana ? "#5b8fce" : "#596170");
         statusHotspots.push({
             x: barX,
-            y: barY + 7,
+            y: barY + 10,
             w: barW,
-            h: 8,
+            h: 10,
             text: relevantMana ? member.name + " mana: " + (member.mana || 0) + "/" + member.manaMax : member.name + ": not a spellcaster"
         });
     }
@@ -1609,17 +2115,33 @@ function drawTextPanel(frame: BitmapFrame): void {
     ctx.font = "15px Menlo, Monaco, Consolas, monospace";
     ctx.fillStyle = "#bdb496";
     ctx.fillText(truncateToWidth(frame.subtitle || "", maxWidth), x, y + 30);
-    ctx.font = "16px Menlo, Monaco, Consolas, monospace";
-    ctx.fillStyle = "#efe4c6";
     let ty = y + 64;
     const bottom = frame.textInput ? layout.text.y + layout.text.h - 96 : layout.text.y + layout.text.h - 32;
     const reveal = textRevealDrawState(frame);
+    const bitmapScale = currentFantasyTextScale();
+    const bitmapLineHeight = currentFantasyLineHeight(bitmapScale);
     for (const line of (frame.textLines || [])) {
-        const wrapped = wrapCanvasLines(line, maxWidth);
-        for (const part of wrapped) {
-            if (ty > bottom) break;
-            drawRevealText(part, x, ty, "#efe4c6", "rgba(239, 228, 198, 0.25)", reveal);
-            ty += 20;
+        if (textDisplaySettings.bitmapFont) {
+            for (const part of wrapFantasyLines(line, maxWidth, bitmapScale)) {
+                if (ty > bottom) break;
+                drawFantasyRevealText(
+                    truncateFantasyToWidth(part, maxWidth, bitmapScale),
+                    x,
+                    ty,
+                    "#efe4c6",
+                    "rgba(239, 228, 198, 0.25)",
+                    reveal,
+                    bitmapScale
+                );
+                ty += bitmapLineHeight;
+            }
+        } else {
+            ctx.font = "15px Menlo, Monaco, Consolas, monospace";
+            for (const part of wrapCanvasLines(line, maxWidth)) {
+                if (ty > bottom) break;
+                drawRevealText(truncateToWidth(part, maxWidth), x, ty, "#efe4c6", "rgba(239, 228, 198, 0.25)", reveal);
+                ty += 20;
+            }
         }
     }
     drawTextRevealCursor(reveal);
@@ -1684,16 +2206,26 @@ function drawPartyInventoryText(page: BitmapPartyPage, x: number, y: number, max
     ctx.fillStyle = "#f1df9f";
     ctx.fillText("Inventory", x, y);
     drawPartyDivider(x, y + 24, maxWidth);
-    ctx.font = "15px Menlo, Monaco, Consolas, monospace";
-    ctx.fillStyle = "#efe4c6";
     let ty = y + 58;
     const bottom = layout.text.y + layout.text.h - 62;
     const entries = page.inventory && page.inventory.length > 0 ? page.inventory : ["Nothing carried."];
+    const bitmapScale = currentFantasyTextScale();
+    const bitmapLineHeight = currentFantasyLineHeight(bitmapScale);
     for (const entry of entries) {
-        for (const part of wrapCanvasLines(entry, maxWidth)) {
-            if (ty > bottom) return;
-            ctx.fillText(part, x, ty);
-            ty += 21;
+        if (textDisplaySettings.bitmapFont) {
+            for (const part of wrapFantasyLines(entry, maxWidth, bitmapScale)) {
+                if (ty > bottom) return;
+                drawFantasyText(truncateFantasyToWidth(part, maxWidth, bitmapScale), x, ty - fantasyFontHeight * bitmapScale, bitmapScale, "#efe4c6");
+                ty += bitmapLineHeight + 1;
+            }
+        } else {
+            ctx.font = "15px Menlo, Monaco, Consolas, monospace";
+            ctx.fillStyle = "#efe4c6";
+            for (const part of wrapCanvasLines(entry, maxWidth)) {
+                if (ty > bottom) return;
+                ctx.fillText(truncateToWidth(part, maxWidth), x, ty);
+                ty += 20;
+            }
         }
     }
 }
@@ -1731,6 +2263,11 @@ function drawPartyDivider(x: number, y: number, width: number): void {
 
 function drawPartyPause(text: string, x: number, y: number, maxWidth: number): void {
     if (!text) return;
+    if (textDisplaySettings.bitmapFont) {
+        const scale = Math.max(1.35, currentFantasyTextScale() - 0.2);
+        drawFantasyText(truncateFantasyToWidth(text, maxWidth, scale), x, y - fantasyFontHeight * scale, scale, "#bdb496");
+        return;
+    }
     ctx.font = "13px Menlo, Monaco, Consolas, monospace";
     ctx.fillStyle = "#bdb496";
     ctx.fillText(truncateToWidth(text, maxWidth), x, y);
@@ -1884,5 +2421,7 @@ function wrapCanvasLines(text: string, maxWidth: number): string[] {
 }
 
 configureTextRevealControls();
+configureTextDisplayControls();
+configureRuntimePreferenceControls();
 refreshServerInfo().catch(() => undefined);
 connect();

@@ -4475,7 +4475,7 @@ val authoredRylween: RylweenModel =
                         catalog('W', "Weapons") {
                             intro("We have...", "")
                             page {
-                                nextPage()
+                                nextPage('M', label = "More")
                                 item('1', Items.sword, label = "Sword")
                                 item('2', Items.axe, label = "Axe")
                                 item('3', Items.bow, label = "Bow")

@@ -1,3 +1,4 @@
+// Builds reusable DSL, compiler, compiled-bundle, and runtime model primitives.
 plugins {
     `java-library`
     alias(libs.plugins.kotlin.jvm)

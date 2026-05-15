@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rylween Bitmap</title>
+  <title>Adventurers of Rylween</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -11,20 +11,13 @@
     <header class="topbar">
       <div class="brand">
         <div class="mark">R</div>
-        <div class="title">Rylween Bitmap</div>
+        <div class="title">Adventurers of Rylween</div>
       </div>
       <div class="top-actions">
-        <button id="serverInfoToggle" type="button" class="server-pill">Bitmap</button>
+        <button id="serverInfoToggle" type="button" class="server-pill" aria-expanded="false" aria-controls="serverInfoPopover">Status</button>
         <span id="userAccount" class="account-pill">Account</span>
-        <label class="reveal-toggle">
-          <input id="textRevealToggle" type="checkbox">
-          <span>Reveal</span>
-        </label>
-        <label class="reveal-speed">
-          <span>Speed</span>
-          <input id="textRevealSpeed" type="range" min="70" max="220" value="140">
-        </label>
-        <button id="commandToggle" type="button" hidden>Commands</button>
+        <button id="preferencesToggle" type="button" class="prefs-pill" aria-expanded="false" aria-controls="preferencesPopover">Preferences</button>
+        <button id="commandToggle" type="button" aria-expanded="false" aria-controls="commandPopover" hidden>Commands</button>
         <div class="status">
           <span id="connectionDot" class="dot"></span>
           <span id="connectionText">Connecting</span>
@@ -32,8 +25,40 @@
       </div>
     </header>
     <section class="stage">
-      <canvas id="game" width="1280" height="720" tabindex="0" aria-label="Rylween bitmap game"></canvas>
+      <canvas id="game" width="1280" height="720" tabindex="0" aria-label="Adventurers of Rylween illustrated game"></canvas>
       <aside id="serverInfoPopover" class="server-info-popover" hidden aria-label="Rylween server status"></aside>
+      <aside id="preferencesPopover" class="preferences-popover" hidden aria-label="Preferences">
+        <h2>Preferences</h2>
+        <label class="preference-check">
+          <input id="textRevealToggle" type="checkbox">
+          <span>Text reveal</span>
+        </label>
+        <label class="preference-check">
+          <input id="bitmapFontToggle" type="checkbox">
+          <span>Fantasy fixed-space font</span>
+        </label>
+        <div class="preference-range">
+          <label for="bitmapFontScale">
+            <span>Text font scale</span>
+            <output id="bitmapFontScaleValue">1.75x</output>
+          </label>
+          <input id="bitmapFontScale" type="range" min="1.45" max="2.10" step="0.05" value="1.75">
+        </div>
+        <div class="preference-range">
+          <label for="textRevealSpeed">
+            <span>Reveal speed</span>
+            <output id="textRevealSpeedValue">220 cps</output>
+          </label>
+          <input id="textRevealSpeed" type="range" min="90" max="280" step="5" value="220">
+        </div>
+        <div class="preference-range">
+          <label for="pauseDelayScale">
+            <span>Pause delay scale</span>
+            <output id="pauseDelayScaleValue">1.00x</output>
+          </label>
+          <input id="pauseDelayScale" type="range" min="0.25" max="2.00" step="0.05" value="1.00">
+        </div>
+      </aside>
       <aside id="commandPopover" class="command-popover" hidden aria-label="Rylween command palette"></aside>
       <div id="canvasTooltip" class="canvas-tooltip" hidden></div>
     </section>

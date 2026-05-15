@@ -620,9 +620,14 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches("journal", command) -> {
-                            val width = screen.textColumns ?: Int.MAX_VALUE
-                            val wrapped = PartyPages.journalLines(runtime.party).flatMap { wrapTextLine(it, width) }
-                            showWildernessPage(screen, input, runtime, world, wrapped)
+                            showWildernessDocument(
+                                screen = screen,
+                                input = input,
+                                runtime = runtime,
+                                world = world,
+                                title = "Adventurer's Journal",
+                                lines = PartyPages.journalLines(runtime.party),
+                            )
                             false
                         }
 
@@ -1283,6 +1288,37 @@ class GameRuntime private constructor(
         lines: List<String>,
     ) {
         showWildernessPages(screen, input, runtime, world, lines.chunked(TEXT_WINDOW_PAGE_LINES))
+    }
+
+    private fun showWildernessDocument(
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
+        runtime: RuntimeState,
+        world: WorldMap,
+        title: String,
+        lines: List<String>,
+    ) {
+        val width = screen.documentColumns ?: Int.MAX_VALUE
+        val pageLines = screen.documentPageLines ?: TEXT_WINDOW_PAGE_LINES
+        val pages = lines.flatMap { line -> wrapTextLine(line, width) }.chunked(pageLines).ifEmpty { listOf(listOf("")) }
+        for ((index, page) in pages.withIndex()) {
+            val lastPage = index == pages.lastIndex
+            val prompt = documentPrompt(if (lastPage) "to return" else "for more")
+            screen.showDocumentPage(
+                title = title,
+                subtitle = "Page ${index + 1}/${pages.size}",
+                lines = page + "" + prompt,
+                runtime = runtime,
+            )
+            when (readDocumentAdvance(input::readCommand)) {
+                null -> return
+                RuntimeInputTokens.ESCAPE_COMMAND -> {
+                    redrawWildernessIfCurrent(screen, runtime, world)
+                    return
+                }
+            }
+        }
+        redrawWildernessIfCurrent(screen, runtime, world)
     }
 
     private fun showWildernessPages(

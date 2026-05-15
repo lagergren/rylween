@@ -1,3 +1,5 @@
+/** Static screen, score report, and hall-of-heroes presentation helpers. */
+
 package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle

@@ -1,3 +1,4 @@
+// Builds the ANSI browser runtime and its installed launcher distribution.
 import org.gradle.jvm.application.tasks.CreateStartScripts
 
 plugins {
