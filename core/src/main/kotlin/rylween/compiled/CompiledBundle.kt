@@ -492,10 +492,6 @@ sealed interface CompiledCharacterPlacement {
         val policy: CompiledRandomNpcPlacementPolicy,
     ) : CompiledCharacterPlacement
 
-    data class RandomizedWilderness(
-        val policy: CompiledRandomNpcPlacementPolicy,
-    ) : CompiledCharacterPlacement
-
     data object Unplaced : CompiledCharacterPlacement
 }
 
@@ -1642,7 +1638,6 @@ private class CompiledBundleCompiler(
                 is CharacterPlacementModel.Fixed -> declarePositionHandles(placement.position)
                 is CharacterPlacementModel.FixedNearTown -> Unit
                 is CharacterPlacementModel.Randomized -> declareRandomNpcPlacementPolicy(placement.policy)
-                is CharacterPlacementModel.RandomizedWilderness -> declareRandomNpcPlacementPolicy(placement.policy)
                 CharacterPlacementModel.Unplaced -> Unit
             }
         }
@@ -2455,8 +2450,6 @@ private class CompiledBundleCompiler(
                     is CharacterPlacementModel.FixedNearTown -> CompiledCharacterPlacement.Fixed(fixedNearTownPosition(placement))
                     is CharacterPlacementModel.Randomized ->
                         CompiledCharacterPlacement.Randomized(randomNpcPlacementPolicy(placement.policy))
-                    is CharacterPlacementModel.RandomizedWilderness ->
-                        CompiledCharacterPlacement.RandomizedWilderness(randomNpcPlacementPolicy(placement.policy))
                     CharacterPlacementModel.Unplaced -> CompiledCharacterPlacement.Unplaced
                 },
             roles = character.roles.map(::roleRef),

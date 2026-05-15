@@ -1674,8 +1674,6 @@ class GameRuntime private constructor(
             is CompiledCharacterPlacement.Fixed -> null
             is CompiledCharacterPlacement.Randomized ->
                 drawRandomNpcPlacementPolicy(placement.policy, world, occupiedPositions)
-            is CompiledCharacterPlacement.RandomizedWilderness ->
-                drawRandomNpcPlacementPolicy(placement.policy, world, occupiedPositions)
             CompiledCharacterPlacement.Unplaced -> null
         }
 
@@ -1827,7 +1825,6 @@ class GameRuntime private constructor(
         when (this) {
             is CompiledCharacterPlacement.Fixed -> "fixed"
             is CompiledCharacterPlacement.Randomized -> "randomized"
-            is CompiledCharacterPlacement.RandomizedWilderness -> "randomized_wilderness"
             CompiledCharacterPlacement.Unplaced -> "unplaced"
         }
 
