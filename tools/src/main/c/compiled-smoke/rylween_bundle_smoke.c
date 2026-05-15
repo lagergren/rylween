@@ -97,8 +97,7 @@ typedef enum {
     INT_EXPR_REALM_SCALAR = 9U,
     INT_EXPR_PARTY_SCALAR = 10U,
     INT_EXPR_INVENTORY_POOL_COUNT = 11U,
-    INT_EXPR_INVENTORY_SLOT_COST = 12U,
-    INT_EXPR_NATIVE_INT = 13U
+    INT_EXPR_INVENTORY_SLOT_COST = 12U
 } IntExprTag;
 
 typedef enum {
@@ -422,10 +421,6 @@ static void parse_int_expr(Reader *reader) {
             break;
         case INT_EXPR_INVENTORY_SLOT_COST:
             parse_int_expr(reader);
-            break;
-        case INT_EXPR_NATIVE_INT:
-            read_string_ref(reader);
-            parse_string_id_list(reader);
             break;
         default:
             fail_at(reader, "unknown int expr tag");

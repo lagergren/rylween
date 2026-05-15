@@ -395,7 +395,6 @@ private class NativePathCollector {
             is IntAst.PartyScalar -> Unit
             is IntAst.InventoryPoolCount -> Unit
             is IntAst.InventorySlotCost -> collect(ast.slot)
-            is IntAst.NativeInt -> paths += ast.path
         }
     }
 
@@ -482,7 +481,6 @@ private class NativePathCollector {
         when (op) {
             is Op.Screen -> collect(op.text)
             is Op.Emit -> Unit
-            is Op.EmitIndexed -> collect(op.value)
             is Op.WaitInput -> Unit
             is Op.Pause -> Unit
             is Op.View -> Unit
@@ -533,7 +531,6 @@ private class NativePathCollector {
             Op.ConsumeActiveItem -> Unit
             is Op.ClearInventorySlot -> collect(op.slot)
             is Op.ConsumeInventoryPool -> collect(op.quantity)
-            Op.ConsumeTorch -> Unit
             is Op.TeleportParty -> {
                 collect(op.directionKey)
                 collect(op.distance)
@@ -546,7 +543,6 @@ private class NativePathCollector {
             is Op.RandomItemOffer -> collect(op.offer)
             is Op.ShopService -> collect(op.shop)
             is Op.AchieveMilestone -> Unit
-            is Op.NativeCall -> paths += op.path
         }
     }
 

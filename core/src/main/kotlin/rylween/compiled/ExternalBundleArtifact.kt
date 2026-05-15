@@ -2348,12 +2348,6 @@ private class ExternalBundleArtifactWriter {
                     "op" to JsonString("inventorySlotCost"),
                     "slot" to intAstJson(ast.slot),
                 )
-            is IntAst.NativeInt ->
-                jsonObject(
-                    "op" to JsonString("nativeInt"),
-                    "path" to JsonString(ast.path),
-                    "args" to stringArray(ast.args),
-                )
         }
 
     private fun boolAstJson(ast: BoolAst): JsonValue =

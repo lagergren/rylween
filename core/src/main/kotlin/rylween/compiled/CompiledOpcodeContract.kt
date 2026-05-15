@@ -109,7 +109,6 @@ object CompiledOpcodeContract {
         mapOf(
             CompiledOpcode.Screen to Schema.of(Slot.TextBlockValue),
             CompiledOpcode.Emit to Schema.of(Slot.Handle),
-            CompiledOpcode.EmitIndexed to Schema.of(Slot.StringId, Slot.IntExprValue),
             CompiledOpcode.WaitInput to
                 Schema.ofAny(
                     emptyList(),
@@ -159,14 +158,12 @@ object CompiledOpcodeContract {
             CompiledOpcode.ConsumeActiveItem to Schema.empty(),
             CompiledOpcode.ClearInventorySlot to Schema.of(Slot.IntExprValue),
             CompiledOpcode.ConsumeInventoryPool to Schema.of(Slot.Handle, Slot.IntExprValue),
-            CompiledOpcode.ConsumeTorch to Schema.empty(),
             CompiledOpcode.TeleportParty to Schema.of(Slot.IntExprValue, Slot.IntExprValue),
             CompiledOpcode.DiscoverCave to Schema.of(Slot.Handle, Slot.IntExprValue, Slot.IntExprValue),
             CompiledOpcode.GrantReward to Schema.of(Slot.Reward),
             CompiledOpcode.RandomItemOffer to Schema.of(Slot.RandomItemOffer),
             CompiledOpcode.ShopService to Schema.of(Slot.ShopService),
             CompiledOpcode.AchieveMilestone to Schema.of(Slot.Handle),
-            CompiledOpcode.NativeCall to Schema.of(Slot.StringId, Slot.StringIdList),
         )
 
     /** Maps an actual compiled operand instance to its schema slot kind. */

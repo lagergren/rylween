@@ -572,7 +572,6 @@ class RylweenCompiledGameLedgerTest {
             check(spell.baseCost == baseCost)
             check(spell.name == name)
             check(spell.ops.isNotEmpty())
-            check(!spell.ops.anyNested { it is Op.NativeCall })
         }
 
         check(
@@ -666,9 +665,7 @@ class RylweenCompiledGameLedgerTest {
                 .filterIsInstance<Op.Menu>()
                 .single()
         check(churchMenu.options.map { it.key } == listOf('H', 'E', 'R', 'L'))
-        check(churchScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
         val smithScene = nextDsl.scenes.single { it.id == Scenes.Towne.smith }
-        check(smithScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
         val smithShop =
             smithScene.ops
                 .filterIsInstance<Op.ShopService>()
@@ -717,7 +714,6 @@ class RylweenCompiledGameLedgerTest {
                 ),
         )
         val innScene = nextDsl.scenes.single { it.id == Scenes.Towne.inn }
-        check(innScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
         check(
             innScene.ops
                 .filterIsInstance<Op.Loop>()
@@ -726,7 +722,6 @@ class RylweenCompiledGameLedgerTest {
                 .any { it is Op.Menu },
         )
         val merchantScene = nextDsl.scenes.single { it.id == Scenes.Towne.merchant }
-        check(merchantScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
         val merchantShop =
             merchantScene.ops
                 .filterIsInstance<Op.ShopService>()
@@ -756,7 +751,6 @@ class RylweenCompiledGameLedgerTest {
         check(merchantSell.acceptedItems == setOf(Items.ration, Items.blanket, Items.tent, Items.rope))
         check(merchantSell.rejectedItems == setOf(Items.donkey))
         val tavernScene = nextDsl.scenes.single { it.id == Scenes.Towne.tavern }
-        check(tavernScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
         val hutScene = nextDsl.scenes.single { it.id == Scenes.Towne.hut }
         check(
             hutScene.ops
@@ -985,7 +979,6 @@ class RylweenCompiledGameLedgerTest {
                 revelationSpell.ops.anyNested { op -> op is Op.RandomItemOffer && op.offer.pool == pool }
             },
         )
-        check(!revelationSpell.ops.anyNested { it is Op.NativeCall })
         check(nextDsl.itemUses.size == 15)
         check(nextDsl.itemUses.count { ItemUseContext.Inventory in it.contexts } == 3)
         check(
@@ -1304,7 +1297,10 @@ class RylweenCompiledGameLedgerTest {
         validateAuthoredContent(nextDsl)
         validateGameProgress(nextDsl.progress, nextDsl.itemCatalog)
         validateStates(nextRylween.states, nextDsl)
-        check((analyzeScriptSources(nextDsl).nativePaths - NativeAllowlist.byPath.keys).isEmpty())
+        val authoredNativePaths = analyzeScriptSources(nextDsl).nativePaths
+        check(authoredNativePaths == NativeAllowlist.byPath.keys) {
+            "native allowlist must match authored helper use: authored=$authoredNativePaths allowlist=${NativeAllowlist.byPath.keys}"
+        }
     }
 
     @Test

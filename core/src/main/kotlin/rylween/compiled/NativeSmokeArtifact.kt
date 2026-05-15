@@ -125,7 +125,6 @@ private enum class NativeSmokeIntExprTag(
     PartyScalar(10),
     InventoryPoolCount(11),
     InventorySlotCost(12),
-    NativeInt(13),
 }
 
 private enum class NativeSmokeBoolExprTag(
@@ -398,11 +397,6 @@ private class NativeSmokeArtifactWriter {
             is CompiledIntExpr.InventorySlotCost ->
                 tag(NativeSmokeIntExprTag.InventorySlotCost) {
                     intExpr(expr.slot)
-                }
-            is CompiledIntExpr.NativeInt ->
-                tag(NativeSmokeIntExprTag.NativeInt) {
-                    stringId(expr.pathString)
-                    stringIds(expr.argStrings)
                 }
         }
     }
@@ -921,10 +915,6 @@ private class NativeSmokeArtifactReader(
             }
             NativeSmokeIntExprTag.InventoryPoolCount -> handleRef()
             NativeSmokeIntExprTag.InventorySlotCost -> intExpr()
-            NativeSmokeIntExprTag.NativeInt -> {
-                stringRef()
-                stringRefList()
-            }
         }
     }
 

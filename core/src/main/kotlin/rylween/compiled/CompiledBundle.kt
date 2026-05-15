@@ -623,7 +623,6 @@ data class CompiledScriptProgram(
 enum class CompiledOpcode {
     Screen,
     Emit,
-    EmitIndexed,
     WaitInput,
     Pause,
     View,
@@ -656,14 +655,12 @@ enum class CompiledOpcode {
     ConsumeActiveItem,
     ClearInventorySlot,
     ConsumeInventoryPool,
-    ConsumeTorch,
     TeleportParty,
     DiscoverCave,
     GrantReward,
     RandomItemOffer,
     ShopService,
     AchieveMilestone,
-    NativeCall,
 }
 
 /** One VM instruction: opcode plus typed operands validated by [CompiledOpcodeContract]. */
@@ -983,11 +980,6 @@ sealed interface CompiledIntExpr {
 
     data class InventorySlotCost(
         val slot: CompiledIntExpr,
-    ) : CompiledIntExpr
-
-    data class NativeInt(
-        val pathString: Int,
-        val argStrings: List<Int>,
     ) : CompiledIntExpr
 }
 
@@ -1820,13 +1812,6 @@ private class CompiledBundleCompiler(
         when (op) {
             is Op.Screen -> instruction(CompiledOpcode.Screen, CompiledOperand.TextBlockValue(text(op.text)))
             is Op.Emit -> instruction(CompiledOpcode.Emit, CompiledOperand.Handle(textRef(op.text.id)))
-            is Op.EmitIndexed ->
-                instruction(
-                    CompiledOpcode.EmitIndexed,
-                    CompiledOperand.StringId(strings.id(op.pattern.pattern)),
-                    CompiledOperand.IntExprValue(intExpr(op.value)),
-                )
-
             is Op.WaitInput -> instruction(CompiledOpcode.WaitInput, op.reason?.let { CompiledOperand.StringId(strings.id(it)) })
             is Op.Pause -> instruction(CompiledOpcode.Pause, CompiledOperand.Integer(op.millis))
             is Op.View -> instruction(CompiledOpcode.View, CompiledOperand.ViewCommandValue(viewCommand(op.command)))
@@ -2010,7 +1995,6 @@ private class CompiledBundleCompiler(
                     CompiledOperand.IntExprValue(intExpr(op.quantity)),
                 )
 
-            Op.ConsumeTorch -> instruction(CompiledOpcode.ConsumeTorch)
             is Op.TeleportParty ->
                 instruction(
                     CompiledOpcode.TeleportParty,
@@ -2038,13 +2022,6 @@ private class CompiledBundleCompiler(
                 instruction(
                     CompiledOpcode.AchieveMilestone,
                     CompiledOperand.Handle(milestoneRef(op.milestone)),
-                )
-
-            is Op.NativeCall ->
-                instruction(
-                    CompiledOpcode.NativeCall,
-                    CompiledOperand.StringId(strings.id(op.path)),
-                    CompiledOperand.StringIdList(op.args.map(strings::id)),
                 )
         }
 
@@ -2092,7 +2069,6 @@ private class CompiledBundleCompiler(
             is IntAst.PartyScalar -> CompiledIntExpr.PartyScalar(strings.id(expr.name))
             is IntAst.InventoryPoolCount -> CompiledIntExpr.InventoryPoolCount(itemPoolRef(expr.pool))
             is IntAst.InventorySlotCost -> CompiledIntExpr.InventorySlotCost(intExpr(expr.slot))
-            is IntAst.NativeInt -> CompiledIntExpr.NativeInt(strings.id(expr.path), expr.args.map(strings::id))
         }
 
     private fun binaryOp(op: String): CompiledBinaryOp =

@@ -703,7 +703,6 @@ internal class WildernessActions(
             is CompiledIntExpr.BattleQuery,
             is CompiledIntExpr.RealmScalar,
             is CompiledIntExpr.InventorySlotCost,
-            is CompiledIntExpr.NativeInt,
             -> 0
         }
 

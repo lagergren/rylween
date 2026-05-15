@@ -261,17 +261,12 @@ fun rumor(slug: String): RumorId = RumorId(slug)
 // Engine-native operation handles are part of the reusable runtime boundary,
 // not game content.
 class NativeOpRefs {
-    val inventoryAdd: NativeOpId = nativeOp("inventory.add")
-    val townEnterService: NativeOpId = nativeOp("town.enter_service")
-    val inputKeyUpper: NativeOpId = nativeOp("input.key_upper")
     val partyMemberName: NativeOpId = nativeOp("party.member.name")
     val combatMonsterName: NativeOpId = nativeOp("combat.monster.name")
     val partyPronounSubject: NativeOpId = nativeOp("party.member.pronoun.subject")
     val partyPronounObject: NativeOpId = nativeOp("party.member.pronoun.object")
     val partyPronounPossessive: NativeOpId = nativeOp("party.member.pronoun.possessive")
     val townNpcName: NativeOpId = nativeOp("town.npc.name")
-    val npcRoleName: NativeOpId = nativeOp("npc.role.name")
-    val npcRoleLocation: NativeOpId = nativeOp("npc.role.location")
 }
 
 val NativeOps: NativeOpRefs = NativeOpRefs()

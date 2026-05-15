@@ -28,7 +28,6 @@ enum class VmDiagnosticKind {
     MissingNativeOp,
     InvalidLValue,
     BadContinuationFrame,
-    UnsupportedHostService,
 }
 
 /**
@@ -111,7 +110,7 @@ sealed interface VmDiagnostic {
         override fun message(): String = "compiled VM diagnostic: $kind ${location()} owner=$owner handle=${handle.kind}#${handle.id}"
     }
 
-    /** A `NativeCall` or native expression path is absent from [NativeServiceCatalog]. */
+    /** A native expression path is absent from [NativeServiceCatalog]. */
     data class MissingNativeOp(
         override val root: ScriptRootRef,
         override val instructionIndex: Int,
@@ -160,19 +159,6 @@ sealed interface VmDiagnostic {
         override val kind: VmDiagnosticKind get() = VmDiagnosticKind.BadContinuationFrame
 
         override fun message(): String = "compiled VM diagnostic: $kind ${location()} frame=$frame reason=$reason"
-    }
-
-    /** The VM requested a host service that the active host does not provide. */
-    data class UnsupportedHostService(
-        override val root: ScriptRootRef,
-        override val instructionIndex: Int,
-        override val operandPath: List<Int>,
-        val service: String,
-        val reason: String,
-    ) : VmDiagnostic {
-        override val kind: VmDiagnosticKind get() = VmDiagnosticKind.UnsupportedHostService
-
-        override fun message(): String = "compiled VM diagnostic: $kind ${location()} service=$service reason=$reason"
     }
 }
 

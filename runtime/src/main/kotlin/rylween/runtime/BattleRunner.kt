@@ -1039,18 +1039,6 @@ internal class BattleRunner(
                         )
                     }
 
-                CompiledOpcode.EmitIndexed ->
-                    false.also {
-                        writeText(
-                            listOf(
-                                content.strings
-                                    .value(
-                                        instruction.stringIdOperand(0),
-                                    ).replace("%d", int(instruction.intOperand(1)).toString()),
-                            ),
-                        )
-                    }
-
                 CompiledOpcode.WaitInput ->
                     false.also {
                         pausePrompts?.let { prompts -> screen.writeText(currentTextLines.withPausePrompt(prompts)) }
@@ -1248,8 +1236,6 @@ internal class BattleRunner(
                 is CompiledIntExpr.InventorySlotCost ->
                     content.itemRecord(encounter.runtime.party.inventoryItem(int(expr.slot)) ?: return 0)?.cost
                         ?: 0
-
-                is CompiledIntExpr.NativeInt -> 0
             }
 
         private fun bool(expr: CompiledBoolExpr): Boolean =
@@ -1674,7 +1660,6 @@ internal class BattleRunner(
                 is CompiledIntExpr.PartyScalar,
                 is CompiledIntExpr.InventoryPoolCount,
                 is CompiledIntExpr.InventorySlotCost,
-                is CompiledIntExpr.NativeInt,
                 -> 0
             }
 
