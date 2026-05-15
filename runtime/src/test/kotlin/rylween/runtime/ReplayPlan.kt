@@ -488,7 +488,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_tavern_drinks_rumor_niklas_story",
-                        commands = "ETOAOBOCODOERAS2CBS1QLYBT1TL",
+                        commands = "ETOAOBOCODONRAS2CBS1QLYBT1TL",
                         checkpoints =
                             listOf(
                                 "output:Welcome! Have a seat",

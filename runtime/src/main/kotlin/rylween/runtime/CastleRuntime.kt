@@ -209,10 +209,19 @@ internal class CastleRuntime(
         val roll = runtime.rollTreasure(castle)
         var next = roll.runtime
         val item = roll.item ?: return next
-        screen.writeText(listOf(itemName(item)) + castle.text.treasureMenu.renderCastle())
-        val command = input.readCommand() ?: return next
+        val lines = listOf(itemName(item)) + castle.text.treasureMenu.renderCastle()
+        screen.writeText(lines)
         val treasureCommands = systems.commands.getValue("castle.${castle.id}.treasure")
-        if (!treasureCommands.matches("take", command)) return next
+        var command = input.readCommand() ?: return next
+        while (true) {
+            when {
+                command == '!' -> screen.redrawCurrentView(lines)
+                treasureCommands.matches("take", command) -> break
+                treasureCommands.matches("leave", command) -> return next
+                else -> screen.redrawCurrentView(lines)
+            }
+            command = input.readCommand() ?: return next
+        }
         val freeSlot =
             next.party.inventory
                 .firstOrNull { slot -> slot.item == null }

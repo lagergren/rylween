@@ -791,7 +791,7 @@ class RylweenCompiledGameLedgerTest {
                     Items.sling,
                     Items.longsword,
                     Items.trident,
-                    Items.halbard,
+                    Items.halberd,
                     Items.poleArm,
                     Items.crossbow,
                     Items.scythe,
