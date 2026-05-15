@@ -25,6 +25,7 @@ kotlin {
 dependencies {
     implementation(project(":core"))
     implementation(project(":game"))
+    implementation(project(":runtime"))
 }
 
 tasks.jar {
