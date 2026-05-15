@@ -210,12 +210,6 @@ sealed interface TextBlock {
     ) : TextBlock
 }
 
-/**
- * Classic ANSI text-window width. Kept as the default runtime wrap width for
- * older call sites that render flow text without an explicit renderer width.
- */
-const val DEFAULT_TEXT_WINDOW_COLUMNS: Int = 26
-
 /** Creates an inline literal text block. */
 fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(expandMultiline(lines))
 

@@ -96,8 +96,9 @@ fun RuntimeState.runtimeTextValue(
 fun ExternalRuntimeTextBlock.renderRuntimeText(
     content: CompiledContentBundle,
     runtime: RuntimeState,
+    wrapWidth: Int? = null,
     extraValues: (String) -> String? = { null },
-): List<String> = render { kind -> extraValues(kind) ?: runtime.runtimeTextValue(content, kind) }
+): List<String> = render({ kind -> extraValues(kind) ?: runtime.runtimeTextValue(content, kind) }, wrapWidth)
 
 private fun RuntimeState.runtimeFatigueStatusLabel(systems: ExternalRuntimeSystems): String? {
     val restedHours = party.resources.restedHours

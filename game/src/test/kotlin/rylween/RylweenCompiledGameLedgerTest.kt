@@ -1038,8 +1038,6 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.realm.camp.ambushChancePercent == 19)
         check(nextDsl.realm.camp.ambushTier == EncounterTiers.weak)
         check(nextDsl.limits.maxWorldMaps == 1)
-        check(nextDsl.limits.maxMapCells == 3120)
-        check(nextDsl.limits.screenSize == cells(width = 80, height = 24))
         check(
             nextDsl.visuals.images
                 .single { it.id == Images.Static.screen && it.kind == ImageAssetKind.Ansi }
@@ -1081,25 +1079,11 @@ class RylweenCompiledGameLedgerTest {
                 .single { it.id == StaticScreens.heroes }
                 .runtimeReport == StaticScreenRuntimeReport.HallOfHeroes,
         )
-        check(
-            nextDsl.worldMaps
-                .single { it.id == Maps.wilderness }
-                .layers
-                .single { it.id == MapLayers.terrain }
-                .rows.size == 40,
-        )
-        check(
-            nextDsl.worldMaps
-                .single { it.id == Maps.wilderness }
-                .layers
-                .single { it.id == MapLayers.terrain }
-                .rows
-                .first()
-                .length == 78,
-        )
+        val wildernessMap = nextDsl.worldMaps.single { it.id == Maps.wilderness }
+        check(wildernessMap.size == cells(width = 78, height = 40))
+        check(wildernessMap.cellCount == 3_120)
         val wildernessTerrainRows =
-            nextDsl.worldMaps
-                .single { it.id == Maps.wilderness }
+            wildernessMap
                 .layers
                 .single { it.id == MapLayers.terrain }
                 .rows

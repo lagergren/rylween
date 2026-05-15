@@ -1482,14 +1482,10 @@ class GameLimitsBuilder(
     initial: GameLimitsModel = GameLimitsModel(),
 ) {
     var maxWorldMaps: Int? = initial.maxWorldMaps
-    var maxMapCells: Int? = initial.maxMapCells
-    var screenSize: GridSize? = initial.screenSize
 
     internal fun build(): GameLimitsModel =
         GameLimitsModel(
             maxWorldMaps = maxWorldMaps,
-            maxMapCells = maxMapCells,
-            screenSize = screenSize,
         )
 }
 
@@ -1983,8 +1979,6 @@ class WorldMapBuilder(
     private val id: WorldMapId,
 ) {
     private val layerModels = mutableListOf<WorldMapLayerModel>()
-    var size: GridSize? = null
-    var storageCapacity: Int? = null
 
     fun layer(
         id: MapLayerId,
@@ -1996,8 +1990,6 @@ class WorldMapBuilder(
     fun build(): WorldMapModel =
         WorldMapModel(
             id = id,
-            size = size,
-            storageCapacity = storageCapacity,
             layers = layerModels.toList(),
         )
 }

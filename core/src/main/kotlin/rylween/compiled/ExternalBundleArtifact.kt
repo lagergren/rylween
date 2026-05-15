@@ -84,7 +84,6 @@ import kotlin.reflect.typeOf
 
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
-private const val DEFAULT_RUNTIME_TEXT_WRAP_COLUMNS = rylween.dsl.DEFAULT_TEXT_WINDOW_COLUMNS
 
 /** Serializes this game into the canonical strict JSON J1 artifact bytes. */
 fun RylweenModel.toExternalBundleArtifact(): ByteArray = ExternalBundleArtifactWriter().write(this)
@@ -832,8 +831,8 @@ data class ExternalRuntimeTextBlock(
     val lines: List<List<ExternalRuntimeTextPart>>,
     val flow: Boolean = false,
 ) {
-    /** Renders this block with runtime token substitution. */
-    fun render(values: (String) -> String?): List<String> = render(values, DEFAULT_RUNTIME_TEXT_WRAP_COLUMNS)
+    /** Renders this block with runtime token substitution and no implicit renderer width. */
+    fun render(values: (String) -> String?): List<String> = render(values, wrapWidth = null)
 
     /** Renders this block with runtime token substitution and an explicit flow wrap width. */
     fun render(
@@ -841,11 +840,11 @@ data class ExternalRuntimeTextBlock(
         wrapWidth: Int?,
     ): List<String> = renderParts({ part -> values(part.kind) }, wrapWidth)
 
-    /** Renders this block with access to token attributes such as role/town ids. */
+    /** Renders this block with access to token attributes such as role/town ids and no implicit renderer width. */
     fun renderParts(values: (ExternalRuntimeTextPart.Runtime) -> String?): List<String> =
         renderParts(
             values,
-            DEFAULT_RUNTIME_TEXT_WRAP_COLUMNS,
+            wrapWidth = null,
         )
 
     /** Renders this block with token attributes and an explicit flow wrap width. */

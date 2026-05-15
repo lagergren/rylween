@@ -183,8 +183,6 @@ data class GameUniverseModel(
 
 data class GameLimitsModel(
     val maxWorldMaps: Int? = null,
-    val maxMapCells: Int? = null,
-    val screenSize: GridSize? = null,
 )
 
 enum class TerrainSettlement { Town, Hut, Castle }
@@ -258,10 +256,23 @@ data class LayoutModel(
 
 data class WorldMapModel(
     val id: WorldMapId,
-    val size: GridSize? = null,
-    val storageCapacity: Int? = null,
     val layers: List<WorldMapLayerModel>,
-)
+) {
+    val rows: List<String> get() = primaryLayer()?.rows.orEmpty()
+    val width: Int get() = nonEmptyRows().first().length
+    val height: Int get() = nonEmptyRows().size
+    val size: GridSize get() = GridSize(width, height)
+    val cellCount: Int get() = width * height
+
+    private fun primaryLayer(): WorldMapLayerModel? =
+        layers.singleOrNull { layer -> layer.id == DslDefaultMapLayers.terrain }
+            ?: layers.firstOrNull()
+
+    private fun nonEmptyRows(): List<String> {
+        check(rows.isNotEmpty()) { "world map ${id.slug} has no rows" }
+        return rows
+    }
+}
 
 data class WorldMapLayerModel(
     val id: MapLayerId,

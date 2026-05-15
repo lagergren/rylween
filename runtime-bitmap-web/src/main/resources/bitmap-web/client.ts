@@ -481,6 +481,48 @@ function loadGameImageAsset(imageSlug: string): HTMLImageElement {
     return loadAsset(assetUrl("/assets/game-image/" + encodeURIComponent(imageSlug)));
 }
 
+type BitmapSmokeAsset = {
+    id: string;
+    resource: string;
+    placement: string;
+    transition: string;
+};
+
+type BitmapSmokeSnapshot = {
+    mode: string | null;
+    backdrop: string | null;
+    title: string | null;
+    textLineCount: number;
+    statusLineCount: number;
+    commandCount: number;
+    mapCells: number;
+    compiledImageAssets: BitmapSmokeAsset[];
+};
+
+type BitmapSmokeWindow = Window & {
+    __rylweenBitmapSmoke?: () => BitmapSmokeSnapshot;
+};
+
+function bitmapSmokeSnapshot(): BitmapSmokeSnapshot {
+    return {
+        mode: frame?.mode ?? null,
+        backdrop: frame?.backdrop ?? null,
+        title: frame?.title ?? null,
+        textLineCount: frame?.textLines?.length ?? 0,
+        statusLineCount: frame?.statusLines?.length ?? 0,
+        commandCount: currentCommands.length,
+        mapCells: (frame?.map?.rows || []).reduce((count, row) => count + row.length, 0),
+        compiledImageAssets: Array.from(compiledBitmapAssets.values()).map((asset) => ({
+            id: asset.id,
+            resource: asset.resource || "",
+            placement: asset.placement || "",
+            transition: asset.transition || ""
+        }))
+    };
+}
+
+(window as BitmapSmokeWindow).__rylweenBitmapSmoke = bitmapSmokeSnapshot;
+
 function connect(): void {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     socket = new WebSocket(protocol + "//" + location.host + "/ws/play");
