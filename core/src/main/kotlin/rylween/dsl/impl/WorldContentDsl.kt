@@ -59,16 +59,6 @@ sealed interface CharacterPlacementModel {
         val policy: RandomNpcPlacementPolicyModel,
     ) : CharacterPlacementModel
 
-    /**
-     * Places the NPC once using a wilderness-only [policy], then persists the generated position in world state.
-     *
-     * @property policy chance-share placement choices for this NPC. The DSL author
-     * should normally include only wilderness options here.
-     */
-    data class RandomizedWilderness(
-        val policy: RandomNpcPlacementPolicyModel,
-    ) : CharacterPlacementModel
-
     /** Keeps an imported or reserved NPC record out of the playable world. */
     data object Unplaced : CharacterPlacementModel
 }

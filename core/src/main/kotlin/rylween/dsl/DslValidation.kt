@@ -1094,8 +1094,6 @@ fun validateCharacters(
                 )
             is CharacterPlacementModel.Randomized ->
                 validateRandomNpcPlacementPolicy(character.id, placement.policy, townsById)
-            is CharacterPlacementModel.RandomizedWilderness ->
-                validateRandomNpcPlacementPolicy(character.id, placement.policy, townsById)
             CharacterPlacementModel.Unplaced -> Unit
         }
     }
