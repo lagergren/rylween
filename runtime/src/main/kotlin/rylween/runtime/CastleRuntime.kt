@@ -147,7 +147,7 @@ internal class CastleRuntime(
         val state = runtime.castle ?: return runtime
         val next = GridPoint(state.point.x + dx, state.point.y + dy)
         if (next.x !in 1..castle.mapSize || next.y !in 1..castle.mapSize) return runtime
-        screen.writeText(text.renderCastle())
+        screen.writeText(text.renderCastle(screen.textColumns))
         return runtime.copy(castle = state.copy(point = next, visited = state.visited + next, roomEntryPending = true))
     }
 
@@ -155,7 +155,7 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
-        screen.writeText(castle.text.roomMonster.renderCastle())
+        screen.writeText(castle.text.roomMonster.renderCastle(screen.textColumns))
         val battle =
             BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))
                 .runTier(runtime, castle.monsterTier)
@@ -172,20 +172,33 @@ internal class CastleRuntime(
     ): RuntimeState {
         castle.text.pitfallIllustration?.let(screen::showImage)
         var next = runtime
-        val thiefIndex = next.party.members.indexOfFirst { member -> !member.dead && member.pcClass == PcClass.Thief }
+        val thiefIndex =
+            next.party.members.indexOfFirst { member ->
+                !member.dead && member.pcClass == PcClass.Thief
+            }
         val disarmed =
             thiefIndex
                 .takeIf { index -> index >= 0 }
                 ?.let { index ->
                     val thief = next.party.members[index]
-                    screen.writeText(listOf(content.strings.value(thief.nameString)) + castle.text.trapTriesDisarmSuffix.renderCastle())
+                    screen.writeText(
+                        listOf(
+                            content.strings.value(thief.nameString),
+                        ) + castle.text.trapTriesDisarmSuffix.renderCastle(screen.textColumns),
+                    )
                     val draw = next.party.drawRandom(0, 99)
                     next = next.withParty(draw.party)
                     draw.value < thief.wisdom.coerceIn(0, 100)
                 } ?: false
         if (thiefIndex >= 0) {
             screen.writeText(
-                if (disarmed) castle.text.trapDisarmSucceed.renderCastle() else castle.text.trapDisarmFail.renderCastle(),
+                if (disarmed) {
+                    castle.text.trapDisarmSucceed.renderCastle(
+                        screen.textColumns,
+                    )
+                } else {
+                    castle.text.trapDisarmFail.renderCastle(screen.textColumns)
+                },
             )
         }
         if (disarmed) return next
@@ -211,7 +224,7 @@ internal class CastleRuntime(
         var next = roll.runtime
         val item = roll.item ?: return next
         castle.text.treasureIllustration?.let(screen::showImage)
-        val lines = listOf(itemName(item)) + castle.text.treasureMenu.renderCastle()
+        val lines = listOf(itemName(item)) + castle.text.treasureMenu.renderCastle(screen.textColumns)
         screen.writeText(lines)
         val treasureCommands = systems.commands.getValue("castle.${castle.id}.treasure")
         var command = input.readCommand() ?: return next
@@ -229,11 +242,11 @@ internal class CastleRuntime(
                 .firstOrNull { slot -> slot.item == null }
                 ?.slot
         if (freeSlot == null) {
-            screen.writeText(castle.text.treasureFull.renderCastle())
+            screen.writeText(castle.text.treasureFull.renderCastle(screen.textColumns))
             return next
         }
         next = next.withParty(next.party.withInventoryItem(freeSlot, item))
-        screen.writeText(castle.text.treasureTaken.renderCastle())
+        screen.writeText(castle.text.treasureTaken.renderCastle(screen.textColumns))
         return next
     }
 
@@ -243,7 +256,8 @@ internal class CastleRuntime(
     ): RuntimeState {
         castle.text.stairsIllustration?.let(screen::showImage)
         val lines =
-            castle.text.stairsIntro.renderCastle() + castle.text.stairsGuardianOffer.renderCastle() + castle.text.stairsMenu.renderCastle()
+            castle.text.stairsIntro.renderCastle(screen.textColumns) + castle.text.stairsGuardianOffer.renderCastle(screen.textColumns) +
+                castle.text.stairsMenu.renderCastle(screen.textColumns)
         screen.writeText(lines)
         val stairsCommands = systems.commands.getValue("castle.${castle.id}.stairs")
         val command =
@@ -264,7 +278,7 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
-        screen.writeText(castle.text.stairsLeave.renderCastle())
+        screen.writeText(castle.text.stairsLeave.renderCastle(screen.textColumns))
         val state = runtime.castle ?: return runtime
         val nextPoint = state.point.copy(y = (state.point.y - 1).coerceAtLeast(1))
         return runtime.copy(castle = state.copy(point = nextPoint, visited = state.visited + nextPoint))
@@ -274,7 +288,9 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
-        screen.writeText(castle.text.teleportVortex.renderCastle() + castle.text.teleportOutside.renderCastle())
+        screen.writeText(
+            castle.text.teleportVortex.renderCastle(screen.textColumns) + castle.text.teleportOutside.renderCastle(screen.textColumns),
+        )
         return runtime.asWildernessCastle()
     }
 
@@ -282,7 +298,7 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
-        val lines = castle.text.giveMenu.renderCastle()
+        val lines = castle.text.giveMenu.renderCastle(screen.textColumns)
         screen.writeText(lines)
         val digits = castle.stairs.items.mapTo(mutableSetOf()) { stair -> stair.digit } + 5
         val digit = input.readValidDigitChoice(screen, lines, digits) ?: return runtime
@@ -290,7 +306,7 @@ internal class CastleRuntime(
         val item = castle.stairs.items.firstOrNull { stair -> stair.digit == digit } ?: return runtime
         val milestone = content.ref(CompiledHandleKind.Milestone, item.milestone)
         if (milestone !in runtime.party.milestones) {
-            screen.writeText(item.reject.renderCastle())
+            screen.writeText(item.reject.renderCastle(screen.textColumns))
             return runtime
         }
         val state = runtime.castle ?: return runtime
@@ -310,7 +326,7 @@ internal class CastleRuntime(
                         ),
                 )
         if (nextFloor > castle.stairs.floorCount) return completeCastle(next, castle)
-        screen.writeText(castle.text.stairsGuardianGrateful.renderCastle())
+        screen.writeText(castle.text.stairsGuardianGrateful.renderCastle(screen.textColumns))
         return next
     }
 
@@ -414,7 +430,7 @@ internal class CastleRuntime(
     private fun RuntimeState.randomTrapText(castle: ExternalRuntimeCastle): CastleTrapText {
         if (castle.pitfall.trapTypes.isEmpty()) return CastleTrapText(this, emptyList())
         val draw = party.drawRandom(0, castle.pitfall.trapTypes.lastIndex)
-        return CastleTrapText(withParty(draw.party), castle.pitfall.trapTypes[draw.value].renderCastle())
+        return CastleTrapText(withParty(draw.party), castle.pitfall.trapTypes[draw.value].renderCastle(screen.textColumns))
     }
 
     private fun runScene(
@@ -452,7 +468,7 @@ private fun rylween.compiled.CompiledPartyMember.withDamage(damage: Int): rylwee
     return copy(hitPoints = hitPoints.copy(current = nextHp), dead = nextHp == 0)
 }
 
-private fun ExternalRuntimeTextBlock.renderCastle(): List<String> = render { null }
+private fun ExternalRuntimeTextBlock.renderCastle(wrapWidth: Int?): List<String> = render({ null }, wrapWidth)
 
 private data class SeededCastleRooms(
     val runtime: RuntimeState,

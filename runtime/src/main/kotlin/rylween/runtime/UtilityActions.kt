@@ -290,20 +290,23 @@ internal class UtilityActions(
         selectedItem: CompiledHandleRef? = null,
         equipmentKindName: String? = null,
     ): List<String> =
-        render { kind ->
-            when (kind) {
-                "selectedItemName" -> selectedItem?.let(::itemName)
-                "equipmentKindName" -> equipmentKindName
-                else -> runtime?.runtimeTextValue(content, kind)
-            } ?: when (kind) {
-                "partyMemberMax" ->
-                    systems.characterCreation
-                        ?.start
-                        ?.partyMemberMax
-                        ?.toString()
-                else -> null
-            }
-        }
+        render(
+            values = { kind ->
+                when (kind) {
+                    "selectedItemName" -> selectedItem?.let(::itemName)
+                    "equipmentKindName" -> equipmentKindName
+                    else -> runtime?.runtimeTextValue(content, kind)
+                } ?: when (kind) {
+                    "partyMemberMax" ->
+                        systems.characterCreation
+                            ?.start
+                            ?.partyMemberMax
+                            ?.toString()
+                    else -> null
+                }
+            },
+            wrapWidth = screen.textColumns,
+        )
 
     private fun itemRecord(item: CompiledHandleRef): CompiledItemRecord =
         content.items.firstOrNull { record -> record.id == item }

@@ -668,7 +668,7 @@ internal class WildernessActions(
             .toSet()
     }
 
-    private fun ExternalRuntimeTextBlock.renderText(): List<String> = render { null }
+    private fun ExternalRuntimeTextBlock.renderText(): List<String> = render({ null }, screen.textColumns)
 
     private fun battleRunner(): BattleRunner =
         BattleRunner(content, combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))
@@ -745,7 +745,8 @@ internal class WildernessActions(
         return inventory.count { slot -> slot.item in pooledItems }
     }
 
-    private fun ExternalRuntimeTextBlock.renderCamp(runtime: RuntimeState): List<String> = renderRuntimeText(content, runtime)
+    private fun ExternalRuntimeTextBlock.renderCamp(runtime: RuntimeState): List<String> =
+        renderRuntimeText(content, runtime, screen.textColumns)
 
     private fun ExternalRuntimeTextBlock.renderHunt(
         runtime: RuntimeState,
@@ -753,7 +754,7 @@ internal class WildernessActions(
         member: CompiledPartyMember? = memberNumber?.let { runtime.party.members.getOrNull(it - 1) },
         foodGained: Int? = null,
     ): List<String> =
-        renderRuntimeText(content, runtime) { kind ->
+        renderRuntimeText(content, runtime, screen.textColumns) { kind ->
             when (kind) {
                 "huntMemberName" -> member?.let { content.strings.value(it.nameString) }
                 "huntMemberSubjectPronoun" -> member?.gender?.pronoun(PronounCase.Subject)

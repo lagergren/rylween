@@ -103,8 +103,6 @@ val authoredRylween: RylweenModel =
 
             limits {
                 maxWorldMaps = 1
-                maxMapCells = 3_120
-                screenSize = cells(width = 80, height = 24)
             }
 
             flags {
@@ -396,9 +394,6 @@ val authoredRylween: RylweenModel =
             }
 
             worldMap(Maps.wilderness) {
-                size = cells(width = 78, height = 40)
-                storageCapacity = 3_120
-
                 layer(MapLayers.terrain) {
                     rows(
                         "mmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",

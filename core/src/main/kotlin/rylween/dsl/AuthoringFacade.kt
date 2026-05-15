@@ -23,7 +23,6 @@
  *
  * val game = rylween {
  *     content {
- *         limits { screenSize = cells(width = 80, height = 24) }
  *         visuals {
  *             images {
  *                 bitmap(Images.Scene.tavern, "bitmap/assets/scene-tavern.png", ImagePlacement.MapWindow)

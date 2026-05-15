@@ -2538,22 +2538,6 @@ private fun validateWorldMaps(
         check(terrainLayer.rows.isNotEmpty()) { "world map ${map.id.slug} terrain layer has no rows" }
         val width = terrainLayer.rows.first().length
         check(width > 0) { "world map ${map.id.slug} terrain layer has blank first row" }
-        val height = terrainLayer.rows.size
-        map.size?.let { size ->
-            check(size.width > 0 && size.height > 0) {
-                "world map ${map.id.slug} size must be positive"
-            }
-            check(size.width == width && size.height == height) {
-                "world map ${map.id.slug} declares size ${size.width}x${size.height}, " +
-                    "but terrain layer is ${width}x$height"
-            }
-        }
-        map.storageCapacity?.let { capacity ->
-            check(capacity >= 0) { "world map ${map.id.slug} storage capacity must be non-negative" }
-            check(capacity >= width * height) {
-                "world map ${map.id.slug} storage capacity $capacity is smaller than terrain layer ${width * height}"
-            }
-        }
         terrainLayer.rows.forEachIndexed { index, row ->
             check(row.length == width) {
                 "world map ${map.id.slug} terrain row ${index + 1} width ${row.length} differs from $width"
@@ -2729,7 +2713,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
     val terrainBindings = TerrainBindingIndex(content.terrain, content.terminal, content.worldMaps)
     return buildList {
         captureValidation("metadata") { validateGameMetadata(content.metadata) }
-        captureValidation("limits") { validateGameLimits(content.limits, content.worldMaps, content.layouts) }
+        captureValidation("limits") { validateGameLimits(content.limits, content.worldMaps) }
         captureValidation("flags.catalog") { validateFlagCatalog(content.flags) }
         captureValidation("prompts") { validateGamePrompts(content.prompts) }
         captureValidation("pacing") { validateGamePacing(content.pacing) }
@@ -2779,41 +2763,10 @@ private fun validateGameMetadata(metadata: GameMetadataModel) {
 private fun validateGameLimits(
     limits: GameLimitsModel,
     worldMaps: List<WorldMapModel>,
-    layouts: LayoutModel,
 ) {
     limits.maxWorldMaps?.let { max ->
         check(max > 0) { "max world maps must be positive" }
         check(worldMaps.size <= max) { "declares ${worldMaps.size} world maps, but limit is $max" }
-    }
-    limits.maxMapCells?.let { max ->
-        check(max > 0) { "max map cells must be positive" }
-        worldMaps.forEach { map ->
-            val rows =
-                map.layers
-                    .singleOrNull { it.id == DslDefaultMapLayers.terrain }
-                    ?.rows
-                    .orEmpty()
-            val cells = rows.size * (rows.firstOrNull()?.length ?: 0)
-            check(cells <= max) { "world map ${map.id.slug} uses $cells cells, but limit is $max" }
-        }
-    }
-    limits.screenSize?.let { screen ->
-        check(screen.width > 0 && screen.height > 0) { "screen size must be positive" }
-        layouts.regions.forEach { region ->
-            check(region.x < screen.width && region.y < screen.height) {
-                "screen region ${region.id.slug} starts outside screen ${screen.width}x${screen.height}"
-            }
-            region.width?.let { width ->
-                check(region.x + width <= screen.width) {
-                    "screen region ${region.id.slug} exceeds screen width ${screen.width}"
-                }
-            }
-            region.height?.let { height ->
-                check(region.y + height <= screen.height) {
-                    "screen region ${region.id.slug} exceeds screen height ${screen.height}"
-                }
-            }
-        }
     }
 }
 

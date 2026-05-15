@@ -2,9 +2,11 @@
 jdk = "25"
 kotlin = "2.3.21"
 jline = "4.0.12"
+playwright = "1.49.0"
 
 [libraries]
 jline = { module = "org.jline:jline", version.ref = "jline" }
+playwright = { module = "com.microsoft.playwright:playwright", version.ref = "playwright" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

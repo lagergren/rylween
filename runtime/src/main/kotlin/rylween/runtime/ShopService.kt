@@ -87,7 +87,15 @@ internal class ShopService(
     }
 
     private fun shopHomeLines(shop: CompiledShopService): List<String> =
-        shop.intro.renderTextLines(content) + shop.menu.renderTextLines(content)
+        shop.intro.renderScreenTextLines() + shop.menu.renderScreenTextLines()
+
+    private fun CompiledTextBlock.renderScreenTextLines(): List<String> =
+        renderTextLines(
+            CompiledTextRenderContext(
+                content = content,
+                flowColumns = screen.textColumns,
+            ),
+        )
 
     private fun runInterludeGate(
         shop: CompiledShopService,
@@ -133,7 +141,7 @@ internal class ShopService(
         val interlude = shop.interlude ?: return runtime
         screen.updateStatus(runtime)
         val lines =
-            (shop.intro.renderTextLines(content) + interlude.offer.renderTextLines(content)).withChoiceGap() +
+            (shop.intro.renderScreenTextLines() + interlude.offer.renderScreenTextLines()).withChoiceGap() +
                 listOf(
                     "(${interlude.accept.primaryInputLabel(content)})ccept",
                     "(${interlude.decline.primaryInputLabel(content)})ecline",
@@ -144,14 +152,14 @@ internal class ShopService(
                 interlude.accept.matchesInput(content, candidate) || interlude.decline.matchesInput(content, candidate)
             } ?: return runtime
         if (!interlude.accept.matchesInput(content, choice)) {
-            writeTextAndWait(interlude.declined.renderTextLines(content))
+            writeTextAndWait(interlude.declined.renderScreenTextLines())
             return runtime
         }
 
         interlude
             .accepted
             .runningFold(emptyList<String>()) { lines, text ->
-                lines.withInterludePage(text.renderTextLines(content))
+                lines.withInterludePage(text.renderScreenTextLines())
             }.drop(1)
             .forEach { lines ->
                 screen.writeText(lines)
@@ -175,7 +183,7 @@ internal class ShopService(
 
     private fun chooseCatalog(buy: CompiledShopBuy): CompiledShopCatalog? {
         if (buy.catalogs.size == 1) return buy.catalogs.single()
-        val promptLines = buy.prompt.renderTextLines(content)
+        val promptLines = buy.prompt.renderScreenTextLines()
         val generatedLines =
             buildList {
                 buy.catalogs.forEach { catalog ->
@@ -221,7 +229,7 @@ internal class ShopService(
     ) {
         val lines =
             buildList {
-                catalog.intro?.let { addAll(it.renderTextLines(content)) }
+                catalog.intro?.let { addAll(it.renderScreenTextLines()) }
                 page.entries.forEach { offer ->
                     val label = offer.labelString?.let(content.strings::value) ?: itemName(offer.item)
                     add(formatOfferLine(offer.binding, label, unitPrice(offer, party)))
@@ -229,7 +237,7 @@ internal class ShopService(
                 page.navigation.previous?.let { add(it.optionLine(content)) }
                 page.navigation.next?.let { add(it.optionLine(content)) }
                 add(buy.paymentKeys.decline.mnemonicLine(content, "None"))
-                page.footer?.let { addAll(it.renderTextLines(content)) }
+                page.footer?.let { addAll(it.renderScreenTextLines()) }
             }
         screen.writeText(lines)
     }
@@ -281,7 +289,7 @@ internal class ShopService(
             buildList {
                 offer.description?.let { addAll(it.renderShopLines(item = offer.item, price = totalPrice)) }
                 addAll(purchasePriceLines(buy, offer, unitPrice, totalPrice).withChoiceGap())
-                addAll(buy.payPrompt.renderTextLines(content))
+                addAll(buy.payPrompt.renderScreenTextLines())
             }
         var choice: Char
         do {
@@ -306,7 +314,7 @@ internal class ShopService(
     ): Int? {
         val purchase = offer.purchase
         if (purchase !is CompiledShopPurchase.Bulk) return 1
-        screen.writeText(purchase.quantityPrompt.renderTextLines(content))
+        screen.writeText(purchase.quantityPrompt.renderScreenTextLines())
         val requested = input.readInt() ?: return null
         val remaining = remainingCapacity(party, purchase.cap)
         if (requested > remaining) {
@@ -337,13 +345,13 @@ internal class ShopService(
         val freeSlot = party.inventory.firstOrNull { slot -> slot.item == null }?.slot
         val targetSlot = freeSlot ?: chooseDropSlot(buy, party)
         if (targetSlot == null) {
-            return ShopResult(party, buy.cantCarry.renderTextLines(content))
+            return ShopResult(party, buy.cantCarry.renderScreenTextLines())
         }
         val updated =
             party
                 .withInventoryItem(targetSlot, offer.item)
                 .withGold(party.resources.gold - totalPrice)
-        return ShopResult(updated, buy.deal.renderTextLines(content) + "Bought ${itemName(offer.item)}.")
+        return ShopResult(updated, buy.deal.renderScreenTextLines() + "Bought ${itemName(offer.item)}.")
     }
 
     private fun chooseDropSlot(
@@ -352,7 +360,7 @@ internal class ShopService(
     ): Int? {
         if (buy.inventoryApplication.overflow != RewardOverflowPolicy.PromptDropThenPlace) return null
         val confirmLines =
-            buy.cantCarry.renderTextLines(content) +
+            buy.cantCarry.renderScreenTextLines() +
                 "" +
                 systems.prompts.party.dropOverflowConfirm
                     .renderShopPrompt()
@@ -389,7 +397,7 @@ internal class ShopService(
             party
                 .withResource(purchase.resource, party.resourceAmount(purchase.resource) + quantity)
                 .withGold(party.resources.gold - totalPrice)
-        return ShopResult(updated, buy.deal.renderTextLines(content))
+        return ShopResult(updated, buy.deal.renderScreenTextLines())
     }
 
     private fun runSell(
@@ -412,7 +420,7 @@ internal class ShopService(
             return runtime
         }
         if (!sell.accepts(item)) {
-            writeTextAndWait(sell.wrongKind.renderTextLines(content))
+            writeTextAndWait(sell.wrongKind.renderScreenTextLines())
             return runtime
         }
 
@@ -433,7 +441,7 @@ internal class ShopService(
             screen.writeText(offerLines.withChoiceGap() + sellChoiceLines(sell))
             val confirm = input.readCommand() ?: return current
             if (sell.saleKeys.decline.matchesInput(content, confirm)) {
-                writeTextAndWait(sell.declined?.renderTextLines(content) ?: listOf("No thanks."))
+                writeTextAndWait(sell.declined?.renderScreenTextLines() ?: listOf("No thanks."))
                 return current
             }
             if (sell.haggle != null && sell.saleKeys.haggle.matchesInput(content, confirm)) {
@@ -441,7 +449,7 @@ internal class ShopService(
                 price =
                     quote.price
                         ?: return current.withParty(quote.party).also {
-                            writeTextAndWait(sell.declined?.renderTextLines(content) ?: listOf("No thanks."))
+                            writeTextAndWait(sell.declined?.renderScreenTextLines() ?: listOf("No thanks."))
                         }
                 current = current.withParty(quote.party)
                 continue
@@ -451,7 +459,7 @@ internal class ShopService(
                 current.party
                     .withInventoryItem(slot, null)
                     .withGold(current.party.resources.gold + price)
-            val soldLines = sell.sold?.renderTextLines(content) ?: listOf("Sold!")
+            val soldLines = sell.sold?.renderScreenTextLines() ?: listOf("Sold!")
             screen.updateStatus(current.withParty(updated))
             writeTextAndWait(soldLines)
             return current.withParty(updated)
@@ -474,7 +482,7 @@ internal class ShopService(
         party: PartyState,
     ): List<String> =
         buildList {
-            addAll(sell.prompt.renderTextLines(content))
+            addAll(sell.prompt.renderScreenTextLines())
             addAll(inventoryLines(party))
         }
 
@@ -594,21 +602,27 @@ internal class ShopService(
     }
 
     private fun ExternalRuntimeTextBlock.renderExternal(runtime: RuntimeState): List<String> =
-        renderParts { part ->
-            runtime.runtimeTextValue(content, part.kind)
-                ?: when (part.kind) {
-                    "townName" -> part.args["town"]?.let(::townNameBySlug)
-                    "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
-                    "roleName" -> part.args["role"]?.let(::roleName)
-                    "roleJob" -> part.args["role"]?.let(::roleJob)
-                    "roleLocation" -> part.args["role"]?.let { role -> roleLocation(role, runtime) }
-                    "npcName" -> part.args["npc"]?.let(::npcName)
-                    "npcJob" -> part.args["npc"]?.let(::npcJob)
-                    "npcLocation" -> part.args["npc"]?.let { npc -> npcLocation(npc, runtime) }
-                    "locationCoordinate" -> null
-                    else -> null
-                }
-        }
+        renderParts(
+            values = { part ->
+                runtime.runtimeTextValue(content, part.kind)
+                    ?: when (part.kind) {
+                        "townName" -> part.args["town"]?.let(::townNameBySlug)
+                        "fuzzyTownLocation" ->
+                            part.args["town"]?.let { town ->
+                                townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0)
+                            }
+                        "roleName" -> part.args["role"]?.let(::roleName)
+                        "roleJob" -> part.args["role"]?.let(::roleJob)
+                        "roleLocation" -> part.args["role"]?.let { role -> roleLocation(role, runtime) }
+                        "npcName" -> part.args["npc"]?.let(::npcName)
+                        "npcJob" -> part.args["npc"]?.let(::npcJob)
+                        "npcLocation" -> part.args["npc"]?.let { npc -> npcLocation(npc, runtime) }
+                        "locationCoordinate" -> null
+                        else -> null
+                    }
+            },
+            wrapWidth = screen.textColumns,
+        )
 
     private fun roleName(roleSlug: String): String? =
         roleCharacter(roleSlug)?.let { character -> content.strings.value(character.nameString) }
@@ -764,7 +778,8 @@ internal class ShopService(
     ): List<String> =
         renderTextLines(
             CompiledTextRenderContext(
-                content,
+                content = content,
+                flowColumns = screen.textColumns,
                 runtimeValue = { part ->
                     when (part) {
                         CompiledRuntimeTextPart.OfferedItemName,
@@ -782,7 +797,7 @@ internal class ShopService(
             ),
         )
 
-    private fun ExternalRuntimeTextBlock.renderShopPrompt(): List<String> = render { null }
+    private fun ExternalRuntimeTextBlock.renderShopPrompt(): List<String> = render({ null }, screen.textColumns)
 }
 
 private const val STANDARD_TOWN_RUMOR_TABLE = "standard_town"

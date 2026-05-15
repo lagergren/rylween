@@ -66,7 +66,6 @@ import rylween.dsl.impl.GameModel
 import rylween.dsl.impl.GameUniverseModel
 import rylween.dsl.impl.Gender
 import rylween.dsl.impl.GridPoint
-import rylween.dsl.impl.GridSize
 import rylween.dsl.impl.HitPoints
 import rylween.dsl.impl.ImageAssetKind
 import rylween.dsl.impl.ImageAssetModel
@@ -212,8 +211,6 @@ data class CompiledUniverse(
 /** Runtime limits used by hosts and artifact validators. */
 data class CompiledLimits(
     val maxWorldMaps: Int?,
-    val maxMapCells: Int?,
-    val screenSize: GridSize?,
 )
 
 /** One-based interned string table used by compiled handles, text, and scripts. */
@@ -419,9 +416,6 @@ data class CompiledTerrain(
 /** Compiled world-map header and ordered map layers. */
 data class CompiledWorldMap(
     val id: CompiledHandleRef,
-    val width: Int?,
-    val height: Int?,
-    val storageCapacity: Int?,
     val layers: List<CompiledWorldMapLayer>,
 )
 
@@ -1591,8 +1585,6 @@ private class CompiledBundleCompiler(
     private fun compileLimits(): CompiledLimits =
         CompiledLimits(
             maxWorldMaps = game.limits.maxWorldMaps,
-            maxMapCells = game.limits.maxMapCells,
-            screenSize = game.limits.screenSize,
         )
 
     private fun <Source, Target> compileList(
@@ -2426,9 +2418,6 @@ private class CompiledBundleCompiler(
     private fun compileWorldMap(map: WorldMapModel): CompiledWorldMap =
         CompiledWorldMap(
             id = worldMapRef(map.id),
-            width = map.size?.width,
-            height = map.size?.height,
-            storageCapacity = map.storageCapacity,
             layers =
                 map.layers.map { layer ->
                     CompiledWorldMapLayer(mapLayerRef(layer.id), layer.rows.map(strings::id))
