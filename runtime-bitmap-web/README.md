@@ -18,3 +18,25 @@ It contains:
 Renderer-specific layout, art selection, transitions, and canvas presentation
 belong here. Shared gameplay behavior, command semantics, battle targeting,
 save/load, and script execution belong in `:runtime`.
+
+## Browser Smoke
+
+Run the browser canvas smoke with:
+
+```sh
+./gradlew :runtime-bitmap-web:checkBitmapBrowserSmoke --console=plain
+```
+
+The task resolves Playwright through Gradle and downloads the managed browser
+under `runtime-bitmap-web/build/playwright-browsers`; it does not use or install
+a system Chrome/Chromium. The default browser is Chromium. To try another
+Playwright browser:
+
+```sh
+./gradlew :runtime-bitmap-web:checkBitmapBrowserSmoke -Prylween.browserSmoke.browser=firefox --console=plain
+```
+
+The smoke seeds a Strong party, starts the installed bitmap server on a local
+ephemeral port, waits for the first rendered canvas frame, samples representative
+compiled `/assets/game-image/<id>` resources, and writes a screenshot to
+`runtime-bitmap-web/build/reports/bitmap-browser-smoke/bitmap-first-frame.png`.

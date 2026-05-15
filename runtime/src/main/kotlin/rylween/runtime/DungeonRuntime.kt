@@ -67,7 +67,12 @@ internal class DungeonRuntime(
                     commands.matches("readyArmor", command) -> utility.readyArmor(runtime).also(::redrawDungeonIfCurrent)
                     commands.matches("quaff", command) -> utility.quaff(runtime).also(::redrawDungeonIfCurrent)
                     commands.matches("castSpell", command) -> utility.castPriestSpell(runtime).also(::redrawDungeonIfCurrent)
-                    else -> runtime.also { screen.writeText(systems.dungeon.commandHint.renderDungeon(it.dungeon?.depth ?: 1)) }
+                    else ->
+                        runtime.also {
+                            screen.writeText(
+                                systems.dungeon.commandHint.renderDungeon(it.dungeon?.depth ?: 1, screen.textColumns),
+                            )
+                        }
                 }
             if (input.exhausted) return runtime
         }
@@ -81,14 +86,14 @@ internal class DungeonRuntime(
                 runtime.also {
                     screen.showMessage(
                         systems.dungeon.prompts.atMaxDepth
-                            .renderDungeon(dungeon.depth),
+                            .renderDungeon(dungeon.depth, screen.textColumns),
                     )
                 }
             runtime.party.resources.torches <= 0 ->
                 runtime.also {
                     screen.showMessage(
                         systems.dungeon.prompts.noTorches
-                            .renderDungeon(dungeon.depth),
+                            .renderDungeon(dungeon.depth, screen.textColumns),
                     )
                 }
             else -> {
@@ -99,7 +104,7 @@ internal class DungeonRuntime(
                         .withParty(runtime.party.withResource(Resource.Torches, runtime.party.resources.torches - 1))
                 screen.writeText(
                     systems.dungeon.prompts.enterLevel
-                        .renderDungeon(nextDepth),
+                        .renderDungeon(nextDepth, screen.textColumns),
                 )
                 runDepthEvent(next)
             }
@@ -111,7 +116,7 @@ internal class DungeonRuntime(
         if (dungeon.depth <= 1) {
             screen.showMessage(
                 systems.dungeon.prompts.leaveCavern
-                    .renderDungeon(dungeon.depth),
+                    .renderDungeon(dungeon.depth, screen.textColumns),
             )
             val exited = runtime.copy(currentMode = RuntimeMode.Wilderness, currentTown = null, dungeon = null)
             val resumed = dungeon.postDungeon?.let { continuation -> resumePostDungeon(exited, continuation) } ?: exited
@@ -121,7 +126,7 @@ internal class DungeonRuntime(
         val next = runtime.copy(dungeon = dungeon.copy(depth = nextDepth))
         screen.writeText(
             systems.dungeon.prompts.enterLevel
-                .renderDungeon(nextDepth),
+                .renderDungeon(nextDepth, screen.textColumns),
         )
         return runDepthEvent(next)
     }
@@ -175,7 +180,7 @@ internal class DungeonRuntime(
         val depth = runtime.dungeon?.depth ?: 1
         val pages =
             systems.dungeon.helpPages
-                .map { page -> page.renderDungeon(depth) }
+                .map { page -> page.renderDungeon(depth, screen.textColumns) }
                 .ifEmpty { listOf(commands.map(ExternalRuntimeCommand::runtimeMnemonicLine)) }
         val pausePrompts = PausePrompts(systems.prompts)
         pages.forEach { page ->
@@ -268,13 +273,19 @@ internal fun RuntimeState.enterDungeon(
 
 internal fun RuntimeState.withDungeonMode(): RuntimeState = copy(currentMode = RuntimeMode.Dungeon, currentTown = null)
 
-internal fun ExternalRuntimeTextBlock.renderDungeon(depth: Int): List<String> =
-    render { kind ->
-        when (kind) {
-            "dungeonDepth" -> depth.toString()
-            else -> null
-        }
-    }
+internal fun ExternalRuntimeTextBlock.renderDungeon(
+    depth: Int,
+    wrapWidth: Int? = null,
+): List<String> =
+    render(
+        values = { kind ->
+            when (kind) {
+                "dungeonDepth" -> depth.toString()
+                else -> null
+            }
+        },
+        wrapWidth = wrapWidth,
+    )
 
 private data class DungeonEventDraw(
     val party: PartyState,

@@ -1013,7 +1013,8 @@ internal class ScriptExecutor(
     ): List<String> =
         renderTextLines(
             CompiledTextRenderContext(
-                content,
+                content = content,
+                flowColumns = screen.textColumns,
                 intValue = { expr -> int(expr).toString() },
                 stringValue = ::string,
                 runtimeValue = { part ->
@@ -1057,7 +1058,7 @@ internal class ScriptExecutor(
                 },
             )
 
-    private fun ExternalRuntimeTextBlock.renderSimplePrompt(): List<String> = render { null }
+    private fun ExternalRuntimeTextBlock.renderSimplePrompt(): List<String> = render({ null }, screen.textColumns)
 
     private fun memberChoiceLines(choices: List<Int>): List<String> =
         choices.map { member ->
@@ -1333,7 +1334,10 @@ internal class ScriptExecutor(
             ?.text
 
     private fun ExternalRuntimeTextBlock.renderExternal(npc: CompiledCharacter? = null): List<String> =
-        renderParts { part -> externalTextValue(part, npc, journal = false) }
+        renderParts(
+            values = { part -> externalTextValue(part, npc, journal = false) },
+            wrapWidth = screen.textColumns,
+        )
 
     private fun ExternalRuntimeTextBlock.renderExternalForJournal(): List<String> =
         renderParts { part -> externalTextValue(part, npc = null, journal = true) }
@@ -1612,7 +1616,8 @@ internal class ScriptExecutor(
     private fun CompiledTextBlock.renderScriptLines(): List<String> =
         renderTextLines(
             CompiledTextRenderContext(
-                content,
+                content = content,
+                flowColumns = screen.textColumns,
                 intValue = { expr -> int(expr).toString() },
                 stringValue = ::string,
                 roleNameValue = ::roleName,

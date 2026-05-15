@@ -52,7 +52,6 @@ import rylween.compiled.ExternalTownEntryTax
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
-import rylween.dsl.DEFAULT_TEXT_WINDOW_COLUMNS
 import rylween.dsl.impl.CharacterCreationStat
 import rylween.dsl.impl.Facing
 import rylween.dsl.impl.Gender
@@ -584,7 +583,7 @@ class GameRuntime private constructor(
                         commands.matches("pass", command) -> {
                             turnMessages =
                                 systems.prompts.wilderness.pass
-                                    .renderRuntimeText(content, runtime)
+                                    .renderRuntimeText(content, runtime, screen.textColumns)
                             runtime = runtime.withParty(runtime.party.passTurn())
                             true
                         }
@@ -759,7 +758,7 @@ class GameRuntime private constructor(
         var pendingTitleCommand: Char? = input.readCommand() ?: return null
         while (true) {
             val savedRuntime = loadSavedRuntimeOrNull(save, log)
-            screen.showTitleMenu(titleMenuLines(hasSavedGame = savedRuntime != null))
+            screen.showTitleMenu(titleMenuLines(hasSavedGame = savedRuntime != null, wrapWidth = screen.textColumns))
             val command =
                 pendingTitleCommand
                     ?.takeIf { candidate -> acceptsTitleCommand(candidate, savedRuntime != null) }
@@ -790,7 +789,7 @@ class GameRuntime private constructor(
                     log.event("title.continue.unavailable")
                     screen.writeText(
                         systems.prompts.titleMenu.continueUnavailable
-                            .render { null },
+                            .render({ null }, screen.textColumns),
                     )
                     input.readCommand()
                 }
@@ -798,7 +797,7 @@ class GameRuntime private constructor(
                 savedRuntime != null && matches("terminateParty", command) -> {
                     screen.writeText(
                         systems.prompts.titleMenu.terminateConfirm
-                            .render { null },
+                            .render({ null }, screen.textColumns),
                     )
                     if (input.readCommand() == 'Y') {
                         val deleted =
@@ -807,7 +806,7 @@ class GameRuntime private constructor(
                             }.getOrDefault(false)
                         log.event("title.terminate save=${save.file.path} deleted=$deleted")
                         screen.writeText(
-                            titleTerminateResultLines(deleted) + save.file.path,
+                            titleTerminateResultLines(deleted, screen.textColumns) + save.file.path,
                         )
                         input.readCommand()
                     }
@@ -817,7 +816,7 @@ class GameRuntime private constructor(
                     log.event("title.terminate.unavailable")
                     screen.writeText(
                         systems.prompts.titleMenu.terminateFailed
-                            .render { null },
+                            .render({ null }, screen.textColumns),
                     )
                     input.readCommand()
                 }
@@ -846,7 +845,7 @@ class GameRuntime private constructor(
                     log.event("title.invalid key=$command")
                     screen.writeText(
                         systems.prompts.titleMenu.invalidInput
-                            .render { null } + "Key: $command",
+                            .render({ null }, screen.textColumns) + "Key: $command",
                     )
                     input.readCommand()
                 }
@@ -861,7 +860,7 @@ class GameRuntime private constructor(
     ): Boolean {
         screen.writeText(
             systems.prompts.titleMenu.overwriteConfirm
-                .render { null },
+                .render({ null }, screen.textColumns),
         )
         val command = input.readCommand()
         val accepted = command == 'Y'
@@ -909,12 +908,15 @@ class GameRuntime private constructor(
         }.getOrNull()
     }
 
-    private fun titleMenuLines(hasSavedGame: Boolean): List<String> =
+    private fun titleMenuLines(
+        hasSavedGame: Boolean,
+        wrapWidth: Int?,
+    ): List<String> =
         systems.commands.getValue(TITLE_COMMAND_GROUP).let { commands ->
             buildList {
                 addAll(
                     systems.prompts.titleMenu.header
-                        .render { null },
+                        .render({ null }, wrapWidth),
                 )
                 add(commands.menuLine("createNewParty"))
                 add(commands.menuLine("continueSavedGame").withAvailability(hasSavedGame, "no save"))
@@ -926,10 +928,13 @@ class GameRuntime private constructor(
             }
         }
 
-    private fun titleTerminateResultLines(deleted: Boolean): List<String> {
+    private fun titleTerminateResultLines(
+        deleted: Boolean,
+        wrapWidth: Int?,
+    ): List<String> {
         val prompt = systems.prompts.titleMenu
-        if (deleted) return prompt.terminated.render { null }
-        return prompt.terminateFailed.render { null }
+        if (deleted) return prompt.terminated.render({ null }, wrapWidth)
+        return prompt.terminateFailed.render({ null }, wrapWidth)
     }
 
     private fun List<ExternalRuntimeCommand>.menuLine(action: String): String = first { command -> command.action == action }.mnemonicLine()
@@ -941,14 +946,20 @@ class GameRuntime private constructor(
         reason: String,
     ): String = if (enabled) this else "$this ($reason)"
 
-    private fun ExternalRuntimeTextBlock.renderTown(town: rylween.compiled.CompiledTown): List<String> =
-        render { kind ->
-            when (kind) {
-                "currentTownName" -> string(town.nameString)
-                "townTaxPercent" -> town.taxPercent.toString()
-                else -> null
-            }
-        }
+    private fun ExternalRuntimeTextBlock.renderTown(
+        town: rylween.compiled.CompiledTown,
+        wrapWidth: Int?,
+    ): List<String> =
+        render(
+            values = { kind ->
+                when (kind) {
+                    "currentTownName" -> string(town.nameString)
+                    "townTaxPercent" -> town.taxPercent.toString()
+                    else -> null
+                }
+            },
+            wrapWidth = wrapWidth,
+        )
 
     private fun runCharacterCreation(
         baseRuntime: RuntimeState,
@@ -959,7 +970,10 @@ class GameRuntime private constructor(
         val rules = systems.characterCreation ?: error("compiled bundle has no character-creation rules")
         val prompts = systems.prompts.characterCreation
         screen.bootFrame()
-        screen.writeText(prompts.header.renderCreation() + prompts.partyName.renderCreation())
+        screen.writeText(
+            prompts.header.renderCreation(wrapWidth = screen.textColumns) +
+                prompts.partyName.renderCreation(wrapWidth = screen.textColumns),
+        )
         val partyName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
         log.event("creation.party_name name=$partyName")
         var runtime = baseRuntime
@@ -970,7 +984,7 @@ class GameRuntime private constructor(
             screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, null, null, null, null))
             val statsResult = readAcceptedCreationStats(runtime, memberNumber, input, screen, log) ?: return null
             runtime = statsResult.runtime
-            screen.writeText(prompts.memberName.renderCreation(memberNumber = memberNumber))
+            screen.writeText(prompts.memberName.renderCreation(memberNumber = memberNumber, wrapWidth = screen.textColumns))
             val memberName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
             log.event("creation.member_name member=$memberNumber name=$memberName")
             screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, null, null, null))
@@ -979,7 +993,7 @@ class GameRuntime private constructor(
                     screen,
                     input,
                     log,
-                    prompts.gender.renderCreation(memberName = memberName),
+                    prompts.gender.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
                     creationGenderChoices(prompts),
                     "gender",
                 )
@@ -990,7 +1004,7 @@ class GameRuntime private constructor(
                     screen,
                     input,
                     log,
-                    prompts.race.renderCreation(memberName = memberName),
+                    prompts.race.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
                     rules.races.mapIndexed { index, option ->
                         CreationChoice(
                             index.digitChoiceKey(),
@@ -1007,7 +1021,7 @@ class GameRuntime private constructor(
                     screen,
                     input,
                     log,
-                    prompts.classMenu.renderCreation(),
+                    prompts.classMenu.renderCreation(wrapWidth = screen.textColumns),
                     rules.classes.mapIndexed { index, option ->
                         CreationChoice(
                             index.digitChoiceKey(),
@@ -1024,7 +1038,7 @@ class GameRuntime private constructor(
                 log.event(
                     "creation.class_rejected member=$memberNumber class=${pcClass.pcClass} required=${pcClass.requiredStat} minimum=${pcClass.minimum}",
                 )
-                screen.writeText(failure.renderCreation())
+                screen.writeText(failure.renderCreation(wrapWidth = screen.textColumns))
                 input.pause(systems.pacing.characterCreation.classRejectionPauseMs)
             } else {
                 log.event("creation.member_accepted member=$memberNumber gender=$gender race=$race class=${pcClass.pcClass}")
@@ -1037,7 +1051,7 @@ class GameRuntime private constructor(
             "creation.party_created name=${logValue(partyName)} members=${members.size} " +
                 "position=${runtime.logPosition()} memberNames=${memberNames.joinToString(separator = ",", transform = ::logValue)}",
         )
-        val savingPrompt = prompts.saving.renderCreation()
+        val savingPrompt = prompts.saving.renderCreation(wrapWidth = screen.textColumns)
         screen.showCharacterPortrait(null)
         screen.writeText(savingPrompt)
         input.pause(systems.pacing.characterCreation.saveConfirmationPauseMs)
@@ -1059,8 +1073,8 @@ class GameRuntime private constructor(
             val draw = current.drawCreationStats(roll, memberNumber, log)
             current = draw.runtime
             screen.writeText(
-                prompts.statsPage.renderCreation(memberNumber = memberNumber, stats = draw.stats) +
-                    prompts.reroll.renderCreation(),
+                prompts.statsPage.renderCreation(memberNumber = memberNumber, stats = draw.stats, wrapWidth = screen.textColumns) +
+                    prompts.reroll.renderCreation(wrapWidth = screen.textColumns),
             )
             val command = input.readCommand() ?: return null
             val reroll = command == 'Y'
@@ -1249,7 +1263,7 @@ class GameRuntime private constructor(
         if (targetTerrain == null || !targetTerrain.passable) {
             screen.showMessage(
                 systems.prompts.wilderness.impassable
-                    .render { null },
+                    .render({ null }, screen.textColumns),
             )
             return MoveResult(party, moved = false)
         }
@@ -1275,7 +1289,7 @@ class GameRuntime private constructor(
     ) {
         val pages =
             systems.wilderness.helpPages
-                .map { page -> page.render { null } }
+                .map { page -> page.render({ null }, screen.textColumns) }
                 .ifEmpty { generatedWildernessHelpPages() }
         showWildernessPages(screen, input, runtime, world, pages)
     }
@@ -1421,7 +1435,7 @@ class GameRuntime private constructor(
         log.event("wilderness.enter_none")
         screen.writeText(
             systems.prompts.wilderness.nothingToEnter
-                .render { null },
+                .render({ null }, screen.textColumns),
         )
         return runtime
     }
@@ -1468,7 +1482,7 @@ class GameRuntime private constructor(
                 }
                 addAll(
                     systems.prompts.town.menuTitle
-                        .renderTown(town),
+                        .renderTown(town, screen.textColumns),
                 )
                 add("")
                 serviceEntries.forEach { entry -> add(entry.menuLine()) }
@@ -1517,7 +1531,7 @@ class GameRuntime private constructor(
         val leaderLevel = runtime.party.leaderLevel
         if (leaderLevel < tax.minimumLeaderLevel) return TownEntryTaxResult(runtime)
         val amount = runtime.runtimeTownTaxAmount(content)?.takeIf { gold -> gold > 0 } ?: return TownEntryTaxResult(runtime)
-        val lines = townEntryTaxLines(runtime, tax)
+        val lines = townEntryTaxLines(runtime, tax, screen.textColumns)
         log.event("town.tax.prompt town=${slug(town.id)} level=$leaderLevel amount=$amount gold=${runtime.party.resources.gold}")
         screen.showImage(TOWN_MAIN_STREET_IMAGE)
         screen.writeText(lines)
@@ -1535,16 +1549,17 @@ class GameRuntime private constructor(
             runtime = paid,
             noticeLines =
                 systems.prompts.town.entryTaxThanks
-                    .renderRuntimeText(content, paid),
+                    .renderRuntimeText(content, paid, screen.textColumns),
         )
     }
 
     private fun townEntryTaxLines(
         runtime: RuntimeState,
         tax: ExternalTownEntryTax,
+        wrapWidth: Int?,
     ): List<String> =
         systems.prompts.town.entryTax
-            .renderRuntimeText(content, runtime) +
+            .renderRuntimeText(content, runtime, wrapWidth) +
             listOf(
                 tax.pay.mnemonicLine(tax.pay.label),
                 tax.leave.mnemonicLine(tax.leave.label),
@@ -2334,24 +2349,28 @@ private fun ExternalRuntimeTextBlock.renderCreation(
     memberNumber: Int? = null,
     memberName: String? = null,
     stats: CreationStats? = null,
+    wrapWidth: Int? = null,
 ): List<String> =
-    render { kind ->
-        when (kind) {
-            "creationMemberNumber" -> memberNumber?.toString()
-            "creationMemberName" -> memberName
-            "creationWeaponSkill" -> stats?.weaponSkill?.toString()
-            "creationHealth" -> stats?.health?.toString()
-            "creationWisdom" -> stats?.wisdom?.toString()
-            "creationCharisma" -> stats?.charisma?.toString()
-            else -> null
-        }
-    }
+    render(
+        values = { kind ->
+            when (kind) {
+                "creationMemberNumber" -> memberNumber?.toString()
+                "creationMemberName" -> memberName
+                "creationWeaponSkill" -> stats?.weaponSkill?.toString()
+                "creationHealth" -> stats?.health?.toString()
+                "creationWisdom" -> stats?.wisdom?.toString()
+                "creationCharisma" -> stats?.charisma?.toString()
+                else -> null
+            }
+        },
+        wrapWidth = wrapWidth,
+    )
 
 private fun String.normalizedCreationName(): String = trim().replaceFirstChar(Char::uppercaseChar)
 
 internal class CompiledTextRenderContext(
     val content: CompiledContentBundle,
-    val flowColumns: Int? = DEFAULT_TEXT_WINDOW_COLUMNS,
+    val flowColumns: Int? = null,
     val intValue: (CompiledIntExpr) -> String = { "[int]" },
     val stringValue: (CompiledStringExpr) -> String = { "[string]" },
     val roleNameValue: (CompiledHandleRef) -> String = { role -> "[role:${content.slug(role)}]" },

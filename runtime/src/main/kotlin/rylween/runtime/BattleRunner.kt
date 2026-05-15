@@ -901,7 +901,8 @@ internal class BattleRunner(
 
     private fun ExternalRuntimeTextBlock.renderBattle(vararg values: Pair<String, String>): List<String> = renderBattle(values.toMap())
 
-    private fun ExternalRuntimeTextBlock.renderBattle(values: Map<String, String> = emptyMap()): List<String> = render(values::get)
+    private fun ExternalRuntimeTextBlock.renderBattle(values: Map<String, String> = emptyMap()): List<String> =
+        render(values::get, screen.textColumns)
 
     private fun BattleEncounter.foeDisplayName(): String = "$monsterCount ${monsterName()}${"s".takeIf { monsterCount > 1 }.orEmpty()}"
 
@@ -1554,6 +1555,7 @@ internal class BattleRunner(
             renderTextLines(
                 CompiledTextRenderContext(
                     content = content,
+                    flowColumns = screen.textColumns,
                     intValue = { expr -> int(expr).toString() },
                     stringValue = ::string,
                 ),

@@ -296,12 +296,14 @@ Keep `:runtime:check` as the baseline. Add web-specific checks in this order:
 3. A scripted web session smoke that creates or loads the shared world save and
    verifies two connected users cannot overwrite it concurrently.
 4. Browser tests for xterm/cursor clearing once the static client exists.
-5. Browser screenshot/canvas tests for the bitmap renderer. The first smoke
-   should boot the Strong party, wait for the first rendered frame, and verify
-   representative compiled classpath assets served from `/assets/game-image/<id>`
-   produce nonblank scene pixels. This is the follow-up for C9's remaining
-   browser-pixel proof; it should not require unpacking game resources beside
-   the installed server or Docker image.
+5. Browser screenshot/canvas tests for the bitmap renderer. Current status:
+   `:runtime-bitmap-web:checkBitmapBrowserSmoke` resolves Playwright through
+   Gradle, downloads the selected managed browser under the module build
+   directory, boots the Strong party, waits for the first rendered frame, and
+   verifies representative compiled classpath assets served from
+   `/assets/game-image/<id>` produce nonblank scene pixels. This closes C9's
+   remaining browser-pixel proof without requiring a system-installed browser or
+   an unpacked game resource tree beside the installed server or Docker image.
 
 ## Milestones
 

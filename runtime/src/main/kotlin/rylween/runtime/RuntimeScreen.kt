@@ -328,15 +328,18 @@ internal class RuntimeScreen(
         }
     }
 
-    private fun ExternalRuntimeTextBlock.render(runtime: RuntimeState): List<String> = renderRuntimeText(content, runtime)
+    private fun ExternalRuntimeTextBlock.render(runtime: RuntimeState): List<String> = renderRuntimeText(content, runtime, textColumns)
 
     private fun ExternalRuntimeTextBlock.renderDungeon(depth: Int): List<String> =
-        render { kind ->
-            when (kind) {
-                "dungeonDepth" -> depth.toString()
-                else -> null
-            }
-        }
+        render(
+            values = { kind ->
+                when (kind) {
+                    "dungeonDepth" -> depth.toString()
+                    else -> null
+                }
+            },
+            wrapWidth = textColumns,
+        )
 
     private fun renderImage(
         imageSlug: String,
