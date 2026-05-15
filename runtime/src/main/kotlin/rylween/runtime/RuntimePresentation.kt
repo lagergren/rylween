@@ -4,6 +4,7 @@ import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.ExternalRuntimeCommand
+import rylween.compiled.ExternalRuntimeInputBinding
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.WildernessFatigueMatch
@@ -96,6 +97,18 @@ private fun ExternalRuntimeCommand.enterPromptLine(): String {
     val label = label ?: binding.label
     return "Press ${binding.primary.uppercase()} to ${label.replaceFirstChar(Char::lowercaseChar)}."
 }
+
+fun ExternalRuntimeCommand.runtimeMnemonicLine(): String = binding.runtimeMnemonicLine(label ?: binding.label)
+
+private fun ExternalRuntimeInputBinding.runtimeMnemonicLine(text: String): String {
+    val key = label.takeIf { value -> value.isNotBlank() } ?: primary.uppercase()
+    return "($key)${text.afterMnemonic(primary)}"
+}
+
+private fun String.afterMnemonic(key: String): String =
+    removePrefix(key)
+        .removePrefix(key.uppercase())
+        .let { text -> if (text == this) " $this" else text }
 
 private fun PcClass.runtimeShortLabel(): String =
     when (this) {

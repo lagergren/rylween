@@ -7,6 +7,7 @@ import rylween.compiled.CompiledTerrain
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalStaticScreen
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.TerrainSettlement
@@ -41,6 +42,7 @@ private const val WATER_WEST = 8
 
 internal const val DEFAULT_BITMAP_VIEWPORT_TILES = 8
 internal const val DEFAULT_BITMAP_TILE_SIZE = 64
+private const val BITMAP_CASTLE_TILE_SIZE = 80
 
 internal class BitmapRuntimeInput : RuntimeInputPort {
     private val input = LinkedBlockingQueue<String>()
@@ -209,7 +211,6 @@ internal class BitmapRuntimeScreen(
         commands = emptyList()
         map = null
         message = null
-        stickyMessageLines = emptyList()
         send()
     }
 
@@ -261,13 +262,13 @@ internal class BitmapRuntimeScreen(
         subtitle = "Depth ${runtime.dungeon?.depth ?: 1}"
         status = runtime.bitmapStatus()
         statusLines = runtime.runtimeStatusLines(content, systems)
+        textLines = stickyMessageLines.takeIf(List<String>::isNotEmpty) ?: dungeonTextLines(runtime)
         textInput = null
         portrait = null
         partyPage = null
         commands = emptyList()
         map = null
         message = null
-        stickyMessageLines = emptyList()
         send()
     }
 
@@ -281,13 +282,13 @@ internal class BitmapRuntimeScreen(
         subtitle = "Floor ${runtime.castle?.floor ?: 1}"
         status = runtime.bitmapStatus()
         statusLines = runtime.runtimeStatusLines(content, systems)
+        textLines = stickyMessageLines.takeIf(List<String>::isNotEmpty) ?: castleTextLines(runtime, castle)
         textInput = null
         portrait = null
         partyPage = null
-        commands = emptyList()
-        map = null
+        commands = systems.bitmapCommands("castle.${castle.id}.navigation")
+        map = runtime.bitmapCastleMap(castle)
         message = null
-        stickyMessageLines = emptyList()
         send()
     }
 
@@ -399,6 +400,15 @@ internal class BitmapRuntimeScreen(
             runtimeWildernessContextLines(content, systems, runtime, world)
         ).flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
 
+    private fun dungeonTextLines(runtime: RuntimeState): List<String> {
+        val depth = runtime.dungeon?.depth ?: 1
+        return (
+            systems.dungeon.prompts.levelMenu
+                .renderBitmapDungeon(depth) +
+                systems.dungeon.commandHint.renderBitmapDungeon(depth)
+        ).flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
+    }
+
     private fun send() {
         connection.sendText(
             BitmapFrame(
@@ -496,6 +506,68 @@ private fun WorldMap.bitmapViewport(
             viewport(center, tiles, tiles).map { row ->
                 row.map { cell -> cell.toBitmapTile(this, content) }
             },
+    )
+
+private fun RuntimeState.bitmapCastleMap(castle: ExternalRuntimeCastle): BitmapMap? {
+    val state = this.castle ?: return null
+    return BitmapMap(
+        tileSize = BITMAP_CASTLE_TILE_SIZE,
+        rows =
+            (1..castle.mapSize).map { y ->
+                (1..castle.mapSize).map { x ->
+                    val point = GridPoint(x, y)
+                    val visited = point in state.visited || point == state.point
+                    val isStairs = x == castle.mapSize && y == castle.mapSize
+                    val slug =
+                        when {
+                            isStairs -> "castle-stairs"
+                            visited -> "castle-room-visited"
+                            else -> "castle-room-unexplored"
+                        }
+                    BitmapTile(
+                        slug = slug,
+                        code = if (visited) "V" else "?",
+                        x = x,
+                        y = y,
+                        variant = stableVariant(point, slug, null),
+                        passable = true,
+                        settlement = null,
+                        center = point == state.point,
+                    )
+                }
+            },
+    )
+}
+
+private fun castleTextLines(
+    runtime: RuntimeState,
+    castle: ExternalRuntimeCastle,
+): List<String> {
+    val state = runtime.castle
+    val floorName =
+        state
+            ?.floor
+            ?.let { floor -> castle.text.floorNames.getOrNull(floor - 1) }
+            .orEmpty()
+    return buildList {
+        add(castle.id.readableSlug())
+        add("Floor ${state?.floor ?: 1}")
+        if (floorName.isNotBlank()) add(floorName)
+        state?.point?.let { point -> add("Position ${point.x}x${point.y}") }
+        add("")
+        add("Press ? for commands.")
+    }
+}
+
+private fun ExternalRuntimeTextBlock.renderBitmapDungeon(depth: Int): List<String> =
+    render(
+        values = { kind ->
+            when (kind) {
+                "dungeonDepth" -> depth.toString()
+                else -> null
+            }
+        },
+        wrapWidth = BITMAP_TEXT_COLUMNS,
     )
 
 private fun RuntimeMapCell.toBitmapTile(
@@ -676,6 +748,8 @@ private fun displayTitle(slug: String): String =
     when (slug) {
         "blitgfx.towne_mainstreet" -> "Town Main Street"
         "blitgfx.death" -> "The Party Has Fallen"
+        "blitgfx.jaara_gate" -> "Jaara at Zadraz"
+        "blitgfx.skullweed_swamp" -> "Skullweed"
         "blitgfx.monster_goblinoid" -> "Goblinoid Raiders"
         "blitgfx.monster_undead" -> "Restless Dead"
         "blitgfx.monster_beast" -> "Wild Beasts"
@@ -693,7 +767,11 @@ private fun displayTitle(slug: String): String =
         else -> slug.removePrefix("blitgfx.").readableSlug()
     }
 
-private fun String.hasSceneTitle(): Boolean = startsWith("blitgfx.monster_") || this == "blitgfx.death"
+private fun String.hasSceneTitle(): Boolean =
+    startsWith("blitgfx.monster_") ||
+        this == "blitgfx.death" ||
+        this == "blitgfx.jaara_gate" ||
+        this == "blitgfx.skullweed_swamp"
 
 private fun String.readableSlug(): String =
     split('_', '-', '.')

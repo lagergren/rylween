@@ -384,6 +384,7 @@ internal object SaveFile {
         put("castle.x", castle.point.x.toString())
         put("castle.y", castle.point.y.toString())
         put("castle.roomEntryPending", castle.roomEntryPending.toString())
+        put("castle.visited", castle.visited.encodePointSet())
         put(
             "castle.rooms",
             castle.rooms.entries
@@ -620,10 +621,11 @@ internal object SaveFile {
 
     private fun Map<String, String>.readCastle(): CastleState? {
         val castleId = get("castle.id")?.takeIf(String::isNotEmpty) ?: return null
+        val point = GridPoint(intOrDefault("castle.x", 1), intOrDefault("castle.y", 1))
         return CastleState(
             castleId = castleId,
             floor = intOrDefault("castle.floor", 1),
-            point = GridPoint(intOrDefault("castle.x", 1), intOrDefault("castle.y", 1)),
+            point = point,
             roomEntryPending = booleanOrDefault("castle.roomEntryPending", false),
             rooms =
                 get("castle.rooms")
@@ -633,8 +635,22 @@ internal object SaveFile {
                         val parts = token.split(':')
                         GridPoint(parts[0].toInt(), parts[1].toInt()) to parts[2]
                     }.orEmpty(),
+            visited = get("castle.visited").decodePointSet().ifEmpty { setOf(point) },
         )
     }
+
+    private fun Set<GridPoint>.encodePointSet(): String =
+        sortedWith(compareBy<GridPoint> { point -> point.y }.thenBy { point -> point.x })
+            .joinToString(",") { point -> "${point.x}:${point.y}" }
+
+    private fun String?.decodePointSet(): Set<GridPoint> =
+        orEmpty()
+            .takeIf(String::isNotEmpty)
+            ?.split(',')
+            ?.mapTo(mutableSetOf()) { token ->
+                val parts = token.split(':')
+                GridPoint(parts[0].toInt(), parts[1].toInt())
+            }.orEmpty()
 
     private fun Map<String, String>.readAttackedToday(
         base: List<CompiledPartyAttackRecord>,

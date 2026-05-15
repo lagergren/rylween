@@ -56,7 +56,10 @@ internal class RuntimeScreen(
     private val mapWindow = regions.getValue(MAP_WINDOW)
     private val statusTop = regions.getValue(STATUS_LINE_TOP)
     private val statusBottom = regions.getValue(STATUS_LINE_BOTTOM)
-    private val imageById: Map<String, ExternalImageAsset> = systems.presentation.images.associateBy { it.id }
+    private val imageById: Map<String, ExternalImageAsset> =
+        systems.presentation.images
+            .filter { image -> image.kind == "Ansi" }
+            .associateBy { it.id }
     private val staticScreenById: Map<String, ExternalStaticScreen> = systems.presentation.staticScreens.associateBy { it.id }
     private val pausePrompts = PausePrompts(systems.prompts)
     private val stylesByTerrain: Map<String, ExternalTerminalTerrainStyle> =
@@ -145,9 +148,11 @@ internal class RuntimeScreen(
         renderStatus(runtime)
         systems.dungeon.backdrop?.let(::showImage)
         val depth = runtime.dungeon?.depth ?: 1
-        writeText(
+        val defaultLines =
             systems.dungeon.prompts.levelMenu
-                .renderDungeon(depth) + systems.dungeon.commandHint.renderDungeon(depth),
+                .renderDungeon(depth) + systems.dungeon.commandHint.renderDungeon(depth)
+        writeTextWindow(
+            stickyMessageLines.takeIf { lines -> lines.isNotEmpty() } ?: defaultLines,
         )
     }
 
@@ -175,11 +180,11 @@ internal class RuntimeScreen(
                 }
                 addAll(
                     systems.commands["castle.${castle.id}.navigation"].orEmpty().take(7).map { command ->
-                        "${command.binding.primary}. ${command.label ?: command.binding.label}"
+                        command.runtimeMnemonicLine()
                     },
                 )
             }
-        writeText(lines.filter(String::isNotBlank))
+        writeTextWindow(stickyMessageLines.takeIf { lines -> lines.isNotEmpty() } ?: lines.filter(String::isNotBlank))
     }
 
     /** Clears the classic text window and writes the supplied lines inside it. */

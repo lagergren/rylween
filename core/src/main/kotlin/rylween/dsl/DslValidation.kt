@@ -2821,6 +2821,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.titleMenu.terminateFailed, "title menu terminate-failed prompt")
     validateTextBlock(prompts.titleMenu.invalidInput, "title menu invalid-input prompt")
     validateTextBlock(prompts.priest.who, "priest who prompt", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(prompts.priest.none, "priest none prompt")
     validateTextBlock(prompts.priest.mageCombatOnly, "priest mage-combat-only prompt")
     validateTextBlock(prompts.priest.wrongClass, "priest wrong-class prompt")
     validateTextBlock(prompts.priest.dead, "priest dead prompt")

@@ -299,6 +299,7 @@ data class ExternalTitleMenuPrompts(
 
 data class ExternalPriestSpellPrompts(
     val who: ExternalRuntimeTextBlock,
+    val none: ExternalRuntimeTextBlock,
     val mageCombatOnly: ExternalRuntimeTextBlock,
     val wrongClass: ExternalRuntimeTextBlock,
     val dead: ExternalRuntimeTextBlock,
@@ -997,6 +998,7 @@ data class ExternalCastleText(
     val moveEast: ExternalRuntimeTextBlock,
     val moveWest: ExternalRuntimeTextBlock,
     val stairsIntro: ExternalRuntimeTextBlock,
+    val stairsIllustration: String?,
     val stairsGuardianOffer: ExternalRuntimeTextBlock,
     val stairsMenu: ExternalRuntimeTextBlock,
     val stairsLeave: ExternalRuntimeTextBlock,
@@ -1591,6 +1593,7 @@ private class ExternalBundleArtifactWriter {
                         promptGroupJson(
                             "priest",
                             textField("who", prompts.priest.who),
+                            textField("none", prompts.priest.none),
                             textField("mageCombatOnly", prompts.priest.mageCombatOnly),
                             textField("wrongClass", prompts.priest.wrongClass),
                             textField("dead", prompts.priest.dead),
@@ -1905,30 +1908,35 @@ private class ExternalBundleArtifactWriter {
         game.castles.flatMap { castle ->
             val prefix = "castle.${castle.id.slug}"
             val keys = castle.keys
+            val labels = keys.commandLabels
             listOf(
                 "$prefix.navigation" to
                     commandListJson(
-                        "moveNorth" to keys.moveNorth,
-                        "moveSouth" to keys.moveSouth,
-                        "moveWest" to keys.moveWest,
-                        "moveEast" to keys.moveEast,
-                        "save" to keys.save,
-                        "help" to keys.help,
-                        "viewParty" to keys.viewParty,
-                        "removeArmor" to keys.removeArmor,
-                        "removeWeapon" to keys.removeWeapon,
-                        "drop" to keys.drop,
-                        "readyWeapon" to keys.readyWeapon,
-                        "readyArmor" to keys.readyArmor,
-                        "quaff" to keys.quaff,
-                        "castSpell" to keys.castSpell,
+                        runtimeCommand("moveNorth", keys.moveNorth, labels.moveNorth),
+                        runtimeCommand("moveSouth", keys.moveSouth, labels.moveSouth),
+                        runtimeCommand("moveWest", keys.moveWest, labels.moveWest),
+                        runtimeCommand("moveEast", keys.moveEast, labels.moveEast),
+                        runtimeCommand("save", keys.save, labels.save),
+                        runtimeCommand("help", keys.help, labels.help),
+                        runtimeCommand("viewParty", keys.viewParty, labels.viewParty),
+                        runtimeCommand("removeArmor", keys.removeArmor, labels.removeArmor),
+                        runtimeCommand("removeWeapon", keys.removeWeapon, labels.removeWeapon),
+                        runtimeCommand("drop", keys.drop, labels.drop),
+                        runtimeCommand("readyWeapon", keys.readyWeapon, labels.readyWeapon),
+                        runtimeCommand("readyArmor", keys.readyArmor, labels.readyArmor),
+                        runtimeCommand("quaff", keys.quaff, labels.quaff),
+                        runtimeCommand("castSpell", keys.castSpell, labels.castSpell),
                     ),
-                "$prefix.treasure" to commandListJson("take" to keys.treasureTake, "leave" to keys.treasureLeave),
+                "$prefix.treasure" to
+                    commandListJson(
+                        runtimeCommand("take", keys.treasureTake, labels.treasureTake),
+                        runtimeCommand("leave", keys.treasureLeave, labels.treasureLeave),
+                    ),
                 "$prefix.stairs" to
                     commandListJson(
-                        "teleportOut" to keys.stairsTeleport,
-                        "giveItem" to keys.stairsGive,
-                        "leave" to keys.stairsLeave,
+                        runtimeCommand("teleportOut", keys.stairsTeleport, labels.stairsTeleport),
+                        runtimeCommand("giveItem", keys.stairsGive, labels.stairsGive),
+                        runtimeCommand("leave", keys.stairsLeave, labels.stairsLeave),
                     ),
             )
         }
@@ -2166,6 +2174,7 @@ private class ExternalBundleArtifactWriter {
             "moveEast" to textBlockJson(text.moveEast),
             "moveWest" to textBlockJson(text.moveWest),
             "stairsIntro" to textBlockJson(text.stairsIntro),
+            "stairsIllustration" to text.stairsIllustration?.let { JsonString(it.slug) }.orJsonNull(),
             "stairsGuardianOffer" to textBlockJson(text.stairsGuardianOffer),
             "stairsMenu" to textBlockJson(text.stairsMenu),
             "stairsLeave" to textBlockJson(text.stairsLeave),
@@ -2633,6 +2642,7 @@ private class ExternalRuntimeSystemsReader(
             priest =
                 ExternalPriestSpellPrompts(
                     who = priest.requiredTextPrompt("who"),
+                    none = priest.requiredTextPrompt("none"),
                     mageCombatOnly = priest.requiredTextPrompt("mageCombatOnly"),
                     wrongClass = priest.requiredTextPrompt("wrongClass"),
                     dead = priest.requiredTextPrompt("dead"),
@@ -2974,6 +2984,7 @@ private class ExternalRuntimeSystemsReader(
             moveEast = required("moveEast").readTextBlock(),
             moveWest = required("moveWest").readTextBlock(),
             stairsIntro = required("stairsIntro").readTextBlock(),
+            stairsIllustration = optionalNullableString("stairsIllustration"),
             stairsGuardianOffer = required("stairsGuardianOffer").readTextBlock(),
             stairsMenu = required("stairsMenu").readTextBlock(),
             stairsLeave = required("stairsLeave").readTextBlock(),

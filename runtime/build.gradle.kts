@@ -74,6 +74,7 @@ fun runtimeWinningRoute(): String =
     buildString {
         repeat(21) { append('2') }
         append("66E")
+        append("AAAA")
         append(runtimeBattleMacro())
         append(runtimeCastleFloor('1'))
         append(runtimeCastleFloor('2'))
@@ -458,7 +459,7 @@ val checkRuntimeCastleScript: TaskProvider<RunInstalledLauncherWithJavaTask> by 
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
     stateSlug.set("near-winning-replay")
-    script.set("2".repeat(21) + "66E")
+    script.set("2".repeat(21) + "66EAAAA")
 }
 
 val checkRuntimeHeroesScreen: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(

@@ -168,6 +168,7 @@ const bitmapAssets: BitmapAssets = {
   bestiary: loadAsset(assetUrl("/assets/encounter-bestiary.png")),
   scenes: loadAsset(assetUrl("/assets/scene-atlas.png")),
   terrain: loadAsset(assetUrl("/assets/terrain-atlas.png")),
+  castle: loadAsset(assetUrl("/assets/castle-atlas.png")),
   waterConnect: loadAsset(assetUrl("/assets/water-connect-atlas.png")),
   partyMarker: loadAsset(assetUrl("/assets/party-rider.png")),
   sceneMainstreet: loadAsset(assetUrl("/assets/scene-thord-mainstreet.png")),
@@ -187,6 +188,7 @@ const bitmapAssets: BitmapAssets = {
   monsterBoss: loadAsset(assetUrl("/assets/monster-boss.png"))
 };
 const portraitAssets = new Map<string, HTMLImageElement>();
+const gameImageAssets = new Map<string, HTMLImageElement>();
 
 function assetUrl(path: string): string {
   return path + "?v=" + assetVersion;
@@ -203,10 +205,17 @@ function loadAsset(src: string): HTMLImageElement {
 
 function portraitAsset(imageSlug: string | undefined): HTMLImageElement | null {
   if (!imageSlug) return null;
-  if (!portraitAssets.has(imageSlug)) {
-    portraitAssets.set(imageSlug, loadAsset(assetUrl("/assets/game-image/" + encodeURIComponent(imageSlug))));
-  }
+  if (!portraitAssets.has(imageSlug)) portraitAssets.set(imageSlug, loadGameImageAsset(imageSlug));
   return portraitAssets.get(imageSlug) ?? null;
+}
+
+function gameImageAsset(imageSlug: string): HTMLImageElement {
+  if (!gameImageAssets.has(imageSlug)) gameImageAssets.set(imageSlug, loadGameImageAsset(imageSlug));
+  return gameImageAssets.get(imageSlug) as HTMLImageElement;
+}
+
+function loadGameImageAsset(imageSlug: string): HTMLImageElement {
+  return loadAsset(assetUrl("/assets/game-image/" + encodeURIComponent(imageSlug)));
 }
 
 function connect(): void {
@@ -816,6 +825,7 @@ function sceneImageFor(kind: string): HTMLImageElement | null {
   if (kind.includes("monster_brute") || kind.includes("monster-brute") || kind.includes("monster.brute")) return bitmapAssets.monsterBrute;
   if (kind.includes("monster_humanoid_magic") || kind.includes("monster-humanoid-magic") || kind.includes("monster.humanoid_magic")) return bitmapAssets.monsterHumanoidMagic;
   if (kind.includes("monster_boss") || kind.includes("monster-boss") || kind.includes("monster.boss")) return bitmapAssets.monsterBoss;
+  if (kind.startsWith("blitgfx.")) return gameImageAsset(kind);
   return null;
 }
 
@@ -941,6 +951,10 @@ function drawTile(tile: BitmapTile, x: number, y: number, size: number): void {
   const slug = (tile.slug || "").toLowerCase();
   const settlement = (tile.settlement || "").toLowerCase();
   const variant = tile.variant || 0;
+  if (slug.includes("castle-room") || slug.includes("castle-stairs")) {
+    drawCastleGridTile(tile, x, y, size, variant);
+    return;
+  }
   if (isWaterTerrain(slug)) {
     drawConnectedWater(tile, x, y, size);
     if (tile.center) drawPartyMarker(x + size / 2, y + size / 2, size);
@@ -964,12 +978,98 @@ function drawTile(tile: BitmapTile, x: number, y: number, size: number): void {
   else drawPlain(x, y, size, variant);
   ctx.strokeStyle = "rgba(5, 7, 5, 0.45)";
   ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
+  drawSettlementOverlay(settlement, x, y, size);
   if (tile.center) {
     ctx.strokeStyle = "#f2d35e";
     ctx.lineWidth = 3;
     ctx.strokeRect(x + 3.5, y + 3.5, size - 7, size - 7);
     ctx.lineWidth = 1;
   }
+}
+
+function drawCastleGridTile(tile: BitmapTile, x: number, y: number, size: number, variant: number): void {
+  const slug = (tile.slug || "").toLowerCase();
+  const isCurrent = tile.center === true;
+  const isStairs = slug.includes("stairs");
+  const atlas = bitmapAssets.castle;
+  if (atlas.complete && atlas.naturalWidth > 0) {
+    const cols = 4;
+    const rows = 3;
+    const sourceW = atlas.naturalWidth / cols;
+    const sourceH = atlas.naturalHeight / rows;
+    const row = isStairs ? 2 : slug.includes("visited") ? 1 : 0;
+    const col = isStairs ? 0 : variant % cols;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(atlas, col * sourceW, row * sourceH, sourceW, sourceH, x, y, size, size);
+    ctx.restore();
+    drawCastleTileOverlay(tile, x, y, size);
+    return;
+  }
+  const isUnexplored = slug.includes("unexplored");
+  const stone = isUnexplored ? "#393c42" : "#54565d";
+  const mortar = isUnexplored ? "#23262b" : "#32343a";
+  ctx.fillStyle = stone;
+  ctx.fillRect(x, y, size, size);
+  ctx.strokeStyle = mortar;
+  ctx.lineWidth = 1;
+  const block = Math.max(10, Math.floor(size / 4));
+  for (let yy = y; yy < y + size; yy += block) {
+    const offset = ((yy - y) / block + variant) % 2 === 0 ? 0 : block / 2;
+    ctx.beginPath();
+    ctx.moveTo(x, yy + 0.5);
+    ctx.lineTo(x + size, yy + 0.5);
+    ctx.stroke();
+    for (let xx = x + offset; xx < x + size; xx += block) {
+      ctx.beginPath();
+      ctx.moveTo(xx + 0.5, yy);
+      ctx.lineTo(xx + 0.5, Math.min(y + size, yy + block));
+      ctx.stroke();
+    }
+  }
+  if (isUnexplored) {
+    ctx.fillStyle = "rgba(8, 10, 12, 0.34)";
+    ctx.fillRect(x + 4, y + 4, size - 8, size - 8);
+  }
+  if (isStairs) {
+    ctx.strokeStyle = "#d8c16d";
+    ctx.lineWidth = Math.max(2, size / 28);
+    for (let i = 0; i < 4; i += 1) {
+      const inset = size * (0.22 + i * 0.08);
+      ctx.strokeRect(x + inset, y + inset, size - inset * 2, size - inset * 2);
+    }
+    ctx.lineWidth = 1;
+  }
+  if (isCurrent) {
+    ctx.fillStyle = "#f1d06f";
+    ctx.strokeStyle = "rgba(30, 18, 3, 0.82)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x + size / 2, y + size / 2, size * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+  ctx.strokeStyle = isCurrent ? "#f3d779" : "rgba(8, 9, 10, 0.72)";
+  ctx.lineWidth = isCurrent ? 3 : 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
+  ctx.lineWidth = 1;
+}
+
+function drawCastleTileOverlay(tile: BitmapTile, x: number, y: number, size: number): void {
+  if (tile.center === true) {
+    ctx.fillStyle = "#f1d06f";
+    ctx.strokeStyle = "rgba(30, 18, 3, 0.82)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x + size / 2, y + size / 2, size * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.strokeStyle = tile.center === true ? "#f3d779" : "rgba(8, 9, 10, 0.72)";
+  ctx.lineWidth = tile.center === true ? 3 : 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
+  ctx.lineWidth = 1;
 }
 
 function drawTerrainAtlasTile(
@@ -994,10 +1094,37 @@ function drawTerrainAtlasTile(
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(atlas, sourceX, sourceY, sourceW, sourceH, x, y, size, size);
   ctx.restore();
+  drawSettlementOverlay(settlement, x, y, size);
   if (center) {
     drawPartyMarker(x + size / 2, y + size / 2, size);
   }
   return true;
+}
+
+function drawSettlementOverlay(settlement: string, x: number, y: number, size: number): void {
+  if (!settlement) return;
+  const label = settlement === "castle" ? "C" : settlement === "hut" ? "H" : "T";
+  const color = settlement === "castle" ? "#ffe16f" : settlement === "hut" ? "#f2e3a0" : "#fff0a8";
+  const badge = Math.max(20, Math.floor(size * 0.36));
+  const bx = x + size - badge - 5;
+  const by = y + 5;
+  ctx.save();
+  ctx.shadowColor = "rgba(0, 0, 0, 0.72)";
+  ctx.shadowBlur = 8;
+  ctx.lineWidth = Math.max(2, Math.floor(size * 0.045));
+  ctx.strokeStyle = color;
+  ctx.strokeRect(x + 4.5, y + 4.5, size - 9, size - 9);
+  ctx.fillStyle = "rgba(9, 7, 4, 0.78)";
+  ctx.fillRect(bx, by, badge, badge);
+  ctx.strokeStyle = color;
+  ctx.strokeRect(bx + 0.5, by + 0.5, badge - 1, badge - 1);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "bold " + Math.floor(badge * 0.62) + "px Menlo, Monaco, Consolas, monospace";
+  ctx.fillText(label, bx + badge / 2, by + badge / 2 + 1);
+  ctx.restore();
 }
 
 function drawPartyMarker(cx: number, cy: number, size: number): void {

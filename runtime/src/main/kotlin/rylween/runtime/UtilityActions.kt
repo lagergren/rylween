@@ -96,11 +96,24 @@ internal class UtilityActions(
             content.spells
                 .filter { spell -> content.slug(spell.id).startsWith(PRIEST_SPELL_PREFIX) }
                 .sortedBy(CompiledSpell::slot)
-        if (spells.isEmpty()) return runtime
-        screen.writeText(spells.map { spell -> "${spell.slot}. ${content.strings.value(spell.nameString)}" })
+        if (spells.isEmpty()) {
+            screen.showMessage(
+                systems.prompts.priest.noSpells
+                    .renderUtility(),
+            )
+            return runtime
+        }
+        screen.writeText(priestSpellLines(spells))
+        val command = input.readCommand()?.uppercaseChar() ?: return runtime
+        if (command == PRIEST_SPELL_CANCEL_KEY) return runtime
         val spell =
-            input.readCommand()?.digitToIntOrNull()?.let { slot -> spells.firstOrNull { it.slot == slot } }
-                ?: return runtime
+            command.digitToIntOrNull()?.let { slot -> spells.firstOrNull { it.slot == slot } }
+                ?: return runtime.also {
+                    screen.showMessage(
+                        systems.prompts.priest.invalidSpell
+                            .renderUtility(),
+                    )
+                }
         val program = programByRef(spell.scriptRoot)
         return ScriptExecutor(
             content = content,
@@ -174,11 +187,50 @@ internal class UtilityActions(
         }
 
     private fun chooseCaster(runtime: RuntimeState): Int? {
-        val choices =
+        if (runtime.party.members.none { member -> !member.dead && member.pcClass == PcClass.Priest }) {
+            screen.showMessage(
+                systems.prompts.priest.wrongClass
+                    .renderUtility(),
+            )
+            return null
+        }
+        screen.writeText(
+            systems.prompts.priest.who
+                .renderUtility() +
+                systems.prompts.priest.none
+                    .renderUtility() +
+                "" +
+                runtime.party.members.mapIndexed { index, _ -> "${index + 1}. ${runtime.party.memberName(content, index)}" },
+        )
+        val command = input.readCommand()?.uppercaseChar() ?: return null
+        if (command == PRIEST_SPELL_CANCEL_KEY) return null
+        val index =
+            command
+                .digitToIntOrNull()
+                ?.minus(1)
+                ?: return rejectPriestCaster(systems.prompts.priest.invalidCaster)
+        val member =
             runtime.party.members
-                .mapIndexedNotNull { index, member -> index.takeIf { !member.dead && member.pcClass == PcClass.Priest } }
-        return chooseMemberIndex(runtime, choices)
+                .getOrNull(index)
+                ?: return rejectPriestCaster(systems.prompts.priest.invalidCaster)
+        return when {
+            member.dead -> rejectPriestCaster(systems.prompts.priest.dead)
+            member.pcClass != PcClass.Priest -> rejectPriestCaster(systems.prompts.priest.wrongClass)
+            else -> index
+        }
     }
+
+    private fun rejectPriestCaster(text: ExternalRuntimeTextBlock): Int? {
+        screen.showMessage(text.renderUtility())
+        return null
+    }
+
+    private fun priestSpellLines(spells: List<CompiledSpell>): List<String> =
+        spells.map { spell ->
+            "${spell.slot}. ${content.strings.value(spell.nameString)}"
+        } +
+            systems.prompts.priest.none
+                .renderUtility()
 
     private fun chooseMember(runtime: RuntimeState): Int? {
         val choices =
@@ -250,6 +302,7 @@ internal fun RuntimeState.updateMember(
     )
 
 private const val PRIEST_SPELL_PREFIX = "priest."
+private const val PRIEST_SPELL_CANCEL_KEY = 'N'
 
 internal fun inventorySlotKey(slot: Int): Char = (INVENTORY_FIRST_KEY.code + slot - 1).toChar()
 
