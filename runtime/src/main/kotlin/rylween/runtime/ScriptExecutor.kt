@@ -448,24 +448,33 @@ internal class ScriptExecutor(
             }
         writeText(baseLines)
         var choice = input.readCommand() ?: return ScriptSignal.StopScript
-        while (choice == '!') {
+        val defaultBody = instruction.instructionsOperand(2)
+        while (true) {
+            if (choice == '!') {
+                screen.redrawCurrentView(baseLines)
+                currentTextLines = baseLines
+                choice = input.readCommand() ?: return ScriptSignal.StopScript
+                continue
+            }
+            val optionIndex = options.indexOfFirst { menu -> menu.binding.matchesInput(content, choice) }
+            val selected = options.getOrNull(optionIndex)
+            if (selected != null || defaultBody.isNotEmpty()) {
+                val body = selected?.body ?: defaultBody
+                return executeBlock(
+                    instructions = body,
+                    context =
+                        context.childContext(
+                            instructionIndex = instructionIndex,
+                            instructionCount = instructionCount,
+                            childPath = selected?.let { listOf(instructionIndex, 1, optionIndex) } ?: listOf(instructionIndex, 2),
+                            insideLoop = context.insideLoop,
+                        ),
+                )
+            }
             screen.redrawCurrentView(baseLines)
             currentTextLines = baseLines
             choice = input.readCommand() ?: return ScriptSignal.StopScript
         }
-        val optionIndex = options.indexOfFirst { menu -> menu.binding.matchesInput(content, choice) }
-        val selected = options.getOrNull(optionIndex)
-        val body = selected?.body ?: instruction.instructionsOperand(2)
-        return executeBlock(
-            instructions = body,
-            context =
-                context.childContext(
-                    instructionIndex = instructionIndex,
-                    instructionCount = instructionCount,
-                    childPath = selected?.let { listOf(instructionIndex, 1, optionIndex) } ?: listOf(instructionIndex, 2),
-                    insideLoop = context.insideLoop,
-                ),
-        )
     }
 
     private fun executeAskKey(instruction: CompiledInstruction): ScriptSignal {
@@ -473,15 +482,23 @@ internal class ScriptExecutor(
         val lines = instruction.textBlockOperand(0).renderScriptLines()
         writeText(lines)
         var choice = input.readCommand() ?: return ScriptSignal.StopScript
-        while (choice == '!') {
+        while (true) {
+            if (choice == '!') {
+                screen.redrawCurrentView(lines)
+                currentTextLines = lines
+                choice = input.readCommand() ?: return ScriptSignal.StopScript
+                continue
+            }
+            val binding =
+                bindings.firstOrNull { current -> current.matchesInput(content, choice) }
+            if (binding != null) {
+                locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to binding.promptValue())
+                return ScriptSignal.Continue
+            }
             screen.redrawCurrentView(lines)
             currentTextLines = lines
             choice = input.readCommand() ?: return ScriptSignal.StopScript
         }
-        val binding =
-            bindings.firstOrNull { current -> current.matchesInput(content, choice) } ?: return ScriptSignal.Continue
-        locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to binding.promptValue())
-        return ScriptSignal.Continue
     }
 
     private fun List<CompiledMenuOption>.menuOptionLines(): List<String> =

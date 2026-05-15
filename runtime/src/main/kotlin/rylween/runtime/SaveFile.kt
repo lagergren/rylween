@@ -938,7 +938,7 @@ internal object SaveFile {
         key: String,
         kind: CompiledHandleKind,
         content: CompiledContentBundle,
-    ): CompiledHandleRef? = get(key)?.takeIf(String::isNotEmpty)?.let { slug -> content.ref(kind, slug) }
+    ): CompiledHandleRef? = get(key)?.takeIf(String::isNotEmpty)?.let { slug -> content.ref(kind, slug.legacySaveSlug(kind)) }
 
     private fun Map<String, String>.handleListOrDefault(
         key: String,
@@ -950,8 +950,14 @@ internal object SaveFile {
             ?.takeIf(String::isNotEmpty)
             ?.split(',')
             ?.filter(String::isNotEmpty)
-            ?.map { slug -> content.ref(kind, slug) }
+            ?.map { slug -> content.ref(kind, slug.legacySaveSlug(kind)) }
             ?: default
+
+    private fun String.legacySaveSlug(kind: CompiledHandleKind): String =
+        when {
+            kind == CompiledHandleKind.Item && (this == "halbard" || this == "halbdrd") -> "halberd"
+            else -> this
+        }
 }
 
 internal fun String.normalizedSaveUser(): String {

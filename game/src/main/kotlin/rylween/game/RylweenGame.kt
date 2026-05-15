@@ -525,7 +525,7 @@ val authoredRylween: RylweenModel =
                         Items.sling,
                         Items.longsword,
                         Items.trident,
-                        Items.halbard,
+                        Items.halberd,
                         Items.poleArm,
                         Items.crossbow,
                         Items.scythe,
@@ -713,12 +713,11 @@ val authoredRylween: RylweenModel =
                 )
                 waitInput("after showing Jaara the key")
                 screen(
-                    "It falls",
-                    "to the ground with a",
-                    "resounding KRASH. Jaara",
+                    "It falls to the",
+                    "ground with a resounding",
+                    "***KRASH***. Jaara",
                     "slowly fades away until",
                     "nothing remains.",
-                    "",
                 )
                 waitInput("after Jaara opens the gate")
                 screen("You enter.", "", "The first door you enter", "slams shut behind you!")
@@ -1067,7 +1066,7 @@ val authoredRylween: RylweenModel =
                 weapon(Items.sling, "Sling", cost = 165, damage = 5)
                 weapon(Items.longsword, "Longsword", cost = 280, damage = 9)
                 weapon(Items.trident, "Trident", cost = 350, damage = 11)
-                weapon(Items.halbard, "Halbard", cost = 500, damage = 14)
+                weapon(Items.halberd, "Halberd", cost = 500, damage = 14)
                 weapon(Items.poleArm, "Pole arm", cost = 670, damage = 18)
                 weapon(Items.crossbow, "Crossbow", cost = 900, damage = 21)
                 weapon(Items.scythe, "Scythe", cost = 870, damage = 14)
@@ -1204,7 +1203,7 @@ val authoredRylween: RylweenModel =
                         Items.sling,
                         Items.longsword,
                         Items.trident,
-                        Items.halbard,
+                        Items.halberd,
                         Items.poleArm,
                         Items.crossbow,
                         Items.scythe,
@@ -4422,7 +4421,7 @@ val authoredRylween: RylweenModel =
                                 item('2', Items.axe, label = "Axe")
                                 item('3', Items.bow, label = "Bow")
                                 item('4', Items.club, label = "Club")
-                                item('5', Items.halbard, label = "Halberd")
+                                item('5', Items.halberd, label = "Halberd")
                                 item('6', Items.crossbow, label = "Crossbow")
                             }
                             page {
@@ -7359,7 +7358,7 @@ val authoredRylween: RylweenModel =
                             "called Skullweed, and is",
                             "purple with small green",
                             "twigs. Find this plant",
-                            "plant for me!",
+                            "for me, and be rewarded!",
                             "",
                         )
                         mark(Story.masterCrown.task2Assigned)
@@ -7376,7 +7375,6 @@ val authoredRylween: RylweenModel =
                             "stone of magnetic iron",
                             "which gives the wielder",
                             "the power of levitation.",
-                            "",
                         )
                         say {
                             line("- Begin your search in")

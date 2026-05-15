@@ -18,4 +18,5 @@ class PausePrompts(
     }
 }
 
-internal fun List<String>.withPausePrompt(pausePrompts: PausePrompts): List<String> = this + "" + pausePrompts.line()
+internal fun List<String>.withPausePrompt(pausePrompts: PausePrompts): List<String> =
+    dropLastWhile(String::isBlank) + "" + pausePrompts.line()

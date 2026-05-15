@@ -828,7 +828,6 @@ class ChoiceScope(
         script.menu(prompt) {
             option('T', take)
             option('L', leave)
-            default(leave)
         }
     }
 
