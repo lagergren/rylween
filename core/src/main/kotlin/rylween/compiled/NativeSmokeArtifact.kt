@@ -542,6 +542,7 @@ private class NativeSmokeArtifactWriter {
         textBlock(buy.tooExpensive)
         textBlock(buy.cantCarry)
         textBlock(buy.deal)
+        nullable(buy.bought, ::textBlock)
         nullable(buy.unitPrice, ::textBlock)
         nullable(buy.singlePrice, ::textBlock)
         textBlock(buy.payPrompt)
@@ -1070,6 +1071,7 @@ private class NativeSmokeArtifactReader(
         textBlock()
         textBlock()
         textBlock()
+        optional { textBlock() }
         optional { textBlock() }
         optional { textBlock() }
         textBlock()

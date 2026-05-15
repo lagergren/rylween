@@ -49,6 +49,8 @@ import rylween.compiled.ExternalRuntimeInputBinding
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalTownEntryTax
+import rylween.compiled.RuntimeCommandActionId
+import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
@@ -71,14 +73,14 @@ import kotlin.math.max
 import kotlin.system.exitProcess
 
 private const val TITLE_SCREEN = "title"
-private const val TITLE_COMMAND_GROUP = "title"
+private val TITLE_COMMAND_GROUP = RuntimeCommandGroupId.Title.id
 private const val SCORE_SCREEN = "score"
 private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
 private const val TEXT_WINDOW_PAGE_LINES = 9
 private const val TOWN_MAIN_STREET_IMAGE = "blitgfx.towne_mainstreet"
-private const val TOWN_COMMAND_GROUP = "town"
-private const val TOWN_LEAVE_ACTION = "leave_town"
+private val TOWN_COMMAND_GROUP = RuntimeCommandGroupId.Town.id
+private val TOWN_LEAVE_ACTION = RuntimeCommandActionId.LeaveTown.id
 
 /** CLI entry point for the runtime. */
 object RylweenRuntimeMain {
@@ -482,7 +484,7 @@ class GameRuntime private constructor(
             persistSessionStartIfChanged(sessionStartRuntime, runtime, saveContext, log)
             logNpcPlacements(runtime, log)
             val commands = WildernessCommands.from(systems)
-            val debugCommands = WildernessCommands.from(systems, "wilderness.debug")
+            val debugCommands = WildernessCommands.from(systems, RuntimeCommandGroupId.WildernessDebug)
             val actions =
                 WildernessActions(
                     content = content,
@@ -539,8 +541,8 @@ class GameRuntime private constructor(
                 val advanceTurn =
                     when {
                         command == null -> return input.exitResult()
-                        commands.matches("quit", command) -> return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
-                        commands.matches("moveNorth", command) -> {
+                        commands.matches(RuntimeCommandActionId.Quit, command) -> return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
+                        commands.matches(RuntimeCommandActionId.MoveNorth, command) -> {
                             val move = move(runtime.party, world, 0, -1, screen)
                             runtime =
                                 runtime
@@ -550,7 +552,7 @@ class GameRuntime private constructor(
                             move.moved
                         }
 
-                        commands.matches("moveSouth", command) -> {
+                        commands.matches(RuntimeCommandActionId.MoveSouth, command) -> {
                             val move = move(runtime.party, world, 0, 1, screen)
                             runtime =
                                 runtime
@@ -560,7 +562,7 @@ class GameRuntime private constructor(
                             move.moved
                         }
 
-                        commands.matches("moveWest", command) -> {
+                        commands.matches(RuntimeCommandActionId.MoveWest, command) -> {
                             val move = move(runtime.party, world, -1, 0, screen)
                             runtime =
                                 runtime
@@ -570,7 +572,7 @@ class GameRuntime private constructor(
                             move.moved
                         }
 
-                        commands.matches("moveEast", command) -> {
+                        commands.matches(RuntimeCommandActionId.MoveEast, command) -> {
                             val move = move(runtime.party, world, 1, 0, screen)
                             runtime =
                                 runtime
@@ -580,7 +582,7 @@ class GameRuntime private constructor(
                             move.moved
                         }
 
-                        commands.matches("pass", command) -> {
+                        commands.matches(RuntimeCommandActionId.Pass, command) -> {
                             turnMessages =
                                 systems.prompts.wilderness.pass
                                     .renderRuntimeText(content, runtime, screen.textColumns)
@@ -588,22 +590,22 @@ class GameRuntime private constructor(
                             true
                         }
 
-                        commands.matches("redraw", command) -> {
+                        commands.matches(RuntimeCommandActionId.Redraw, command) -> {
                             screen.renderWilderness(runtime, world)
                             false
                         }
 
-                        commands.matches("help", command) -> {
+                        commands.matches(RuntimeCommandActionId.Help, command) -> {
                             printHelp(screen, input, runtime, world)
                             false
                         }
 
-                        commands.matches("save", command) -> {
+                        commands.matches(RuntimeCommandActionId.Save, command) -> {
                             saveRuntime(runtime, saveContext, screen, log)
                             false
                         }
 
-                        commands.matches("viewParty", command) -> {
+                        commands.matches(RuntimeCommandActionId.ViewParty, command) -> {
                             if (
                                 PartyPages.showPartyPageViews(
                                     content = content,
@@ -618,85 +620,85 @@ class GameRuntime private constructor(
                             false
                         }
 
-                        commands.matches("journal", command) -> {
+                        commands.matches(RuntimeCommandActionId.Journal, command) -> {
                             showWildernessDocument(
                                 screen = screen,
                                 input = input,
                                 runtime = runtime,
                                 world = world,
                                 title = "Adventurer's Journal",
-                                lines = PartyPages.journalLines(runtime.party),
+                                lines = PartyPages.journalLines(systems, runtime.party, screen.textColumns),
                             )
                             false
                         }
 
-                        commands.matches("enter", command) -> {
+                        commands.matches(RuntimeCommandActionId.Enter, command) -> {
                             val entered = enterLocation(runtime, loopContext)
                             runtime = entered
                             entered.currentMode == RuntimeMode.Wilderness
                         }
 
-                        commands.matches("readyWeapon", command) -> {
+                        commands.matches(RuntimeCommandActionId.ReadyWeapon, command) -> {
                             runtime = utility.readyWeapon(runtime)
                             false
                         }
 
-                        commands.matches("readyArmor", command) -> {
+                        commands.matches(RuntimeCommandActionId.ReadyArmor, command) -> {
                             runtime = utility.readyArmor(runtime)
                             false
                         }
 
-                        commands.matches("removeWeapon", command) -> {
+                        commands.matches(RuntimeCommandActionId.RemoveWeapon, command) -> {
                             runtime = utility.removeWeapon(runtime)
                             redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
 
-                        commands.matches("removeArmor", command) -> {
+                        commands.matches(RuntimeCommandActionId.RemoveArmor, command) -> {
                             runtime = utility.removeArmor(runtime)
                             redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
 
-                        commands.matches("drop", command) -> {
+                        commands.matches(RuntimeCommandActionId.Drop, command) -> {
                             runtime = utility.drop(runtime)
                             redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
 
-                        commands.matches("camp", command) -> {
+                        commands.matches(RuntimeCommandActionId.Camp, command) -> {
                             runtime = applyAction(actions.camp(runtime), screen, world)
                             false
                         }
 
-                        commands.matches("hunt", command) -> {
+                        commands.matches(RuntimeCommandActionId.Hunt, command) -> {
                             runtime = applyAction(actions.hunt(runtime), screen, world)
                             false
                         }
 
-                        commands.matches("castSpell", command) -> {
+                        commands.matches(RuntimeCommandActionId.CastSpell, command) -> {
                             runtime = utility.castPriestSpell(runtime)
                             redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
 
-                        commands.matches("quaff", command) -> {
+                        commands.matches(RuntimeCommandActionId.Quaff, command) -> {
                             runtime = utility.quaff(runtime)
                             redrawWildernessIfCurrent(screen, runtime, world)
                             false
                         }
 
-                        debugSecrets && debugCommands.matches("forceCave", command) -> {
+                        debugSecrets && debugCommands.matches(RuntimeCommandActionId.ForceCave, command) -> {
                             runtime = applyAction(actions.forceCaveDiscovery(runtime), screen, world)
                             false
                         }
 
-                        debugSecrets && debugCommands.matches("forceEncounter", command) -> {
+                        debugSecrets && debugCommands.matches(RuntimeCommandActionId.ForceEncounter, command) -> {
                             runtime = applyAction(actions.forceEncounter(runtime), screen, world)
                             false
                         }
 
-                        debugSecrets && debugCommands.matches("showMap", command) -> {
+                        debugSecrets && debugCommands.matches(RuntimeCommandActionId.ShowMap, command) -> {
                             screen.showDebugWorldMap(runtime, world, input::readCommand)
                             screen.renderWilderness(runtime, world)
                             false
@@ -734,22 +736,22 @@ class GameRuntime private constructor(
         val titleCommands = systems.commands.getValue(TITLE_COMMAND_GROUP)
 
         fun matches(
-            action: String,
+            action: RuntimeCommandActionId,
             command: Char,
-        ): Boolean = titleCommands.firstOrNull { title -> title.action == action }?.binding?.matches(command) == true
+        ): Boolean = titleCommands.firstOrNull { title -> title.action == action.id }?.binding?.matches(command) == true
 
         fun acceptsTitleCommand(
             command: Char,
             hasSavedGame: Boolean,
         ): Boolean =
             when {
-                matches("createNewParty", command) -> true
-                matches("continueSavedGame", command) -> true
-                matches("scoreboard", command) -> true
-                matches("hallOfFame", command) -> true
-                matches("documentation", command) -> true
-                matches("leave", command) -> true
-                hasSavedGame && matches("terminateParty", command) -> true
+                matches(RuntimeCommandActionId.CreateNewParty, command) -> true
+                matches(RuntimeCommandActionId.ContinueSavedGame, command) -> true
+                matches(RuntimeCommandActionId.Scoreboard, command) -> true
+                matches(RuntimeCommandActionId.HallOfFame, command) -> true
+                matches(RuntimeCommandActionId.Documentation, command) -> true
+                matches(RuntimeCommandActionId.Leave, command) -> true
+                hasSavedGame && matches(RuntimeCommandActionId.TerminateParty, command) -> true
                 else -> false
             }
 
@@ -766,7 +768,7 @@ class GameRuntime private constructor(
                     ?: return null
             pendingTitleCommand = null
             when {
-                matches("createNewParty", command) -> {
+                matches(RuntimeCommandActionId.CreateNewParty, command) -> {
                     if (savedRuntime != null && !confirmOverwriteSavedParty(input, screen, log)) {
                         log.event("title.new.cancelled save=${save.file.path}")
                     } else {
@@ -780,12 +782,12 @@ class GameRuntime private constructor(
                     }
                 }
 
-                savedRuntime != null && matches("continueSavedGame", command) -> {
+                savedRuntime != null && matches(RuntimeCommandActionId.ContinueSavedGame, command) -> {
                     log.event("title.continue save=${save.file.path}")
                     return seed?.let(savedRuntime::withSeed) ?: savedRuntime
                 }
 
-                savedRuntime == null && matches("continueSavedGame", command) -> {
+                savedRuntime == null && matches(RuntimeCommandActionId.ContinueSavedGame, command) -> {
                     log.event("title.continue.unavailable")
                     screen.writeText(
                         systems.prompts.titleMenu.continueUnavailable
@@ -794,7 +796,7 @@ class GameRuntime private constructor(
                     input.readCommand()
                 }
 
-                savedRuntime != null && matches("terminateParty", command) -> {
+                savedRuntime != null && matches(RuntimeCommandActionId.TerminateParty, command) -> {
                     screen.writeText(
                         systems.prompts.titleMenu.terminateConfirm
                             .render({ null }, screen.textColumns),
@@ -812,7 +814,7 @@ class GameRuntime private constructor(
                     }
                 }
 
-                savedRuntime == null && matches("terminateParty", command) -> {
+                savedRuntime == null && matches(RuntimeCommandActionId.TerminateParty, command) -> {
                     log.event("title.terminate.unavailable")
                     screen.writeText(
                         systems.prompts.titleMenu.terminateFailed
@@ -821,22 +823,22 @@ class GameRuntime private constructor(
                     input.readCommand()
                 }
 
-                matches("scoreboard", command) -> {
+                matches(RuntimeCommandActionId.Scoreboard, command) -> {
                     log.event("title.score")
                     screen.showPagedStaticScreen(SCORE_SCREEN, savedRuntime ?: runtime, input::readCommand)
                 }
 
-                matches("hallOfFame", command) -> {
+                matches(RuntimeCommandActionId.HallOfFame, command) -> {
                     log.event("title.heroes")
                     screen.showPagedStaticScreen(HEROES_SCREEN, savedRuntime ?: runtime, input::readCommand)
                 }
 
-                matches("documentation", command) -> {
+                matches(RuntimeCommandActionId.Documentation, command) -> {
                     log.event("title.manual")
                     screen.showPagedStaticScreen(MANUAL_SCREEN, savedRuntime ?: runtime, input::readCommand)
                 }
 
-                matches("leave", command) -> {
+                matches(RuntimeCommandActionId.Leave, command) -> {
                     log.event("title.exit")
                     return null
                 }
@@ -918,13 +920,13 @@ class GameRuntime private constructor(
                     systems.prompts.titleMenu.header
                         .render({ null }, wrapWidth),
                 )
-                add(commands.menuLine("createNewParty"))
-                add(commands.menuLine("continueSavedGame").withAvailability(hasSavedGame, "no save"))
-                if (hasSavedGame) add(commands.menuLine("terminateParty"))
-                add(commands.menuLine("scoreboard"))
-                add(commands.menuLine("hallOfFame"))
-                add(commands.menuLine("documentation"))
-                add(commands.menuLine("leave"))
+                add(commands.menuLine(RuntimeCommandActionId.CreateNewParty))
+                add(commands.menuLine(RuntimeCommandActionId.ContinueSavedGame).withAvailability(hasSavedGame, "no save"))
+                if (hasSavedGame) add(commands.menuLine(RuntimeCommandActionId.TerminateParty))
+                add(commands.menuLine(RuntimeCommandActionId.Scoreboard))
+                add(commands.menuLine(RuntimeCommandActionId.HallOfFame))
+                add(commands.menuLine(RuntimeCommandActionId.Documentation))
+                add(commands.menuLine(RuntimeCommandActionId.Leave))
             }
         }
 
@@ -937,7 +939,8 @@ class GameRuntime private constructor(
         return prompt.terminateFailed.render({ null }, wrapWidth)
     }
 
-    private fun List<ExternalRuntimeCommand>.menuLine(action: String): String = first { command -> command.action == action }.mnemonicLine()
+    private fun List<ExternalRuntimeCommand>.menuLine(action: RuntimeCommandActionId): String =
+        first { command -> command.action == action.id }.mnemonicLine()
 
     private fun ExternalRuntimeCommand.mnemonicLine(): String = binding.mnemonicLine(label ?: binding.label)
 
@@ -1359,7 +1362,7 @@ class GameRuntime private constructor(
     }
 
     private fun generatedWildernessHelpPages(): List<List<String>> =
-        systems.commands["wilderness"]
+        systems.commands[RuntimeCommandGroupId.Wilderness.id]
             .orEmpty()
             .map(ExternalRuntimeCommand::runtimeMnemonicLine)
             .chunked(TEXT_WINDOW_PAGE_LINES)

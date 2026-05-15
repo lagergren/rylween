@@ -15,6 +15,7 @@ import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.compiled.ExternalRuntimeTextBlock
 
 /** Builds text-window pages for runtime party state. */
 internal object PartyPages {
@@ -22,6 +23,7 @@ internal object PartyPages {
 
     private fun partyPageViews(
         content: CompiledContentBundle,
+        systems: ExternalRuntimeSystems,
         party: PartyState,
     ): List<RuntimePartyPageView> =
         buildList {
@@ -29,15 +31,24 @@ internal object PartyPages {
             party.members.forEachIndexed { index, member ->
                 add(memberPageView(content, party, index, member))
             }
-            addAll(inventoryPageViews(content, party))
+            addAll(inventoryPageViews(content, systems, party))
         }
 
-    fun journalLines(party: PartyState): List<String> =
+    fun journalLines(
+        systems: ExternalRuntimeSystems,
+        party: PartyState,
+        wrapWidth: Int?,
+    ): List<String> =
         buildList {
-            add("Journal")
-            add("")
+            addAll(
+                systems.prompts.party.journalHeader
+                    .renderPartyText(wrapWidth),
+            )
             if (party.journal.isEmpty()) {
-                add("No journal entries.")
+                addAll(
+                    systems.prompts.party.journalEmpty
+                        .renderPartyText(wrapWidth),
+                )
             } else {
                 addAll(party.journal)
             }
@@ -53,7 +64,7 @@ internal object PartyPages {
         val pauseLine = PausePrompts(systems.prompts).line()
         val creation = systems.characterCreation
         return try {
-            partyPageViews(content, runtime.party).forEach { page ->
+            partyPageViews(content, systems, runtime.party).forEach { page ->
                 val preview = page.memberIndex?.let { index -> creation?.partyPortraitPreview(content, runtime.party, index) }
                 screen.showCharacterPortrait(preview)
                 screen.showPartyPage(page, pauseLine)
@@ -147,23 +158,34 @@ internal object PartyPages {
 
     private fun inventoryPages(
         content: CompiledContentBundle,
+        systems: ExternalRuntimeSystems,
         party: PartyState,
     ): List<List<String>> {
         val inventory = inventoryLines(content, party)
-        return inventory.chunked(TEXT_PAGE_LINES - 1).map { page -> listOf("Inventory:") + page }
+        val header =
+            systems.prompts.party.inventoryHeader
+                .renderPartyText(wrapWidth = null)
+        val bodyLines = (TEXT_PAGE_LINES - header.size).coerceAtLeast(1)
+        return inventory.chunked(bodyLines).map { page -> header + page }
     }
 
     private fun inventoryPageViews(
         content: CompiledContentBundle,
+        systems: ExternalRuntimeSystems,
         party: PartyState,
-    ): List<RuntimePartyPageView> =
-        inventoryPages(content, party).map { lines ->
+    ): List<RuntimePartyPageView> {
+        val headerLineCount =
+            systems.prompts.party.inventoryHeader
+                .renderPartyText(wrapWidth = null)
+                .size
+        return inventoryPages(content, systems, party).map { lines ->
             RuntimePartyPageView(
                 kind = RuntimePartyPageKind.Inventory,
                 lines = lines,
-                inventory = RuntimePartyInventoryView(lines.drop(1)),
+                inventory = RuntimePartyInventoryView(lines.drop(headerLineCount)),
             )
         }
+    }
 
     private fun inventoryLines(
         content: CompiledContentBundle,
@@ -183,4 +205,6 @@ internal object PartyPages {
     private fun CompiledPartyMember.statusName(): String = if (dead) "Dead" else "Alive"
 
     private fun Enum<*>.readableName(): String = name.readableSlug()
+
+    private fun ExternalRuntimeTextBlock.renderPartyText(wrapWidth: Int?): List<String> = render({ null }, wrapWidth)
 }

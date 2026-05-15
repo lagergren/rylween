@@ -14,6 +14,8 @@ import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.compiled.RuntimeCommandActionId
+import rylween.compiled.RuntimeCommandGroupId
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.RuntimeMode
@@ -99,26 +101,41 @@ internal class CastleRuntime(
         castle: ExternalRuntimeCastle,
         command: Char,
     ): RuntimeState {
-        val navigation = systems.commands.getValue("castle.${castle.id}.navigation")
+        val navigation = systems.commands.getValue(RuntimeCommandGroupId.castleNavigation(castle.id))
         return when {
-            navigation.matches("moveNorth", command) -> move(runtime, castle, dx = 0, dy = -1, castle.text.moveNorth)
-            navigation.matches("moveSouth", command) -> move(runtime, castle, dx = 0, dy = 1, castle.text.moveSouth)
-            navigation.matches("moveWest", command) -> move(runtime, castle, dx = -1, dy = 0, castle.text.moveWest)
-            navigation.matches("moveEast", command) -> move(runtime, castle, dx = 1, dy = 0, castle.text.moveEast)
-            navigation.matches("save", command) -> runtime.also { saveRuntime(it) }
-            navigation.matches("help", command) -> runtime.also { showNavigationHelp(castle) }
+            navigation.matches(RuntimeCommandActionId.MoveNorth, command) -> move(runtime, castle, dx = 0, dy = -1, castle.text.moveNorth)
+            navigation.matches(RuntimeCommandActionId.MoveSouth, command) -> move(runtime, castle, dx = 0, dy = 1, castle.text.moveSouth)
+            navigation.matches(RuntimeCommandActionId.MoveWest, command) -> move(runtime, castle, dx = -1, dy = 0, castle.text.moveWest)
+            navigation.matches(RuntimeCommandActionId.MoveEast, command) -> move(runtime, castle, dx = 1, dy = 0, castle.text.moveEast)
+            navigation.matches(RuntimeCommandActionId.Save, command) -> runtime.also { saveRuntime(it) }
+            navigation.matches(RuntimeCommandActionId.Help, command) -> runtime.also { showNavigationHelp(castle) }
             navigation.matches(
-                "viewParty",
+                RuntimeCommandActionId.ViewParty,
                 command,
             ) -> runtime.also { showCastlePageViews(it, castle) }
 
-            navigation.matches("drop", command) -> utility.drop(runtime).also { redrawCastleIfCurrent(it, castle) }
-            navigation.matches("removeArmor", command) -> utility.removeArmor(runtime).also { redrawCastleIfCurrent(it, castle) }
-            navigation.matches("removeWeapon", command) -> utility.removeWeapon(runtime).also { redrawCastleIfCurrent(it, castle) }
-            navigation.matches("readyWeapon", command) -> utility.readyWeapon(runtime).also { redrawCastleIfCurrent(it, castle) }
-            navigation.matches("readyArmor", command) -> utility.readyArmor(runtime).also { redrawCastleIfCurrent(it, castle) }
-            navigation.matches("quaff", command) -> utility.quaff(runtime).also { redrawCastleIfCurrent(it, castle) }
-            navigation.matches("castSpell", command) -> utility.castPriestSpell(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches(RuntimeCommandActionId.Drop, command) -> utility.drop(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches(
+                RuntimeCommandActionId.RemoveArmor,
+                command,
+            ) -> utility.removeArmor(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches(
+                RuntimeCommandActionId.RemoveWeapon,
+                command,
+            ) -> utility.removeWeapon(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches(
+                RuntimeCommandActionId.ReadyWeapon,
+                command,
+            ) -> utility.readyWeapon(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches(
+                RuntimeCommandActionId.ReadyArmor,
+                command,
+            ) -> utility.readyArmor(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches(RuntimeCommandActionId.Quaff, command) -> utility.quaff(runtime).also { redrawCastleIfCurrent(it, castle) }
+            navigation.matches(
+                RuntimeCommandActionId.CastSpell,
+                command,
+            ) -> utility.castPriestSpell(runtime).also { redrawCastleIfCurrent(it, castle) }
             else -> runtime
         }
     }
@@ -226,13 +243,13 @@ internal class CastleRuntime(
         castle.text.treasureIllustration?.let(screen::showImage)
         val lines = listOf(itemName(item)) + castle.text.treasureMenu.renderCastle(screen.textColumns)
         screen.writeText(lines)
-        val treasureCommands = systems.commands.getValue("castle.${castle.id}.treasure")
+        val treasureCommands = systems.commands.getValue(RuntimeCommandGroupId.castleTreasure(castle.id))
         var command = input.readCommand() ?: return next
         while (true) {
             when {
                 command == '!' -> screen.redrawCurrentView(lines)
-                treasureCommands.matches("take", command) -> break
-                treasureCommands.matches("leave", command) -> return next
+                treasureCommands.matches(RuntimeCommandActionId.Take, command) -> break
+                treasureCommands.matches(RuntimeCommandActionId.Leave, command) -> return next
                 else -> screen.redrawCurrentView(lines)
             }
             command = input.readCommand() ?: return next
@@ -259,17 +276,17 @@ internal class CastleRuntime(
             castle.text.stairsIntro.renderCastle(screen.textColumns) + castle.text.stairsGuardianOffer.renderCastle(screen.textColumns) +
                 castle.text.stairsMenu.renderCastle(screen.textColumns)
         screen.writeText(lines)
-        val stairsCommands = systems.commands.getValue("castle.${castle.id}.stairs")
+        val stairsCommands = systems.commands.getValue(RuntimeCommandGroupId.castleStairs(castle.id))
         val command =
             input.readValidChoice(screen, lines) { choice ->
-                stairsCommands.matches("teleportOut", choice) ||
-                    stairsCommands.matches("giveItem", choice) ||
-                    stairsCommands.matches("leave", choice)
+                stairsCommands.matches(RuntimeCommandActionId.TeleportOut, choice) ||
+                    stairsCommands.matches(RuntimeCommandActionId.GiveItem, choice) ||
+                    stairsCommands.matches(RuntimeCommandActionId.Leave, choice)
             } ?: return runtime
         return when {
-            stairsCommands.matches("teleportOut", command) -> teleportOut(runtime, castle)
-            stairsCommands.matches("giveItem", command) -> giveStairItem(runtime, castle)
-            stairsCommands.matches("leave", command) -> leaveStairs(runtime, castle)
+            stairsCommands.matches(RuntimeCommandActionId.TeleportOut, command) -> teleportOut(runtime, castle)
+            stairsCommands.matches(RuntimeCommandActionId.GiveItem, command) -> giveStairItem(runtime, castle)
+            stairsCommands.matches(RuntimeCommandActionId.Leave, command) -> leaveStairs(runtime, castle)
             else -> runtime
         }
     }
@@ -343,7 +360,7 @@ internal class CastleRuntime(
 
     private fun showNavigationHelp(castle: ExternalRuntimeCastle) {
         val lines =
-            systems.commands.getValue("castle.${castle.id}.navigation").map { command ->
+            systems.commands.getValue(RuntimeCommandGroupId.castleNavigation(castle.id)).map { command ->
                 command.runtimeMnemonicLine()
             }
         screen.writeText(lines.withPausePrompt(PausePrompts(systems.prompts)))
