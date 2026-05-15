@@ -1,3 +1,4 @@
+// Builds ANSI terminal helpers shared by local and browser-backed runtimes.
 plugins {
     alias(libs.plugins.kotlin.jvm)
     id("rylween.qa-conventions")

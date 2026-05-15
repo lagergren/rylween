@@ -61,7 +61,6 @@ internal class RuntimeScreen(
             .filter { image -> image.kind == "Ansi" }
             .associateBy { it.id }
     private val staticScreenById: Map<String, ExternalStaticScreen> = systems.presentation.staticScreens.associateBy { it.id }
-    private val pausePrompts = PausePrompts(systems.prompts)
     private val stylesByTerrain: Map<String, ExternalTerminalTerrainStyle> =
         systems.presentation.terminalTerrain.associateBy { it.terrain }
 
@@ -470,10 +469,14 @@ internal class RuntimeScreen(
         val pages = fullScreenTextPages(lines)
         for ((index, page) in pages.withIndex()) {
             val lastPage = index == pages.lastIndex
-            val prompt = pausePrompts.line(if (lastPage) "to return" else "for more")
+            val prompt = documentPrompt(if (lastPage) "to return" else "for more")
             log.event("screen.more page=${index + 1}/${pages.size}")
             writeFullScreenText(page + prompt)
-            if (advance() == null) return
+            when (readDocumentAdvance(advance)) {
+                null,
+                RuntimeInputTokens.ESCAPE_COMMAND,
+                -> return
+            }
         }
     }
 
@@ -588,6 +591,19 @@ internal fun fullScreenTextPages(lines: List<String>): List<List<String>> =
     lines
         .ifEmpty { listOf("") }
         .chunked(FULL_SCREEN_PAGE_LINES)
+
+internal fun documentPrompt(action: String): String = "(Press RETURN/ENTER $action) (ESC to exit)"
+
+internal fun readDocumentAdvance(advance: () -> Char?): Char? {
+    while (true) {
+        when (val command = advance()) {
+            null,
+            '\n',
+            RuntimeInputTokens.ESCAPE_COMMAND,
+            -> return command
+        }
+    }
+}
 
 internal fun String.readableSlug(): String =
     split('_', '-', '.')

@@ -1,3 +1,5 @@
+/** Small RFC 6455 text-frame connection used by the runtime web transports. */
+
 package rylween.webcommon
 
 import java.io.Closeable

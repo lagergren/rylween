@@ -14,6 +14,10 @@
     box-sizing: border-box;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 html,
 body {
     margin: 0;
@@ -90,10 +94,13 @@ body {
 .top-actions {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 10px;
 }
 
-.server-pill {
+.server-pill,
+.prefs-pill {
     padding: 6px 10px;
     border: 1px solid #60724f;
     background: #26341f;
@@ -104,7 +111,8 @@ body {
     cursor: pointer;
 }
 
-.server-pill:hover {
+.server-pill:hover,
+.prefs-pill:hover {
     background: #31452a;
 }
 
@@ -119,33 +127,6 @@ body {
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.reveal-toggle,
-.reveal-speed {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    height: 34px;
-    padding: 0 10px;
-    border: 1px solid #4e6042;
-    border-radius: 6px;
-    background: #1d271a;
-    color: #d8cfb3;
-    font-size: 12px;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.reveal-toggle input {
-    width: 15px;
-    height: 15px;
-    accent-color: #8ec596;
-}
-
-.reveal-speed input {
-    width: 92px;
-    accent-color: #d4b565;
 }
 
 .stage {
@@ -181,7 +162,8 @@ canvas {
     box-shadow: 0 18px 44px rgb(0 0 0 / 45%);
 }
 
-.server-info-popover {
+.server-info-popover,
+.preferences-popover {
     position: absolute;
     top: 24px;
     right: 24px;
@@ -195,11 +177,22 @@ canvas {
     font-size: 13px;
 }
 
-.server-info-popover h2 {
+.preferences-popover {
+    width: min(360px, calc(100% - 48px));
+    display: grid;
+    gap: 12px;
+}
+
+.server-info-popover h2,
+.preferences-popover h2 {
     margin: 0 0 12px;
     font-size: 13px;
     letter-spacing: 0;
     color: #d9cfaa;
+}
+
+.preferences-popover h2 {
+    margin-bottom: 0;
 }
 
 .server-info-popover dl {
@@ -216,6 +209,53 @@ canvas {
 .server-info-popover dd {
     margin: 0;
     text-align: right;
+}
+
+.preference-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 30px;
+    color: #d8cfb3;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.preference-check input {
+    width: 16px;
+    height: 16px;
+    accent-color: #8ec596;
+}
+
+.preference-range {
+    display: grid;
+    gap: 7px;
+    color: #d8cfb3;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.preference-range label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.preference-range output {
+    color: #f2d46f;
+    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.preference-range input {
+    width: 100%;
+    accent-color: #d4b565;
+}
+
+.preference-range input:disabled {
+    opacity: 0.48;
 }
 
 .command-popover h2 {

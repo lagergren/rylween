@@ -1,3 +1,5 @@
+/** Loads the bitmap runtime HTML shell from packaged resources. */
+
 package rylween.bitmapweb
 
 private const val BITMAP_PAGE_RESOURCE = "bitmap-web/index.html"

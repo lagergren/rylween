@@ -1,3 +1,5 @@
+/** Serializable status snapshot returned by web runtime status endpoints. */
+
 package rylween.webcommon
 
 data class WebServerStatus(

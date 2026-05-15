@@ -181,7 +181,7 @@ internal class ShopService(
                 buy.catalogs.forEach { catalog ->
                     add(catalog.binding.mnemonicLine(content, content.strings.value(catalog.titleString)))
                 }
-                add(buy.paymentKeys.decline.mnemonicLine(content, "Nothing"))
+                add(buy.paymentKeys.decline.mnemonicLine(content, "None"))
             }
         while (true) {
             screen.writeText(promptLines.withGeneratedChoices(generatedLines))
@@ -199,7 +199,7 @@ internal class ShopService(
         var pageIndex = 0
         while (true) {
             val page = catalog.pages[pageIndex]
-            showCatalogPage(catalog, page, party)
+            showCatalogPage(buy, catalog, page, party)
             val choice = input.readCommand() ?: return null
             val targetPage = catalog.navigationTarget(pageIndex, choice)
             if (targetPage != null) {
@@ -214,6 +214,7 @@ internal class ShopService(
     }
 
     private fun showCatalogPage(
+        buy: CompiledShopBuy,
         catalog: CompiledShopCatalog,
         page: CompiledShopCatalogPage,
         party: PartyState,
@@ -227,6 +228,7 @@ internal class ShopService(
                 }
                 page.navigation.previous?.let { add(it.optionLine(content)) }
                 page.navigation.next?.let { add(it.optionLine(content)) }
+                add(buy.paymentKeys.decline.mnemonicLine(content, "None"))
                 page.footer?.let { addAll(it.renderTextLines(content)) }
             }
         screen.writeText(lines)

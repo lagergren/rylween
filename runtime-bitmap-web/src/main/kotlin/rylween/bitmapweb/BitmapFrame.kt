@@ -1,3 +1,8 @@
+/**
+ * Bitmap runtime frame data and small JSON helpers used by the canvas client
+ * transport protocol.
+ */
+
 package rylween.bitmapweb
 
 private const val VIRTUAL_WIDTH = 1280

@@ -1,3 +1,4 @@
+// Builds shared HTTP, WebSocket, and browser-auth support for web runtimes.
 plugins {
     alias(libs.plugins.kotlin.jvm)
     id("rylween.qa-conventions")

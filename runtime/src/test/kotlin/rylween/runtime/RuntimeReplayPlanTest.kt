@@ -135,6 +135,7 @@ class RuntimeReplayPlanTest {
                     "The smith offers you some",
                     "The smith is disappointed.",
                     "Armor or Weapon?",
+                    "(N)one",
                     "2h-Sword",
                     "Not weapon or armor.",
                     "Ok! Give ya 2900!",

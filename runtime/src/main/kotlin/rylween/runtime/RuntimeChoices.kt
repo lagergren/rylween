@@ -1,3 +1,5 @@
+/** Shared runtime input validation helpers for one-key menu choices. */
+
 package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle

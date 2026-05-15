@@ -2,7 +2,6 @@ package rylween.runtime
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class RuntimeInputTokensTest {
     @Test
@@ -20,6 +19,6 @@ class RuntimeInputTokensTest {
         assertEquals(' ', RuntimeInputTokens.commandChar(" "))
         assertEquals('\n', RuntimeInputTokens.commandChar("ENTER"))
         assertEquals('\n', RuntimeInputTokens.commandChar(""))
-        assertNull(RuntimeInputTokens.commandChar("ESCAPE"))
+        assertEquals(RuntimeInputTokens.ESCAPE_COMMAND, RuntimeInputTokens.commandChar("ESCAPE"))
     }
 }
