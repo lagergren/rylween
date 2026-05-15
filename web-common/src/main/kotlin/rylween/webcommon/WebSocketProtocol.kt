@@ -1,3 +1,5 @@
+/** WebSocket upgrade detection and server handshake helpers. */
+
 package rylween.webcommon
 
 import java.io.OutputStream

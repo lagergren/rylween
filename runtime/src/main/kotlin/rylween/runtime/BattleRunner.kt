@@ -986,7 +986,7 @@ internal class BattleRunner(
                 if (hp > 0) {
                     add("$key. ${monsterName()} $hp/$maxHp HP")
                 } else {
-                    add("$key. ${monsterName()} dead 0/$maxHp HP")
+                    add("   ${monsterName()} (dead)")
                 }
             }
         }

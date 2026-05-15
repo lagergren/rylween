@@ -1688,14 +1688,64 @@ Continuation checklist from the bitmap web runtime session:
   update docs and references. Reserve `deploy/scripts/` for future scripts that
   are consumed by production deployment machinery rather than normal local
   launcher entrypoints.
-- [ ] Add a repo-wide documentation/header sweep: inspect all `build.gradle.kts`
+- [x] Add a repo-wide documentation/header sweep: inspect all `build.gradle.kts`
   and `*.kt` files for missing KDoc file/class purpose comments, and apply the
   agreed Marcus Lagergren 1992-1994, 2016 copyright header consistently if it
   fits existing repo style.
 - [x] Run formatter, compile checks, and the relevant replay/scenario tests
   before restarting any server.
-- [ ] Restart bitmap server for Strong party verification only after tests are
+- [x] Restart bitmap server for Strong party verification only after tests are
   green.
+
+No remaining active items in this checklist.
+
+Completed in this UI polish follow-up:
+
+- Moved the text reveal, story-font, font-scale, reveal-speed, and pause-delay
+  controls into a single Preferences popover instead of keeping them in the top
+  bar.
+- Renamed the player-facing bitmap runtime label to "Status" at the top of the
+  screen, moved connected-player details into that status popover, and left the
+  internal `bitmap` runtime/server identifier unchanged.
+- Enlarged the bottom status HUD chips, party names, and health/mana bars so the
+  visible time/food/move/gold entries and character rows use more of the
+  available dark space.
+- Enlarged the bitmap document viewer, compacted Markdown resource documents
+  into paragraph-shaped pages, and added simple document styling for headings,
+  quotes, and fenced text/code blocks. The shared ANSI/static-screen path stays
+  plain text.
+- Made document paging explicit: RETURN/ENTER advances, ESC exits, and other
+  keys are ignored. The same central bitmap document frame is now used for
+  score screens, Hall of Heroes, manual pages, and the adventurer journal.
+- Added a browser preference for the fantasy fixed-space text font, including a
+  checkbox to fall back to the default system monospace font and a scale slider
+  for experimenting with the story text size.
+- Added a pause delay scale preference. The browser sends the selected scale to
+  the bitmap WebSocket session, and the bitmap runtime input adapter applies it
+  to future authored/game pause sleeps with `1.00x` as the default.
+- Kept the previously fixed text-reveal continuation behavior so newly appended
+  pause replies reveal without redrawing already-revealed text.
+
+Completed in this follow-up:
+
+- Inspected all `build.gradle.kts` and `*.kt` files for existing comment/header
+  style. Added conservative module/file-purpose comments to Gradle scripts and
+  runtime/web support files that lacked orientation. Left tests and already
+  documented DSL/compiler/game-authoring sources unchanged where file names,
+  existing KDoc, or local comments already described the purpose.
+- Decided not to apply a Marcus Lagergren 1992-1994, 2016 copyright source
+  header: current Kotlin and Gradle files do not use copyright headers, while
+  Marcus/copyright text appears as authored game/manual material rather than
+  repository source-file style.
+- Re-ran `./gradlew ktlintFormat --console=plain` after comment edits, then
+  `./gradlew check --console=plain`; both completed successfully.
+- Restarted the bitmap server with the new launcher path after green checks:
+  `env RYLWEEN_DATA_DIR=build/bitmap-smoke-data RYLWEEN_BITMAP_PORT=8091
+  ./bin/run-bitmap-server.sh --build --name Strong`. Verified `/healthz`,
+  `/api/status`, `/play`, and `/static/client.js`, then opened `/ws/play`,
+  sent `L`, and observed the Strong gameplay frame render with Aragorn,
+  Legolas, Gandalf, and Mira, `condition=OK`, `gold=10000`, 21 commands, and
+  an 8-row wilderness map.
 
 Completed in this pass:
 

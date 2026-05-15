@@ -678,6 +678,16 @@ class RylweenCompiledGameLedgerTest {
         val smithSell = checkNotNull(smithShop.sell)
         check(smithShop.building == Buildings.smith)
         check(smithBuy.inventoryApplication.overflow == RewardOverflowPolicy.PromptDropThenPlace)
+        check(smithBuy.paymentKeys.decline.primaryChar == 'N')
+        check(
+            smithBuy.catalogs
+                .single { it.key == 'W' }
+                .pages
+                .first()
+                .navigation
+                .next
+                ?.primaryChar == 'M',
+        )
         check(
             smithBuy.catalogs
                 .single { it.key == 'A' }

@@ -1,5 +1,10 @@
 @file:Suppress("SpellCheckingInspection")
 
+/**
+ * Custom Gradle task types used by the Rylween build for native smoke checks,
+ * installed runtime launcher execution, and generated game catalog sources.
+ */
+
 package rylween.gradle
 
 import org.gradle.api.DefaultTask

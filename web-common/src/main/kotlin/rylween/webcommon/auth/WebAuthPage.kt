@@ -1,3 +1,5 @@
+/** Server-rendered login and registration page for browser runtime accounts. */
+
 package rylween.webcommon.auth
 
 enum class WebAuthPageMode { Login, Register }

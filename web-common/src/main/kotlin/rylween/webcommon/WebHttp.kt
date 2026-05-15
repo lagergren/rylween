@@ -1,3 +1,8 @@
+/**
+ * Minimal HTTP parsing and response helpers shared by the web runtime
+ * launchers.
+ */
+
 package rylween.webcommon
 
 import java.io.ByteArrayOutputStream

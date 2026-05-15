@@ -1,3 +1,5 @@
+/** Renderer-neutral runtime input, screen, and party-view contracts. */
+
 package rylween.runtime
 
 import rylween.compiled.ExternalRuntimeCastle
@@ -32,6 +34,8 @@ interface RuntimeInputPort {
  * here so transports do not grow their own game-command tables.
  */
 object RuntimeInputTokens {
+    const val ESCAPE_COMMAND: Char = '\u001B'
+
     fun commandChar(token: String): Char? {
         if (token == " ") return ' '
         val normalized = token.trim()
@@ -52,6 +56,7 @@ object RuntimeInputTokens {
             "ENTER",
             "RETURN",
             -> '\n'
+            "ESCAPE" -> ESCAPE_COMMAND
             "SPACE" -> ' '
             else -> normalized.singleOrNull()?.uppercaseChar()
         }
@@ -66,6 +71,8 @@ object RuntimeInputTokens {
  */
 interface RuntimeScreenPort {
     val textColumns: Int?
+    val documentColumns: Int? get() = textColumns
+    val documentPageLines: Int? get() = null
 
     fun bootFrame()
 
@@ -79,6 +86,15 @@ interface RuntimeScreenPort {
         runtime: RuntimeState,
         advance: () -> Char?,
     )
+
+    fun showDocumentPage(
+        title: String,
+        subtitle: String,
+        lines: List<String>,
+        runtime: RuntimeState,
+    ) {
+        writeText(lines)
+    }
 
     fun showTitleMenu(lines: List<String>) {
         bootFrame()

@@ -1,3 +1,5 @@
+/** Runtime character-portrait selection helpers for creation and party views. */
+
 package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle

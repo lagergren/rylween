@@ -1,3 +1,4 @@
+// Root build aggregation for shared versioning, verification wiring, and cleanup.
 plugins {
     base
     alias(libs.plugins.kotlin.jvm) apply false

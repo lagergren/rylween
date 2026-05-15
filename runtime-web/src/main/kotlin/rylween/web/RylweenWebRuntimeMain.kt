@@ -1,3 +1,8 @@
+/**
+ * Standalone HTTP/WebSocket launcher for browser-served ANSI terminal runtime
+ * sessions.
+ */
+
 package rylween.web
 
 import rylween.runtime.RuntimeLog

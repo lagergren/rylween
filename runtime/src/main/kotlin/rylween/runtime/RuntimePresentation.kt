@@ -1,3 +1,5 @@
+/** Shared runtime text, status, command, and placeholder presentation helpers. */
+
 package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle

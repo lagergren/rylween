@@ -1,3 +1,8 @@
+/**
+ * File-backed account, password, session, and cookie helpers for the browser
+ * runtimes.
+ */
+
 package rylween.webcommon.auth
 
 import rylween.webcommon.WebHttpHeader

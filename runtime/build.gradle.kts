@@ -1,3 +1,4 @@
+// Builds the direct terminal runtime plus deterministic runtime verification tasks.
 import org.gradle.jvm.application.tasks.CreateStartScripts
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService

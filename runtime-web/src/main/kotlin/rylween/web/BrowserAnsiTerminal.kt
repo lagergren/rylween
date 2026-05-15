@@ -1,3 +1,8 @@
+/**
+ * ANSI terminal transport adapter that connects browser WebSocket input and
+ * output to the shared terminal runtime APIs.
+ */
+
 package rylween.web
 
 import rylween.terminal.AnsiCodes

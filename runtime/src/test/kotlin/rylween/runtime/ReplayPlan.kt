@@ -440,7 +440,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_smith_buy_sell_haggle",
-                        commands = "SDABA1NBWN8PASBASCYASDHYALL",
+                        commands = "SDABA1NBWM8PASBASCYASDHYALL",
                         checkpoints =
                             listOf(
                                 "output:The smith welcomes you",

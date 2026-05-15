@@ -1,5 +1,10 @@
 @file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
 
+/**
+ * Standalone HTTP/WebSocket launcher for browser-served bitmap runtime
+ * sessions and their packaged bitmap assets.
+ */
+
 package rylween.bitmapweb
 
 import rylween.compiled.CompiledGameBundle
@@ -57,6 +62,7 @@ private val BITMAP_WEB_STATIC =
 private val BITMAP_ASSETS =
     mapOf(
         "title-rider.png" to "bitmap/assets/title-rider.png",
+        "title-logo.png" to "bitmap/assets/title-logo.png",
         "screen-frame.png" to "bitmap/assets/screen-frame.png",
         "town-mainstreet.png" to "bitmap/assets/town-mainstreet.png",
         "encounter-scorpion.png" to "bitmap/assets/encounter-scorpion.png",

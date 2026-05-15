@@ -1,3 +1,5 @@
+/** Structured runtime event log with optional in-process sinks. */
+
 package rylween.runtime
 
 import java.io.Closeable

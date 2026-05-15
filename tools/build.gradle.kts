@@ -1,3 +1,4 @@
+// Builds bundle artifact emitters and native smoke-check tooling.
 import rylween.gradle.CompileNativeCExecutableTask
 
 plugins {
