@@ -5,6 +5,7 @@ package rylween.runtime
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledInputBinding
 import rylween.compiled.ExternalRuntimeCommand
+import rylween.compiled.ExternalRuntimePrompts
 
 internal data class MenuChoice<T>(
     val key: Char,
@@ -68,6 +69,14 @@ internal fun RuntimeInputPort.readValidCommandChoice(
     val choice = readValidChoice(screen, lines) { candidate -> commands.any { command -> command.matches(candidate) } } ?: return null
     return commands.firstOrNull { command -> command.matches(choice) }
 }
+
+internal fun ExternalRuntimePrompts.returnKeyLabel(): String =
+    returnKeyName
+        .removeSuffix(" key")
+        .removeSuffix(" Key")
+        .ifBlank { "RETURN" }
+
+internal fun ExternalRuntimePrompts.returnLeavesLine(): String = "${returnKeyLabel()} leaves."
 
 internal fun CompiledInputBinding.matchesInput(
     content: CompiledContentBundle,

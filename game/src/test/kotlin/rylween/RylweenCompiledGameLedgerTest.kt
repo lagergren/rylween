@@ -676,6 +676,9 @@ class RylweenCompiledGameLedgerTest {
         check(smithShop.building == Buildings.smith)
         check(smithBuy.inventoryApplication.overflow == RewardOverflowPolicy.PromptDropThenPlace)
         check(smithBuy.paymentKeys.decline.primaryChar == 'N')
+        check(smithBuy.singlePrice != null)
+        check(smithSell.declined != null)
+        check(smithSell.sold != null)
         check(
             smithBuy.catalogs
                 .single { it.key == 'W' }
@@ -731,6 +734,10 @@ class RylweenCompiledGameLedgerTest {
         val merchantSell = checkNotNull(merchantShop.sell)
         check(merchantShop.building == Buildings.merchant)
         check(merchantBuy.inventoryApplication.overflow == RewardOverflowPolicy.PromptDropThenPlace)
+        check(merchantBuy.unitPrice != null)
+        check(merchantBuy.singlePrice != null)
+        check(merchantSell.declined != null)
+        check(merchantSell.sold != null)
         check(
             merchantBuy.catalogs
                 .single()

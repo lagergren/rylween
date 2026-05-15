@@ -132,6 +132,7 @@ private class TerrainBindingIndex(
 }
 
 private val EmptyTextBindings: Set<TextPart> = emptySet()
+private val SpeakNoRumorScreen = text("speak.no_rumor")
 private val MemberChoiceTextBindings: Set<TextPart> =
     setOf(
         TextPart.PartyMemberCount,
@@ -1912,6 +1913,23 @@ fun validateScriptRewards(
                 validateTextBlock(text, "shop ${shop.building.slug} interlude accepted $index")
             }
             validateTextBlock(interlude.declined, "shop ${shop.building.slug} interlude declined")
+            if (interlude.runsRumorAfterAccept) {
+                check(content.speak.standardConversation != null) {
+                    "shop ${shop.building.slug} interlude runs rumor but standard conversation is not authored"
+                }
+                check(
+                    content.speak.textTables.rumorTables
+                        .any { table -> table.id == DslDefaultRumorTables.standardTown },
+                ) {
+                    "shop ${shop.building.slug} interlude runs rumor but standard town rumor table is not authored"
+                }
+                check(
+                    content.speak.textTables.screens
+                        .any { screen -> screen.id == SpeakNoRumorScreen },
+                ) {
+                    "shop ${shop.building.slug} interlude runs rumor but no-rumor screen is not authored"
+                }
+            }
             interlude.forceFirstUntil?.let { state ->
                 flagStates?.requireKnown(state, "shop ${shop.building.slug} interlude first-offer flag")
             }
@@ -1944,6 +1962,13 @@ fun validateScriptRewards(
                 "shop ${shop.building.slug} purchase confirmation",
             )
             check(buy.catalogs.isNotEmpty()) { "shop ${shop.building.slug} buy section has no catalogs" }
+            val buyOffers = buy.catalogs.flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
+            check(buy.unitPrice != null || buyOffers.none { offer -> offer.purchase is ShopPurchaseModel.Bulk }) {
+                "shop ${shop.building.slug} bulk purchases must author unit-price text"
+            }
+            check(buy.singlePrice != null || buyOffers.none { offer -> offer.purchase == ShopPurchaseModel.InventoryItem }) {
+                "shop ${shop.building.slug} inventory purchases must author single-price text"
+            }
             buy.catalogs.forEach { catalog ->
                 validateInputChoiceBinding(catalog.binding, "shop ${shop.building.slug} catalog ${catalog.title} key")
             }
@@ -2036,6 +2061,8 @@ fun validateScriptRewards(
             )
             sell.declined?.let { validateTextBlock(it, "shop ${shop.building.slug} sell declined") }
             sell.sold?.let { validateTextBlock(it, "shop ${shop.building.slug} sold") }
+            check(sell.declined != null) { "shop ${shop.building.slug} sell section must author declined text" }
+            check(sell.sold != null) { "shop ${shop.building.slug} sell section must author sold text" }
             validateShopPrice(sell.price, "shop ${shop.building.slug} sell")
             validateInputChoiceBinding(sell.saleKeys.accept, "shop ${shop.building.slug} sale accept key")
             validateInputChoiceBinding(sell.saleKeys.decline, "shop ${shop.building.slug} sale decline key")
@@ -2233,7 +2260,8 @@ private fun validateRealmContent(realm: RealmContentModel) {
         check(band.label.isNotBlank()) { "realm time-of-day band $index label must not be blank" }
     }
     validateCampRules(realm.camp)
-    realm.hunt?.let(::validateHuntRules)
+    val hunt = checkNotNull(realm.hunt) { "realm hunt rules are required by the exported wilderness hunt command" }
+    validateHuntRules(hunt)
 }
 
 private fun validateCharacterCreation(
