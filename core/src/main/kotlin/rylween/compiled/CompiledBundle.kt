@@ -8,6 +8,7 @@
  */
 package rylween.compiled
 
+import rylween.dsl.AuthoredScript
 import rylween.dsl.BoolAst
 import rylween.dsl.BuildingId
 import rylween.dsl.DungeonEventDisposition
@@ -41,6 +42,7 @@ import rylween.dsl.RewardBundleId
 import rylween.dsl.RumorTableId
 import rylween.dsl.SceneId
 import rylween.dsl.ScreenRegionId
+import rylween.dsl.ScriptStatement
 import rylween.dsl.SpellId
 import rylween.dsl.SpellModel
 import rylween.dsl.StateId
@@ -1773,41 +1775,45 @@ private class CompiledBundleCompiler(
 
         fun MutableList<CompiledScriptProgram>.addProgram(
             root: ScriptRootRef,
-            ops: List<Op>,
+            script: AuthoredScript,
         ) {
-            add(CompiledScriptProgram(root, rootHandle(root), compileOps(ops)))
+            add(CompiledScriptProgram(root, rootHandle(root), compileScript(script)))
         }
 
         return CompiledScriptBundle(
             buildList {
                 game.scenes.forEach { scene ->
-                    addProgram(catalog.rootFor(ScriptRootRef.scene(scene.id)), scene.ops)
+                    addProgram(catalog.rootFor(ScriptRootRef.scene(scene.id)), scene.script)
                 }
                 game.dungeons.events.forEach { event ->
-                    addProgram(catalog.rootFor(ScriptRootRef.dungeonEvent(event.id)), event.ops)
+                    addProgram(catalog.rootFor(ScriptRootRef.dungeonEvent(event.id)), event.script)
                 }
                 game.spells.forEach { spell ->
-                    addProgram(catalog.rootFor(ScriptRootRef.spell(spell.id)), spell.ops)
+                    addProgram(catalog.rootFor(ScriptRootRef.spell(spell.id)), spell.script)
                 }
                 game.itemUses.forEach { use ->
-                    addProgram(catalog.rootFor(ScriptRootRef.itemUse(use.id)), use.ops)
+                    addProgram(catalog.rootFor(ScriptRootRef.itemUse(use.id)), use.script)
                 }
                 game.dialogue.forEach { dialogue ->
                     dialogue.branches.forEach { branch ->
-                        addProgram(catalog.rootFor(ScriptRootRef.dialogueBranch(dialogue.npc, branch)), branch.ops)
+                        addProgram(catalog.rootFor(ScriptRootRef.dialogueBranch(dialogue.npc, branch)), branch.script)
                     }
                 }
                 game.speak.questionActions.forEach { action ->
-                    addProgram(catalog.rootFor(ScriptRootRef.questionAction(action)), action.ops)
+                    addProgram(catalog.rootFor(ScriptRootRef.questionAction(action)), action.script)
                 }
             },
         )
     }
 
-    private fun compileOps(ops: List<Op>): List<CompiledInstruction> = ops.map(::compileOp)
+    private fun compileScript(script: AuthoredScript): List<CompiledInstruction> = compileStatements(script.block.statements)
 
-    private fun compileOp(op: Op): CompiledInstruction =
-        when (op) {
+    private fun compileBranch(statements: List<Op>): List<CompiledInstruction> = compileStatements(statements)
+
+    private fun compileStatements(statements: List<ScriptStatement>): List<CompiledInstruction> = statements.map(::compileStatement)
+
+    private fun compileStatement(statement: ScriptStatement): CompiledInstruction =
+        when (val op = statement.legacyOp()) {
             is Op.Screen -> instruction(CompiledOpcode.Screen, CompiledOperand.TextBlockValue(text(op.text)))
             is Op.Emit -> instruction(CompiledOpcode.Emit, CompiledOperand.Handle(textRef(op.text.id)))
             is Op.WaitInput -> instruction(CompiledOpcode.WaitInput, op.reason?.let { CompiledOperand.StringId(strings.id(it)) })
@@ -1868,11 +1874,11 @@ private class CompiledBundleCompiler(
                 instruction(
                     CompiledOpcode.If,
                     CompiledOperand.BoolExprValue(boolExpr(op.cond)),
-                    CompiledOperand.Instructions(compileOps(op.thenOps)),
-                    CompiledOperand.Instructions(compileOps(op.elseOps)),
+                    CompiledOperand.Instructions(compileBranch(op.thenOps)),
+                    CompiledOperand.Instructions(compileBranch(op.elseOps)),
                 )
 
-            is Op.Loop -> instruction(CompiledOpcode.Loop, CompiledOperand.Instructions(compileOps(op.body)))
+            is Op.Loop -> instruction(CompiledOpcode.Loop, CompiledOperand.Instructions(compileBranch(op.body)))
             is Op.Break ->
                 signalInstruction(CompiledOpcode.Break, op.reason, op.signal.name)
 
@@ -1883,7 +1889,7 @@ private class CompiledBundleCompiler(
                 instruction(
                     CompiledOpcode.Switch,
                     CompiledOperand.IntExprValue(intExpr(op.expr)),
-                    CompiledOperand.SwitchCases(op.cases.map { case -> CompiledSwitchCase(case.match, compileOps(case.body)) }),
+                    CompiledOperand.SwitchCases(op.cases.map { case -> CompiledSwitchCase(case.match, compileBranch(case.body)) }),
                 )
 
             is Op.Menu ->
@@ -1892,10 +1898,10 @@ private class CompiledBundleCompiler(
                     CompiledOperand.TextBlockValue(text(op.prompt)),
                     CompiledOperand.MenuOptions(
                         op.options.map { option ->
-                            CompiledMenuOption(binding(option.binding), compileOps(option.body))
+                            CompiledMenuOption(binding(option.binding), compileBranch(option.body))
                         },
                     ),
-                    CompiledOperand.Instructions(compileOps(op.defaultOps)),
+                    CompiledOperand.Instructions(compileBranch(op.defaultOps)),
                 )
 
             is Op.AskKey ->
@@ -1933,8 +1939,8 @@ private class CompiledBundleCompiler(
                     CompiledOperand.TextAnswer(
                         CompiledTextAnswer(
                             acceptedStrings = op.accepted.map(strings::id),
-                            matchOps = compileOps(op.matchOps),
-                            missOps = compileOps(op.missOps),
+                            matchOps = compileBranch(op.matchOps),
+                            missOps = compileBranch(op.missOps),
                             caseSensitive = op.caseSensitive,
                             trim = op.trim,
                             maxLength = op.maxLength,
@@ -2049,7 +2055,7 @@ private class CompiledBundleCompiler(
             opcode,
             CompiledOperand.StringId(strings.id(varName)),
             CompiledOperand.BooleanValue(includeDead),
-            CompiledOperand.Instructions(compileOps(body)),
+            CompiledOperand.Instructions(compileBranch(body)),
         )
 
     private fun intExpr(expr: IntAst): CompiledIntExpr =
@@ -2807,22 +2813,22 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
             }
         }
 
-        fun collectOps(ops: List<Op>) {
-            ops.forEach { op ->
-                when (op) {
+        fun collectStatements(statements: List<ScriptStatement>) {
+            statements.forEach { statement ->
+                when (val op = statement.legacyOp()) {
                     is Op.Screen -> collectText(op.text)
                     is Op.AppendJournal -> collectText(op.text)
                     is Op.If -> {
-                        collectOps(op.thenOps)
-                        collectOps(op.elseOps)
+                        collectStatements(op.thenOps)
+                        collectStatements(op.elseOps)
                     }
 
-                    is Op.Loop -> collectOps(op.body)
-                    is Op.Switch -> op.cases.forEach { collectOps(it.body) }
+                    is Op.Loop -> collectStatements(op.body)
+                    is Op.Switch -> op.cases.forEach { collectStatements(it.body) }
                     is Op.Menu -> {
                         collectText(op.prompt)
-                        op.options.forEach { collectOps(it.body) }
-                        collectOps(op.defaultOps)
+                        op.options.forEach { collectStatements(it.body) }
+                        collectStatements(op.defaultOps)
                     }
 
                     is Op.AskKey -> collectText(op.prompt)
@@ -2830,13 +2836,13 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                     is Op.AskInventorySlot -> collectText(op.prompt)
                     is Op.AskText -> {
                         collectText(op.prompt)
-                        collectOps(op.matchOps)
-                        collectOps(op.missOps)
+                        collectStatements(op.matchOps)
+                        collectStatements(op.missOps)
                     }
 
                     is Op.AskMonster -> collectText(op.prompt)
-                    is Op.ForEachMember -> collectOps(op.body)
-                    is Op.ForEachMonster -> collectOps(op.body)
+                    is Op.ForEachMember -> collectStatements(op.body)
+                    is Op.ForEachMonster -> collectStatements(op.body)
                     is Op.GrantReward -> {
                         op.reward.messages.cantCarry
                             ?.let(::collectText)
@@ -2856,13 +2862,20 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                 }
             }
         }
-        scenes.forEach { collectOps(it.ops) }
-        dungeons.events.forEach { collectOps(it.ops) }
-        spells.forEach { collectOps(it.ops) }
-        itemUses.forEach { collectOps(it.ops) }
-        dialogue.forEach { dialogue -> dialogue.branches.forEach { collectOps(it.ops) } }
-        speak.questionActions.forEach { collectOps(it.ops) }
+
+        fun collectScript(script: AuthoredScript) {
+            collectStatements(script.block.statements)
+        }
+
+        scenes.forEach { collectScript(it.script) }
+        dungeons.events.forEach { collectScript(it.script) }
+        spells.forEach { collectScript(it.script) }
+        itemUses.forEach { collectScript(it.script) }
+        dialogue.forEach { dialogue -> dialogue.branches.forEach { collectScript(it.script) } }
+        speak.questionActions.forEach { collectScript(it.script) }
     }.distinctBy { it.slug }
+
+private fun ScriptStatement.legacyOp(): Op = this as? Op ?: error("unsupported script statement implementation: ${this::class.simpleName}")
 
 private fun flagStateSlug(state: FlagState): String = "${state.flag.slug}.${state.native}"
 
