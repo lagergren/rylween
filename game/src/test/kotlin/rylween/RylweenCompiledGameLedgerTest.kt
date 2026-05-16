@@ -2516,6 +2516,46 @@ class RylweenCompiledGameLedgerTest {
             "plans/dsl-improvements.md must record I9g loop-ownership closeout"
         }
     }
+
+    @Test
+    fun authoredGameScriptsUseDslTemporaryBlocks() {
+        val dslSource = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val expressionSource = File("core/src/main/kotlin/rylween/dsl/ExpressionDsl.kt").readText()
+        val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+        val rawScriptVals =
+            gameSource
+                .lineSequence()
+                .withIndex()
+                .filter { (_, line) -> Regex("""^\s{20,}val\s+\w+\s*=""").containsMatchIn(line) }
+                .map { (index, line) -> "${index + 1}: ${line.trim()}" }
+                .toList()
+
+        check(
+            "body: ScriptScope.(LocalIntRef) -> Unit" in dslSource &&
+                "fun withCurrentCaster(" in dslSource &&
+                "fun withCurrentCasterCost(" in dslSource &&
+                "script.body(monsterAlive(prompt))" in dslSource &&
+                "script.body(wildernessDirection(prompt))" in dslSource &&
+                "script.body(inventorySlot(prompt, firstKey, slots, filter))" in dslSource,
+        ) {
+            "ScriptScope/AskScope must expose block helpers for common script temporaries"
+        }
+        check(
+            "script.body(member(index))" in expressionSource &&
+                "script.body(firstAliveMonster())" in expressionSource &&
+                "script.body(randomAliveMember())" in expressionSource,
+        ) {
+            "expression helper refs must expose block forms for authored game scripts"
+        }
+        check(rawScriptVals.isEmpty()) {
+            "authored game script bodies must use DSL temporary blocks instead of raw Kotlin val declarations: " +
+                rawScriptVals.joinToString()
+        }
+        check("- [x] I9h. Remove raw Kotlin locals from authored game scripts." in planSource) {
+            "plans/dsl-improvements.md must record I9h temporary-block closeout"
+        }
+    }
 }
 
 private fun TextBlock.textParts(): List<TextPart> =

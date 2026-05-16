@@ -172,6 +172,20 @@ class PartyRef(
     fun member(index: Int): MemberRef = member(lit(index))
 
     fun member(index: IntExpr): MemberRef = MemberRef(script, index)
+
+    fun member(
+        index: Int,
+        body: ScriptScope.(MemberRef) -> Unit,
+    ) {
+        script.body(member(index))
+    }
+
+    fun member(
+        index: IntExpr,
+        body: ScriptScope.(MemberRef) -> Unit,
+    ) {
+        script.body(member(index))
+    }
 }
 
 class PartyInventoryRef(
@@ -263,7 +277,15 @@ class BattleRef(
 
     fun firstAliveMonster(): MonsterRef = MonsterRef(script, script.localInt(Expr(IntAst.BattleQuery("first_alive_monster")), "monster"))
 
+    fun firstAliveMonster(body: ScriptScope.(MonsterRef) -> Unit) {
+        script.body(firstAliveMonster())
+    }
+
     fun randomAliveMember(): MemberRef = MemberRef(script, script.localInt(Expr(IntAst.BattleQuery("random_alive_member")), "member"))
+
+    fun randomAliveMember(body: ScriptScope.(MemberRef) -> Unit) {
+        script.body(randomAliveMember())
+    }
 
     private fun boolFlag(name: String): BoolSlot = BoolSlot(script, LValueAst.BattleFlag(name), BoolAst.BattleFlag(name))
 }
