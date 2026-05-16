@@ -3954,11 +3954,17 @@ private class ExternalBundleObjectDecoder {
     ): Any {
         val encodedType = value.asObject("${klass.simpleName} value").requiredString("_type")
         val subtype =
-            klass.sealedSubclasses.firstOrNull { candidate -> candidate.simpleName == encodedType }
+            klass.findSealedSubtype(encodedType)
                 ?: error("unknown ${klass.simpleName} subtype $encodedType")
         return decode(value, subtype.createType(nullable = false))
             ?: error("sealed subtype $encodedType decoded to null")
     }
+
+    private fun KClass<*>.findSealedSubtype(encodedType: String): KClass<*>? =
+        sealedSubclasses.firstOrNull { candidate -> candidate.simpleName == encodedType }
+            ?: sealedSubclasses.firstNotNullOfOrNull { candidate ->
+                candidate.takeIf { it.isSealed }?.findSealedSubtype(encodedType)
+            }
 
     private fun decodeDataClass(
         value: JsonValue,

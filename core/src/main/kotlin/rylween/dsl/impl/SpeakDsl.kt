@@ -30,7 +30,7 @@ class SpeakBuilder {
         job: NpcJobId,
         body: ScriptScope.() -> Unit,
     ) {
-        questionActions += QuestionActionScriptModel(topic, job, recordScript(body))
+        questionActions += QuestionActionScriptModel(topic, job, recordAuthoredScript(body))
     }
 
     fun build(): SpeakSystemModel =

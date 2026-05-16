@@ -31,30 +31,30 @@ import rylween.dsl.impl.*
  *
  * Designers normally never use this directly; builder receivers use it to
  * allocate stable temporary names and to route nested DSL bodies into the
- * correct script-operation list.
+ * correct source-statement block.
  */
 class ScriptContext {
     private var nextVar = 0
-    private val opTargets = mutableListOf<MutableList<Op>>()
+    private val statementTargets = mutableListOf<ScriptBlockBuilder>()
 
     fun fresh(prefix: String): String = "${prefix}_${nextVar++}"
 
     fun record(
-        fallback: MutableList<Op>,
-        op: Op,
+        fallback: ScriptBlockBuilder,
+        statement: ScriptStatement,
     ) {
-        (opTargets.lastOrNull() ?: fallback) += op
+        (statementTargets.lastOrNull() ?: fallback).record(statement)
     }
 
     fun <T> recording(
-        target: MutableList<Op>,
+        target: ScriptBlockBuilder,
         body: () -> T,
     ): T {
-        opTargets += target
+        statementTargets += target
         return try {
             body()
         } finally {
-            opTargets.removeAt(opTargets.lastIndex)
+            statementTargets.removeAt(statementTargets.lastIndex)
         }
     }
 }
@@ -78,7 +78,7 @@ fun acceptedText(vararg values: String): List<String> = values.toList()
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class ScriptScope(
     private val ctx: ScriptContext,
-    private val ops: MutableList<Op>,
+    private val block: ScriptBlockBuilder,
 ) {
     val realm: RealmRef = RealmRef(this)
     val context: RuntimeContextRef = RuntimeContextRef()
@@ -91,8 +91,8 @@ class ScriptScope(
     val currentCaster: MemberRef
         get() = party.member(v("caster_idx"))
 
-    fun record(op: Op) {
-        ctx.record(ops, op)
+    fun record(statement: ScriptStatement) {
+        ctx.record(block, statement)
     }
 
     fun fresh(prefix: String): String = ctx.fresh(prefix)
@@ -258,9 +258,9 @@ class ScriptScope(
         then: ScriptScope.() -> Unit,
     ): ElseBranch {
         val thenOps = capture(then)
-        val index = ops.size
-        ops += Op.If(cond.ast, thenOps, emptyList())
-        return ElseBranch(ctx) { elseOps -> ops[index] = Op.If(cond.ast, thenOps, elseOps) }
+        val index = block.size
+        block.record(Op.If(cond.ast, thenOps, emptyList()))
+        return ElseBranch(ctx) { elseOps -> block[index] = Op.If(cond.ast, thenOps, elseOps) }
     }
 
     fun stop(reason: String? = null): Unit = record(Op.Stop(reason))
@@ -1060,12 +1060,25 @@ internal fun recordScript(body: ScriptScope.() -> Unit): List<Op> = recordScript
 internal fun recordScript(
     ctx: ScriptContext,
     body: ScriptScope.() -> Unit,
-): List<Op> =
-    buildList {
-        ctx.recording(this) {
-            ScriptScope(ctx, this).body()
-        }
+): List<Op> = recordAuthoredScript(ctx, body).ops
+
+internal fun recordAuthoredScript(body: ScriptScope.() -> Unit): AuthoredScript = recordAuthoredScript(ScriptContext(), body)
+
+internal fun recordAuthoredScript(
+    ctx: ScriptContext,
+    body: ScriptScope.() -> Unit,
+): AuthoredScript = AuthoredScript(recordScriptBlock(ctx, body))
+
+internal fun recordScriptBlock(
+    ctx: ScriptContext,
+    body: ScriptScope.() -> Unit,
+): ScriptBlock {
+    val builder = ScriptBlockBuilder()
+    ctx.recording(builder) {
+        ScriptScope(ctx, builder).body()
     }
+    return builder.toBlock()
+}
 
 /**
  * Internal result produced by [ItemCatalogBuilder].
@@ -1610,20 +1623,24 @@ class ItemCatalogBuilder {
 private fun RewardBundleModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): RewardBundleModel =
     copy(loot = loot.copy(treasure = resolve(loot.treasure), magic = resolve(loot.magic)))
 
-private fun SceneModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SceneModel = copy(ops = ops.resolveItemPools(resolve))
+private fun SceneModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SceneModel = copy(script = script.resolveItemPools(resolve))
 
 private fun DialogueModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): DialogueModel =
-    copy(branches = branches.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
+    copy(branches = branches.map { it.copy(script = it.script.resolveItemPools(resolve)) })
 
 private fun SpeakSystemModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SpeakSystemModel =
-    copy(questionActions = questionActions.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
+    copy(questionActions = questionActions.map { it.copy(script = it.script.resolveItemPools(resolve)) })
 
-private fun SpellModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SpellModel = copy(ops = ops.resolveItemPools(resolve))
+private fun SpellModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SpellModel = copy(script = script.resolveItemPools(resolve))
 
-private fun ItemUseModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): ItemUseModel = copy(ops = ops.resolveItemPools(resolve))
+private fun ItemUseModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): ItemUseModel =
+    copy(script = script.resolveItemPools(resolve))
 
 private fun DungeonSystemModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): DungeonSystemModel =
-    copy(events = events.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
+    copy(events = events.map { it.copy(script = it.script.resolveItemPools(resolve)) })
+
+private fun AuthoredScript.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): AuthoredScript =
+    AuthoredScript(ops.resolveItemPools(resolve))
 
 private fun List<Op>.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<Op> = map { it.resolveItemPools(resolve) }
 
@@ -1890,7 +1907,7 @@ class GameBuilder {
         id: SceneId,
         body: ScriptScope.() -> Unit,
     ) {
-        scenes += SceneModel(id, recordScript(body))
+        scenes += SceneModel(id, recordAuthoredScript(body))
     }
 
     fun dialogue(body: DialogueCatalogBuilder.() -> Unit) {
@@ -1904,7 +1921,7 @@ class GameBuilder {
         name: String,
         body: ScriptScope.() -> Unit,
     ) {
-        spells += SpellModel(id, slot, baseCost, name, recordScript(body))
+        spells += SpellModel(id, slot, baseCost, name, recordAuthoredScript(body))
     }
 
     fun itemUse(
@@ -3199,7 +3216,7 @@ class DungeonEventBuilder(
     private var disposition = DungeonEventDisposition.ClearAfterRun
     private var randomEncounterTier: EncounterTier? = null
     private var clearWhenFlag: FlagState? = null
-    private val ops = mutableListOf<Op>()
+    private val statements = mutableListOf<ScriptStatement>()
 
     fun recurring() {
         disposition = DungeonEventDisposition.Recurring
@@ -3216,14 +3233,14 @@ class DungeonEventBuilder(
     }
 
     fun script(body: ScriptScope.() -> Unit) {
-        ops += recordScript(body)
+        statements += recordScriptBlock(ScriptContext(), body).statements
     }
 
     fun build(): DungeonEventModel =
         DungeonEventModel(
             id = id,
             disposition = disposition,
-            ops = ops.toList(),
+            script = AuthoredScript(ScriptBlock(statements.toList())),
             randomEncounterTier = randomEncounterTier,
             clearWhenFlag = clearWhenFlag,
         )
@@ -3416,11 +3433,11 @@ class NpcDialogueBuilder(
         state: FlagState,
         body: ScriptScope.() -> Unit,
     ) {
-        branches += DialogueBranchModel(state, recordScript(body))
+        branches += DialogueBranchModel(state, recordAuthoredScript(body))
     }
 
     fun default(body: ScriptScope.() -> Unit) {
-        branches += DialogueBranchModel(null, recordScript(body))
+        branches += DialogueBranchModel(null, recordAuthoredScript(body))
     }
 
     fun build(): DialogueModel = DialogueModel(id, branches.toList())
@@ -4514,7 +4531,7 @@ class ItemUseBuilder(
 ) {
     private val contexts = mutableSetOf(ItemUseContext.Combat)
     var consume: ItemConsumePolicy = ItemConsumePolicy.BeforeUse
-    private var ops = emptyList<Op>()
+    private var script = AuthoredScript(emptyList())
 
     fun usableIn(vararg contexts: ItemUseContext) {
         this.contexts.clear()
@@ -4526,10 +4543,10 @@ class ItemUseBuilder(
     fun inventory(): Unit = usableIn(ItemUseContext.Inventory)
 
     fun effect(body: ScriptScope.() -> Unit) {
-        ops = recordScript(body)
+        script = recordAuthoredScript(body)
     }
 
-    fun build(): ItemUseModel = ItemUseModel(id, contexts.toSet(), consume, ops)
+    fun build(): ItemUseModel = ItemUseModel(id, contexts.toSet(), consume, script)
 }
 
 @RylNextDsl
