@@ -12,8 +12,8 @@
  *   without turning the root package into one oversized source file.
  *
  * This facade deliberately re-exports only concepts that are part of current
- * authoring practice: enum values such as [PcClass] and [ImagePlacement], value
- * helpers such as [xy], [cells], and [of], the [rylween] entry point, mutable
+ * authoring practice: enum values such as [PcClass], value helpers such as
+ * [xy], [cells], and [of], the [rylween] entry point, mutable
  * replay-state builders such as [PartyMembersBuilder], and singleton text/price
  * namespaces such as [BattleText] and [ShopPrices]. For example, authored game
  * files should read like:
@@ -25,7 +25,7 @@
  *     content {
  *         visuals {
  *             images {
- *                 bitmap(Images.Scene.tavern, "bitmap/assets/scene-tavern.png", ImagePlacement.MapWindow)
+ *                 bitmapMapWindow(Images.Scene.tavern, "bitmap/assets/scene-tavern.png")
  *             }
  *         }
  *     }

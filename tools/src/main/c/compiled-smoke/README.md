@@ -56,8 +56,8 @@ reads, hashes, inspects, validates, and boots from the strict JSON artifact.
 Schema version 3 also contains `runtimeSystems`, a stable non-reflective section
 for the first runtime-facing systems a non-Kotlin loader should consume
 directly: realm balance, reusable prompts, terminal/layout/static presentation,
-command bindings, inventory prompt text rows, wilderness events, town/speak
-runtime boundaries, and Ydarg as a `castles[]` entry. The native C reader validates schema version, section
+command bindings, inventory and character-creation prompt text rows, wilderness
+events, town/speak runtime boundaries, and Ydarg as a `castles[]` entry. The native C reader validates schema version, section
 order, canonical `sections` SHA-256, core row counts, and the `runtimeSystems`
 command/prompt/castle contract.
 
@@ -145,7 +145,7 @@ does not use Kotlin reflective `_type` markers; entries use explicit `kind`,
 
 ```json
 {
-  "schemaVersion": 5,
+  "schemaVersion": 7,
   "realm": {},
   "pacing": {},
   "prompts": {},

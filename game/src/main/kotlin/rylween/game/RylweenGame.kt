@@ -96,15 +96,23 @@ private fun MonsterBuilder.boss() = encounterImage(EncounterImages.boss)
 
 val authoredRylween: RylweenModel =
     rylween {
+        // Static content is the compiled game definition: catalogs, maps,
+        // reusable system rules, scripts, and all player-visible prose.
         content {
+            // Metadata names the universe/version used in bundle compatibility
+            // checks and save-file identity.
             metadata {
                 universe("Rylween", version = "kotlin-dsl")
             }
 
+            // Limits are non-derived allocation caps. Keep derived quantities,
+            // such as map width/height/cell count, on the data that owns them.
             limits {
                 maxWorldMaps = 1
             }
 
+            // Flags model story and encounter state machines. Each state listed
+            // here can be referenced by scripts, dialogue branches, and saves.
             flags {
                 story(Story.garth.bandits) {
                     states(
@@ -221,139 +229,106 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Visuals bind logical image/static-screen ids to concrete assets.
+            // Frontends choose the ANSI or bitmap representation for an id.
             visuals {
+                // Image rows keep the game-facing id stable while allowing
+                // multiple asset kinds, placements, and transitions per frontend.
                 images {
-                    ansi(Images.Static.screen, resource = "ansi/screen.ans", placement = ImagePlacement.FullScreen)
-                    ansi(Images.Static.title, resource = "ansi/title.ans", placement = ImagePlacement.FullScreen)
+                    ansiFullScreen(Images.Static.screen, "ansi/screen.ans")
+                    ansiFullScreen(Images.Static.title, "ansi/title.ans")
 
-                    ansi(Images.Scene.ydargCastle, resource = "tiles/ydarg-castle.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.tent, resource = "tiles/wilderness-tent.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.battleVictory, resource = "tiles/battle-victory.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.encounterBanner1, resource = "tiles/encounter-banner-1.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.encounterBanner2, resource = "tiles/encounter-banner-2.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.encounterBanner3, resource = "tiles/encounter-banner-3.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.encounterBanner4, resource = "tiles/encounter-banner-4.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.encounterBanner5, resource = "tiles/encounter-banner-5.ans", placement = ImagePlacement.MapWindow)
-                    ansi(EncounterImages.goblinoid, resource = "tiles/encounter-banner-1.ans", placement = ImagePlacement.MapWindow)
-                    ansi(EncounterImages.undead, resource = "tiles/encounter-banner-3.ans", placement = ImagePlacement.MapWindow)
-                    ansi(EncounterImages.beast, resource = "tiles/encounter-banner-4.ans", placement = ImagePlacement.MapWindow)
-                    ansi(EncounterImages.flying, resource = "tiles/encounter-banner-2.ans", placement = ImagePlacement.MapWindow)
-                    ansi(EncounterImages.vermin, resource = "tiles/encounter-banner-5.ans", placement = ImagePlacement.MapWindow)
-                    ansi(EncounterImages.brute, resource = "tiles/encounter-banner-1.ans", placement = ImagePlacement.MapWindow)
-                    ansi(EncounterImages.humanoidMagic, resource = "tiles/encounter-banner-3.ans", placement = ImagePlacement.MapWindow)
-                    ansi(EncounterImages.boss, resource = "tiles/encounter-banner-5.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.cave, resource = "tiles/cave-entrance.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.insideCave, resource = "tiles/cave-interior.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.church, resource = "tiles/towne-church.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.smith, resource = "tiles/towne-smith.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.inn, resource = "tiles/towne-inn.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.merchant, resource = "tiles/towne-merchant.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.tavern, resource = "tiles/towne-tavern.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.hut, resource = "tiles/wilderness-hut.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.death, resource = "tiles/death.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.towneMainstreet, resource = "tiles/towne-mainstreet.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.wildernessNoTent, resource = "tiles/wilderness-no-tent.ans", placement = ImagePlacement.MapWindow)
-                    ansi(Images.Scene.towneGuild, resource = "tiles/towne-guild.ans", placement = ImagePlacement.MapWindow)
+                    ansiMapWindow(Images.Scene.ydargCastle, "tiles/ydarg-castle.ans")
+                    ansiMapWindow(Images.Scene.tent, "tiles/wilderness-tent.ans")
+                    ansiMapWindow(Images.Scene.battleVictory, "tiles/battle-victory.ans")
+                    ansiMapWindow(Images.Scene.encounterBanner1, "tiles/encounter-banner-1.ans")
+                    ansiMapWindow(Images.Scene.encounterBanner2, "tiles/encounter-banner-2.ans")
+                    ansiMapWindow(Images.Scene.encounterBanner3, "tiles/encounter-banner-3.ans")
+                    ansiMapWindow(Images.Scene.encounterBanner4, "tiles/encounter-banner-4.ans")
+                    ansiMapWindow(Images.Scene.encounterBanner5, "tiles/encounter-banner-5.ans")
+                    ansiMapWindow(EncounterImages.goblinoid, "tiles/encounter-banner-1.ans")
+                    ansiMapWindow(EncounterImages.undead, "tiles/encounter-banner-3.ans")
+                    ansiMapWindow(EncounterImages.beast, "tiles/encounter-banner-4.ans")
+                    ansiMapWindow(EncounterImages.flying, "tiles/encounter-banner-2.ans")
+                    ansiMapWindow(EncounterImages.vermin, "tiles/encounter-banner-5.ans")
+                    ansiMapWindow(EncounterImages.brute, "tiles/encounter-banner-1.ans")
+                    ansiMapWindow(EncounterImages.humanoidMagic, "tiles/encounter-banner-3.ans")
+                    ansiMapWindow(EncounterImages.boss, "tiles/encounter-banner-5.ans")
+                    ansiMapWindow(Images.Scene.cave, "tiles/cave-entrance.ans")
+                    ansiMapWindow(Images.Scene.insideCave, "tiles/cave-interior.ans")
+                    ansiMapWindow(Images.Scene.church, "tiles/towne-church.ans")
+                    ansiMapWindow(Images.Scene.smith, "tiles/towne-smith.ans")
+                    ansiMapWindow(Images.Scene.inn, "tiles/towne-inn.ans")
+                    ansiMapWindow(Images.Scene.merchant, "tiles/towne-merchant.ans")
+                    ansiMapWindow(Images.Scene.tavern, "tiles/towne-tavern.ans")
+                    ansiMapWindow(Images.Scene.hut, "tiles/wilderness-hut.ans")
+                    ansiMapWindow(Images.Scene.death, "tiles/death.ans")
+                    ansiMapWindow(Images.Scene.towneMainstreet, "tiles/towne-mainstreet.ans")
+                    ansiMapWindow(Images.Scene.wildernessNoTent, "tiles/wilderness-no-tent.ans")
+                    ansiMapWindow(Images.Scene.towneGuild, "tiles/towne-guild.ans")
 
-                    fun portraitBitmap(
-                        image: ImageId,
-                        resource: String,
-                    ) {
-                        bitmap(
-                            image,
-                            resource = resource,
-                            placement = ImagePlacement.MapWindow,
-                            transition = ImageTransition.Fade,
-                        )
-                    }
+                    bitmapMapWindow(Images.Scene.ydargCastle, "bitmap/assets/scene-ydarg-castle.png")
+                    bitmapMapWindow(Images.Scene.tent, "bitmap/assets/scene-camp-tent.png")
+                    bitmapMapWindow(Images.Scene.battleVictory, "bitmap/assets/scene-battle-victory.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner1, "bitmap/assets/monster-goblinoid.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner2, "bitmap/assets/monster-flying.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner3, "bitmap/assets/monster-undead.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner4, "bitmap/assets/monster-beast.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner5, "bitmap/assets/monster-vermin.png")
+                    bitmapMapWindow(EncounterImages.goblinoid, "bitmap/assets/monster-goblinoid.png")
+                    bitmapMapWindow(EncounterImages.undead, "bitmap/assets/monster-undead.png")
+                    bitmapMapWindow(EncounterImages.beast, "bitmap/assets/monster-beast.png")
+                    bitmapMapWindow(EncounterImages.flying, "bitmap/assets/monster-flying.png")
+                    bitmapMapWindow(EncounterImages.vermin, "bitmap/assets/monster-vermin.png")
+                    bitmapMapWindow(EncounterImages.brute, "bitmap/assets/monster-brute.png")
+                    bitmapMapWindow(EncounterImages.humanoidMagic, "bitmap/assets/monster-humanoid-magic.png")
+                    bitmapMapWindow(EncounterImages.boss, "bitmap/assets/monster-boss.png")
+                    bitmapMapWindow(Images.Scene.cave, "bitmap/assets/scene-cave-entrance.png")
+                    bitmapMapWindow(Images.Scene.insideCave, "bitmap/assets/scene-cave-interior.png")
+                    bitmapMapWindow(Images.Scene.church, "bitmap/assets/scene-church.png")
+                    bitmapMapWindow(Images.Scene.smith, "bitmap/assets/scene-smith.png")
+                    bitmapMapWindow(Images.Scene.inn, "bitmap/assets/scene-inn.png")
+                    bitmapMapWindow(Images.Scene.merchant, "bitmap/assets/scene-merchant.png")
+                    bitmapMapWindow(Images.Scene.tavern, "bitmap/assets/scene-tavern.png")
+                    bitmapMapWindow(Images.Scene.hut, "bitmap/assets/scene-wilderness-hut.png")
+                    bitmapMapWindow(Images.Scene.death, "bitmap/assets/scene-death.png")
+                    bitmapMapWindow(Images.Scene.towneMainstreet, "bitmap/assets/scene-thord-mainstreet.png")
+                    bitmapMapWindow(Images.Scene.wildernessNoTent, "bitmap/assets/scene-camp-night.png")
+                    bitmapMapWindow(Images.Scene.towneGuild, "bitmap/assets/scene-guild-closed.png")
+                    bitmapMapWindow(DungeonImages.chest, "bitmap/assets/scene-dungeon-chest.png")
+                    bitmapMapWindow(DungeonImages.trap, "bitmap/assets/scene-dungeon-trap.png")
+                    bitmapMapWindow(CastleImages.treasure, "bitmap/assets/scene-dungeon-chest.png")
+                    bitmapMapWindow(CastleImages.pitfall, "bitmap/assets/scene-dungeon-trap.png")
+                    bitmapMapWindow(CastleImages.jaaraGate, "bitmap/assets/scene-jaara-gate.png")
+                    bitmapMapWindow(CastleImages.stairsGuardians, "bitmap/assets/scene-castle-stairs-guardians.png")
+                    bitmapMapWindow(MissionImages.skullweedSwamp, "bitmap/assets/scene-skullweed-swamp.png")
 
-                    fun sceneBitmap(
-                        image: ImageId,
-                        resource: String,
-                    ) {
-                        bitmap(
-                            image,
-                            resource = resource,
-                            placement = ImagePlacement.MapWindow,
-                            transition = ImageTransition.Fade,
-                        )
-                    }
-
-                    sceneBitmap(Images.Scene.ydargCastle, "bitmap/assets/scene-ydarg-castle.png")
-                    sceneBitmap(Images.Scene.tent, "bitmap/assets/scene-camp-tent.png")
-                    sceneBitmap(Images.Scene.battleVictory, "bitmap/assets/scene-battle-victory.png")
-                    sceneBitmap(Images.Scene.encounterBanner1, "bitmap/assets/monster-goblinoid.png")
-                    sceneBitmap(Images.Scene.encounterBanner2, "bitmap/assets/monster-flying.png")
-                    sceneBitmap(Images.Scene.encounterBanner3, "bitmap/assets/monster-undead.png")
-                    sceneBitmap(Images.Scene.encounterBanner4, "bitmap/assets/monster-beast.png")
-                    sceneBitmap(Images.Scene.encounterBanner5, "bitmap/assets/monster-vermin.png")
-                    sceneBitmap(EncounterImages.goblinoid, "bitmap/assets/monster-goblinoid.png")
-                    sceneBitmap(EncounterImages.undead, "bitmap/assets/monster-undead.png")
-                    sceneBitmap(EncounterImages.beast, "bitmap/assets/monster-beast.png")
-                    sceneBitmap(EncounterImages.flying, "bitmap/assets/monster-flying.png")
-                    sceneBitmap(EncounterImages.vermin, "bitmap/assets/monster-vermin.png")
-                    sceneBitmap(EncounterImages.brute, "bitmap/assets/monster-brute.png")
-                    sceneBitmap(EncounterImages.humanoidMagic, "bitmap/assets/monster-humanoid-magic.png")
-                    sceneBitmap(EncounterImages.boss, "bitmap/assets/monster-boss.png")
-                    sceneBitmap(Images.Scene.cave, "bitmap/assets/scene-cave-entrance.png")
-                    sceneBitmap(Images.Scene.insideCave, "bitmap/assets/scene-cave-interior.png")
-                    sceneBitmap(Images.Scene.church, "bitmap/assets/scene-church.png")
-                    sceneBitmap(Images.Scene.smith, "bitmap/assets/scene-smith.png")
-                    sceneBitmap(Images.Scene.inn, "bitmap/assets/scene-inn.png")
-                    sceneBitmap(Images.Scene.merchant, "bitmap/assets/scene-merchant.png")
-                    sceneBitmap(Images.Scene.tavern, "bitmap/assets/scene-tavern.png")
-                    sceneBitmap(Images.Scene.hut, "bitmap/assets/scene-wilderness-hut.png")
-                    sceneBitmap(Images.Scene.death, "bitmap/assets/scene-death.png")
-                    sceneBitmap(Images.Scene.towneMainstreet, "bitmap/assets/scene-thord-mainstreet.png")
-                    sceneBitmap(Images.Scene.wildernessNoTent, "bitmap/assets/scene-camp-night.png")
-                    sceneBitmap(Images.Scene.towneGuild, "bitmap/assets/scene-guild-closed.png")
-                    sceneBitmap(DungeonImages.chest, "bitmap/assets/scene-dungeon-chest.png")
-                    sceneBitmap(DungeonImages.trap, "bitmap/assets/scene-dungeon-trap.png")
-                    sceneBitmap(CastleImages.treasure, "bitmap/assets/scene-dungeon-chest.png")
-                    sceneBitmap(CastleImages.pitfall, "bitmap/assets/scene-dungeon-trap.png")
-
-                    portraitBitmap(CharacterPortraitImages.default, "bitmap/assets/portrait-default.png")
-                    portraitBitmap(CharacterPortraitImages.fighter, "bitmap/assets/portrait-fighter.png")
-                    portraitBitmap(CharacterPortraitImages.thief, "bitmap/assets/portrait-thief.png")
-                    portraitBitmap(CharacterPortraitImages.mage, "bitmap/assets/portrait-mage.png")
-                    portraitBitmap(CharacterPortraitImages.priest, "bitmap/assets/portrait-priest.png")
-                    portraitBitmap(CharacterPortraitImages.bard, "bitmap/assets/portrait-bard.png")
-                    portraitBitmap(CharacterPortraitImages.ranger, "bitmap/assets/portrait-ranger.png")
-                    portraitBitmap(CharacterPortraitImages.femaleDefault, "bitmap/assets/portrait-female-default.png")
-                    portraitBitmap(CharacterPortraitImages.femaleFighter, "bitmap/assets/portrait-female-fighter.png")
-                    portraitBitmap(CharacterPortraitImages.femaleThief, "bitmap/assets/portrait-female-thief.png")
-                    portraitBitmap(CharacterPortraitImages.femaleMage, "bitmap/assets/portrait-female-mage.png")
-                    portraitBitmap(CharacterPortraitImages.femalePriest, "bitmap/assets/portrait-female-priest.png")
-                    portraitBitmap(CharacterPortraitImages.femaleBard, "bitmap/assets/portrait-female-bard.png")
-                    portraitBitmap(CharacterPortraitImages.femaleRanger, "bitmap/assets/portrait-female-ranger.png")
-                    portraitBitmap(CharacterPortraitImages.maleHuman, "bitmap/assets/portrait-male-human.png")
-                    portraitBitmap(CharacterPortraitImages.maleDwarf, "bitmap/assets/portrait-male-dwarf.png")
-                    portraitBitmap(CharacterPortraitImages.maleElf, "bitmap/assets/portrait-male-elf.png")
-                    portraitBitmap(CharacterPortraitImages.maleHalfling, "bitmap/assets/portrait-male-halfling.png")
-                    portraitBitmap(CharacterPortraitImages.femaleHuman, "bitmap/assets/portrait-female-human.png")
-                    portraitBitmap(CharacterPortraitImages.femaleDwarf, "bitmap/assets/portrait-female-dwarf.png")
-                    portraitBitmap(CharacterPortraitImages.femaleElf, "bitmap/assets/portrait-female-elf.png")
-                    portraitBitmap(CharacterPortraitImages.femaleHalfling, "bitmap/assets/portrait-female-halfling.png")
-                    bitmap(
-                        CastleImages.jaaraGate,
-                        resource = "bitmap/assets/scene-jaara-gate.png",
-                        placement = ImagePlacement.MapWindow,
-                        transition = ImageTransition.Fade,
-                    )
-                    bitmap(
-                        CastleImages.stairsGuardians,
-                        resource = "bitmap/assets/scene-castle-stairs-guardians.png",
-                        placement = ImagePlacement.MapWindow,
-                        transition = ImageTransition.Fade,
-                    )
-                    bitmap(
-                        MissionImages.skullweedSwamp,
-                        resource = "bitmap/assets/scene-skullweed-swamp.png",
-                        placement = ImagePlacement.MapWindow,
-                        transition = ImageTransition.Fade,
-                    )
+                    bitmapMapWindow(CharacterPortraitImages.default, "bitmap/assets/portrait-default.png")
+                    bitmapMapWindow(CharacterPortraitImages.fighter, "bitmap/assets/portrait-fighter.png")
+                    bitmapMapWindow(CharacterPortraitImages.thief, "bitmap/assets/portrait-thief.png")
+                    bitmapMapWindow(CharacterPortraitImages.mage, "bitmap/assets/portrait-mage.png")
+                    bitmapMapWindow(CharacterPortraitImages.priest, "bitmap/assets/portrait-priest.png")
+                    bitmapMapWindow(CharacterPortraitImages.bard, "bitmap/assets/portrait-bard.png")
+                    bitmapMapWindow(CharacterPortraitImages.ranger, "bitmap/assets/portrait-ranger.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleDefault, "bitmap/assets/portrait-female-default.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleFighter, "bitmap/assets/portrait-female-fighter.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleThief, "bitmap/assets/portrait-female-thief.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleMage, "bitmap/assets/portrait-female-mage.png")
+                    bitmapMapWindow(CharacterPortraitImages.femalePriest, "bitmap/assets/portrait-female-priest.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleBard, "bitmap/assets/portrait-female-bard.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleRanger, "bitmap/assets/portrait-female-ranger.png")
+                    bitmapMapWindow(CharacterPortraitImages.maleHuman, "bitmap/assets/portrait-male-human.png")
+                    bitmapMapWindow(CharacterPortraitImages.maleDwarf, "bitmap/assets/portrait-male-dwarf.png")
+                    bitmapMapWindow(CharacterPortraitImages.maleElf, "bitmap/assets/portrait-male-elf.png")
+                    bitmapMapWindow(CharacterPortraitImages.maleHalfling, "bitmap/assets/portrait-male-halfling.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleHuman, "bitmap/assets/portrait-female-human.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleDwarf, "bitmap/assets/portrait-female-dwarf.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleElf, "bitmap/assets/portrait-female-elf.png")
+                    bitmapMapWindow(CharacterPortraitImages.femaleHalfling, "bitmap/assets/portrait-female-halfling.png")
                 }
 
+                // Static screens are named document/report routes. Some are
+                // resource files; score/heroes screens are generated reports.
                 staticScreens {
                     image(StaticScreens.frame, Images.Static.screen)
                     image(StaticScreens.title, Images.Static.title)
@@ -365,6 +340,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Terrain declares what each world-map character means. Movement,
+            // settlement entry, and NPC placement all read these semantics.
             terrain {
                 terrain(Terrain.mountain, mapCode = 'm') { blocksMovement() }
                 terrain(Terrain.water, mapCode = 'w') { blocksMovement() }
@@ -378,6 +355,8 @@ val authoredRylween: RylweenModel =
                 terrain(Terrain.castle, mapCode = '2') { settlement(TerrainSettlement.Castle) }
             }
 
+            // Secrets are explicit sysop/debug hooks from the original game.
+            // Keeping them authored prevents hidden runtime-only special cases.
             secrets {
                 playersNamed("Marcus Lagergren", "Marcus") {
                     alwaysRunFromNonMandatoryEncounters()
@@ -393,6 +372,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // World maps are authored as terrain rows. Size and storage counts
+            // are derived from these strings by validation and compilation.
             worldMap(Maps.wilderness) {
                 layer(MapLayers.terrain) {
                     rows(
@@ -440,6 +421,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Terminal presentation maps terrain to ANSI-era glyphs and colors.
+            // Bitmap/web frontends can ignore this without changing game rules.
             terminal {
                 terrain(Terrain.mountain, glyph = "/\\", color = PaletteColors.white)
                 terrain(Terrain.water, glyph = "~~", color = PaletteColors.blue)
@@ -453,6 +436,8 @@ val authoredRylween: RylweenModel =
                 terrain(Terrain.castle, glyph = "CC", color = PaletteColors.white)
             }
 
+            // Layout regions describe the classic screen geometry. Runtime text
+            // wrapping uses these dimensions instead of hardcoded window sizes.
             layouts {
                 region(ScreenRegions.textWindow, x = 49, y = 5, width = 26, height = 11)
                 region(ScreenRegions.topLeft, x = 0, y = 0)
@@ -461,8 +446,12 @@ val authoredRylween: RylweenModel =
                 region(ScreenRegions.mapWindow, x = 8, y = 6, width = 16, height = 9)
             }
 
+            // Realm rules are global balance and survival systems: resource
+            // capacity, turn upkeep, hunting, camping, fatigue, and starvation.
             realm {
                 baseResourceCapacity(Resource.Food, 150)
+                // Upkeep runs during wilderness turns. These fields control food
+                // ticking, fatigue labels/drain, mana recovery, and starvation.
                 upkeep {
                     foodCostLeaderDiv = 4
                     foodTickEvery = 5
@@ -479,6 +468,8 @@ val authoredRylween: RylweenModel =
                     fatigueAt(-8, inlineText("You begin to feel weak", "from lack of sleep.", ""), drain = true, statusLabel = "WEAK")
                     fatigueBelow(-8, inlineText("You faint from lack", "of well needed sleep."), drain = true, statusLabel = "FAINT")
                 }
+                // Hunt is a reusable ranger action. The fields define chance,
+                // move cost, food range, target prompts, and result text.
                 hunt {
                     successChancePercent = 45
                     timeCost = 5
@@ -508,6 +499,8 @@ val authoredRylween: RylweenModel =
                         }
                     fails = inlineText("...but fails.", "")
                 }
+                // Camp controls rest healing, food cost, time advance, guard
+                // behavior, temperature damage, and ambush chance.
                 camp {
                     healthGain = 15
                     foodCostPerMember = 4
@@ -559,6 +552,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Castles use a reusable grid-castle model. This block supplies the
+            // current castle's entry gate, rewards, traps, stairs, text, scripts.
             castle(Castles.ydarg) {
                 entry = xy(14, 30)
                 image = Images.Backdrop.ydargCastle
@@ -567,6 +562,8 @@ val authoredRylween: RylweenModel =
                 monsterTier = EncounterTiers.deep
                 map(size = 5, roomTypeMax = 5)
 
+                // Treasure separates ordinary room loot from the magic-item pool.
+                // `gateMax` caps which room kinds can roll treasure.
                 treasure {
                     gateMax = 4
                     regularKind(
@@ -620,6 +617,8 @@ val authoredRylween: RylweenModel =
                     )
                 }
 
+                // Pitfall text and damage are authored here; the castle runner
+                // chooses and applies traps through the generic room system.
                 pitfall {
                     damageDivisor = 6
                     trap {
@@ -633,6 +632,8 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
+                // Stairs define each power-item gate required to climb higher in
+                // Zadraz, including the text shown when the item is missing.
                 stairs {
                     floorCount = 4
                     item(1, Milestones.fireShield, "The Fire Shield", inlineText("You don't have it!"))
@@ -641,6 +642,8 @@ val authoredRylween: RylweenModel =
                     item(4, Milestones.braceletsOfThun, "The Bracelets of Thun", inlineText("You don't have them!"))
                 }
 
+                // Script ids are story hooks invoked by the castle runner at
+                // entry, completion, and blocked/already-complete branches.
                 scripts {
                     alreadyCompleted = sceneId("castle.ydarg.already_completed")
                     entryBlocked = sceneId("castle.ydarg.entry_blocked")
@@ -648,6 +651,8 @@ val authoredRylween: RylweenModel =
                     completed = sceneId("castle.ydarg.completed")
                 }
 
+                // Text rows are castle-specific prompts, menus, labels, images,
+                // and narration consumed by the reusable castle runtime.
                 text {
                     floorNames("(Ground Level)", "(First Floor)", "(Base of Tower)", "(Top of Tower)")
                     roomMonster = inlineText("You are spotted by", "monsters!")
@@ -706,6 +711,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Castle scenes are script roots named from the castle model above.
+            // They keep the story beats authored while the castle runner stays generic.
             scene(sceneId("castle.ydarg.already_completed")) {
                 showBackdrop(Images.Backdrop.ydargCastle)
                 screen(
@@ -896,7 +903,11 @@ val authoredRylween: RylweenModel =
                 screen("See Ya!!!", "", "     /Marcus", "")
             }
 
+            // Prompts are reusable runtime text and input bindings. Keep wording
+            // here when multiple runners/frontends need the same player-facing line.
             prompts {
+                // Pause verbs feed the old randomized "hit return" combat flavor
+                // text. The runtime chooses one; content owns the vocabulary.
                 pauseVerbs(
                     "Smash",
                     "Bash",
@@ -929,6 +940,8 @@ val authoredRylween: RylweenModel =
                     "Smite",
                     "Decapitate",
                 )
+                // Title-menu bindings are semantic choices, not just letters.
+                // Labels feed help/status views in ANSI and bitmap runtimes.
                 titleMenu {
                     header = inlineText("Rylween", "")
                     createNewParty = inputKey("N", label = "New Party")
@@ -983,7 +996,7 @@ val authoredRylween: RylweenModel =
                 }
                 save {
                     saving = inlineText("Saving position...")
-                    done = inlineText("Done.")
+                    done = inlineText("Game saved.")
                     failed = inlineText("Save failed.")
                 }
                 characterCreation {
@@ -1021,12 +1034,11 @@ val authoredRylween: RylweenModel =
                             "character...",
                             "",
                         )
+                    invalidInput = inlineText("Invalid input.")
                     saving = inlineText("Saving...")
-                    saveConfirmationSuffix = "OK"
+                    saveConfirmation = inlineText("OK")
                 }
                 town {
-                    unavailableSuffix = " is not available here."
-                    closedSuffix = " is closed."
                     entryWelcome =
                         structuredText {
                             line("Welcome to ", TownText.name)
@@ -1089,6 +1101,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Pacing controls authored pause defaults. Browser preferences can
+            // scale these delays, but the base timing still belongs to content.
             pacing {
                 battle {
                     messagePauseMs = 900
@@ -1112,6 +1126,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Items are the catalog used by shops, rewards, inventory, equipment,
+            // camp protection, food capacity, and battle/item-use scripts.
             items {
                 // Equipment is unrestricted unless a weapon or armor declares allowed classes.
                 // Example: weapon(Items.holyBlade, "Holy Blade", cost = 5_000, damage = 40) { equippableBy(PcClass.Priest) }
@@ -1193,6 +1209,8 @@ val authoredRylween: RylweenModel =
                 magicItem(Items.holyHandGrenade, "Holy Hand Grenade", cost = 5_600)
                 magicItem(Items.fluteOfMadness, "Flute of Madness", cost = 9_000)
 
+                // Pools are reusable item sets for loot, random offers, dungeon
+                // finds, and scripted reward choices.
                 pool(ItemPools.battleSpoils) {
                     items(
                         Items.redPotion,
@@ -1297,6 +1315,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Game progress maps story achievements to power items and the win
+            // condition. Hall-of-Heroes text also comes from this model.
             gameProgress {
                 milestone(Milestones.fireShield) {
                     showsAs(Items.fireshield)
@@ -1342,6 +1362,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Leveling declares the XP thresholds and per-class stat growth.
+            // Runtime level-up uses these rows rather than embedded class rules.
             leveling {
                 maxLevel = 28
                 hitPointFloor = Formulas.levelUpHitPointFloor
@@ -1414,8 +1436,12 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Character creation defines roll ranges, starting resources,
+            // selectable races/classes, class gates, and portrait matching.
             characterCreation {
                 statRoll(min = 15, max = 70)
+                // Start is the initial runtime state for a newly created party:
+                // map position, facing, member cap, level, moves, and resources.
                 start {
                     map = Maps.wilderness
                     position = Wilderness.xy(12, 9)
@@ -1437,6 +1463,8 @@ val authoredRylween: RylweenModel =
                 race(Race.Elf, "Elf")
                 race(Race.Halfling, "Halfling")
 
+                // Class rows supply display labels and optional stat gates.
+                // Failure text is shown when a roll cannot choose that class.
                 playerClass(PcClass.Fighter, "Fighter") {
                     requires(
                         CharacterCreationStat.WeaponSkill,
@@ -1480,6 +1508,8 @@ val authoredRylween: RylweenModel =
                 portrait(CharacterPortraitImages.femaleHalfling, gender = Gender.Female, race = Race.Halfling)
             }
 
+            // Formulas are named integer expressions shared by encounters,
+            // rewards, and leveling. Runtimes evaluate ids, not Kotlin lambdas.
             formulas {
                 formula(Formulas.encounterH1Scaled) {
                     value = encounterHitPointMinBase + partyAverage * 2 + whenValue(firstLevel gt 2, firstLevel * 2)
@@ -1501,6 +1531,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Reward bundles define how XP, gold, loot, and special milestones
+            // are granted after reusable flows such as the standard battle.
             rewards {
                 reward(Rewards.standardBattle) {
                     experience = Formulas.rewardXpPerSurvivor
@@ -1521,7 +1553,11 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Combat configures the reusable standard battle runner: commands,
+            // text, formulas, round rules, images, rewards, and monster turns.
             combat {
+                // Standard battle is table-driven. Scripted spells/items below
+                // plug into this shared turn engine.
                 standardBattle {
                     roundLimit = 200
                     encounterFoeCountMax = 8
@@ -1530,6 +1566,8 @@ val authoredRylween: RylweenModel =
                     victoryImage(Images.Backdrop.battleVictory)
                     defeatImage(Images.Backdrop.death)
 
+                    // Opening fields decide fight/run odds, mandatory-run policy,
+                    // and the encounter banner art pool.
                     opening {
                         fleeChancePercent = 95
                         desperateFleeChancePercent = 31
@@ -1543,11 +1581,15 @@ val authoredRylween: RylweenModel =
                         )
                     }
 
+                    // Opening keys are the first prompt before individual party
+                    // member actions are collected.
                     openingKeys {
                         fight = inputKey('F')
                         flee = inputKey('R')
                     }
 
+                    // Battle text uses typed placeholders such as attackerName
+                    // and damage so the runtime does not assemble prose itself.
                     text {
                         encounterBanner { lines("ENCOUNTER!", "") }
                         youFace { line("You face") }
@@ -1616,6 +1658,8 @@ val authoredRylween: RylweenModel =
                         }
                     }
 
+                    // Player actions define the per-member combat menu and map
+                    // input keys to reusable action kinds.
                     playerActions {
                         attack('A') { line("(A)ttack") }
                         defend('D') { line("(D)efend") }
@@ -1624,12 +1668,16 @@ val authoredRylween: RylweenModel =
                         castMageSpell('C') { line("(C)ast Spell") }
                     }
 
+                    // Player-round tunables control hit/damage math and the
+                    // effects of defending or using a battle cry.
                     playerRound {
                         attack(hitBonus = 1, damageSpreadMax = 4, confusionDivisor = 3, hpDefenseDivisor = 12)
                         defend(weaponSkillPenalty = 2, restThreshold = 5, cap = 250)
                         battleCry(weaponSkillPenalty = 4)
                     }
 
+                    // Monster-round tunables control spell chance and fallback
+                    // melee damage for enemies that do not cast this round.
                     monsterRound {
                         spellChance(basePercent = 15, spellPowerDivisor = 2)
                         melee(
@@ -1645,7 +1693,11 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Wilderness owns the open-map command bindings, random events, cave
+            // discovery rules, and terrain narration for movement feedback.
             wilderness {
+                // Keys define the wilderness command contract. Labels are reused
+                // by live help and frontend status/prompt displays.
                 keys {
                     numberPadMovementWithArrows()
                     pass = inputKey(" ", "SPACE", label = "Space")
@@ -1671,6 +1723,8 @@ val authoredRylween: RylweenModel =
                     commandHint("Press ? for commands.")
                 }
 
+                // Events cover random caves, quiet turns, encounter split, cave
+                // depth/cost, and player-facing cave discovery prompts.
                 events {
                     caveChancePercent = 3
                     quietChancePercent = 91
@@ -1696,6 +1750,8 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
+                // Terrain transitions are the short flavor messages that can
+                // appear when the party steps onto a terrain type.
                 terrainTransitions {
                     chancePercent = 9
 
@@ -1768,7 +1824,11 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Dungeons define reusable command keys, event scripts, and scenario
+            // tables. Scenarios combine random event mixes with fixed levels.
             dungeons {
+                // Dungeon keys are shared by all caves/dungeons and drive both
+                // input dispatch and generated command help.
                 keys {
                     descend = inputKey("D")
                     ascend = inputKey("A")
@@ -1785,8 +1845,11 @@ val authoredRylween: RylweenModel =
                     commandHint("Press ? for commands.")
                 }
 
+                // This backdrop is the default map-window art while underground.
                 backdrop(Images.Backdrop.insideCave)
 
+                // Events are reusable level outcomes. Some are recurring random
+                // events; others are fixed story levels in named scenarios.
                 event(DungeonEvents.nothingSpecial) {
                     script {
                         readScreen("You find nothing", "special on this level.", "")
@@ -1847,7 +1910,7 @@ val authoredRylween: RylweenModel =
                     script {
                         randomDungeonItemFind(
                             commonPools =
-                                listOf(
+                                itemPools(
                                     ItemPools.dungeonWeaponFinds,
                                     ItemPools.dungeonPotionGemFinds,
                                     ItemPools.dungeonTreasureFinds,
@@ -1965,7 +2028,7 @@ val authoredRylween: RylweenModel =
                                     "but blue!",
                                     "",
                                 ),
-                            answers = listOf("water"),
+                            answers = textAnswers("water"),
                             guardian = Monsters.norker,
                             success = textLines("- Well done. Pass.", ""),
                             failure =
@@ -2001,7 +2064,7 @@ val authoredRylween: RylweenModel =
                                     "light.'",
                                     "",
                                 ),
-                            answers = listOf("night", "darkness"),
+                            answers = textAnswers("night", "darkness"),
                             guardian = Monsters.voodooLord,
                             success = textLines("- Well done. Pass.", ""),
                             failure =
@@ -2037,7 +2100,7 @@ val authoredRylween: RylweenModel =
                                     "am I?'",
                                     "",
                                 ),
-                            answers = listOf("well", "a well"),
+                            answers = textAnswers("well", "a well"),
                             guardian = Monsters.archdevil,
                             success = textLines("- Well done. Pass.", ""),
                             failure =
@@ -2297,7 +2360,7 @@ val authoredRylween: RylweenModel =
                             )
                             choice.textAnswer(
                                 prompt = "Password: ",
-                                accepting = listOf("RISH EKKIN"),
+                                accepting = textAnswers("RISH EKKIN"),
                                 maxLength = 15,
                                 match = {
                                     readScreen(
@@ -2464,6 +2527,8 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
+                // Scenarios map a dungeon id to depth, random-event weights, and
+                // fixed levels that override the random mix.
                 scenario(Dungeons.randomCave) {
                     name("Random Cave")
                     randomEvents(
@@ -2630,7 +2695,11 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Speak describes the generic conversation system plus the current
+            // game's chitchat, questions, rumors, and special question actions.
             speak {
+                // Standard conversation controls NPC selection, visit tracking,
+                // branch selection, menu shape, chitchat, and rumor policy.
                 standardConversation {
                     npcSelection = ConversationNpcSelection.BuildingListOrWildernessLocation
                     visitPolicy = NpcVisitPolicy.PerPartyVisitedBit
@@ -2673,6 +2742,8 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
+                // Text tables hold reusable conversation prose by subject, job,
+                // topic, and rumor id. Dialogue branches below handle story arcs.
                 textTables {
                     screen(T.Speak.noNpc) {
                         lines("No one is here!")
@@ -3153,6 +3224,8 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
+                // Question actions attach scripted side effects to a generic
+                // question/topic pair while keeping the speak runner reusable.
                 questionAction(QuestionTopic.Lodging, NpcJobs.bargirl) {
                     val price = localInt(party.leader.level * 50, "bargirl_lodging_price")
                     choice.yesNo(
@@ -3184,6 +3257,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Towns are world locations with coordinates, tax policy, and the
+            // services present in that settlement.
             towns {
                 town(Towns.thord) {
                     name = "Thord"
@@ -3244,13 +3319,19 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Town system data is shared by all towns: menu order, entry tax,
+            // leave prompts, service scene ids, and opening-hour policy.
             townSystem {
                 leavePrompts(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)
+                // Entry tax applies before town entry for qualifying parties.
+                // The bindings are semantic actions used by the town prompt.
                 entryTax {
                     minimumLeaderLevel = 5
                     pay = inputKey("P", label = "Pay to Enter")
                     leave = inputKey("L", label = "Leave")
                 }
+                // Menu order is authored separately from each town's service list
+                // so missing services can be hidden consistently.
                 menu {
                     church()
                     smith()
@@ -3261,6 +3342,8 @@ val authoredRylween: RylweenModel =
                     leave()
                 }
 
+                // Building services connect menu entries to scenes and hours.
+                // Closed wording belongs to authored service text, not menu suffixes.
                 buildingServices {
                     church {
                         scene = Scenes.Towne.church
@@ -3289,6 +3372,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Characters are NPC records. Placement decides where they can be
+            // met; roles are story handles used by dialogue and dynamic text.
             characters {
                 randomPlacementPolicy {
                     wilderness(8..57, 8..27) {
@@ -3479,6 +3564,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Monsters supply encounter stats and presentation tags. Tier drives
+            // random encounter pools; fixed boss fights can omit a tier.
             monsters {
                 monster(Monsters.kobold) {
                     name = "Kobold"
@@ -4103,6 +4190,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Missions are wilderness triggers. A mission declares when it can
+            // fire, the required state, and the scene that executes the result.
             missions {
                 mission(Missions.erethorEntry) {
                     at(xy(6, 20))
@@ -4207,6 +4296,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Town service scenes are normal scripts. Reusable helpers such as
+            // shopService, speak, choice, and pay keep common mechanics shared.
             scene(Scenes.Towne.church) {
                 clearMapWindow()
                 showBackdrop(Images.Scene.church)
@@ -4402,6 +4493,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Shop services declare catalog pages, prices, haggle policy, and
+            // prose; the runtime owns the common buy/sell loop and inventory edits.
             scene(Scenes.Towne.smith) {
                 shopService(Buildings.smith) {
                     image = Images.Scene.smith
@@ -6220,6 +6313,8 @@ val authoredRylween: RylweenModel =
             }
 
             // 4. Mission action scene: flag states are fluent typed markers, not strings.
+            // Mission scenes are the script bodies reached by the mission table.
+            // They own one-off prose/rewards while reusable handoffs stay semantic.
             scene(Scenes.Missions.erethorEntry) {
                 dungeonEntrance(Dungeons.erethorTemple, levels = 12) {
                     line("Here is the temple of")
@@ -6767,7 +6862,8 @@ val authoredRylween: RylweenModel =
                 }
             }
 
-            // 7. Script reward: semantic items, typed placement policy, no numeric ids.
+            // Script rewards use semantic item ids and placement policy, not
+            // numeric inventory ids or runtime-specific reward shortcuts.
             scene(Scenes.Missions.borinGift) {
                 clearText()
                 readScreen(
@@ -6795,7 +6891,8 @@ val authoredRylween: RylweenModel =
                 mark(Story.masterCrown.borinPaid)
             }
 
-            // 8. NPC dialogue: one-off text and rewards stay inline in the branch.
+            // Dialogue branches are selected by NPC and story state. One-off
+            // prose/rewards stay inline; shared conversation menus live in speak.
             dialogue {
                 npc(Npcs.garth) {
                     whenState(Story.garth.bandits.none) {
@@ -7552,4 +7649,7 @@ val authoredRylween: RylweenModel =
         }
     }.withReplayScenarios()
 
+// Replay scenarios are test/verification fixtures layered on the same content
+// model so routes can boot from known deterministic states.
+// Convenience handle for callers that need only the immutable game content.
 val authoredDsl: GameModel = authoredRylween.content
