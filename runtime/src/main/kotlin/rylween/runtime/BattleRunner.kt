@@ -6,6 +6,11 @@
  * import the old Kotlin battle session: game text is rendered from authored
  * runtime-system text blocks, while this file supplies only the generic combat
  * mechanics required to mutate the runtime party state.
+ *
+ * The battle round is a runtime service loop, not an authored script-control
+ * loop. Individual combat item/spell effects may run compiled script loops, but
+ * round cadence, targeting, rendering, monster turns, rewards, and game-over
+ * boundaries are host responsibilities fed by compiled rows.
  */
 
 package rylween.runtime

@@ -310,6 +310,12 @@ private fun RuntimeConfig.run() {
  * This class owns bundle lookup, static resource rendering, and the first
  * independent wilderness loop. It deliberately depends on `rylween.compiled`
  * tables and stable runtime-system data only.
+ *
+ * Its wilderness/title loops are runtime mode loops: they own input cadence,
+ * screen redraws, save/load boundaries, RNG advancement, and handoff to dungeon,
+ * castle, battle, or shop services. They must consume authored text, choices,
+ * formulas, and policies from compiled content/runtime-system rows instead of
+ * becoming source-script `loop { ... }` blocks.
  */
 class GameRuntime private constructor(
     private val bundle: CompiledGameBundle,

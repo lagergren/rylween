@@ -2456,6 +2456,66 @@ class RylweenCompiledGameLedgerTest {
                 missing.joinToString()
         }
     }
+
+    @Test
+    fun scriptAndRuntimeLoopOwnershipStaysExplicit() {
+        val dslSource = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val kernelSource = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
+        val sourceModel = File("core/src/main/kotlin/rylween/dsl/ScriptSourceModel.kt").readText()
+        val compiledBundleSource = File("core/src/main/kotlin/rylween/compiled/CompiledBundle.kt").readText()
+        val scriptExecutorSource = File("runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt").readText()
+        val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+        val runtimeLoopDocs =
+            mapOf(
+                "runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt" to "runtime mode loops",
+                "runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt" to "runtime mode loop",
+                "runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt" to "runtime mode loop",
+                "runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt" to "runtime service loop",
+                "runtime/src/main/kotlin/rylween/runtime/ShopService.kt" to "runtime service loops",
+            )
+
+        check("Script-control loops recorded here" in sourceModel && "mode/service loops" in sourceModel) {
+            "ScriptSourceModel must document that authored script loops are not runtime mode/service loops"
+        }
+        check(
+            "fun loop(body: ScriptScope.() -> Unit)" in dslSource &&
+                "Use this for local scripted menus or retry prompts." in dslSource &&
+                "Do not use it to model" in dslSource &&
+                "engine cadence loops" in dslSource &&
+                "fun forEachMonster(" in dslSource &&
+                "fun forEachMember(" in dslSource,
+        ) {
+            "ScriptScope loop DSL must describe local scripted flow, not runtime loop ownership"
+        }
+        check(
+            "Authored script-control loop." in kernelSource &&
+                "The compiler lowers this node to `CompiledOpcode.Loop`" in kernelSource &&
+                "not the standard battle loop" in kernelSource,
+        ) {
+            "ScriptStatementNode loop variants must keep source-loop ownership documented"
+        }
+        check(
+            "is ScriptStatementNode.Loop -> instruction(CompiledOpcode.Loop" in compiledBundleSource &&
+                "CompiledOpcode.Loop -> executeLoop" in scriptExecutorSource,
+        ) {
+            "authored script-control loops must lower to and execute through the compiled script VM path"
+        }
+        check(!Regex("""\b(?:for|while)\s*\(""").containsMatchIn(gameSource)) {
+            "authored game source must use DSL script iteration constructs instead of raw Kotlin loops"
+        }
+        val missingRuntimeDocs =
+            runtimeLoopDocs
+                .filterNot { (path, requiredText) -> requiredText in File(path).readText() }
+                .keys
+        check(missingRuntimeDocs.isEmpty()) {
+            "runtime loop owners must explicitly document native loop ownership: " +
+                missingRuntimeDocs.joinToString()
+        }
+        check("- [x] I9g. Document and enforce loop ownership." in planSource) {
+            "plans/dsl-improvements.md must record I9g loop-ownership closeout"
+        }
+    }
 }
 
 private fun TextBlock.textParts(): List<TextPart> =
