@@ -53,11 +53,11 @@ import rylween.dsl.impl.cells
 import rylween.dsl.impl.gridOffset
 import rylween.dsl.impl.itemPool
 import rylween.dsl.impl.xy
-import rylween.dsl.inlineText
 import rylween.dsl.isWinningConfiguration
 import rylween.dsl.keyAction
 import rylween.dsl.line
 import rylween.dsl.lines
+import rylween.dsl.literalText
 import rylween.dsl.matches
 import rylween.dsl.specialInventoryItems
 import rylween.dsl.structuredText
@@ -1035,7 +1035,7 @@ class RylweenCompiledGameLedgerTest {
             nextDsl.prompts.priest.wrongClass
                 .fallbackText() == "Not a spellcaster!",
         )
-        check(nextDsl.prompts.inventoryUse.quaff == inlineText("Quaff what?"))
+        check(nextDsl.prompts.inventoryUse.quaff == literalText("Quaff what?"))
         check(
             nextDsl.prompts.inventoryUse.invalidSlot
                 .fallbackText() == "Inventory slot {inventory_slot}\ndoes not exist.",
@@ -1104,7 +1104,7 @@ class RylweenCompiledGameLedgerTest {
                 "external runtime bundle must not ship stale prompt field $staleField"
             }
         }
-        check(nextDsl.prompts.equipment.readyArmors == inlineText("Do you want to ready", "any armors before", "leaving?", ""))
+        check(nextDsl.prompts.equipment.readyArmors == literalText("Do you want to ready", "any armors before", "leaving?", ""))
         check(nextDsl.realm.upkeep.foodTickEvery == 5)
         check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
         check(
@@ -1759,6 +1759,38 @@ class RylweenCompiledGameLedgerTest {
         }
         check("riddleGate" !in dslImplementation) {
             "Reusable DSL implementation must not expose a game-specific riddle gate primitive"
+        }
+    }
+
+    @Test
+    fun textDisplayDslUsesClearAuthoringVocabulary() {
+        val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val textDsl = File("core/src/main/kotlin/rylween/dsl/TextDsl.kt").readText()
+
+        check(
+            "fun literalText(" in textDsl &&
+                "fun structuredText(" in textDsl &&
+                "fun flowText(" in textDsl,
+        ) {
+            "text data constructors must distinguish literal, structured, and deferred-wrap text"
+        }
+        check("fun writeText(" in scriptDsl && "fun showTextAndWait(" in scriptDsl) {
+            "script display actions must name write-only text and write/wait/clear text explicitly"
+        }
+        check("literalText(" in gameDsl && "flowText(" in gameDsl && "showTextAndWait(" in gameDsl) {
+            "authored game source must use the preferred text constructor and read-and-dismiss vocabulary"
+        }
+        check(
+            "inlineText(" !in gameDsl &&
+                "textLines(" !in gameDsl &&
+                "flow(" !in gameDsl &&
+                "readScreen(" !in gameDsl,
+        ) {
+            "authored game source must not keep legacy text constructor or read-screen names"
+        }
+        check("screen(\"" !in gameDsl && "screen {" !in gameDsl) {
+            "screen() should remain for static/reusable screen declarations, not script text writes"
         }
     }
 
