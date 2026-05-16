@@ -125,7 +125,7 @@ internal class RuntimeScreen(
         renderMap(runtime.party.position, world)
         writeTextWindow(
             stickyMessageLines.takeIf { lines -> lines.isNotEmpty() }
-                ?: runtimeWildernessContextLines(content, systems, runtime, world) + "" + systems.wilderness.commandHint.render(runtime),
+                ?: (runtimeWildernessContextLines(content, systems, runtime, world) + "" + systems.wilderness.commandHint.render(runtime)),
         )
     }
 

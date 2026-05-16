@@ -68,12 +68,13 @@ import rylween.dsl.impl.sourceId
 import rylween.dsl.pronoun
 
 private const val STANDARD_TOWN_RUMOR_TABLE = "standard_town"
-private val SPEAK_COMMAND_GROUP = RuntimeCommandGroupId.Speak
-private val SPEAK_QUESTION_COMMAND_GROUP = RuntimeCommandGroupId.SpeakQuestions
 private const val SPEAK_NO_NPC_SCREEN = "speak.no_npc"
 private const val SPEAK_NO_RUMOR_SCREEN = "speak.no_rumor"
 private const val SCRIPT_ROOT_KIND_DIALOGUE_BRANCH = "DialogueBranch"
 private const val SCRIPT_ROOT_KIND_QUESTION_ACTION = "QuestionAction"
+
+private val SPEAK_COMMAND_GROUP = RuntimeCommandGroupId.Speak
+private val SPEAK_QUESTION_COMMAND_GROUP = RuntimeCommandGroupId.SpeakQuestions
 
 /** Executes one compiled script root against [RuntimeState]. */
 internal class ScriptExecutor(
@@ -166,7 +167,10 @@ internal class ScriptExecutor(
                     writeText(instruction.textBlockOperand(0).renderScriptLines())
                 }
 
-            CompiledOpcode.Emit -> continueAfter { screen.writeText(listOf("[text:${content.slug(instruction.handleOperand(0))}]")) }
+            CompiledOpcode.Emit ->
+                continueAfter {
+                    screen.writeText(runtimeDiagnosticText("[text:${content.slug(instruction.handleOperand(0))}]"))
+                }
 
             CompiledOpcode.WaitInput ->
                 continueAfter {

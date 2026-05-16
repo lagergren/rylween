@@ -95,7 +95,7 @@ internal class BattleRunner(
         if (candidates.isEmpty()) {
             return BattleResult(
                 runtime,
-                listOf("No compiled monsters for tier $tier."),
+                runtimeDiagnosticText("No compiled monsters for tier $tier."),
             )
         }
         val pick = runtime.party.drawRandom(0, candidates.lastIndex)
@@ -122,7 +122,7 @@ internal class BattleRunner(
             content.monsters.firstOrNull { current -> current.id == monsterRef }
                 ?: return BattleResult(
                     runtime,
-                    listOf("Missing compiled monster ${content.slug(monsterRef)}."),
+                    runtimeDiagnosticText("Missing compiled monster ${content.slug(monsterRef)}."),
                 )
         return runMonster(runtime, monster, mandatory)
     }
@@ -135,7 +135,7 @@ internal class BattleRunner(
         val rules =
             battle ?: return BattleResult(
                 runtime,
-                listOf("Missing compiled standard-battle contract."),
+                runtimeDiagnosticText("Missing compiled standard-battle contract."),
             )
         val started = startEncounter(runtime, rules, monster)
         started.openingImage()?.let { image ->
@@ -290,7 +290,7 @@ internal class BattleRunner(
         member: CompiledPartyMember,
         messages: MutableList<String>,
     ): BattleEncounter {
-        val targetIndex = selectMonsterTarget(messages) ?: return copy(actionRetry = true)
+        val targetIndex = selectMonsterTarget() ?: return copy(actionRetry = true)
         val hit = runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
         val skill =
             when {
@@ -321,7 +321,7 @@ internal class BattleRunner(
         return copy(runtime = runtime.withParty(damageDraw.party), monsterHp = nextHp)
     }
 
-    private fun BattleEncounter.selectMonsterTarget(messages: MutableList<String>): Int? {
+    private fun BattleEncounter.selectMonsterTarget(): Int? {
         val lines = rules.text.targetPrompt.renderBattle() + monsterTargetLines()
         screen.writeText(lines)
         return input
@@ -1035,7 +1035,7 @@ internal class BattleRunner(
                 CompiledOpcode.Emit ->
                     false.also {
                         writeText(
-                            listOf("[text:${content.slug(instruction.handleOperand(0))}]"),
+                            runtimeDiagnosticText("[text:${content.slug(instruction.handleOperand(0))}]"),
                         )
                     }
 

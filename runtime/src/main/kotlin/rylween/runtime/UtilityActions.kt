@@ -208,7 +208,7 @@ internal class UtilityActions(
                 systems.prompts.priest.none
                     .renderUtility() +
                 "" +
-                runtime.party.members.mapIndexed { index, _ -> "${index + 1}. ${runtime.party.memberName(content, index)}" }
+                List(runtime.party.members.size) { index -> "${index + 1}. ${runtime.party.memberName(content, index)}" }
         var rejection = emptyList<String>()
         while (true) {
             val lines = baseLines + rejection

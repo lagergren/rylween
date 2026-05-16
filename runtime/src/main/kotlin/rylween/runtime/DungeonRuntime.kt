@@ -226,12 +226,7 @@ internal class DungeonRuntime(
     }
 
     private fun saveRuntime(runtime: RuntimeState) {
-        save.write(runtime, content)
-        log.event(
-            "runtime.save user=${save.userId} file=${save.file.path} " +
-                "position=${runtime.party.position.x},${runtime.party.position.y} mode=${runtime.currentMode}",
-        )
-        screen.writeText(listOf(save.file.path))
+        saveRuntimeAndShowPath(runtime, content, save, screen, log)
     }
 
     private fun eventByRef(ref: CompiledHandleRef): CompiledDungeonEvent =
