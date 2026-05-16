@@ -655,7 +655,7 @@ B1-B9 first-pass notes:
     `InputBindingModel` now documents this ownership split, and the
     compiled-game ledger checks the title, wilderness, dungeon, castle, and cave
     command paths for semantic dispatch.
-- [ ] I9. Replace the ambiguous authored source-node model with an explicit script-source IR. Scope: keep an IR, but make it obviously authoring/compiler-owned rather than runtime bytecode. The runtime contract remains the compiled bundle (`CompiledOpcode` plus typed operands and tables); the DSL should not emit compiled instructions directly because validation, diagnostics, source paths, and the oracle need high-level structure.
+- [x] I9. Replace the ambiguous authored source-node model with an explicit script-source IR. Scope: keep an IR, but make it obviously authoring/compiler-owned rather than runtime bytecode. The runtime contract remains the compiled bundle (`CompiledOpcode` plus typed operands and tables); the DSL should not emit compiled instructions directly because validation, diagnostics, source paths, and the oracle need high-level structure.
   - [x] I9a. Introduce the new source model. Add `AuthoredScript`, `ScriptBlock`, and a sealed `ScriptStatement` model split by ownership categories: text/view, control flow, input, state mutation, and child/gameplay handoff. Reuse the existing expression/lvalue/text models initially; do not widen behavior in this slice.
     Introduced `ScriptSourceModel.kt` with authored script/block/source
     statement categories, classified existing concrete source nodes as source statements,
@@ -745,11 +745,16 @@ B1-B9 first-pass notes:
     document their native runtime mode/service loop ownership, and the ledger
     guards those comments, the compiled `Loop` lowering/execution path, and the
     absence of raw Kotlin `for`/`while` loops in the authored game source.
-  - [ ] I9h. Remove raw Kotlin locals from authored game scripts. Replace
+  - [x] I9h. Remove raw Kotlin locals from authored game scripts. Replace
     `val amount = localInt(...)`, `val caster = currentCaster`, and similar
     imperative declarations with source-script DSL constructs that still compile
     to explicit IR, so game content authors do not need Kotlin
     variable-declaration knowledge for common temporary values.
+    `localInt(...)`, current-caster, current-caster-cost, ask/choice member,
+    inventory-slot, wilderness-direction, and battle-target helpers now expose
+    block forms. Authored game script bodies use those DSL blocks instead of raw
+    nested Kotlin `val` temporaries, and the ledger guards against reintroducing
+    deep script-local `val` declarations in `RylweenGame.kt`.
 - [ ] I10. Author-facing DSL guide and design consistency audit. Run this after
   the I9 source-IR cleanup so the docs describe the settled model. First audit
   the game DSL for inconsistent shapes, misplaced implementation concepts, and
