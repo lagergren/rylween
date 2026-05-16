@@ -523,11 +523,10 @@ data class SceneModel(
 ) {
     constructor(
         id: SceneId,
-        ops: List<ScriptStatementNode>,
-    ) : this(id, AuthoredScript(ops))
+        statementNodes: List<ScriptStatementNode>,
+    ) : this(id, AuthoredScript(statementNodes))
 
-    /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<ScriptStatementNode> get() = script.ops
+    val statementNodes: List<ScriptStatementNode> get() = script.statementNodes
 }
 
 data class DialogueModel(
@@ -541,11 +540,10 @@ data class DialogueBranchModel(
 ) {
     constructor(
         whenState: FlagState?,
-        ops: List<ScriptStatementNode>,
-    ) : this(whenState, AuthoredScript(ops))
+        statementNodes: List<ScriptStatementNode>,
+    ) : this(whenState, AuthoredScript(statementNodes))
 
-    /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<ScriptStatementNode> get() = script.ops
+    val statementNodes: List<ScriptStatementNode> get() = script.statementNodes
 }
 
 data class SpellModel(
@@ -560,11 +558,10 @@ data class SpellModel(
         slot: Int,
         baseCost: Int,
         name: String,
-        ops: List<ScriptStatementNode>,
-    ) : this(id, slot, baseCost, name, AuthoredScript(ops))
+        statementNodes: List<ScriptStatementNode>,
+    ) : this(id, slot, baseCost, name, AuthoredScript(statementNodes))
 
-    /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<ScriptStatementNode> get() = script.ops
+    val statementNodes: List<ScriptStatementNode> get() = script.statementNodes
 }
 
 data class ItemUseModel(
@@ -577,11 +574,10 @@ data class ItemUseModel(
         id: ItemId,
         contexts: Set<ItemUseContext>,
         consume: ItemConsumePolicy,
-        ops: List<ScriptStatementNode>,
-    ) : this(id, contexts, consume, AuthoredScript(ops))
+        statementNodes: List<ScriptStatementNode>,
+    ) : this(id, contexts, consume, AuthoredScript(statementNodes))
 
-    /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<ScriptStatementNode> get() = script.ops
+    val statementNodes: List<ScriptStatementNode> get() = script.statementNodes
 }
 
 enum class DungeonEventDisposition { ClearAfterRun, Recurring }
@@ -596,13 +592,12 @@ data class DungeonEventModel(
     constructor(
         id: DungeonEventId,
         disposition: DungeonEventDisposition,
-        ops: List<ScriptStatementNode>,
+        statementNodes: List<ScriptStatementNode>,
         randomEncounterTier: EncounterTier? = null,
         clearWhenFlag: FlagState? = null,
-    ) : this(id, disposition, AuthoredScript(ops), randomEncounterTier, clearWhenFlag)
+    ) : this(id, disposition, AuthoredScript(statementNodes), randomEncounterTier, clearWhenFlag)
 
-    /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<ScriptStatementNode> get() = script.ops
+    val statementNodes: List<ScriptStatementNode> get() = script.statementNodes
 }
 
 data class DungeonRandomEventModel(

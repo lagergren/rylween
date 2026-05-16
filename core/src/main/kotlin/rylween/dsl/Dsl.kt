@@ -485,7 +485,7 @@ class ScriptScope(
         }
     }
 
-    internal fun capture(body: ScriptScope.() -> Unit): List<ScriptStatementNode> = recordScript(ctx, body)
+    internal fun capture(body: ScriptScope.() -> Unit): List<ScriptStatementNode> = recordStatementNodes(ctx, body)
 }
 
 /**
@@ -721,7 +721,7 @@ class ElseBranch(
     private val finish: (List<ScriptStatementNode>) -> Unit,
 ) {
     infix fun otherwise(body: ScriptScope.() -> Unit) {
-        finish(recordScript(ctx, body))
+        finish(recordStatementNodes(ctx, body))
     }
 }
 
@@ -741,11 +741,11 @@ class SwitchBuilder(
         value: Int,
         body: ScriptScope.() -> Unit,
     ) {
-        cases += SwitchCase(value, recordScript(ctx, body))
+        cases += SwitchCase(value, recordStatementNodes(ctx, body))
     }
 
     fun default(body: ScriptScope.() -> Unit) {
-        cases += SwitchCase(null, recordScript(ctx, body))
+        cases += SwitchCase(null, recordStatementNodes(ctx, body))
     }
 }
 
@@ -774,7 +774,7 @@ class MenuBuilder(
         binding: InputBindingModel,
         body: ScriptScope.() -> Unit,
     ) {
-        options += MenuOption(binding, recordScript(ctx, body))
+        options += MenuOption(binding, recordStatementNodes(ctx, body))
     }
 
     fun defaultOption(
@@ -788,13 +788,13 @@ class MenuBuilder(
         binding: InputBindingModel,
         body: ScriptScope.() -> Unit,
     ) {
-        val bodyOps = recordScript(ctx, body)
+        val bodyOps = recordStatementNodes(ctx, body)
         options += MenuOption(binding, bodyOps)
         defaultOps = bodyOps
     }
 
     fun default(body: ScriptScope.() -> Unit) {
-        defaultOps = recordScript(ctx, body)
+        defaultOps = recordStatementNodes(ctx, body)
     }
 
     fun build(prompt: TextBlock): ScriptStatementNode.Menu = ScriptStatementNode.Menu(prompt, options.toList(), defaultOps)
@@ -1055,12 +1055,12 @@ class ViewScope(
     fun statusLine(): Unit = script.record(ScriptStatementNode.View(ViewCommand.StatusLine))
 }
 
-internal fun recordScript(body: ScriptScope.() -> Unit): List<ScriptStatementNode> = recordScript(ScriptContext(), body)
+internal fun recordStatementNodes(body: ScriptScope.() -> Unit): List<ScriptStatementNode> = recordStatementNodes(ScriptContext(), body)
 
-internal fun recordScript(
+internal fun recordStatementNodes(
     ctx: ScriptContext,
     body: ScriptScope.() -> Unit,
-): List<ScriptStatementNode> = recordAuthoredScript(ctx, body).ops
+): List<ScriptStatementNode> = recordAuthoredScript(ctx, body).statementNodes
 
 internal fun recordAuthoredScript(body: ScriptScope.() -> Unit): AuthoredScript = recordAuthoredScript(ScriptContext(), body)
 
@@ -1640,7 +1640,7 @@ private fun DungeonSystemModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoo
     copy(events = events.map { it.copy(script = it.script.resolveItemPools(resolve)) })
 
 private fun AuthoredScript.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): AuthoredScript =
-    AuthoredScript(ops.resolveItemPools(resolve))
+    AuthoredScript(statementNodes.resolveItemPools(resolve))
 
 private fun List<ScriptStatementNode>.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<ScriptStatementNode> =
     map {

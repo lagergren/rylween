@@ -17,10 +17,10 @@ package rylween.dsl
 data class AuthoredScript(
     val block: ScriptBlock,
 ) {
-    constructor(ops: List<ScriptStatementNode>) : this(ScriptBlock.fromOps(ops))
+    constructor(statementNodes: List<ScriptStatementNode>) : this(ScriptBlock.fromStatementNodes(statementNodes))
 
-    /** Compatibility view used while existing compiler paths still accept [ScriptStatementNode]. */
-    val ops: List<ScriptStatementNode> get() = block.ops
+    /** Concrete source-node view used by compiler and diagnostics while I9 keeps legacy node implementations. */
+    val statementNodes: List<ScriptStatementNode> get() = block.statementNodes
 }
 
 /**
@@ -33,8 +33,8 @@ data class AuthoredScript(
 data class ScriptBlock(
     val statements: List<ScriptStatement>,
 ) {
-    /** Compatibility view used while I9b/I9c migrate builders and walkers. */
-    val ops: List<ScriptStatementNode>
+    /** Concrete source-node view used while all current statement implementations are [ScriptStatementNode]. */
+    val statementNodes: List<ScriptStatementNode>
         get() =
             statements.map { statement ->
                 statement as? ScriptStatementNode
@@ -42,7 +42,7 @@ data class ScriptBlock(
             }
 
     companion object {
-        fun fromOps(ops: List<ScriptStatementNode>): ScriptBlock = ScriptBlock(ops)
+        fun fromStatementNodes(statementNodes: List<ScriptStatementNode>): ScriptBlock = ScriptBlock(statementNodes)
     }
 }
 
@@ -50,8 +50,8 @@ data class ScriptBlock(
  * Mutable recorder for one authored [ScriptBlock].
  *
  * Builders write [ScriptStatement] here first. The [toBlock] result is the new
- * source IR, while [toOps] is the temporary compatibility bridge for compiler
- * and validation paths that still consume legacy [ScriptStatementNode] lists.
+ * source IR, while [toStatementNodes] exposes the concrete node list still used
+ * by builder helpers that assemble nested branches.
  */
 class ScriptBlockBuilder {
     private val statements = mutableListOf<ScriptStatement>()
@@ -71,7 +71,7 @@ class ScriptBlockBuilder {
 
     fun toBlock(): ScriptBlock = ScriptBlock(statements.toList())
 
-    fun toOps(): List<ScriptStatementNode> = toBlock().ops
+    fun toStatementNodes(): List<ScriptStatementNode> = toBlock().statementNodes
 }
 
 /**
