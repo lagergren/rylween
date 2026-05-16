@@ -261,122 +261,122 @@ fun inputTokenVariants(raw: String): Set<String> =
         }
     }
 
-sealed interface Op : ScriptStatement {
+sealed interface ScriptStatementNode : ScriptStatement {
     data class Screen(
         val text: TextBlock,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.TextView
 
     data class Emit(
         val text: TextId,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.TextView
 
     data class WaitInput(
         val reason: String? = null,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.Input
 
     data class Pause(
         val millis: Int,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
     data class View(
         val command: ViewCommand,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.TextView
 
     data class LetInt(
         val name: String,
         val value: IntAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 
     data class BindText(
         val name: String,
         val value: StrAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 
     data class Set(
         val target: LValueAst,
         val value: IntAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 
     data class Add(
         val target: LValueAst,
         val value: IntAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 
     data class Sub(
         val target: LValueAst,
         val value: IntAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 
     data class AddClamped(
         val target: LValueAst,
         val value: IntAst,
         val max: IntAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 
     data class SetFlag(
         val slug: String,
         val nativeValue: String,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 
     data class AppendJournal(
         val text: TextBlock,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.TextView
 
     data class If(
         val cond: BoolAst,
-        val thenOps: List<Op>,
-        val elseOps: List<Op>,
-    ) : Op,
+        val thenOps: List<ScriptStatementNode>,
+        val elseOps: List<ScriptStatementNode>,
+    ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
     data class Loop(
-        val body: List<Op>,
-    ) : Op,
+        val body: List<ScriptStatementNode>,
+    ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
     data class Break(
         val reason: String? = null,
         val signal: ScriptControlSignal = ScriptControlSignal.BreakNearestLoop,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
     data class Stop(
         val reason: String? = null,
         val signal: ScriptControlSignal = ScriptControlSignal.StopScript,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
     data class Switch(
         val expr: IntAst,
         val cases: List<SwitchCase>,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
     data class Menu(
         val prompt: TextBlock,
         val options: List<MenuOption>,
-        val defaultOps: List<Op>,
-    ) : Op,
+        val defaultOps: List<ScriptStatementNode>,
+    ) : ScriptStatementNode,
         ScriptStatement.Input
 
     data class AskKey(
         val prompt: TextBlock,
         val varName: String,
         val bindings: List<InputBindingModel>,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.Input
 
     data class AskMember(
@@ -384,7 +384,7 @@ sealed interface Op : ScriptStatement {
         val varName: String,
         val filter: MemberChoiceFilter,
         val accepting: MemberChoiceFilter = filter,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.Input
 
     data class AskInventorySlot(
@@ -393,126 +393,126 @@ sealed interface Op : ScriptStatement {
         val firstKey: Char,
         val slots: IntRange,
         val filter: InventorySlotChoiceFilter,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.Input
 
     data class AskText(
         val prompt: TextBlock,
         val accepted: List<String>,
-        val matchOps: List<Op>,
-        val missOps: List<Op>,
+        val matchOps: List<ScriptStatementNode>,
+        val missOps: List<ScriptStatementNode>,
         val caseSensitive: Boolean = false,
         val trim: Boolean = true,
         val maxLength: Int? = null,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.Input
 
     data class AskMonster(
         val prompt: TextBlock,
         val varName: String,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.Input
 
     data class ForEachMember(
         val varName: String,
         val includeDead: Boolean,
-        val body: List<Op>,
-    ) : Op,
+        val body: List<ScriptStatementNode>,
+    ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
     data class ForEachMonster(
         val varName: String,
         val includeDead: Boolean,
-        val body: List<Op>,
-    ) : Op,
+        val body: List<ScriptStatementNode>,
+    ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
     data class Speak(
         val building: BuildingId,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.GameplayHandoff
 
     data class TellRumor(
         val table: RumorTableId,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.GameplayHandoff
 
     data class RunScene(
         val scene: SceneId,
         val bindings: Map<String, String>,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.GameplayHandoff
 
     data class Encounter(
         val foe: MonsterId,
         val mandatory: Boolean,
         val tier: EncounterTier? = null,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.GameplayHandoff
 
     data class EnterDungeon(
         val dungeon: DungeonId,
         val levels: Int,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.GameplayHandoff
 
-    object ConsumeActiveItem : Op, ScriptStatement.StateMutation
+    object ConsumeActiveItem : ScriptStatementNode, ScriptStatement.StateMutation
 
     data class ClearInventorySlot(
         val slot: IntAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 
     data class ConsumeInventoryPool(
         val pool: ItemPoolId,
         val quantity: IntAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 
     data class TeleportParty(
         val directionKey: IntAst,
         val distance: IntAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.GameplayHandoff
 
     data class DiscoverCave(
         val dungeon: DungeonId,
         val levels: IntAst,
         val moveCost: IntAst,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.GameplayHandoff
 
     data class GrantReward(
         val reward: ScriptRewardModel,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.GameplayHandoff,
         ScriptStatement.StateMutation
 
     data class RandomItemOffer(
         val offer: RandomItemOfferModel,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.Input,
         ScriptStatement.GameplayHandoff
 
     data class ShopService(
         val shop: ShopServiceModel,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.GameplayHandoff
 
     data class AchieveMilestone(
         val milestone: GameMilestoneId,
-    ) : Op,
+    ) : ScriptStatementNode,
         ScriptStatement.StateMutation
 }
 
 data class SwitchCase(
     val match: Int?,
-    val body: List<Op>,
+    val body: List<ScriptStatementNode>,
 )
 
 data class MenuOption(
     val binding: InputBindingModel,
-    val body: List<Op>,
+    val body: List<ScriptStatementNode>,
 ) {
     val key: Char get() = binding.primaryChar
 }
@@ -523,11 +523,11 @@ data class SceneModel(
 ) {
     constructor(
         id: SceneId,
-        ops: List<Op>,
+        ops: List<ScriptStatementNode>,
     ) : this(id, AuthoredScript(ops))
 
     /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<Op> get() = script.ops
+    val ops: List<ScriptStatementNode> get() = script.ops
 }
 
 data class DialogueModel(
@@ -541,11 +541,11 @@ data class DialogueBranchModel(
 ) {
     constructor(
         whenState: FlagState?,
-        ops: List<Op>,
+        ops: List<ScriptStatementNode>,
     ) : this(whenState, AuthoredScript(ops))
 
     /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<Op> get() = script.ops
+    val ops: List<ScriptStatementNode> get() = script.ops
 }
 
 data class SpellModel(
@@ -560,11 +560,11 @@ data class SpellModel(
         slot: Int,
         baseCost: Int,
         name: String,
-        ops: List<Op>,
+        ops: List<ScriptStatementNode>,
     ) : this(id, slot, baseCost, name, AuthoredScript(ops))
 
     /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<Op> get() = script.ops
+    val ops: List<ScriptStatementNode> get() = script.ops
 }
 
 data class ItemUseModel(
@@ -577,11 +577,11 @@ data class ItemUseModel(
         id: ItemId,
         contexts: Set<ItemUseContext>,
         consume: ItemConsumePolicy,
-        ops: List<Op>,
+        ops: List<ScriptStatementNode>,
     ) : this(id, contexts, consume, AuthoredScript(ops))
 
     /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<Op> get() = script.ops
+    val ops: List<ScriptStatementNode> get() = script.ops
 }
 
 enum class DungeonEventDisposition { ClearAfterRun, Recurring }
@@ -596,13 +596,13 @@ data class DungeonEventModel(
     constructor(
         id: DungeonEventId,
         disposition: DungeonEventDisposition,
-        ops: List<Op>,
+        ops: List<ScriptStatementNode>,
         randomEncounterTier: EncounterTier? = null,
         clearWhenFlag: FlagState? = null,
     ) : this(id, disposition, AuthoredScript(ops), randomEncounterTier, clearWhenFlag)
 
     /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<Op> get() = script.ops
+    val ops: List<ScriptStatementNode> get() = script.ops
 }
 
 data class DungeonRandomEventModel(
