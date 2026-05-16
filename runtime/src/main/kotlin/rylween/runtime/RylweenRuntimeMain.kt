@@ -1058,7 +1058,11 @@ class GameRuntime private constructor(
         screen.showCharacterPortrait(null)
         screen.writeText(savingPrompt)
         input.pause(systems.pacing.characterCreation.saveConfirmationPauseMs)
-        screen.writeText(savingPrompt.withLastLineSuffix(" ${prompts.saveConfirmationSuffix}"))
+        val saveConfirmation =
+            prompts.saveConfirmation
+                .renderCreation(wrapWidth = null)
+                .joinToString(separator = " ")
+        screen.writeText(savingPrompt.withLastLineSuffix(" $saveConfirmation"))
         return runtime
     }
 
@@ -1126,7 +1130,10 @@ class GameRuntime private constructor(
                 log.event("creation.choice kind=$label key=$command label=${choice.label}")
                 return choice.value
             }
-            screen.writeText(listOf("Invalid input.", "Key: $command"))
+            screen.writeText(
+                systems.prompts.characterCreation.invalidInput
+                    .renderCreation(wrapWidth = screen.textColumns) + "Key: $command",
+            )
         }
     }
 
@@ -1375,7 +1382,10 @@ class GameRuntime private constructor(
         log: RuntimeLog,
     ) {
         persistRuntime(runtime, save, log, "command")
-        screen.writeText(listOf("Game saved.", save.file.path))
+        screen.writeText(
+            systems.prompts.save.done
+                .render({ null }, screen.textColumns) + save.file.path,
+        )
     }
 
     private fun persistSessionStartIfChanged(

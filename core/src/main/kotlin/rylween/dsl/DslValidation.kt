@@ -2895,7 +2895,12 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
         allowedRuntimeBindings = CharacterCreationMemberNameTextBindings,
     )
     validateTextBlock(prompts.characterCreation.classMenu, "character creation class-menu prompt")
+    validateTextBlock(prompts.characterCreation.invalidInput, "character creation invalid-input prompt")
     validateTextBlock(prompts.characterCreation.saving, "character creation saving prompt")
+    validateTextBlock(prompts.characterCreation.saveConfirmation, "character creation save-confirmation prompt")
+    check(prompts.characterCreation.saveConfirmation.isSingleLinePrompt()) {
+        "character creation save-confirmation prompt must be one line because it is appended to the saving prompt"
+    }
     validateTextBlock(prompts.town.menuTitle, "town menu-title prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryWelcome, "town entry welcome prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTax, "town entry tax prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
@@ -2929,6 +2934,14 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.party.dropOverflowConfirm, "party drop-overflow-confirm prompt")
     validateTextBlock(prompts.party.dropOverflowPrompt, "party drop-overflow-prompt prompt")
 }
+
+private fun TextBlock.isSingleLinePrompt(): Boolean =
+    when (this) {
+        is TextBlock.Ref -> true
+        is TextBlock.Inline -> lines.size == 1
+        is TextBlock.Structured -> lines.size == 1
+        is TextBlock.Flow -> false
+    }
 
 private fun validateGamePacing(pacing: GamePacingModel) {
     check(pacing.battle.messagePauseMs >= 0) { "battle message pause must not be negative" }
