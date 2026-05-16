@@ -333,8 +333,8 @@ graphics.
 ## The Four Towns of Rylween
 
 You will start the game near the northwestern part of Rylween. The first
-thing you should do is visit the mountain village Thord and buy some arms.
-You are completely defenseless when the game starts.
+thing you should do is visit the mountain village Thord and buy some
+equipment. You are completely defenseless when the game starts.
 
 There are four towns in Rylween:
 
