@@ -720,11 +720,14 @@ B1-B9 first-pass notes:
     - [x] I9f.1. Retire the active Kotlin `Op` type name. The concrete authored
       source node family is now `ScriptStatementNode`, and the ledger rejects
       reintroducing the standalone `Op` name in active Kotlin source roots.
-    - [ ] I9f.2. Remove or rename the remaining compatibility bridge surface:
-      `ops` accessors, `recordScript(...)` returning concrete node lists,
-      `fromOps`/`toOps`, and branch fields such as `thenOps`, `defaultOps`,
-      `matchOps`, and `missOps`.
-    - [ ] I9f.3. Clean historical plan/docs wording that still calls authored
+    - [x] I9f.2. Remove or rename the remaining root/block compatibility
+      bridge surface: `ops` accessors are now `statementNodes`,
+      `recordScript(...)` is now `recordStatementNodes(...)`, and
+      `fromOps`/`toOps` are now `fromStatementNodes`/`toStatementNodes`.
+    - [ ] I9f.3. Rename source-branch fields such as `thenOps`, `defaultOps`,
+      `matchOps`, and `missOps` without disturbing true compiled-payload
+      `*Ops` fields.
+    - [ ] I9f.4. Clean historical plan/docs wording that still calls authored
       source nodes ops, while preserving true compiled-opcode references.
   - [ ] I9g. Document and enforce loop ownership. Use names/docs/tests that
     distinguish authored script-control loops (`loop`, `breakLoop`,
