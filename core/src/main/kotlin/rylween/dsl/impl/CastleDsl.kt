@@ -156,7 +156,13 @@ data class CastleContentModel(
     val text: CastleTextModel,
 )
 
-/** Builder for one authored castle block in the game DSL. */
+/**
+ * Receiver for one authored castle block.
+ *
+ * Designers use it to declare the castle entry coordinate, map/room roll
+ * shape, required and completion milestones, monster tier, room subsystems,
+ * command bindings, and player-facing text consumed by the castle runtime.
+ */
 @RylNextDsl
 class CastleBuilder(
     private val id: CastleId,
@@ -248,6 +254,12 @@ class CastleBuilder(
     }
 }
 
+/**
+ * Receiver for castle treasure-room configuration.
+ *
+ * Designers set the gate roll cap and the item pools used when a treasure room
+ * offers regular or magic loot.
+ */
 @RylNextDsl
 class CastleTreasureBuilder(
     initial: CastleTreasureModel = CastleTreasureModel(),
@@ -273,6 +285,12 @@ class CastleTreasureBuilder(
         )
 }
 
+/**
+ * Receiver for castle pitfall configuration.
+ *
+ * Designers author the damage divisor and trap-type text variants; the runtime
+ * handles the actual damage, disarm check, and room flow.
+ */
 @RylNextDsl
 class CastlePitfallBuilder(
     initial: CastlePitfallModel = CastlePitfallModel(),
@@ -291,6 +309,12 @@ class CastlePitfallBuilder(
         )
 }
 
+/**
+ * Receiver for castle stair-room configuration.
+ *
+ * Designers define how many floors can be reached and which milestone-backed
+ * special items the stair guardians can accept.
+ */
 @RylNextDsl
 class CastleStairsBuilder(
     initial: CastleStairsModel = CastleStairsModel(),
@@ -314,6 +338,12 @@ class CastleStairsBuilder(
         )
 }
 
+/**
+ * Receiver for castle script hooks.
+ *
+ * Designers wire castle lifecycle points to authored scenes: already completed,
+ * blocked at entry, entered, and completed.
+ */
 @RylNextDsl
 class CastleScriptsBuilder(
     initial: CastleScriptsModel = CastleScriptsModel(),
@@ -332,6 +362,13 @@ class CastleScriptsBuilder(
         )
 }
 
+/**
+ * Receiver for castle command bindings.
+ *
+ * Designers override movement, party/inventory/equipment/spell/save bindings
+ * plus treasure and stair-room menu keys. Labels remain model defaults exported
+ * through runtime command metadata.
+ */
 @RylNextDsl
 class CastleKeysBuilder(
     initial: CastleKeysModel = CastleKeysModel(),
@@ -419,6 +456,12 @@ class CastleKeysBuilder(
         )
 }
 
+/**
+ * Receiver for castle runtime text and illustrations.
+ *
+ * Designers author the reusable room, trap, treasure, movement, stair, and
+ * guardian text rows used by the castle session.
+ */
 @RylNextDsl
 class CastleTextBuilder(
     initial: CastleTextModel = CastleTextModel(),

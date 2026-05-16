@@ -1,8 +1,10 @@
 // Builds the bitmap browser runtime, generated client resources, and launcher distribution.
+import com.github.gradle.node.npm.task.NpmTask
 import org.gradle.jvm.application.tasks.CreateStartScripts
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.node)
     id("rylween.qa-conventions")
 }
 
@@ -20,6 +22,12 @@ val rylweenJvmToolchainVersion: Int =
 
 kotlin {
     jvmToolchain(rylweenJvmToolchainVersion)
+}
+
+node {
+    version.set(libs.versions.nodejs)
+    download.set(true)
+    nodeProjectDir.set(layout.projectDirectory)
 }
 
 dependencies {
@@ -57,17 +65,17 @@ dependencies {
     playwrightCli(libs.playwright)
 }
 
-val npmInstallBitmapWeb: TaskProvider<Exec> by tasks.registering(Exec::class) {
+val npmInstallBitmapWeb: TaskProvider<NpmTask> by tasks.registering(NpmTask::class) {
     group = "generation"
-    description = "Installs the bitmap web TypeScript compiler."
+    description = "Installs the bitmap web TypeScript compiler with Gradle-managed Node/npm."
 
     workingDir = layout.projectDirectory.asFile
     inputs.file(layout.projectDirectory.file("package.json"))
     inputs.file(layout.projectDirectory.file("package-lock.json"))
     outputs.dir(layout.projectDirectory.dir("node_modules"))
-    commandLine("npm", "ci", "--ignore-scripts")
+    args.set(listOf("ci", "--ignore-scripts"))
 }
-val generateBitmapWebClientJs: TaskProvider<Exec> by tasks.registering(Exec::class) {
+val generateBitmapWebClientJs: TaskProvider<NpmTask> by tasks.registering(NpmTask::class) {
     group = "generation"
     description = "Compiles the authored bitmap web TypeScript client to the served JavaScript resource."
 
@@ -76,11 +84,13 @@ val generateBitmapWebClientJs: TaskProvider<Exec> by tasks.registering(Exec::cla
     inputs.file(layout.projectDirectory.file("src/main/resources/bitmap-web/client.ts"))
     inputs.file(layout.projectDirectory.file("tsconfig.json"))
     outputs.file(bitmapWebGeneratedResources.map { directory -> directory.file("bitmap-web/client.js") })
-    commandLine("npm", "run", "build")
+    args.set(listOf("run", "build"))
 }
 
-sourceSets.named("main") {
-    resources.srcDir(bitmapWebGeneratedResources)
+sourceSets {
+    main {
+        resources.srcDir(bitmapWebGeneratedResources)
+    }
 }
 
 tasks.processResources {

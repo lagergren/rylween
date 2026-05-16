@@ -63,8 +63,10 @@ val cpdCheck: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     isIgnoreExitValue = true
 }
 
+val ktlintCheck: TaskProvider<Task> by tasks.existing
+
 val qaCheck: TaskProvider<Task> by tasks.registering {
     group = "verification"
     description = "Runs all code-quality checks (ktlint + cpd)."
-    dependsOn(tasks.named("ktlintCheck"), cpdCheck)
+    dependsOn(ktlintCheck, cpdCheck)
 }

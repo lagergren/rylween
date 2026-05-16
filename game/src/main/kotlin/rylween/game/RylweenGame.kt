@@ -2008,109 +2008,121 @@ val authoredRylween: RylweenModel =
 
                 event(DungeonEvents.thunRiddle1) {
                     script {
-                        riddleGate(
-                            intro =
-                                textLines(
-                                    "You stand before a",
-                                    "mage dressed entirely",
-                                    "in red.",
-                                    "",
-                                    "- Answer this, fools, or",
-                                    "  die where you stand!",
-                                    "",
-                                ),
-                            riddle =
-                                textLines(
-                                    "'Between fire and ice,",
-                                    "who ends the fight?",
-                                    "Who stands between those",
-                                    "two? Not red, not white",
-                                    "but blue!",
-                                    "",
-                                ),
-                            answers = textAnswers("water"),
-                            guardian = Monsters.norker,
-                            success = textLines("- Well done. Pass.", ""),
-                            failure =
-                                textLines(
+                        readScreen(
+                            "You stand before a",
+                            "mage dressed entirely",
+                            "in red.",
+                            "",
+                            "- Answer this, fools, or",
+                            "  die where you stand!",
+                            "",
+                        )
+                        screen(
+                            "'Between fire and ice,",
+                            "who ends the fight?",
+                            "Who stands between those",
+                            "two? Not red, not white",
+                            "but blue!",
+                            "",
+                        )
+                        choice.textInput(
+                            prompt = "Answer: ",
+                            acceptedInputs = acceptedText("water"),
+                            maxLength = 15,
+                            onAccepted = {
+                                readScreen("- Well done. Pass.", "")
+                            },
+                            onRejected = {
+                                readScreen(
                                     "- FOOLS! Meet thy doom!",
                                     "at a gesture from him,",
                                     "something evil appears.",
                                     "",
-                                ),
+                                )
+                                encounter(Monsters.norker, mandatory = true)
+                            },
                         )
+                        clearText()
                     }
                 }
 
                 event(DungeonEvents.thunRiddle2) {
                     script {
-                        riddleGate(
-                            intro =
-                                textLines(
-                                    "You stand before a",
-                                    "mage dressed entirely",
-                                    "in green.",
-                                    "",
-                                    "- Answer this, fools, or",
-                                    "  die where you stand!",
-                                    "",
-                                ),
-                            riddle =
-                                textLines(
-                                    "'Siblings we are,",
-                                    "I'm black and she's",
-                                    "white. Each dreary",
-                                    "evening, I swallow her",
-                                    "light.'",
-                                    "",
-                                ),
-                            answers = textAnswers("night", "darkness"),
-                            guardian = Monsters.voodooLord,
-                            success = textLines("- Well done. Pass.", ""),
-                            failure =
-                                textLines(
+                        readScreen(
+                            "You stand before a",
+                            "mage dressed entirely",
+                            "in green.",
+                            "",
+                            "- Answer this, fools, or",
+                            "  die where you stand!",
+                            "",
+                        )
+                        screen(
+                            "'Siblings we are,",
+                            "I'm black and she's",
+                            "white. Each dreary",
+                            "evening, I swallow her",
+                            "light.'",
+                            "",
+                        )
+                        choice.textInput(
+                            prompt = "Answer: ",
+                            acceptedInputs = acceptedText("night", "darkness"),
+                            maxLength = 15,
+                            onAccepted = {
+                                readScreen("- Well done. Pass.", "")
+                            },
+                            onRejected = {
+                                readScreen(
                                     "- FOOLS! Meet thy doom!",
                                     "at a gesture from him,",
                                     "something evil appears.",
                                     "",
-                                ),
+                                )
+                                encounter(Monsters.voodooLord, mandatory = true)
+                            },
                         )
+                        clearText()
                     }
                 }
 
                 event(DungeonEvents.thunRiddle3) {
                     script {
-                        riddleGate(
-                            intro =
-                                textLines(
-                                    "You stand before a",
-                                    "mage dressed entirely",
-                                    "in blue.",
-                                    "",
-                                    "- Answer this, fools, or",
-                                    "  die where you stand!",
-                                    "",
-                                ),
-                            riddle =
-                                textLines(
-                                    "'Tall as a house,",
-                                    "round as a cup, and",
-                                    "all the king's horses",
-                                    "can't draw me up! What",
-                                    "am I?'",
-                                    "",
-                                ),
-                            answers = textAnswers("well", "a well"),
-                            guardian = Monsters.archdevil,
-                            success = textLines("- Well done. Pass.", ""),
-                            failure =
-                                textLines(
+                        readScreen(
+                            "You stand before a",
+                            "mage dressed entirely",
+                            "in blue.",
+                            "",
+                            "- Answer this, fools, or",
+                            "  die where you stand!",
+                            "",
+                        )
+                        screen(
+                            "'Tall as a house,",
+                            "round as a cup, and",
+                            "all the king's horses",
+                            "can't draw me up! What",
+                            "am I?'",
+                            "",
+                        )
+                        choice.textInput(
+                            prompt = "Answer: ",
+                            acceptedInputs = acceptedText("well", "a well"),
+                            maxLength = 15,
+                            onAccepted = {
+                                readScreen("- Well done. Pass.", "")
+                            },
+                            onRejected = {
+                                readScreen(
                                     "- FOOLS! Meet thy doom!",
                                     "at a gesture from him,",
                                     "something evil appears.",
                                     "",
-                                ),
+                                )
+                                encounter(Monsters.archdevil, mandatory = true)
+                            },
                         )
+                        clearText()
                     }
                 }
 
@@ -2358,11 +2370,11 @@ val authoredRylween: RylweenModel =
                                 "- What's the password?",
                                 "",
                             )
-                            choice.textAnswer(
+                            choice.textInput(
                                 prompt = "Password: ",
-                                accepting = textAnswers("RISH EKKIN"),
+                                acceptedInputs = acceptedText("RISH EKKIN"),
                                 maxLength = 15,
-                                match = {
+                                onAccepted = {
                                     readScreen(
                                         "- Step inside and identify",
                                         "yourself. You do so. The",
@@ -2374,7 +2386,7 @@ val authoredRylween: RylweenModel =
                                     )
                                     encounter(Monsters.hobgoblinChief, mandatory = true)
                                 },
-                                miss = {
+                                onRejected = {
                                     screen("- GUARDS! GUARDS!", "", "(Hobgoblin guards rush", " to confront you.)")
                                     pause2s()
                                     encounter(Monsters.hobgoblin, mandatory = true)

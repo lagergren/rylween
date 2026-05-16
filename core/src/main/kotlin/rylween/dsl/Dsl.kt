@@ -26,6 +26,13 @@ import rylween.dsl.impl.*
 // 05. DSL kernel: builders and validation
 // =============================================================================
 
+/**
+ * Mutable recording context shared while one authored script block is captured.
+ *
+ * Designers normally never use this directly; builder receivers use it to
+ * allocate stable temporary names and to route nested DSL bodies into the
+ * correct script-operation list.
+ */
 class ScriptContext {
     private var nextVar = 0
     private val opTargets = mutableListOf<MutableList<Op>>()
@@ -57,8 +64,16 @@ annotation class RylNextDsl
 
 fun itemPools(vararg pools: ItemPoolId): List<ItemPoolId> = pools.toList()
 
-fun textAnswers(vararg answers: String): List<String> = answers.toList()
+fun acceptedText(vararg values: String): List<String> = values.toList()
 
+/**
+ * Receiver for authored script bodies such as scenes, dialogue branches,
+ * dungeon events, item-use effects, rewards, and service hooks.
+ *
+ * Calls on this receiver record source script operations. They do not run
+ * gameplay at authoring time; validation and the compiler later lower the
+ * recorded operations into the compiled VM bundle consumed by runtimes.
+ */
 @RylNextDsl
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class ScriptScope(
@@ -367,31 +382,6 @@ class ScriptScope(
         }
     }
 
-    fun riddleGate(
-        intro: TextBlock,
-        riddle: TextBlock,
-        answers: List<String>,
-        guardian: MonsterId,
-        success: TextBlock,
-        failure: TextBlock,
-    ) {
-        readScreen(intro)
-        screen(riddle)
-        choice.textAnswer(
-            prompt = "Answer: ",
-            accepting = answers,
-            maxLength = 15,
-            match = {
-                readScreen(success)
-            },
-            miss = {
-                readScreen(failure)
-                encounter(guardian, mandatory = true)
-            },
-        )
-        clearText()
-    }
-
     fun teleportParty(
         directionKey: IntExpr,
         distance: IntExpr,
@@ -455,6 +445,13 @@ class ScriptScope(
     internal fun capture(body: ScriptScope.() -> Unit): List<Op> = recordScript(ctx, body)
 }
 
+/**
+ * Builds a reward embedded inside a script statement.
+ *
+ * Designers use this from `grantReward { ... }` style blocks to describe gold,
+ * items, inventory-overflow policy, and the player-facing text shown when an
+ * item must be dropped before the reward can be placed.
+ */
 @RylNextDsl
 @Suppress("unused")
 class ScriptRewardBuilder {
@@ -510,6 +507,12 @@ class ScriptRewardBuilder {
     fun build(): ScriptRewardModel = ScriptRewardModel(goldAst, itemIds.toList(), applicationModel, messagesModel)
 }
 
+/**
+ * Structured-text receiver for random-item offer prompts.
+ *
+ * It exposes the offered item name and price as typed text parts so game prose
+ * can be authored once and rendered with the runtime-selected item.
+ */
 @RylNextDsl
 class RandomItemOfferTextBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
@@ -524,6 +527,13 @@ class RandomItemOfferTextBuilder : TextLineSink {
     fun build(): TextBlock = text.build()
 }
 
+/**
+ * Builds a random shop/treasure offer inside a script choice.
+ *
+ * Designers use it to author the offer prose, buy/decline bindings, price
+ * override, inventory-full policy, and the short pauses/messages around a
+ * generated item purchase.
+ */
 @RylNextDsl
 @Suppress("unused")
 class RandomItemOfferBuilder(
@@ -659,6 +669,10 @@ class RandomItemOfferBuilder(
         )
 }
 
+/**
+ * Continuation returned by [ScriptScope.whenever] so a designer can attach the
+ * `otherwise { ... }` branch immediately after an authored condition.
+ */
 class ElseBranch(
     private val ctx: ScriptContext,
     private val finish: (List<Op>) -> Unit,
@@ -668,6 +682,12 @@ class ElseBranch(
     }
 }
 
+/**
+ * Receiver for `choose(expr) { ... }` script blocks.
+ *
+ * Each case records a branch of script operations keyed by an integer value;
+ * `default` records the fallback branch when no explicit case matches.
+ */
 @RylNextDsl
 class SwitchBuilder(
     private val ctx: ScriptContext,
@@ -686,6 +706,12 @@ class SwitchBuilder(
     }
 }
 
+/**
+ * Receiver for script menus that wait for one of several input bindings.
+ *
+ * Designers use `option` for explicit choices and `default`/`defaultOption`
+ * for the branch taken when input does not match a declared option.
+ */
 @RylNextDsl
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class MenuBuilder(
@@ -731,6 +757,13 @@ class MenuBuilder(
     fun build(prompt: TextBlock): Op.Menu = Op.Menu(prompt, options.toList(), defaultOps)
 }
 
+/**
+ * Helper exposed as `ask` inside [ScriptScope].
+ *
+ * It records typed input prompts and returns script references to selected
+ * values, such as keys, party members, inventory slots, or monsters, for later
+ * operations in the same authored script block.
+ */
 @Suppress("unused")
 class AskScope(
     private val script: ScriptScope,
@@ -797,6 +830,13 @@ class AskScope(
     }
 }
 
+/**
+ * Helper exposed as `choice` inside [ScriptScope].
+ *
+ * It packages input-driven branches, such as yes/no menus, member choices, and
+ * keyboard text entry, while recording ordinary script input operations so
+ * runtime input handling remains unified.
+ */
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class ChoiceScope(
     private val script: ScriptScope,
@@ -872,22 +912,22 @@ class ChoiceScope(
         script.record(Op.RandomItemOffer(RandomItemOfferBuilder(pool).apply(body).build()))
     }
 
-    fun textAnswer(
+    fun textInput(
         prompt: TextBlock,
-        accepting: List<String>,
+        acceptedInputs: List<String>,
         caseSensitive: Boolean = false,
         trim: Boolean = true,
         maxLength: Int? = null,
-        match: ScriptScope.() -> Unit,
-        miss: ScriptScope.() -> Unit,
+        onAccepted: ScriptScope.() -> Unit,
+        onRejected: ScriptScope.() -> Unit,
     ) {
-        require(accepting.isNotEmpty()) { "text answer prompt must accept at least one value" }
+        require(acceptedInputs.isNotEmpty()) { "text input prompt must accept at least one value" }
         script.record(
             Op.AskText(
                 prompt = prompt,
-                accepted = accepting,
-                matchOps = script.capture(match),
-                missOps = script.capture(miss),
+                accepted = acceptedInputs,
+                matchOps = script.capture(onAccepted),
+                missOps = script.capture(onRejected),
                 caseSensitive = caseSensitive,
                 trim = trim,
                 maxLength = maxLength,
@@ -895,16 +935,16 @@ class ChoiceScope(
         )
     }
 
-    fun textAnswer(
+    fun textInput(
         prompt: String,
-        accepting: List<String>,
+        acceptedInputs: List<String>,
         caseSensitive: Boolean = false,
         trim: Boolean = true,
         maxLength: Int? = null,
-        match: ScriptScope.() -> Unit,
-        miss: ScriptScope.() -> Unit,
+        onAccepted: ScriptScope.() -> Unit,
+        onRejected: ScriptScope.() -> Unit,
     ) {
-        textAnswer(inlineText(prompt), accepting, caseSensitive, trim, maxLength, match, miss)
+        textInput(inlineText(prompt), acceptedInputs, caseSensitive, trim, maxLength, onAccepted, onRejected)
     }
 
     fun member(
@@ -939,10 +979,23 @@ class ChoiceScope(
     }
 }
 
+/**
+ * Script reference to an inventory slot selected by an authored prompt.
+ *
+ * The index is an expression because the selected slot is only known at
+ * runtime when the compiled script resumes after input.
+ */
 data class InventorySlotRef(
     val index: IntExpr,
 )
 
+/**
+ * Helper exposed as `view` inside [ScriptScope] for runtime display commands.
+ *
+ * These calls record semantic view operations, such as clearing the text
+ * window or showing an image, instead of embedding frontend-specific rendering
+ * code in authored scripts.
+ */
 class ViewScope(
     private val script: ScriptScope,
 ) {
@@ -971,11 +1024,24 @@ internal fun recordScript(
         }
     }
 
+/**
+ * Internal result produced by [ItemCatalogBuilder].
+ *
+ * `GameBuilder.items` consumes both concrete item records and named item pools
+ * so later scripts can refer to pools before the final compatibility handles
+ * are normalized.
+ */
 data class ItemCatalogDeclaration(
     val records: List<ItemRecordModel>,
     val pools: List<ItemPoolId>,
 )
 
+/**
+ * Receiver for declaring the members of one item pool.
+ *
+ * Designers use this when a random reward or offer should draw from a named
+ * group of item ids instead of listing those ids at every use site.
+ */
 @RylNextDsl
 class ItemPoolBuilder {
     private val items = mutableListOf<ItemId>()
@@ -991,6 +1057,12 @@ class ItemPoolBuilder {
     internal fun build(): List<ItemId> = items.toList()
 }
 
+/**
+ * Receiver for camp-gear protection metadata on an item record.
+ *
+ * Designers use `protects(...)` to declare which temperature bands a carried
+ * tent, blanket, or similar item shields against during camp/rest resolution.
+ */
 @RylNextDsl
 class CampProtectionBuilder {
     private val bands = mutableSetOf<TemperatureBand>()
@@ -1002,6 +1074,13 @@ class CampProtectionBuilder {
     internal fun build(): Set<TemperatureBand> = bands.toSet()
 }
 
+/**
+ * Optional customization receiver for a single item catalog row.
+ *
+ * Designers use it from weapon/armor/gear/treasure declarations to add class
+ * restrictions, camp images, camp protection, or party-resource capacity
+ * bonuses without changing the base item kind.
+ */
 @RylNextDsl
 class ItemRecordBuilder {
     private var image: ImageId? = null
@@ -1037,6 +1116,14 @@ class ItemRecordBuilder {
     internal fun resourceCapacityBonusValue(): Map<Resource, Int> = capacityBonuses.toMap()
 }
 
+/**
+ * Receiver for realm-level runtime balance and prose.
+ *
+ * Designers use this from `realm { ... }` to declare shared party resources,
+ * wilderness upkeep, camp/rest behavior, hunting rules, and status-line time
+ * bands. Runtime sessions read the resulting data rather than hardcoding those
+ * policies.
+ */
 @RylNextDsl
 class RealmContentBuilder {
     private val baseCapacity = mutableMapOf<Resource, Int>()
@@ -1078,6 +1165,12 @@ class RealmContentBuilder {
         )
 }
 
+/**
+ * Receiver for status-line time-of-day labels.
+ *
+ * Each band maps an inclusive hour range to the label displayed by the runtime
+ * status line, allowing the game source to own the vocabulary for time.
+ */
 @RylNextDsl
 class TimeOfDayBandsBuilder {
     private val bands = mutableListOf<TimeOfDayBandModel>()
@@ -1092,6 +1185,13 @@ class TimeOfDayBandsBuilder {
     internal fun build(): List<TimeOfDayBandModel> = bands.toList()
 }
 
+/**
+ * Receiver for wilderness turn-upkeep rules.
+ *
+ * Designers use it to author food cadence, starvation thresholds/damage/death
+ * text, mana recovery chance, rested-hour drain, and fatigue messages while
+ * the runtime owns applying those rules on each wilderness turn.
+ */
 @RylNextDsl
 class WildernessUpkeepRulesBuilder(
     initial: WildernessUpkeepRules = WildernessUpkeepRules(),
@@ -1154,6 +1254,13 @@ class WildernessUpkeepRulesBuilder(
         )
 }
 
+/**
+ * Receiver for camp and rest balance.
+ *
+ * Designers author healing, food cost, time advancement, temperature bands,
+ * shelter text, guard prompts, and ambush settings here; the camp runtime
+ * applies the resulting data to live party state.
+ */
 @RylNextDsl
 class CampRulesBuilder {
     var healthGain: Int = 0
@@ -1217,6 +1324,12 @@ class CampRulesBuilder {
         )
 }
 
+/**
+ * Receiver for wilderness hunting balance and prose.
+ *
+ * Designers use it to set ranger success chance, move cost, food gain range,
+ * and the prompts/messages shown by the reusable hunt action.
+ */
 @RylNextDsl
 class HuntRulesBuilder {
     var successChancePercent: Int = 0
@@ -1247,6 +1360,13 @@ class HuntRulesBuilder {
         )
 }
 
+/**
+ * Receiver for the global item catalog.
+ *
+ * Designers use this from `items { ... }` to declare every item row and item
+ * pool used by inventory, shops, rewards, saves, equipment, and scripted random
+ * offers.
+ */
 @RylNextDsl
 class ItemCatalogBuilder {
     private val records = mutableListOf<ItemRecordModel>()
@@ -1560,6 +1680,13 @@ private fun BoolAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): BoolA
         else -> this
     }
 
+/**
+ * Root receiver for a complete authored game.
+ *
+ * The game designer enters through `game { ... }` and fills this receiver with
+ * catalogs, runtime systems, maps, scripts, prompts, and progression rules.
+ * `build()` assembles the source graph later validated and emitted to bundles.
+ */
 @RylNextDsl
 class GameBuilder {
     private var metadataModel = GameMetadataModel()
@@ -1789,6 +1916,12 @@ class GameBuilder {
     }
 }
 
+/**
+ * Receiver for optional debug and secret systems.
+ *
+ * Designers use it to declare hidden player-name matches and debug command
+ * allowlists without wiring those checks directly into runtime sessions.
+ */
 @RylNextDsl
 @Suppress("unused")
 class SecretSystemBuilder(
@@ -1817,6 +1950,12 @@ class SecretSystemBuilder(
     fun build(): SecretSystemModel = SecretSystemModel(players = players.toList())
 }
 
+/**
+ * Receiver for one player-name based secret trigger.
+ *
+ * It captures the name-matching policy and the debug commands or step trigger
+ * unlocked when a party matches that policy.
+ */
 @RylNextDsl
 class SecretPlayerBuilder(
     private val matcher: SecretPlayerMatcherModel,
@@ -1876,6 +2015,12 @@ class SecretPlayerBuilder(
         )
 }
 
+/**
+ * Receiver for an authored world map.
+ *
+ * Designers add named map layers here; validation derives dimensions and checks
+ * terrain/map consistency from the authored row data.
+ */
 @RylNextDsl
 class WorldMapBuilder(
     private val id: WorldMapId,
@@ -1896,6 +2041,12 @@ class WorldMapBuilder(
         )
 }
 
+/**
+ * Receiver for one layer of a world map.
+ *
+ * Each `rows(...)` call supplies the exact source-map strings used to build the
+ * traversable grid for wilderness movement and placement checks.
+ */
 @RylNextDsl
 class WorldMapLayerBuilder(
     private val id: MapLayerId,
@@ -1922,6 +2073,13 @@ class WorldMapLayerBuilder(
     fun build(): WorldMapLayerModel = WorldMapLayerModel(id = id, rows = rowModels)
 }
 
+/**
+ * Receiver for all reusable runtime prompts.
+ *
+ * Designers use this to replace player-facing text that would otherwise be
+ * hardcoded in runtime services: title menus, inventory use, equipment, party
+ * pages, dungeon/wilderness prompts, saves, and character creation.
+ */
 @RylNextDsl
 class GamePromptsBuilder(
     initial: GamePromptsModel = GamePromptsModel(),
@@ -2004,6 +2162,12 @@ class GamePromptsBuilder(
         )
 }
 
+/**
+ * Receiver for authored pacing defaults.
+ *
+ * Designers use this to group gameplay delays that should be content-owned
+ * rather than frontend implementation constants.
+ */
 @RylNextDsl
 class GamePacingBuilder(
     initial: GamePacingModel = GamePacingModel(),
@@ -2044,6 +2208,12 @@ class GamePacingBuilder(
         )
 }
 
+/**
+ * Receiver for battle pacing values.
+ *
+ * These delays are consumed by the battle runner around opening, message,
+ * battle-cry, and victory output.
+ */
 @RylNextDsl
 class BattlePacingBuilder(
     initial: BattlePacingModel = BattlePacingModel(),
@@ -2062,6 +2232,12 @@ class BattlePacingBuilder(
         )
 }
 
+/**
+ * Receiver for character-creation pacing.
+ *
+ * Designers tune rejection and save-confirmation pauses for the reusable party
+ * creation flow here.
+ */
 @RylNextDsl
 class CharacterCreationPacingBuilder(
     initial: CharacterCreationPacingModel = CharacterCreationPacingModel(),
@@ -2076,6 +2252,11 @@ class CharacterCreationPacingBuilder(
         )
 }
 
+/**
+ * Receiver for shop pacing.
+ *
+ * The current field controls the interlude pause reused by shop sessions.
+ */
 @RylNextDsl
 class ShopPacingBuilder(
     initial: ShopPacingModel = ShopPacingModel(),
@@ -2085,6 +2266,12 @@ class ShopPacingBuilder(
     fun build(): ShopPacingModel = ShopPacingModel(interludePagePauseMs = interludePagePauseMs)
 }
 
+/**
+ * Receiver for speak/dialogue pacing.
+ *
+ * Designers tune delays around prompt echoes and response text without putting
+ * timing literals inside individual dialogue branches.
+ */
 @RylNextDsl
 class SpeakPacingBuilder(
     initial: SpeakPacingModel = SpeakPacingModel(),
@@ -2099,6 +2286,12 @@ class SpeakPacingBuilder(
         )
 }
 
+/**
+ * Receiver for wilderness pacing.
+ *
+ * Designers tune wilderness-action delays, currently the camp message pause,
+ * while the runtime applies the delay consistently.
+ */
 @RylNextDsl
 class WildernessPacingBuilder(
     initial: WildernessPacingModel = WildernessPacingModel(),
@@ -2108,6 +2301,12 @@ class WildernessPacingBuilder(
     fun build(): WildernessPacingModel = WildernessPacingModel(campMessagePauseMs = campMessagePauseMs)
 }
 
+/**
+ * Receiver for title-screen menu prompts and command bindings.
+ *
+ * Designers author the visible menu header, menu choices, destructive-action
+ * confirmations, unavailable-save text, and invalid-input text here.
+ */
 @RylNextDsl
 class TitleMenuPromptsBuilder(
     initial: TitleMenuPromptsModel = TitleMenuPromptsModel(),
@@ -2146,6 +2345,12 @@ class TitleMenuPromptsBuilder(
         )
 }
 
+/**
+ * Receiver for reusable spell-selection prompts.
+ *
+ * It owns the priest/mage selection wording, `(N)one` behavior, spell key
+ * range, and failure messages used by the shared spell prompt runner.
+ */
 @RylNextDsl
 class PriestSpellPromptsBuilder(
     initial: PriestSpellPromptsModel = PriestSpellPromptsModel(),
@@ -2176,6 +2381,12 @@ class PriestSpellPromptsBuilder(
         )
 }
 
+/**
+ * Receiver for inventory item-use prompts.
+ *
+ * Designers author quaff/use/no-item text plus structured invalid-slot and
+ * not-usable rows that runtime code renders with the selected slot or item.
+ */
 @RylNextDsl
 class InventoryUsePromptsBuilder(
     initial: InventoryUsePromptsModel = InventoryUsePromptsModel(),
@@ -2206,6 +2417,12 @@ class InventoryUsePromptsBuilder(
         )
 }
 
+/**
+ * Receiver for equipment prompts.
+ *
+ * It supplies inventory/equipping text and typed selected-item/kind prompt rows
+ * used by ready/remove equipment flows in wilderness, dungeon, and castle.
+ */
 @RylNextDsl
 @Suppress("unused")
 class EquipmentPromptsBuilder(
@@ -2237,6 +2454,12 @@ class EquipmentPromptsBuilder(
         )
 }
 
+/**
+ * Receiver for save prompts.
+ *
+ * Designers author the visible saving/done/failed text while the runtime owns
+ * the save path and persistence diagnostics.
+ */
 @RylNextDsl
 class SavePromptsBuilder(
     initial: SavePromptsModel = SavePromptsModel(),
@@ -2253,6 +2476,12 @@ class SavePromptsBuilder(
         )
 }
 
+/**
+ * Receiver for character-creation prompt text.
+ *
+ * It owns the visible party/member/race/class prompts, labels, invalid-input
+ * text, and save-confirmation row for the reusable character-creation session.
+ */
 @RylNextDsl
 class CharacterCreationPromptsBuilder(
     initial: CharacterCreationPromptsModel = CharacterCreationPromptsModel(),
@@ -2305,6 +2534,12 @@ class CharacterCreationPromptsBuilder(
         )
 }
 
+/**
+ * Receiver for town-entry and town-menu prompt text.
+ *
+ * Designers author the reusable town menu title and entry/tax messages shared
+ * by the town session.
+ */
 @RylNextDsl
 class TownPromptsBuilder(
     initial: TownPromptsModel = TownPromptsModel(),
@@ -2327,6 +2562,12 @@ class TownPromptsBuilder(
         )
 }
 
+/**
+ * Receiver for shared party-page and inventory-drop prompts.
+ *
+ * Party view, journal, inventory, and drop flows consume these rows from
+ * `runtimeSystems.prompts.party` instead of hardcoding prose in the runtime.
+ */
 @RylNextDsl
 class PartyPromptsBuilder(
     initial: PartyPromptsModel = PartyPromptsModel(),
@@ -2369,6 +2610,12 @@ class PartyPromptsBuilder(
         )
 }
 
+/**
+ * Receiver for wilderness action prompts.
+ *
+ * Designers author pass/no-moves/quit/entry failure text and the structured
+ * dungeon-handoff prompt used when a cave or mission transfers to a dungeon.
+ */
 @RylNextDsl
 @Suppress("MemberVisibilityCanBePrivate")
 class WildernessPromptsBuilder(
@@ -2400,6 +2647,12 @@ class WildernessPromptsBuilder(
         )
 }
 
+/**
+ * Receiver for reusable dungeon prompts.
+ *
+ * Designers author level-selection rows, max-depth/no-torch failures, and
+ * cavern-leave text used by the dungeon session.
+ */
 @RylNextDsl
 class DungeonPromptsBuilder(
     initial: DungeonPromptsModel = DungeonPromptsModel(),
@@ -2428,6 +2681,12 @@ class DungeonPromptsBuilder(
         )
 }
 
+/**
+ * Structured prompt receiver for wilderness-to-dungeon handoff text.
+ *
+ * It exposes dungeon name and level count as typed text parts so the runtime
+ * supplies the discovered dungeon facts while the prose remains authored.
+ */
 @RylNextDsl
 class WildernessDungeonEntryPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
@@ -2442,6 +2701,11 @@ class WildernessDungeonEntryPromptBuilder : TextLineSink {
     fun build(): TextBlock = text.build()
 }
 
+/**
+ * Structured prompt receiver for dungeon depth text.
+ *
+ * Designers use the `level` text part in level menus and enter-level prompts.
+ */
 @RylNextDsl
 class DungeonLevelPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
@@ -2455,6 +2719,12 @@ class DungeonLevelPromptBuilder : TextLineSink {
     fun build(): TextBlock = text.build()
 }
 
+/**
+ * Structured prompt receiver for selected-item text.
+ *
+ * Equipment, drop, and item-use prompts use this when the runtime must inject
+ * the selected item name into authored prose.
+ */
 @RylNextDsl
 class SelectedItemPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
@@ -2468,6 +2738,12 @@ class SelectedItemPromptBuilder : TextLineSink {
     fun build(): TextBlock = text.build()
 }
 
+/**
+ * Structured prompt receiver for equipment-kind text.
+ *
+ * Designers use `equipmentKind` in generic weapon/armor prompts shared by
+ * ready/remove equipment flows.
+ */
 @RylNextDsl
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class EquipmentKindPromptBuilder : TextLineSink {
@@ -2482,6 +2758,12 @@ class EquipmentKindPromptBuilder : TextLineSink {
     fun build(): TextBlock = text.build()
 }
 
+/**
+ * Structured prompt receiver for character stat pages.
+ *
+ * It exposes rolled stat fields and member number as text parts for the
+ * character-creation screen.
+ */
 @RylNextDsl
 class CharacterCreationStatsPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
@@ -2499,6 +2781,11 @@ class CharacterCreationStatsPromptBuilder : TextLineSink {
     fun build(): TextBlock = text.build()
 }
 
+/**
+ * Structured prompt receiver for character-creation member-number prompts.
+ *
+ * Designers use this when a prompt needs the current member slot number.
+ */
 @RylNextDsl
 class CharacterCreationMemberNumberPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
@@ -2512,6 +2799,11 @@ class CharacterCreationMemberNumberPromptBuilder : TextLineSink {
     fun build(): TextBlock = text.build()
 }
 
+/**
+ * Structured prompt receiver for character-creation member-name prompts.
+ *
+ * Designers use this when a prompt needs the current member's authored name.
+ */
 @RylNextDsl
 class CharacterCreationMemberNamePromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
@@ -2525,6 +2817,12 @@ class CharacterCreationMemberNamePromptBuilder : TextLineSink {
     fun build(): TextBlock = text.build()
 }
 
+/**
+ * Receiver for wilderness runtime system configuration.
+ *
+ * Designers use it to author wilderness key bindings, random events, and
+ * terrain-transition narration consumed by the wilderness session.
+ */
 @RylNextDsl
 class WildernessSystemBuilder {
     private var keysModel = WildernessKeysBuilder().build()
@@ -2551,6 +2849,13 @@ class WildernessSystemBuilder {
         )
 }
 
+/**
+ * Receiver for wilderness command bindings and help text.
+ *
+ * The wilderness runner exports these bindings through `runtimeSystems.commands`
+ * and uses the same model for movement, cave prompts, out-of-moves prompts,
+ * quit confirmation, and debug-only commands.
+ */
 @RylNextDsl
 class WildernessKeysBuilder(
     initial: WildernessKeysModel = WildernessKeysModel(),
@@ -2714,6 +3019,12 @@ class WildernessKeysBuilder(
         )
 }
 
+/**
+ * Receiver for reusable command-help pages.
+ *
+ * Wilderness and dungeon key builders use these pages for the runtime command
+ * help static screen.
+ */
 @RylNextDsl
 class WildernessHelpPagesBuilder {
     private val pages = mutableListOf<TextBlock>()
@@ -2729,6 +3040,12 @@ class WildernessHelpPagesBuilder {
     fun build(): List<TextBlock> = pages.toList()
 }
 
+/**
+ * Receiver for dungeon runtime system configuration.
+ *
+ * Designers declare reusable dungeon events, named dungeon scenarios, backdrop,
+ * and dungeon command bindings here; runtime sessions consume the built system.
+ */
 @RylNextDsl
 class DungeonSystemBuilder {
     private val events = mutableListOf<DungeonEventModel>()
@@ -2767,6 +3084,13 @@ class DungeonSystemBuilder {
         )
 }
 
+/**
+ * Receiver for dungeon command bindings and help text.
+ *
+ * The dungeon runner exports these bindings through `runtimeSystems.commands`
+ * and uses them for descent/ascent, equipment, item, spell, party, save, and
+ * help commands.
+ */
 @RylNextDsl
 class DungeonKeysBuilder(
     initial: DungeonKeysModel = DungeonKeysModel(),
@@ -2819,6 +3143,12 @@ class DungeonKeysBuilder(
         )
 }
 
+/**
+ * Receiver for one reusable dungeon event.
+ *
+ * Designers author event disposition, optional random encounter, optional
+ * clear-when flag, and the script that runs when the event is selected.
+ */
 @RylNextDsl
 class DungeonEventBuilder(
     private val id: DungeonEventId,
@@ -2856,6 +3186,12 @@ class DungeonEventBuilder(
         )
 }
 
+/**
+ * Receiver for one named dungeon scenario.
+ *
+ * It maps dungeon depth to fixed events and weighted random event pools for a
+ * specific dungeon id.
+ */
 @RylNextDsl
 class DungeonScenarioBuilder(
     private val dungeon: DungeonId,
@@ -2902,6 +3238,11 @@ class DungeonScenarioBuilder(
         )
 }
 
+/**
+ * Receiver for a weighted pool of dungeon random events.
+ *
+ * Dungeon scenarios use this to choose non-fixed level events.
+ */
 @RylNextDsl
 class DungeonRandomEventPoolBuilder {
     private val events = mutableListOf<DungeonRandomEventModel>()
@@ -2916,6 +3257,12 @@ class DungeonRandomEventPoolBuilder {
     fun build(): List<DungeonRandomEventModel> = events.toList()
 }
 
+/**
+ * Receiver for wilderness random-event tuning.
+ *
+ * Designers set cave discovery, quiet-move, encounter split, cave dungeon/depth,
+ * move cost, imagery, and cave discovery/failure text here.
+ */
 @RylNextDsl
 class WildernessEventBuilder {
     var caveChancePercent: Int = 3
@@ -2962,6 +3309,12 @@ class WildernessEventBuilder {
         )
 }
 
+/**
+ * Receiver for authored terrain-transition narration.
+ *
+ * The wilderness runner may show one of these entries on quiet movement when
+ * entering matching terrain.
+ */
 @RylNextDsl
 class TerrainTransitionBuilder {
     var chancePercent: Int = 9
@@ -2984,6 +3337,12 @@ class TerrainTransitionBuilder {
     fun build(): TerrainTransitionModel = TerrainTransitionModel(chancePercent = chancePercent, entries = entries.toList())
 }
 
+/**
+ * Receiver for NPC dialogue catalog entries.
+ *
+ * Designers group all dialogue branches for NPCs here; each branch is still an
+ * authored script recorded through [ScriptScope].
+ */
 @RylNextDsl
 class DialogueCatalogBuilder {
     private val dialogue = mutableListOf<DialogueModel>()
@@ -2998,6 +3357,12 @@ class DialogueCatalogBuilder {
     fun build(): List<DialogueModel> = dialogue.toList()
 }
 
+/**
+ * Receiver for one NPC's dialogue branches.
+ *
+ * Branches can be gated by a flag state or declared as the default branch for
+ * the reusable speak session.
+ */
 @RylNextDsl
 class NpcDialogueBuilder(
     private val id: NpcId,
@@ -3018,6 +3383,12 @@ class NpcDialogueBuilder(
     fun build(): DialogueModel = DialogueModel(id, branches.toList())
 }
 
+/**
+ * Receiver for authored town catalog entries.
+ *
+ * Designers declare each town's id, display name, world-map placement, kind,
+ * and optional services through nested town builders.
+ */
 @RylNextDsl
 class TownCatalogBuilder {
     private val towns = mutableListOf<TownModel>()
@@ -3039,6 +3410,12 @@ class TownCatalogBuilder {
     fun build(): List<TownModel> = towns.toList()
 }
 
+/**
+ * Receiver for one town declaration.
+ *
+ * Designers set display name, map position, city/village kind, tax rate, and
+ * the set of building services available in the town.
+ */
 @RylNextDsl
 class TownBuilder(
     private val id: TownId,
@@ -3064,6 +3441,12 @@ class TownBuilder(
     fun build(): TownModel = TownModel(id, name, position, taxPercent, kindModel, serviceModels.toList())
 }
 
+/**
+ * Receiver for the services available in one town.
+ *
+ * It records which standard or custom buildings appear in that town; detailed
+ * building behavior is declared in the shared town system.
+ */
 @RylNextDsl
 class TownServicesBuilder {
     private val services = mutableListOf<TownServiceModel>()
@@ -3099,6 +3482,12 @@ class TownServicesBuilder {
     fun build(): List<TownServiceModel> = services.toList()
 }
 
+/**
+ * Receiver for shared town runtime behavior.
+ *
+ * Designers author the town menu, entry-tax keys, leave-equipment prompts, and
+ * service catalog consumed by all town sessions.
+ */
 @RylNextDsl
 class TownSystemBuilder {
     private var menuModel = TownMenuBuilder().build()
@@ -3146,6 +3535,12 @@ class TownSystemBuilder {
         )
 }
 
+/**
+ * Receiver for the town-entry tax interaction.
+ *
+ * It declares the leader-level threshold and pay/leave bindings used when a
+ * town charges entry tax.
+ */
 @RylNextDsl
 class TownEntryTaxBuilder(
     initial: TownEntryTaxModel = TownEntryTaxModel(),
@@ -3162,6 +3557,12 @@ class TownEntryTaxBuilder(
         )
 }
 
+/**
+ * Receiver for town menu command rows.
+ *
+ * Designers map visible keys to building services or the leave action. The
+ * resulting commands are exported through `runtimeSystems.commands.town`.
+ */
 @RylNextDsl
 class TownMenuBuilder {
     private val actions = mutableListOf<TownMenuActionModel>()
@@ -3247,6 +3648,12 @@ class TownMenuBuilder {
     fun build(): List<TownMenuActionModel> = actions.toList()
 }
 
+/**
+ * Receiver for reusable building-service definitions.
+ *
+ * Designers define the shared service scene, action id, and opening hours for
+ * church, smith, inn, merchant, tavern, guild, or custom services.
+ */
 @RylNextDsl
 class BuildingServiceCatalogBuilder {
     private val services = mutableListOf<BuildingServiceModel>()
@@ -3287,6 +3694,12 @@ class BuildingServiceCatalogBuilder {
     fun build(): List<BuildingServiceModel> = services.toList()
 }
 
+/**
+ * Receiver for one reusable building service.
+ *
+ * Designers can override the command action, entry scene, and opening hours
+ * for the service selected from the town menu.
+ */
 @RylNextDsl
 class BuildingServiceBuilder(
     private val building: BuildingId,
@@ -3341,6 +3754,12 @@ class BuildingServiceBuilder(
         )
 }
 
+/**
+ * Receiver for the NPC catalog.
+ *
+ * Designers declare NPC identity, job, gender, roles, and placement policy
+ * here. Runtime speak/town systems consume the generated character records.
+ */
 @RylNextDsl
 class CharacterCatalogBuilder {
     private val characters = mutableListOf<CharacterModel>()
@@ -3396,7 +3815,12 @@ class CharacterCatalogBuilder {
     fun build(): List<CharacterModel> = characters.toList()
 }
 
-/** Collects the chance-share choices used by `randomPlacement`. */
+/**
+ * Receiver for generated NPC placement policy.
+ *
+ * Each entry adds a chance-share bucket for town-service or wilderness
+ * placement. NPCs can use the catalog default or override it individually.
+ */
 @RylNextDsl
 class RandomNpcPlacementPolicyBuilder {
     private val options = mutableListOf<RandomNpcPlacementOptionModel>()
@@ -3455,7 +3879,12 @@ class RandomNpcPlacementPolicyBuilder {
     fun build(): RandomNpcPlacementPolicyModel = RandomNpcPlacementPolicyModel(options.toList())
 }
 
-/** Optional coordinate adjustments for a wilderness placement bucket. */
+/**
+ * Receiver for optional coordinate adjustments inside one wilderness placement bucket.
+ *
+ * Designers use this only for legacy placement quirks where a generated x
+ * coordinate needs to be rewritten before terrain validation.
+ */
 @RylNextDsl
 class RandomWildernessPlacementBuilder {
     private val xReplacements = linkedMapOf<Int, Int>()
@@ -3579,6 +4008,12 @@ class CharacterBuilder(
         )
 }
 
+/**
+ * Receiver for authored flag metadata.
+ *
+ * Designers declare which generated flag handles are story or encounter flags
+ * and can narrow the explicit state set used by validation and diagnostics.
+ */
 @RylNextDsl
 class FlagContentBuilder {
     private val flags = mutableListOf<FlagContentModel>()
@@ -3602,6 +4037,12 @@ class FlagContentBuilder {
     fun build(): List<FlagContentModel> = flags.toList()
 }
 
+/**
+ * Receiver for one authored flag metadata entry.
+ *
+ * It optionally overrides the flag's declared state list for validation and
+ * content reporting.
+ */
 @RylNextDsl
 class FlagContentEntryBuilder(
     private val flag: FlagRef,
@@ -3615,6 +4056,12 @@ class FlagContentEntryBuilder(
     fun build(): FlagContentModel = FlagContentModel(flag, explicitStates.ifEmpty { flag.states })
 }
 
+/**
+ * Receiver for the monster catalog.
+ *
+ * Designers declare combat stats, encounter tier, counts, image, and immunity
+ * for each monster used by battle and encounter systems.
+ */
 @RylNextDsl
 class MonsterCatalogBuilder {
     private val monsters = mutableListOf<MonsterModel>()
@@ -3629,6 +4076,12 @@ class MonsterCatalogBuilder {
     fun build(): List<MonsterModel> = monsters.toList()
 }
 
+/**
+ * Receiver for one monster definition.
+ *
+ * It owns the authored combat-facing numbers and optional encounter image for a
+ * stable monster id.
+ */
 @RylNextDsl
 class MonsterBuilder(
     private val id: MonsterId,
@@ -3651,6 +4104,12 @@ class MonsterBuilder(
         MonsterModel(id, name, count, countMaxLevelDivisor, hitPoints, weaponSkill, spellPower, tier, immune, encounterImage)
 }
 
+/**
+ * Receiver for wilderness mission declarations.
+ *
+ * Designers add random-step, fixed-position, location, or terrain-triggered
+ * mission hooks here.
+ */
 @RylNextDsl
 class MissionCatalogBuilder {
     private val missions = mutableListOf<MissionModel>()
@@ -3665,6 +4124,12 @@ class MissionCatalogBuilder {
     fun build(): List<MissionModel> = missions.toList()
 }
 
+/**
+ * Receiver for one wilderness mission trigger.
+ *
+ * It declares when the mission checks, optional flag/expression requirements,
+ * and the scene that runs when the trigger fires.
+ */
 @RylNextDsl
 class MissionBuilder(
     private val id: MissionId,

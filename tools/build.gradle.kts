@@ -32,7 +32,7 @@ tasks.jar {
     archiveBaseName = "rylween-tools"
 }
 
-val mainSourceSet: SourceSet = sourceSets.named("main").get()
+val mainSourceSet: SourceSet = sourceSets.main.get()
 val nativeSmokeBundle: Provider<RegularFile> = rootProject.layout.buildDirectory.file("compiled/rylween-native-smoke.rsmoke")
 val nativeSmokeSource: RegularFile = layout.projectDirectory.file("src/main/c/compiled-smoke/rylween_bundle_smoke.c")
 val nativeSmokeExecutable: Provider<RegularFile> = layout.buildDirectory.file("native/compiled-smoke/rylween-bundle-smoke")
