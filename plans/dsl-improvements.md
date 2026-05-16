@@ -730,7 +730,7 @@ B1-B9 first-pass notes:
       `*Ops` fields.
     - [x] I9f.4. Clean historical plan/docs wording that still described authored
       source nodes as operations, while preserving true compiled-opcode references.
-  - [ ] I9g. Document and enforce loop ownership. Use names/docs/tests that
+  - [x] I9g. Document and enforce loop ownership. Use names/docs/tests that
     distinguish authored script-control loops (`loop`, `breakLoop`,
     `forEachMember`, `forEachMonster`, lowered to compiled script instructions)
     from runtime mode/service loops (wilderness, town, dungeon, castle, standard
@@ -739,11 +739,25 @@ B1-B9 first-pass notes:
     Rylween-specific prose, prompt wording, reusable choice labels, formulas,
     rewards, or gameplay policy inside those loops should be authored
     content/runtimeSystems instead.
+    `ScriptSourceModel`, `ScriptScope`, and `ScriptStatementNode` now document
+    authored script-control loops as compiled VM flow only. `GameRuntime`,
+    `DungeonRuntime`, `CastleRuntime`, `BattleRunner`, and `ShopService` now
+    document their native runtime mode/service loop ownership, and the ledger
+    guards those comments, the compiled `Loop` lowering/execution path, and the
+    absence of raw Kotlin `for`/`while` loops in the authored game source.
   - [ ] I9h. Remove raw Kotlin locals from authored game scripts. Replace
     `val amount = localInt(...)`, `val caster = currentCaster`, and similar
     imperative declarations with source-script DSL constructs that still compile
     to explicit IR, so game content authors do not need Kotlin
     variable-declaration knowledge for common temporary values.
+- [ ] I10. Author-facing DSL guide and design consistency audit. Run this after
+  the I9 source-IR cleanup so the docs describe the settled model. First audit
+  the game DSL for inconsistent shapes, misplaced implementation concepts, and
+  repeated mechanisms that should be unified; then write an author guide covering
+  DSL syntax, major constructs, how to extend or modify the game, and examples
+  that demonstrate dynamic authoring such as adding scenes, prompts, shops,
+  dialogue, rewards, maps, events, and runtime-system text without touching
+  runtime implementation code.
 
 ### J. Optional non-JVM runtime productization
 

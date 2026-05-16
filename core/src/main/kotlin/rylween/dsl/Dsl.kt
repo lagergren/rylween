@@ -265,8 +265,25 @@ class ScriptScope(
 
     fun stop(reason: String? = null): Unit = record(ScriptStatementNode.Stop(reason))
 
+    /**
+     * Leaves the nearest authored script-control loop.
+     *
+     * This is source-script flow that lowers to the compiled VM. Runtime
+     * mode/service loops such as wilderness, dungeon, castle, shop, or battle
+     * loops stay native because they own live input, rendering, persistence, RNG,
+     * and subsystem state.
+     */
     fun breakLoop(reason: String? = null): Unit = record(ScriptStatementNode.Break(reason))
 
+    /**
+     * Repeats an authored script block until that block emits [breakLoop] or
+     * [stop].
+     *
+     * Use this for local scripted menus or retry prompts. Do not use it to model
+     * engine cadence loops; those belong in runtime hosts and should consume
+     * authored text, formulas, choices, rewards, and policies from compiled
+     * content/runtime-system rows.
+     */
     fun loop(body: ScriptScope.() -> Unit) {
         record(ScriptStatementNode.Loop(capture(body)))
     }
@@ -307,28 +324,40 @@ class ScriptScope(
         record(builder.build(prompt))
     }
 
+    /**
+     * Iterates over monsters inside an authored combat script.
+     *
+     * This is compiled script-control flow for local scripted effects; it does
+     * not own the standard battle round loop or target-selection UI.
+     */
     fun forEachMonster(
         includeDead: Boolean = false,
         body: ScriptScope.(MonsterRef) -> Unit,
     ) {
         val name = ctx.fresh("monster")
-        val childOps =
+        val childStatements =
             capture {
                 body(MonsterRef(this, v(name)))
             }
-        record(ScriptStatementNode.ForEachMonster(name, includeDead, childOps))
+        record(ScriptStatementNode.ForEachMonster(name, includeDead, childStatements))
     }
 
+    /**
+     * Iterates over party members inside an authored script.
+     *
+     * This is compiled script-control flow for local scripted effects; it is not
+     * the owner of broad party, battle, or screen rendering loops.
+     */
     fun forEachMember(
         includeDead: Boolean = false,
         body: ScriptScope.(MemberRef) -> Unit,
     ) {
         val name = ctx.fresh("member")
-        val childOps =
+        val childStatements =
             capture {
                 body(MemberRef(this, v(name)))
             }
-        record(ScriptStatementNode.ForEachMember(name, includeDead, childOps))
+        record(ScriptStatementNode.ForEachMember(name, includeDead, childStatements))
     }
 
     fun healLivingMembers(amount: IntExpr) {

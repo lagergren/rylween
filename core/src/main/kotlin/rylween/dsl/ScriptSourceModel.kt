@@ -13,6 +13,12 @@ package rylween.dsl
  * Production runtimes should consume compiled bundle rows, not these source
  * records. Authored-source execution belongs only in explicit oracle/parity
  * tests while this IR remains useful for validation and diagnostics.
+ *
+ * Script-control loops recorded here are authoring constructs that lower to
+ * compiled script instructions. They are not the same thing as runtime
+ * mode/service loops such as wilderness, town, dungeon, castle, shop, or battle
+ * loops, which own live input cadence, rendering, persistence, RNG, and
+ * subsystem state.
  */
 data class AuthoredScript(
     val block: ScriptBlock,
@@ -87,7 +93,7 @@ sealed interface ScriptStatement {
     /** Text, journal, image, and other view-output side effects. */
     sealed interface TextView : ScriptStatement
 
-    /** Authored control flow such as branches, loops, stops, and iteration. */
+    /** Authored script-control flow such as branches, script loops, stops, and iteration. */
     sealed interface ControlFlow : ScriptStatement
 
     /** Authored prompts, menu choices, pauses for input, and text entry. */
