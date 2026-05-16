@@ -2178,11 +2178,11 @@ fun validateScriptRewards(
                     }
                 }
                 is Op.AskText -> {
-                    validateTextBlock(op.prompt, "text answer prompt")
-                    check(op.accepted.isNotEmpty()) { "text answer prompt must accept at least one value" }
-                    check(op.accepted.none { it.isEmpty() }) { "text answer prompt cannot accept an empty value" }
+                    validateTextBlock(op.prompt, "text input prompt")
+                    check(op.accepted.isNotEmpty()) { "text input prompt must accept at least one value" }
+                    check(op.accepted.none { it.isEmpty() }) { "text input prompt cannot accept an empty value" }
                     op.maxLength?.let { max ->
-                        check(max > 0) { "text answer max length must be positive" }
+                        check(max > 0) { "text input max length must be positive" }
                     }
                 }
                 is Op.GrantReward -> validateReward(op.reward)

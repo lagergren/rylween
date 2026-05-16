@@ -328,8 +328,8 @@ private fun visitNestedScriptOps(
             visitBranch(op.defaultOps, op.options.size, "$label menu default")
         }
         is Op.AskText -> {
-            visitBranch(op.matchOps, 0, "$label text-answer match")
-            visitBranch(op.missOps, 1, "$label text-answer miss")
+            visitBranch(op.matchOps, 0, "$label text-input accepted")
+            visitBranch(op.missOps, 1, "$label text-input rejected")
         }
         is Op.ForEachMember -> visitBranch(op.body, 0, "$label member loop")
         is Op.ForEachMonster -> visitBranch(op.body, 0, "$label monster loop")

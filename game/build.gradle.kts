@@ -48,8 +48,10 @@ val gameDslScenarioFile: RegularFile =
     layout.projectDirectory.file("src/main/kotlin/rylween/game/RylweenTestScenarios.kt")
 val gameDslSourceLabel: String = gameDslSourceFile.asFile.relativeTo(projectDir).invariantSeparatorsPath
 
-sourceSets.named("main") {
-    kotlin.srcDir(generatedGameCatalogDir)
+sourceSets {
+    main {
+        kotlin.srcDir(generatedGameCatalogDir)
+    }
 }
 
 dependencies {
