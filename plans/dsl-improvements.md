@@ -717,6 +717,15 @@ B1-B9 first-pass notes:
     remove or narrowly deprecate `Op`, remove `List<Op>` bridge accessors where
     possible, and update docs/plan text so future work says "source script IR"
     for authoring and "compiled opcodes" for runtime.
+    - [x] I9f.1. Retire the active Kotlin `Op` type name. The concrete authored
+      source node family is now `ScriptStatementNode`, and the ledger rejects
+      reintroducing the standalone `Op` name in active Kotlin source roots.
+    - [ ] I9f.2. Remove or rename the remaining compatibility bridge surface:
+      `ops` accessors, `recordScript(...)` returning concrete node lists,
+      `fromOps`/`toOps`, and branch fields such as `thenOps`, `defaultOps`,
+      `matchOps`, and `missOps`.
+    - [ ] I9f.3. Clean historical plan/docs wording that still calls authored
+      source nodes ops, while preserving true compiled-opcode references.
   - [ ] I9g. Document and enforce loop ownership. Use names/docs/tests that
     distinguish authored script-control loops (`loop`, `breakLoop`,
     `forEachMember`, `forEachMonster`, lowered to compiled script instructions)

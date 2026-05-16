@@ -6,9 +6,9 @@ package rylween.dsl
  * This is the authoring/compiler IR. It is intentionally separate from the
  * runtime VM contract in `rylween.compiled`: source scripts keep designer
  * structure, labels, branch shape, and source-map paths, while compiled bundles
- * keep dense opcodes and operands for runtimes. Existing [Op] nodes implement
- * [ScriptStatement] during the migration so I9 can move builders, validation,
- * and compilation in small behavior-preserving slices.
+ * keep dense opcodes and operands for runtimes. Concrete [ScriptStatementNode]
+ * nodes implement [ScriptStatement] during the migration so I9 can move
+ * builders, validation, and compilation in small behavior-preserving slices.
  *
  * Production runtimes should consume compiled bundle rows, not these source
  * records. Authored-source execution belongs only in explicit oracle/parity
@@ -17,10 +17,10 @@ package rylween.dsl
 data class AuthoredScript(
     val block: ScriptBlock,
 ) {
-    constructor(ops: List<Op>) : this(ScriptBlock.fromOps(ops))
+    constructor(ops: List<ScriptStatementNode>) : this(ScriptBlock.fromOps(ops))
 
-    /** Compatibility view used while existing compiler paths still accept [Op]. */
-    val ops: List<Op> get() = block.ops
+    /** Compatibility view used while existing compiler paths still accept [ScriptStatementNode]. */
+    val ops: List<ScriptStatementNode> get() = block.ops
 }
 
 /**
@@ -28,20 +28,21 @@ data class AuthoredScript(
  *
  * Blocks are explicit so nested control flow, menu choices, text-input success
  * and failure branches, and future source-map spans can be named as script
- * structure instead of anonymous `List<Op>` values.
+ * structure instead of anonymous `List<ScriptStatementNode>` values.
  */
 data class ScriptBlock(
     val statements: List<ScriptStatement>,
 ) {
     /** Compatibility view used while I9b/I9c migrate builders and walkers. */
-    val ops: List<Op>
+    val ops: List<ScriptStatementNode>
         get() =
             statements.map { statement ->
-                statement as? Op ?: error("script block contains a non-Op statement before I9 lowering supports it")
+                statement as? ScriptStatementNode
+                    ?: error("script block contains a non-ScriptStatementNode statement before I9 lowering supports it")
             }
 
     companion object {
-        fun fromOps(ops: List<Op>): ScriptBlock = ScriptBlock(ops)
+        fun fromOps(ops: List<ScriptStatementNode>): ScriptBlock = ScriptBlock(ops)
     }
 }
 
@@ -50,7 +51,7 @@ data class ScriptBlock(
  *
  * Builders write [ScriptStatement] here first. The [toBlock] result is the new
  * source IR, while [toOps] is the temporary compatibility bridge for compiler
- * and validation paths that still consume legacy [Op] lists.
+ * and validation paths that still consume legacy [ScriptStatementNode] lists.
  */
 class ScriptBlockBuilder {
     private val statements = mutableListOf<ScriptStatement>()
@@ -70,7 +71,7 @@ class ScriptBlockBuilder {
 
     fun toBlock(): ScriptBlock = ScriptBlock(statements.toList())
 
-    fun toOps(): List<Op> = toBlock().ops
+    fun toOps(): List<ScriptStatementNode> = toBlock().ops
 }
 
 /**

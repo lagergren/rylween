@@ -92,30 +92,30 @@ class IntSlot(
     private val lvalue: LValueAst,
     override val ast: IntAst,
 ) : IntExpr() {
-    infix fun set(value: IntExpr): Unit = script.record(Op.Set(lvalue, value.ast))
+    infix fun set(value: IntExpr): Unit = script.record(ScriptStatementNode.Set(lvalue, value.ast))
 
     infix fun set(value: Int): Unit = set(lit(value))
 
-    operator fun plusAssign(value: IntExpr): Unit = script.record(Op.Add(lvalue, value.ast))
+    operator fun plusAssign(value: IntExpr): Unit = script.record(ScriptStatementNode.Add(lvalue, value.ast))
 
     operator fun plusAssign(value: Int): Unit = plusAssign(lit(value))
 
-    operator fun minusAssign(value: IntExpr): Unit = script.record(Op.Sub(lvalue, value.ast))
+    operator fun minusAssign(value: IntExpr): Unit = script.record(ScriptStatementNode.Sub(lvalue, value.ast))
 
     operator fun minusAssign(value: Int): Unit = minusAssign(lit(value))
 
-    operator fun timesAssign(value: IntExpr): Unit = script.record(Op.Set(lvalue, (this * value).ast))
+    operator fun timesAssign(value: IntExpr): Unit = script.record(ScriptStatementNode.Set(lvalue, (this * value).ast))
 
     operator fun timesAssign(value: Int): Unit = timesAssign(lit(value))
 
-    operator fun divAssign(value: IntExpr): Unit = script.record(Op.Set(lvalue, (this / value).ast))
+    operator fun divAssign(value: IntExpr): Unit = script.record(ScriptStatementNode.Set(lvalue, (this / value).ast))
 
     operator fun divAssign(value: Int): Unit = divAssign(lit(value))
 
     fun addClamped(
         value: IntExpr,
         max: IntExpr,
-    ): Unit = script.record(Op.AddClamped(lvalue, value.ast, max.ast))
+    ): Unit = script.record(ScriptStatementNode.AddClamped(lvalue, value.ast, max.ast))
 
     fun addClamped(
         value: Int,
@@ -154,7 +154,7 @@ class BoolSlot(
 ) : BoolExpr() {
     override val ast: BoolAst = read
 
-    infix fun set(value: Boolean): Unit = script.record(Op.Set(lvalue, IntAst.Lit(if (value) 1 else 0)))
+    infix fun set(value: Boolean): Unit = script.record(ScriptStatementNode.Set(lvalue, IntAst.Lit(if (value) 1 else 0)))
 }
 
 class PartyRef(
@@ -185,7 +185,7 @@ class PartyInventoryRef(
         pool: ItemPoolId,
         quantity: IntExpr,
     ) {
-        script.record(Op.ConsumeInventoryPool(pool, quantity.ast))
+        script.record(ScriptStatementNode.ConsumeInventoryPool(pool, quantity.ast))
     }
 
     fun consume(
@@ -194,7 +194,7 @@ class PartyInventoryRef(
     ): Unit = consume(pool, lit(quantity))
 
     fun clear(slot: InventorySlotRef) {
-        script.record(Op.ClearInventorySlot(slot.index.ast))
+        script.record(ScriptStatementNode.ClearInventorySlot(slot.index.ast))
     }
 }
 
@@ -224,7 +224,7 @@ class MemberRef(
     fun isClass(klass: PcClass): BoolExpr = pcClass eq klass.sourceId
 
     fun fullHeal() {
-        script.record(Op.Set(LValueAst.MemberField(index.ast, "hit_points"), maxHp.ast))
+        script.record(ScriptStatementNode.Set(LValueAst.MemberField(index.ast, "hit_points"), maxHp.ast))
     }
 
     private fun intField(field: String): IntSlot =

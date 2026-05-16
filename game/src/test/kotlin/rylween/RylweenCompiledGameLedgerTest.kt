@@ -13,7 +13,7 @@ import rylween.dsl.IntAst
 import rylween.dsl.ItemPoolId
 import rylween.dsl.MonsterId
 import rylween.dsl.NativeAllowlist
-import rylween.dsl.Op
+import rylween.dsl.ScriptStatementNode
 import rylween.dsl.SpellId
 import rylween.dsl.TextBlock
 import rylween.dsl.TextPart
@@ -532,14 +532,14 @@ class RylweenCompiledGameLedgerTest {
         )
         listOf("castle.ydarg.entry_blocked", "castle.ydarg.entered").forEach { sceneSlug ->
             val scene = nextDsl.scenes.single { it.id.slug == sceneSlug }
-            val firstScreen = scene.ops.first { op -> op is Op.Screen } as Op.Screen
+            val firstScreen = scene.ops.first { op -> op is ScriptStatementNode.Screen } as ScriptStatementNode.Screen
             check("Jaara" in firstScreen.text.fallbackText()) {
                 "$sceneSlug must show Jaara immediately at the castle gate"
             }
             check(scene.ops.hasShowImage("blitgfx.jaara_gate")) {
                 "$sceneSlug must show the Jaara gate illustration"
             }
-            check(scene.ops.any { op -> op is Op.WaitInput }) {
+            check(scene.ops.any { op -> op is ScriptStatementNode.WaitInput }) {
                 "$sceneSlug must page gate prose instead of blasting through all screens"
             }
         }
@@ -553,7 +553,7 @@ class RylweenCompiledGameLedgerTest {
             nextDsl.scenes
                 .single { it.id.slug == "castle.ydarg.completed" }
                 .ops
-                .filterIsInstance<Op.Encounter>()
+                .filterIsInstance<ScriptStatementNode.Encounter>()
                 .map { it.foe } ==
                 listOf(
                     Monsters.cryptHorror,
@@ -565,19 +565,19 @@ class RylweenCompiledGameLedgerTest {
         )
         check(nextDsl.scenes.size == 28)
 
-        fun List<Op>.anyNested(predicate: (Op) -> Boolean): Boolean =
+        fun List<ScriptStatementNode>.anyNested(predicate: (ScriptStatementNode) -> Boolean): Boolean =
             any { op ->
                 predicate(op) ||
                     when (op) {
-                        is Op.If -> op.thenOps.anyNested(predicate) || op.elseOps.anyNested(predicate)
-                        is Op.Loop -> op.body.anyNested(predicate)
-                        is Op.Switch -> op.cases.any { it.body.anyNested(predicate) }
-                        is Op.Menu ->
+                        is ScriptStatementNode.If -> op.thenOps.anyNested(predicate) || op.elseOps.anyNested(predicate)
+                        is ScriptStatementNode.Loop -> op.body.anyNested(predicate)
+                        is ScriptStatementNode.Switch -> op.cases.any { it.body.anyNested(predicate) }
+                        is ScriptStatementNode.Menu ->
                             op.options.any { it.body.anyNested(predicate) } ||
                                 op.defaultOps.anyNested(predicate)
-                        is Op.AskText -> op.matchOps.anyNested(predicate) || op.missOps.anyNested(predicate)
-                        is Op.ForEachMember -> op.body.anyNested(predicate)
-                        is Op.ForEachMonster -> op.body.anyNested(predicate)
+                        is ScriptStatementNode.AskText -> op.matchOps.anyNested(predicate) || op.missOps.anyNested(predicate)
+                        is ScriptStatementNode.ForEachMember -> op.body.anyNested(predicate)
+                        is ScriptStatementNode.ForEachMonster -> op.body.anyNested(predicate)
                         else -> false
                     }
             }
@@ -648,50 +648,50 @@ class RylweenCompiledGameLedgerTest {
         requireSpell(Spells.Priest.revelation, slot = 5, baseCost = 40, name = "Revelation")
         requireSpell(Spells.Priest.teleport, slot = 6, baseCost = 35, name = "Teleport")
         requireSpell(Spells.Priest.earthquake, slot = 7, baseCost = 55, name = "Earthquake")
-        check(checkNotNull(spellsById[Spells.Priest.teleport]).ops.anyNested { it is Op.TeleportParty })
+        check(checkNotNull(spellsById[Spells.Priest.teleport]).ops.anyNested { it is ScriptStatementNode.TeleportParty })
         val earthquakeSpell = checkNotNull(spellsById[Spells.Priest.earthquake])
-        check(earthquakeSpell.ops.anyNested { it is Op.DiscoverCave })
+        check(earthquakeSpell.ops.anyNested { it is ScriptStatementNode.DiscoverCave })
         check(
             earthquakeSpell.ops.anyNested { op ->
-                op is Op.If &&
+                op is ScriptStatementNode.If &&
                     setOf("in_dungeon", "in_castle").all { flag -> flag in op.cond.runtimeFlags() }
             },
         )
 
-        fun List<Op>.containsEnterDungeon(
+        fun List<ScriptStatementNode>.containsEnterDungeon(
             dungeon: DungeonId,
             levels: Int,
         ): Boolean =
             anyNested { op ->
-                op is Op.EnterDungeon && op.dungeon == dungeon && op.levels == levels
+                op is ScriptStatementNode.EnterDungeon && op.dungeon == dungeon && op.levels == levels
             }
 
-        fun List<Op>.containsConsumeInventoryPool(
+        fun List<ScriptStatementNode>.containsConsumeInventoryPool(
             pool: ItemPoolId,
             quantity: Int,
         ): Boolean =
             anyNested { op ->
-                op is Op.ConsumeInventoryPool && op.pool == pool && op.quantity == IntAst.Lit(quantity)
+                op is ScriptStatementNode.ConsumeInventoryPool && op.pool == pool && op.quantity == IntAst.Lit(quantity)
             }
 
-        fun List<Op>.containsEncounter(monster: MonsterId): Boolean =
+        fun List<ScriptStatementNode>.containsEncounter(monster: MonsterId): Boolean =
             anyNested { op ->
-                op is Op.Encounter && op.foe == monster
+                op is ScriptStatementNode.Encounter && op.foe == monster
             }
 
         val churchScene = nextDsl.scenes.single { it.id == Scenes.Towne.church }
         val churchMenu =
             churchScene.ops
-                .filterIsInstance<Op.Loop>()
+                .filterIsInstance<ScriptStatementNode.Loop>()
                 .single()
                 .body
-                .filterIsInstance<Op.Menu>()
+                .filterIsInstance<ScriptStatementNode.Menu>()
                 .single()
         check(churchMenu.options.map { it.key } == listOf('H', 'E', 'R', 'L'))
         val smithScene = nextDsl.scenes.single { it.id == Scenes.Towne.smith }
         val smithShop =
             smithScene.ops
-                .filterIsInstance<Op.ShopService>()
+                .filterIsInstance<ScriptStatementNode.ShopService>()
                 .single()
                 .shop
         val smithBuy = checkNotNull(smithShop.buy)
@@ -743,15 +743,15 @@ class RylweenCompiledGameLedgerTest {
         val innScene = nextDsl.scenes.single { it.id == Scenes.Towne.inn }
         check(
             innScene.ops
-                .filterIsInstance<Op.Loop>()
+                .filterIsInstance<ScriptStatementNode.Loop>()
                 .single()
                 .body
-                .any { it is Op.Menu },
+                .any { it is ScriptStatementNode.Menu },
         )
         val merchantScene = nextDsl.scenes.single { it.id == Scenes.Towne.merchant }
         val merchantShop =
             merchantScene.ops
-                .filterIsInstance<Op.ShopService>()
+                .filterIsInstance<ScriptStatementNode.ShopService>()
                 .single()
                 .shop
         val merchantBuy = checkNotNull(merchantShop.buy)
@@ -786,10 +786,10 @@ class RylweenCompiledGameLedgerTest {
         val hutScene = nextDsl.scenes.single { it.id == Scenes.Towne.hut }
         check(
             hutScene.ops
-                .filterIsInstance<Op.Loop>()
+                .filterIsInstance<ScriptStatementNode.Loop>()
                 .single()
                 .body
-                .filterIsInstance<Op.Menu>()
+                .filterIsInstance<ScriptStatementNode.Menu>()
                 .single()
                 .options
                 .map { it.key } ==
@@ -863,9 +863,9 @@ class RylweenCompiledGameLedgerTest {
         )
         check(
             tavernScene.ops.any { op ->
-                op is Op.If &&
+                op is ScriptStatementNode.If &&
                     op.thenOps.any {
-                        it is Op.RandomItemOffer &&
+                        it is ScriptStatementNode.RandomItemOffer &&
                             it.offer.pool == ItemPools.tavernScruffySpecials &&
                             it.offer.application.overflow == RewardOverflowPolicy.PromptDropThenPlace
                     }
@@ -873,23 +873,23 @@ class RylweenCompiledGameLedgerTest {
         )
         val tavernMenu =
             tavernScene.ops
-                .filterIsInstance<Op.Loop>()
+                .filterIsInstance<ScriptStatementNode.Loop>()
                 .single()
                 .body
-                .filterIsInstance<Op.Menu>()
+                .filterIsInstance<ScriptStatementNode.Menu>()
                 .single()
         check(tavernMenu.options.map { it.key } == listOf('L', 'S', 'T', 'R', 'O'))
         check(
             nextDsl.scenes
                 .single { it.id == Scenes.Missions.borinGift }
                 .ops
-                .any { it is Op.GrantReward },
+                .any { it is ScriptStatementNode.GrantReward },
         )
         check(
             nextDsl.scenes
                 .single { it.id == Scenes.Missions.jazzyFoot }
                 .ops
-                .any { it == Op.AchieveMilestone(Milestones.footOfJazzy) },
+                .any { it == ScriptStatementNode.AchieveMilestone(Milestones.footOfJazzy) },
         )
         check(
             nextDsl.scenes
@@ -919,13 +919,13 @@ class RylweenCompiledGameLedgerTest {
             nextDsl.scenes
                 .single { it.id == Scenes.Missions.borinMeet }
                 .ops
-                .any { it is Op.AppendJournal },
+                .any { it is ScriptStatementNode.AppendJournal },
         )
         check(
             nextDsl.scenes
                 .single { it.id == Scenes.Missions.hobgoblinCaravan }
                 .ops
-                .any { it is Op.AppendJournal },
+                .any { it is ScriptStatementNode.AppendJournal },
         )
         check(
             nextDsl.scenes
@@ -992,14 +992,14 @@ class RylweenCompiledGameLedgerTest {
                 .branches
                 .flatMap { branch -> branch.ops }
                 .anyNested { op ->
-                    op is Op.Screen && TextPart.NpcJob(Npcs.areth) in op.text.textParts()
+                    op is ScriptStatementNode.Screen && TextPart.NpcJob(Npcs.areth) in op.text.textParts()
                 },
         )
         check(
             nextDsl.dialogue.single { it.npc == Npcs.garth }.branches.any { branch ->
                 branch.whenState == Story.garth.bandits.recovered &&
                     branch.ops.any { op ->
-                        op is Op.GrantReward &&
+                        op is ScriptStatementNode.GrantReward &&
                             op.reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace
                     }
             },
@@ -1008,7 +1008,7 @@ class RylweenCompiledGameLedgerTest {
         val revelationSpell = nextDsl.spells.single { it.id == Spells.Priest.revelation }
         check(
             listOf(ItemPools.dungeonWeaponFinds, ItemPools.dungeonPotionGemFinds, ItemPools.magicItems).all { pool ->
-                revelationSpell.ops.anyNested { op -> op is Op.RandomItemOffer && op.offer.pool == pool }
+                revelationSpell.ops.anyNested { op -> op is ScriptStatementNode.RandomItemOffer && op.offer.pool == pool }
             },
         )
         check(nextDsl.itemUses.size == 15)
@@ -1017,7 +1017,7 @@ class RylweenCompiledGameLedgerTest {
             nextDsl.itemUses
                 .single { it.id == Items.redPotion }
                 .ops
-                .any { it is Op.AskMember },
+                .any { it is ScriptStatementNode.AskMember },
         )
         check(nextDsl.itemUses.single { it.id == Items.redPotion }.consume == ItemConsumePolicy.ScriptControlled)
         check(nextDsl.itemUses.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
@@ -2282,6 +2282,7 @@ class RylweenCompiledGameLedgerTest {
                 "import rylween.dsl.ScriptSourceRoot",
                 "import rylween.dsl.ScriptSourceRootId",
                 "import rylween.dsl.ScriptSourceStatement",
+                "import rylween.dsl.ScriptStatementNode",
                 "import rylween.dsl.Op",
                 "import rylween.dsl.analyzeScriptSources",
                 "import rylween.dsl.scriptSourceRoots",
@@ -2289,6 +2290,7 @@ class RylweenCompiledGameLedgerTest {
                 "rylween.dsl.AuthoredScript",
                 "rylween.dsl.ScriptStatement",
                 "rylween.dsl.ScriptSourceStatement",
+                "rylween.dsl.ScriptStatementNode",
                 "rylween.dsl.Op",
             )
         val violations =
@@ -2338,6 +2340,26 @@ class RylweenCompiledGameLedgerTest {
         check("visitScriptOps" !in validationSource && "sourceOp" !in validationSource) {
             "DslValidation.kt diagnostics must use source-statement terminology"
         }
+        val retiredOperationNameUsages =
+            listOf(
+                "core/src/main/kotlin",
+                "game/src/main/kotlin",
+                "runtime/src/main/kotlin",
+                "runtime-web/src/main/kotlin",
+                "runtime-bitmap-web/src/main/kotlin",
+                "terminal/src/main/kotlin",
+                "web-common/src/main/kotlin",
+            ).flatMap { root ->
+                File(root)
+                    .walkTopDown()
+                    .filter { file -> file.isFile && file.extension == "kt" }
+                    .filter { file -> Regex("""\bOp\b""").containsMatchIn(file.readText()) }
+                    .map { file -> file.path }
+            }
+        check(retiredOperationNameUsages.isEmpty()) {
+            "active Kotlin sources must use ScriptStatementNode instead of the retired Op name: " +
+                retiredOperationNameUsages.joinToString()
+        }
         check(
             "data class AuthoredScript" in sourceModel &&
                 "data class ScriptBlock" in sourceModel &&
@@ -2353,17 +2375,17 @@ class RylweenCompiledGameLedgerTest {
             "I9 source model must expose authored scripts, blocks, and ownership categories"
         }
         check(
-            "sealed interface Op : ScriptStatement" in kernelSource &&
+            "sealed interface ScriptStatementNode : ScriptStatement" in kernelSource &&
                 "ScriptStatement.TextView" in kernelSource &&
                 "ScriptStatement.Input" in kernelSource &&
                 "ScriptStatement.ControlFlow" in kernelSource &&
                 "ScriptStatement.StateMutation" in kernelSource &&
                 "ScriptStatement.GameplayHandoff" in kernelSource,
         ) {
-            "legacy Op nodes must be classified as source statements while I9 migration is in progress"
+            "concrete ScriptStatementNode nodes must be classified as source statements while I9 migration is in progress"
         }
         check("val script: AuthoredScript" in analysisSource && "get() = script.ops" in analysisSource) {
-            "script source roots must carry the new AuthoredScript wrapper while preserving Op traversal"
+            "script source roots must carry the new AuthoredScript wrapper while preserving ScriptStatementNode traversal"
         }
         check(
             "private val block: ScriptBlockBuilder" in dslSource &&
@@ -2372,7 +2394,7 @@ class RylweenCompiledGameLedgerTest {
                 "internal fun recordScriptBlock" in dslSource &&
                 "recordAuthoredScript(ctx, body).ops" in dslSource,
         ) {
-            "ScriptScope must record ScriptStatement blocks while keeping the List<Op> compiler bridge"
+            "ScriptScope must record ScriptStatement blocks while keeping the List<ScriptStatementNode> compiler bridge"
         }
         check(
             "data class SceneModel" in kernelSource &&
@@ -2399,7 +2421,7 @@ class RylweenCompiledGameLedgerTest {
                 "DialogueBranchModel(null, recordAuthoredScript(body))" in dslSource &&
                 "ItemUseModel(id, contexts.toSet(), consume, script)" in dslSource,
         ) {
-            "root builders must produce AuthoredScript directly instead of raw Op lists"
+            "root builders must produce AuthoredScript directly instead of raw ScriptStatementNode lists"
         }
         check(
             "compileScript(script: AuthoredScript)" in compiledBundleSource &&
@@ -2437,9 +2459,9 @@ private fun TextBlock.fallbackText(): String =
             }
     }
 
-private fun List<Op>.hasShowImage(slug: String): Boolean =
+private fun List<ScriptStatementNode>.hasShowImage(slug: String): Boolean =
     any { op ->
-        val command = (op as? Op.View)?.command as? ViewCommand.ShowImage
+        val command = (op as? ScriptStatementNode.View)?.command as? ViewCommand.ShowImage
         command?.image?.slug == slug
     }
 

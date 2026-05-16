@@ -3,8 +3,8 @@
  *
  * `RylweenRuntimeMain.kt` uses this class for scene roots loaded from
  * the J1 JSON bundle. The executor consumes `CompiledInstruction` rows,
- * compiled expressions, and typed host payloads directly; it does not call the
- * old authored `Op` interpreter or the Kotlin session adapters. Host gameplay
+ * compiled expressions, and typed host payloads directly; it does not call an
+ * authored source interpreter or the Kotlin session adapters. Host gameplay
  * that is still a separate system, such as shops and standard battles, stays
  * behind runtime services in this package.
  */

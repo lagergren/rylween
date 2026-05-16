@@ -543,11 +543,11 @@ data class QuestionActionScriptModel(
     constructor(
         topic: QuestionTopic,
         job: NpcJobId,
-        ops: List<Op>,
+        ops: List<ScriptStatementNode>,
     ) : this(topic, job, AuthoredScript(ops))
 
     /** Compatibility bridge while compiler and validation paths migrate to [script]. */
-    val ops: List<Op> get() = script.ops
+    val ops: List<ScriptStatementNode> get() = script.ops
 }
 
 data class SpeakTextTablesModel(
