@@ -1090,9 +1090,15 @@ class WildernessUpkeepRulesBuilder(
     var foodTickEvery: Int = initial.foodTickEvery
     var starveFoodThreshold: Int = initial.starveFoodThreshold
     var starveDamage: Int = initial.starveDamage
+    var starvationDeath: TextBlock = initial.starvationDeath
     var manaRegenChance: Int = initial.manaRegenChance
     var restedHoursCostPerTurn: Int = initial.restedHoursCostPerTurn
     private val fatigue = initial.fatigue.toMutableList()
+
+    /** Defines authored prose for a member death caused by wilderness starvation upkeep. */
+    fun starvationDeath(body: StructuredTextBlockBuilder.() -> Unit) {
+        starvationDeath = structuredText(body)
+    }
 
     fun fatigueAt(
         restedHours: Int,
@@ -1131,6 +1137,7 @@ class WildernessUpkeepRulesBuilder(
             foodTickEvery = foodTickEvery,
             starveFoodThreshold = starveFoodThreshold,
             starveDamage = starveDamage,
+            starvationDeath = starvationDeath,
             manaRegenChance = manaRegenChance,
             restedHoursCostPerTurn = restedHoursCostPerTurn,
             fatigue = fatigue.toList(),
@@ -2418,12 +2425,16 @@ class InventoryUsePromptsBuilder(
     var quaff: TextBlock = initial.quaff
     var noItems: TextBlock = initial.noItems
     var noItem: TextBlock = initial.noItem
-    var invalidSlotFirstPrefix: String = initial.invalidSlotFirstPrefix
-    var invalidSlotFirstSuffix: String = initial.invalidSlotFirstSuffix
-    var invalidSlotSecond: String = initial.invalidSlotSecond
-    var notUsableFirst: String = initial.notUsableFirst
-    var notUsableSecondPrefix: String = initial.notUsableSecondPrefix
-    var notUsableSecondSuffix: String = initial.notUsableSecondSuffix
+    var invalidSlot: TextBlock = initial.invalidSlot
+    var notUsable: TextBlock = initial.notUsable
+
+    fun invalidSlot(body: StructuredTextBlockBuilder.() -> Unit) {
+        invalidSlot = structuredText(body)
+    }
+
+    fun notUsable(body: StructuredTextBlockBuilder.() -> Unit) {
+        notUsable = structuredText(body)
+    }
 
     fun build(): InventoryUsePromptsModel =
         InventoryUsePromptsModel(
@@ -2431,12 +2442,8 @@ class InventoryUsePromptsBuilder(
             quaff = quaff,
             noItems = noItems,
             noItem = noItem,
-            invalidSlotFirstPrefix = invalidSlotFirstPrefix,
-            invalidSlotFirstSuffix = invalidSlotFirstSuffix,
-            invalidSlotSecond = invalidSlotSecond,
-            notUsableFirst = notUsableFirst,
-            notUsableSecondPrefix = notUsableSecondPrefix,
-            notUsableSecondSuffix = notUsableSecondSuffix,
+            invalidSlot = invalidSlot,
+            notUsable = notUsable,
         )
 }
 

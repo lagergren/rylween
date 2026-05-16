@@ -870,12 +870,14 @@ enum class CompiledRuntimeTextPart {
     OfferedItemName,
     OfferedItemPrice,
     SelectedItemName,
+    InventorySlotName,
     EquipmentKindName,
     ShopPrice,
     ShopCarryCap,
     HuntMemberName,
     HuntMemberSubjectPronoun,
     HuntFoodGained,
+    UpkeepMemberName,
     PartyMemberCount,
     PartyMemberMax,
     WildernessDungeonName,
@@ -2158,12 +2160,14 @@ private class CompiledBundleCompiler(
             TextPart.OfferedItemName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.OfferedItemName)
             TextPart.OfferedItemPrice -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.OfferedItemPrice)
             TextPart.SelectedItemName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.SelectedItemName)
+            TextPart.InventorySlotName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.InventorySlotName)
             TextPart.EquipmentKindName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.EquipmentKindName)
             TextPart.ShopPrice -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.ShopPrice)
             TextPart.ShopCarryCap -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.ShopCarryCap)
             TextPart.HuntMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntMemberName)
             TextPart.HuntMemberSubjectPronoun -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntMemberSubjectPronoun)
             TextPart.HuntFoodGained -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntFoodGained)
+            TextPart.UpkeepMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.UpkeepMemberName)
             TextPart.PartyMemberCount -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberCount)
             TextPart.PartyMemberMax -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberMax)
             TextPart.WildernessDungeonName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.WildernessDungeonName)

@@ -75,6 +75,8 @@ sealed interface TextPart {
 
     object SelectedItemName : TextPart
 
+    object InventorySlotName : TextPart
+
     object EquipmentKindName : TextPart
 
     object ShopPrice : TextPart
@@ -86,6 +88,9 @@ sealed interface TextPart {
     object HuntMemberSubjectPronoun : TextPart
 
     object HuntFoodGained : TextPart
+
+    /** Name of the wilderness-party member affected by an upkeep event such as starvation. */
+    object UpkeepMemberName : TextPart
 
     object PartyMemberCount : TextPart
 
@@ -154,12 +159,14 @@ fun TextPart.fallbackText(): String =
         TextPart.OfferedItemName -> "{item_name}"
         TextPart.OfferedItemPrice -> "{item_price}"
         TextPart.SelectedItemName -> "{selected_item_name}"
+        TextPart.InventorySlotName -> "{inventory_slot}"
         TextPart.EquipmentKindName -> "{equipment_kind}"
         TextPart.ShopPrice -> "{price}"
         TextPart.ShopCarryCap -> "{cap}"
         TextPart.HuntMemberName -> "{who_name}"
         TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
         TextPart.HuntFoodGained -> "{hunt_food_gained}"
+        TextPart.UpkeepMemberName -> "{upkeep_member_name}"
         TextPart.PartyMemberCount -> "{party_count}"
         TextPart.PartyMemberMax -> "{party_max}"
         TextPart.WildernessDungeonName -> "{dungeon}"

@@ -92,6 +92,8 @@ fun RuntimeState.runtimeTextValue(
         CompiledRuntimeTextPart.PartyMemberMax -> runtimeTextValue(content, "partyMemberMax")
         CompiledRuntimeTextPart.TownTaxPercent -> runtimeTextValue(content, "townTaxPercent")
         CompiledRuntimeTextPart.TownTaxAmount -> runtimeTextValue(content, "townTaxAmount")
+        // Upkeep member names are action-local, so WildernessActions supplies them when rendering upkeep text.
+        CompiledRuntimeTextPart.UpkeepMemberName -> null
         else -> null
     }
 

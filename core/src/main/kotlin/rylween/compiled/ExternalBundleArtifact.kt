@@ -316,12 +316,8 @@ data class ExternalInventoryUsePrompts(
     val quaff: ExternalRuntimeTextBlock,
     val noItems: ExternalRuntimeTextBlock,
     val noItem: ExternalRuntimeTextBlock,
-    val invalidSlotFirstPrefix: String,
-    val invalidSlotFirstSuffix: String,
-    val invalidSlotSecond: String,
-    val notUsableFirst: String,
-    val notUsableSecondPrefix: String,
-    val notUsableSecondSuffix: String,
+    val invalidSlot: ExternalRuntimeTextBlock,
+    val notUsable: ExternalRuntimeTextBlock,
 )
 
 data class ExternalEquipmentPrompts(
@@ -740,6 +736,7 @@ data class ExternalWildernessUpkeep(
     val foodTickEvery: Int,
     val starveFoodThreshold: Int,
     val starveDamage: Int,
+    val starvationDeath: ExternalRuntimeTextBlock,
     val manaRegenChance: Int,
     val restedHoursCostPerTurn: Int,
     val fatigue: List<ExternalWildernessFatigueRule>,
@@ -1191,7 +1188,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun runtimeSystemsJson(game: GameModel): JsonValue =
         jsonObject(
-            "schemaVersion" to JsonNumber("3"),
+            "schemaVersion" to JsonNumber("5"),
             "realm" to realmJson(game.realm),
             "prompts" to promptsJson(game.prompts),
             "pacing" to pacingJson(game.pacing),
@@ -1500,6 +1497,7 @@ private class ExternalBundleArtifactWriter {
             "foodTickEvery" to JsonNumber(upkeep.foodTickEvery.toString()),
             "starveFoodThreshold" to JsonNumber(upkeep.starveFoodThreshold.toString()),
             "starveDamage" to JsonNumber(upkeep.starveDamage.toString()),
+            "starvationDeath" to textBlockJson(upkeep.starvationDeath),
             "manaRegenChance" to JsonNumber(upkeep.manaRegenChance.toString()),
             "restedHoursCostPerTurn" to JsonNumber(upkeep.restedHoursCostPerTurn.toString()),
             "fatigue" to
@@ -1628,12 +1626,8 @@ private class ExternalBundleArtifactWriter {
                             textField("quaff", prompts.inventoryUse.quaff),
                             textField("noItems", prompts.inventoryUse.noItems),
                             textField("noItem", prompts.inventoryUse.noItem),
-                            stringField("invalidSlotFirstPrefix", prompts.inventoryUse.invalidSlotFirstPrefix),
-                            stringField("invalidSlotFirstSuffix", prompts.inventoryUse.invalidSlotFirstSuffix),
-                            stringField("invalidSlotSecond", prompts.inventoryUse.invalidSlotSecond),
-                            stringField("notUsableFirst", prompts.inventoryUse.notUsableFirst),
-                            stringField("notUsableSecondPrefix", prompts.inventoryUse.notUsableSecondPrefix),
-                            stringField("notUsableSecondSuffix", prompts.inventoryUse.notUsableSecondSuffix),
+                            textField("invalidSlot", prompts.inventoryUse.invalidSlot),
+                            textField("notUsable", prompts.inventoryUse.notUsable),
                         ),
                         promptGroupJson(
                             "equipment",
@@ -2339,12 +2333,14 @@ private class ExternalBundleArtifactWriter {
             TextPart.OfferedItemName -> textTokenJson("offeredItemName")
             TextPart.OfferedItemPrice -> textTokenJson("offeredItemPrice")
             TextPart.SelectedItemName -> textTokenJson("selectedItemName")
+            TextPart.InventorySlotName -> textTokenJson("inventorySlotName")
             TextPart.EquipmentKindName -> textTokenJson("equipmentKindName")
             TextPart.ShopPrice -> textTokenJson("shopPrice")
             TextPart.ShopCarryCap -> textTokenJson("shopCarryCap")
             TextPart.HuntMemberName -> textTokenJson("huntMemberName")
             TextPart.HuntMemberSubjectPronoun -> textTokenJson("huntMemberSubjectPronoun")
             TextPart.HuntFoodGained -> textTokenJson("huntFoodGained")
+            TextPart.UpkeepMemberName -> textTokenJson("upkeepMemberName")
             TextPart.PartyMemberCount -> textTokenJson("partyMemberCount")
             TextPart.PartyMemberMax -> textTokenJson("partyMemberMax")
             TextPart.WildernessDungeonName -> textTokenJson("wildernessDungeonName")
@@ -2759,12 +2755,8 @@ private class ExternalRuntimeSystemsReader(
                     quaff = inventoryUse.requiredTextPrompt("quaff"),
                     noItems = inventoryUse.requiredTextPrompt("noItems"),
                     noItem = inventoryUse.requiredTextPrompt("noItem"),
-                    invalidSlotFirstPrefix = inventoryUse.requiredStringPrompt("invalidSlotFirstPrefix"),
-                    invalidSlotFirstSuffix = inventoryUse.requiredStringPrompt("invalidSlotFirstSuffix"),
-                    invalidSlotSecond = inventoryUse.requiredStringPrompt("invalidSlotSecond"),
-                    notUsableFirst = inventoryUse.requiredStringPrompt("notUsableFirst"),
-                    notUsableSecondPrefix = inventoryUse.requiredStringPrompt("notUsableSecondPrefix"),
-                    notUsableSecondSuffix = inventoryUse.requiredStringPrompt("notUsableSecondSuffix"),
+                    invalidSlot = inventoryUse.requiredTextPrompt("invalidSlot"),
+                    notUsable = inventoryUse.requiredTextPrompt("notUsable"),
                 ),
             equipment =
                 ExternalEquipmentPrompts(
@@ -3445,6 +3437,7 @@ private class ExternalRuntimeSystemsReader(
             foodTickEvery = requiredInt("foodTickEvery"),
             starveFoodThreshold = requiredInt("starveFoodThreshold"),
             starveDamage = requiredInt("starveDamage"),
+            starvationDeath = required("starvationDeath").readTextBlock(),
             manaRegenChance = requiredInt("manaRegenChance"),
             restedHoursCostPerTurn = requiredInt("restedHoursCostPerTurn"),
             fatigue =
