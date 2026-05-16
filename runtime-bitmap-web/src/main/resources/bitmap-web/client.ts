@@ -539,6 +539,8 @@ function connect(): void {
         const previousFrame = frame;
         const fadeFromTitle = isTitleFrame(frame) && !isTitleFrame(nextFrame);
         const sceneFadeSnapshot = shouldFadeVisual(frame, nextFrame) ? captureScenePanel() : null;
+        const continuingSceneFade =
+            Boolean(sceneFade && previousFrame && visualKey(previousFrame) === visualKey(nextFrame));
         if (fadeFromTitle && beginTitleFade(nextFrame)) {
             syncTextReveal(nextFrame, true, previousFrame);
             renderCommandPalette(nextFrame.commands || []);
@@ -547,7 +549,7 @@ function connect(): void {
         titleFade = null;
         frame = nextFrame;
         syncTextReveal(frame, true, previousFrame);
-        draw(frame);
+        if (!continuingSceneFade) draw(frame);
         renderCommandPalette(frame.commands || []);
         if (sceneFadeSnapshot) beginSceneFade(sceneFadeSnapshot);
     });
@@ -825,7 +827,7 @@ function scheduleTextReveal(): void {
 function animateTextReveal(): void {
     textRevealAnimation = 0;
     if (!frame || !textReveal || textReveal.complete) return;
-    draw(frame);
+    if (!sceneFade) draw(frame);
     if (textReveal && !textReveal.complete) scheduleTextReveal();
 }
 
