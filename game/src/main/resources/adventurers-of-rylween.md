@@ -122,7 +122,10 @@ of Rylween are human.
 
 ### Dwarf
 
-Small, stout, bearded humanoids. They make excellent fighters.
+Small, stout, bearded humanoids. They make excellent fighters. Dwarves
+are excellent smiths and have a close connection to the earth, and know
+her secrets. A dwarf can sometimes find gold, that would have been hidden
+to any other race. 
 
 ### Elf
 
