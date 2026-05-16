@@ -3,7 +3,7 @@
  *
  * These values preserve the current authored slugs while avoiding direct
  * coupling from runtime code to generated game-specific handle catalogs in
- * `game/RylweenGame.dsl.kts`.
+ * `game/src/main/kotlin/rylween/game/RylweenGame.kt`.
  */
 package rylween.dsl
 

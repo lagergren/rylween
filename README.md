@@ -9,6 +9,8 @@ under `:tools`, and terminal transport/protocol code lives under `:terminal`.
 
 Module guides:
 
+- [DSL authoring guide](docs/dsl-authoring.md) - how to modify or extend the
+  authored game.
 - [`:core`](core/README.md) - DSL, validation, compiled bundle contracts.
 - [`:game`](game/README.md) - authored Rylween game script, fixtures, assets.
 - [`:runtime`](runtime/README.md) - shared game runtime and direct ANSI terminal.

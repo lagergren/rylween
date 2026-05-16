@@ -1,0 +1,350 @@
+# Rylween DSL Authoring Guide
+
+This guide describes the game-authoring surface used by Adventurers of Rylween.
+It is for changing the game world, not for changing a terminal, browser, or
+server runtime.
+
+The current authoring source is regular Kotlin:
+
+- `game/src/main/kotlin/rylween/game/RylweenGame.kt` contains the game content,
+  scripts, runtime-system text, fixtures, and asset declarations.
+- `core/src/main/kotlin/rylween/dsl` contains the reusable DSL, validation, and
+  source-script IR.
+- `core/src/main/kotlin/rylween/compiled` lowers the authored model into the
+  compiled bundle consumed by runtimes.
+- `runtime/src/main/kotlin` consumes compiled bundle rows. It should not import
+  authored source-script IR or generated game handle catalogs.
+
+Run this after changing authoring or DSL code:
+
+```sh
+./gradlew ktlintFormat --console=plain
+./gradlew check --console=plain
+```
+
+## Mental Model
+
+The DSL has three layers:
+
+1. `content { ... }` declares the static world: items, monsters, terrain,
+   maps, towns, services, images, text, scripts, missions, dungeons, castles,
+   combat rules, and reusable runtime-system prompts.
+2. `state { ... }` declares a bootable mutable state. Start states and replay
+   fixtures live here. Runtime saves serialize the same kind of state, but with
+   every persisted field written explicitly.
+3. Script bodies such as `scene { ... }`, `dialogue { ... }`, `spell { ... }`,
+   and `itemUse { ... }` record source-script statements. They do not execute
+   when Kotlin evaluates the file. Validation and bundle compilation lower them
+   into compiled VM instructions.
+
+The runtime contract is the compiled bundle, not the Kotlin DSL objects. This
+is what lets ANSI, bitmap, server, or future native runtimes share the same game
+content without importing the game source.
+
+## Syntax Rules
+
+The DSL is hosted by Kotlin, but game authoring should read like structured game
+notes:
+
+- Use generated handles such as `Items.fireWand`, `Scenes.Missions.bandits`,
+  `Towns.thord`, and `Terrain.forest` instead of raw strings.
+- Put game prose in `writeText`, `showTextAndWait`, `literalText`,
+  `structuredText`, `flowText`, or runtime-system prompt rows.
+- Use block helpers such as `localInt { ... }`, `ask.member { ... }`,
+  `ask.monsterAlive { ... }`, and `withCurrentCasterCost { ... }` instead of
+  raw Kotlin temporaries in script bodies.
+- Use DSL control flow such as `ifThen`, `choice`, `switch`, `loop`,
+  `breakLoop`, `forEachMember`, and `forEachMonster` inside scripts.
+- Keep normal runtime mode loops out of scripts. Wilderness, dungeon, castle,
+  shop, and battle loops are host systems that consume authored tables and
+  compiled script hooks.
+
+Preferred script text vocabulary:
+
+```kotlin
+scene(Scenes.Missions.bandits) {
+    showBackdrop(Images.Backdrop.encounterBestiary)
+    writeText("Bandits rush from the trees.", "")
+
+    choice.yesNo(literalText("Stand and fight?")) {
+        yes {
+            encounter(EncounterTiers.weak, Monsters.bandit)
+            achieve(Milestones.banditsDefeated)
+        }
+        no {
+            writeText("You slip away into the wilderness.", "")
+        }
+    }
+}
+```
+
+`say(...)` is still available as a dialogue-oriented alias. New non-dialogue
+scripts should use `writeText(...)` or `showTextAndWait(...)`.
+
+## Adding Content
+
+Add content in the matching `content { ... }` section of `RylweenGame.kt`.
+Generated handle catalogs are updated by Gradle from the authored source.
+
+### Item
+
+```kotlin
+items {
+    magicItem(Items.moonCharm, "Moon Charm", 1200)
+}
+
+itemUse(Items.moonCharm, consume = ItemConsumePolicy.Keep) {
+    showTextAndWait("The charm glows softly.", "")
+    party.food += 10
+}
+```
+
+An item record supplies inventory/shop/save metadata. An `itemUse` script
+supplies behavior when the player activates it.
+
+### Monster
+
+```kotlin
+monsters {
+    monster(Monsters.cryptWight) {
+        name = "Crypt Wight"
+        count = 1..3
+        hitPoints = 90..150
+        weaponSkill = 65
+        tier = EncounterTiers.deep
+    }
+}
+```
+
+Monsters become available to missions, dungeon events, random event pools, and
+battle encounter hooks through their typed handles.
+
+### Scene And Mission
+
+```kotlin
+scene(Scenes.Missions.cryptDoor) {
+    showBackdrop(Images.Backdrop.caveEntrance)
+    showTextAndWait("A cold door blocks the path.", "")
+
+    whenever(achieved(Milestones.silverKey)) {
+        writeText("The Silver Key turns by itself.", "")
+        enterDungeon(Dungeons.nolrimCrypt)
+    } otherwise {
+        writeText("The lock does not yield.", "")
+    }
+}
+
+missions {
+    mission(Missions.cryptDoor) {
+        at(Wilderness.xy(32, 15))
+        runs(Scenes.Missions.cryptDoor)
+    }
+}
+```
+
+The mission owns when a scene starts. The scene owns what the player sees and
+what game state changes.
+
+### Dialogue Branch
+
+```kotlin
+dialogue {
+    npc(Npcs.garth) {
+        whenState(Story.garth.bandits.none) {
+            writeText("- Bandits trouble the road.", "")
+            mark(Story.garth.bandits.accepted)
+            journal("Garth asked us to defeat the bandits.")
+        }
+
+        default {
+            writeText("- Keep your blades sharp.", "")
+        }
+    }
+}
+```
+
+Dialogue branches should use typed flags and text bindings rather than string
+placeholders. The standard conversation runner chooses the branch; the branch
+only authors the response and state mutation.
+
+### Shop
+
+```kotlin
+shopService(Buildings.smith) {
+    image = Images.Scene.smith
+    intro("- What do you want?", "")
+    menu("(B)uy", "(S)ell", "(L)eave")
+
+    buy {
+        prompt("Buy what?")
+        catalog {
+            page {
+                item(Items.longSword)
+                item(Items.chainMail)
+            }
+        }
+    }
+
+    sell {
+        prompt("Sell what?")
+        acceptsKinds(ItemKind.Weapon, ItemKind.Armor)
+    }
+}
+```
+
+Shop catalogs, sell policy, haggle text, paging, and purchase keys are authored.
+The runtime service loop owns live input, inventory mutation, and paging state.
+
+### Runtime-System Prompt
+
+Runtime-system rows are for reusable host behavior that still needs authored
+wording or labels.
+
+```kotlin
+prompts {
+    inventoryUse {
+        invalidSlot {
+            line("There is no item in ", InventoryText.slotName, ".")
+        }
+    }
+}
+```
+
+Use this pattern when a runtime loop owns the input cadence but the text is
+player-facing game prose.
+
+### Map Or Terrain
+
+```kotlin
+terrain {
+    terrain(Terrain.ashWastes, mapCode = 'a') {
+        movementCost = 2
+    }
+}
+
+worldMap(Maps.wilderness) {
+    layer(MapLayers.terrain) {
+        rows(
+            "ssssssss",
+            "ssaaasss",
+            "ssaa0sss",
+        )
+    }
+}
+```
+
+Map dimensions and cell counts are derived from the rows. Do not duplicate them
+with separate width, height, capacity, or cell-count declarations.
+
+### Dungeon Event
+
+```kotlin
+dungeons {
+    event(DungeonEvents.cryptWarning) {
+        recurring = false
+        run {
+            showTextAndWait("A whisper passes through the stone.", "")
+        }
+    }
+
+    scenario(Dungeons.nolrimCrypt) {
+        level(2, DungeonEvents.cryptWarning)
+    }
+}
+```
+
+Dungeon event planning is authored; the dungeon runtime owns movement, torch
+checks, save/load boundaries, random event selection, and utility commands.
+
+## State And Fixtures
+
+Use `state { ... }` for test fixtures, named starts, and replay setup. Keep
+runtime saves exact and expanded; helper shortcuts are fine for authored test
+fixtures but not for save output.
+
+```kotlin
+state(States.strong) {
+    realm {
+        activeParty = Parties.strong
+        wilderness(map = Maps.wilderness)
+    }
+    party(Parties.strong) {
+        position = Wilderness.xy(12, 9)
+        resources {
+            gold = 10_000
+            food = 200
+            torches = 12
+        }
+        members {
+            member("Aragorn") {
+                klass = PcClass.Ranger
+                race = Race.Human
+                level = 8
+            }
+        }
+    }
+}
+```
+
+## Where A Change Belongs
+
+Use this placement rule during design review:
+
+- `RylweenGame.kt`: current-game facts, prose, scenes, item effects, dialogue,
+  shop rows, mission triggers, maps, assets, and runtime-system wording.
+- `core/src/main/kotlin/rylween/dsl`: reusable authoring vocabulary, source
+  script IR, typed models, validation, and compiled-bundle lowering.
+- `runtime/src/main/kotlin`: host behavior over compiled rows: input loops,
+  rendering, RNG cadence, persistence, save/load, and live subsystem state.
+- `runtime-bitmap-web` or `runtime-web`: frontend presentation, browser
+  transport, preferences, and canvas/ANSI rendering.
+- `tools`: artifact emission, readers, and non-playable probes.
+
+If a rule mentions Rylween story content, item names, NPCs, mission prose,
+prices, spell costs, battle phrases, or map facts, it usually belongs in the
+game DSL or a reusable runtime-system row. If it is a generic host concern such
+as reading a key, rendering a page, persisting a save file, or stepping a
+battle/shop loop, it belongs in runtime code that consumes compiled tables.
+
+## Extending The DSL
+
+When adding a new authoring construct:
+
+1. Add the immutable model in the narrowest `core/src/main/kotlin/rylween/dsl`
+   or `dsl/impl` file.
+2. Add a builder receiver annotated with `@RylNextDsl`.
+3. Add validation that reports game concepts rather than Kotlin internals.
+4. Export it through the compiled bundle or `runtimeSystems` only when a
+   runtime/tool consumes it.
+5. Add at least one game-content use or focused unit test.
+6. Add ledger coverage if the construct protects an architectural boundary.
+7. Update this guide when the construct changes authoring practice.
+
+Do not add speculative public builders. If no runtime, compiler, validator, or
+game content consumes a field, track it as a plan item instead of leaving dead
+surface area in the DSL.
+
+## I10 Design Audit Notes
+
+The I10 audit found the current high-level separation sound:
+
+- Current production runtimes consume compiled bundle rows and stable
+  `runtimeSystems`, not authored source-script IR.
+- Current game script bodies use DSL block helpers for common temporaries
+  instead of nested raw Kotlin `val` declarations.
+- Script-control loops and runtime service loops now have separate documented
+  ownership.
+- Current-game text display uses `writeText` and `showTextAndWait`; legacy
+  aliases remain compatibility surface, not preferred authoring vocabulary.
+- Current-facing comments and plan/spec text were corrected to point at
+  `RylweenGame.kt` and the source-script IR instead of the retired
+  `RylweenGame.dsl.kts`/authored `Op` terminology.
+
+Remaining follow-up work stays tracked in `plans/dsl-improvements.md` rather
+than being hidden in this guide:
+
+- I4b: narrow or remove remaining broad DSL receiver suppressions.
+- I4e.3: continue splitting the larger item/realm builder block from `Dsl.kt`.
+- I5: do the readability/brevity pass after the DSL implementation move.
+- I8a/I8b: continue classifying runtime-rendered literals and replacing phrase
+  fragments with structured prompt rows where they are real game prose.
