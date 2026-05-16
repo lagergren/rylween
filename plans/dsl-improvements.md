@@ -22,7 +22,7 @@ Current cleanup track:
   architectural, not a new authoring surface: reusable DSL/kernel definitions
   stay in core, while Rylween-specific prose, menu labels, battle text,
   service scripts, NPC placement facts, and scenario content stay in
-  `game/src/main/dsl/RylweenGame.dsl.kts`.
+  `game/src/main/kotlin/rylween/game/RylweenGame.kt`.
 - Clean up `RuntimeSnapshotModel.kt`. It is still used by compiled bundle state
   compilation and save/session snapshot contracts, but its current
   `rylween.runtime` package/path reads like live runtime machinery. Keep the
@@ -159,7 +159,7 @@ Keep implementation and authoring separate:
   runtime machinery. Short screens, handoffs, riddle/password scenes, random
   item-offer mechanics, and current long-form flows such as traveller
   storytelling and priest teleport should be explicit script content in
-  `RylweenGame.dsl.kts`; reusable mechanics belong in the DSL/runtime layer.
+  `RylweenGame.kt`; reusable mechanics belong in the DSL/runtime layer.
 - The Kotlin DSL project is now a small Gradle build named `rylween` with
   source packages split by responsibility: `rylween.dsl` under
   `core/src/main/kotlin/rylween/dsl` owns the authoring model and validation,
@@ -170,9 +170,9 @@ Keep implementation and authoring separate:
   longer active source; they live only in `scratch/legacy-archive.zip`.
   Current-game handles are now
   generated under `build/generated/gameCatalog/kotlin` from
-  `game/src/main/dsl/RylweenGame.dsl.kts`, so no handwritten main-source game
-  catalog remains. The content source lives at
-  `game/src/main/dsl/RylweenGame.dsl.kts`.
+  `game/src/main/kotlin/rylween/game/RylweenGame.kt`, so no handwritten
+  main-source game catalog remains. The content source lives at
+  `game/src/main/kotlin/rylween/game/RylweenGame.kt`.
   Validate it with:
 
 ```sh
@@ -212,10 +212,10 @@ content {
 
 Use this as the task board for turning the inventory below into reviewed DSL
 changes. A task is only done when the current C/JSON5 owner has been audited,
-the DSL shape is represented in `game/src/main/dsl/RylweenGame.dsl.kts`
-or the archived `legacy/scratch/dsl-next.kts` prototype lab where appropriate, mutable data
-has save-state coverage, native calls are named and typed, and at least one
-parity check or replay fixture is planned.
+the DSL shape is represented in `game/src/main/kotlin/rylween/game/RylweenGame.kt`
+or the archived `legacy/scratch/dsl-next.kts` prototype lab where appropriate,
+mutable data has save-state coverage, native calls are named and typed, and at
+least one parity check or replay fixture is planned.
 
 The "DSL delta" text is the concrete thing to look for in the Kotlin diff.
 
@@ -755,7 +755,7 @@ B1-B9 first-pass notes:
     block forms. Authored game script bodies use those DSL blocks instead of raw
     nested Kotlin `val` temporaries, and the ledger guards against reintroducing
     deep script-local `val` declarations in `RylweenGame.kt`.
-- [ ] I10. Author-facing DSL guide and design consistency audit. Run this after
+- [x] I10. Author-facing DSL guide and design consistency audit. Run this after
   the I9 source-IR cleanup so the docs describe the settled model. First audit
   the game DSL for inconsistent shapes, misplaced implementation concepts, and
   repeated mechanisms that should be unified; then write an author guide covering
@@ -763,6 +763,13 @@ B1-B9 first-pass notes:
   that demonstrate dynamic authoring such as adding scenes, prompts, shops,
   dialogue, rewards, maps, events, and runtime-system text without touching
   runtime implementation code.
+  Current status: `docs/dsl-authoring.md` now documents the live
+  `RylweenGame.kt` source model, syntax rules, extension workflow, examples for
+  scenes/missions/dialogue/shops/prompts/maps/dungeon events/state fixtures, and
+  placement rules for game DSL vs. reusable DSL vs. runtime/frontend/tooling.
+  The audit corrected current-facing `.dsl.kts` and authored `Op` wording in
+  comments/plan/spec text and leaves the remaining implementation follow-ups
+  tracked under I4b, I4e.3, I5, and I8a/I8b.
 
 ### J. Optional non-JVM runtime productization
 

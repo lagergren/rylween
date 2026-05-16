@@ -2556,6 +2556,55 @@ class RylweenCompiledGameLedgerTest {
             "plans/dsl-improvements.md must record I9h temporary-block closeout"
         }
     }
+
+    @Test
+    fun dslAuthoringGuideDocumentsCurrentSourceModelAndAudit() {
+        val guide = File("docs/dsl-authoring.md").readText()
+        val rootReadme = File("README.md").readText()
+        val gameReadme = File("game/README.md").readText()
+        val coreReadme = File("core/README.md").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+        val compiledRuntimeSpec = File("plans/compiled-vm-runtime-spec.md").readText()
+        val currentSourcePath = "game/src/main/kotlin/rylween/game/RylweenGame.kt"
+
+        listOf(
+            "Mental Model",
+            "Syntax Rules",
+            "Adding Content",
+            "Where A Change Belongs",
+            "Extending The DSL",
+            "I10 Design Audit Notes",
+            "scene(Scenes.Missions.bandits)",
+            "shopService(Buildings.smith)",
+            "prompts {",
+            "worldMap(Maps.wilderness)",
+            "dungeons {",
+            "state(States.strong)",
+            "runtimeSystems",
+            "source-script IR",
+            currentSourcePath,
+        ).forEach { token ->
+            check(token in guide) {
+                "DSL authoring guide must document $token"
+            }
+        }
+        check("docs/dsl-authoring.md" in rootReadme) {
+            "root README must link the DSL authoring guide"
+        }
+        check("../docs/dsl-authoring.md" in gameReadme && "../docs/dsl-authoring.md" in coreReadme) {
+            "module READMEs must link the DSL authoring guide"
+        }
+        check("- [x] I10. Author-facing DSL guide and design consistency audit." in planSource) {
+            "plans/dsl-improvements.md must record I10 closeout"
+        }
+        check(
+            currentSourcePath in planSource &&
+                "authored Kotlin source-script IR" in compiledRuntimeSpec &&
+                "authored `Op`" !in compiledRuntimeSpec,
+        ) {
+            "current-facing docs must describe RylweenGame.kt and source-script IR, not the retired DSL script/op model"
+        }
+    }
 }
 
 private fun TextBlock.textParts(): List<TextPart> =

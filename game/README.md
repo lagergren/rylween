@@ -14,6 +14,9 @@ Important areas:
 - `src/main/resources/bitmap` contains bitmap assets used by the bitmap web
   runtime.
 
+For authoring syntax, extension examples, and DSL/runtime ownership rules, see
+the [DSL authoring guide](../docs/dsl-authoring.md).
+
 Reusable DSL, compiler, validation, runtime, and renderer code should not be
 added here. This module should stay focused on game data, scripts, fixtures, and
 assets.

@@ -6,7 +6,7 @@
  * `castle { ... }` builder used from the authored game DSL. It deliberately
  * contains only generic castle mechanics; Castle Ydarg coordinates, prose,
  * item names, trap text, and completion scripts belong in
- * `game/src/main/dsl/RylweenGame.dsl.kts`.
+ * `game/src/main/kotlin/rylween/game/RylweenGame.kt`.
  */
 package rylween.dsl.impl
 

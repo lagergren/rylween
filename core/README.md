@@ -10,6 +10,9 @@ It contains:
 - External bundle artifact encoding/decoding.
 - Runtime-system metadata exported from authored DSL into portable tables.
 
+The public authoring model is documented in the
+[DSL authoring guide](../docs/dsl-authoring.md).
+
 This module must not depend on terminal, browser, or concrete runtime UI code.
 If a concept is game content, renderer-neutral runtime metadata, compiled VM
 state, or validation, it belongs here. If it is a transport, screen renderer, or
