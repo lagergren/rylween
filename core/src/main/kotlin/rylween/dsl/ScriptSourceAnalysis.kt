@@ -6,7 +6,7 @@
  * remaining authoring/compiler boundary that still understands the source
  * [AuthoredScript] tree before it is lowered into compiled instructions. Keep new
  * validation and source-map probes here, then feed their results to compiler
- * diagnostics instead of teaching runtime hosts how to walk authored ops.
+ * diagnostics instead of teaching runtime hosts how to walk authored source.
  */
 
 package rylween.dsl
@@ -49,18 +49,17 @@ data class ScriptSourceRoot(
 ) {
     constructor(
         id: ScriptSourceRootId,
-        ops: List<ScriptStatementNode>,
+        statementNodes: List<ScriptStatementNode>,
         label: String,
         initialConditions: List<BoolAst> = emptyList(),
     ) : this(
         id = id,
-        script = AuthoredScript(ops),
+        script = AuthoredScript(statementNodes),
         label = label,
         initialConditions = initialConditions,
     )
 
-    /** Compatibility view used while existing validation/compiler paths consume [ScriptStatementNode]. */
-    val ops: List<ScriptStatementNode> get() = script.ops
+    val statementNodes: List<ScriptStatementNode> get() = script.statementNodes
 }
 
 /** Kinds of non-script formulas that can still contain native service probes. */

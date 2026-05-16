@@ -559,7 +559,7 @@ fun validateDungeonSystem(
                 }
             }
         }
-        check(event.ops.isNotEmpty() || event.randomEncounterTier != null) {
+        check(event.statementNodes.isNotEmpty() || event.randomEncounterTier != null) {
             "dungeon event ${event.id.slug} must declare script or random encounter"
         }
     }
@@ -1459,7 +1459,7 @@ private fun validateSpeakQuestionActions(
         check(action.job in knownJobs) {
             "speak question action ${action.topic} references unknown NPC job ${action.job.slug}"
         }
-        check(action.ops.isNotEmpty()) {
+        check(action.statementNodes.isNotEmpty()) {
             "speak question action ${action.topic} for ${action.job.slug} has an empty body"
         }
     }
@@ -1634,7 +1634,7 @@ fun validateItemUses(
             "item use ${itemUse.id.slug} must reference a slotted inventory item"
         }
         check(itemUse.contexts.isNotEmpty()) { "item use ${itemUse.id.slug} has no contexts" }
-        check(itemUse.ops.isNotEmpty()) { "item use ${itemUse.id.slug} has no effect body" }
+        check(itemUse.statementNodes.isNotEmpty()) { "item use ${itemUse.id.slug} has no effect body" }
 
         val consumesInBody = itemUse.containsConsumeActiveItem()
         when (itemUse.consume) {
@@ -1688,7 +1688,7 @@ fun validateDialogue(
                 }
                 flagStates?.requireKnown(state, "dialogue for ${npcDialogue.npc.slug}")
             }
-            check(branch.ops.isNotEmpty()) {
+            check(branch.statementNodes.isNotEmpty()) {
                 "dialogue for ${npcDialogue.npc.slug} has an empty branch"
             }
         }
