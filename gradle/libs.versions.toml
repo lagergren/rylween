@@ -2,6 +2,8 @@
 jdk = "25"
 kotlin = "2.3.21"
 jline = "4.0.12"
+nodejs = "24.6.0"
+node-gradle = "7.1.0"
 playwright = "1.49.0"
 
 [libraries]
@@ -10,3 +12,4 @@ playwright = { module = "com.microsoft.playwright:playwright", version.ref = "pl
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+node = { id = "com.github.node-gradle.node", version.ref = "node-gradle" }

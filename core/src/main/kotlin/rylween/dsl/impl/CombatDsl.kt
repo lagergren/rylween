@@ -148,6 +148,13 @@ object BattleText {
     val levelsGained: TextPart = TextPart.BattleLevelsGained
 }
 
+/**
+ * Receiver for combat-system authoring.
+ *
+ * Designers currently declare the standard battle model here; runtime battle
+ * sessions consume the resulting combat system rather than embedding Rylween
+ * battle rules directly.
+ */
 @RylNextDsl
 class CombatBuilder {
     private var standardBattleModel: StandardBattleModel? = null
@@ -159,6 +166,13 @@ class CombatBuilder {
     fun build(): CombatSystemModel = CombatSystemModel(standardBattleModel)
 }
 
+/**
+ * Receiver for the reusable standard battle flow.
+ *
+ * Designers provide opening/flee rules, command keys, action list, player and
+ * monster round formulas, reward bundle, images, and all player-facing battle
+ * text for the common battle runner.
+ */
 @RylNextDsl
 class StandardBattleBuilder {
     private var openingModel: EncounterOpeningModel? = null
@@ -241,6 +255,12 @@ class StandardBattleBuilder {
     }
 }
 
+/**
+ * Receiver for the initial fight/run prompt bindings.
+ *
+ * These bindings are separate from per-round combat actions because the opening
+ * choice can leave the encounter before the round loop starts.
+ */
 @RylNextDsl
 class BattleOpeningKeysBuilder(
     initial: BattleOpeningKeysModel? = null,
@@ -255,6 +275,13 @@ class BattleOpeningKeysBuilder(
         )
 }
 
+/**
+ * Receiver for standard battle text.
+ *
+ * Designers author every reusable battle phrase here, using structured text
+ * parts from [BattleTextParts] for runtime-supplied names, damage, rewards, and
+ * level-up values.
+ */
 @RylNextDsl
 class BattleTextBuilder(
     initial: BattleTextModel? = null,
@@ -489,6 +516,12 @@ class BattleTextBuilder(
         )
 }
 
+/**
+ * Receiver for encounter opening rules.
+ *
+ * Designers set flee probabilities, mandatory-run behavior, and possible
+ * encounter banner images used before the battle loop begins.
+ */
 @RylNextDsl
 class EncounterOpeningBuilder(
     initial: EncounterOpeningModel? = null,
@@ -515,6 +548,12 @@ class EncounterOpeningBuilder(
     }
 }
 
+/**
+ * Receiver for the player combat action menu.
+ *
+ * Designers map keys to semantic combat actions and prompts; the battle runner
+ * keeps the input handling and action dispatch unified from these rows.
+ */
 @RylNextDsl
 class PlayerCombatActionsBuilder {
     private val actions = mutableListOf<CombatActionModel>()
@@ -646,6 +685,12 @@ class PlayerCombatActionsBuilder {
     }
 }
 
+/**
+ * Receiver for player-side round formulas.
+ *
+ * Designers declare attack, defend, and battle-cry numeric policies that the
+ * battle runner applies to live party and monster state.
+ */
 @RylNextDsl
 class PlayerRoundBuilder(
     initial: PlayerRoundModel? = null,
@@ -683,6 +728,12 @@ class PlayerRoundBuilder(
         )
 }
 
+/**
+ * Receiver for monster-side round formulas.
+ *
+ * Designers declare spell-casting chance and melee damage policy while the
+ * battle runner owns target selection, RNG use, and state mutation.
+ */
 @RylNextDsl
 class MonsterRoundBuilder(
     initial: MonsterRoundModel? = null,

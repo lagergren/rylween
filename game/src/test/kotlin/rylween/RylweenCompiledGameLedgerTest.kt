@@ -1622,6 +1622,7 @@ class RylweenCompiledGameLedgerTest {
         val bitmapServerSource =
             File("runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/RylweenBitmapWebRuntimeMain.kt").readText()
         val bitmapClientSource = File("runtime-bitmap-web/src/main/resources/bitmap-web/client.ts").readText()
+        val bitmapBuild = File("runtime-bitmap-web/build.gradle.kts").readText()
         val compiledBitmapAssets = runtimeSystems.presentation.images.filter { image -> image.kind == "Bitmap" }
         val requiredCompiledImages =
             listOf(
@@ -1669,6 +1670,13 @@ class RylweenCompiledGameLedgerTest {
         }
         check("if (kind.startsWith(\"blitgfx.\")) return gameImageAsset(kind);" !in bitmapClientSource) {
             "bitmap client must not infer arbitrary blitgfx assets without a compiled bitmap declaration"
+        }
+        check(
+            "alias(libs.plugins.node)" in bitmapBuild &&
+                "download.set(true)" in bitmapBuild &&
+                "commandLine(\"npm\"" !in bitmapBuild,
+        ) {
+            "bitmap web TypeScript build must use Gradle-managed Node/npm instead of an OS-installed npm"
         }
     }
 
@@ -1731,6 +1739,26 @@ class RylweenCompiledGameLedgerTest {
         }
         check(battleTextTokens.none { token -> token in dslImplementation }) {
             "Reusable DSL implementation must not contain Rylween-specific battle prose or menu labels"
+        }
+    }
+
+    @Test
+    fun textInputDslStaysGeneric() {
+        val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val dslImplementation =
+            File("core/src/main/kotlin/rylween/dsl")
+                .walkTopDown()
+                .filter { file -> file.isFile && file.extension == "kt" }
+                .joinToString("\n") { file -> file.readText() }
+
+        check("choice.textInput(" in gameDsl && "acceptedText(\"RISH EKKIN\")" in gameDsl) {
+            "password/riddle scenes must use generic text input with authored accepted strings"
+        }
+        check("choice.textAnswer(" !in gameDsl && "textAnswers(" !in gameDsl) {
+            "authored game source should use the generic text-input vocabulary"
+        }
+        check("riddleGate" !in dslImplementation) {
+            "Reusable DSL implementation must not expose a game-specific riddle gate primitive"
         }
     }
 
