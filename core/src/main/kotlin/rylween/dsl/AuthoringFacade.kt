@@ -65,19 +65,13 @@ typealias GridSize = rylween.dsl.impl.GridSize
 typealias WorldPosition = rylween.dsl.impl.WorldPosition
 typealias RylweenModel = rylween.dsl.impl.RylweenModel
 typealias GameModel = rylween.dsl.impl.GameModel
-typealias RuntimeContent = rylween.dsl.impl.RuntimeContent
 typealias RylweenBuilder = rylween.dsl.impl.RylweenBuilder
 typealias RylweenStateModuleBuilder = rylween.dsl.impl.RylweenStateModuleBuilder
-typealias StateBuilder = rylween.dsl.impl.StateBuilder
 typealias NpcStateBuilder = rylween.dsl.impl.NpcStateBuilder
 typealias PartyMembersBuilder = rylween.dsl.impl.PartyMembersBuilder
 typealias PartyResources = rylween.dsl.impl.PartyResources
-typealias PartyCounters = rylween.dsl.impl.PartyCounters
-typealias PartyMemberState = rylween.dsl.impl.PartyMemberState
 typealias PartyState = rylween.dsl.impl.PartyState
-typealias RealmState = rylween.dsl.impl.RealmState
 typealias StateModel = rylween.dsl.impl.StateModel
-typealias JournalEntryState = rylween.dsl.impl.JournalEntryState
 typealias ItemKind = rylween.dsl.impl.ItemKind
 typealias EquipmentCommand = rylween.dsl.impl.EquipmentCommand
 typealias ItemStorageKind = rylween.dsl.impl.ItemStorageKind
@@ -85,10 +79,6 @@ typealias Resource = rylween.dsl.impl.Resource
 typealias TemperatureBand = rylween.dsl.impl.TemperatureBand
 typealias TemperatureBandRange = rylween.dsl.impl.TemperatureBandRange
 typealias TerrainSettlement = rylween.dsl.impl.TerrainSettlement
-typealias ImageAssetKind = rylween.dsl.impl.ImageAssetKind
-typealias ImagePlacement = rylween.dsl.impl.ImagePlacement
-typealias ImageTransition = rylween.dsl.impl.ImageTransition
-typealias StaticScreenRuntimeReport = rylween.dsl.impl.StaticScreenRuntimeReport
 typealias TownKind = rylween.dsl.impl.TownKind
 typealias CharacterCreationStat = rylween.dsl.impl.CharacterCreationStat
 typealias CharacterCreationStatRollModel = rylween.dsl.impl.CharacterCreationStatRollModel
@@ -108,10 +98,6 @@ typealias ChitchatSubject = rylween.dsl.impl.ChitchatSubject
 typealias ChitchatReplyPolicy = rylween.dsl.impl.ChitchatReplyPolicy
 typealias RumorUsagePolicy = rylween.dsl.impl.RumorUsagePolicy
 typealias RumorSourcePolicy = rylween.dsl.impl.RumorSourcePolicy
-typealias ShopHaggleBonusModel = rylween.dsl.impl.ShopHaggleBonusModel
-typealias ShopSellHaggleModel = rylween.dsl.impl.ShopSellHaggleModel
-typealias ShopZeroQuantityDealPolicy = rylween.dsl.impl.ShopZeroQuantityDealPolicy
-typealias ShopQuantityCap = rylween.dsl.impl.ShopQuantityCap
 typealias ShopTextBuilder = rylween.dsl.impl.ShopTextBuilder
 typealias ShopItemSink = rylween.dsl.impl.ShopItemSink
 
@@ -164,7 +150,7 @@ fun ShopItemSink.item(
     label: String? = null,
     price: rylween.dsl.impl.ShopPriceModel = rylween.dsl.impl.ShopPriceModel.ItemCost,
     description: TextBlock? = null,
-) = implShopItem(binding, item, label, price, description)
+): Unit = implShopItem(binding, item, label, price, description)
 
 fun ShopItemSink.item(
     key: Char,
@@ -172,7 +158,7 @@ fun ShopItemSink.item(
     label: String? = null,
     price: rylween.dsl.impl.ShopPriceModel = rylween.dsl.impl.ShopPriceModel.ItemCost,
     description: TextBlock? = null,
-) = implShopItem(key, item, label, price, description)
+): Unit = implShopItem(key, item, label, price, description)
 
 fun ShopItemSink.item(
     binding: InputBindingModel,
@@ -180,7 +166,7 @@ fun ShopItemSink.item(
     label: String? = null,
     price: rylween.dsl.impl.ShopPriceModel = rylween.dsl.impl.ShopPriceModel.ItemCost,
     description: StructuredTextBlockBuilder.() -> Unit,
-) = implShopItem(binding, item, label, price, description)
+): Unit = implShopItem(binding, item, label, price, description)
 
 fun ShopItemSink.item(
     key: Char,
@@ -188,4 +174,4 @@ fun ShopItemSink.item(
     label: String? = null,
     price: rylween.dsl.impl.ShopPriceModel = rylween.dsl.impl.ShopPriceModel.ItemCost,
     description: StructuredTextBlockBuilder.() -> Unit,
-) = implShopItem(key, item, label, price, description)
+): Unit = implShopItem(key, item, label, price, description)

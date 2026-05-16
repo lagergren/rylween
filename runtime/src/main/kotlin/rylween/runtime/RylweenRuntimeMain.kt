@@ -626,7 +626,6 @@ class GameRuntime private constructor(
                                 input = input,
                                 runtime = runtime,
                                 world = world,
-                                title = "Adventurer's Journal",
                                 lines = PartyPages.journalLines(systems, runtime.party, screen.textColumns),
                             )
                             false
@@ -706,7 +705,7 @@ class GameRuntime private constructor(
 
                         command == '\n' -> false
                         else -> {
-                            screen.writeText(listOf("Unknown command '$command'.", "Press ? for commands."))
+                            screen.writeText(runtimeChromeText("Unknown command '$command'.", "Press ? for commands."))
                             false
                         }
                     }
@@ -1060,7 +1059,7 @@ class GameRuntime private constructor(
         input.pause(systems.pacing.characterCreation.saveConfirmationPauseMs)
         val saveConfirmation =
             prompts.saveConfirmation
-                .renderCreation(wrapWidth = null)
+                .renderCreation()
                 .joinToString(separator = " ")
         screen.writeText(savingPrompt.withLastLineSuffix(" $saveConfirmation"))
         return runtime
@@ -1304,22 +1303,11 @@ class GameRuntime private constructor(
         showWildernessPages(screen, input, runtime, world, pages)
     }
 
-    private fun showWildernessPage(
-        screen: RuntimeScreenPort,
-        input: RuntimeInputPort,
-        runtime: RuntimeState,
-        world: WorldMap,
-        lines: List<String>,
-    ) {
-        showWildernessPages(screen, input, runtime, world, lines.chunked(TEXT_WINDOW_PAGE_LINES))
-    }
-
     private fun showWildernessDocument(
         screen: RuntimeScreenPort,
         input: RuntimeInputPort,
         runtime: RuntimeState,
         world: WorldMap,
-        title: String,
         lines: List<String>,
     ) {
         val width = screen.documentColumns ?: Int.MAX_VALUE
@@ -1329,7 +1317,7 @@ class GameRuntime private constructor(
             val lastPage = index == pages.lastIndex
             val prompt = documentPrompt(if (lastPage) "to return" else "for more")
             screen.showDocumentPage(
-                title = title,
+                title = "Adventurer's Journal",
                 subtitle = "Page ${index + 1}/${pages.size}",
                 lines = page + "" + prompt,
                 runtime = runtime,
@@ -1373,7 +1361,7 @@ class GameRuntime private constructor(
             .orEmpty()
             .map(ExternalRuntimeCommand::runtimeMnemonicLine)
             .chunked(TEXT_WINDOW_PAGE_LINES)
-            .ifEmpty { listOf(listOf("Press ? for commands.")) }
+            .ifEmpty { listOf(runtimeChromeText("Press ? for commands.")) }
 
     private fun saveRuntime(
         runtime: RuntimeState,
@@ -1466,7 +1454,7 @@ class GameRuntime private constructor(
                 content.buildingServices.firstOrNull { service -> service.building == building }
             }
         if (services.isEmpty()) {
-            screen.writeText(listOf("${string(town.nameString)} has no compiled services."))
+            screen.writeText(runtimeDiagnosticText("${string(town.nameString)} has no compiled services."))
             return runtime
         }
         val townCommands = systems.commands.getValue(TOWN_COMMAND_GROUP)
@@ -1478,7 +1466,7 @@ class GameRuntime private constructor(
             }
         val leaveCommand = townCommands.firstOrNull { command -> command.action == TOWN_LEAVE_ACTION }
         if (serviceEntries.isEmpty()) {
-            screen.writeText(listOf("${string(town.nameString)} has no compiled service commands."))
+            screen.writeText(runtimeDiagnosticText("${string(town.nameString)} has no compiled service commands."))
             return runtime
         }
 
@@ -1589,7 +1577,7 @@ class GameRuntime private constructor(
         val program =
             content.scripts.roots.firstOrNull { root -> root.root.kind.name == "Scene" && root.root.slug == sceneSlug }
         if (program == null) {
-            screen.writeText(listOf("No compiled scene program for $sceneSlug."))
+            screen.writeText(runtimeDiagnosticText("No compiled scene program for $sceneSlug."))
             return runtime
         }
         return ScriptExecutor(content, systems, input, screen, runtime, log = log).execute(program)
@@ -2393,12 +2381,9 @@ internal class CompiledTextRenderContext(
     val runtimeValue: (CompiledRuntimeTextPart) -> String = { part -> "[${part.name}]" },
 )
 
-internal fun CompiledTextBlock.renderTextLines(content: CompiledContentBundle): List<String> =
-    renderTextLines(CompiledTextRenderContext(content))
-
 internal fun CompiledTextBlock.renderTextLines(context: CompiledTextRenderContext): List<String> =
     when (this) {
-        is CompiledTextBlock.Ref -> listOf("[text:${context.content.slug(text)}]")
+        is CompiledTextBlock.Ref -> runtimeDiagnosticText("[text:${context.content.slug(text)}]")
         is CompiledTextBlock.Inline -> lineStrings.map(context.content.strings::value)
         is CompiledTextBlock.Structured ->
             lines.map { line ->

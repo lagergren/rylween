@@ -32,6 +32,21 @@ internal data class RuntimeLoopContext(
     val log: RuntimeLog,
 )
 
+internal fun saveRuntimeAndShowPath(
+    runtime: RuntimeState,
+    content: CompiledContentBundle,
+    save: RuntimeSaveContext,
+    screen: RuntimeScreenPort,
+    log: RuntimeLog,
+) {
+    save.write(runtime, content)
+    log.event(
+        "runtime.save user=${save.userId} file=${save.file.path} " +
+            "position=${runtime.party.position.x},${runtime.party.position.y} mode=${runtime.currentMode}",
+    )
+    screen.writeText(runtimeGeneratedDetailText(save.file.path))
+}
+
 /** Programmatic configuration for one interactive runtime session. */
 data class RuntimeSessionConfig(
     val userId: String,

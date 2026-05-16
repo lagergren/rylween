@@ -1795,6 +1795,33 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun runtimeRenderedTextLiteralsStayClassified() {
+        val runtimeSources =
+            File("runtime/src/main/kotlin/rylween/runtime")
+                .walkTopDown()
+                .filter { file -> file.isFile && file.extension == "kt" }
+                .joinToString("\n") { file -> "// ${file.path}\n${file.readText()}" }
+
+        check(
+            "Game prose, prompts, reusable labels, and gameplay failure text should come" in runtimeSources &&
+                "runtimeDiagnosticText(" in runtimeSources &&
+                "runtimeChromeText(" in runtimeSources &&
+                "runtimeGeneratedDetailText(" in runtimeSources,
+        ) {
+            "runtime-owned rendered strings must be explicitly classified as diagnostics, chrome, or generated detail"
+        }
+        check(
+            !Regex("screen\\.(?:writeText|showMessage)\\(\\s*listOf\\(\\s*\"")
+                .containsMatchIn(runtimeSources),
+        ) {
+            "runtime screen writes must not inline literal listOf(...) prose; use authored prompts or a classification helper"
+        }
+        check(!Regex("listOf\\(\\s*\"\\[text:").containsMatchIn(runtimeSources)) {
+            "compiled text-ref placeholders rendered to users must stay classified as runtime diagnostics"
+        }
+    }
+
+    @Test
     fun jvmToolchainVersionComesFromVersionCatalog() {
         val catalog = File("gradle/libs.versions.toml").readText()
         val gradleFiles =
