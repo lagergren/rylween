@@ -703,11 +703,15 @@ B1-B9 first-pass notes:
     - [x] I9d.4. Update validation to describe diagnostics in source-statement
       terms and push shared recursive walking into source-analysis helpers
       instead of each validator owning ad hoc `Op` recursion.
-  - [ ] I9e. Keep the oracle explicit. The authored interpreter/parity surface
+  - [x] I9e. Keep the oracle explicit. The authored interpreter/parity surface
     should consume the new source IR only under `AuthoredScriptOracleApi`/tests,
     while production runtime code continues to consume compiled bundle rows. Add
     or keep architectural tests that reject production imports of the authored
     interpreter/source IR.
+    The old active authored interpreter files are already absent. The ledger now
+    additionally scans production runtime source roots and rejects imports or
+    qualified references to `AuthoredScript`, `ScriptStatement`, source-analysis
+    walkers, or legacy `Op`, keeping the new source IR under DSL/compiler/tests.
   - [ ] I9f. Retire the `Op` name and compatibility bridges. Once builders,
     compiler, validation, source analysis, and oracle tests use the new names,
     remove or narrowly deprecate `Op`, remove `List<Op>` bridge accessors where
