@@ -637,7 +637,7 @@ B1-B9 first-pass notes:
       `screen.showMessage` literal `listOf(...)` calls and unclassified compiled
       text-ref placeholders, forcing future game prose through authored content
       or runtime-system prompts.
-  - [ ] I8e. Input-binding ownership audit. Recheck whether `Dsl.kt` and
+  - [x] I8e. Input-binding ownership audit. Recheck whether `Dsl.kt` and
     `dsl/impl` should expose literal key presses for static commands/prompts,
     or whether the authored model should name semantic commands and labels while
     a separate input profile supplies default keyboard bindings for ANSI,
@@ -645,14 +645,83 @@ B1-B9 first-pass notes:
     keys as the default profile and keep runtime session inputs semantic, but
     avoid making physical key choices part of reusable game-rule declarations
     where a frontend-specific binding layer would be cleaner.
+    Decision: keep `InputBindingModel` as the authored default input-profile
+    row for current static commands because the legacy key and display label are
+    part of visible help/prompt content. Runtime command loops continue to
+    dispatch through compiled `RuntimeCommandActionId` values and centralized
+    binding matchers rather than repeated physical keys. If a later controller,
+    accessibility, or frontend-specific profile is needed, add that as a layer
+    over semantic command ids instead of moving key literals into runtime loops.
+    `InputBindingModel` now documents this ownership split, and the
+    compiled-game ledger checks the title, wilderness, dungeon, castle, and cave
+    command paths for semantic dispatch.
 - [ ] I9. Replace the ambiguous authored `Op` source model with an explicit script-source IR. Scope: keep an IR, but make it obviously authoring/compiler-owned rather than runtime bytecode. The runtime contract remains the compiled bundle (`CompiledOpcode` plus typed operands and tables); the DSL should not emit compiled instructions directly because validation, diagnostics, source paths, and the oracle need high-level structure.
-  - [ ] I9a. Introduce the new source model. Add `AuthoredScript`, `ScriptBlock`, and a sealed `ScriptStatement` model split by ownership categories: text/view, control flow, input, state mutation, and child/gameplay handoff. Reuse the existing expression/lvalue/text models initially; do not widen behavior in this slice.
-  - [ ] I9b. Migrate builders without changing emitted bundles. Have `ScriptScope` record `ScriptStatement` blocks, keep a temporary compatibility bridge for existing call sites/tests, and prove generated compiled bundle output stays byte-for-byte or table-equivalent for the current game.
-  - [ ] I9c. Move analysis/compiler/validation to the new names. Update `ScriptSourceAnalysis.kt`, `DslValidation.kt`, and `CompiledBundle.kt` to walk/lower `ScriptStatement` through a small visitor or category-specific helpers so source analysis does not depend on one large `when (Op)` bucket.
-  - [ ] I9d. Keep the oracle explicit. The authored interpreter/parity surface should consume the new source IR only under `AuthoredScriptOracleApi`/tests, while production runtime code continues to consume compiled bundle rows. Add or keep architectural tests that reject production imports of the authored interpreter/source IR.
-  - [ ] I9e. Retire the `Op` name. Once builders, compiler, validation, source analysis, and oracle tests use the new names, remove or narrowly deprecate `Op`; update docs and plan text so future work says "source script IR" for authoring and "compiled opcodes" for runtime.
-  - [ ] I9f. Document and enforce loop ownership. Use names/docs/tests that distinguish authored script-control loops (`loop`, `breakLoop`, `forEachMember`, `forEachMonster`, lowered to compiled script instructions) from runtime mode/service loops (wilderness, town, dungeon, castle, standard battle). Runtime service loops may stay native when they own engine cadence, input, rendering, RNG, persistence, or live subsystem state, but any Rylween-specific prose, prompt wording, reusable choice labels, formulas, rewards, or gameplay policy inside those loops should be authored content/runtimeSystems instead.
-  - [ ] I9g. Remove raw Kotlin locals from authored game scripts. Replace `val amount = localInt(...)`, `val caster = currentCaster`, and similar imperative declarations with source-script DSL constructs that still compile to explicit IR, so game content authors do not need Kotlin variable-declaration knowledge for common temporary values.
+  - [x] I9a. Introduce the new source model. Add `AuthoredScript`, `ScriptBlock`, and a sealed `ScriptStatement` model split by ownership categories: text/view, control flow, input, state mutation, and child/gameplay handoff. Reuse the existing expression/lvalue/text models initially; do not widen behavior in this slice.
+    Introduced `ScriptSourceModel.kt` with authored script/block/source
+    statement categories, classified existing `Op` nodes as source statements,
+    and made `ScriptSourceRoot` carry `AuthoredScript` while preserving the
+    current `List<Op>` compatibility view for validation and bundle lowering.
+    The compiled-game ledger now guards the source model and category markers.
+  - [x] I9b. Migrate builders without changing emitted bundles. Have `ScriptScope` record `ScriptStatement` blocks, keep a temporary compatibility bridge for existing call sites/tests, and prove generated compiled bundle output stays byte-for-byte or table-equivalent for the current game.
+    `ScriptScope` now records through `ScriptBlockBuilder` as
+    `ScriptStatement` values, while `recordScript(...)` remains the temporary
+    `List<Op>` bridge for existing validators and compiled bundle lowering.
+    This keeps emitted runtime artifacts table-equivalent while I9c migrates
+    walkers/compiler code to source-statement names.
+  - [x] I9c. Move script-owning content models to the new source IR. Replace
+    raw `ops: List<Op>` ownership on script root models (`SceneModel`,
+    `DialogueBranchModel`, `SpellModel`, `ItemUseModel`,
+    `DungeonEventModel`, question actions, and similar roots) with
+    `AuthoredScript`/`ScriptBlock` storage plus short-lived compatibility
+    accessors. Builders should produce source scripts directly; old `ops`
+    getters should be marked as migration bridges and kept only until I9f.
+    Scene, dialogue branch, spell, item-use, dungeon-event, and question-action
+    models now store `AuthoredScript`. Their `ops` properties are compatibility
+    getters only, and root builders call `recordAuthoredScript(...)` or build
+    `ScriptBlock` values directly. Source-root analysis now reads the `script`
+    field instead of constructing roots from raw op lists.
+  - [ ] I9d. Move analysis/compiler/validation to the new names. Update
+    `ScriptSourceAnalysis.kt`, `DslValidation.kt`, and `CompiledBundle.kt` to
+    walk/lower `ScriptStatement` through a small visitor or category-specific
+    helpers so source analysis does not depend on one large `when (Op)` bucket.
+    - [ ] I9d.1. Rename source walking types/functions from operation wording to
+      statement wording (`ScriptSourceStatement`, `visitScriptStatements`,
+      `anyScriptStatement`) while preserving source-map paths and branch labels.
+    - [ ] I9d.2. Split nested traversal by source structure: control-flow
+      branches, input/menu branches, text-input match/miss branches, and member
+      or monster loops. Keep runtime service loops out of this walker.
+    - [ ] I9d.3. Lower `AuthoredScript`/`ScriptStatement` to
+      `CompiledInstruction` in `CompiledBundle.kt` through `compileStatement`.
+      The compiler may still pattern-match concrete legacy statement classes in
+      this slice, but the public compiler boundary should be source-script
+      terminology rather than `compileOps`.
+    - [ ] I9d.4. Update validation to describe diagnostics in source-statement
+      terms and push shared recursive walking into source-analysis helpers
+      instead of each validator owning ad hoc `Op` recursion.
+  - [ ] I9e. Keep the oracle explicit. The authored interpreter/parity surface
+    should consume the new source IR only under `AuthoredScriptOracleApi`/tests,
+    while production runtime code continues to consume compiled bundle rows. Add
+    or keep architectural tests that reject production imports of the authored
+    interpreter/source IR.
+  - [ ] I9f. Retire the `Op` name and compatibility bridges. Once builders,
+    compiler, validation, source analysis, and oracle tests use the new names,
+    remove or narrowly deprecate `Op`, remove `List<Op>` bridge accessors where
+    possible, and update docs/plan text so future work says "source script IR"
+    for authoring and "compiled opcodes" for runtime.
+  - [ ] I9g. Document and enforce loop ownership. Use names/docs/tests that
+    distinguish authored script-control loops (`loop`, `breakLoop`,
+    `forEachMember`, `forEachMonster`, lowered to compiled script instructions)
+    from runtime mode/service loops (wilderness, town, dungeon, castle, standard
+    battle). Runtime service loops may stay native when they own engine cadence,
+    input, rendering, RNG, persistence, or live subsystem state, but any
+    Rylween-specific prose, prompt wording, reusable choice labels, formulas,
+    rewards, or gameplay policy inside those loops should be authored
+    content/runtimeSystems instead.
+  - [ ] I9h. Remove raw Kotlin locals from authored game scripts. Replace
+    `val amount = localInt(...)`, `val caster = currentCaster`, and similar
+    imperative declarations with source-script DSL constructs that still compile
+    to explicit IR, so game content authors do not need Kotlin
+    variable-declaration knowledge for common temporary values.
 
 ### J. Optional non-JVM runtime productization
 

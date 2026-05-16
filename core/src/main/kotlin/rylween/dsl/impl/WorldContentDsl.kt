@@ -538,8 +538,17 @@ data class RumorTextTableModel(
 data class QuestionActionScriptModel(
     val topic: QuestionTopic,
     val job: NpcJobId,
-    val ops: List<Op>,
-)
+    val script: AuthoredScript,
+) {
+    constructor(
+        topic: QuestionTopic,
+        job: NpcJobId,
+        ops: List<Op>,
+    ) : this(topic, job, AuthoredScript(ops))
+
+    /** Compatibility bridge while compiler and validation paths migrate to [script]. */
+    val ops: List<Op> get() = script.ops
+}
 
 data class SpeakTextTablesModel(
     val screens: List<ReusableScreenTextModel> = emptyList(),

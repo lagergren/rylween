@@ -4,7 +4,7 @@
  * The compiled VM contract is `rylween.runtime.vm.CompiledVm`, and compiled
  * bundle emission lives in `rylween.compiled.CompiledBundle`. This file is the
  * remaining authoring/compiler boundary that still understands the source
- * [Op] tree before it is lowered into compiled instructions. Keep new
+ * [AuthoredScript] tree before it is lowered into compiled instructions. Keep new
  * validation and source-map probes here, then feed their results to compiler
  * diagnostics instead of teaching runtime hosts how to walk authored ops.
  */
@@ -40,13 +40,28 @@ data class ScriptSourceRootId(
     val slug: String,
 )
 
-/** Authored source root plus its recorded [Op] tree. */
+/** Authored source root plus its recorded source-script tree. */
 data class ScriptSourceRoot(
     val id: ScriptSourceRootId,
-    val ops: List<Op>,
+    val script: AuthoredScript,
     val label: String,
     val initialConditions: List<BoolAst> = emptyList(),
-)
+) {
+    constructor(
+        id: ScriptSourceRootId,
+        ops: List<Op>,
+        label: String,
+        initialConditions: List<BoolAst> = emptyList(),
+    ) : this(
+        id = id,
+        script = AuthoredScript(ops),
+        label = label,
+        initialConditions = initialConditions,
+    )
+
+    /** Compatibility view used while existing validation/compiler paths consume [Op]. */
+    val ops: List<Op> get() = script.ops
+}
 
 /** Kinds of non-script formulas that can still contain native service probes. */
 enum class ScriptSourceFormulaKind {
@@ -80,7 +95,7 @@ fun GameModel.scriptSourceRoots(): List<ScriptSourceRoot> =
             add(
                 ScriptSourceRoot(
                     id = ScriptSourceRootId(ScriptSourceRootKind.Scene, scene.id.slug),
-                    ops = scene.ops,
+                    script = scene.script,
                     label = "scene ${scene.id.slug}",
                 ),
             )
@@ -89,7 +104,7 @@ fun GameModel.scriptSourceRoots(): List<ScriptSourceRoot> =
             add(
                 ScriptSourceRoot(
                     id = ScriptSourceRootId(ScriptSourceRootKind.DungeonEvent, event.id.slug),
-                    ops = event.ops,
+                    script = event.script,
                     label = "dungeon event ${event.id.slug}",
                 ),
             )
@@ -103,7 +118,7 @@ fun GameModel.scriptSourceRoots(): List<ScriptSourceRoot> =
                                 ScriptSourceRootKind.DialogueBranch,
                                 dialogueBranchSlug(dialogue, branch),
                             ),
-                        ops = branch.ops,
+                        script = branch.script,
                         label = dialogueBranchLabel(dialogue, branch),
                         initialConditions = branch.whenState?.let { listOf(it.ast) }.orEmpty(),
                     ),
@@ -114,7 +129,7 @@ fun GameModel.scriptSourceRoots(): List<ScriptSourceRoot> =
             add(
                 ScriptSourceRoot(
                     id = ScriptSourceRootId(ScriptSourceRootKind.Spell, spell.id.slug),
-                    ops = spell.ops,
+                    script = spell.script,
                     label = "spell ${spell.id.slug}",
                 ),
             )
@@ -123,7 +138,7 @@ fun GameModel.scriptSourceRoots(): List<ScriptSourceRoot> =
             add(
                 ScriptSourceRoot(
                     id = ScriptSourceRootId(ScriptSourceRootKind.ItemUse, itemUse.id.slug),
-                    ops = itemUse.ops,
+                    script = itemUse.script,
                     label = "item use ${itemUse.id.slug}",
                 ),
             )
@@ -136,7 +151,7 @@ fun GameModel.scriptSourceRoots(): List<ScriptSourceRoot> =
                             ScriptSourceRootKind.QuestionAction,
                             questionActionSlug(action),
                         ),
-                    ops = action.ops,
+                    script = action.script,
                     label = "speak ${action.topic} ${action.job.slug}",
                 ),
             )
@@ -193,7 +208,7 @@ data class ScriptSourceOp(
 /** Walks every operation in this source root with branch labels and condition context. */
 fun ScriptSourceRoot.visitScriptOps(visitor: (ScriptSourceOp) -> Unit) {
     visitScriptOps(
-        ops = ops,
+        ops = script.ops,
         label = label,
         initialConditions = initialConditions,
         root = id,

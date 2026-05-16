@@ -1615,6 +1615,86 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun inputBindingOwnershipStaysSemanticAtRuntime() {
+        val scriptKernel = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
+        val commandIds = File("core/src/main/kotlin/rylween/compiled/RuntimeCommandIds.kt").readText()
+        val externalBundle = File("core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt").readText()
+        val runtimeMain = File("runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
+        val dungeonRuntime = File("runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt").readText()
+        val castleRuntime = File("runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt").readText()
+        val wildernessActions = File("runtime/src/main/kotlin/rylween/runtime/WildernessActions.kt").readText()
+        val wildernessCommands = File("runtime/src/main/kotlin/rylween/runtime/WildernessCommands.kt").readText()
+        val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val scriptKernelText = scriptKernel.replace(Regex("\\s+"), " ")
+
+        check(
+            "Authored default input profile row" in scriptKernelText &&
+                "not a runtime session input" in scriptKernelText &&
+                "consume compiled commands by semantic action id" in scriptKernelText &&
+                "add a profile layer" in scriptKernelText &&
+                "semantic command ids" in scriptKernelText,
+        ) {
+            "InputBindingModel must document that physical keys are authored defaults, not runtime command identities"
+        }
+        check("runtime-observable dispatch contract" in commandIds) {
+            "RuntimeCommandActionId must remain documented as the semantic runtime dispatch contract"
+        }
+        check(
+            "runtimeCommand(RuntimeCommandActionId.MoveNorth" in externalBundle &&
+                "runtimeCommand(RuntimeCommandActionId.CreateNewParty" in externalBundle &&
+                "runtimeCommand(RuntimeCommandActionId.Enter, game.wilderness.keys.caveEnter" in externalBundle,
+        ) {
+            "external bundle generation must attach authored bindings to semantic command action ids"
+        }
+        check(
+            "commands.matches(RuntimeCommandActionId.MoveNorth, command)" in runtimeMain &&
+                "matches(RuntimeCommandActionId.CreateNewParty, command)" in runtimeMain &&
+                "commands.menuLine(RuntimeCommandActionId.CreateNewParty)" in runtimeMain &&
+                "command == '8'" !in runtimeMain &&
+                "command == 'N'" !in runtimeMain,
+        ) {
+            "title and wilderness command loops must use compiled semantic bindings instead of repeated physical keys"
+        }
+        check(
+            "commands.matches(RuntimeCommandActionId.Descend, command)" in dungeonRuntime &&
+                "RuntimeCommandActionId.CastSpell" in dungeonRuntime &&
+                "command == 'D'" !in dungeonRuntime &&
+                "command == 'Z'" !in dungeonRuntime,
+        ) {
+            "dungeon command loop must dispatch through semantic command ids"
+        }
+        check(
+            "navigation.matches(RuntimeCommandActionId.MoveNorth, command)" in castleRuntime &&
+                "treasureCommands.matches(RuntimeCommandActionId.Take, command)" in castleRuntime &&
+                "stairsCommands.matches(RuntimeCommandActionId.TeleportOut, command)" in castleRuntime &&
+                "command == '8'" !in castleRuntime,
+        ) {
+            "castle command loop must dispatch through semantic command ids"
+        }
+        check(
+            "caveCommands.matches(RuntimeCommandActionId.Enter, choice)" in wildernessActions &&
+                "caveCommands.matches(RuntimeCommandActionId.Leave, choice)" in wildernessActions &&
+                "command == 'E'" !in wildernessActions &&
+                "command == 'L'" !in wildernessActions,
+        ) {
+            "wilderness prompt commands must dispatch through compiled semantic cave actions"
+        }
+        check(
+            "fun List<ExternalRuntimeCommand>.matches" in wildernessCommands &&
+                "RuntimeCommandActionId" in wildernessCommands &&
+                "matchesCommand(command)" in wildernessCommands,
+        ) {
+            "runtime command binding matching must stay centralized behind compiled command ids"
+        }
+        check(
+            "numberPadMovementWithArrows()" in gameDsl &&
+                "createNewParty = inputKey(\"N\", label = \"New Party\")" in gameDsl,
+        ) {
+            "authored game DSL should still own the current default keyboard profile and labels"
+        }
+    }
+
+    @Test
     fun bitmapWebRuntimeConsumesCompiledBitmapAssets() {
         val runtimeSystems = RylweenCompiledGame.nextRylween.toExternalBundleArtifact().readExternalRuntimeSystems()
         val bitmapFrameSource = File("runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/BitmapFrame.kt").readText()
@@ -2183,8 +2263,12 @@ class RylweenCompiledGameLedgerTest {
     @Test
     fun scriptSourceAnalysisOwnsNativePathWalking() {
         val dslSource = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val kernelSource = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
+        val sourceModel = File("core/src/main/kotlin/rylween/dsl/ScriptSourceModel.kt").readText()
         val validationSource = File("core/src/main/kotlin/rylween/dsl/DslValidation.kt").readText()
         val analysisSource = File("core/src/main/kotlin/rylween/dsl/ScriptSourceAnalysis.kt").readText()
+        val worldContentSource = File("core/src/main/kotlin/rylween/dsl/impl/WorldContentDsl.kt").readText()
+        val speakDslSource = File("core/src/main/kotlin/rylween/dsl/impl/SpeakDsl.kt").readText()
         val requiredTokens =
             listOf(
                 "remaining authoring/compiler boundary",
@@ -2200,6 +2284,69 @@ class RylweenCompiledGameLedgerTest {
         }
         check("fun visitOps(" !in validationSource) {
             "DslValidation.kt must use ScriptSourceAnalysis traversal instead of owning recursive op walkers"
+        }
+        check(
+            "data class AuthoredScript" in sourceModel &&
+                "data class ScriptBlock" in sourceModel &&
+                "class ScriptBlockBuilder" in sourceModel &&
+                "fun record(statement: ScriptStatement)" in sourceModel &&
+                "sealed interface ScriptStatement" in sourceModel &&
+                "sealed interface TextView" in sourceModel &&
+                "sealed interface ControlFlow" in sourceModel &&
+                "sealed interface Input" in sourceModel &&
+                "sealed interface StateMutation" in sourceModel &&
+                "sealed interface GameplayHandoff" in sourceModel,
+        ) {
+            "I9 source model must expose authored scripts, blocks, and ownership categories"
+        }
+        check(
+            "sealed interface Op : ScriptStatement" in kernelSource &&
+                "ScriptStatement.TextView" in kernelSource &&
+                "ScriptStatement.Input" in kernelSource &&
+                "ScriptStatement.ControlFlow" in kernelSource &&
+                "ScriptStatement.StateMutation" in kernelSource &&
+                "ScriptStatement.GameplayHandoff" in kernelSource,
+        ) {
+            "legacy Op nodes must be classified as source statements while I9 migration is in progress"
+        }
+        check("val script: AuthoredScript" in analysisSource && "ops = script.ops" in analysisSource) {
+            "script source roots must carry the new AuthoredScript wrapper while preserving Op traversal"
+        }
+        check(
+            "private val block: ScriptBlockBuilder" in dslSource &&
+                "fun record(statement: ScriptStatement)" in dslSource &&
+                "internal fun recordAuthoredScript" in dslSource &&
+                "internal fun recordScriptBlock" in dslSource &&
+                "recordAuthoredScript(ctx, body).ops" in dslSource,
+        ) {
+            "ScriptScope must record ScriptStatement blocks while keeping the List<Op> compiler bridge"
+        }
+        check(
+            "data class SceneModel" in kernelSource &&
+                "data class DialogueBranchModel" in kernelSource &&
+                "data class SpellModel" in kernelSource &&
+                "data class ItemUseModel" in kernelSource &&
+                "data class DungeonEventModel" in kernelSource &&
+                "val script: AuthoredScript" in kernelSource &&
+                "Compatibility bridge while compiler and validation paths migrate to [script]" in kernelSource,
+        ) {
+            "script root models must own AuthoredScript and expose ops only as a migration bridge"
+        }
+        check(
+            "data class QuestionActionScriptModel" in worldContentSource &&
+                "val script: AuthoredScript" in worldContentSource &&
+                "recordAuthoredScript(body)" in speakDslSource,
+        ) {
+            "question-action script roots must also own AuthoredScript"
+        }
+        check(
+            "SceneModel(id, recordAuthoredScript(body))" in dslSource &&
+                "SpellModel(id, slot, baseCost, name, recordAuthoredScript(body))" in dslSource &&
+                "DialogueBranchModel(state, recordAuthoredScript(body))" in dslSource &&
+                "DialogueBranchModel(null, recordAuthoredScript(body))" in dslSource &&
+                "ItemUseModel(id, contexts.toSet(), consume, script)" in dslSource,
+        ) {
+            "root builders must produce AuthoredScript directly instead of raw Op lists"
         }
         check(missing.isEmpty()) {
             "script source analysis must keep native-path/source-map migration hooks visible; missing: " +
