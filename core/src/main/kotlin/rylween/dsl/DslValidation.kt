@@ -1700,7 +1700,7 @@ private fun ItemUseModel.containsConsumeActiveItem(): Boolean =
         id = ScriptSourceRootId(ScriptSourceRootKind.ItemUse, id.slug),
         script = script,
         label = "item use ${id.slug}",
-    ).anyScriptStatement { statement -> statement == Op.ConsumeActiveItem }
+    ).anyScriptStatement { statement -> statement == ScriptStatementNode.ConsumeActiveItem }
 
 /** Validates reward and native-service use inside authored script bodies. */
 fun validateScriptRewards(
@@ -2138,24 +2138,31 @@ fun validateScriptRewards(
     content.scriptSourceRoots().forEach { root ->
         root.visitScriptStatements { sourceStatement ->
             when (val statement = sourceStatement.statement) {
-                is Op.Screen -> validateTextBlock(statement.text, "screen", knownRoles, knownNpcs, knownTowns)
-                is Op.LetInt -> validateIntExpression(statement.value, "local int")
-                is Op.Set -> validateIntExpression(statement.value, "state assignment")
-                is Op.Add -> validateIntExpression(statement.value, "state add")
-                is Op.Sub -> validateIntExpression(statement.value, "state subtract")
-                is Op.AddClamped -> {
+                is ScriptStatementNode.Screen -> validateTextBlock(statement.text, "screen", knownRoles, knownNpcs, knownTowns)
+                is ScriptStatementNode.LetInt -> validateIntExpression(statement.value, "local int")
+                is ScriptStatementNode.Set -> validateIntExpression(statement.value, "state assignment")
+                is ScriptStatementNode.Add -> validateIntExpression(statement.value, "state add")
+                is ScriptStatementNode.Sub -> validateIntExpression(statement.value, "state subtract")
+                is ScriptStatementNode.AddClamped -> {
                     validateIntExpression(statement.value, "state clamped add")
                     validateIntExpression(statement.max, "state clamped add max")
                 }
-                is Op.AppendJournal -> validateTextBlock(statement.text, "journal append", knownRoles, knownNpcs, knownTowns)
-                is Op.Menu -> {
+                is ScriptStatementNode.AppendJournal ->
+                    validateTextBlock(
+                        statement.text,
+                        "journal append",
+                        knownRoles,
+                        knownNpcs,
+                        knownTowns,
+                    )
+                is ScriptStatementNode.Menu -> {
                     validateTextBlock(statement.prompt, "menu prompt")
                     statement.options.forEach { option ->
                         validateInputChoiceBinding(option.binding, "script menu option ${option.key}")
                     }
                     checkUniqueBindings(statement.options.map { it.binding }, "script menu")
                 }
-                is Op.AskKey -> {
+                is ScriptStatementNode.AskKey -> {
                     validateTextBlock(statement.prompt, "key choice prompt")
                     check(statement.bindings.isNotEmpty()) { "key choice prompt must accept at least one key" }
                     statement.bindings.forEach { binding ->
@@ -2163,13 +2170,13 @@ fun validateScriptRewards(
                     }
                     checkUniqueBindings(statement.bindings, "key choice prompt")
                 }
-                is Op.AskMember ->
+                is ScriptStatementNode.AskMember ->
                     validateTextBlock(
                         statement.prompt,
                         "member choice prompt",
                         allowedRuntimeBindings = MemberChoiceTextBindings,
                     )
-                is Op.AskInventorySlot -> {
+                is ScriptStatementNode.AskInventorySlot -> {
                     validateTextBlock(statement.prompt, "inventory-slot choice prompt")
                     check(statement.firstKey.isLetter()) { "inventory-slot choice first key must be a letter" }
                     check(statement.slots.first >= 0) { "inventory-slot choice starts before slot 0" }
@@ -2177,7 +2184,7 @@ fun validateScriptRewards(
                         "inventory-slot choice ends after slot $InventorySaveSlotMax"
                     }
                 }
-                is Op.AskText -> {
+                is ScriptStatementNode.AskText -> {
                     validateTextBlock(statement.prompt, "text input prompt")
                     check(statement.accepted.isNotEmpty()) { "text input prompt must accept at least one value" }
                     check(statement.accepted.none { it.isEmpty() }) { "text input prompt cannot accept an empty value" }
@@ -2185,50 +2192,50 @@ fun validateScriptRewards(
                         check(max > 0) { "text input max length must be positive" }
                     }
                 }
-                is Op.GrantReward -> validateReward(statement.reward)
-                is Op.RandomItemOffer -> validateRandomItemOffer(statement.offer)
-                is Op.ShopService -> validateShop(statement.shop)
-                is Op.SetFlag -> flagStates?.requireKnown(statement.slug, statement.nativeValue, "script state change")
-                is Op.ConsumeInventoryPool -> {
+                is ScriptStatementNode.GrantReward -> validateReward(statement.reward)
+                is ScriptStatementNode.RandomItemOffer -> validateRandomItemOffer(statement.offer)
+                is ScriptStatementNode.ShopService -> validateShop(statement.shop)
+                is ScriptStatementNode.SetFlag -> flagStates?.requireKnown(statement.slug, statement.nativeValue, "script state change")
+                is ScriptStatementNode.ConsumeInventoryPool -> {
                     validateSlottedItemPool(statement.pool, "consume inventory")
                     validateIntExpression(statement.quantity, "consume inventory quantity")
                     (statement.quantity as? IntAst.Lit)?.let { quantity ->
                         check(quantity.value > 0) { "consume inventory quantity must be positive" }
                     }
                 }
-                is Op.ClearInventorySlot -> validateIntExpression(statement.slot, "clear inventory slot")
-                is Op.EnterDungeon -> {
+                is ScriptStatementNode.ClearInventorySlot -> validateIntExpression(statement.slot, "clear inventory slot")
+                is ScriptStatementNode.EnterDungeon -> {
                     check(statement.levels > 0) { "script dungeon handoff must use positive level count" }
                     requireDungeonScenario(statement.dungeon, "script dungeon handoff", statement.levels)
                 }
-                is Op.TeleportParty -> {
+                is ScriptStatementNode.TeleportParty -> {
                     validateIntExpression(statement.directionKey, "teleport direction key")
                     validateIntExpression(statement.distance, "teleport distance")
                 }
-                is Op.DiscoverCave -> {
+                is ScriptStatementNode.DiscoverCave -> {
                     validateIntExpression(statement.levels, "discover cave level count")
                     validateIntExpression(statement.moveCost, "discover cave move cost")
                     val literalLevels = (statement.levels as? IntAst.Lit)?.value
                     literalLevels?.let { check(it > 0) { "discover cave level count must be positive" } }
                     requireDungeonScenario(statement.dungeon, "discover cave", literalLevels)
                 }
-                is Op.If -> validateBoolExpression(statement.cond, "script condition")
-                is Op.Break ->
+                is ScriptStatementNode.If -> validateBoolExpression(statement.cond, "script condition")
+                is ScriptStatementNode.Break ->
                     check(sourceStatement.loopDepth > 0) {
                         "breakLoop(${statement.reason ?: ""}) must be inside loop { ... }"
                     }
-                is Op.Switch -> validateIntExpression(statement.expr, "script switch")
-                is Op.RunScene ->
+                is ScriptStatementNode.Switch -> validateIntExpression(statement.expr, "script switch")
+                is ScriptStatementNode.RunScene ->
                     check(statement.scene in knownScenes) {
                         "script run references missing scene ${statement.scene.slug}"
                     }
-                is Op.Encounter -> {
+                is ScriptStatementNode.Encounter -> {
                     check(statement.foe in knownMonsters) {
                         "script encounter references unknown monster ${statement.foe.slug}"
                     }
                     statement.tier?.let { tier -> requireEncounterTier(tier, "script encounter ${statement.foe.slug}") }
                 }
-                is Op.AchieveMilestone ->
+                is ScriptStatementNode.AchieveMilestone ->
                     check(statement.milestone in knownMilestones) {
                         "script achieve references unknown milestone ${statement.milestone.slug}"
                     }
@@ -2551,11 +2558,11 @@ private fun ScriptSourceRoot.imageReferences(): List<Pair<ImageId, String>> =
     buildList {
         visitScriptStatements { sourceStatement ->
             when (val statement = sourceStatement.statement) {
-                is Op.View -> {
+                is ScriptStatementNode.View -> {
                     val image = (statement.command as? ViewCommand.ShowImage)?.image
                     if (image != null) add(image to sourceStatement.label)
                 }
-                is Op.ShopService -> add(statement.shop.image to "${sourceStatement.label} shop")
+                is ScriptStatementNode.ShopService -> add(statement.shop.image to "${sourceStatement.label} shop")
                 else -> Unit
             }
         }
@@ -2725,7 +2732,7 @@ private fun validateFlagTransitions(
         scene: SceneModel,
     ) {
         visitScriptStatements(scene.script, "mission ${mission.id.slug}", listOfNotNull(mission.requires)) { sourceStatement ->
-            val statement = sourceStatement.statement as? Op.SetFlag ?: return@visitScriptStatements
+            val statement = sourceStatement.statement as? ScriptStatementNode.SetFlag ?: return@visitScriptStatements
             validateTransition(
                 slug = statement.slug,
                 native = statement.nativeValue,
@@ -2737,7 +2744,7 @@ private fun validateFlagTransitions(
 
     content.scriptSourceRoots().forEach { root ->
         root.visitScriptStatements { sourceStatement ->
-            val statement = sourceStatement.statement as? Op.SetFlag ?: return@visitScriptStatements
+            val statement = sourceStatement.statement as? ScriptStatementNode.SetFlag ?: return@visitScriptStatements
             validateTransition(
                 slug = statement.slug,
                 native = statement.nativeValue,

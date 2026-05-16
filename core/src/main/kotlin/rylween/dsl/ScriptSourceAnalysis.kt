@@ -49,7 +49,7 @@ data class ScriptSourceRoot(
 ) {
     constructor(
         id: ScriptSourceRootId,
-        ops: List<Op>,
+        ops: List<ScriptStatementNode>,
         label: String,
         initialConditions: List<BoolAst> = emptyList(),
     ) : this(
@@ -59,8 +59,8 @@ data class ScriptSourceRoot(
         initialConditions = initialConditions,
     )
 
-    /** Compatibility view used while existing validation/compiler paths consume [Op]. */
-    val ops: List<Op> get() = script.ops
+    /** Compatibility view used while existing validation/compiler paths consume [ScriptStatementNode]. */
+    val ops: List<ScriptStatementNode> get() = script.ops
 }
 
 /** Kinds of non-script formulas that can still contain native service probes. */
@@ -310,7 +310,7 @@ private fun visitNestedScriptStatements(
     visitor: (ScriptSourceStatement) -> Unit,
 ) {
     fun visitBranch(
-        branchOps: List<Op>,
+        branchOps: List<ScriptStatementNode>,
         branchIndex: Int,
         branchLabel: String,
         nestedLoopDepth: Int = loopDepth,
@@ -328,27 +328,27 @@ private fun visitNestedScriptStatements(
     }
 
     when (val op = statement) {
-        is Op.If -> {
+        is ScriptStatementNode.If -> {
             visitBranch(op.thenOps, 0, "$label if-then", nestedConditions = branchConditions + op.cond)
             visitBranch(op.elseOps, 1, "$label if-else")
         }
-        is Op.Loop -> visitBranch(op.body, 0, "$label loop", nestedLoopDepth = loopDepth + 1)
-        is Op.Switch ->
+        is ScriptStatementNode.Loop -> visitBranch(op.body, 0, "$label loop", nestedLoopDepth = loopDepth + 1)
+        is ScriptStatementNode.Switch ->
             op.cases.forEachIndexed { index, case ->
                 visitBranch(case.body, index, "$label switch case ${index + 1}")
             }
-        is Op.Menu -> {
+        is ScriptStatementNode.Menu -> {
             op.options.forEachIndexed { index, option ->
                 visitBranch(option.body, index, "$label menu ${option.key}")
             }
             visitBranch(op.defaultOps, op.options.size, "$label menu default")
         }
-        is Op.AskText -> {
+        is ScriptStatementNode.AskText -> {
             visitBranch(op.matchOps, 0, "$label text-input accepted")
             visitBranch(op.missOps, 1, "$label text-input rejected")
         }
-        is Op.ForEachMember -> visitBranch(op.body, 0, "$label member loop")
-        is Op.ForEachMonster -> visitBranch(op.body, 0, "$label monster loop")
+        is ScriptStatementNode.ForEachMember -> visitBranch(op.body, 0, "$label member loop")
+        is ScriptStatementNode.ForEachMonster -> visitBranch(op.body, 0, "$label monster loop")
         else -> Unit
     }
 }
@@ -501,70 +501,70 @@ private class NativePathCollector {
 
     private fun collect(statement: ScriptStatement) {
         when (val op = statement) {
-            is Op.Screen -> collect(op.text)
-            is Op.Emit -> Unit
-            is Op.WaitInput -> Unit
-            is Op.Pause -> Unit
-            is Op.View -> Unit
-            is Op.LetInt -> collect(op.value)
-            is Op.BindText -> collect(op.value)
-            is Op.Set -> collect(op.value)
-            is Op.Add -> collect(op.value)
-            is Op.Sub -> collect(op.value)
-            is Op.AddClamped -> {
+            is ScriptStatementNode.Screen -> collect(op.text)
+            is ScriptStatementNode.Emit -> Unit
+            is ScriptStatementNode.WaitInput -> Unit
+            is ScriptStatementNode.Pause -> Unit
+            is ScriptStatementNode.View -> Unit
+            is ScriptStatementNode.LetInt -> collect(op.value)
+            is ScriptStatementNode.BindText -> collect(op.value)
+            is ScriptStatementNode.Set -> collect(op.value)
+            is ScriptStatementNode.Add -> collect(op.value)
+            is ScriptStatementNode.Sub -> collect(op.value)
+            is ScriptStatementNode.AddClamped -> {
                 collect(op.value)
                 collect(op.max)
             }
-            is Op.SetFlag -> Unit
-            is Op.AppendJournal -> collect(op.text)
-            is Op.If -> {
+            is ScriptStatementNode.SetFlag -> Unit
+            is ScriptStatementNode.AppendJournal -> collect(op.text)
+            is ScriptStatementNode.If -> {
                 collect(op.cond)
                 collect(op.thenOps)
                 collect(op.elseOps)
             }
-            is Op.Loop -> collect(op.body)
-            is Op.Break -> Unit
-            is Op.Stop -> Unit
-            is Op.Switch -> {
+            is ScriptStatementNode.Loop -> collect(op.body)
+            is ScriptStatementNode.Break -> Unit
+            is ScriptStatementNode.Stop -> Unit
+            is ScriptStatementNode.Switch -> {
                 collect(op.expr)
                 op.cases.forEach { collect(it.body) }
             }
-            is Op.Menu -> {
+            is ScriptStatementNode.Menu -> {
                 collect(op.prompt)
                 op.options.forEach { collect(it.body) }
                 collect(op.defaultOps)
             }
-            is Op.AskKey -> collect(op.prompt)
-            is Op.AskMember -> collect(op.prompt)
-            is Op.AskInventorySlot -> collect(op.prompt)
-            is Op.AskText -> {
+            is ScriptStatementNode.AskKey -> collect(op.prompt)
+            is ScriptStatementNode.AskMember -> collect(op.prompt)
+            is ScriptStatementNode.AskInventorySlot -> collect(op.prompt)
+            is ScriptStatementNode.AskText -> {
                 collect(op.prompt)
                 collect(op.matchOps)
                 collect(op.missOps)
             }
-            is Op.AskMonster -> collect(op.prompt)
-            is Op.ForEachMember -> collect(op.body)
-            is Op.ForEachMonster -> collect(op.body)
-            is Op.Speak -> Unit
-            is Op.TellRumor -> Unit
-            is Op.RunScene -> Unit
-            is Op.Encounter -> Unit
-            is Op.EnterDungeon -> Unit
-            Op.ConsumeActiveItem -> Unit
-            is Op.ClearInventorySlot -> collect(op.slot)
-            is Op.ConsumeInventoryPool -> collect(op.quantity)
-            is Op.TeleportParty -> {
+            is ScriptStatementNode.AskMonster -> collect(op.prompt)
+            is ScriptStatementNode.ForEachMember -> collect(op.body)
+            is ScriptStatementNode.ForEachMonster -> collect(op.body)
+            is ScriptStatementNode.Speak -> Unit
+            is ScriptStatementNode.TellRumor -> Unit
+            is ScriptStatementNode.RunScene -> Unit
+            is ScriptStatementNode.Encounter -> Unit
+            is ScriptStatementNode.EnterDungeon -> Unit
+            ScriptStatementNode.ConsumeActiveItem -> Unit
+            is ScriptStatementNode.ClearInventorySlot -> collect(op.slot)
+            is ScriptStatementNode.ConsumeInventoryPool -> collect(op.quantity)
+            is ScriptStatementNode.TeleportParty -> {
                 collect(op.directionKey)
                 collect(op.distance)
             }
-            is Op.DiscoverCave -> {
+            is ScriptStatementNode.DiscoverCave -> {
                 collect(op.levels)
                 collect(op.moveCost)
             }
-            is Op.GrantReward -> op.reward.gold?.let(::collect)
-            is Op.RandomItemOffer -> collect(op.offer)
-            is Op.ShopService -> collect(op.shop)
-            is Op.AchieveMilestone -> Unit
+            is ScriptStatementNode.GrantReward -> op.reward.gold?.let(::collect)
+            is ScriptStatementNode.RandomItemOffer -> collect(op.offer)
+            is ScriptStatementNode.ShopService -> collect(op.shop)
+            is ScriptStatementNode.AchieveMilestone -> Unit
         }
     }
 

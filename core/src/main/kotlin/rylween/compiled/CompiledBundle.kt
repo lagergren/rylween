@@ -36,13 +36,13 @@ import rylween.dsl.NativeStringArg
 import rylween.dsl.NpcId
 import rylween.dsl.NpcJobId
 import rylween.dsl.NpcRole
-import rylween.dsl.Op
 import rylween.dsl.PartyId
 import rylween.dsl.RewardBundleId
 import rylween.dsl.RumorTableId
 import rylween.dsl.SceneId
 import rylween.dsl.ScreenRegionId
 import rylween.dsl.ScriptStatement
+import rylween.dsl.ScriptStatementNode
 import rylween.dsl.SpellId
 import rylween.dsl.SpellModel
 import rylween.dsl.StateId
@@ -1808,53 +1808,57 @@ private class CompiledBundleCompiler(
 
     private fun compileScript(script: AuthoredScript): List<CompiledInstruction> = compileStatements(script.block.statements)
 
-    private fun compileBranch(statements: List<Op>): List<CompiledInstruction> = compileStatements(statements)
+    private fun compileBranch(statements: List<ScriptStatementNode>): List<CompiledInstruction> = compileStatements(statements)
 
     private fun compileStatements(statements: List<ScriptStatement>): List<CompiledInstruction> = statements.map(::compileStatement)
 
     private fun compileStatement(statement: ScriptStatement): CompiledInstruction =
         when (val op = statement.legacyOp()) {
-            is Op.Screen -> instruction(CompiledOpcode.Screen, CompiledOperand.TextBlockValue(text(op.text)))
-            is Op.Emit -> instruction(CompiledOpcode.Emit, CompiledOperand.Handle(textRef(op.text.id)))
-            is Op.WaitInput -> instruction(CompiledOpcode.WaitInput, op.reason?.let { CompiledOperand.StringId(strings.id(it)) })
-            is Op.Pause -> instruction(CompiledOpcode.Pause, CompiledOperand.Integer(op.millis))
-            is Op.View -> instruction(CompiledOpcode.View, CompiledOperand.ViewCommandValue(viewCommand(op.command)))
-            is Op.LetInt ->
+            is ScriptStatementNode.Screen -> instruction(CompiledOpcode.Screen, CompiledOperand.TextBlockValue(text(op.text)))
+            is ScriptStatementNode.Emit -> instruction(CompiledOpcode.Emit, CompiledOperand.Handle(textRef(op.text.id)))
+            is ScriptStatementNode.WaitInput ->
+                instruction(
+                    CompiledOpcode.WaitInput,
+                    op.reason?.let { CompiledOperand.StringId(strings.id(it)) },
+                )
+            is ScriptStatementNode.Pause -> instruction(CompiledOpcode.Pause, CompiledOperand.Integer(op.millis))
+            is ScriptStatementNode.View -> instruction(CompiledOpcode.View, CompiledOperand.ViewCommandValue(viewCommand(op.command)))
+            is ScriptStatementNode.LetInt ->
                 instruction(
                     CompiledOpcode.LetInt,
                     CompiledOperand.StringId(strings.id(op.name)),
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                 )
 
-            is Op.BindText ->
+            is ScriptStatementNode.BindText ->
                 instruction(
                     CompiledOpcode.BindText,
                     CompiledOperand.StringId(strings.id(op.name)),
                     CompiledOperand.StringExprValue(stringExpr(op.value)),
                 )
 
-            is Op.Set ->
+            is ScriptStatementNode.Set ->
                 instruction(
                     CompiledOpcode.Set,
                     CompiledOperand.LValueValue(lvalue(op.target)),
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                 )
 
-            is Op.Add ->
+            is ScriptStatementNode.Add ->
                 instruction(
                     CompiledOpcode.Add,
                     CompiledOperand.LValueValue(lvalue(op.target)),
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                 )
 
-            is Op.Sub ->
+            is ScriptStatementNode.Sub ->
                 instruction(
                     CompiledOpcode.Sub,
                     CompiledOperand.LValueValue(lvalue(op.target)),
                     CompiledOperand.IntExprValue(intExpr(op.value)),
                 )
 
-            is Op.AddClamped ->
+            is ScriptStatementNode.AddClamped ->
                 instruction(
                     CompiledOpcode.AddClamped,
                     CompiledOperand.LValueValue(lvalue(op.target)),
@@ -1862,15 +1866,15 @@ private class CompiledBundleCompiler(
                     CompiledOperand.IntExprValue(intExpr(op.max)),
                 )
 
-            is Op.SetFlag ->
+            is ScriptStatementNode.SetFlag ->
                 instruction(
                     CompiledOpcode.SetFlag,
                     CompiledOperand.Handle(flagRef(op.slug)),
                     CompiledOperand.Handle(flagStateRef(op.slug, op.nativeValue)),
                 )
 
-            is Op.AppendJournal -> instruction(CompiledOpcode.AppendJournal, CompiledOperand.TextBlockValue(text(op.text)))
-            is Op.If ->
+            is ScriptStatementNode.AppendJournal -> instruction(CompiledOpcode.AppendJournal, CompiledOperand.TextBlockValue(text(op.text)))
+            is ScriptStatementNode.If ->
                 instruction(
                     CompiledOpcode.If,
                     CompiledOperand.BoolExprValue(boolExpr(op.cond)),
@@ -1878,21 +1882,21 @@ private class CompiledBundleCompiler(
                     CompiledOperand.Instructions(compileBranch(op.elseOps)),
                 )
 
-            is Op.Loop -> instruction(CompiledOpcode.Loop, CompiledOperand.Instructions(compileBranch(op.body)))
-            is Op.Break ->
+            is ScriptStatementNode.Loop -> instruction(CompiledOpcode.Loop, CompiledOperand.Instructions(compileBranch(op.body)))
+            is ScriptStatementNode.Break ->
                 signalInstruction(CompiledOpcode.Break, op.reason, op.signal.name)
 
-            is Op.Stop ->
+            is ScriptStatementNode.Stop ->
                 signalInstruction(CompiledOpcode.Stop, op.reason, op.signal.name)
 
-            is Op.Switch ->
+            is ScriptStatementNode.Switch ->
                 instruction(
                     CompiledOpcode.Switch,
                     CompiledOperand.IntExprValue(intExpr(op.expr)),
                     CompiledOperand.SwitchCases(op.cases.map { case -> CompiledSwitchCase(case.match, compileBranch(case.body)) }),
                 )
 
-            is Op.Menu ->
+            is ScriptStatementNode.Menu ->
                 instruction(
                     CompiledOpcode.Menu,
                     CompiledOperand.TextBlockValue(text(op.prompt)),
@@ -1904,7 +1908,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.Instructions(compileBranch(op.defaultOps)),
                 )
 
-            is Op.AskKey ->
+            is ScriptStatementNode.AskKey ->
                 instruction(
                     CompiledOpcode.AskKey,
                     CompiledOperand.TextBlockValue(text(op.prompt)),
@@ -1912,7 +1916,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.InputBindings(op.bindings.map(::binding)),
                 )
 
-            is Op.AskMember ->
+            is ScriptStatementNode.AskMember ->
                 instruction(
                     CompiledOpcode.AskMember,
                     CompiledOperand.TextBlockValue(text(op.prompt)),
@@ -1921,7 +1925,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.EnumName(op.accepting.name),
                 )
 
-            is Op.AskInventorySlot ->
+            is ScriptStatementNode.AskInventorySlot ->
                 instruction(
                     CompiledOpcode.AskInventorySlot,
                     CompiledOperand.TextBlockValue(text(op.prompt)),
@@ -1932,7 +1936,7 @@ private class CompiledBundleCompiler(
                     CompiledOperand.EnumName(op.filter.name),
                 )
 
-            is Op.AskText ->
+            is ScriptStatementNode.AskText ->
                 instruction(
                     CompiledOpcode.AskText,
                     CompiledOperand.TextBlockValue(text(op.prompt)),
@@ -1948,29 +1952,29 @@ private class CompiledBundleCompiler(
                     ),
                 )
 
-            is Op.AskMonster ->
+            is ScriptStatementNode.AskMonster ->
                 instruction(
                     CompiledOpcode.AskMonster,
                     CompiledOperand.TextBlockValue(text(op.prompt)),
                     CompiledOperand.StringId(strings.id(op.varName)),
                 )
 
-            is Op.ForEachMember ->
+            is ScriptStatementNode.ForEachMember ->
                 forEachInstruction(CompiledOpcode.ForEachMember, op.varName, op.includeDead, op.body)
 
-            is Op.ForEachMonster ->
+            is ScriptStatementNode.ForEachMonster ->
                 forEachInstruction(CompiledOpcode.ForEachMonster, op.varName, op.includeDead, op.body)
 
-            is Op.Speak -> instruction(CompiledOpcode.Speak, CompiledOperand.Handle(buildingRef(op.building)))
-            is Op.TellRumor -> instruction(CompiledOpcode.TellRumor, CompiledOperand.Handle(rumorTableRef(op.table)))
-            is Op.RunScene ->
+            is ScriptStatementNode.Speak -> instruction(CompiledOpcode.Speak, CompiledOperand.Handle(buildingRef(op.building)))
+            is ScriptStatementNode.TellRumor -> instruction(CompiledOpcode.TellRumor, CompiledOperand.Handle(rumorTableRef(op.table)))
+            is ScriptStatementNode.RunScene ->
                 instruction(
                     CompiledOpcode.RunScene,
                     CompiledOperand.Handle(sceneRef(op.scene)),
                     CompiledOperand.StringIdList(op.bindings.flatMap { (key, value) -> listOf(strings.id(key), strings.id(value)) }),
                 )
 
-            is Op.Encounter ->
+            is ScriptStatementNode.Encounter ->
                 instruction(
                     CompiledOpcode.Encounter,
                     CompiledOperand.Handle(monsterRef(op.foe)),
@@ -1978,35 +1982,35 @@ private class CompiledBundleCompiler(
                     op.tier?.let { CompiledOperand.Handle(encounterTierRef(it)) },
                 )
 
-            is Op.EnterDungeon ->
+            is ScriptStatementNode.EnterDungeon ->
                 instruction(
                     CompiledOpcode.EnterDungeon,
                     CompiledOperand.Handle(dungeonRef(op.dungeon)),
                     CompiledOperand.Integer(op.levels),
                 )
 
-            Op.ConsumeActiveItem -> instruction(CompiledOpcode.ConsumeActiveItem)
-            is Op.ClearInventorySlot ->
+            ScriptStatementNode.ConsumeActiveItem -> instruction(CompiledOpcode.ConsumeActiveItem)
+            is ScriptStatementNode.ClearInventorySlot ->
                 instruction(
                     CompiledOpcode.ClearInventorySlot,
                     CompiledOperand.IntExprValue(intExpr(op.slot)),
                 )
 
-            is Op.ConsumeInventoryPool ->
+            is ScriptStatementNode.ConsumeInventoryPool ->
                 instruction(
                     CompiledOpcode.ConsumeInventoryPool,
                     CompiledOperand.Handle(itemPoolRef(op.pool)),
                     CompiledOperand.IntExprValue(intExpr(op.quantity)),
                 )
 
-            is Op.TeleportParty ->
+            is ScriptStatementNode.TeleportParty ->
                 instruction(
                     CompiledOpcode.TeleportParty,
                     CompiledOperand.IntExprValue(intExpr(op.directionKey)),
                     CompiledOperand.IntExprValue(intExpr(op.distance)),
                 )
 
-            is Op.DiscoverCave ->
+            is ScriptStatementNode.DiscoverCave ->
                 instruction(
                     CompiledOpcode.DiscoverCave,
                     CompiledOperand.Handle(dungeonRef(op.dungeon)),
@@ -2014,15 +2018,15 @@ private class CompiledBundleCompiler(
                     CompiledOperand.IntExprValue(intExpr(op.moveCost)),
                 )
 
-            is Op.GrantReward -> instruction(CompiledOpcode.GrantReward, CompiledOperand.Reward(reward(op.reward)))
-            is Op.RandomItemOffer ->
+            is ScriptStatementNode.GrantReward -> instruction(CompiledOpcode.GrantReward, CompiledOperand.Reward(reward(op.reward)))
+            is ScriptStatementNode.RandomItemOffer ->
                 instruction(
                     CompiledOpcode.RandomItemOffer,
                     CompiledOperand.RandomItemOffer(randomItemOffer(op.offer)),
                 )
 
-            is Op.ShopService -> instruction(CompiledOpcode.ShopService, CompiledOperand.ShopService(shopService(op.shop)))
-            is Op.AchieveMilestone ->
+            is ScriptStatementNode.ShopService -> instruction(CompiledOpcode.ShopService, CompiledOperand.ShopService(shopService(op.shop)))
+            is ScriptStatementNode.AchieveMilestone ->
                 instruction(
                     CompiledOpcode.AchieveMilestone,
                     CompiledOperand.Handle(milestoneRef(op.milestone)),
@@ -2049,7 +2053,7 @@ private class CompiledBundleCompiler(
         opcode: CompiledOpcode,
         varName: String,
         includeDead: Boolean,
-        body: List<Op>,
+        body: List<ScriptStatementNode>,
     ): CompiledInstruction =
         instruction(
             opcode,
@@ -2816,41 +2820,41 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
         fun collectStatements(statements: List<ScriptStatement>) {
             statements.forEach { statement ->
                 when (val op = statement.legacyOp()) {
-                    is Op.Screen -> collectText(op.text)
-                    is Op.AppendJournal -> collectText(op.text)
-                    is Op.If -> {
+                    is ScriptStatementNode.Screen -> collectText(op.text)
+                    is ScriptStatementNode.AppendJournal -> collectText(op.text)
+                    is ScriptStatementNode.If -> {
                         collectStatements(op.thenOps)
                         collectStatements(op.elseOps)
                     }
 
-                    is Op.Loop -> collectStatements(op.body)
-                    is Op.Switch -> op.cases.forEach { collectStatements(it.body) }
-                    is Op.Menu -> {
+                    is ScriptStatementNode.Loop -> collectStatements(op.body)
+                    is ScriptStatementNode.Switch -> op.cases.forEach { collectStatements(it.body) }
+                    is ScriptStatementNode.Menu -> {
                         collectText(op.prompt)
                         op.options.forEach { collectStatements(it.body) }
                         collectStatements(op.defaultOps)
                     }
 
-                    is Op.AskKey -> collectText(op.prompt)
-                    is Op.AskMember -> collectText(op.prompt)
-                    is Op.AskInventorySlot -> collectText(op.prompt)
-                    is Op.AskText -> {
+                    is ScriptStatementNode.AskKey -> collectText(op.prompt)
+                    is ScriptStatementNode.AskMember -> collectText(op.prompt)
+                    is ScriptStatementNode.AskInventorySlot -> collectText(op.prompt)
+                    is ScriptStatementNode.AskText -> {
                         collectText(op.prompt)
                         collectStatements(op.matchOps)
                         collectStatements(op.missOps)
                     }
 
-                    is Op.AskMonster -> collectText(op.prompt)
-                    is Op.ForEachMember -> collectStatements(op.body)
-                    is Op.ForEachMonster -> collectStatements(op.body)
-                    is Op.GrantReward -> {
+                    is ScriptStatementNode.AskMonster -> collectText(op.prompt)
+                    is ScriptStatementNode.ForEachMember -> collectStatements(op.body)
+                    is ScriptStatementNode.ForEachMonster -> collectStatements(op.body)
+                    is ScriptStatementNode.GrantReward -> {
                         op.reward.messages.cantCarry
                             ?.let(::collectText)
                         op.reward.messages.pickedUp
                             ?.let(::collectText)
                     }
 
-                    is Op.RandomItemOffer -> {
+                    is ScriptStatementNode.RandomItemOffer -> {
                         collectText(op.offer.offer)
                         collectText(op.offer.choicePrompt)
                         collectText(op.offer.broke)
@@ -2875,7 +2879,8 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
         speak.questionActions.forEach { collectScript(it.script) }
     }.distinctBy { it.slug }
 
-private fun ScriptStatement.legacyOp(): Op = this as? Op ?: error("unsupported script statement implementation: ${this::class.simpleName}")
+private fun ScriptStatement.legacyOp(): ScriptStatementNode =
+    this as? ScriptStatementNode ?: error("unsupported script statement implementation: ${this::class.simpleName}")
 
 private fun flagStateSlug(state: FlagState): String = "${state.flag.slug}.${state.native}"
 

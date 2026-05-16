@@ -104,7 +104,7 @@ class ScriptScope(
      * runtime side effect, while [literalText], [structuredText], and [flowText]
      * name reusable text data.
      */
-    fun writeText(text: TextBlock): Unit = record(Op.Screen(text))
+    fun writeText(text: TextBlock): Unit = record(ScriptStatementNode.Screen(text))
 
     fun writeText(id: TextId): Unit = writeText(TextBlock.Ref(id))
 
@@ -170,17 +170,17 @@ class ScriptScope(
         showTextAndWait(body)
     }
 
-    fun emit(id: TextId): Unit = record(Op.Emit(id))
+    fun emit(id: TextId): Unit = record(ScriptStatementNode.Emit(id))
 
-    fun journal(text: TextBlock): Unit = record(Op.AppendJournal(text))
+    fun journal(text: TextBlock): Unit = record(ScriptStatementNode.AppendJournal(text))
 
     fun journal(vararg lines: String): Unit = journal(textLines(*lines))
 
     fun journal(body: StructuredTextBlockBuilder.() -> Unit): Unit = journal(structuredText(body))
 
-    fun waitInput(reason: String? = null): Unit = record(Op.WaitInput(reason))
+    fun waitInput(reason: String? = null): Unit = record(ScriptStatementNode.WaitInput(reason))
 
-    fun pause(ms: Int): Unit = record(Op.Pause(ms))
+    fun pause(ms: Int): Unit = record(ScriptStatementNode.Pause(ms))
 
     fun pause600ms(): Unit = pause(600)
 
@@ -208,7 +208,7 @@ class ScriptScope(
         name: String,
         value: IntExpr,
     ): IntExpr {
-        record(Op.LetInt(name, value.ast))
+        record(ScriptStatementNode.LetInt(name, value.ast))
         return v(name)
     }
 
@@ -222,7 +222,7 @@ class ScriptScope(
         hint: String = "local",
     ): LocalIntRef {
         val ref = LocalIntRef(fresh(hint))
-        record(Op.LetInt(ref.name, value.ast))
+        record(ScriptStatementNode.LetInt(ref.name, value.ast))
         return ref
     }
 
@@ -232,25 +232,25 @@ class ScriptScope(
     ): LocalIntRef = localInt(lit(value), hint)
 
     infix fun LocalIntRef.set(value: IntExpr) {
-        record(Op.LetInt(name, value.ast))
+        record(ScriptStatementNode.LetInt(name, value.ast))
     }
 
     infix fun LocalIntRef.set(value: Int): Unit = set(lit(value))
 
     operator fun LocalIntRef.plusAssign(value: IntExpr) {
-        record(Op.LetInt(name, (this + value).ast))
+        record(ScriptStatementNode.LetInt(name, (this + value).ast))
     }
 
     operator fun LocalIntRef.plusAssign(value: Int): Unit = plusAssign(lit(value))
 
     operator fun LocalIntRef.minusAssign(value: IntExpr) {
-        record(Op.LetInt(name, (this - value).ast))
+        record(ScriptStatementNode.LetInt(name, (this - value).ast))
     }
 
     operator fun LocalIntRef.minusAssign(value: Int): Unit = minusAssign(lit(value))
 
     fun mark(state: FlagState) {
-        record(Op.SetFlag(state.flag.slug, state.native))
+        record(ScriptStatementNode.SetFlag(state.flag.slug, state.native))
     }
 
     fun whenever(
@@ -259,16 +259,16 @@ class ScriptScope(
     ): ElseBranch {
         val thenOps = capture(then)
         val index = block.size
-        block.record(Op.If(cond.ast, thenOps, emptyList()))
-        return ElseBranch(ctx) { elseOps -> block[index] = Op.If(cond.ast, thenOps, elseOps) }
+        block.record(ScriptStatementNode.If(cond.ast, thenOps, emptyList()))
+        return ElseBranch(ctx) { elseOps -> block[index] = ScriptStatementNode.If(cond.ast, thenOps, elseOps) }
     }
 
-    fun stop(reason: String? = null): Unit = record(Op.Stop(reason))
+    fun stop(reason: String? = null): Unit = record(ScriptStatementNode.Stop(reason))
 
-    fun breakLoop(reason: String? = null): Unit = record(Op.Break(reason))
+    fun breakLoop(reason: String? = null): Unit = record(ScriptStatementNode.Break(reason))
 
     fun loop(body: ScriptScope.() -> Unit) {
-        record(Op.Loop(capture(body)))
+        record(ScriptStatementNode.Loop(capture(body)))
     }
 
     fun choose(
@@ -277,7 +277,7 @@ class ScriptScope(
     ) {
         val builder = SwitchBuilder(ctx)
         builder.body()
-        record(Op.Switch(expr.ast, builder.cases))
+        record(ScriptStatementNode.Switch(expr.ast, builder.cases))
     }
 
     fun menu(
@@ -316,7 +316,7 @@ class ScriptScope(
             capture {
                 body(MonsterRef(this, v(name)))
             }
-        record(Op.ForEachMonster(name, includeDead, childOps))
+        record(ScriptStatementNode.ForEachMonster(name, includeDead, childOps))
     }
 
     fun forEachMember(
@@ -328,7 +328,7 @@ class ScriptScope(
             capture {
                 body(MemberRef(this, v(name)))
             }
-        record(Op.ForEachMember(name, includeDead, childOps))
+        record(ScriptStatementNode.ForEachMember(name, includeDead, childOps))
     }
 
     fun healLivingMembers(amount: IntExpr) {
@@ -343,15 +343,15 @@ class ScriptScope(
         scene: SceneId,
         vararg bindings: Pair<String, Any>,
     ) {
-        record(Op.RunScene(scene, bindings.associate { it.first to render(it.second) }))
+        record(ScriptStatementNode.RunScene(scene, bindings.associate { it.first to render(it.second) }))
     }
 
     fun speak(building: BuildingId) {
-        record(Op.Speak(building))
+        record(ScriptStatementNode.Speak(building))
     }
 
     fun tellRumor(table: RumorTableId = DslDefaultRumorTables.standardTown) {
-        record(Op.TellRumor(table))
+        record(ScriptStatementNode.TellRumor(table))
     }
 
     fun encounter(
@@ -359,14 +359,14 @@ class ScriptScope(
         mandatory: Boolean = false,
         tier: EncounterTier? = null,
     ) {
-        record(Op.Encounter(foe = monster, mandatory = mandatory, tier = tier))
+        record(ScriptStatementNode.Encounter(foe = monster, mandatory = mandatory, tier = tier))
     }
 
     fun enterDungeon(
         dungeon: DungeonId,
         levels: Int,
     ) {
-        record(Op.EnterDungeon(dungeon, levels))
+        record(ScriptStatementNode.EnterDungeon(dungeon, levels))
     }
 
     fun dungeonEntrance(
@@ -429,7 +429,7 @@ class ScriptScope(
         directionKey: IntExpr,
         distance: IntExpr,
     ) {
-        record(Op.TeleportParty(directionKey.ast, distance.ast))
+        record(ScriptStatementNode.TeleportParty(directionKey.ast, distance.ast))
     }
 
     fun teleportParty(
@@ -444,7 +444,7 @@ class ScriptScope(
         dungeon: DungeonId = DslDefaultDungeons.randomCave,
         moveCost: IntExpr = lit(10),
     ) {
-        record(Op.DiscoverCave(dungeon, levels.ast, moveCost.ast))
+        record(ScriptStatementNode.DiscoverCave(dungeon, levels.ast, moveCost.ast))
     }
 
     fun discoverCave(
@@ -455,21 +455,21 @@ class ScriptScope(
         discoverCave(lit(levels), dungeon, lit(moveCost))
     }
 
-    fun consumeActiveItem(): Unit = record(Op.ConsumeActiveItem)
+    fun consumeActiveItem(): Unit = record(ScriptStatementNode.ConsumeActiveItem)
 
     fun reward(body: ScriptRewardBuilder.() -> Unit) {
-        record(Op.GrantReward(ScriptRewardBuilder().apply(body).build()))
+        record(ScriptStatementNode.GrantReward(ScriptRewardBuilder().apply(body).build()))
     }
 
     fun shopService(
         building: BuildingId,
         body: ShopServiceBuilder.() -> Unit,
     ) {
-        record(Op.ShopService(ShopServiceBuilder(building).apply(body).build()))
+        record(ScriptStatementNode.ShopService(ShopServiceBuilder(building).apply(body).build()))
     }
 
     fun achieve(milestone: GameMilestoneId) {
-        record(Op.AchieveMilestone(milestone))
+        record(ScriptStatementNode.AchieveMilestone(milestone))
     }
 
     fun pay(
@@ -485,7 +485,7 @@ class ScriptScope(
         }
     }
 
-    internal fun capture(body: ScriptScope.() -> Unit): List<Op> = recordScript(ctx, body)
+    internal fun capture(body: ScriptScope.() -> Unit): List<ScriptStatementNode> = recordScript(ctx, body)
 }
 
 /**
@@ -718,7 +718,7 @@ class RandomItemOfferBuilder(
  */
 class ElseBranch(
     private val ctx: ScriptContext,
-    private val finish: (List<Op>) -> Unit,
+    private val finish: (List<ScriptStatementNode>) -> Unit,
 ) {
     infix fun otherwise(body: ScriptScope.() -> Unit) {
         finish(recordScript(ctx, body))
@@ -761,7 +761,7 @@ class MenuBuilder(
     private val ctx: ScriptContext,
 ) {
     private val options = mutableListOf<MenuOption>()
-    private var defaultOps = emptyList<Op>()
+    private var defaultOps = emptyList<ScriptStatementNode>()
 
     fun option(
         key: Char,
@@ -797,7 +797,7 @@ class MenuBuilder(
         defaultOps = recordScript(ctx, body)
     }
 
-    fun build(prompt: TextBlock): Op.Menu = Op.Menu(prompt, options.toList(), defaultOps)
+    fun build(prompt: TextBlock): ScriptStatementNode.Menu = ScriptStatementNode.Menu(prompt, options.toList(), defaultOps)
 }
 
 /**
@@ -818,7 +818,7 @@ class AskScope(
         val uniqueBindings = bindings.toList()
         require(uniqueBindings.isNotEmpty()) { "key prompt must accept at least one key" }
         val name = script.fresh("key")
-        script.record(Op.AskKey(prompt, name, uniqueBindings))
+        script.record(ScriptStatementNode.AskKey(prompt, name, uniqueBindings))
         return v(name)
     }
 
@@ -849,7 +849,7 @@ class AskScope(
         accepting: MemberChoiceFilter = filter,
     ): MemberRef {
         val name = script.fresh("member")
-        script.record(Op.AskMember(prompt, name, filter, accepting))
+        script.record(ScriptStatementNode.AskMember(prompt, name, filter, accepting))
         return script.party.member(v(name))
     }
 
@@ -860,7 +860,7 @@ class AskScope(
         filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
     ): InventorySlotRef {
         val name = script.fresh("inventory_slot")
-        script.record(Op.AskInventorySlot(prompt, name, firstKey.uppercaseChar(), slots, filter))
+        script.record(ScriptStatementNode.AskInventorySlot(prompt, name, firstKey.uppercaseChar(), slots, filter))
         return InventorySlotRef(v(name))
     }
 
@@ -868,7 +868,7 @@ class AskScope(
 
     fun monsterAlive(prompt: TextBlock): MonsterRef {
         val name = script.fresh("monster")
-        script.record(Op.AskMonster(prompt, name))
+        script.record(ScriptStatementNode.AskMonster(prompt, name))
         return MonsterRef(script, v(name))
     }
 }
@@ -952,7 +952,7 @@ class ChoiceScope(
         pool: ItemPoolId,
         body: RandomItemOfferBuilder.() -> Unit,
     ) {
-        script.record(Op.RandomItemOffer(RandomItemOfferBuilder(pool).apply(body).build()))
+        script.record(ScriptStatementNode.RandomItemOffer(RandomItemOfferBuilder(pool).apply(body).build()))
     }
 
     fun textInput(
@@ -966,7 +966,7 @@ class ChoiceScope(
     ) {
         require(acceptedInputs.isNotEmpty()) { "text input prompt must accept at least one value" }
         script.record(
-            Op.AskText(
+            ScriptStatementNode.AskText(
                 prompt = prompt,
                 accepted = acceptedInputs,
                 matchOps = script.capture(onAccepted),
@@ -1042,25 +1042,25 @@ data class InventorySlotRef(
 class ViewScope(
     private val script: ScriptScope,
 ) {
-    fun clearText(): Unit = script.record(Op.View(ViewCommand.ClearText))
+    fun clearText(): Unit = script.record(ScriptStatementNode.View(ViewCommand.ClearText))
 
-    fun clearMapWindow(): Unit = script.record(Op.View(ViewCommand.ClearMapWindow))
+    fun clearMapWindow(): Unit = script.record(ScriptStatementNode.View(ViewCommand.ClearMapWindow))
 
-    fun renderMap(): Unit = script.record(Op.View(ViewCommand.RenderMap))
+    fun renderMap(): Unit = script.record(ScriptStatementNode.View(ViewCommand.RenderMap))
 
     fun showBackdrop(image: ImageId): Unit = showImage(image)
 
-    private fun showImage(image: ImageId): Unit = script.record(Op.View(ViewCommand.ShowImage(image)))
+    private fun showImage(image: ImageId): Unit = script.record(ScriptStatementNode.View(ViewCommand.ShowImage(image)))
 
-    fun statusLine(): Unit = script.record(Op.View(ViewCommand.StatusLine))
+    fun statusLine(): Unit = script.record(ScriptStatementNode.View(ViewCommand.StatusLine))
 }
 
-internal fun recordScript(body: ScriptScope.() -> Unit): List<Op> = recordScript(ScriptContext(), body)
+internal fun recordScript(body: ScriptScope.() -> Unit): List<ScriptStatementNode> = recordScript(ScriptContext(), body)
 
 internal fun recordScript(
     ctx: ScriptContext,
     body: ScriptScope.() -> Unit,
-): List<Op> = recordAuthoredScript(ctx, body).ops
+): List<ScriptStatementNode> = recordAuthoredScript(ctx, body).ops
 
 internal fun recordAuthoredScript(body: ScriptScope.() -> Unit): AuthoredScript = recordAuthoredScript(ScriptContext(), body)
 
@@ -1642,7 +1642,10 @@ private fun DungeonSystemModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoo
 private fun AuthoredScript.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): AuthoredScript =
     AuthoredScript(ops.resolveItemPools(resolve))
 
-private fun List<Op>.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<Op> = map { it.resolveItemPools(resolve) }
+private fun List<ScriptStatementNode>.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<ScriptStatementNode> =
+    map {
+        it.resolveItemPools(resolve)
+    }
 
 private fun List<SwitchCase>.resolveSwitchItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<SwitchCase> =
     map { it.copy(body = it.body.resolveItemPools(resolve)) }
@@ -1650,54 +1653,54 @@ private fun List<SwitchCase>.resolveSwitchItemPools(resolve: (ItemPoolId) -> Ite
 private fun List<MenuOption>.resolveMenuItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<MenuOption> =
     map { it.copy(body = it.body.resolveItemPools(resolve)) }
 
-private fun Op.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): Op =
+private fun ScriptStatementNode.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): ScriptStatementNode =
     when (this) {
-        is Op.LetInt -> copy(value = value.resolveItemPools(resolve))
-        is Op.Set -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
-        is Op.Add -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
-        is Op.Sub -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
-        is Op.AddClamped ->
+        is ScriptStatementNode.LetInt -> copy(value = value.resolveItemPools(resolve))
+        is ScriptStatementNode.Set -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
+        is ScriptStatementNode.Add -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
+        is ScriptStatementNode.Sub -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
+        is ScriptStatementNode.AddClamped ->
             copy(
                 target = target.resolveItemPools(resolve),
                 value = value.resolveItemPools(resolve),
                 max = max.resolveItemPools(resolve),
             )
-        is Op.If ->
+        is ScriptStatementNode.If ->
             copy(
                 cond = cond.resolveItemPools(resolve),
                 thenOps = thenOps.resolveItemPools(resolve),
                 elseOps = elseOps.resolveItemPools(resolve),
             )
-        is Op.Loop -> copy(body = body.resolveItemPools(resolve))
-        is Op.Switch -> copy(expr = expr.resolveItemPools(resolve), cases = cases.resolveSwitchItemPools(resolve))
-        is Op.Menu ->
+        is ScriptStatementNode.Loop -> copy(body = body.resolveItemPools(resolve))
+        is ScriptStatementNode.Switch -> copy(expr = expr.resolveItemPools(resolve), cases = cases.resolveSwitchItemPools(resolve))
+        is ScriptStatementNode.Menu ->
             copy(
                 options = options.resolveMenuItemPools(resolve),
                 defaultOps = defaultOps.resolveItemPools(resolve),
             )
-        is Op.AskKey -> copy()
-        is Op.AskMember -> copy()
-        is Op.AskInventorySlot -> copy()
-        is Op.AskText ->
+        is ScriptStatementNode.AskKey -> copy()
+        is ScriptStatementNode.AskMember -> copy()
+        is ScriptStatementNode.AskInventorySlot -> copy()
+        is ScriptStatementNode.AskText ->
             copy(
                 matchOps = matchOps.resolveItemPools(resolve),
                 missOps = missOps.resolveItemPools(resolve),
             )
-        is Op.ForEachMember -> copy(body = body.resolveItemPools(resolve))
-        is Op.ForEachMonster -> copy(body = body.resolveItemPools(resolve))
-        is Op.ConsumeInventoryPool -> copy(pool = resolve(pool), quantity = quantity.resolveItemPools(resolve))
-        is Op.TeleportParty ->
+        is ScriptStatementNode.ForEachMember -> copy(body = body.resolveItemPools(resolve))
+        is ScriptStatementNode.ForEachMonster -> copy(body = body.resolveItemPools(resolve))
+        is ScriptStatementNode.ConsumeInventoryPool -> copy(pool = resolve(pool), quantity = quantity.resolveItemPools(resolve))
+        is ScriptStatementNode.TeleportParty ->
             copy(
                 directionKey = directionKey.resolveItemPools(resolve),
                 distance = distance.resolveItemPools(resolve),
             )
-        is Op.DiscoverCave ->
+        is ScriptStatementNode.DiscoverCave ->
             copy(
                 levels = levels.resolveItemPools(resolve),
                 moveCost = moveCost.resolveItemPools(resolve),
             )
-        is Op.GrantReward -> copy(reward = reward.resolveItemPools(resolve))
-        is Op.RandomItemOffer -> copy(offer = offer.copy(pool = resolve(offer.pool)))
+        is ScriptStatementNode.GrantReward -> copy(reward = reward.resolveItemPools(resolve))
+        is ScriptStatementNode.RandomItemOffer -> copy(offer = offer.copy(pool = resolve(offer.pool)))
         else -> this
     }
 
