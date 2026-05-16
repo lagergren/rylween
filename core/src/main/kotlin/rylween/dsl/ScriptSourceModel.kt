@@ -9,6 +9,10 @@ package rylween.dsl
  * keep dense opcodes and operands for runtimes. Existing [Op] nodes implement
  * [ScriptStatement] during the migration so I9 can move builders, validation,
  * and compilation in small behavior-preserving slices.
+ *
+ * Production runtimes should consume compiled bundle rows, not these source
+ * records. Authored-source execution belongs only in explicit oracle/parity
+ * tests while this IR remains useful for validation and diagnostics.
  */
 data class AuthoredScript(
     val block: ScriptBlock,

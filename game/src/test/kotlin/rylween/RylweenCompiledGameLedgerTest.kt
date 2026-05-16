@@ -2261,6 +2261,53 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun productionRuntimesDoNotImportAuthoredSourceIr() {
+        val productionRuntimeRoots =
+            listOf(
+                "core/src/main/kotlin/rylween/runtime",
+                "runtime/src/main/kotlin",
+                "runtime-web/src/main/kotlin",
+                "runtime-bitmap-web/src/main/kotlin",
+                "terminal/src/main/kotlin",
+                "web-common/src/main/kotlin",
+            )
+        val bannedTokens =
+            listOf(
+                "import rylween.dsl.*",
+                "import rylween.dsl.AuthoredScript",
+                "import rylween.dsl.ScriptBlock",
+                "import rylween.dsl.ScriptBlockBuilder",
+                "import rylween.dsl.ScriptStatement",
+                "import rylween.dsl.ScriptSourceAnalysis",
+                "import rylween.dsl.ScriptSourceRoot",
+                "import rylween.dsl.ScriptSourceRootId",
+                "import rylween.dsl.ScriptSourceStatement",
+                "import rylween.dsl.Op",
+                "import rylween.dsl.analyzeScriptSources",
+                "import rylween.dsl.scriptSourceRoots",
+                "import rylween.dsl.visitScriptStatements",
+                "rylween.dsl.AuthoredScript",
+                "rylween.dsl.ScriptStatement",
+                "rylween.dsl.ScriptSourceStatement",
+                "rylween.dsl.Op",
+            )
+        val violations =
+            productionRuntimeRoots
+                .flatMap { root -> File(root).walkTopDown().filter { file -> file.isFile && file.extension == "kt" } }
+                .flatMap { file ->
+                    val text = file.readText()
+                    bannedTokens
+                        .filter { token -> token in text }
+                        .map { token -> "${file.path}: $token" }
+                }
+
+        check(violations.isEmpty()) {
+            "production runtime code must consume compiled bundle rows, not authored source IR: " +
+                violations.joinToString()
+        }
+    }
+
+    @Test
     fun scriptSourceAnalysisOwnsNativePathWalking() {
         val dslSource = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
         val kernelSource = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
