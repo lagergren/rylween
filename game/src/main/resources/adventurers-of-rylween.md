@@ -181,7 +181,7 @@ Healing     - Restores some hit points to one living character.
 Restoration - Fully heals one character.
 Rebirth     - Raises a dead character, if the priest has enough power.
 Banish Evil - Works in dungeons and caves. The less said, the better.
-Revelation  - Searches for something special nearby in a dungeon.
+Revelation  - Searches for something special that may be hidden nearby.
 Teleport    - Moves the party a chosen number of miles.
 Earthquake  - Opens a cave in the wilderness. Do not cast it indoors.
 ```
