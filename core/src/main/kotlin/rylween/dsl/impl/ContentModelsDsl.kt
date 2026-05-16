@@ -79,14 +79,23 @@ data class WildernessFatigueRule(
 
 /**
  * Authored wilderness turn upkeep. The runtime owns applying a turn; designers
- * own food cadence, starvation damage/threshold, mana recovery chance, sleep
- * loss, and the fatigue message ladder.
+ * own food cadence, starvation damage/threshold/death text, mana recovery
+ * chance, sleep loss, and the fatigue message ladder.
+ *
+ * @property starvationDeath structured message rendered whenever starvation
+ * damage kills a member. It may use [TextPart.UpkeepMemberName], keeping the
+ * prose authored while the runtime only supplies the affected member name.
  */
 data class WildernessUpkeepRules(
     val foodCostLeaderDiv: Int = 0,
     val foodTickEvery: Int = 0,
     val starveFoodThreshold: Int = 0,
     val starveDamage: Int = 0,
+    val starvationDeath: TextBlock =
+        structuredText {
+            line(TextPart.UpkeepMemberName, " starved")
+            line("to death!!!")
+        },
     val manaRegenChance: Int = 0,
     val restedHoursCostPerTurn: Int = 0,
     val fatigue: List<WildernessFatigueRule> = emptyList(),

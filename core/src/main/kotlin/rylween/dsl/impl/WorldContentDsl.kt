@@ -396,6 +396,21 @@ object HuntText {
     val partyMemberMax: TextPart = TextPart.PartyMemberMax
 }
 
+/** Runtime placeholders available to authored wilderness upkeep messages. */
+object UpkeepText {
+    /** The current party member affected by an upkeep effect. */
+    val memberName: TextPart = TextPart.UpkeepMemberName
+}
+
+/** Runtime placeholders available to authored inventory-use prompts. */
+object InventoryText {
+    /** The visible inventory slot key chosen by the player, such as `A`. */
+    val slotName: TextPart = TextPart.InventorySlotName
+
+    /** The authored display name of the selected inventory item. */
+    val itemName: TextPart = TextPart.SelectedItemName
+}
+
 object TownText {
     val name: TextPart = TextPart.CurrentTownName
     val taxPercent: TextPart = TextPart.TownTaxPercent

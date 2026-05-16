@@ -155,6 +155,56 @@ class RuntimeSessionFactoryTest {
     }
 
     @Test
+    fun starvationDeathTextUsesAuthoredUpkeepPrompt() {
+        val saveFile = testTmp.resolve("session-api-starvation.rsave").freshSaveFile()
+        val setupLog = testTmp.resolve("session-api-starvation-setup.log")
+        val starveLog = testTmp.resolve("session-api-starvation-run.log")
+
+        runRuntimeSession(saveFile, setupLog, sessionDate = LocalDate.of(2026, 5, 11))
+
+        val content = bundleFile.readExternalCompiledGameBundle().content
+        val values = saveFile.readSaveValues()
+        val localPrefix = values.userPrefix("local")
+        val memberName =
+            values["${localPrefix}member.1.name"]
+                ?.takeIf(String::isNotBlank)
+                ?: content.strings.value(values.getValue("${localPrefix}member.1.nameString").toInt())
+        saveFile.writeText(
+            SaveCodec.encodeValues(
+                values +
+                    mapOf(
+                        "${localPrefix}party.food" to "0",
+                        "${localPrefix}party.timeLeft" to "6",
+                        "${localPrefix}member.1.hitPoints" to "1",
+                        "${localPrefix}member.1.dead" to "false",
+                    ),
+            ),
+        )
+
+        val terminal = RecordingAnsiTerminal()
+        RuntimeLog.open(starveLog).use { log ->
+            RuntimeSessionFactory
+                .load(bundleFile)
+                .start(
+                    terminal,
+                    RuntimeSessionConfig(
+                        userId = "local",
+                        stateSlug = "fresh-replay",
+                        loadFile = saveFile,
+                        saveFile = saveFile,
+                        // Scripted commands treat whitespace as separators, so use the numeric north key to advance one turn.
+                        scriptedInput = "8",
+                        sessionDate = LocalDate.of(2026, 5, 11),
+                    ),
+                    log,
+                )
+        }
+
+        assertContains(terminal.output, "$memberName starved")
+        assertContains(terminal.output, "to death!!!")
+    }
+
+    @Test
     fun savingOneUserPreservesOtherUserParties() {
         val saveFile = testTmp.resolve("session-api-users.rsave").freshSaveFile()
         val firstLog = testTmp.resolve("session-api-users-first.log")

@@ -107,7 +107,8 @@ class RylweenCompiledGameLedgerTest {
         val standardConversation = checkNotNull(nextDsl.speak.standardConversation)
         val townSystem = checkNotNull(nextDsl.townSystem)
         val castleContent = nextDsl.castles.single { it.id == Castles.ydarg }
-        val runtimeSystems = nextRylween.toExternalBundleArtifact().readExternalRuntimeSystems()
+        val externalBundle = nextRylween.toExternalBundleArtifact()
+        val runtimeSystems = externalBundle.readExternalRuntimeSystems()
 
         check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 14)
@@ -1013,10 +1014,35 @@ class RylweenCompiledGameLedgerTest {
                 .fallbackText() == "Not a spellcaster!",
         )
         check(nextDsl.prompts.inventoryUse.quaff == inlineText("Quaff what?"))
+        check(
+            nextDsl.prompts.inventoryUse.invalidSlot
+                .fallbackText() == "Inventory slot {inventory_slot}\ndoes not exist.",
+        )
+        check(
+            nextDsl.prompts.inventoryUse.notUsable
+                .fallbackText() == "Nothing happens\nwith {selected_item_name}.",
+        )
+        check(
+            runtimeSystems.prompts.inventoryUse.invalidSlot.render { kind ->
+                if (kind == "inventorySlotName") "A" else null
+            } == listOf("Inventory slot A", "does not exist."),
+        )
+        check(
+            runtimeSystems.prompts.inventoryUse.notUsable.render { kind ->
+                if (kind == "selectedItemName") "Fire Wand" else null
+            } == listOf("Nothing happens", "with Fire Wand."),
+        )
+        check("[missing prompt:" !in externalBundle.decodeToString()) {
+            "external runtime bundle must not ship placeholder prompt rows"
+        }
         check(nextDsl.prompts.equipment.readyArmors == inlineText("Do you want to ready", "any armors before", "leaving?", ""))
         check(nextDsl.prompts.town.closedSuffix == " is closed.")
         check(nextDsl.realm.upkeep.foodTickEvery == 5)
         check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
+        check(
+            nextDsl.realm.upkeep.starvationDeath
+                .fallbackText() == "{upkeep_member_name} starved\nto death!!!",
+        )
         check(nextDsl.realm.upkeep.fatigue.size == 4)
         check(
             nextDsl.realm.upkeep.fatigue

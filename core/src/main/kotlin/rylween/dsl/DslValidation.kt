@@ -146,10 +146,19 @@ private val HuntTextBindings: Set<TextPart> =
         TextPart.PartyMemberCount,
         TextPart.PartyMemberMax,
     )
+private val UpkeepTextBindings: Set<TextPart> =
+    setOf(
+        TextPart.UpkeepMemberName,
+    )
 private val RandomItemOfferTextBindings: Set<TextPart> =
     setOf(
         TextPart.OfferedItemName,
         TextPart.OfferedItemPrice,
+    )
+private val InventoryUseTextBindings: Set<TextPart> =
+    setOf(
+        TextPart.InventorySlotName,
+        TextPart.SelectedItemName,
     )
 private val SelectedItemTextBindings: Set<TextPart> = setOf(TextPart.SelectedItemName)
 private val EquipmentTextBindings: Set<TextPart> = setOf(TextPart.EquipmentKindName)
@@ -1255,12 +1264,14 @@ private fun validateTextBlock(
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
             TextPart.SelectedItemName,
+            TextPart.InventorySlotName,
             TextPart.EquipmentKindName,
             TextPart.ShopPrice,
             TextPart.ShopCarryCap,
             TextPart.HuntMemberName,
             TextPart.HuntMemberSubjectPronoun,
             TextPart.HuntFoodGained,
+            TextPart.UpkeepMemberName,
             TextPart.PartyMemberCount,
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
@@ -2256,6 +2267,7 @@ private fun validateRealmContent(realm: RealmContentModel) {
         check(amount >= 0) { "base ${resource.name.lowercase()} capacity must be non-negative" }
     }
     checkPercent(realm.upkeep.manaRegenChance, "wilderness mana regenerate chance")
+    validateTextBlock(realm.upkeep.starvationDeath, "wilderness starvation death", allowedRuntimeBindings = UpkeepTextBindings)
     realm.upkeep.fatigue.forEachIndexed { index, rule ->
         validateTextBlock(rule.text, "wilderness fatigue rule $index")
     }
@@ -2842,6 +2854,8 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.inventoryUse.quaff, "inventory quaff prompt")
     validateTextBlock(prompts.inventoryUse.noItems, "inventory no-items prompt")
     validateTextBlock(prompts.inventoryUse.noItem, "inventory no-item prompt")
+    validateTextBlock(prompts.inventoryUse.invalidSlot, "inventory invalid-slot prompt", allowedRuntimeBindings = InventoryUseTextBindings)
+    validateTextBlock(prompts.inventoryUse.notUsable, "inventory not-usable prompt", allowedRuntimeBindings = InventoryUseTextBindings)
     validateTextBlock(prompts.equipment.inventory, "equipment inventory prompt")
     validateTextBlock(prompts.equipment.who, "equipment who prompt")
     validateTextBlock(prompts.equipment.noAvailable, "equipment no-available prompt", allowedRuntimeBindings = EquipmentTextBindings)

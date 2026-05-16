@@ -69,7 +69,14 @@ internal class WildernessActions(
 
         val foodTick = realm.upkeep.foodTickEvery > 0 && party.resources.timeLeft % realm.upkeep.foodTickEvery == 0
         val foodAfterTick = if (foodTick) (party.resources.food - party.foodTickCost()).coerceAtLeast(0) else party.resources.food
-        party = party.applyStarvation(foodAfterTick, realm.upkeep.starveFoodThreshold, realm.upkeep.starveDamage, upkeepMessages)
+        party =
+            party.applyStarvation(
+                foodAfterTick,
+                realm.upkeep.starveFoodThreshold,
+                realm.upkeep.starveDamage,
+                realm.upkeep.starvationDeath,
+                upkeepMessages,
+            )
 
         val restedHours = party.resources.restedHours - realm.upkeep.restedHoursCostPerTurn
         party = party.applyFatigue(restedHours, realm.upkeep.fatigue, upkeepMessages)
@@ -617,17 +624,17 @@ internal class WildernessActions(
         foodAfterTick: Int,
         threshold: Int,
         damage: Int,
+        deathText: ExternalRuntimeTextBlock,
         messages: MutableList<String>,
     ): PartyState {
         if (foodAfterTick > threshold || damage == 0) return this
         return copy(
             members =
-                members.map { member ->
-                    if (member.dead) return@map member
+                members.mapIndexed { index, member ->
+                    if (member.dead) return@mapIndexed member
                     val nextHp = member.hitPoints.current - damage
-                    if (nextHp >= 1) return@map member.copy(hitPoints = member.hitPoints.copy(current = nextHp))
-                    messages += "${content.strings.value(member.nameString)} starved"
-                    messages += "to death!!!"
+                    if (nextHp >= 1) return@mapIndexed member.copy(hitPoints = member.hitPoints.copy(current = nextHp))
+                    messages += deathText.renderUpkeep(memberName(content, index))
                     member.copy(
                         hitPoints = member.hitPoints.copy(current = 0),
                         dead = true,
@@ -669,6 +676,17 @@ internal class WildernessActions(
     }
 
     private fun ExternalRuntimeTextBlock.renderText(): List<String> = render({ null }, screen.textColumns)
+
+    private fun ExternalRuntimeTextBlock.renderUpkeep(memberName: String): List<String> =
+        render(
+            { kind ->
+                when (kind) {
+                    "upkeepMemberName" -> memberName
+                    else -> null
+                }
+            },
+            screen.textColumns,
+        )
 
     private fun battleRunner(): BattleRunner =
         BattleRunner(content, combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))

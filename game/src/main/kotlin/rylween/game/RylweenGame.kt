@@ -470,6 +470,10 @@ val authoredRylween: RylweenModel =
                     starveDamage = 2
                     manaRegenChance = 50
                     restedHoursCostPerTurn = 1
+                    starvationDeath {
+                        line(UpkeepText.memberName, " starved")
+                        line("to death!!!")
+                    }
                     fatigueAt(0, inlineText("You begin to feel tired"), statusLabel = "TIRED")
                     fatigueAt(-4, inlineText("You are exhausted!!!"), drain = true, statusLabel = "EXHAUSTED")
                     fatigueAt(-8, inlineText("You begin to feel weak", "from lack of sleep.", ""), drain = true, statusLabel = "WEAK")
@@ -962,12 +966,14 @@ val authoredRylween: RylweenModel =
                     quaff = inlineText("Quaff what?")
                     noItems = inlineText("You are not carrying", "anything.")
                     noItem = inlineText("There is nothing", "in that slot.")
-                    invalidSlotFirstPrefix = "Inventory slot "
-                    invalidSlotFirstSuffix = ""
-                    invalidSlotSecond = "does not exist."
-                    notUsableFirst = "Nothing happens"
-                    notUsableSecondPrefix = "with "
-                    notUsableSecondSuffix = "."
+                    invalidSlot {
+                        line("Inventory slot ", InventoryText.slotName)
+                        line("does not exist.")
+                    }
+                    notUsable {
+                        line("Nothing happens")
+                        line("with ", InventoryText.itemName, ".")
+                    }
                 }
                 equipment {
                     inventory = inlineText("Ready what?")
