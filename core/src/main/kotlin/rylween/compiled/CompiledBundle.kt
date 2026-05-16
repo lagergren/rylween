@@ -1878,8 +1878,8 @@ private class CompiledBundleCompiler(
                 instruction(
                     CompiledOpcode.If,
                     CompiledOperand.BoolExprValue(boolExpr(op.cond)),
-                    CompiledOperand.Instructions(compileBranch(op.thenOps)),
-                    CompiledOperand.Instructions(compileBranch(op.elseOps)),
+                    CompiledOperand.Instructions(compileBranch(op.thenStatements)),
+                    CompiledOperand.Instructions(compileBranch(op.elseStatements)),
                 )
 
             is ScriptStatementNode.Loop -> instruction(CompiledOpcode.Loop, CompiledOperand.Instructions(compileBranch(op.body)))
@@ -1905,7 +1905,7 @@ private class CompiledBundleCompiler(
                             CompiledMenuOption(binding(option.binding), compileBranch(option.body))
                         },
                     ),
-                    CompiledOperand.Instructions(compileBranch(op.defaultOps)),
+                    CompiledOperand.Instructions(compileBranch(op.defaultStatements)),
                 )
 
             is ScriptStatementNode.AskKey ->
@@ -1943,8 +1943,8 @@ private class CompiledBundleCompiler(
                     CompiledOperand.TextAnswer(
                         CompiledTextAnswer(
                             acceptedStrings = op.accepted.map(strings::id),
-                            matchOps = compileBranch(op.matchOps),
-                            missOps = compileBranch(op.missOps),
+                            matchOps = compileBranch(op.matchStatements),
+                            missOps = compileBranch(op.missStatements),
                             caseSensitive = op.caseSensitive,
                             trim = op.trim,
                             maxLength = op.maxLength,
@@ -2823,8 +2823,8 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                     is ScriptStatementNode.Screen -> collectText(op.text)
                     is ScriptStatementNode.AppendJournal -> collectText(op.text)
                     is ScriptStatementNode.If -> {
-                        collectStatements(op.thenOps)
-                        collectStatements(op.elseOps)
+                        collectStatements(op.thenStatements)
+                        collectStatements(op.elseStatements)
                     }
 
                     is ScriptStatementNode.Loop -> collectStatements(op.body)
@@ -2832,7 +2832,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                     is ScriptStatementNode.Menu -> {
                         collectText(op.prompt)
                         op.options.forEach { collectStatements(it.body) }
-                        collectStatements(op.defaultOps)
+                        collectStatements(op.defaultStatements)
                     }
 
                     is ScriptStatementNode.AskKey -> collectText(op.prompt)
@@ -2840,8 +2840,8 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                     is ScriptStatementNode.AskInventorySlot -> collectText(op.prompt)
                     is ScriptStatementNode.AskText -> {
                         collectText(op.prompt)
-                        collectStatements(op.matchOps)
-                        collectStatements(op.missOps)
+                        collectStatements(op.matchStatements)
+                        collectStatements(op.missStatements)
                     }
 
                     is ScriptStatementNode.AskMonster -> collectText(op.prompt)

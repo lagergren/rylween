@@ -569,13 +569,13 @@ class RylweenCompiledGameLedgerTest {
             any { op ->
                 predicate(op) ||
                     when (op) {
-                        is ScriptStatementNode.If -> op.thenOps.anyNested(predicate) || op.elseOps.anyNested(predicate)
+                        is ScriptStatementNode.If -> op.thenStatements.anyNested(predicate) || op.elseStatements.anyNested(predicate)
                         is ScriptStatementNode.Loop -> op.body.anyNested(predicate)
                         is ScriptStatementNode.Switch -> op.cases.any { it.body.anyNested(predicate) }
                         is ScriptStatementNode.Menu ->
                             op.options.any { it.body.anyNested(predicate) } ||
-                                op.defaultOps.anyNested(predicate)
-                        is ScriptStatementNode.AskText -> op.matchOps.anyNested(predicate) || op.missOps.anyNested(predicate)
+                                op.defaultStatements.anyNested(predicate)
+                        is ScriptStatementNode.AskText -> op.matchStatements.anyNested(predicate) || op.missStatements.anyNested(predicate)
                         is ScriptStatementNode.ForEachMember -> op.body.anyNested(predicate)
                         is ScriptStatementNode.ForEachMonster -> op.body.anyNested(predicate)
                         else -> false
@@ -864,7 +864,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             tavernScene.statementNodes.any { op ->
                 op is ScriptStatementNode.If &&
-                    op.thenOps.any {
+                    op.thenStatements.any {
                         it is ScriptStatementNode.RandomItemOffer &&
                             it.offer.pool == ItemPools.tavernScruffySpecials &&
                             it.offer.application.overflow == RewardOverflowPolicy.PromptDropThenPlace
@@ -2350,6 +2350,13 @@ class RylweenCompiledGameLedgerTest {
                 ".ops" !in analysisSource,
         ) {
             "authored source IR must not expose the old raw ops bridge names"
+        }
+        val retiredBranchFieldNames =
+            listOf("thenOps", "elseOps", "defaultOps", "matchOps", "missOps")
+                .filter { token -> token in dslSource || token in kernelSource || token in analysisSource }
+        check(retiredBranchFieldNames.isEmpty()) {
+            "authored source IR branch fields must use statement terminology: " +
+                retiredBranchFieldNames.joinToString()
         }
         val retiredOperationNameUsages =
             listOf(

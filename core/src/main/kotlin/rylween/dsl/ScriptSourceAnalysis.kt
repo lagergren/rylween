@@ -328,8 +328,8 @@ private fun visitNestedScriptStatements(
 
     when (val op = statement) {
         is ScriptStatementNode.If -> {
-            visitBranch(op.thenOps, 0, "$label if-then", nestedConditions = branchConditions + op.cond)
-            visitBranch(op.elseOps, 1, "$label if-else")
+            visitBranch(op.thenStatements, 0, "$label if-then", nestedConditions = branchConditions + op.cond)
+            visitBranch(op.elseStatements, 1, "$label if-else")
         }
         is ScriptStatementNode.Loop -> visitBranch(op.body, 0, "$label loop", nestedLoopDepth = loopDepth + 1)
         is ScriptStatementNode.Switch ->
@@ -340,11 +340,11 @@ private fun visitNestedScriptStatements(
             op.options.forEachIndexed { index, option ->
                 visitBranch(option.body, index, "$label menu ${option.key}")
             }
-            visitBranch(op.defaultOps, op.options.size, "$label menu default")
+            visitBranch(op.defaultStatements, op.options.size, "$label menu default")
         }
         is ScriptStatementNode.AskText -> {
-            visitBranch(op.matchOps, 0, "$label text-input accepted")
-            visitBranch(op.missOps, 1, "$label text-input rejected")
+            visitBranch(op.matchStatements, 0, "$label text-input accepted")
+            visitBranch(op.missStatements, 1, "$label text-input rejected")
         }
         is ScriptStatementNode.ForEachMember -> visitBranch(op.body, 0, "$label member loop")
         is ScriptStatementNode.ForEachMonster -> visitBranch(op.body, 0, "$label monster loop")
@@ -518,8 +518,8 @@ private class NativePathCollector {
             is ScriptStatementNode.AppendJournal -> collect(op.text)
             is ScriptStatementNode.If -> {
                 collect(op.cond)
-                collect(op.thenOps)
-                collect(op.elseOps)
+                collect(op.thenStatements)
+                collect(op.elseStatements)
             }
             is ScriptStatementNode.Loop -> collect(op.body)
             is ScriptStatementNode.Break -> Unit
@@ -531,15 +531,15 @@ private class NativePathCollector {
             is ScriptStatementNode.Menu -> {
                 collect(op.prompt)
                 op.options.forEach { collect(it.body) }
-                collect(op.defaultOps)
+                collect(op.defaultStatements)
             }
             is ScriptStatementNode.AskKey -> collect(op.prompt)
             is ScriptStatementNode.AskMember -> collect(op.prompt)
             is ScriptStatementNode.AskInventorySlot -> collect(op.prompt)
             is ScriptStatementNode.AskText -> {
                 collect(op.prompt)
-                collect(op.matchOps)
-                collect(op.missOps)
+                collect(op.matchStatements)
+                collect(op.missStatements)
             }
             is ScriptStatementNode.AskMonster -> collect(op.prompt)
             is ScriptStatementNode.ForEachMember -> collect(op.body)

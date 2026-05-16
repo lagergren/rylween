@@ -257,10 +257,10 @@ class ScriptScope(
         cond: BoolExpr,
         then: ScriptScope.() -> Unit,
     ): ElseBranch {
-        val thenOps = capture(then)
+        val thenStatements = capture(then)
         val index = block.size
-        block.record(ScriptStatementNode.If(cond.ast, thenOps, emptyList()))
-        return ElseBranch(ctx) { elseOps -> block[index] = ScriptStatementNode.If(cond.ast, thenOps, elseOps) }
+        block.record(ScriptStatementNode.If(cond.ast, thenStatements, emptyList()))
+        return ElseBranch(ctx) { elseStatements -> block[index] = ScriptStatementNode.If(cond.ast, thenStatements, elseStatements) }
     }
 
     fun stop(reason: String? = null): Unit = record(ScriptStatementNode.Stop(reason))
@@ -761,7 +761,7 @@ class MenuBuilder(
     private val ctx: ScriptContext,
 ) {
     private val options = mutableListOf<MenuOption>()
-    private var defaultOps = emptyList<ScriptStatementNode>()
+    private var defaultStatements = emptyList<ScriptStatementNode>()
 
     fun option(
         key: Char,
@@ -788,16 +788,16 @@ class MenuBuilder(
         binding: InputBindingModel,
         body: ScriptScope.() -> Unit,
     ) {
-        val bodyOps = recordStatementNodes(ctx, body)
-        options += MenuOption(binding, bodyOps)
-        defaultOps = bodyOps
+        val bodyStatements = recordStatementNodes(ctx, body)
+        options += MenuOption(binding, bodyStatements)
+        defaultStatements = bodyStatements
     }
 
     fun default(body: ScriptScope.() -> Unit) {
-        defaultOps = recordStatementNodes(ctx, body)
+        defaultStatements = recordStatementNodes(ctx, body)
     }
 
-    fun build(prompt: TextBlock): ScriptStatementNode.Menu = ScriptStatementNode.Menu(prompt, options.toList(), defaultOps)
+    fun build(prompt: TextBlock): ScriptStatementNode.Menu = ScriptStatementNode.Menu(prompt, options.toList(), defaultStatements)
 }
 
 /**
@@ -969,8 +969,8 @@ class ChoiceScope(
             ScriptStatementNode.AskText(
                 prompt = prompt,
                 accepted = acceptedInputs,
-                matchOps = script.capture(onAccepted),
-                missOps = script.capture(onRejected),
+                matchStatements = script.capture(onAccepted),
+                missStatements = script.capture(onRejected),
                 caseSensitive = caseSensitive,
                 trim = trim,
                 maxLength = maxLength,
@@ -1668,23 +1668,23 @@ private fun ScriptStatementNode.resolveItemPools(resolve: (ItemPoolId) -> ItemPo
         is ScriptStatementNode.If ->
             copy(
                 cond = cond.resolveItemPools(resolve),
-                thenOps = thenOps.resolveItemPools(resolve),
-                elseOps = elseOps.resolveItemPools(resolve),
+                thenStatements = thenStatements.resolveItemPools(resolve),
+                elseStatements = elseStatements.resolveItemPools(resolve),
             )
         is ScriptStatementNode.Loop -> copy(body = body.resolveItemPools(resolve))
         is ScriptStatementNode.Switch -> copy(expr = expr.resolveItemPools(resolve), cases = cases.resolveSwitchItemPools(resolve))
         is ScriptStatementNode.Menu ->
             copy(
                 options = options.resolveMenuItemPools(resolve),
-                defaultOps = defaultOps.resolveItemPools(resolve),
+                defaultStatements = defaultStatements.resolveItemPools(resolve),
             )
         is ScriptStatementNode.AskKey -> copy()
         is ScriptStatementNode.AskMember -> copy()
         is ScriptStatementNode.AskInventorySlot -> copy()
         is ScriptStatementNode.AskText ->
             copy(
-                matchOps = matchOps.resolveItemPools(resolve),
-                missOps = missOps.resolveItemPools(resolve),
+                matchStatements = matchStatements.resolveItemPools(resolve),
+                missStatements = missStatements.resolveItemPools(resolve),
             )
         is ScriptStatementNode.ForEachMember -> copy(body = body.resolveItemPools(resolve))
         is ScriptStatementNode.ForEachMonster -> copy(body = body.resolveItemPools(resolve))
