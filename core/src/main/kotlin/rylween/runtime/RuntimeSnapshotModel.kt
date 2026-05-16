@@ -9,7 +9,6 @@ package rylween.runtime
 import rylween.dsl.CastleId
 import rylween.dsl.DungeonEventId
 import rylween.dsl.DungeonId
-import rylween.dsl.ItemId
 import rylween.dsl.MissionId
 import rylween.dsl.SceneId
 import rylween.dsl.impl.CastleRoomEvent
@@ -50,28 +49,9 @@ data class CastleSessionSnapshot(
     val floor: Int,
     val point: GridPoint,
     val rooms: Map<GridPoint, CastleRoomEvent>,
-    val step: CastleSavedStep = CastleSavedStep.Navigate,
-    val treasureItem: ItemId? = null,
     val scriptScene: SceneId? = null,
     val scriptContinuation: ScriptContinuationSnapshot? = null,
-    val scriptNext: CastleScriptContinuation? = null,
 )
-
-/** Persisted castle step tokens that are stable across runtime implementation details. */
-enum class CastleSavedStep {
-    RoomEntry,
-    Navigate,
-    TreasureOffer,
-    StairsMenu,
-    StairGive,
-    Script,
-}
-
-/** Continuation point after an authored castle hook script finishes. */
-enum class CastleScriptContinuation {
-    RoomEntry,
-    Finished,
-}
 
 /** Saveable state for a dungeon traversal. */
 data class DungeonSessionSnapshot(

@@ -629,8 +629,14 @@ B1-B9 first-pass notes:
     compatibility aliases. The compiled-game ledger rejects legacy constructor
     and read-screen vocabulary in current game authoring and keeps `screen(...)`
     reserved for static/reusable screen declarations rather than script writes.
-  - [ ] I8d. Guardrails. Add ledger or validation coverage that the current emitted game has no `[missing prompt: ...]` rows, that new runtime-rendered player prose goes through authored text/prompt models, and that any remaining runtime literals are documented as diagnostics/chrome instead of accidental game strings.
+  - [x] I8d. Guardrails. Add ledger or validation coverage that the current emitted game has no `[missing prompt: ...]` rows, that new runtime-rendered player prose goes through authored text/prompt models, and that any remaining runtime literals are documented as diagnostics/chrome instead of accidental game strings.
     - [x] I8d.1. The compiled-game ledger now rejects emitted external bundle artifacts containing `[missing prompt:` so runtime-system prompts cannot silently fall back to placeholder prose in the shipped game.
+    - [x] I8d.2. Runtime-owned rendered strings now use explicit classification
+      helpers for developer diagnostics, host chrome, and generated operational
+      details. The compiled-game ledger rejects direct `screen.writeText` /
+      `screen.showMessage` literal `listOf(...)` calls and unclassified compiled
+      text-ref placeholders, forcing future game prose through authored content
+      or runtime-system prompts.
   - [ ] I8e. Input-binding ownership audit. Recheck whether `Dsl.kt` and
     `dsl/impl` should expose literal key presses for static commands/prompts,
     or whether the authored model should name semantic commands and labels while

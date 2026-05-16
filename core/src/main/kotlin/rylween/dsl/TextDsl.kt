@@ -14,11 +14,6 @@ data class TextId(
     val id: String,
 )
 
-/** Pattern token used by authored text substitutions and matching helpers. */
-data class TextPattern(
-    val pattern: String,
-)
-
 /** Part of a structured text line, including literals and runtime-bound placeholders. */
 sealed interface TextPart {
     data class Literal(
@@ -278,7 +273,7 @@ fun flow(
 
 /**
  * Detection rule for triple-quoted multi-line authoring: if the caller
- * passed exactly one string and it contains a newline, treat it as
+ * passed exactly one string, and it contains a newline, treat it as
  * `trimIndent().split("\n")`; otherwise behave like a normal vararg. This
  * keeps `say("a", "b")` and `say("simple sentence.")` unchanged.
  */
