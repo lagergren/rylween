@@ -29,15 +29,17 @@ Rylween is an isolated kingdom whose good and just monarch went by the
 name Zalkin Ammol.
 
 One day, a lone knight rode into the capital of Rylween, Wilor. He
-approached from the south and was dressed in purple rags. He demanded
-to see Ammol, and when they met in Ammol's palace, the knight pulled
-a trident and pierced Ammol with it before anyone could react.
-When the guards tried to attack the knight, they found him invulnerable
-to normal weapons. He just stood there, 7 feet tall in his purple robe
-and laughed. He waved his hands and disappeared in a puff of smoke.
-Before he was gone the royal guard heard him yell: *"I declare war.
-This shall be the last part of the realm to fall. For I am Baron Ydarg,
-master of the seven kingdoms, the new ruler of Rylween."*
+approached from the south, a purple cloak wrapped around his black.
+armor. He demanded to see Ammol, and when they met in Ammol's palace, 
+the knight materialized a black trident from the air and pierced Ammol
+with it before anyone could react. When the guards tried to attack
+the knight, they found him invulnerable to normal weapons. The strange 
+knight just stood there, laughing, his near seven foot frame towering 
+over anyone at the royal court. He waved his hands and disappeared in a 
+puff of smoke. Before he was gone, the royal guard heard him yell:
+*"I declare war. This shall be the last part of the realm to fall. 
+For I am Baron Ydarg, master of the seven kingdoms, the new ruler 
+of Rylween."*
 
 In one night, he built a stronghold somewhere to the southwest: the evil
 castle Zadraz. The following weeks were chaotic. Strange and evil creatures
