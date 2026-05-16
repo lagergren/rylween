@@ -337,8 +337,8 @@ sealed interface ScriptStatementNode : ScriptStatement {
 
     data class If(
         val cond: BoolAst,
-        val thenOps: List<ScriptStatementNode>,
-        val elseOps: List<ScriptStatementNode>,
+        val thenStatements: List<ScriptStatementNode>,
+        val elseStatements: List<ScriptStatementNode>,
     ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
@@ -368,7 +368,7 @@ sealed interface ScriptStatementNode : ScriptStatement {
     data class Menu(
         val prompt: TextBlock,
         val options: List<MenuOption>,
-        val defaultOps: List<ScriptStatementNode>,
+        val defaultStatements: List<ScriptStatementNode>,
     ) : ScriptStatementNode,
         ScriptStatement.Input
 
@@ -399,8 +399,8 @@ sealed interface ScriptStatementNode : ScriptStatement {
     data class AskText(
         val prompt: TextBlock,
         val accepted: List<String>,
-        val matchOps: List<ScriptStatementNode>,
-        val missOps: List<ScriptStatementNode>,
+        val matchStatements: List<ScriptStatementNode>,
+        val missStatements: List<ScriptStatementNode>,
         val caseSensitive: Boolean = false,
         val trim: Boolean = true,
         val maxLength: Int? = null,

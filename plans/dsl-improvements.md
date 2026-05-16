@@ -724,7 +724,7 @@ B1-B9 first-pass notes:
       bridge surface: `ops` accessors are now `statementNodes`,
       `recordScript(...)` is now `recordStatementNodes(...)`, and
       `fromOps`/`toOps` are now `fromStatementNodes`/`toStatementNodes`.
-    - [ ] I9f.3. Rename source-branch fields such as `thenOps`, `defaultOps`,
+    - [x] I9f.3. Rename source-branch fields such as `thenOps`, `defaultOps`,
       `matchOps`, and `missOps` without disturbing true compiled-payload
       `*Ops` fields.
     - [ ] I9f.4. Clean historical plan/docs wording that still calls authored
