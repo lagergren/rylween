@@ -455,14 +455,16 @@ can also make the enemy's next attack less effective.
 
 ### Use Item
 
-Use one of your magical items. The feared Kael's Axe is the most powerful
+Apply an item, for exqmple drink a healing potion or activate one of your 
+magical items. The feared Kael's Axe is the most powerful
 magic weapon in the realm. Try finding at least ONE Kael's Axe before entering
 castle Zadraz.
 
 ### Battle Cry
 
 Try to scare your enemies. It works best on cowardly creatures like kobolds,
-goblins, etc.
+goblins, etc. Battle Cry is more effective when used by a charismaric
+character.
 
 ### Cast Spell
 
@@ -481,17 +483,18 @@ Anti Magic   - Stop your foes from using magic during the next attack
 ```
 
 The battle is over when all the enemies are dead, or you are dead, or
-when you have fled.
+when you have managed to flee. 
 
-Experience points and gold are given to you if you win the battle.
+Experience points, gold and possibly treasure is given to all party
+members who are alive after winning the battle.
 
 ## Dungeons and Caves
 
 There are lots of dungeons and caves scattered throughout the realm.
 You may stumble upon them by chance, or you may know where to go.
 Dungeons play an important role in the different missions you can receive.
-A dungeon/cave consists of an unknown number of levels. To enter the
-next level, choose (D)escend from the dungeon menu. To return to
+A dungeon/cave consists of an unknown number of levels. To enter
+the next level, choose (D)escend from the dungeon menu. To return to
 the previous level, choose (A)scend. Dungeons are full of all kinds
 of nice monsters that don't exist up in the wilderness.
 You can use all the standard wilderness commands in the dungeon.
@@ -553,7 +556,7 @@ support/help/beer etc.
 ```text
 Zak Ashraf       - For calling my board from the UK just to play AOR!
 Magnus Andersson - For being the laziest co-sysop in the world.
-Mattias Bergvall - Well... er... hmm.... oops, forgot.
+Mattias Bergvall - For being a great friend, and for providing a harbor under Jolly Roger..
 Anders Blixt     - The first one to get hooked on AOR.
 Niklas Blomqvist - Creator of the original Rylween realm, and a very
                   - early version with STOS on the Atari ST.
@@ -565,7 +568,7 @@ Jonathan Forbes  - For keeping my adrenalin level high. :-)
 Tommy Green      - For receiving all the complaints.
 Magnus Gustafson - For answering Marcus Hirt's letters.
 David Hartje     - For registering, and for valuable feedback.
-Holger Hellebro  - My first beta tester.
+Holger Hellebro  - My first valued beta tester.
 Marcus Hirt      - For cluttering up my msg bases with strange discussions.
 Bob Hurst        - For Hack & Slash. (It inspired me to create AOR).
 Patrik Järnefelt - Beta tester. Solna-dweller.
@@ -583,13 +586,13 @@ Stephen Price    - For supporting me by registering early, from the
 Lazze Sidén      - Thanks for everything.
 Michael Sinz     - The creator of Enforcer.
 Mike Soucy       - Testing and bug reports.
-Karl Skagerberg  - Beta tester.
+Karl Skagerberg  - Annoying beta tester.
 Stefan Stark     - Another Rylween enthusiast.
 Oskar Sundberg   - For staying out of the way.
 Oskar Sodergren  - For hints and transportation.
 Dalina Steneros  - For cheering me up.
 Ron Teague       - For great support, encouragement and beta testing.
-Peter Tidestrom  - For the beer.
+Peter Tideström  - For the beer.
 Per Wennerström  - For registering as the first paid user, and for lots
                   - of bug reports and feedback during testing.
 Nicolaus Wirth   - For designing the Pascal language... (JUST KIDDING!!!)
