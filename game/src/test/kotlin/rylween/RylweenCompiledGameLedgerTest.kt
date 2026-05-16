@@ -2267,14 +2267,17 @@ class RylweenCompiledGameLedgerTest {
         val sourceModel = File("core/src/main/kotlin/rylween/dsl/ScriptSourceModel.kt").readText()
         val validationSource = File("core/src/main/kotlin/rylween/dsl/DslValidation.kt").readText()
         val analysisSource = File("core/src/main/kotlin/rylween/dsl/ScriptSourceAnalysis.kt").readText()
+        val compiledBundleSource = File("core/src/main/kotlin/rylween/compiled/CompiledBundle.kt").readText()
         val worldContentSource = File("core/src/main/kotlin/rylween/dsl/impl/WorldContentDsl.kt").readText()
         val speakDslSource = File("core/src/main/kotlin/rylween/dsl/impl/SpeakDsl.kt").readText()
         val requiredTokens =
             listOf(
                 "remaining authoring/compiler boundary",
                 "enum class ScriptSourceRootKind",
-                "data class ScriptSourceOp",
-                "fun ScriptSourceRoot.visitScriptOps",
+                "data class ScriptSourceStatement",
+                "fun ScriptSourceRoot.visitScriptStatements",
+                "fun ScriptSourceRoot.anyScriptStatement",
+                "fun visitScriptStatements(",
                 "fun analyzeScriptSources(model: GameModel)",
             )
         val missing = requiredTokens.filterNot { token -> token in analysisSource }
@@ -2284,6 +2287,9 @@ class RylweenCompiledGameLedgerTest {
         }
         check("fun visitOps(" !in validationSource) {
             "DslValidation.kt must use ScriptSourceAnalysis traversal instead of owning recursive op walkers"
+        }
+        check("visitScriptOps" !in validationSource && "sourceOp" !in validationSource) {
+            "DslValidation.kt diagnostics must use source-statement terminology"
         }
         check(
             "data class AuthoredScript" in sourceModel &&
@@ -2309,7 +2315,7 @@ class RylweenCompiledGameLedgerTest {
         ) {
             "legacy Op nodes must be classified as source statements while I9 migration is in progress"
         }
-        check("val script: AuthoredScript" in analysisSource && "ops = script.ops" in analysisSource) {
+        check("val script: AuthoredScript" in analysisSource && "get() = script.ops" in analysisSource) {
             "script source roots must carry the new AuthoredScript wrapper while preserving Op traversal"
         }
         check(
@@ -2347,6 +2353,16 @@ class RylweenCompiledGameLedgerTest {
                 "ItemUseModel(id, contexts.toSet(), consume, script)" in dslSource,
         ) {
             "root builders must produce AuthoredScript directly instead of raw Op lists"
+        }
+        check(
+            "compileScript(script: AuthoredScript)" in compiledBundleSource &&
+                "compileStatement(statement: ScriptStatement)" in compiledBundleSource &&
+                "compileOps(" !in compiledBundleSource &&
+                "compileOp(" !in compiledBundleSource &&
+                "collectScript(script: AuthoredScript)" in compiledBundleSource &&
+                "collectStatements(statements: List<ScriptStatement>)" in compiledBundleSource,
+        ) {
+            "CompiledBundle.kt must lower authored source scripts through ScriptStatement terminology"
         }
         check(missing.isEmpty()) {
             "script source analysis must keep native-path/source-map migration hooks visible; missing: " +

@@ -179,7 +179,7 @@ fun analyzeScriptSources(model: GameModel): ScriptSourceAnalysis {
     val formulas = model.scriptSourceFormulas()
     val nativePaths = NativePathCollector()
 
-    roots.forEach { root -> nativePaths.collect(root.ops) }
+    roots.forEach { root -> nativePaths.collect(root.script) }
     formulas.forEach { formula -> nativePaths.collect(formula.condition) }
 
     return ScriptSourceAnalysis(
@@ -190,25 +190,26 @@ fun analyzeScriptSources(model: GameModel): ScriptSourceAnalysis {
 }
 
 /**
- * One authored operation with source-map style context produced by [visitScriptOps].
+ * One authored source statement with source-map style context produced by
+ * [visitScriptStatements].
  *
  * [path] is intentionally numeric so it can line up with VM diagnostics and
  * future compiled source maps. Branch slots use deterministic indexes inside
- * their parent operation before the nested operation index is appended.
+ * their parent statement before the nested statement index is appended.
  */
-data class ScriptSourceOp(
+data class ScriptSourceStatement(
     val root: ScriptSourceRootId?,
-    val op: Op,
+    val statement: ScriptStatement,
     val label: String,
     val path: List<Int>,
     val loopDepth: Int,
     val branchConditions: List<BoolAst>,
 )
 
-/** Walks every operation in this source root with branch labels and condition context. */
-fun ScriptSourceRoot.visitScriptOps(visitor: (ScriptSourceOp) -> Unit) {
-    visitScriptOps(
-        ops = script.ops,
+/** Walks every source statement in this source root with branch labels and condition context. */
+fun ScriptSourceRoot.visitScriptStatements(visitor: (ScriptSourceStatement) -> Unit) {
+    visitScriptStatements(
+        script = script,
         label = label,
         initialConditions = initialConditions,
         root = id,
@@ -216,27 +217,27 @@ fun ScriptSourceRoot.visitScriptOps(visitor: (ScriptSourceOp) -> Unit) {
     )
 }
 
-/** Returns true when any operation in this source root matches [predicate]. */
-fun ScriptSourceRoot.anyScriptOp(predicate: (Op) -> Boolean): Boolean {
+/** Returns true when any source statement in this source root matches [predicate]. */
+fun ScriptSourceRoot.anyScriptStatement(predicate: (ScriptStatement) -> Boolean): Boolean {
     var found = false
-    visitScriptOps { sourceOp ->
-        if (!found && predicate(sourceOp.op)) {
+    visitScriptStatements { sourceStatement ->
+        if (!found && predicate(sourceStatement.statement)) {
             found = true
         }
     }
     return found
 }
 
-/** Walks an authored op tree using the shared traversal that feeds validation and source maps. */
-fun visitScriptOps(
-    ops: List<Op>,
+/** Walks an authored script using the shared traversal that feeds validation and source maps. */
+fun visitScriptStatements(
+    script: AuthoredScript,
     label: String,
     initialConditions: List<BoolAst> = emptyList(),
     root: ScriptSourceRootId? = null,
-    visitor: (ScriptSourceOp) -> Unit,
+    visitor: (ScriptSourceStatement) -> Unit,
 ) {
-    visitScriptOps(
-        ops = ops,
+    visitScriptStatements(
+        statements = script.block.statements,
         label = label,
         root = root,
         path = emptyList(),
@@ -266,32 +267,32 @@ private fun dialogueBranchLabel(
 
 private fun questionActionSlug(action: QuestionActionScriptModel): String = "question.${action.topic.name.lowercase()}.${action.job.slug}"
 
-private fun visitScriptOps(
-    ops: List<Op>,
+private fun visitScriptStatements(
+    statements: List<ScriptStatement>,
     label: String,
     root: ScriptSourceRootId?,
     path: List<Int>,
     loopDepth: Int,
     branchConditions: List<BoolAst>,
-    visitor: (ScriptSourceOp) -> Unit,
+    visitor: (ScriptSourceStatement) -> Unit,
 ) {
-    ops.forEachIndexed { index, op ->
-        val opPath = path + index
+    statements.forEachIndexed { index, statement ->
+        val statementPath = path + index
         visitor(
-            ScriptSourceOp(
+            ScriptSourceStatement(
                 root = root,
-                op = op,
+                statement = statement,
                 label = label,
-                path = opPath,
+                path = statementPath,
                 loopDepth = loopDepth,
                 branchConditions = branchConditions,
             ),
         )
-        visitNestedScriptOps(
-            op = op,
+        visitNestedScriptStatements(
+            statement = statement,
             label = label,
             root = root,
-            path = opPath,
+            path = statementPath,
             loopDepth = loopDepth,
             branchConditions = branchConditions,
             visitor = visitor,
@@ -299,14 +300,14 @@ private fun visitScriptOps(
     }
 }
 
-private fun visitNestedScriptOps(
-    op: Op,
+private fun visitNestedScriptStatements(
+    statement: ScriptStatement,
     label: String,
     root: ScriptSourceRootId?,
     path: List<Int>,
     loopDepth: Int,
     branchConditions: List<BoolAst>,
-    visitor: (ScriptSourceOp) -> Unit,
+    visitor: (ScriptSourceStatement) -> Unit,
 ) {
     fun visitBranch(
         branchOps: List<Op>,
@@ -315,8 +316,8 @@ private fun visitNestedScriptOps(
         nestedLoopDepth: Int = loopDepth,
         nestedConditions: List<BoolAst> = branchConditions,
     ) {
-        visitScriptOps(
-            ops = branchOps,
+        visitScriptStatements(
+            statements = branchOps,
             label = branchLabel,
             root = root,
             path = path + branchIndex,
@@ -326,7 +327,7 @@ private fun visitNestedScriptOps(
         )
     }
 
-    when (op) {
+    when (val op = statement) {
         is Op.If -> {
             visitBranch(op.thenOps, 0, "$label if-then", nestedConditions = branchConditions + op.cond)
             visitBranch(op.elseOps, 1, "$label if-else")
@@ -357,8 +358,12 @@ private class NativePathCollector {
 
     fun paths(): Set<String> = paths.toSet()
 
-    fun collect(items: List<Op>) {
-        items.forEach(::collect)
+    fun collect(script: AuthoredScript) {
+        collect(script.block.statements)
+    }
+
+    private fun collect(statements: List<ScriptStatement>) {
+        statements.forEach(::collect)
     }
 
     fun collect(ast: BoolAst) {
@@ -494,8 +499,8 @@ private class NativePathCollector {
         }
     }
 
-    private fun collect(op: Op) {
-        when (op) {
+    private fun collect(statement: ScriptStatement) {
+        when (val op = statement) {
             is Op.Screen -> collect(op.text)
             is Op.Emit -> Unit
             is Op.WaitInput -> Unit

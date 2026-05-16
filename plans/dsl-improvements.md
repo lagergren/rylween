@@ -680,22 +680,27 @@ B1-B9 first-pass notes:
     getters only, and root builders call `recordAuthoredScript(...)` or build
     `ScriptBlock` values directly. Source-root analysis now reads the `script`
     field instead of constructing roots from raw op lists.
-  - [ ] I9d. Move analysis/compiler/validation to the new names. Update
+  - [x] I9d. Move analysis/compiler/validation to the new names. Update
     `ScriptSourceAnalysis.kt`, `DslValidation.kt`, and `CompiledBundle.kt` to
     walk/lower `ScriptStatement` through a small visitor or category-specific
     helpers so source analysis does not depend on one large `when (Op)` bucket.
-    - [ ] I9d.1. Rename source walking types/functions from operation wording to
+    `ScriptSourceStatement`/`visitScriptStatements` now own the source traversal
+    vocabulary, validation consumes that shared walker, and `CompiledBundle.kt`
+    lowers root scripts through `compileScript`/`compileStatement` while the old
+    concrete `Op` statement classes remain the narrow compatibility
+    implementation detail.
+    - [x] I9d.1. Rename source walking types/functions from operation wording to
       statement wording (`ScriptSourceStatement`, `visitScriptStatements`,
       `anyScriptStatement`) while preserving source-map paths and branch labels.
-    - [ ] I9d.2. Split nested traversal by source structure: control-flow
+    - [x] I9d.2. Split nested traversal by source structure: control-flow
       branches, input/menu branches, text-input match/miss branches, and member
       or monster loops. Keep runtime service loops out of this walker.
-    - [ ] I9d.3. Lower `AuthoredScript`/`ScriptStatement` to
+    - [x] I9d.3. Lower `AuthoredScript`/`ScriptStatement` to
       `CompiledInstruction` in `CompiledBundle.kt` through `compileStatement`.
       The compiler may still pattern-match concrete legacy statement classes in
       this slice, but the public compiler boundary should be source-script
       terminology rather than `compileOps`.
-    - [ ] I9d.4. Update validation to describe diagnostics in source-statement
+    - [x] I9d.4. Update validation to describe diagnostics in source-statement
       terms and push shared recursive walking into source-analysis helpers
       instead of each validator owning ad hoc `Op` recursion.
   - [ ] I9e. Keep the oracle explicit. The authored interpreter/parity surface
@@ -776,7 +781,7 @@ contract, while the authored game remains portable JSON/data.
       - [x] J2a-retire.3 isolate authored interpreter. Make `StatefulScriptServiceRunner` and `ScriptTraceRunner` visibly test/oracle or authored-mode-only APIs, with KDoc and package/test placement that prevents them from looking like the production runtime contract. `AuthoredScriptOracleApi` now marks the authored `Op` interpreter and trace runners, KDoc points new runtime hosts at `CompiledVm`, and a ledger regression keeps those declarations visibly outside the production VM contract. Keep them only while parity tests still need an independent semantic oracle.
       - [x] J2a-retire.4 remove validation/source-map blockers. Replace direct `List<Op>` validation and native-path walking with compiler diagnostics or compiled source maps before deleting the `Op` AST entirely; until then, `Op` remains DSL source IR even if production runtime no longer consumes it. Closed for the current authored-IR stage: validation may still inspect individual `Op` variants for author-facing semantics, but recursive source traversal, root ids, branch labels, condition context, source-map-style numeric paths, and native-service path discovery now live under `ScriptSourceAnalysis.kt` instead of ad hoc validation/runtime walkers.
         - [x] Native-path source analysis. `ScriptSourceAnalysis.kt` now owns authored script/formula root enumeration, source-root ids, and native-service path discovery; `Dsl.kt` no longer contains the recursive native path walker, and tests consult `analyzeScriptSources(nextDsl).nativePaths` so this data can grow into compiler/source-map diagnostics.
-        - [x] Validation source-map migration. `DslValidation.kt` now drives script reward checks, image references, flag transitions, and consume-active-item detection through `ScriptSourceRoot.visitScriptOps`/`visitScriptOps`; the shared walker carries branch labels, loop depth, condition context, and numeric paths for future compiled source maps.
+        - [x] Validation source-map migration. `DslValidation.kt` now drives script reward checks, image references, flag transitions, and consume-active-item detection through `ScriptSourceRoot.visitScriptStatements`/`visitScriptStatements`; the shared walker carries branch labels, loop depth, condition context, and numeric paths for future compiled source maps.
       - [x] J2a-retire.5 closeout. Production compiled mode and CI acceptance should prove every script root runs through `CompiledVm` with no implicit authored fallback; the remaining authored interpreter is either deleted or explicitly retained as a test-only oracle with a documented owner. Closed for Kotlin production hosts: `RylweenAnsiMain.kt` and `TerminalMain.kt` no longer compose `StatefulScriptBridge`, production `--script-vm` accepts only compiled aliases, Gradle ANSI server checks use `AnsiScriptVmMode.Compiled`, `kotlin-ansi` declares `RuntimeScriptExecutionStrategy.CompiledVm`, and the annotated `AuthoredScriptOracleApi` surface documents the parity/oracle test suite as the owner of the old `Op` interpreter.
     - [x] J2.7 strict snapshot closeout. Add compiled VM continuation records to the runtime snapshot format, bind them to the verified bundle hash/universe, preserve active child-session execution-boundary snapshots, reject mismatched bundle loads, and add deterministic parse/render plus live round-trip tests for waits, menus, loops, child battles, dungeon post-continuations, castle hook scripts, and town services. First slice landed: strict snapshot schema version 2 carries compiled VM continuation frames for authored script continuations, runtime saves can store the verified compiled bundle hash, load rejects compiled continuations without the matching bundle hash, and a live compiled-VM post-dungeon continuation saves, parses, resumes, and completes through the compiled bridge. The castle-continuation slice upgraded the strict snapshot schema to include castle hook script continuations so a castle entry/completion script can round-trip without falling back to an unsaveable mode. The child-boundary closeout adds engine-level battle, reward-grant, speak, random-item offer, and shop-service snapshots inside `ScriptContinuationSnapshot`, round-trips nested `battleSession { ... }`, `rewardGrantSession { ... }`, `speakSession { ... }`, `randomItemOfferSession { ... }`, and `shopServiceSession { ... }` blocks through the strict parser/writer, validates referenced monster/combat-script/reward/NPC/item/shop content on load, permits Battle-mode snapshots only when a parent castle/dungeon continuation owns the battle child, and covers compiled castle hooks or direct continuation restores that cross authored encounter, reward drop-slot, random-offer drop-slot, shop prompt, and speak prompt boundaries before restoring the child session and resuming the parent VM. J2.7 is closed for strict execution-boundary snapshots; this does not change which commands the player can use to save.
     - [x] J2.8 native VM probe. Keep the C JSON reader as the loader boundary, add a small native compiled-VM executor for one pure root and one prompt-shaped root from the J1 bundle, render events to a simple log, report root/opcode/operand/continuation positions on failure, and wire the probe into Gradle verification without declaring it a playable runtime. Current status: `checkNativeCompiledVmProbe` reuses the J1 C JSON reader executable with `--vm-probe`, runs after `checkNativeJsonBundle`, executes `Scene.castle.ydarg.already_completed` through native `View`/`Screen` event logging, blocks `Scene.missions.erethor_entry` at a native `Menu` prompt with root/instruction/operand/continuation coordinates, and executes a narrow dialogue-branch state mutation via native `SetFlag` logging. This remains a portability probe, not a C/native playable runtime.
