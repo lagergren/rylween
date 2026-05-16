@@ -342,6 +342,12 @@ sealed interface ScriptStatementNode : ScriptStatement {
     ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
+    /**
+     * Authored script-control loop.
+     *
+     * The compiler lowers this node to `CompiledOpcode.Loop`; it is not a
+     * runtime mode loop like wilderness, dungeon, castle, shop, or battle.
+     */
     data class Loop(
         val body: List<ScriptStatementNode>,
     ) : ScriptStatementNode,
@@ -413,6 +419,7 @@ sealed interface ScriptStatementNode : ScriptStatement {
     ) : ScriptStatementNode,
         ScriptStatement.Input
 
+    /** Authored member iteration for local script effects, not a runtime party-view loop. */
     data class ForEachMember(
         val varName: String,
         val includeDead: Boolean,
@@ -420,6 +427,7 @@ sealed interface ScriptStatementNode : ScriptStatement {
     ) : ScriptStatementNode,
         ScriptStatement.ControlFlow
 
+    /** Authored monster iteration for local combat scripts, not the standard battle loop. */
     data class ForEachMonster(
         val varName: String,
         val includeDead: Boolean,

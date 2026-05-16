@@ -5,6 +5,11 @@
  * for one scenario. This runtime seeds rooms, moves through the authored grid,
  * runs lifecycle scripts, battles, traps, treasure, stairs, and utility
  * commands from compiled content instead of a legacy castle implementation.
+ *
+ * This is a runtime mode loop, not an authored script-control loop. It owns
+ * live room cadence, rendering, save/load, room seeding, and movement, while
+ * castle text, room records, scripts, and rewards stay in compiled content and
+ * runtime-system rows.
  */
 
 package rylween.runtime

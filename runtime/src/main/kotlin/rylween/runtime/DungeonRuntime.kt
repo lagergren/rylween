@@ -5,6 +5,11 @@
  * consumes compiled dungeon scenarios/events, authored dungeon prompt rows from
  * `runtimeSystems.dungeon`, and direct compiled script/battle services. It owns
  * the dungeon flow instead of delegating to the legacy runtime.
+ *
+ * This is a runtime mode loop, not an authored script-control loop. It may own
+ * movement cadence, rendering, save/load, utility commands, and event planning,
+ * but dungeon prose, prompt wording, rewards, events, and handoff policies must
+ * come from compiled content/runtime-system rows.
  */
 
 package rylween.runtime

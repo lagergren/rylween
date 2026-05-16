@@ -309,14 +309,14 @@ private fun visitNestedScriptStatements(
     visitor: (ScriptSourceStatement) -> Unit,
 ) {
     fun visitBranch(
-        branchOps: List<ScriptStatementNode>,
+        branchStatements: List<ScriptStatementNode>,
         branchIndex: Int,
         branchLabel: String,
         nestedLoopDepth: Int = loopDepth,
         nestedConditions: List<BoolAst> = branchConditions,
     ) {
         visitScriptStatements(
-            statements = branchOps,
+            statements = branchStatements,
             label = branchLabel,
             root = root,
             path = path + branchIndex,

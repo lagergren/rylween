@@ -5,6 +5,11 @@
  * without delegating to the old Kotlin `ShopServiceSession`. It consumes the
  * compiled `ShopService` operand, item table, input bindings, party image, and
  * runtime-system realm constants directly.
+ *
+ * Shop buy/sell prompts are runtime service loops, not authored script-control
+ * loops. The service owns live input, catalog paging, inventory mutation, and
+ * price RNG while labels, text, bindings, catalog rows, policies, and formulas
+ * remain authored data in the compiled bundle.
  */
 
 package rylween.runtime
