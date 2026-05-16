@@ -231,6 +231,52 @@ class ScriptScope(
         hint: String = "local",
     ): LocalIntRef = localInt(lit(value), hint)
 
+    /**
+     * Records a script local and exposes it only inside [body].
+     *
+     * Prefer this block form in game-authored scripts when the value is only used
+     * by the following scripted statements. It keeps temporary storage explicit in
+     * the source IR without requiring authors to write Kotlin `val` declarations.
+     */
+    fun localInt(
+        value: IntExpr,
+        hint: String = "local",
+        body: ScriptScope.(LocalIntRef) -> Unit,
+    ) {
+        body(localInt(value, hint))
+    }
+
+    fun localInt(
+        value: Int,
+        hint: String = "local",
+        body: ScriptScope.(LocalIntRef) -> Unit,
+    ) {
+        body(localInt(value, hint))
+    }
+
+    /**
+     * Exposes the active battle/item caster to [body] without a Kotlin `val`.
+     *
+     * The runtime still supplies the `caster_idx` binding; this helper only makes
+     * the authoring surface read like a DSL block instead of imperative Kotlin.
+     */
+    fun withCurrentCaster(body: ScriptScope.(MemberRef) -> Unit) {
+        body(currentCaster)
+    }
+
+    /**
+     * Exposes the active caster plus the standard `baseCost + caster.level`
+     * expression used by current priest spells.
+     */
+    fun withCurrentCasterCost(
+        baseCost: Int,
+        body: ScriptScope.(MemberRef, IntExpr) -> Unit,
+    ) {
+        withCurrentCaster { caster ->
+            body(caster, lit(baseCost) + caster.level)
+        }
+    }
+
     infix fun LocalIntRef.set(value: IntExpr) {
         record(ScriptStatementNode.LetInt(name, value.ast))
     }
@@ -861,9 +907,24 @@ class AskScope(
         range: IntRange,
     ): IntExpr = key(prompt, *range.map { inputKey(it.toString()) }.toTypedArray())
 
+    fun digit(
+        prompt: TextBlock,
+        range: IntRange,
+        body: ScriptScope.(IntExpr) -> Unit,
+    ) {
+        script.body(digit(prompt, range))
+    }
+
     fun wildernessDirection(prompt: TextBlock): IntExpr {
         val keys = WildernessKeysModel()
         return key(prompt, keys.moveSouth, keys.moveWest, keys.moveEast, keys.moveNorth)
+    }
+
+    fun wildernessDirection(
+        prompt: TextBlock,
+        body: ScriptScope.(IntExpr) -> Unit,
+    ) {
+        script.body(wildernessDirection(prompt))
     }
 
     fun member(
@@ -882,6 +943,24 @@ class AskScope(
         return script.party.member(v(name))
     }
 
+    fun member(
+        prompt: TextId,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+        body: ScriptScope.(MemberRef) -> Unit,
+    ) {
+        script.body(member(prompt, filter, accepting))
+    }
+
+    fun member(
+        prompt: TextBlock,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+        body: ScriptScope.(MemberRef) -> Unit,
+    ) {
+        script.body(member(prompt, filter, accepting))
+    }
+
     fun inventorySlot(
         prompt: TextBlock,
         firstKey: Char = 'A',
@@ -893,12 +972,36 @@ class AskScope(
         return InventorySlotRef(v(name))
     }
 
+    fun inventorySlot(
+        prompt: TextBlock,
+        firstKey: Char = 'A',
+        slots: IntRange = 1..InventorySaveSlotMax,
+        filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
+        body: ScriptScope.(InventorySlotRef) -> Unit,
+    ) {
+        script.body(inventorySlot(prompt, firstKey, slots, filter))
+    }
+
     fun monsterAlive(prompt: TextId): MonsterRef = monsterAlive(TextBlock.Ref(prompt))
 
     fun monsterAlive(prompt: TextBlock): MonsterRef {
         val name = script.fresh("monster")
         script.record(ScriptStatementNode.AskMonster(prompt, name))
         return MonsterRef(script, v(name))
+    }
+
+    fun monsterAlive(
+        prompt: TextId,
+        body: ScriptScope.(MonsterRef) -> Unit,
+    ) {
+        script.body(monsterAlive(prompt))
+    }
+
+    fun monsterAlive(
+        prompt: TextBlock,
+        body: ScriptScope.(MonsterRef) -> Unit,
+    ) {
+        script.body(monsterAlive(prompt))
     }
 }
 
@@ -1033,6 +1136,15 @@ class ChoiceScope(
 
     fun member(
         prompt: TextId,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+        body: ScriptScope.(MemberRef) -> Unit,
+    ) {
+        script.body(member(prompt, filter, accepting))
+    }
+
+    fun member(
+        prompt: TextBlock,
         filter: MemberChoiceFilter = MemberChoiceFilter.Any,
         accepting: MemberChoiceFilter = filter,
         body: ScriptScope.(MemberRef) -> Unit,
