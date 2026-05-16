@@ -395,12 +395,16 @@ data class InventoryUsePromptsModel(
     val quaff: TextBlock = inlineText("Quaff what?"),
     val noItems: TextBlock = inlineText("You are not carrying", "anything."),
     val noItem: TextBlock = inlineText("There is nothing", "in that slot."),
-    val invalidSlotFirstPrefix: String = "Inventory slot ",
-    val invalidSlotFirstSuffix: String = "",
-    val invalidSlotSecond: String = "does not exist.",
-    val notUsableFirst: String = "Nothing happens",
-    val notUsableSecondPrefix: String = "with ",
-    val notUsableSecondSuffix: String = ".",
+    val invalidSlot: TextBlock =
+        structuredText {
+            line("Inventory slot ", InventoryText.slotName)
+            line("does not exist.")
+        },
+    val notUsable: TextBlock =
+        structuredText {
+            line("Nothing happens")
+            line("with ", InventoryText.itemName, ".")
+        },
 ) {
     fun choose(
         prompt: TextBlock,

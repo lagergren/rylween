@@ -56,8 +56,8 @@ reads, hashes, inspects, validates, and boots from the strict JSON artifact.
 Schema version 3 also contains `runtimeSystems`, a stable non-reflective section
 for the first runtime-facing systems a non-Kotlin loader should consume
 directly: realm balance, reusable prompts, terminal/layout/static presentation,
-command bindings, wilderness events, town/speak runtime boundaries, and Ydarg as
-a `castles[]` entry. The native C reader validates schema version, section
+command bindings, inventory prompt text rows, wilderness events, town/speak
+runtime boundaries, and Ydarg as a `castles[]` entry. The native C reader validates schema version, section
 order, canonical `sections` SHA-256, core row counts, and the `runtimeSystems`
 command/prompt/castle contract.
 
@@ -145,7 +145,7 @@ does not use Kotlin reflective `_type` markers; entries use explicit `kind`,
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 5,
   "realm": {},
   "pacing": {},
   "prompts": {},
@@ -162,9 +162,12 @@ does not use Kotlin reflective `_type` markers; entries use explicit `kind`,
 }
 ```
 
-`readExternalRuntimeSystemsSummary()` validates this section on the Kotlin side
-and rejects reflective markers. `tools/src/main/c/bundle-json/rylween_bundle_json.c`
-validates the same section on the C side before any future gameplay execution.
+Version 4 includes authored upkeep text such as
+`realm.upkeep.starvationDeath`, so runtimes do not need local prose for
+starvation deaths. `readExternalRuntimeSystemsSummary()` validates this section
+on the Kotlin side and rejects reflective markers.
+`tools/src/main/c/bundle-json/rylween_bundle_json.c` validates the same section
+on the C side before any future gameplay execution.
 
 The remaining sections document the J0 binary smoke artifact.
 

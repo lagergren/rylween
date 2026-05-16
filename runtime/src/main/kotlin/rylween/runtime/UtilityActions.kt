@@ -296,12 +296,14 @@ internal class UtilityActions(
     private fun ExternalRuntimeTextBlock.renderUtility(
         runtime: RuntimeState? = null,
         selectedItem: CompiledHandleRef? = null,
+        inventorySlotName: String? = null,
         equipmentKindName: String? = null,
     ): List<String> =
         render(
             values = { kind ->
                 when (kind) {
                     "selectedItemName" -> selectedItem?.let(::itemName)
+                    "inventorySlotName" -> inventorySlotName
                     "equipmentKindName" -> equipmentKindName
                     else -> runtime?.runtimeTextValue(content, kind)
                 } ?: when (kind) {
