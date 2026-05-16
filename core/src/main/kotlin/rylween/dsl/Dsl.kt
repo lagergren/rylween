@@ -4,11 +4,11 @@
  * Kotlin implementation for the Rylween authoring DSL.
  *
  * This file is implementation/compiler scaffolding: typed handles, immutable
- * models, builders, and recorded script ASTs. Current-game handles are
- * generated from `RylweenGame.dsl.kts` by the Gradle content-generation task.
- * Game-specific content belongs in `RylweenGame.dsl.kts`, validation helpers
- * live in `DslValidation.kt`, and compiled J1 emission lives in
- * `compiled/CompiledBundle.kt`.
+ * models, builders, and recorded source scripts. Current-game handles are
+ * generated from `RylweenGame.kt` by the Gradle content-generation task.
+ * Game-specific content belongs in `game/src/main/kotlin/rylween/game`,
+ * validation helpers live in `DslValidation.kt`, and compiled J1 emission lives
+ * in `compiled/CompiledBundle.kt`.
  *
  * Authoring goals:
  * 1. Kotlin is the source format.

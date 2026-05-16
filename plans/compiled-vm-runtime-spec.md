@@ -6,10 +6,10 @@ J2/J3 work in [j2-compiled-vm-plan.md](j2-compiled-vm-plan.md) and the runtime
 tasks tracked in [dsl-improvements.md](dsl-improvements.md).
 
 The compiled bundle is the runtime product. A conforming runtime must not need
-the authored Kotlin `Op` tree, generated Kotlin game catalog, or old JVM session
-classes to run game content. JVM runtimes may keep those implementations as
-test or comparison oracles, but a runtime is expected to boot from
-the bundle plus its own host implementation.
+the authored Kotlin source-script IR, generated Kotlin game catalog, or old JVM
+session classes to run game content. JVM runtimes may keep those implementations
+as test or comparison oracles, but a runtime is expected to boot from the bundle
+plus its own host implementation.
 
 ## Runtime Responsibilities
 
@@ -40,7 +40,7 @@ inside `scratch/legacy-archive.zip`:
   `CompiledGameBundle` plus stable `runtimeSystems` rows directly and must not
   depend on `RylweenKotlinEngine`, old session classes such as
   `WildernessSession`/`ShopSession`, terminal adapters, generated game handles,
-  or authored `Op` execution. It owns direct wilderness state, direct
+  or authored source-script execution. It owns direct wilderness state, direct
   party/journal pages, bundle-driven wilderness command bindings, direct
   hunt/camp/upkeep rules from `runtimeSystems.realm`, direct service/dungeon/
   castle/battle execution, and a save file that validates the
@@ -120,7 +120,7 @@ must preserve the bundle hash and table identities for diagnostics and saves.
 ## VM Execution Model
 
 The compiled VM executes a `CompiledScriptProgram` root. It does not execute
-the authored Kotlin `Op` AST.
+the authored Kotlin source-script IR.
 
 Required VM state:
 
@@ -430,7 +430,7 @@ A runtime boot should follow this shape:
 A runtime must not require:
 
 - generated game-catalog handles or authored Kotlin source.
-- authored Kotlin `Op` instances.
+- authored Kotlin source-script instances.
 - the old Kotlin runtime/session classes.
 - Kotlin-specific enum names as save identity.
 - source-order assumptions that are not represented by dense ids or explicit

@@ -4,8 +4,8 @@
  * These are immutable DSL model types consumed by validation, compiled-bundle
  * emission, and the runtime-system export. They are not the game content itself:
  * authored item rows, terrain catalogs, images, map rows, camp text, and runtime
- * balance values are supplied from `RylweenGame.dsl.kts` or another game source
- * and materialized into these reusable contracts.
+ * balance values are supplied from `RylweenGame.kt` or another game source and
+ * materialized into these reusable contracts.
  */
 package rylween.dsl.impl
 
