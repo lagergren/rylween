@@ -2,9 +2,10 @@
  * Text blocks, structured text parts, and text helper builders.
  *
  * Runtime-facing text is represented as typed parts rather than ad hoc string
- * replacement. This file defines inline/ref/structured text blocks, dynamic
- * placeholders for runtime values and NPC/town references, and small builder
- * helpers used by content, scripts, prompts, and compiled text emission.
+ * replacement. This file defines literal/ref/structured/flow text blocks,
+ * dynamic placeholders for runtime values and NPC/town references, and small
+ * builder helpers used by content, scripts, prompts, and compiled text
+ * emission.
  */
 package rylween.dsl
 
@@ -198,7 +199,7 @@ data class TextLine(
     val parts: List<TextPart>,
 )
 
-/** Authored text block, either by catalog ref, inline lines, structured parts, or deferred-wrap prose. */
+/** Authored text block, either by catalog ref, literal lines, structured parts, or deferred-wrap prose. */
 sealed interface TextBlock {
     data class Ref(
         val id: TextId,
@@ -217,21 +218,25 @@ sealed interface TextBlock {
     ) : TextBlock
 }
 
-/** Creates an inline literal text block. */
-fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(expandMultiline(lines))
+/**
+ * Creates a literal text block from fixed lines.
+ *
+ * This is the preferred constructor for reusable prose or prompt text that does
+ * not need runtime-bound placeholders. The internal block kind is still named
+ * `Inline` for compiled-bundle compatibility, but the authoring API calls this
+ * literal text because it is independent of where the text is displayed.
+ */
+fun literalText(vararg lines: String): TextBlock = TextBlock.Inline(expandMultiline(lines))
 
 /** Creates a structured text block with dynamic parts. */
 fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = StructuredTextBlockBuilder().apply(body).build()
-
-/** Creates a structured text block from literal lines. */
-fun textLines(vararg lines: String): TextBlock = structuredText { lines(*expandMultiline(lines).toTypedArray()) }
 
 /**
  * Captures multi-paragraph prose without choosing a render width. Paragraphs
  * are separated by blank lines in the source, and renderers wrap them at output
  * time using their own column or pixel measurement.
  */
-fun flow(text: String): TextBlock {
+fun flowText(text: String): TextBlock {
     val trimmed = text.trimIndent()
     val paragraphs =
         trimmed
@@ -242,15 +247,34 @@ fun flow(text: String): TextBlock {
     return TextBlock.Flow(paragraphs)
 }
 
+/**
+ * Compatibility alias for older DSL code. New authored content should use
+ * [literalText] so literal data is not confused with script display actions.
+ */
+fun inlineText(vararg lines: String): TextBlock = literalText(*lines)
+
+/**
+ * Compatibility alias for older DSL code that needed literal lines as a
+ * structured block. Prefer [literalText] for fixed lines and [structuredText]
+ * only when the block contains dynamic parts.
+ */
+fun textLines(vararg lines: String): TextBlock = structuredText { lines(*expandMultiline(lines).toTypedArray()) }
+
+/**
+ * Compatibility alias for older DSL code. Prefer [flowText] so deferred-wrap
+ * prose reads like a text constructor rather than a control-flow operation.
+ */
+fun flow(text: String): TextBlock = flowText(text)
+
 @Deprecated(
     message = "flow text is renderer-wrapped; pass renderer width at output time",
-    replaceWith = ReplaceWith("flow(text)"),
+    replaceWith = ReplaceWith("flowText(text)"),
 )
 @Suppress("UNUSED_PARAMETER")
 fun flow(
     text: String,
     columns: Int,
-): TextBlock = flow(text)
+): TextBlock = flowText(text)
 
 /**
  * Detection rule for triple-quoted multi-line authoring: if the caller

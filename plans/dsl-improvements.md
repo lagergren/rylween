@@ -611,17 +611,24 @@ B1-B9 first-pass notes:
   - [ ] I8b. Prompt schema cleanup. Replace phrase-fragment prompt fields such as invalid-slot prefixes/suffixes, town closed/unavailable suffixes, and save/creation suffixes with structured prompt rows or typed label fields where a runtime currently assembles player prose. Keep mechanical values such as inventory slot letters, save file paths, and score/status column labels host-owned unless they become authored prose.
     - [x] I8b.1. Inventory-use invalid-slot and not-usable prompt fragments are now full structured prompt rows (`invalidSlot`, `notUsable`) using typed `InventoryText.slotName` and `InventoryText.itemName` bindings. The stable `runtimeSystems` schema is version 5 for this prompt-row shape, and the old prefix/suffix prompt fields were removed from the DSL model and artifact reader/writer.
     - [x] I8b.2. The unused town unavailable/closed suffix prompt fields were removed from the DSL/runtime-system prompt schema, and character-creation save confirmation changed from the string fragment `saveConfirmationSuffix` to the authored text row `saveConfirmation`. This advanced the stable `runtimeSystems` schema during the cleanup, and the ledger rejects the old field names in emitted artifacts.
-  - [ ] I8c. Game DSL text-shape rules. Document and then apply conservative normalization rules: `say` should be dialogue-only authoring sugar; `readScreen` should mean screen + explicit Return wait + clear; multi-line prose should prefer structured blocks when it contains typed parts; `flow(...)` should be reserved for paragraphs that rely on runtime wrapping; raw `screen(vararg)` remains import sugar but should not be the pattern for new authored content.
-  - [ ] I8c.1. Text display vocabulary cleanup. Audit every author-facing text
-    constructor and display action (`inlineText`, `textLines`, `structuredText`,
-    `flow`, `screen`, `say`, `readScreen`, `emit`, and related helpers), then
-    settle on clear names that distinguish text data from runtime display
-    actions. Target shape: one preferred constructor family for reusable text
-    values, one preferred action for writing text to the current text window,
-    one explicit helper for write + Return/input wait + clear, and narrow
-    compatibility aliases only where they make existing authored dialogue easier
-    to read. Update the game source and KDoc/plan docs so future authors do not
-    need to infer the difference from implementation history.
+  - [x] I8c. Game DSL text-shape rules. Current status: reusable text data now
+    uses the preferred constructor vocabulary `literalText`, `structuredText`,
+    and `flowText`; script display uses `writeText`; read-and-dismiss pages use
+    `showTextAndWait`; and `say` is documented as a dialogue-only alias. The
+    older `inlineText`, `textLines`, `flow`, `screen`, and `readScreen` names
+    remain compatibility aliases for implementation and migration code, but the
+    authored game source no longer uses the legacy constructor/read-screen names
+    or `screen` as a script text-write action.
+  - [x] I8c.1. Text display vocabulary cleanup. Audited the author-facing text
+    constructor and display action surface (`inlineText`, `textLines`,
+    `structuredText`, `flow`, `screen`, `say`, `readScreen`, `emit`, and related
+    helpers) and settled on explicit names that distinguish text data from text
+    display side effects. `TextDsl.kt` now documents literal/structured/flow
+    data constructors, `ScriptScope` exposes `writeText` and
+    `showTextAndWait`, and the compiled/runtime model remains stable behind
+    compatibility aliases. The compiled-game ledger rejects legacy constructor
+    and read-screen vocabulary in current game authoring and keeps `screen(...)`
+    reserved for static/reusable screen declarations rather than script writes.
   - [ ] I8d. Guardrails. Add ledger or validation coverage that the current emitted game has no `[missing prompt: ...]` rows, that new runtime-rendered player prose goes through authored text/prompt models, and that any remaining runtime literals are documented as diagnostics/chrome instead of accidental game strings.
     - [x] I8d.1. The compiled-game ledger now rejects emitted external bundle artifacts containing `[missing prompt:` so runtime-system prompts cannot silently fall back to placeholder prose in the shipped game.
   - [ ] I8e. Input-binding ownership audit. Recheck whether `Dsl.kt` and

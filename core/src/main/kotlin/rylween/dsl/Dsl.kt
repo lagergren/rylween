@@ -97,35 +97,78 @@ class ScriptScope(
 
     fun fresh(prefix: String): String = ctx.fresh(prefix)
 
-    fun screen(text: TextBlock): Unit = record(Op.Screen(text))
+    /**
+     * Writes text to the active text window.
+     *
+     * This is the preferred script display verb. It intentionally names the
+     * runtime side effect, while [literalText], [structuredText], and [flowText]
+     * name reusable text data.
+     */
+    fun writeText(text: TextBlock): Unit = record(Op.Screen(text))
 
-    fun screen(id: TextId): Unit = screen(TextBlock.Ref(id))
+    fun writeText(id: TextId): Unit = writeText(TextBlock.Ref(id))
 
-    fun screen(vararg lines: String): Unit = screen(textLines(*lines))
+    fun writeText(vararg lines: String): Unit = writeText(literalText(*lines))
 
-    fun screen(body: StructuredTextBlockBuilder.() -> Unit): Unit = screen(structuredText(body))
+    fun writeText(body: StructuredTextBlockBuilder.() -> Unit): Unit = writeText(structuredText(body))
 
-    fun readScreen(vararg lines: String) {
-        readScreen(textLines(*lines))
+    /**
+     * Writes text, waits for the player to press Return/Enter, and clears the
+     * text window. Use this for read-and-dismiss pages rather than spelling out
+     * the three operations at each script site.
+     */
+    fun showTextAndWait(vararg lines: String) {
+        showTextAndWait(literalText(*lines))
     }
 
-    fun readScreen(text: TextBlock) {
-        screen(text)
+    fun showTextAndWait(text: TextBlock) {
+        writeText(text)
         waitInput()
         clearText()
     }
 
-    fun readScreen(body: StructuredTextBlockBuilder.() -> Unit) {
-        readScreen(structuredText(body))
+    fun showTextAndWait(body: StructuredTextBlockBuilder.() -> Unit) {
+        showTextAndWait(structuredText(body))
     }
 
-    fun say(text: TextBlock): Unit = screen(text)
+    /** Dialogue-oriented alias for [writeText]. Prefer it only for spoken lines. */
+    fun say(text: TextBlock): Unit = writeText(text)
 
-    fun say(id: TextId): Unit = screen(id)
+    /** Dialogue-oriented alias for [writeText]. Prefer it only for spoken lines. */
+    fun say(id: TextId): Unit = writeText(id)
 
-    fun say(vararg lines: String): Unit = screen(*lines)
+    /** Dialogue-oriented alias for [writeText]. Prefer it only for spoken lines. */
+    fun say(vararg lines: String): Unit = writeText(*lines)
 
-    fun say(body: StructuredTextBlockBuilder.() -> Unit): Unit = screen(body)
+    /** Dialogue-oriented alias for [writeText]. Prefer it only for spoken lines. */
+    fun say(body: StructuredTextBlockBuilder.() -> Unit): Unit = writeText(body)
+
+    /** Compatibility alias for older authored scripts. New code should use [writeText]. */
+    fun screen(text: TextBlock): Unit = writeText(text)
+
+    /** Compatibility alias for older authored scripts. New code should use [writeText]. */
+    fun screen(id: TextId): Unit = writeText(id)
+
+    /** Compatibility alias for older authored scripts. New code should use [writeText]. */
+    fun screen(vararg lines: String): Unit = writeText(*lines)
+
+    /** Compatibility alias for older authored scripts. New code should use [writeText]. */
+    fun screen(body: StructuredTextBlockBuilder.() -> Unit): Unit = writeText(body)
+
+    /** Compatibility alias for older authored scripts. New code should use [showTextAndWait]. */
+    fun readScreen(vararg lines: String) {
+        showTextAndWait(*lines)
+    }
+
+    /** Compatibility alias for older authored scripts. New code should use [showTextAndWait]. */
+    fun readScreen(text: TextBlock) {
+        showTextAndWait(text)
+    }
+
+    /** Compatibility alias for older authored scripts. New code should use [showTextAndWait]. */
+    fun readScreen(body: StructuredTextBlockBuilder.() -> Unit) {
+        showTextAndWait(body)
+    }
 
     fun emit(id: TextId): Unit = record(Op.Emit(id))
 
