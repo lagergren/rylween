@@ -245,6 +245,7 @@ data class ExternalRuntimeSecretPlayer(
 data class ExternalRuntimePrompts(
     val pauseVerbs: List<String>,
     val returnKeyName: String,
+    val save: ExternalSavePrompts,
     val titleMenu: ExternalTitleMenuPrompts,
     val priest: ExternalPriestSpellPrompts,
     val inventoryUse: ExternalInventoryUsePrompts,
@@ -253,6 +254,12 @@ data class ExternalRuntimePrompts(
     val party: ExternalPartyPrompts,
     val wilderness: ExternalWildernessPrompts,
     val characterCreation: ExternalCharacterCreationPrompts,
+)
+
+data class ExternalSavePrompts(
+    val saving: ExternalRuntimeTextBlock,
+    val done: ExternalRuntimeTextBlock,
+    val failed: ExternalRuntimeTextBlock,
 )
 
 data class ExternalRuntimePacing(
@@ -330,8 +337,6 @@ data class ExternalEquipmentPrompts(
 )
 
 data class ExternalTownPrompts(
-    val unavailableSuffix: String,
-    val closedSuffix: String,
     val menuTitle: ExternalRuntimeTextBlock,
     val entryWelcome: ExternalRuntimeTextBlock,
     val entryTax: ExternalRuntimeTextBlock,
@@ -386,8 +391,9 @@ data class ExternalCharacterCreationPrompts(
     val genderFemaleLabel: String,
     val race: ExternalRuntimeTextBlock,
     val classMenu: ExternalRuntimeTextBlock,
+    val invalidInput: ExternalRuntimeTextBlock,
     val saving: ExternalRuntimeTextBlock,
-    val saveConfirmationSuffix: String,
+    val saveConfirmation: ExternalRuntimeTextBlock,
 )
 
 data class ExternalRuntimeCharacterCreation(
@@ -1188,7 +1194,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun runtimeSystemsJson(game: GameModel): JsonValue =
         jsonObject(
-            "schemaVersion" to JsonNumber("5"),
+            "schemaVersion" to JsonNumber("7"),
             "realm" to realmJson(game.realm),
             "prompts" to promptsJson(game.prompts),
             "pacing" to pacingJson(game.pacing),
@@ -1604,8 +1610,9 @@ private class ExternalBundleArtifactWriter {
                             stringField("genderFemaleLabel", prompts.characterCreation.genderFemaleLabel),
                             textField("race", prompts.characterCreation.race),
                             textField("classMenu", prompts.characterCreation.classMenu),
+                            textField("invalidInput", prompts.characterCreation.invalidInput),
                             textField("saving", prompts.characterCreation.saving),
-                            stringField("saveConfirmationSuffix", prompts.characterCreation.saveConfirmationSuffix),
+                            textField("saveConfirmation", prompts.characterCreation.saveConfirmation),
                         ),
                         promptGroupJson(
                             "priest",
@@ -1640,8 +1647,6 @@ private class ExternalBundleArtifactWriter {
                         ),
                         promptGroupJson(
                             "town",
-                            stringField("unavailableSuffix", prompts.town.unavailableSuffix),
-                            stringField("closedSuffix", prompts.town.closedSuffix),
                             textField("menuTitle", prompts.town.menuTitle),
                             textField("entryWelcome", prompts.town.entryWelcome),
                             textField("entryTax", prompts.town.entryTax),
@@ -2715,6 +2720,7 @@ private class ExternalRuntimeSystemsReader(
         )
 
     private fun JsonObject.readPrompts(): ExternalRuntimePrompts {
+        val save = promptGroupFields("save")
         val titleMenu = promptGroupFields("titleMenu")
         val priest = promptGroupFields("priest")
         val inventoryUse = promptGroupFields("inventoryUse")
@@ -2726,6 +2732,12 @@ private class ExternalRuntimeSystemsReader(
         return ExternalRuntimePrompts(
             pauseVerbs = requiredArray("pauseVerbs").values.map { verb -> verb.asString("pause verb") },
             returnKeyName = requiredString("returnKeyName"),
+            save =
+                ExternalSavePrompts(
+                    saving = save.requiredTextPrompt("saving"),
+                    done = save.requiredTextPrompt("done"),
+                    failed = save.requiredTextPrompt("failed"),
+                ),
             titleMenu =
                 ExternalTitleMenuPrompts(
                     header = titleMenu.requiredTextPrompt("header"),
@@ -2769,8 +2781,6 @@ private class ExternalRuntimeSystemsReader(
                 ),
             town =
                 ExternalTownPrompts(
-                    unavailableSuffix = town.requiredStringPrompt("unavailableSuffix"),
-                    closedSuffix = town.requiredStringPrompt("closedSuffix"),
                     menuTitle = town.requiredTextPrompt("menuTitle"),
                     entryWelcome = town.requiredTextPrompt("entryWelcome"),
                     entryTax = town.requiredTextPrompt("entryTax"),
@@ -2813,8 +2823,9 @@ private class ExternalRuntimeSystemsReader(
                     genderFemaleLabel = characterCreation.requiredStringPrompt("genderFemaleLabel"),
                     race = characterCreation.requiredTextPrompt("race"),
                     classMenu = characterCreation.requiredTextPrompt("classMenu"),
+                    invalidInput = characterCreation.requiredTextPrompt("invalidInput"),
                     saving = characterCreation.requiredTextPrompt("saving"),
-                    saveConfirmationSuffix = characterCreation.optionalStringPrompt("saveConfirmationSuffix", "OK"),
+                    saveConfirmation = characterCreation.requiredTextPrompt("saveConfirmation"),
                 ),
         )
     }

@@ -355,7 +355,7 @@ class CastleKeysBuilder(
     private var stairsTeleport = initial.stairsTeleport
     private var stairsGive = initial.stairsGive
     private var stairsLeave = initial.stairsLeave
-    var commandLabels: CastleCommandLabelsModel = initial.commandLabels
+    private var commandLabels: CastleCommandLabelsModel = initial.commandLabels
 
     /** Replaces the treasure-room take/leave bindings. */
     fun treasure(

@@ -55,6 +55,10 @@ class ScriptContext {
 @DslMarker
 annotation class RylNextDsl
 
+fun itemPools(vararg pools: ItemPoolId): List<ItemPoolId> = pools.toList()
+
+fun textAnswers(vararg answers: String): List<String> = answers.toList()
+
 @RylNextDsl
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class ScriptScope(
@@ -475,6 +479,9 @@ class ScriptRewardBuilder {
         applicationModel = RewardApplicationBuilder(applicationModel).apply(body).build()
     }
 
+    // Public authoring overload: callers may pass structured reward/drop text,
+    // while String/TextId overloads below keep common one-line cases simple.
+    @Suppress("MemberVisibilityCanBePrivate")
     fun promptDrop(
         cantCarry: TextBlock,
         pickedUp: TextBlock? = null,
@@ -590,6 +597,9 @@ class RandomItemOfferBuilder(
         messagesModel = messagesModel.copy(cantCarry = RandomItemOfferTextBuilder().apply(body).build())
     }
 
+    // Public authoring overload: random offers can customize the picked-up
+    // message with a prebuilt text row when one-line strings are not enough.
+    @Suppress("MemberVisibilityCanBePrivate")
     fun promptDrop(pickedUp: TextBlock? = null) {
         applicationModel = applicationModel.copy(overflow = RewardOverflowPolicy.PromptDropThenPlace)
         messagesModel = messagesModel.copy(pickedUp = pickedUp)
@@ -2053,6 +2063,20 @@ class VisualsBuilder(
 class ImageAssetsBuilder {
     private val images = mutableListOf<ImageAssetModel>()
 
+    fun ansiFullScreen(
+        id: ImageId,
+        resource: String,
+    ) {
+        ansi(id, resource = resource, placement = ImagePlacement.FullScreen)
+    }
+
+    fun ansiMapWindow(
+        id: ImageId,
+        resource: String,
+    ) {
+        ansi(id, resource = resource, placement = ImagePlacement.MapWindow)
+    }
+
     fun ansi(
         id: ImageId,
         resource: String,
@@ -2067,6 +2091,14 @@ class ImageAssetsBuilder {
                 placement = placement,
                 transition = transition,
             )
+    }
+
+    fun bitmapMapWindow(
+        id: ImageId,
+        resource: String,
+        transition: ImageTransition = ImageTransition.Fade,
+    ) {
+        bitmap(id, resource = resource, placement = ImagePlacement.MapWindow, transition = transition)
     }
 
     fun bitmap(
@@ -2508,8 +2540,9 @@ class CharacterCreationPromptsBuilder(
     var genderFemaleLabel: String = initial.genderFemaleLabel
     private var raceText: TextBlock = initial.race
     var classMenu: TextBlock = initial.classMenu
+    var invalidInput: TextBlock = initial.invalidInput
     var saving: TextBlock = initial.saving
-    var saveConfirmationSuffix: String = initial.saveConfirmationSuffix
+    var saveConfirmation: TextBlock = initial.saveConfirmation
 
     fun statsPage(body: CharacterCreationStatsPromptBuilder.() -> Unit) {
         statsPageText = CharacterCreationStatsPromptBuilder().apply(body).build()
@@ -2539,8 +2572,9 @@ class CharacterCreationPromptsBuilder(
             genderFemaleLabel = genderFemaleLabel,
             race = raceText,
             classMenu = classMenu,
+            invalidInput = invalidInput,
             saving = saving,
-            saveConfirmationSuffix = saveConfirmationSuffix,
+            saveConfirmation = saveConfirmation,
         )
 }
 
@@ -2548,8 +2582,6 @@ class CharacterCreationPromptsBuilder(
 class TownPromptsBuilder(
     initial: TownPromptsModel = TownPromptsModel(),
 ) {
-    var unavailableSuffix: String = initial.unavailableSuffix
-    var closedSuffix: String = initial.closedSuffix
     private var menuTitleText: TextBlock = initial.menuTitle
     var entryWelcome: TextBlock = initial.entryWelcome
     var entryTax: TextBlock = initial.entryTax
@@ -2561,8 +2593,6 @@ class TownPromptsBuilder(
 
     fun build(): TownPromptsModel =
         TownPromptsModel(
-            unavailableSuffix = unavailableSuffix,
-            closedSuffix = closedSuffix,
             menuTitle = menuTitleText,
             entryWelcome = entryWelcome,
             entryTax = entryTax,
@@ -2576,7 +2606,13 @@ class PartyPromptsBuilder(
 ) {
     var viewWho: TextBlock = initial.viewWho
     var journalHeader: TextBlock = initial.journalHeader
+
+    // Public prompt overrides consumed from runtimeSystems by PartyPages.
+    @Suppress("MemberVisibilityCanBePrivate")
     var journalEmpty: TextBlock = initial.journalEmpty
+
+    // Public prompt overrides consumed from runtimeSystems by PartyPages.
+    @Suppress("MemberVisibilityCanBePrivate")
     var inventoryHeader: TextBlock = initial.inventoryHeader
     var dropPrompt: TextBlock = initial.dropPrompt
     var dropEmptySlot: TextBlock = initial.dropEmptySlot
@@ -3020,7 +3056,7 @@ class DungeonKeysBuilder(
     var castSpell: InputBindingModel = initial.castSpell
     var viewParty: InputBindingModel = initial.viewParty
     var save: InputBindingModel = initial.save
-    var commandLabels: DungeonCommandLabelsModel = initial.commandLabels
+    private var commandLabels: DungeonCommandLabelsModel = initial.commandLabels
     private var commandHintText = initial.commandHint
     private var helpPageText = initial.helpPages
 

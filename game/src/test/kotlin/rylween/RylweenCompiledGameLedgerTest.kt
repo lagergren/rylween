@@ -1,5 +1,7 @@
 package rylween
 
+import rylween.compiled.RuntimeCommandActionId
+import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.readExternalRuntimeSystems
 import rylween.compiled.toExternalBundleArtifact
 import rylween.dsl.BoolAst
@@ -108,6 +110,7 @@ class RylweenCompiledGameLedgerTest {
         val townSystem = checkNotNull(nextDsl.townSystem)
         val castleContent = nextDsl.castles.single { it.id == Castles.ydarg }
         val externalBundle = nextRylween.toExternalBundleArtifact()
+        val externalBundleText = externalBundle.decodeToString()
         val runtimeSystems = externalBundle.readExternalRuntimeSystems()
 
         check(nextDsl.flags.size == 14)
@@ -507,6 +510,25 @@ class RylweenCompiledGameLedgerTest {
                 .take(4)
                 .map { command -> command.label } ==
                 listOf("Move North", "Move South", "Move West", "Move East"),
+        )
+        check(
+            runtimeSystems.commands
+                .getValue(RuntimeCommandGroupId.Dungeon.id)
+                .associate { command -> command.action to command.label } ==
+                mapOf(
+                    RuntimeCommandActionId.Descend.id to "Descend",
+                    RuntimeCommandActionId.Ascend.id to "Ascend",
+                    RuntimeCommandActionId.Help.id to "View this help",
+                    RuntimeCommandActionId.Drop.id to "Leave (Discard) Item",
+                    RuntimeCommandActionId.RemoveArmor.id to "Take off armor",
+                    RuntimeCommandActionId.RemoveWeapon.id to "Put down weapon",
+                    RuntimeCommandActionId.ReadyWeapon.id to "Wield Weapon",
+                    RuntimeCommandActionId.ReadyArmor.id to "Ready Armor",
+                    RuntimeCommandActionId.Quaff.id to "Quaff Potion",
+                    RuntimeCommandActionId.CastSpell.id to "Cast Spell",
+                    RuntimeCommandActionId.ViewParty.id to "View Party",
+                    RuntimeCommandActionId.Save.id to "Save Game",
+                ),
         )
         listOf("castle.ydarg.entry_blocked", "castle.ydarg.entered").forEach { sceneSlug ->
             val scene = nextDsl.scenes.single { it.id.slug == sceneSlug }
@@ -1032,11 +1054,57 @@ class RylweenCompiledGameLedgerTest {
                 if (kind == "selectedItemName") "Fire Wand" else null
             } == listOf("Nothing happens", "with Fire Wand."),
         )
-        check("[missing prompt:" !in externalBundle.decodeToString()) {
+        check(
+            nextDsl.prompts.party.journalEmpty
+                .fallbackText() == "No journal entries.",
+        )
+        check(
+            runtimeSystems.prompts.party.journalEmpty
+                .render { null } ==
+                listOf("No journal entries."),
+        )
+        check(
+            nextDsl.prompts.party.inventoryHeader
+                .fallbackText() == "Inventory:",
+        )
+        check(
+            runtimeSystems.prompts.party.inventoryHeader
+                .render { null } ==
+                listOf("Inventory:"),
+        )
+        check(
+            nextDsl.prompts.save.done
+                .fallbackText() == "Game saved.",
+        )
+        check(
+            runtimeSystems.prompts.save.done
+                .render { null } == listOf("Game saved."),
+        )
+        check(
+            nextDsl.prompts.characterCreation.invalidInput
+                .fallbackText() == "Invalid input.",
+        )
+        check(
+            runtimeSystems.prompts.characterCreation.invalidInput
+                .render { null } == listOf("Invalid input."),
+        )
+        check(
+            nextDsl.prompts.characterCreation.saveConfirmation
+                .fallbackText() == "OK",
+        )
+        check(
+            runtimeSystems.prompts.characterCreation.saveConfirmation
+                .render { null } == listOf("OK"),
+        )
+        check("[missing prompt:" !in externalBundleText) {
             "external runtime bundle must not ship placeholder prompt rows"
         }
+        listOf("saveConfirmationSuffix", "unavailableSuffix", "closedSuffix").forEach { staleField ->
+            check(staleField !in externalBundleText) {
+                "external runtime bundle must not ship stale prompt field $staleField"
+            }
+        }
         check(nextDsl.prompts.equipment.readyArmors == inlineText("Do you want to ready", "any armors before", "leaving?", ""))
-        check(nextDsl.prompts.town.closedSuffix == " is closed.")
         check(nextDsl.realm.upkeep.foodTickEvery == 5)
         check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
         check(

@@ -373,8 +373,9 @@ data class CharacterCreationPromptsModel(
     val genderFemaleLabel: String = "Female",
     val race: TextBlock = missingPrompt("character_creation.race"),
     val classMenu: TextBlock = missingPrompt("character_creation.class_menu"),
+    val invalidInput: TextBlock = inlineText("Invalid input."),
     val saving: TextBlock = missingPrompt("character_creation.saving"),
-    val saveConfirmationSuffix: String = "OK",
+    val saveConfirmation: TextBlock = inlineText("OK"),
 )
 
 data class PriestSpellPromptsModel(
@@ -428,8 +429,6 @@ data class EquipmentPromptsModel(
 )
 
 data class TownPromptsModel(
-    val unavailableSuffix: String = " is not available here.",
-    val closedSuffix: String = " is closed.",
     val menuTitle: TextBlock = structuredText { line("Entering ", TownText.name) },
     val entryWelcome: TextBlock = missingPrompt("town.entry_welcome"),
     val entryTax: TextBlock = missingPrompt("town.entry_tax"),
