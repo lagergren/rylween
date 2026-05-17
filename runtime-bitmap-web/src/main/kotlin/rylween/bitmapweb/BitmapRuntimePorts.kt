@@ -588,7 +588,7 @@ internal fun WorldMap.bitmapViewport(
             },
         perspective =
             buildBitmapWildernessPerspectiveSet(center) { point ->
-                bitmapTileAt(point, content, center = point == center)
+                bitmapPerspectiveTileAt(point, content, center = point == center)
             },
     )
 
@@ -684,6 +684,25 @@ internal fun WorldMap.bitmapTileAt(
         waterGlyph = waterMask.takeIf { terrain?.isBitmapWater(content) == true }?.waterGlyph(),
     )
 }
+
+private fun WorldMap.bitmapPerspectiveTileAt(
+    point: GridPoint,
+    content: CompiledContentBundle,
+    center: Boolean,
+): BitmapTile {
+    val clamped = point.clampedToBitmapWorldBounds(this)
+    return bitmapTileAt(clamped, content, center)
+        .copy(
+            x = point.x,
+            y = point.y,
+        )
+}
+
+private fun GridPoint.clampedToBitmapWorldBounds(world: WorldMap): GridPoint =
+    GridPoint(
+        x = x.coerceIn(0, (world.width - 1).coerceAtLeast(0)),
+        y = y.coerceIn(1, world.height.coerceAtLeast(1)),
+    )
 
 private fun ExternalImageAsset.toBitmapImageAsset(): BitmapImageAsset =
     BitmapImageAsset(

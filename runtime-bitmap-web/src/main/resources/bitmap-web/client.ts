@@ -1,4 +1,23 @@
 type Bounds = { x: number; y: number; w: number; h: number };
+type CanvasPoint = { x: number; y: number };
+type PerspectiveQuad = {
+    nearLeft: CanvasPoint;
+    nearRight: CanvasPoint;
+    farRight: CanvasPoint;
+    farLeft: CanvasPoint;
+};
+type WildernessBackdropTheme = {
+    skyTop: string;
+    skyMid: string;
+    skyLow: string;
+    ridgeFar: string;
+    ridgeNear: string;
+    forest: string;
+    haze: string;
+    glow: string;
+    groundTint: string;
+    lightAlpha: number;
+};
 type Layout = { map: Bounds; text: Bounds; status: Bounds };
 type BitmapAssets = Record<string, HTMLImageElement>;
 type StatusHotspot = Bounds & { text: string };
@@ -11,9 +30,17 @@ type PartyStat = [string, string | number | undefined | null];
 type TextEffect = "None" | "Fast" | "Reveal";
 type WildernessFacing = "North" | "East" | "South" | "West";
 type TextRevealSettings = { enabled: boolean; charsPerSecond: number };
-type TextDisplaySettings = { bitmapFont: boolean; bitmapFontScale: number };
+type TextDisplaySettings = { bitmapFont: boolean; bitmapFontScale: number; bitmapLineSpacing: number };
 type RuntimePreferenceSettings = { pauseDelayScale: number };
 type WildernessDisplaySettings = { perspective: boolean; facing: WildernessFacing };
+type WildernessRotationTransition = {
+    from: WildernessFacing;
+    to: WildernessFacing;
+    direction: number;
+    started: number;
+    duration: number;
+};
+type PendingWildernessMove = { facing: WildernessFacing; x: number; y: number };
 type TextReveal = {
     complete: boolean;
     duration: number;
@@ -214,6 +241,8 @@ const bitmapFontToggle = requireElement("bitmapFontToggle", HTMLInputElement);
 const wildernessPerspectiveToggle = requireElement("wildernessPerspectiveToggle", HTMLInputElement);
 const bitmapFontScale = requireElement("bitmapFontScale", HTMLInputElement);
 const bitmapFontScaleValue = requireElement("bitmapFontScaleValue", HTMLElement);
+const bitmapLineSpacing = requireElement("bitmapLineSpacing", HTMLInputElement);
+const bitmapLineSpacingValue = requireElement("bitmapLineSpacingValue", HTMLElement);
 const textRevealSpeed = requireElement("textRevealSpeed", HTMLInputElement);
 const textRevealSpeedValue = requireElement("textRevealSpeedValue", HTMLElement);
 const pauseDelayScale = requireElement("pauseDelayScale", HTMLInputElement);
@@ -229,27 +258,38 @@ let titleFade: TitleFade | null = null;
 let sceneFade: SceneFade | null = null;
 let textReveal: TextReveal | null = null;
 let textRevealAnimation = 0;
-const assetVersion = "20260517-wilderness-perspective-assets";
+let wildernessRotationTransition: WildernessRotationTransition | null = null;
+let pendingWildernessMove: PendingWildernessMove | null = null;
+let wildernessRotationAnimation = 0;
+const assetVersion = "20260517-view-mode-keys";
 const textRevealEnabledKey = "rylween.bitmap.textReveal.enabled";
 const textRevealSpeedKey = "rylween.bitmap.textReveal.speed";
 const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap";
 const bitmapFontScaleKey = "rylween.bitmap.textFont.scale";
+const bitmapLineSpacingKey = "rylween.bitmap.textFont.lineSpacing";
 const pauseDelayScaleKey = "rylween.bitmap.pauseDelay.scale";
 const wildernessPerspectiveKey = "rylween.bitmap.wilderness.perspective";
 const pauseDelayScaleMessagePrefix = "settings:pauseDelayScale=";
 const defaultBitmapFontScale = 1.75;
 const minBitmapFontScale = 1.45;
 const maxBitmapFontScale = 2.1;
+const defaultBitmapLineSpacing = 1.1;
+const minBitmapLineSpacing = 0.9;
+const maxBitmapLineSpacing = 1.4;
 const defaultPauseDelayScale = 1.0;
 const minPauseDelayScale = 0.25;
 const maxPauseDelayScale = 2.0;
+const visualNoiseA = 12.9898;
+const visualNoiseB = 78.233;
+const visualNoiseScale = 43758.5453123;
 const textRevealSettings: TextRevealSettings = {
     enabled: storedBoolean(textRevealEnabledKey, true),
     charsPerSecond: storedNumber(textRevealSpeedKey, 220, 90, 280)
 };
 const textDisplaySettings: TextDisplaySettings = {
     bitmapFont: storedBoolean(bitmapFontEnabledKey, true),
-    bitmapFontScale: storedNumber(bitmapFontScaleKey, defaultBitmapFontScale, minBitmapFontScale, maxBitmapFontScale)
+    bitmapFontScale: storedNumber(bitmapFontScaleKey, defaultBitmapFontScale, minBitmapFontScale, maxBitmapFontScale),
+    bitmapLineSpacing: storedNumber(bitmapLineSpacingKey, defaultBitmapLineSpacing, minBitmapLineSpacing, maxBitmapLineSpacing)
 };
 const runtimePreferenceSettings: RuntimePreferenceSettings = {
     pauseDelayScale: storedNumber(pauseDelayScaleKey, defaultPauseDelayScale, minPauseDelayScale, maxPauseDelayScale)
@@ -257,6 +297,56 @@ const runtimePreferenceSettings: RuntimePreferenceSettings = {
 const wildernessDisplaySettings: WildernessDisplaySettings = {
     perspective: storedBoolean(wildernessPerspectiveKey, false),
     facing: "North"
+};
+const wildernessBackdropThemes: Record<string, WildernessBackdropTheme> = {
+    dawn: {
+        skyTop: "#14233a",
+        skyMid: "#5d6f74",
+        skyLow: "#c79b57",
+        ridgeFar: "rgba(72, 79, 84, 0.8)",
+        ridgeNear: "rgba(45, 61, 46, 0.9)",
+        forest: "rgba(15, 39, 21, 0.78)",
+        haze: "rgba(245, 183, 96, 0.18)",
+        glow: "rgba(247, 184, 89, 0.36)",
+        groundTint: "rgba(224, 179, 77, 0.12)",
+        lightAlpha: 0.1
+    },
+    midday: {
+        skyTop: "#1f4667",
+        skyMid: "#6e9eb0",
+        skyLow: "#d5c28a",
+        ridgeFar: "rgba(89, 99, 97, 0.74)",
+        ridgeNear: "rgba(52, 76, 48, 0.88)",
+        forest: "rgba(19, 54, 26, 0.76)",
+        haze: "rgba(217, 222, 178, 0.18)",
+        glow: "rgba(246, 220, 142, 0.24)",
+        groundTint: "rgba(221, 214, 121, 0.1)",
+        lightAlpha: 0.06
+    },
+    twilight: {
+        skyTop: "#171936",
+        skyMid: "#624366",
+        skyLow: "#b46840",
+        ridgeFar: "rgba(55, 52, 67, 0.82)",
+        ridgeNear: "rgba(39, 48, 43, 0.92)",
+        forest: "rgba(12, 30, 21, 0.82)",
+        haze: "rgba(205, 91, 73, 0.2)",
+        glow: "rgba(218, 92, 62, 0.3)",
+        groundTint: "rgba(194, 88, 58, 0.12)",
+        lightAlpha: 0.16
+    },
+    midnight: {
+        skyTop: "#050713",
+        skyMid: "#10182b",
+        skyLow: "#1d2b36",
+        ridgeFar: "rgba(27, 32, 47, 0.88)",
+        ridgeNear: "rgba(14, 26, 25, 0.94)",
+        forest: "rgba(3, 13, 10, 0.9)",
+        haze: "rgba(98, 124, 162, 0.14)",
+        glow: "rgba(145, 174, 218, 0.14)",
+        groundTint: "rgba(29, 45, 72, 0.2)",
+        lightAlpha: 0.28
+    }
 };
 const layout: Layout = {
     map: {x: 114, y: 64, w: 420, h: 482},
@@ -363,35 +453,35 @@ const fantasyGlyphs: Record<string, string[]> = {
     "~": ["00000", "00000", "01000", "10101", "00010", "00000", "00000"]
 };
 const bitmapAssets: BitmapAssets = {
-    title: loadAsset(assetUrl("/assets/title-rider.png")),
-    titleLogo: loadAsset(assetUrl("/assets/title-logo.png")),
-    frame: loadAsset(assetUrl("/assets/screen-frame.png")),
-    town: loadAsset(assetUrl("/assets/town-mainstreet.png")),
-    encounter: loadAsset(assetUrl("/assets/encounter-scorpion.png")),
-    bestiary: loadAsset(assetUrl("/assets/encounter-bestiary.png")),
-    scenes: loadAsset(assetUrl("/assets/scene-atlas.png")),
-    terrain: loadAsset(assetUrl("/assets/terrain-atlas.png")),
-    castle: loadAsset(assetUrl("/assets/castle-atlas.png")),
-    waterConnect: loadAsset(assetUrl("/assets/water-connect-atlas.png")),
-    partyMarker: loadAsset(assetUrl("/assets/party-rider.png")),
-    partyOverview: loadAsset(assetUrl("/assets/party-overview.png")),
-    sceneMainstreet: loadAsset(assetUrl("/assets/scene-thord-mainstreet.png")),
-    sceneMerchant: loadAsset(assetUrl("/assets/scene-merchant.png")),
-    sceneSmith: loadAsset(assetUrl("/assets/scene-smith.png")),
-    sceneInn: loadAsset(assetUrl("/assets/scene-inn.png")),
-    sceneTavern: loadAsset(assetUrl("/assets/scene-tavern.png")),
-    sceneChurch: loadAsset(assetUrl("/assets/scene-church.png")),
-    sceneGuild: loadAsset(assetUrl("/assets/scene-guild-closed.png")),
-    sceneCampTent: loadAsset(assetUrl("/assets/scene-camp-tent.png")),
-    sceneCampNight: loadAsset(assetUrl("/assets/scene-camp-night.png")),
-    monsterGoblinoid: loadAsset(assetUrl("/assets/monster-goblinoid.png")),
-    monsterUndead: loadAsset(assetUrl("/assets/monster-undead.png")),
-    monsterBeast: loadAsset(assetUrl("/assets/monster-beast.png")),
-    monsterFlying: loadAsset(assetUrl("/assets/monster-flying.png")),
-    monsterVermin: loadAsset(assetUrl("/assets/monster-vermin.png")),
-    monsterBrute: loadAsset(assetUrl("/assets/monster-brute.png")),
-    monsterHumanoidMagic: loadAsset(assetUrl("/assets/monster-humanoid-magic.png")),
-    monsterBoss: loadAsset(assetUrl("/assets/monster-boss.png"))
+    title: loadAsset(assetUrl("/assets/title/title-rider.png")),
+    titleLogo: loadAsset(assetUrl("/assets/title/title-logo.png")),
+    frame: loadAsset(assetUrl("/assets/ui/screen-frame.png")),
+    town: loadAsset(assetUrl("/assets/town/town-mainstreet.png")),
+    encounter: loadAsset(assetUrl("/assets/encounters/encounter-scorpion.png")),
+    bestiary: loadAsset(assetUrl("/assets/encounters/encounter-bestiary.png")),
+    scenes: loadAsset(assetUrl("/assets/atlases/scene-atlas.png")),
+    terrain: loadAsset(assetUrl("/assets/atlases/terrain-atlas.png")),
+    castle: loadAsset(assetUrl("/assets/atlases/castle-atlas.png")),
+    waterConnect: loadAsset(assetUrl("/assets/atlases/water-connect-atlas.png")),
+    partyMarker: loadAsset(assetUrl("/assets/party/party-rider.png")),
+    partyOverview: loadAsset(assetUrl("/assets/party/party-overview.png")),
+    sceneMainstreet: loadAsset(assetUrl("/assets/scenes/scene-thord-mainstreet.png")),
+    sceneMerchant: loadAsset(assetUrl("/assets/scenes/scene-merchant.png")),
+    sceneSmith: loadAsset(assetUrl("/assets/scenes/scene-smith.png")),
+    sceneInn: loadAsset(assetUrl("/assets/scenes/scene-inn.png")),
+    sceneTavern: loadAsset(assetUrl("/assets/scenes/scene-tavern.png")),
+    sceneChurch: loadAsset(assetUrl("/assets/scenes/scene-church.png")),
+    sceneGuild: loadAsset(assetUrl("/assets/scenes/scene-guild-closed.png")),
+    sceneCampTent: loadAsset(assetUrl("/assets/scenes/scene-camp-tent.png")),
+    sceneCampNight: loadAsset(assetUrl("/assets/scenes/scene-camp-night.png")),
+    monsterGoblinoid: loadAsset(assetUrl("/assets/monsters/monster-goblinoid.png")),
+    monsterUndead: loadAsset(assetUrl("/assets/monsters/monster-undead.png")),
+    monsterBeast: loadAsset(assetUrl("/assets/monsters/monster-beast.png")),
+    monsterFlying: loadAsset(assetUrl("/assets/monsters/monster-flying.png")),
+    monsterVermin: loadAsset(assetUrl("/assets/monsters/monster-vermin.png")),
+    monsterBrute: loadAsset(assetUrl("/assets/monsters/monster-brute.png")),
+    monsterHumanoidMagic: loadAsset(assetUrl("/assets/monsters/monster-humanoid-magic.png")),
+    monsterBoss: loadAsset(assetUrl("/assets/monsters/monster-boss.png"))
 };
 const portraitAssets = new Map<string, HTMLImageElement>();
 const gameImageAssets = new Map<string, HTMLImageElement>();
@@ -445,18 +535,33 @@ function configureTextRevealControls(): void {
 function configureTextDisplayControls(): void {
     bitmapFontToggle.checked = textDisplaySettings.bitmapFont;
     bitmapFontScale.value = String(textDisplaySettings.bitmapFontScale);
+    bitmapLineSpacing.value = String(textDisplaySettings.bitmapLineSpacing);
     bitmapFontScale.disabled = !textDisplaySettings.bitmapFont;
+    bitmapLineSpacing.disabled = !textDisplaySettings.bitmapFont;
     updateBitmapFontScaleValue();
+    updateBitmapLineSpacingValue();
     bitmapFontToggle.addEventListener("change", () => {
         textDisplaySettings.bitmapFont = bitmapFontToggle.checked;
         window.localStorage.setItem(bitmapFontEnabledKey, String(textDisplaySettings.bitmapFont));
         bitmapFontScale.disabled = !textDisplaySettings.bitmapFont;
+        bitmapLineSpacing.disabled = !textDisplaySettings.bitmapFont;
         if (frame) draw(frame);
     });
     bitmapFontScale.addEventListener("input", () => {
         textDisplaySettings.bitmapFontScale = storedNumberFromInput(bitmapFontScale, defaultBitmapFontScale, minBitmapFontScale, maxBitmapFontScale);
         window.localStorage.setItem(bitmapFontScaleKey, String(textDisplaySettings.bitmapFontScale));
         updateBitmapFontScaleValue();
+        if (frame) draw(frame);
+    });
+    bitmapLineSpacing.addEventListener("input", () => {
+        textDisplaySettings.bitmapLineSpacing = storedNumberFromInput(
+            bitmapLineSpacing,
+            defaultBitmapLineSpacing,
+            minBitmapLineSpacing,
+            maxBitmapLineSpacing
+        );
+        window.localStorage.setItem(bitmapLineSpacingKey, String(textDisplaySettings.bitmapLineSpacing));
+        updateBitmapLineSpacingValue();
         if (frame) draw(frame);
     });
 }
@@ -492,6 +597,10 @@ function updateTextRevealSpeedValue(): void {
 
 function updateBitmapFontScaleValue(): void {
     bitmapFontScaleValue.textContent = textDisplaySettings.bitmapFontScale.toFixed(2) + "x";
+}
+
+function updateBitmapLineSpacingValue(): void {
+    bitmapLineSpacingValue.textContent = textDisplaySettings.bitmapLineSpacing.toFixed(2) + "x";
 }
 
 function updatePauseDelayScaleValue(): void {
@@ -614,6 +723,7 @@ function connect(): void {
         const nextFrame = JSON.parse(event.data) as BitmapFrame;
         recordCompiledImageAssets(nextFrame.imageAssets || []);
         const previousFrame = frame;
+        applyPendingWildernessFacing(nextFrame);
         const fadeFromTitle = isTitleFrame(frame) && !isTitleFrame(nextFrame);
         const sceneFadeSnapshot = shouldFadeVisual(frame, nextFrame) ? captureScenePanel() : null;
         const continuingSceneFade =
@@ -740,8 +850,23 @@ function visualKey(candidate: BitmapFrame | null): string {
     if (candidate.mode === "boot") return "";
     if (candidate.portrait) return "portrait:" + candidate.portrait.imageSlug;
     if (candidate.partyPage) return "party:" + (candidate.partyPage.kind || "");
-    if (candidate.map) return "map:" + (candidate.backdrop || "wilderness");
+    if (candidate.map) return "map:" + (candidate.backdrop || "wilderness") + ":" + mapCenterVisualKey(candidate.map);
     return "scene:" + (candidate.mode || "") + ":" + (candidate.backdrop || "");
+}
+
+function mapCenterVisualKey(map: BitmapMap): string {
+    const center = mapCenterTile(map);
+    return center ? perspectiveTerrainKey(center) : "terrain";
+}
+
+/** Finds the party's current map tile in a viewport supplied by the runtime. */
+function mapCenterTile(map: BitmapMap): BitmapTile | null {
+    const rows = map.rows || [];
+    for (const row of rows) {
+        const center = row.find((tile) => tile.center);
+        if (center) return center;
+    }
+    return null;
 }
 
 function isSceneSurface(candidate: BitmapFrame | null): boolean {
@@ -960,7 +1085,7 @@ window.addEventListener("keydown", (event: KeyboardEvent) => {
     const token = keyToken(event);
     if (!token) return;
     event.preventDefault();
-    updateFacingFromMovementToken(token);
+    trackFacingFromMovementToken(token);
     send(token);
 });
 
@@ -999,51 +1124,154 @@ function keyToken(event: KeyboardEvent): string | null {
 
 function handleWildernessDisplayShortcut(event: KeyboardEvent): boolean {
     if (!canUseWildernessPerspective()) return false;
-    if (!event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.key === "2") {
-        toggleWildernessPerspective();
+    const viewMode = wildernessViewModeKey(event);
+    if (viewMode) {
+        const enabled = viewMode === "3d";
+        if (wildernessDisplaySettings.perspective !== enabled) {
+            setWildernessPerspective(enabled);
+            return true;
+        }
+        return viewMode === "3d";
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey) return false;
+    const control = wildernessCrawlerControlForEvent(event);
+    if (!control) return false;
+    if (!wildernessDisplaySettings.perspective) return false;
+    if (control === "forward") {
+        send(movementTokenForFacing(wildernessDisplaySettings.facing));
         return true;
     }
-    if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return false;
-    const facing = facingForArrowKey(event.key);
-    if (!facing) return false;
-    setWildernessFacing(facing);
+    if (control === "back") {
+        send(movementTokenForFacing(oppositeFacing(wildernessDisplaySettings.facing)));
+        return true;
+    }
+    if (control === "turnLeft") {
+        rotateWildernessFacing(-1);
+        return true;
+    }
+    if (control === "turnRight") {
+        rotateWildernessFacing(1);
+        return true;
+    }
     return true;
+}
+
+/** Maps browser-only view-mode keys without stealing numpad movement keys. */
+function wildernessViewModeKey(event: KeyboardEvent): "2d" | "3d" | null {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
+    if (event.code === "Digit2") return "2d";
+    if (event.code === "Digit3") return "3d";
+    return null;
 }
 
 function canUseWildernessPerspective(): boolean {
     return Boolean(frame && frame.mode === "wilderness" && frame.map && frame.map.perspective);
 }
 
-function toggleWildernessPerspective(): void {
-    wildernessDisplaySettings.perspective = !wildernessDisplaySettings.perspective;
+/** Applies the display-mode preference shared by the keyboard shortcut and preferences checkbox. */
+function setWildernessPerspective(enabled: boolean): void {
+    if (wildernessDisplaySettings.perspective === enabled) return;
+    wildernessDisplaySettings.perspective = enabled;
     window.localStorage.setItem(wildernessPerspectiveKey, String(wildernessDisplaySettings.perspective));
     wildernessPerspectiveToggle.checked = wildernessDisplaySettings.perspective;
+    wildernessRotationTransition = null;
     if (frame) draw(frame);
 }
 
-function setWildernessFacing(facing: WildernessFacing): void {
+function setWildernessFacing(facing: WildernessFacing, direction = rotationDirection(wildernessDisplaySettings.facing, facing)): void {
+    const previous = wildernessDisplaySettings.facing;
+    if (previous === facing) return;
+    if (wildernessDisplaySettings.perspective && frame?.mode === "wilderness") {
+        wildernessRotationTransition = {
+            from: previous,
+            to: facing,
+            direction,
+            started: performance.now(),
+            duration: 180
+        };
+        scheduleWildernessRotationAnimation();
+    }
     wildernessDisplaySettings.facing = facing;
     if (frame) draw(frame);
 }
 
-function updateFacingFromMovementToken(token: string): void {
-    if (!canUseWildernessPerspective()) return;
-    const facing = facingForToken(token);
-    if (facing) setWildernessFacing(facing);
+function rotateWildernessFacing(direction: number): void {
+    setWildernessFacing(rotatedFacing(wildernessDisplaySettings.facing, direction), direction);
 }
 
-function facingForArrowKey(key: string): WildernessFacing | null {
-    if (key === "ArrowUp") return "North";
-    if (key === "ArrowRight") return "East";
-    if (key === "ArrowDown") return "South";
-    if (key === "ArrowLeft") return "West";
+/** Records the intended facing for a movement key until the runtime confirms a move. */
+function trackFacingFromMovementToken(token: string): void {
+    if (!canUseWildernessPerspective()) return;
+    const facing = facingForToken(token);
+    const status = frame?.status;
+    if (facing && status) pendingWildernessMove = {facing, x: status.x, y: status.y};
+}
+
+/** Applies facing after the runtime confirms that a wilderness movement changed position. */
+function applyPendingWildernessFacing(nextFrame: BitmapFrame): void {
+    const pending = pendingWildernessMove;
+    if (!pending || nextFrame.mode !== "wilderness" || !nextFrame.status) return;
+    pendingWildernessMove = null;
+    if (nextFrame.status.x === pending.x && nextFrame.status.y === pending.y) return;
+    wildernessRotationTransition = null;
+    wildernessDisplaySettings.facing = pending.facing;
+}
+
+function scheduleWildernessRotationAnimation(): void {
+    if (wildernessRotationAnimation !== 0) return;
+    wildernessRotationAnimation = requestAnimationFrame(() => {
+        wildernessRotationAnimation = 0;
+        if (!wildernessRotationTransition || !frame) return;
+        draw(frame);
+        if (wildernessRotationTransition) scheduleWildernessRotationAnimation();
+    });
+}
+
+function rotatedFacing(facing: WildernessFacing, direction: number): WildernessFacing {
+    const order: WildernessFacing[] = ["North", "East", "South", "West"];
+    const index = order.indexOf(facing);
+    return order[(index + direction + order.length) % order.length];
+}
+
+function oppositeFacing(facing: WildernessFacing): WildernessFacing {
+    return rotatedFacing(facing, 2);
+}
+
+function rotationDirection(from: WildernessFacing, to: WildernessFacing): number {
+    const order: WildernessFacing[] = ["North", "East", "South", "West"];
+    const delta = order.indexOf(to) - order.indexOf(from);
+    if (delta === 1 || delta === -3) return 1;
+    if (delta === -1 || delta === 3) return -1;
+    return 1;
+}
+
+function movementTokenForFacing(facing: WildernessFacing): string {
+    switch (facing) {
+        case "North":
+            return "ARROW_UP";
+        case "East":
+            return "ARROW_RIGHT";
+        case "South":
+            return "ARROW_DOWN";
+        case "West":
+            return "ARROW_LEFT";
+    }
+}
+
+/** Converts 3D wilderness navigation keys while reserving top-row 2/3 for view mode. */
+function wildernessCrawlerControlForEvent(event: KeyboardEvent): "forward" | "back" | "turnLeft" | "turnRight" | null {
+    const key = event.key;
+    if (key === "ArrowUp" || key === "8" || event.code === "Numpad8") return "forward";
+    if (key === "ArrowDown" || event.code === "Numpad2") return "back";
+    if (key === "ArrowLeft" || key === "4" || event.code === "Numpad4") return "turnLeft";
+    if (key === "ArrowRight" || key === "6" || event.code === "Numpad6") return "turnRight";
     return null;
 }
 
 function facingForToken(token: string): WildernessFacing | null {
     if (token === "ARROW_UP" || token === "8") return "North";
     if (token === "ARROW_RIGHT" || token === "6") return "East";
-    if (token === "ARROW_DOWN") return "South";
+    if (token === "ARROW_DOWN" || token === "2") return "South";
     if (token === "ARROW_LEFT" || token === "4") return "West";
     return null;
 }
@@ -1422,7 +1650,7 @@ function currentFantasyTextScale(): number {
 }
 
 function currentFantasyLineHeight(scale = currentFantasyTextScale()): number {
-    return Math.ceil(fantasyFontHeight * scale + 6);
+    return Math.ceil((fantasyFontHeight * scale + 6) * textDisplaySettings.bitmapLineSpacing);
 }
 
 function fantasyTextWidth(text: string, scale = currentFantasyTextScale()): number {
@@ -1440,6 +1668,7 @@ function truncateFantasyToWidth(text: string, maxWidth: number, scale = currentF
 }
 
 function wrapFantasyLines(text: string, maxWidth: number, scale = currentFantasyTextScale()): string[] {
+    if (fantasyTextWidth(text, scale) <= maxWidth) return [text];
     const words = String(text || "").trim().split(/\s+/).filter(Boolean);
     const lines: string[] = [];
     const maxChars = Math.max(1, Math.floor(maxWidth / (fantasyFontAdvance * scale)));
@@ -1625,87 +1854,492 @@ function drawPerspectiveMap(map: BitmapMap): boolean {
     const view = perspectiveView(map);
     if (!view || !map.perspective) return false;
     const bounds = scenePanelBounds();
-    drawPerspectiveBackdrop(bounds, view.facing);
-    const sourceW = map.perspective.width || 1000;
-    const sourceH = map.perspective.height || 1000;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(bounds.x, bounds.y, bounds.w, bounds.h);
-    ctx.clip();
-    for (const cell of view.cells) {
-        drawPerspectiveCell(cell, bounds, sourceW, sourceH);
+    const theme = wildernessBackdropThemeForStatus(frame?.status);
+    if (drawPerspectiveCenterSettlementScene(map, bounds, theme)) return true;
+    drawPerspectiveBackdrop(bounds, theme);
+    drawPerspectiveSettlementBackdrop(view, bounds);
+    const transition = activeWildernessRotationTransition();
+    if (transition) {
+        const fromView = perspectiveViewFor(map, transition.from);
+        const toView = perspectiveViewFor(map, transition.to);
+        if (fromView && toView) {
+            const progress = rotationProgress(transition);
+            const slide = bounds.w * 0.16 * transition.direction;
+            drawPerspectiveViewCells(fromView, bounds, 1 - progress * 0.65, -slide * progress);
+            drawPerspectiveViewCells(toView, bounds, 0.45 + progress * 0.55, slide * (1 - progress));
+        } else {
+            drawPerspectiveViewCells(view, bounds);
+        }
+    } else {
+        drawPerspectiveViewCells(view, bounds);
     }
-    ctx.restore();
+    drawPerspectiveLighting(bounds, theme);
     drawSceneVignette(bounds);
     drawPerspectiveFacingLabel(bounds, view.facing);
     return true;
 }
 
-function perspectiveView(map: BitmapMap | null | undefined): BitmapPerspectiveView | null {
-    const views = map?.perspective?.views || [];
-    return views.find((view) => view.facing === wildernessDisplaySettings.facing) || views[0] || null;
+/**
+ * Replaces the 3D wilderness view with the authored settlement scene when the
+ * party stands on a town, hut, or castle square but has not entered it yet.
+ */
+function drawPerspectiveCenterSettlementScene(map: BitmapMap, bounds: Bounds, theme: WildernessBackdropTheme): boolean {
+    const kind = mapCenterSettlementBackdropKind(map);
+    if (!kind) return false;
+    ctx.fillStyle = "#070a06";
+    ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
+    drawSceneBackdropForKind(kind, bounds);
+    drawSettlementSceneTimeShade(bounds, theme);
+    drawSceneVignette(bounds);
+    drawPerspectiveFacingLabel(bounds, wildernessDisplaySettings.facing);
+    return true;
 }
 
-function drawPerspectiveBackdrop(bounds: Bounds, facing: WildernessFacing): void {
-    const sky = ctx.createLinearGradient(0, bounds.y, 0, bounds.y + bounds.h);
-    sky.addColorStop(0, "#17252c");
-    sky.addColorStop(0.45, "#394735");
-    sky.addColorStop(1, "#11170d");
-    ctx.fillStyle = sky;
+/** Resolves the settlement under the party into the scene key used by bitmap backdrops. */
+function mapCenterSettlementBackdropKind(map: BitmapMap): string | null {
+    const center = mapCenterTile(map);
+    return center ? perspectiveSettlementBackdropKind(perspectiveTerrainKey(center)) : null;
+}
+
+/** Applies the current wilderness time-of-day lighting to settlement scenes. */
+function drawSettlementSceneTimeShade(bounds: Bounds, theme: WildernessBackdropTheme): void {
+    const nightAlpha = Math.max(0, Math.min(0.42, theme.lightAlpha * 0.7));
+    if (nightAlpha <= 0) return;
+    ctx.save();
+    ctx.fillStyle = "rgba(4, 9, 18, " + nightAlpha.toFixed(2) + ")";
     ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
-    const horizonY = bounds.y + bounds.h * 0.43;
-    ctx.fillStyle = "rgba(232, 204, 115, 0.09)";
-    ctx.fillRect(bounds.x, horizonY - 7, bounds.w, 14);
-    ctx.fillStyle = "rgba(22, 29, 16, 0.72)";
+    ctx.restore();
+}
+
+function perspectiveView(map: BitmapMap | null | undefined): BitmapPerspectiveView | null {
+    return perspectiveViewFor(map, wildernessDisplaySettings.facing);
+}
+
+function perspectiveViewFor(map: BitmapMap | null | undefined, facing: WildernessFacing): BitmapPerspectiveView | null {
+    const views = map?.perspective?.views || [];
+    return views.find((view) => view.facing === facing) || views[0] || null;
+}
+
+function activeWildernessRotationTransition(): WildernessRotationTransition | null {
+    if (!wildernessRotationTransition) return null;
+    if (performance.now() - wildernessRotationTransition.started >= wildernessRotationTransition.duration) {
+        wildernessRotationTransition = null;
+        return null;
+    }
+    return wildernessRotationTransition;
+}
+
+function rotationProgress(transition: WildernessRotationTransition): number {
+    return Math.max(0, Math.min(1, (performance.now() - transition.started) / transition.duration));
+}
+
+function drawPerspectiveViewCells(view: BitmapPerspectiveView, bounds: Bounds, alpha = 1, offsetX = 0): void {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(offsetX, 0);
+    ctx.beginPath();
+    ctx.rect(bounds.x, bounds.y, bounds.w, bounds.h);
+    ctx.clip();
+    for (const cell of view.cells) {
+        drawPerspectiveGroundCell(cell, bounds);
+    }
+    for (const cell of view.cells) {
+        drawPerspectiveCellContent(cell, bounds);
+    }
+    ctx.restore();
+}
+
+function drawPerspectiveBackdrop(bounds: Bounds, theme: WildernessBackdropTheme): void {
+    const base = ctx.createLinearGradient(0, bounds.y, 0, bounds.y + bounds.h);
+    base.addColorStop(0, theme.skyTop);
+    base.addColorStop(0.35, theme.skyMid);
+    base.addColorStop(0.62, theme.skyLow);
+    base.addColorStop(1, "#11170f");
+    ctx.fillStyle = base;
+    ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
+    drawPerspectiveDistantLandscape(bounds, theme);
+}
+
+function drawPerspectiveDistantLandscape(bounds: Bounds, theme: WildernessBackdropTheme): void {
+    ctx.save();
+    const glow = ctx.createRadialGradient(
+        bounds.x + bounds.w * 0.74,
+        bounds.y + bounds.h * 0.16,
+        bounds.w * 0.05,
+        bounds.x + bounds.w * 0.72,
+        bounds.y + bounds.h * 0.18,
+        bounds.w * 0.36,
+    );
+    glow.addColorStop(0, theme.glow);
+    glow.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h * 0.55);
+    drawPerspectiveRidge(bounds, bounds.y + bounds.h * 0.38, bounds.h * 0.2, theme.ridgeFar, 7, 0.17);
+    drawPerspectiveRidge(bounds, bounds.y + bounds.h * 0.49, bounds.h * 0.16, theme.ridgeNear, 6, 0.41);
+    drawPerspectiveTreeline(bounds, theme);
+    const haze = ctx.createLinearGradient(0, bounds.y + bounds.h * 0.25, 0, bounds.y + bounds.h * 0.72);
+    haze.addColorStop(0, "rgba(0, 0, 0, 0)");
+    haze.addColorStop(0.45, theme.haze);
+    haze.addColorStop(1, "rgba(5, 8, 4, 0.24)");
+    ctx.fillStyle = haze;
+    ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h * 0.76);
+    const left = ctx.createLinearGradient(bounds.x, 0, bounds.x + bounds.w * 0.32, 0);
+    left.addColorStop(0, "rgba(2, 5, 2, 0.78)");
+    left.addColorStop(1, "rgba(2, 5, 2, 0)");
+    ctx.fillStyle = left;
+    ctx.fillRect(bounds.x, bounds.y, bounds.w * 0.32, bounds.h);
+    const right = ctx.createLinearGradient(bounds.x + bounds.w, 0, bounds.x + bounds.w * 0.68, 0);
+    right.addColorStop(0, "rgba(2, 5, 2, 0.78)");
+    right.addColorStop(1, "rgba(2, 5, 2, 0)");
+    ctx.fillStyle = right;
+    ctx.fillRect(bounds.x + bounds.w * 0.68, bounds.y, bounds.w * 0.32, bounds.h);
+    ctx.restore();
+}
+
+function drawPerspectiveRidge(
+    bounds: Bounds,
+    baseline: number,
+    height: number,
+    color: string,
+    peaks: number,
+    phase: number
+): void {
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(bounds.x, bounds.y + bounds.h);
-    ctx.lineTo(bounds.x, horizonY + 34);
-    ctx.quadraticCurveTo(bounds.x + bounds.w * 0.5, horizonY - 8, bounds.x + bounds.w, horizonY + 34);
+    ctx.lineTo(bounds.x, baseline);
+    for (let index = 0; index <= peaks; index += 1) {
+        const x = bounds.x + bounds.w * (index / peaks);
+        const peak = baseline - height * (0.42 + seededUnit(phase * 1000, index) * 0.58);
+        ctx.lineTo(x - bounds.w / peaks / 2, baseline - height * 0.2);
+        ctx.lineTo(x, peak);
+        ctx.lineTo(x + bounds.w / peaks / 2, baseline - height * 0.16);
+    }
     ctx.lineTo(bounds.x + bounds.w, bounds.y + bounds.h);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = "rgba(226, 197, 105, 0.24)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(bounds.x + bounds.w * 0.2, bounds.y + bounds.h);
-    ctx.lineTo(bounds.x + bounds.w * 0.47, horizonY + 22);
-    ctx.moveTo(bounds.x + bounds.w * 0.8, bounds.y + bounds.h);
-    ctx.lineTo(bounds.x + bounds.w * 0.53, horizonY + 22);
-    ctx.stroke();
-    ctx.font = "12px Menlo, Monaco, Consolas, monospace";
-    ctx.fillStyle = "rgba(228, 211, 157, 0.18)";
-    ctx.textAlign = "right";
-    ctx.fillText(facing.toUpperCase(), bounds.x + bounds.w - 14, bounds.y + 22);
-    ctx.textAlign = "left";
 }
 
-function drawPerspectiveCell(cell: BitmapPerspectiveCell, bounds: Bounds, sourceW: number, sourceH: number): void {
-    const rect = cell.rect;
-    const dx = bounds.x + rect.x / sourceW * bounds.w;
-    const dy = bounds.y + rect.y / sourceH * bounds.h;
-    const dw = rect.w / sourceW * bounds.w;
-    const dh = rect.h / sourceH * bounds.h;
-    if (dw <= 2 || dh <= 2) return;
-    const shadowAlpha = Math.max(0.12, Math.min(0.42, 0.46 - cell.forward * 0.06));
+function drawPerspectiveTreeline(bounds: Bounds, theme: WildernessBackdropTheme): void {
+    ctx.fillStyle = theme.forest;
+    const baseY = bounds.y + bounds.h * 0.56;
+    for (let index = 0; index < 28; index += 1) {
+        const x = bounds.x + bounds.w * (index / 27);
+        const h = bounds.h * (0.12 + seededUnit(420, index) * 0.1);
+        const w = bounds.w * (0.022 + seededUnit(880, index) * 0.018);
+        ctx.beginPath();
+        ctx.moveTo(x, baseY - h);
+        ctx.lineTo(x - w, baseY + h * 0.15);
+        ctx.lineTo(x + w, baseY + h * 0.15);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillRect(x - w * 0.12, baseY - h * 0.08, w * 0.24, h * 0.34);
+    }
+    const ground = ctx.createLinearGradient(0, baseY, 0, bounds.y + bounds.h);
+    ground.addColorStop(0, "rgba(16, 31, 13, 0.82)");
+    ground.addColorStop(1, "rgba(6, 10, 5, 0.9)");
+    ctx.fillStyle = ground;
+    ctx.fillRect(bounds.x, baseY, bounds.w, bounds.h - (baseY - bounds.y));
+}
+
+function drawPerspectiveLighting(bounds: Bounds, theme: WildernessBackdropTheme): void {
     ctx.save();
-    ctx.globalAlpha = shadowAlpha;
-    ctx.fillStyle = "#020302";
-    ctx.beginPath();
-    ctx.ellipse(dx + dw / 2, dy + dh * 0.86, dw * 0.45, dh * 0.1, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = theme.groundTint;
+    ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
+    if (theme.lightAlpha > 0) {
+        ctx.fillStyle = "rgba(0, 0, 0, " + theme.lightAlpha.toFixed(2) + ")";
+        ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
+    }
     ctx.restore();
-    const sprite = perspectiveAssetForTile(cell.tile);
-    if (!sprite || !sprite.complete || sprite.naturalWidth === 0) {
+}
+
+function wildernessBackdropThemeForStatus(status: BitmapStatus | null | undefined): WildernessBackdropTheme {
+    const time = (status?.time || "").toLowerCase();
+    if (time.includes("midnight") || time.includes("night")) return wildernessBackdropThemes.midnight;
+    if (time.includes("twilight") || time.includes("dusk")) return wildernessBackdropThemes.twilight;
+    if (time.includes("midday") || time.includes("day")) return wildernessBackdropThemes.midday;
+    return wildernessBackdropThemes.dawn;
+}
+
+function drawPerspectiveSettlementBackdrop(view: BitmapPerspectiveView, bounds: Bounds): void {
+    const center = view.cells.find((cell) => cell.forward === 0 && cell.side === 0);
+    const kind = center ? perspectiveSettlementBackdropKind(perspectiveTerrainKey(center.tile)) : null;
+    if (!kind) return;
+    ctx.save();
+    ctx.globalAlpha = 0.32;
+    ctx.filter = "saturate(0.82) brightness(0.68)";
+    drawSceneBackdropForKind(kind, bounds);
+    ctx.restore();
+    const veil = ctx.createLinearGradient(0, bounds.y, 0, bounds.y + bounds.h);
+    veil.addColorStop(0, "rgba(4, 7, 4, 0.08)");
+    veil.addColorStop(0.42, "rgba(6, 10, 5, 0.32)");
+    veil.addColorStop(1, "rgba(5, 8, 4, 0.72)");
+    ctx.fillStyle = veil;
+    ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
+}
+
+function perspectiveSettlementBackdropKind(key: string): string | null {
+    if (key === "town") return "towne-mainstreet";
+    if (key === "hut") return "wilderness-hut";
+    if (key === "castle") return "ydarg-castle";
+    return null;
+}
+
+function drawSceneBackdropForKind(kind: string, bounds: Bounds): void {
+    const image = sceneImageFor(kind);
+    if (image) {
+        drawCroppedImage(image, bounds.x, bounds.y, bounds.w, bounds.h);
         return;
     }
+    if (drawSceneAtlasTile(kind, bounds)) return;
+    drawSemanticSceneTile(kind, bounds.x, bounds.y, bounds.w, bounds.h);
+}
+
+function drawPerspectiveGroundCell(cell: BitmapPerspectiveCell, bounds: Bounds): void {
+    const quad = perspectiveQuad(bounds, cell.forward, cell.side);
+    const key = perspectiveTerrainKey(cell.tile);
+    const visualTile = key === "void" ? {...cell.tile, slug: "plain", passable: true} : cell.tile;
+    const slug = (visualTile.slug || "plain").toLowerCase();
+    const settlement = (visualTile.settlement || "").toLowerCase();
+    const colors = tileColors(slug, settlement, visualTile.passable);
+    ctx.save();
+    ctx.globalAlpha = key === "void" ? 0.68 : 1;
+    fillPerspectiveQuad(quad, colors.base);
+    fillPerspectiveQuad(quad, "rgba(0, 0, 0, " + Math.min(0.52, 0.1 + cell.forward * 0.07) + ")");
+    drawPerspectiveTerrainTexture({...cell, tile: visualTile}, quad);
+    if (key === "void" || cell.forward <= 1) {
+        ctx.strokeStyle = key === "void" ? "rgba(126, 154, 87, 0.07)" : "rgba(237, 212, 132, 0.045)";
+        ctx.lineWidth = 0.55;
+        strokePerspectiveQuad(quad);
+    }
+    ctx.restore();
+}
+
+function drawPerspectiveCellContent(cell: BitmapPerspectiveCell, bounds: Bounds): void {
+    const key = perspectiveTerrainKey(cell.tile);
+    if (cell.forward === 0 || key === "plain" || key === "water" || key === "desert" || key === "road" || key === "void") return;
+    const sprite = perspectiveAssetForTile(cell.tile);
+    if (!sprite || !sprite.complete || sprite.naturalWidth === 0) return;
+    const quad = perspectiveQuad(bounds, cell.forward, cell.side);
+    const nearCenter = midpoint(quad.nearLeft, quad.nearRight);
+    const farCenter = midpoint(quad.farLeft, quad.farRight);
+    const cellWidth = Math.max(10, distance(quad.nearLeft, quad.nearRight));
+    const contentWidth =
+        cellWidth *
+        (key === "town" || key === "castle" || key === "hut" ? 1.38 : key === "mountain" ? 1.55 : 1.18);
+    const contentHeight = contentWidth * (sprite.naturalHeight / sprite.naturalWidth);
+    const anchorX = farCenter.x + (nearCenter.x - farCenter.x) * 0.66;
+    const anchorY = farCenter.y + (nearCenter.y - farCenter.y) * 0.78;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.globalAlpha = perspectiveTerrainKey(cell.tile) === "void" ? 0.4 : 1;
-    ctx.drawImage(sprite, dx, dy, dw, dh);
-    ctx.restore();
-    if (cell.forward === 0 && cell.side === 0) {
-        drawPartyMarker(dx + dw / 2, dy + dh * 0.52, Math.max(44, Math.min(dw, dh) * 0.52));
+    ctx.globalAlpha = Math.max(0.45, 1 - cell.forward * 0.08);
+    ctx.drawImage(sprite, anchorX - contentWidth / 2, anchorY - contentHeight, contentWidth, contentHeight);
+    if (key === "town" || key === "castle" || key === "hut") {
+        drawPerspectiveSettlementLabel(key, anchorX, anchorY - contentHeight * 0.62, Math.max(16, contentWidth * 0.15));
     }
+    ctx.restore();
+}
+
+function perspectiveHorizonY(bounds: Bounds): number {
+    return bounds.y + bounds.h * 0.16;
+}
+
+function perspectiveNearY(bounds: Bounds): number {
+    return bounds.y + bounds.h * 0.96;
+}
+
+function perspectivePoint(bounds: Bounds, depth: number, side: number): CanvasPoint {
+    const horizonY = perspectiveHorizonY(bounds);
+    const nearY = perspectiveNearY(bounds);
+    const distance = depth + 1;
+    const y = horizonY + (nearY - horizonY) / distance;
+    const unit = bounds.w * 0.34 / Math.pow(distance, 0.9);
+    return {x: bounds.x + bounds.w / 2 + side * unit, y};
+}
+
+function perspectiveQuad(bounds: Bounds, forward: number, side: number): PerspectiveQuad {
+    const left = side - 0.5;
+    const right = side + 0.5;
+    return {
+        nearLeft: perspectivePoint(bounds, forward, left),
+        nearRight: perspectivePoint(bounds, forward, right),
+        farRight: perspectivePoint(bounds, forward + 1, right),
+        farLeft: perspectivePoint(bounds, forward + 1, left)
+    };
+}
+
+function fillPerspectiveQuad(quad: PerspectiveQuad, fillStyle: string): void {
+    ctx.fillStyle = fillStyle;
+    ctx.beginPath();
+    ctx.moveTo(quad.nearLeft.x, quad.nearLeft.y);
+    ctx.lineTo(quad.nearRight.x, quad.nearRight.y);
+    ctx.lineTo(quad.farRight.x, quad.farRight.y);
+    ctx.lineTo(quad.farLeft.x, quad.farLeft.y);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function strokePerspectiveQuad(quad: PerspectiveQuad): void {
+    ctx.beginPath();
+    ctx.moveTo(quad.nearLeft.x, quad.nearLeft.y);
+    ctx.lineTo(quad.nearRight.x, quad.nearRight.y);
+    ctx.lineTo(quad.farRight.x, quad.farRight.y);
+    ctx.lineTo(quad.farLeft.x, quad.farLeft.y);
+    ctx.closePath();
+    ctx.stroke();
+}
+
+function clipPerspectiveQuad(quad: PerspectiveQuad): void {
+    ctx.beginPath();
+    ctx.moveTo(quad.nearLeft.x, quad.nearLeft.y);
+    ctx.lineTo(quad.nearRight.x, quad.nearRight.y);
+    ctx.lineTo(quad.farRight.x, quad.farRight.y);
+    ctx.lineTo(quad.farLeft.x, quad.farLeft.y);
+    ctx.closePath();
+    ctx.clip();
+}
+
+function drawPerspectiveTerrainTexture(cell: BitmapPerspectiveCell, quad: PerspectiveQuad): void {
+    const key = perspectiveTerrainKey(cell.tile);
+    const bounds = perspectiveQuadBounds(quad);
+    ctx.save();
+    clipPerspectiveQuad(quad);
+    const texture = perspectiveGroundTextureForTile(cell.tile);
+    if (texture && texture.complete && texture.naturalWidth > 0) {
+        const source = perspectiveTextureSource(texture, key);
+        ctx.globalAlpha = key === "plain" ? 0.74 : key === "water" || key === "desert" ? 0.58 : 0.42;
+        ctx.drawImage(texture, source.x, source.y, source.w, source.h, bounds.x, bounds.y, bounds.w, bounds.h);
+        ctx.globalAlpha = 1;
+    }
+    if (key === "plain" || key === "foothills" || key === "forest" || key === "road") {
+        drawPerspectiveGrassDetail(cell, bounds, key);
+    }
+    if (key === "water") {
+        ctx.strokeStyle = "rgba(156, 210, 220, 0.42)";
+        ctx.lineWidth = 1;
+        for (let index = 0; index < 4; index += 1) {
+            const y = bounds.y + bounds.h * (0.25 + index * 0.17);
+            ctx.beginPath();
+            ctx.moveTo(bounds.x, y);
+            ctx.quadraticCurveTo(bounds.x + bounds.w * 0.35, y - 5, bounds.x + bounds.w * 0.68, y);
+            ctx.quadraticCurveTo(bounds.x + bounds.w * 0.85, y + 4, bounds.x + bounds.w, y - 1);
+            ctx.stroke();
+        }
+    } else if (key === "desert") {
+        ctx.strokeStyle = "rgba(245, 216, 143, 0.24)";
+        for (let index = 0; index < 4; index += 1) {
+            const y = bounds.y + bounds.h * (0.25 + index * 0.16);
+            ctx.beginPath();
+            ctx.moveTo(bounds.x + bounds.w * 0.1, y);
+            ctx.quadraticCurveTo(bounds.x + bounds.w * 0.5, y - 8, bounds.x + bounds.w * 0.9, y);
+            ctx.stroke();
+        }
+    } else {
+        ctx.strokeStyle = "rgba(197, 213, 122, 0.2)";
+        for (let index = 0; index < 5; index += 1) {
+            const x = bounds.x + bounds.w * (0.12 + index * 0.19);
+            ctx.beginPath();
+            ctx.moveTo(x, bounds.y + bounds.h * 0.72);
+            ctx.lineTo(x + bounds.w * 0.04, bounds.y + bounds.h * 0.58);
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
+}
+
+function perspectiveTextureSource(texture: HTMLImageElement, key: string): Bounds {
+    if (key === "plain" || key === "forest" || key === "foothills" || key === "road") {
+        return {
+            x: texture.naturalWidth * 0.16,
+            y: texture.naturalHeight * 0.53,
+            w: texture.naturalWidth * 0.68,
+            h: texture.naturalHeight * 0.33
+        };
+    }
+    return {
+        x: texture.naturalWidth * 0.08,
+        y: texture.naturalHeight * 0.48,
+        w: texture.naturalWidth * 0.84,
+        h: texture.naturalHeight * 0.42
+    };
+}
+
+function drawPerspectiveGrassDetail(cell: BitmapPerspectiveCell, bounds: Bounds, key: string): void {
+    const density = key === "road" ? 0.45 : key === "foothills" ? 0.72 : 1;
+    const tufts = Math.max(5, Math.min(22, Math.floor(bounds.w * bounds.h / 3600 * density)));
+    const seed = perspectiveTerrainSeed(cell, key);
+    ctx.lineWidth = Math.max(0.6, Math.min(1.5, bounds.h * 0.015));
+    for (let index = 0; index < tufts; index += 1) {
+        const x = bounds.x + seededUnit(seed, index * 5 + 1) * bounds.w;
+        const y = bounds.y + (0.32 + seededUnit(seed, index * 5 + 2) * 0.62) * bounds.h;
+        const h = Math.max(2.2, bounds.h * (0.035 + seededUnit(seed, index * 5 + 3) * 0.055));
+        const lean = (seededUnit(seed, index * 5 + 4) - 0.5) * bounds.w * 0.035;
+        ctx.strokeStyle = index % 3 === 0 ? "rgba(222, 220, 132, 0.28)" : "rgba(138, 177, 78, 0.31)";
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + lean, y - h);
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - lean * 0.55, y - h * 0.72);
+        ctx.stroke();
+    }
+}
+
+function perspectiveTerrainSeed(cell: BitmapPerspectiveCell, key: string): number {
+    let seed = (cell.forward + 13) * 73856093 + (cell.side + 31) * 19349663;
+    for (let index = 0; index < key.length; index += 1) seed += key.charCodeAt(index) * (index + 17);
+    return seed;
+}
+
+function seededUnit(seed: number, salt: number): number {
+    // Deterministic renderer-only noise for terrain details. This is not gameplay RNG.
+    const value = Math.sin((seed + 1) * visualNoiseA + salt * visualNoiseB) * visualNoiseScale;
+    return value - Math.floor(value);
+}
+
+function perspectiveGroundTextureForTile(tile: BitmapTile): HTMLImageElement | null {
+    const slug = (tile.slug || "plain").toLowerCase();
+    if (isWaterTerrain(slug)) return perspectiveTerrainAssets.water;
+    if (slug.includes("desert")) return perspectiveTerrainAssets.desert;
+    if (slug.includes("foothills")) return perspectiveTerrainAssets.foothills;
+    if (slug.includes("swamp")) return perspectiveTerrainAssets.swamp;
+    if (slug.includes("forest")) return perspectiveTerrainAssets.plain;
+    if (slug.includes("mountain")) return perspectiveTerrainAssets.foothills;
+    if (slug.includes("road")) return perspectiveTerrainAssets.road;
+    if (slug.includes("plain")) return perspectiveTerrainAssets.plain;
+    return perspectiveTerrainAssets.plain;
+}
+
+function perspectiveQuadBounds(quad: PerspectiveQuad): Bounds {
+    const xs = [quad.nearLeft.x, quad.nearRight.x, quad.farRight.x, quad.farLeft.x];
+    const ys = [quad.nearLeft.y, quad.nearRight.y, quad.farRight.y, quad.farLeft.y];
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    return {x: minX, y: minY, w: maxX - minX, h: maxY - minY};
+}
+
+function drawPerspectiveSettlementLabel(key: string, x: number, y: number, size: number): void {
+    const label = key === "castle" ? "C" : key === "hut" ? "H" : "T";
+    ctx.save();
+    ctx.fillStyle = "rgba(8, 6, 3, 0.76)";
+    ctx.fillRect(x - size / 2, y - size / 2, size, size);
+    ctx.strokeStyle = "#f2d777";
+    ctx.strokeRect(x - size / 2 + 0.5, y - size / 2 + 0.5, size - 1, size - 1);
+    ctx.fillStyle = "#f8e49a";
+    ctx.font = "bold " + Math.max(10, Math.floor(size * 0.62)) + "px Menlo, Monaco, Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x, y + 1);
+    ctx.restore();
+}
+
+function midpoint(a: CanvasPoint, b: CanvasPoint): CanvasPoint {
+    return {x: (a.x + b.x) / 2, y: (a.y + b.y) / 2};
+}
+
+function distance(a: CanvasPoint, b: CanvasPoint): number {
+    return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function drawPerspectiveFacingLabel(bounds: Bounds, facing: WildernessFacing): void {
@@ -1718,6 +2352,65 @@ function drawPerspectiveFacingLabel(bounds: Bounds, facing: WildernessFacing): v
     ctx.fillStyle = "#ead68a";
     ctx.fillText("VIEW " + facing.toUpperCase(), bounds.x + 24, bounds.y + 33);
     ctx.restore();
+    drawPerspectiveCompass(bounds, facing);
+}
+
+function drawPerspectiveCompass(bounds: Bounds, facing: WildernessFacing): void {
+    const centerX = bounds.x + bounds.w - 44;
+    const centerY = bounds.y + 44;
+    const radius = 29;
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.fillStyle = "rgba(5, 8, 5, 0.68)";
+    ctx.beginPath();
+    ctx.arc(0, 0, radius + 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(232, 204, 121, 0.48)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius + 6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(232, 204, 121, 0.32)";
+    ctx.beginPath();
+    ctx.moveTo(0, -radius);
+    ctx.lineTo(0, radius);
+    ctx.moveTo(-radius, 0);
+    ctx.lineTo(radius, 0);
+    ctx.stroke();
+    ctx.font = "700 10px Menlo, Monaco, Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ead68a";
+    ctx.fillText("N", 0, -radius + 5);
+    ctx.fillText("E", radius - 5, 0);
+    ctx.fillText("S", 0, radius - 5);
+    ctx.fillText("W", -radius + 5, 0);
+    ctx.rotate(facingAngle(facing));
+    ctx.fillStyle = "#f0c44f";
+    ctx.strokeStyle = "rgba(26, 11, 5, 0.78)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -radius + 7);
+    ctx.lineTo(8, 7);
+    ctx.lineTo(0, 2);
+    ctx.lineTo(-8, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
+function facingAngle(facing: WildernessFacing): number {
+    switch (facing) {
+        case "North":
+            return 0;
+        case "East":
+            return Math.PI / 2;
+        case "South":
+            return Math.PI;
+        case "West":
+            return -Math.PI / 2;
+    }
 }
 
 function perspectiveAssetForTile(tile: BitmapTile): HTMLImageElement | null {
@@ -2440,6 +3133,8 @@ function drawTextPanel(frame: BitmapFrame): void {
     const bitmapScale = currentFantasyTextScale();
     const bitmapLineHeight = currentFantasyLineHeight(bitmapScale);
     for (const line of (frame.textLines || [])) {
+        const lineColor = textPanelLineColor(line);
+        const dimColor = textPanelLineDimColor(line);
         if (textDisplaySettings.bitmapFont) {
             for (const part of wrapFantasyLines(line, maxWidth, bitmapScale)) {
                 if (ty > bottom) break;
@@ -2447,8 +3142,8 @@ function drawTextPanel(frame: BitmapFrame): void {
                     truncateFantasyToWidth(part, maxWidth, bitmapScale),
                     x,
                     ty,
-                    "#efe4c6",
-                    "rgba(239, 228, 198, 0.25)",
+                    lineColor,
+                    dimColor,
                     reveal,
                     bitmapScale
                 );
@@ -2458,13 +3153,28 @@ function drawTextPanel(frame: BitmapFrame): void {
             ctx.font = "15px Menlo, Monaco, Consolas, monospace";
             for (const part of wrapCanvasLines(line, maxWidth)) {
                 if (ty > bottom) break;
-                drawRevealText(truncateToWidth(part, maxWidth), x, ty, "#efe4c6", "rgba(239, 228, 198, 0.25)", reveal);
+                drawRevealText(truncateToWidth(part, maxWidth), x, ty, lineColor, dimColor, reveal);
                 ty += 20;
             }
         }
     }
     drawTextRevealCursor(reveal);
     drawTextInput(frame.textInput, x, layout.text.y + layout.text.h - 72, maxWidth);
+}
+
+/** Chooses the normal or disabled prose color for text-window rows. */
+function textPanelLineColor(line: string): string {
+    return isDeadTargetLine(line) ? "#8f968d" : "#efe4c6";
+}
+
+/** Chooses the reveal-tail color that matches the row's normal/disabled state. */
+function textPanelLineDimColor(line: string): string {
+    return isDeadTargetLine(line) ? "rgba(143, 150, 141, 0.22)" : "rgba(239, 228, 198, 0.25)";
+}
+
+/** Detects combat target rows where the target slot is intentionally not selectable. */
+function isDeadTargetLine(line: string): boolean {
+    return /^\s{3,}\S.*\(dead\)\s*$/.test(line);
 }
 
 function drawPartyTextPanel(page: BitmapPartyPage): void {
@@ -2723,6 +3433,7 @@ function wrapCanvasText(text: string, x: number, y: number, maxWidth: number, li
 }
 
 function wrapCanvasLines(text: string, maxWidth: number): string[] {
+    if (ctx.measureText(text).width <= maxWidth) return [text];
     const words = String(text || "").split(" ");
     const lines: string[] = [];
     let line = "";

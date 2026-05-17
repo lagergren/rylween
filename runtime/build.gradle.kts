@@ -60,7 +60,7 @@ tasks.jar {
 }
 
 fun runtimeBattleMacro(attacks: Int = 5): String =
-    "F" + buildString { "ABCDEFGH".take(attacks).forEach { slot -> append('A').append(slot) } }
+    "F" + buildString { "ABCDEFGH".take(attacks).forEach { slot -> append('A').append(slot) } } + "\n"
 
 fun runtimeCastleStep(command: Char): String = command.toString() + runtimeBattleMacro(attacks = 2)
 
@@ -217,11 +217,12 @@ val checkRuntimeNewPartyCreation: TaskProvider<RunInstalledLauncherWithJavaTask>
             "Z",
             "S",
             "V",
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
+            "6",
+            "6",
+            "6",
+            "6",
+            "\u001B",
+            "X",
         ).joinToString(" "),
     )
     title.set(true)
@@ -302,7 +303,7 @@ val checkRuntimePartyJournalScript: TaskProvider<RunInstalledLauncherWithJavaTas
     )
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
     stateSlug.set("strong-replay")
-    script.set("V1234567?123J1X")
+    script.set("V666666\u001B?1J\u001BX")
     expectedOutputContains.set(
         listOf(
             "Party: Strong",

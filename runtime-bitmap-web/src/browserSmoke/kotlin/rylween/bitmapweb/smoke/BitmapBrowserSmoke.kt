@@ -273,17 +273,39 @@ private class BitmapBrowserSmoke(
         check(initial["frontTile"] == "town" && initial["visibleSettlements"].asList().contains("town")) {
             "wilderness perspective tool must show Thord when facing south from 12x10: $initial"
         }
-        page.keyboard().down("Shift")
         page.keyboard().press("ArrowRight")
-        page.keyboard().up("Shift")
         page.waitForFunction(
-            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().facing === 'East'",
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().facing === 'West'",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.keyboard().press("ArrowLeft")
+        page.waitForFunction(
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().facing === 'South'",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.keyboard().press("ArrowUp")
+        page.waitForFunction(
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().y === 11",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.keyboard().press("ArrowDown")
+        page.waitForFunction(
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().y === 10",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.keyboard().press("8")
+        page.waitForFunction(
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().y === 11",
             null,
             Page.WaitForFunctionOptions().setTimeout(5_000.0),
         )
         page.keyboard().press("ArrowRight")
         page.waitForFunction(
-            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().x === 13",
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().facing === 'West'",
             null,
             Page.WaitForFunctionOptions().setTimeout(5_000.0),
         )
@@ -293,9 +315,23 @@ private class BitmapBrowserSmoke(
                 .evaluate(
                     "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool()",
                 ).asMap()
-        check(afterInput["x"].asInt() == 13 && afterInput["facing"] == "East" && afterInput["mode"] == "2d") {
+        check(
+            afterInput["x"].asInt() == 12 && afterInput["y"].asInt() == 11 && afterInput["facing"] == "West" && afterInput["mode"] == "2d",
+        ) {
             "wilderness perspective tool controls failed: $afterInput"
         }
+        page.keyboard().press("3")
+        page.waitForFunction(
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().mode === '3d'",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.evaluate("() => window.__rylweenWildernessPerspectiveSet && window.__rylweenWildernessPerspectiveSet(12, 10, 'South', '3d')")
+        page.waitForFunction(
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().frontTile === 'town'",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
         page.screenshot(
             Page
                 .ScreenshotOptions()

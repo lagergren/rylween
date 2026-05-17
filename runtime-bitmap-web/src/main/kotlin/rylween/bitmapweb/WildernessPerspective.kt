@@ -119,7 +119,7 @@ internal fun buildBitmapWildernessPerspective(
     val cells =
         buildList {
             for (forward in safeDepth downTo 0) {
-                val maxSide = if (forward == 0) 0 else minOf(safeSideRange, forward)
+                val maxSide = safeSideRange
                 for (side in -maxSide..maxSide) {
                     val point = center.projectFacing(facing, forward, side)
                     add(

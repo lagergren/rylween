@@ -25,7 +25,7 @@
  *     content {
  *         visuals {
  *             images {
- *                 bitmapMapWindow(Images.Scene.tavern, "bitmap/assets/scene-tavern.png")
+ *                 bitmapMapWindow(Images.Scene.tavern, "bitmap/assets/scenes/scene-tavern.png")
  *             }
  *         }
  *     }

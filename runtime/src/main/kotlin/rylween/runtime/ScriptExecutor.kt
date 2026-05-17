@@ -1184,6 +1184,7 @@ internal class ScriptExecutor(
         target: CompiledLValue,
         value: Int,
     ) {
+        val before = runtime
         when (target) {
             is CompiledLValue.RealmScalar -> writeRealmScalar(content.strings.value(target.nameString), value)
             is CompiledLValue.PartyScalar -> writePartyScalar(content.strings.value(target.nameString), value)
@@ -1192,6 +1193,7 @@ internal class ScriptExecutor(
             is CompiledLValue.BattleFlag,
             -> Unit
         }
+        if (runtime != before) screen.updateStatus(runtime)
     }
 
     private fun realmScalar(name: String): Int =

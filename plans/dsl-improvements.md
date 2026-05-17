@@ -514,7 +514,7 @@ B1-B9 first-pass notes:
 - [x] C6. Visual assets. DSL delta: `visuals { images { ... } }`. Native decision: asset decoding and backend texture/glyph storage. Current status: full-screen ANSI images and map-window tile images are authored as image assets with resource path and placement; static screens, scripts, battle banners, dungeon/cave/castle backdrops, shop scenes, and camp gear image references are validated against the declared image assets. The ANSI app no longer owns a hardcoded image-resource table.
 - [x] C7. Screen regions and layouts. DSL delta: `layouts { region(ScreenRegion.map/text/status, ...) }`. Native decision: cursor/viewport implementation only. Current status: classic text/map/status regions live in `layouts { ... }`, generated `ScreenRegions` handles come from that block, validation checks region dimensions and screen bounds, and the ANSI frontend consumes the layout model while retaining only cursor/window drawing mechanics.
 - [x] C8. Static screens and documents. DSL delta: title, help, manual, score display, Hall of Heroes, and ANSI/static screens declared as assets/documents. Native decision: file/asset rendering backend. Current status: `visuals { staticScreens { ... } }` declares frame/title/help/manual/score/vscore/heroes routes, help reuses authored command-help pages, the app packages the document resources, and both Kotlin frontends expose `--screen title|help|manual|score|vscore|heroes` via a shared terminal static-screen renderer. Score/vscore/heroes are dynamic runtime reports when launchers provide loaded state.
-- [x] C9. Bitmap visual assets and web tile rendering. DSL delta: reintroduce bitmap asset declarations only when a real frontend consumes them, such as `visuals { images { bitmap(...) } }` plus tile/sprite style metadata for terrain, NPCs, monsters, and scenes. Native/view decision: `runtime-web` and compiled bundles must load, validate, cache, and render those resources instead of treating bitmap declarations as dead DSL. Current status: authored bitmap assets under `visuals { images { bitmap(...) } }` are shipped as classpath resources in the game jar, the bitmap web server validates every compiled bitmap row for `bitmap/assets/` placement, packaged resource presence, typed placement, and typed transition before serving `/assets/game-image/<id>`, and outgoing bitmap frames include the compiled bitmap image table. The browser client records that table and prefers compiled `/assets/game-image/<id>` scene/portrait resources before falling back to renderer-owned static atlases. Ledger coverage asserts representative service, monster, dungeon, and castle art ids/resources, verifies the Kotlin frame protocol exposes typed image metadata, and rejects arbitrary `blitgfx.*` image inference without a compiled bitmap declaration. The remaining browser-pixel proof is not DSL debt; it is tracked under K1/web-runtime verification.
+- [x] C9. Bitmap visual assets and web tile rendering. DSL delta: reintroduce bitmap asset declarations only when a real frontend consumes them, such as `visuals { images { bitmap(...) } }` plus tile/sprite style metadata for terrain, NPCs, monsters, and scenes. Native/view decision: `runtime-web` and compiled bundles must load, validate, cache, and render those resources instead of treating bitmap declarations as dead DSL. Current status: authored bitmap assets under `visuals { images { bitmap(...) } }` are shipped as classpath resources in the game jar, organized under `bitmap/assets/{scenes,monsters,party/portraits,...}`, the bitmap web server validates every compiled bitmap row for `bitmap/assets/` placement, packaged resource presence, typed placement, and typed transition before serving `/assets/game-image/<id>`, and outgoing bitmap frames include the compiled bitmap image table. The browser client records that table and prefers compiled `/assets/game-image/<id>` scene/portrait resources before falling back to renderer-owned static atlases. Ledger coverage asserts representative service, monster, dungeon, and castle art ids/resources, verifies the Kotlin frame protocol exposes typed image metadata, and rejects arbitrary `blitgfx.*` image inference without a compiled bitmap declaration. The remaining browser-pixel proof is not DSL debt; it is tracked under K1/web-runtime verification.
 - [ ] C10. Terrain tags/classes only with a concrete consumer. DSL delta: add `tags(...)` or a clearer terrain-class authoring verb only after a renderer, validator, mission trigger, or gameplay grouping reads it. Native/runtime decision: tags must compile into a table that some runtime path uses; they are not decorative metadata. Exit criteria: at least one authored terrain tag/class is consumed by code and covered by validation/test, otherwise the public builder stays absent.
 
 ### D. Text, dialogue, NPCs, and story state
@@ -1088,21 +1088,34 @@ contract, while the authored game remains portable JSON/data.
     renderer. Scope: keep the existing tiled 2D wilderness map as the default
     and add a toggleable forward-facing presentation mode that consumes the same
     authored wilderness map terrain ids. The feature should be renderer/UI
-    state first, not a gameplay rule: normal movement still uses current
-    wilderness movement semantics, while a presentation facing direction
-    controls only how the 3D view is projected unless a later design explicitly
-    makes facing part of saved game state. Finished slice: bitmap frames now
-    carry server-computed projections for all four facings, the browser can
-    toggle 2D/3D wilderness display with `2`, Shift+arrow changes only display
-    facing, and `/tools/wilderness-perspective` loads the real authored map
-    outside Thord at 12x10 facing south, so Thord is visible directly ahead,
-    for isolated walking/rotation checks without a save or party state.
+    state first, not a gameplay rule unless the 3D view is active: tiled 2D
+    movement still uses absolute north/west/east/south direction keys, while
+    the 3D presentation uses crawler controls where up/8 steps forward in the
+    current facing, down/numpad 2 steps back, left/4 rotates counterclockwise,
+    and right/6 rotates clockwise. Finished slice: bitmap frames now carry
+    server-computed projections for all four facings, the browser can toggle
+    2D/3D wilderness display from Preferences or separate top-row `3`/`2`
+    view keys, rotation has a
+    short transition, a compass shows the current facing, and the view now
+    renders an Eye-of-the-Beholder-style continuous perspective ground grid
+    from the same map cells instead of isolated terrain cards.
+    Follow-up polish clamps perspective-only edge samples to the nearest
+    authored map terrain so looking off the wilderness edge does not expose a
+    void/abyss, removes the bright horizon in favor of a darker crawler-style
+    far plane, and fades in the appropriate town/hut/castle backdrop when the
+    party is standing on that wilderness settlement cell but has not entered it.
+    `/tools/wilderness-perspective` loads the real authored map outside Thord
+    at 12x10 facing south, so Thord is visible directly ahead, for isolated
+    walking/rotation checks without a save or party state.
     - [x] K2a. Build the projection test tool first. Given a world coordinate,
       a facing direction, and a requested perspective grid/depth, produce an
       ordered list of visible terrain cells with world coordinates, relative
       forward/side offsets, terrain id, distance band, scale, destination
       rectangle, and z-order. Cover all four facings, map edges/out-of-bounds
       behavior, and a hand-checked terrain patch from the real wilderness map.
+      The projection includes side cells on the party row so first-person
+      renderers can fill a continuous near ground plane instead of leaving side
+      voids.
       This tool should not depend on browser rendering; it is the correctness
       oracle for the later blitter. Implemented by `WildernessPerspective` and
       `WildernessPerspectiveTest`; the standalone browser tool consumes the
@@ -1116,31 +1129,33 @@ contract, while the authored game remains portable JSON/data.
       resources; they are bundled in the runtime web jar/Docker image and do
       not require an unpacked server-side asset tree.
     - [x] K2c. Implement the pseudo-3D renderer as deterministic blitting, not
-      a physics/3D engine. Use the K2a projection output, draw far-to-near,
-      scale sprites by distance, and layer terrain silhouettes so nearer forest,
-      mountain, town, and similar markers occlude farther ones naturally. Keep
-      this isolated from the current 2D tile renderer so the two modes can be
-      compared and toggled.
-    - [x] K2d. Add semantic view-mode and facing controls. Use a wilderness
-      command binding such as `2` for 2D/3D toggle only after confirming it is
-      unassigned in the current command table, and add Shift+direction browser
-      input for rotating the presentation facing without moving the party.
-      Preserve keyboard accessibility and keep the controls represented as
-      semantic actions rather than hardcoded browser-only key checks. Browser
-      implementation uses `2` as a display-local toggle in wilderness frames;
-      arrow keys still move, and Shift+arrow rotates the display without sending
-      runtime movement input.
+      a physics/3D engine. Use the K2a projection output, draw far-to-near
+      perspective trapezoids for the ground cells, then scale landmark sprites
+      by distance so nearer forest, mountain, town, and similar markers occlude
+      farther ones naturally. Keep this isolated from the current 2D tile
+      renderer so the two modes can be compared and toggled.
+    - [x] K2d. Add semantic view-mode and facing controls. Preserve keyboard
+      accessibility and keep the controls represented as semantic actions
+      rather than hardcoded browser-only key checks. Browser implementation
+      uses Preferences, top-row `3` for 3D, and top-row `2` to return to the
+      tiled map in wilderness frames. In 3D mode, up/8 sends movement in the
+      current facing, down/numpad 2 sends the opposite movement, and left/4 plus
+      right/6 rotate the current facing with a short slide/fade transition. In
+      2D mode, those same direction keys retain the current absolute map
+      movement semantics.
     - [x] K2e. Persist only the right state. Store the user's preferred map view
       mode in browser preferences. Treat facing as session/display state
-      initialized from the last movement direction or a stable default unless
-      playtesting shows it needs to survive save/load.
+      initialized from the last confirmed movement direction or a stable default
+      unless playtesting shows it needs to survive save/load.
     - [x] K2f. Add visual acceptance coverage. Extend the bitmap browser smoke
       to toggle into 3D mode, rotate at least once, and prove the canvas changes
       while the same party/world coordinate remains unchanged. Include a
       screenshot artifact so terrain scale/overlap regressions are easy to
       inspect. The smoke also opens `/tools/wilderness-perspective`, verifies
       the outside-Thord start position facing south with Thord directly ahead,
-      Shift+arrow rotation, arrow walking, and `2` toggling back to 2D.
+      unshifted left/right rotation, forward/backward arrow and numpad walking,
+      top-row `2` returning to 2D, and then resets the tool screenshot to the
+      south-facing 3D Thord view.
 
 ## Complete migration inventory
 
@@ -2258,10 +2273,63 @@ Completed in this pass:
   samples representative compiled `/assets/game-image/<id>` resources, and
   writes a screenshot report.
 - Closed K2 with the optional bitmap wilderness perspective view: server frames
-  include all four forward-facing terrain projections, the browser toggles 2D/3D
-  with `2`, Shift+arrow rotates display facing without moving the party, and
-  `/tools/wilderness-perspective` walks/rotates outside Thord without save or
-  party state.
+  include all four forward-facing terrain projections, the browser switches
+  view from Preferences, top-row `3` for 3D, or top-row `2` for the map, the 3D
+  view uses crawler controls (up/8 forward, down/numpad 2 back, left/4 rotate
+  counterclockwise, right/6 rotate clockwise) with a compass/facing indicator,
+  tiled 2D keeps absolute movement while updating the session facing from
+  confirmed travel, standing on a settlement cell fades in the matching
+  settlement scene before entry, and `/tools/wilderness-perspective`
+  walks/rotates outside Thord without save or party state.
+- Closed a runtime battle presentation polish item: dead monster target rows now
+  keep the target-list alignment while replacing the live target letter with
+  leading space, the bitmap text panel dims those disabled target rows, and
+  victory/reward pages wait for RETURN/ENTER instead of advancing on a timer.
+- Track a follow-up DSL/runtime boundary cleanup from the bitmap prompt work:
+  town entry currently mixes authored town prompt text, a hardcoded runtime
+  main-street image constant, and renderer-specific scene fading decisions.
+  Replace the runtime constant with an authored town/wilderness presentation
+  row, so "standing on a town and deciding Enter/Leave" can be represented as
+  semantic settlement context rather than bitmap-client heuristics.
+- Track a follow-up input-abstraction cleanup from the 3D wilderness view:
+  browser-local presentation controls now interpret arrow/numpad keys
+  differently depending on the current map view. Decide whether display facing,
+  view-mode controls, and crawler-vs-tiled input policy should stay client
+  preferences or become explicit semantic UI actions emitted by runtime
+  systems, without turning presentation facing into saved gameplay state unless
+  the design changes.
+- Track deferred sound design for the bitmap/runtime product. Add authored
+  sound assets and a semantic `playSound(soundId, waitUntilFinished = true)`
+  display/script command that hosts may honor or ignore. Candidate first use:
+  a surprise-encounter scream before the monster reveal. The design must keep
+  ANSI/headless hosts functional with a no-sound trace or text-only fallback,
+  bundle sound files in the jar/Docker image like bitmap assets, and avoid
+  browser-only asset paths in game logic.
+- Track deferred thief/trap/dexterity design as a DSL abstraction proof. Add a
+  `dexterity` party-member trait through the game DSL/state schema, expose
+  reusable authored roll expressions such as `member.dexterityRoll(...)`, and
+  model dungeon/cave trap events so a `Disarm` choice is shown only when a
+  living thief is present. The trap outcome should be authored data/scripts and
+  compiled runtime-system rows, not hardcoded dungeon Kotlin. Use this as a
+  test case that new traits and mechanics can be added through DSL/compiler
+  contracts without patching every runtime by hand.
+- Track a game DSL documentation/examples section. The docs should show how to
+  add, modify, and remove game content using author-facing syntax: for example
+  adding a purple potion item plus an `itemUse` script that grants a temporary
+  Dexterity boon or reveals nearby traps, then wiring Dexterity into thief trap
+  disarming. These examples should double as design checks that the authoring
+  surface is abstract enough for new content and mechanics.
+- Track a follow-up presentation cleanup for the pseudo-3D wilderness renderer:
+  time-of-day sky/distant-terrain backdrops should come from reusable renderer
+  theme data keyed by the authored realm time bands, not one-off canvas drawing
+  code. This should keep the game DSL owning the time bands while the bitmap
+  frontend owns the artwork.
+- Track a follow-up authoring-surface cleanup for repeated prompt/display
+  shapes still visible during playtesting: town tax/menu prompts, wilderness
+  settlement prompts, static documents, story text, and scene image changes all
+  route through slightly different code paths. Consolidate them around a small
+  set of semantic display nodes so text, image, wait, prompt, and fade behavior
+  is consistent across ANSI and bitmap runtimes.
 - Broadened the deferred-wrap text sweep beyond direct script writes:
   shop prose, conversation reply/rumor rows, mission scenes, and dynamic dialogue
   can now use flow text with typed dynamic parts. A follow-up source scan

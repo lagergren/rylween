@@ -14,7 +14,7 @@ ij_kotlin_allow_trailing_comma = true
 ij_kotlin_allow_trailing_comma_on_call_site = true
 
 # noinspection EditorConfigKeyCorrectness
-[*.{ts,css}]
+[*.{ts,css,json}]
 indent_size = 4
 indent_style = space
 
