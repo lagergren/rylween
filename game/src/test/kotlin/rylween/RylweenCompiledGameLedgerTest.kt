@@ -1080,6 +1080,8 @@ class RylweenCompiledGameLedgerTest {
             runtimeSystems.prompts.save.done
                 .render { null } == listOf("Game saved."),
         )
+        check(nextDsl.prompts.titleMenu.continueUnavailableReasonLabel == "no save")
+        check(runtimeSystems.prompts.titleMenu.continueUnavailableReasonLabel == "no save")
         check(
             nextDsl.prompts.characterCreation.invalidInput
                 .fallbackText() == "Invalid input.",
@@ -1569,6 +1571,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             "TITLE_COMMAND_GROUP" in runtimeMain &&
                 "systems.prompts.titleMenu.header" in runtimeMain &&
+                "systems.prompts.titleMenu.continueUnavailableReasonLabel" in runtimeMain &&
                 "commands.menuLine(RuntimeCommandActionId.CreateNewParty)" in runtimeMain,
         ) {
             "runtime title menu must render compiled DSL prompts and command labels"
@@ -1577,6 +1580,7 @@ class RylweenCompiledGameLedgerTest {
             "titleMenu" in gameDsl &&
                 "createNewParty = inputKey(\"N\", label = \"New Party\")" in gameDsl &&
                 "continueSavedGame = inputKey(\"L\", label = \"Load Game\")" in gameDsl &&
+                "continueUnavailableReasonLabel = \"no save\"" in gameDsl &&
                 "leave = inputKey(\"E\", label = \"Exit\")" in gameDsl &&
                 "E(x)it" !in gameDsl,
         ) {
