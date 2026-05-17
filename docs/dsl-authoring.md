@@ -164,12 +164,49 @@ items {
 
 itemUse(Items.moonCharm, consume = ItemConsumePolicy.Keep) {
     showTextAndWait("The charm glows softly.", "")
-    party.food += 10
+    gainFood(10)
 }
 ```
 
 An item record supplies inventory/shop/save metadata. An `itemUse` script
 supplies behavior when the player activates it.
+
+### Rewards And Resources
+
+Use `reward { ... }` for player-facing gold and inventory grants:
+
+```kotlin
+reward {
+    gold(2_000)
+    items(Items.redGem)
+    promptDrop(
+        cantCarry = "You can't carry the gem.",
+        pickedUp = "You pick up the gem.",
+    )
+}
+```
+
+For simple player-facing resource gains, use the narrow helpers:
+
+```kotlin
+gainGold(random(40..339))
+gainTorches(2)
+gainFood(10)
+```
+
+Use direct state slots for local mechanics such as costs, damage, timers, and
+script counters:
+
+```kotlin
+pay(
+    amount = lit(10_000),
+    broke = { showTextAndWait("Come back when you have the gold.", "") },
+    ok = { mark(Story.bracelets.thun.mapBought) },
+)
+```
+
+Secret debug/sysop grants live under `secrets { ... }` with methods such as
+`addGold(...)`; they are not normal game rewards.
 
 ### Monster
 
