@@ -392,7 +392,7 @@ fun town(town: TownHandle): TownTextRef = TownTextRef(town.id)
 
 /** Text-placeholder helper for location coordinates. */
 class LocationTextRef(
-    private val location: LocationId,
+    location: LocationId,
 ) {
     val coordinates: TextPart = TextPart.LocationCoordinate(location)
 }

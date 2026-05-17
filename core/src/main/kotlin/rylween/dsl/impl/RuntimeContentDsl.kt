@@ -342,6 +342,7 @@ data class TitleMenuPromptsModel(
     val hallOfFame: InputBindingModel = inputKey("H", label = "Heroes"),
     val documentation: InputBindingModel = inputKey("M", label = "Manual"),
     val leave: InputBindingModel = inputKey("E", label = "Exit"),
+    val continueUnavailableReasonLabel: String = "no save",
     val continueUnavailable: TextBlock = inlineText("No saved party exists for this user."),
     val overwriteConfirm: TextBlock =
         inlineText(
