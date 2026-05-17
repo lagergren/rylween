@@ -2418,7 +2418,7 @@ val authoredRylween: RylweenModel =
                                 "hall for the Lute.",
                                 "",
                             )
-                            party.member(3) { surprised ->
+                            party.randomMember(MemberChoiceFilter.AliveOnly) { surprised ->
                                 showTextAndWait {
                                     line(partyName(surprised), " suddenly")
                                     line("hears something behind")
@@ -2443,7 +2443,7 @@ val authoredRylween: RylweenModel =
                                 "throughout the hall.",
                                 "",
                             )
-                            party.member(4) { finder ->
+                            party.randomMember(MemberChoiceFilter.AliveOnly) { finder ->
                                 showTextAndWait {
                                     line(partyName(finder), " finds the")
                                     line("Lute on a pedestal,")
@@ -6599,7 +6599,7 @@ val authoredRylween: RylweenModel =
                             gold(5_645)
                             items(Items.mithrilMail)
                         }
-                        party.member(2) { noteFinder ->
+                        party.randomMember(MemberChoiceFilter.AliveOnly) { noteFinder ->
                             showTextAndWait {
                                 line("...There is however no")
                                 line("trace of the Foot. Just")

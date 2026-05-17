@@ -410,6 +410,7 @@ private class NativePathCollector {
             is IntAst.MonsterField -> collect(ast.monster)
             is IntAst.BattleFlag -> Unit
             is IntAst.BattleQuery -> Unit
+            is IntAst.PartyMemberQuery -> Unit
             is IntAst.RealmScalar -> Unit
             is IntAst.PartyScalar -> Unit
             is IntAst.InventoryPoolCount -> Unit

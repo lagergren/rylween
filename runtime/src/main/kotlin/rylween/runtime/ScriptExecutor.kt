@@ -52,6 +52,7 @@ import rylween.compiled.compareCompiled
 import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.NativeAllowlist
+import rylween.dsl.PartyMemberSelection
 import rylween.dsl.PronounCase
 import rylween.dsl.ScriptControlSignal
 import rylween.dsl.impl.ChitchatPromptAudience
@@ -1083,6 +1084,7 @@ internal class ScriptExecutor(
 
             is CompiledIntExpr.Random -> random(int(expr.lo), int(expr.hi))
             is CompiledIntExpr.MemberField -> memberField(int(expr.member), content.strings.value(expr.fieldString))
+            is CompiledIntExpr.PartyMemberQuery -> partyMemberQuery(expr.selection, expr.filter)
             is CompiledIntExpr.MonsterField,
             is CompiledIntExpr.BattleFlag,
             is CompiledIntExpr.BattleQuery,
@@ -1127,6 +1129,26 @@ internal class ScriptExecutor(
         runtime = runtime.withParty(draw.party)
         log.rngDraw("script.random", lo, hi, draw.value)
         return draw.value
+    }
+
+    private fun partyMemberQuery(
+        selection: PartyMemberSelection,
+        filter: MemberChoiceFilter,
+    ): Int {
+        val choices = runtime.party.memberChoices(filter)
+        if (selection == PartyMemberSelection.First || choices.isEmpty()) {
+            return choices.selectPartyMember(selection) { range -> range.first }
+        }
+        val draw = runtime.party.drawRandom(0, choices.lastIndex)
+        runtime = runtime.withParty(draw.party)
+        log.rngDraw(
+            context = "script.party_member_query",
+            lo = 0,
+            hi = choices.lastIndex,
+            value = draw.value,
+            details = mapOf("selection" to selection.name, "filter" to filter.name, "member" to choices[draw.value]),
+        )
+        return choices[draw.value]
     }
 
     private fun compare(expr: CompiledBoolExpr.Cmp): Boolean {
@@ -1720,12 +1742,6 @@ internal class ScriptExecutor(
             "unknown compiled item ${content.slug(item)}"
         }
 
-    private fun PartyState.memberChoices(filter: MemberChoiceFilter): List<Int> =
-        members
-            .mapIndexedNotNull { index, member ->
-                (index + 1).takeIf { member.matches(filter) }
-            }
-
     private fun PartyState.inventorySlotChoices(
         filter: InventorySlotChoiceFilter,
         slots: IntRange,
@@ -1788,14 +1804,6 @@ internal class ScriptExecutor(
 
     private fun PartyState.withLivingCount(): PartyState =
         copy(counters = counters.copy(memberCount = members.count { member -> !member.dead }))
-
-    private fun rylween.compiled.CompiledPartyMember.matches(filter: MemberChoiceFilter): Boolean =
-        when (filter) {
-            MemberChoiceFilter.Any -> true
-            MemberChoiceFilter.AliveOnly -> !dead
-            MemberChoiceFilter.DeadOnly -> dead
-            MemberChoiceFilter.SpellcasterOnly -> !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest)
-        }
 
     private fun CompiledInputBinding.promptValue(): Int {
         val primary = content.strings.value(primaryString)

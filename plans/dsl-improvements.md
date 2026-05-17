@@ -822,17 +822,21 @@ B1-B9 first-pass notes:
   structured layout rows. Remaining repeated `vararg`/structured prompt setter
   boilerplate is tracked separately under I17/I19 so it can be collapsed by
   builder family without removing useful domain method names.
-- [ ] I14. Add filtered non-interactive party-member selectors. Inconsistency
+- [x] I14. Add filtered non-interactive party-member selectors. Inconsistency
   found: `MemberChoiceFilter` already exists for player prompts and battle has
   `battle.randomAliveMember`, but non-combat authored scripts still sometimes
   use fixed `party.member(3)` or `party.member(4)` for narration. This can name
-  a dead member or a missing member. Fix plan: add a reusable non-combat
-  selector such as `party.randomMember(MemberChoiceFilter.AliveOnly)` and
-  `party.firstMember(MemberChoiceFilter.AliveOnly)`, make its one-based vs.
-  zero-based index semantics explicit across normal and battle scripts, compile
-  it as a typed query rather than a stringly battle query, and replace the
-  Erethor Lute chamber hardcoded member references plus any similar narration
-  sites. Tests should cover dead/member-count edge cases.
+  a dead member or a missing member. Fix applied:
+  `PartyRef.firstMember(...)` and `PartyRef.randomMember(...)` now compile to a
+  typed `PartyMemberQuery(selection, filter)` source/compiled expression rather
+  than the stringly battle-query path. Normal script execution returns one-based
+  member numbers for `PartyRef`/text bindings; battle execution adapts the same
+  query to the battle runner's existing zero-based member-slot convention, while
+  `battle.randomAliveMember` remains the explicit combat selector. The Erethor
+  Lute chamber and Ogre Lord note narration now use
+  `party.randomMember(MemberChoiceFilter.AliveOnly)`. Runtime selector tests
+  cover one-based filtering, dead-member exclusion, spellcaster filtering, random
+  choice indexing, and the empty-match `0` fallback.
 - [ ] I15. Unify reward and direct resource mutation vocabulary. Inconsistency
   found: normal authored scripts can use `reward { gold(...); items(...) }`,
   direct state slots such as `party.gold += ...`, inventory-pool consumption

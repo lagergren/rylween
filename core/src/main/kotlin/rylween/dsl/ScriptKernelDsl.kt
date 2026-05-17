@@ -55,6 +55,11 @@ sealed interface IntAst {
         val name: String,
     ) : IntAst
 
+    data class PartyMemberQuery(
+        val selection: PartyMemberSelection,
+        val filter: MemberChoiceFilter,
+    ) : IntAst
+
     data class RealmScalar(
         val name: String,
     ) : IntAst
@@ -165,6 +170,8 @@ sealed interface LValueAst {
 enum class ScriptControlSignal { Continue, BreakNearestLoop, StopScript }
 
 enum class MemberChoiceFilter { Any, AliveOnly, DeadOnly, SpellcasterOnly }
+
+enum class PartyMemberSelection { First, Random }
 
 enum class InventorySlotChoiceFilter { Any, NonEmpty, Empty }
 
