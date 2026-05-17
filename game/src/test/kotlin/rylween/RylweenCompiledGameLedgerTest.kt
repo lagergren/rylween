@@ -2057,6 +2057,71 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun plainProseUsesFlowTextInsteadOfAnsiLineWrapping() {
+        val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val speakDsl = File("core/src/main/kotlin/rylween/dsl/impl/SpeakDsl.kt").readText()
+        val castleDsl = File("core/src/main/kotlin/rylween/dsl/impl/CastleDsl.kt").readText()
+        val rootDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+
+        fun sourceHas(
+            source: String,
+            pattern: String,
+        ): Boolean = Regex(pattern).containsMatchIn(source)
+
+        listOf(
+            "- Sorry. There's nothing new I can tell you.",
+            "- Thanks, and the same to you!",
+            "Baron Ydarg's castle Zadraz is hidden in a forest to the southwest.",
+            "Arrows speed through the air and hits the party!",
+            "The rich green plainland of Rylween stretches far in all the directions.",
+            "The best healing potions available for money!",
+            "The party feels their spirits grow. You are all stronger than before.",
+            "You are served a well tasting dinner. Some of your health returns.",
+        ).forEach { text ->
+            check(Regex("""\bflowText\s*\(\s*${Regex.escape("\"$text\"")}""").containsMatchIn(gameDsl)) {
+                "plain prose should use flowText in the game DSL: $text"
+            }
+        }
+        listOf(
+            "lines(\"- Sorry. There's\", \"nothing new I can\", \"tell you.",
+            "lines(\"The best healing\",",
+            "lines(\"The rich green plainland\",",
+            "lines(\"Arrows speed through\",",
+            "lines(\"The party feels their\",",
+            "lines(\"You are served a well\",",
+            "lines(\"Baron Ydarg's castle\", \"Zadraz is hidden in a\",",
+        ).forEach { token ->
+            check(token !in gameDsl) {
+                "plain prose must not keep ANSI-era line wrapping: $token"
+            }
+        }
+        check(
+            sourceHas(speakDsl, """fun\s+screen\s*\(\s*id:\s*TextId,\s*text:\s*TextBlock""") &&
+                sourceHas(speakDsl, """fun\s+any\s*\(\s*text:\s*TextBlock""") &&
+                sourceHas(speakDsl, """fun\s+female\s*\(\s*text:\s*TextBlock""") &&
+                sourceHas(speakDsl, """fun\s+male\s*\(\s*text:\s*TextBlock""") &&
+                sourceHas(speakDsl, """fun\s+job\s*\(\s*id:\s*NpcJobId,\s*text:\s*TextBlock""") &&
+                sourceHas(speakDsl, """fun\s+rumor\s*\(\s*\w+:\s*TextBlock""") &&
+                sourceHas(speakDsl, """fun\s+rumor\s*\(\s*id:\s*RumorId,\s*\w+:\s*TextBlock"""),
+        ) {
+            "conversation text-table builders must accept TextBlock so plain prose can remain flow text"
+        }
+        check(sourceHas(castleDsl, """fun\s+trap\s*\(\s*text:\s*TextBlock""")) {
+            "castle pitfall text must accept TextBlock so trap prose can remain flow text"
+        }
+        check(sourceHas(rootDsl, """fun\s+terrain\s*\(\s*id:\s*TerrainId,\s*text:\s*TextBlock""")) {
+            "terrain transition text must accept TextBlock so terrain prose can remain flow text"
+        }
+        check(
+            "- [x] I22. Revisit repeated text-field setter overloads" in planSource &&
+                "- [x] I23. Continue the literal-line prose audit." in planSource,
+        ) {
+            "plans/dsl-improvements.md must record I22/I23 closeout"
+        }
+    }
+
+    @Test
     fun runtimeRenderedTextLiteralsStayClassified() {
         val runtimeSources =
             File("runtime/src/main/kotlin/rylween/runtime")

@@ -960,7 +960,7 @@ B1-B9 first-pass notes:
   that the guide, source-script APIs, and runtime-loop implementations keep this
   ownership boundary documented, and rejects representative old gameplay text
   from being hardcoded in runtime mode loops.
-- [ ] I22. Revisit repeated text-field setter overloads only when another
+- [x] I22. Revisit repeated text-field setter overloads only when another
   concrete edit creates real churn. Follow-up discovered during I17/I19: many
   builders intentionally expose domain methods with matching
   `vararg String`/structured-text overload pairs. The public method names should
@@ -968,8 +968,14 @@ B1-B9 first-pass notes:
   helpers when repeated setter mechanics become noisy. Fix plan: on the next
   prompt-builder change, either add a small internal helper/delegate for
   assigning `TextBlock` fields, with row-equivalence tests, or explicitly record
-  why the duplicate is clearer left local.
-- [ ] I23. Continue the literal-line prose audit. Follow-up discovered during
+  why the duplicate is clearer left local. Fix applied: the I23 prose pass was
+  the concrete churn point. Conversation screens, chitchat prompts, job replies,
+  rumors, castle pitfall traps, and terrain transition text now have narrow
+  `TextBlock` overloads so plain prose can use `flowText(...)` directly. These
+  stay as local domain methods rather than a generic setter delegate because the
+  builders append to different model collections and the public call sites read
+  better when the method name still says what game content is being authored.
+- [x] I23. Continue the literal-line prose audit. Follow-up discovered during
   I21: some `lines(...)` calls still preserve old ANSI-era wrapping where the
   text is plain prose and could be `flowText(...)` so each runtime wraps it
   naturally. Fix plan: keep literal line lists for menus, tables, fixed layouts,
@@ -977,6 +983,12 @@ B1-B9 first-pass notes:
   or a domain text-field overload; and add narrow ledger coverage for each
   converted area. First pass applied during I21: merchant catalog item
   descriptions now use `flowText(...)` instead of trailing literal line arrays.
+  Follow-up applied: church/inn/tavern prose, mage/priest/item-effect prose,
+  conversation table text, rumors, castle pitfall text, and terrain transition
+  prose now use `flowText(...)` through direct `TextBlock` overloads. Remaining
+  game-source `lines(...)` calls are intentional fixed prompts, menus, battle
+  status rows, or dynamic structured composition. Ledger coverage guards
+  representative old ANSI-split prose from returning.
 
 ### J. Optional non-JVM runtime productization
 
