@@ -944,7 +944,7 @@ B1-B9 first-pass notes:
   prompts as separate ownership areas. Ledger coverage now fails if a
   current-game `choice.*` or `ask.*` prompt form appears without being listed in
   that taxonomy.
-- [ ] I21. Document and guard authored script loops versus reusable domain
+- [x] I21. Document and guard authored script loops versus reusable domain
   runner loops. Follow-up discovered during I19: both source-script `loop { ... }`
   and runtime services such as shops, battles, towns, dungeons, and castles can
   loop and block/resume, but they operate at different ownership levels. Fix
@@ -953,7 +953,13 @@ B1-B9 first-pass notes:
   authored content/runtime-system rows. Add an architectural ledger check that
   new runtime loops with player-facing text, menu policy, rewards, or balance
   must consume existing authored models or introduce a new explicit model rather
-  than hardcoding those facts.
+  than hardcoding those facts. Fix applied: `docs/dsl-authoring.md` now has a
+  Script Loops And Runtime Loops section that separates `loop { ... }` /
+  `breakLoop(...)` compiled script control flow from host-owned wilderness,
+  town, dungeon, castle, shop, and battle state machines. Ledger coverage checks
+  that the guide, source-script APIs, and runtime-loop implementations keep this
+  ownership boundary documented, and rejects representative old gameplay text
+  from being hardcoded in runtime mode loops.
 - [ ] I22. Revisit repeated text-field setter overloads only when another
   concrete edit creates real churn. Follow-up discovered during I17/I19: many
   builders intentionally expose domain methods with matching
@@ -963,6 +969,14 @@ B1-B9 first-pass notes:
   prompt-builder change, either add a small internal helper/delegate for
   assigning `TextBlock` fields, with row-equivalence tests, or explicitly record
   why the duplicate is clearer left local.
+- [ ] I23. Continue the literal-line prose audit. Follow-up discovered during
+  I21: some `lines(...)` calls still preserve old ANSI-era wrapping where the
+  text is plain prose and could be `flowText(...)` so each runtime wraps it
+  naturally. Fix plan: keep literal line lists for menus, tables, fixed layouts,
+  and dynamic placeholder composition; convert plain prose fields to `flowText`
+  or a domain text-field overload; and add narrow ledger coverage for each
+  converted area. First pass applied during I21: merchant catalog item
+  descriptions now use `flowText(...)` instead of trailing literal line arrays.
 
 ### J. Optional non-JVM runtime productization
 
