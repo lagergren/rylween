@@ -64,6 +64,23 @@ class WildernessPerspectiveTest {
         assertEquals("foothills", view.cellAt(forward = 2, side = 1).tile.slug)
     }
 
+    @Test
+    fun projectionCanFaceSouthFromOutsideThordAndSeeTownAhead() {
+        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
+        val content = bundle.content
+        val world = WorldMap.from(content, content.worldMaps.single().id)
+        val center = GridPoint(12, 10)
+
+        val view =
+            buildBitmapWildernessPerspective(center, BitmapWildernessFacing.South, depth = 2, sideRange = 1) { point ->
+                realTile(world, content, point)
+            }
+
+        assertEquals("plain", view.cellAt(forward = 0, side = 0).tile.slug)
+        assertEquals("town", view.cellAt(forward = 1, side = 0).tile.slug)
+        assertEquals("town", view.cellAt(forward = 1, side = 0).tile.settlement)
+    }
+
     private fun assertProjectedPoint(
         facing: BitmapWildernessFacing,
         center: GridPoint,

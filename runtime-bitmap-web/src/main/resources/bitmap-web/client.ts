@@ -229,7 +229,7 @@ let titleFade: TitleFade | null = null;
 let sceneFade: SceneFade | null = null;
 let textReveal: TextReveal | null = null;
 let textRevealAnimation = 0;
-const assetVersion = "20260515-scene-assets";
+const assetVersion = "20260517-wilderness-perspective-assets";
 const textRevealEnabledKey = "rylween.bitmap.textReveal.enabled";
 const textRevealSpeedKey = "rylween.bitmap.textReveal.speed";
 const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap";
@@ -396,7 +396,20 @@ const bitmapAssets: BitmapAssets = {
 const portraitAssets = new Map<string, HTMLImageElement>();
 const gameImageAssets = new Map<string, HTMLImageElement>();
 const compiledBitmapAssets = new Map<string, BitmapImageAsset>();
-const perspectiveSpriteCache = new Map<string, HTMLCanvasElement>();
+const perspectiveTerrainAssets: Record<string, HTMLImageElement> = {
+    plain: loadAsset(assetUrl("/assets/wilderness/terrain-plain.png")),
+    forest: loadAsset(assetUrl("/assets/wilderness/terrain-forest.png")),
+    foothills: loadAsset(assetUrl("/assets/wilderness/terrain-foothills.png")),
+    mountain: loadAsset(assetUrl("/assets/wilderness/terrain-mountain.png")),
+    desert: loadAsset(assetUrl("/assets/wilderness/terrain-desert.png")),
+    swamp: loadAsset(assetUrl("/assets/wilderness/terrain-swamp.png")),
+    water: loadAsset(assetUrl("/assets/wilderness/terrain-water.png")),
+    town: loadAsset(assetUrl("/assets/wilderness/terrain-town.png")),
+    hut: loadAsset(assetUrl("/assets/wilderness/terrain-hut.png")),
+    castle: loadAsset(assetUrl("/assets/wilderness/terrain-castle.png")),
+    road: loadAsset(assetUrl("/assets/wilderness/terrain-road.png")),
+    void: loadAsset(assetUrl("/assets/wilderness/terrain-void.png"))
+};
 
 function storedBoolean(key: string, fallback: boolean): boolean {
     const value = window.localStorage.getItem(key);
@@ -1681,10 +1694,13 @@ function drawPerspectiveCell(cell: BitmapPerspectiveCell, bounds: Bounds, source
     ctx.ellipse(dx + dw / 2, dy + dh * 0.86, dw * 0.45, dh * 0.1, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    const sprite = perspectiveSprite(cell.tile);
+    const sprite = perspectiveAssetForTile(cell.tile);
+    if (!sprite || !sprite.complete || sprite.naturalWidth === 0) {
+        return;
+    }
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.globalAlpha = cell.tile.slug === "void" ? 0.4 : 1;
+    ctx.globalAlpha = perspectiveTerrainKey(cell.tile) === "void" ? 0.4 : 1;
     ctx.drawImage(sprite, dx, dy, dw, dh);
     ctx.restore();
     if (cell.forward === 0 && cell.side === 0) {
@@ -1704,203 +1720,24 @@ function drawPerspectiveFacingLabel(bounds: Bounds, facing: WildernessFacing): v
     ctx.restore();
 }
 
-function perspectiveSprite(tile: BitmapTile): HTMLCanvasElement {
+function perspectiveAssetForTile(tile: BitmapTile): HTMLImageElement | null {
+    return perspectiveTerrainAssets[perspectiveTerrainKey(tile)] ?? null;
+}
+
+function perspectiveTerrainKey(tile: BitmapTile): string {
     const slug = (tile.slug || "void").toLowerCase();
     const settlement = (tile.settlement || "").toLowerCase();
-    const variant = Math.max(0, tile.variant || 0);
-    const key = slug + ":" + settlement + ":" + variant + ":" + String(tile.waterMask || 0);
-    const cached = perspectiveSpriteCache.get(key);
-    if (cached) return cached;
-    const sprite = document.createElement("canvas");
-    sprite.width = 256;
-    sprite.height = 200;
-    const g = sprite.getContext("2d");
-    if (!g) return sprite;
-    g.imageSmoothingEnabled = true;
-    drawPerspectiveGround(g, slug, settlement, variant);
-    if (settlement === "town") drawPerspectiveTown(g, variant);
-    else if (settlement === "castle") drawPerspectiveCastle(g, variant);
-    else if (settlement === "hut") drawPerspectiveHut(g, variant);
-    else if (isWaterTerrain(slug)) drawPerspectiveWater(g, variant, tile.waterMask || 0);
-    else if (slug.includes("forest")) drawPerspectiveForest(g, variant);
-    else if (slug.includes("mountain")) drawPerspectiveMountains(g, variant);
-    else if (slug.includes("desert")) drawPerspectiveDesert(g, variant);
-    else if (slug.includes("foothills")) drawPerspectiveFoothills(g, variant);
-    else if (slug.includes("swamp")) drawPerspectiveSwamp(g, variant);
-    else if (slug.includes("plain")) drawPerspectivePlain(g, variant);
-    else drawPerspectiveVoid(g);
-    perspectiveSpriteCache.set(key, sprite);
-    return sprite;
-}
-
-function drawPerspectiveGround(g: CanvasRenderingContext2D, slug: string, settlement: string, variant: number): void {
-    const colors = tileColors(slug, settlement, true);
-    const gradient = g.createLinearGradient(0, 84, 0, 192);
-    gradient.addColorStop(0, transparentize(colors.base, 0.1));
-    gradient.addColorStop(1, transparentize(colors.shadow, 0.34));
-    g.fillStyle = gradient;
-    g.beginPath();
-    g.ellipse(128, 164, 104, 28 + variant * 2, 0, 0, Math.PI * 2);
-    g.fill();
-}
-
-function drawPerspectivePlain(g: CanvasRenderingContext2D, variant: number): void {
-    g.strokeStyle = "#b9cc73";
-    g.lineWidth = 3;
-    for (let i = 0; i < 9; i += 1) {
-        const x = 44 + ((i * 29 + variant * 17) % 164);
-        const y = 120 + ((i * 13 + variant * 11) % 48);
-        g.beginPath();
-        g.moveTo(x, y);
-        g.lineTo(x + 15, y - 5);
-        g.moveTo(x + 8, y);
-        g.lineTo(x + 20, y + 2);
-        g.stroke();
-    }
-}
-
-function drawPerspectiveForest(g: CanvasRenderingContext2D, variant: number): void {
-    const trees = 4 + variant % 3;
-    for (let i = 0; i < trees; i += 1) {
-        const x = 54 + ((i * 43 + variant * 19) % 140);
-        const y = 80 + ((i * 17 + variant * 9) % 40);
-        const h = 74 + ((i + variant) % 3) * 12;
-        g.fillStyle = "#4d321d";
-        g.fillRect(x + 9, y + h * 0.55, 10, h * 0.34);
-        g.fillStyle = i % 2 === 0 ? "#416f35" : "#5a8842";
-        perspectiveTriangle(g, x - 17, y + h * 0.62, x + 14, y, x + 45, y + h * 0.62);
-        g.fillStyle = "#2f5a2e";
-        perspectiveTriangle(g, x - 10, y + h * 0.82, x + 14, y + h * 0.24, x + 38, y + h * 0.82);
-    }
-}
-
-function drawPerspectiveMountains(g: CanvasRenderingContext2D, variant: number): void {
-    const peaks = [
-        [24, 164, 88, 38, 146, 164],
-        [82, 166, 150, 22, 232, 166],
-        [4, 170, 68, 70, 128, 170]
-    ];
-    peaks.slice(variant % 2, 3).forEach((peak, index) => {
-        g.fillStyle = index === 0 ? "#86887f" : "#a3a49a";
-        perspectiveTriangle(g, peak[0], peak[1], peak[2], peak[3], peak[4], peak[5]);
-        g.fillStyle = "rgba(238, 238, 220, 0.82)";
-        perspectiveTriangle(g, peak[2], peak[3], peak[2] - 14, peak[3] + 34, peak[2] + 18, peak[3] + 36);
-        g.fillStyle = "rgba(55, 56, 52, 0.34)";
-        perspectiveTriangle(g, peak[2], peak[3], peak[4], peak[5], peak[2] + 14, peak[3] + 46);
-    });
-}
-
-function drawPerspectiveWater(g: CanvasRenderingContext2D, variant: number, mask: number): void {
-    g.strokeStyle = "#8fd3e2";
-    g.lineWidth = 4;
-    for (let i = 0; i < 5; i += 1) {
-        const y = 112 + i * 14;
-        g.beginPath();
-        g.moveTo(36, y);
-        g.bezierCurveTo(78, y - 14 + variant * 2, 106, y + 14, 148, y);
-        g.bezierCurveTo(178, y - 9, 198, y + 7, 226, y - 3);
-        g.stroke();
-    }
-    if (mask !== 0) {
-        g.fillStyle = "rgba(230, 238, 202, 0.34)";
-        g.fillRect(120, 92, 14, 78);
-    }
-}
-
-function drawPerspectiveDesert(g: CanvasRenderingContext2D, variant: number): void {
-    g.strokeStyle = "#f1d386";
-    g.lineWidth = 3;
-    for (let i = 0; i < 5; i += 1) {
-        const y = 112 + i * 13;
-        g.beginPath();
-        g.moveTo(28, y);
-        g.quadraticCurveTo(96 + variant * 9, y - 22, 228, y - 3);
-        g.stroke();
-    }
-}
-
-function drawPerspectiveFoothills(g: CanvasRenderingContext2D, variant: number): void {
-    g.fillStyle = "#9ca864";
-    for (let i = 0; i < 4; i += 1) {
-        const x = 22 + i * 54 + variant * 3;
-        perspectiveTriangle(g, x, 164, x + 32, 84 + (i % 2) * 18, x + 74, 164);
-    }
-}
-
-function drawPerspectiveSwamp(g: CanvasRenderingContext2D, variant: number): void {
-    g.fillStyle = "rgba(50, 74, 51, 0.86)";
-    g.beginPath();
-    g.ellipse(128, 145, 78, 29, 0, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = "#8ba265";
-    for (let i = 0; i < 10; i += 1) {
-        const x = 36 + ((i * 31 + variant * 17) % 176);
-        const y = 96 + ((i * 11 + variant * 7) % 54);
-        g.fillRect(x, y, 6, 50);
-        g.fillRect(x - 9, y + 19, 23, 5);
-    }
-}
-
-function drawPerspectiveTown(g: CanvasRenderingContext2D, variant: number): void {
-    for (let i = 0; i < 3; i += 1) {
-        const x = 50 + i * 54 + (variant % 2) * 8;
-        const y = 88 + (i % 2) * 18;
-        g.fillStyle = "#815538";
-        g.fillRect(x, y + 34, 42, 42);
-        g.fillStyle = "#3e2820";
-        perspectiveTriangle(g, x - 7, y + 38, x + 21, y + 6, x + 49, y + 38);
-        g.fillStyle = "#d8c077";
-        g.fillRect(x + 8, y + 48, 9, 11);
-    }
-}
-
-function drawPerspectiveHut(g: CanvasRenderingContext2D, variant: number): void {
-    const x = 82 + variant * 4;
-    const y = 88;
-    g.fillStyle = "#6e4828";
-    g.fillRect(x, y + 38, 92, 58);
-    g.fillStyle = "#39291d";
-    perspectiveTriangle(g, x - 12, y + 42, x + 46, y, x + 104, y + 42);
-    g.fillStyle = "#21170f";
-    g.fillRect(x + 38, y + 62, 18, 34);
-}
-
-function drawPerspectiveCastle(g: CanvasRenderingContext2D, variant: number): void {
-    const x = 54 + variant * 3;
-    const y = 54;
-    g.fillStyle = "#918c84";
-    g.fillRect(x, y + 56, 148, 82);
-    g.fillRect(x + 8, y + 24, 34, 114);
-    g.fillRect(x + 106, y + 12, 34, 126);
-    g.fillStyle = "#34302e";
-    g.fillRect(x + 69, y + 92, 24, 46);
-    g.fillStyle = "#c4b889";
-    g.fillRect(x + 17, y + 42, 10, 14);
-    g.fillRect(x + 116, y + 34, 10, 14);
-}
-
-function drawPerspectiveVoid(g: CanvasRenderingContext2D): void {
-    g.strokeStyle = "rgba(215, 191, 115, 0.28)";
-    g.setLineDash([9, 8]);
-    g.strokeRect(48, 92, 160, 72);
-    g.setLineDash([]);
-}
-
-function perspectiveTriangle(g: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): void {
-    g.beginPath();
-    g.moveTo(x1, y1);
-    g.lineTo(x2, y2);
-    g.lineTo(x3, y3);
-    g.closePath();
-    g.fill();
-}
-
-function transparentize(color: string, alpha: number): string {
-    if (!color.startsWith("#") || color.length !== 7) return color;
-    const r = parseInt(color.slice(1, 3), 16);
-    const g = parseInt(color.slice(3, 5), 16);
-    const b = parseInt(color.slice(5, 7), 16);
-    return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+    if (settlement === "town" || settlement === "castle" || settlement === "hut") return settlement;
+    if (slug === "town" || slug === "castle" || slug === "hut") return slug;
+    if (isWaterTerrain(slug)) return "water";
+    if (slug.includes("forest")) return "forest";
+    if (slug.includes("mountain")) return "mountain";
+    if (slug.includes("desert")) return "desert";
+    if (slug.includes("foothills")) return "foothills";
+    if (slug.includes("swamp")) return "swamp";
+    if (slug.includes("road")) return "road";
+    if (slug.includes("plain")) return "plain";
+    return "void";
 }
 
 function drawScenePanel(frame: BitmapFrame): void {
