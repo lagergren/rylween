@@ -490,8 +490,8 @@ data class ConversationRumorModel(
 )
 
 data class ConversationPromptTextModel(
-    val chooseNpc: TextBlock = inlineText(),
-    val mainMenu: TextBlock = inlineText(),
+    val chooseNpc: TextBlock = literalText(),
+    val mainMenu: TextBlock = literalText(),
 )
 
 data class ReusableScreenTextModel(

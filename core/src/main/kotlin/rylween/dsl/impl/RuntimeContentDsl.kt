@@ -181,7 +181,7 @@ data class WildernessKeysModel(
     val outOfMovesQuit: InputBindingModel = inputKey("Q"),
     val quitYes: InputBindingModel = inputKey("Y"),
     val quitNo: InputBindingModel = inputKey("N"),
-    val commandHint: TextBlock = inlineText("Press ? for commands."),
+    val commandHint: TextBlock = literalText("Press ? for commands."),
     val helpPages: List<TextBlock> = emptyList(),
     val commandLabels: WildernessCommandLabelsModel = WildernessCommandLabelsModel(),
 )
@@ -256,7 +256,7 @@ data class DungeonKeysModel(
     val castSpell: InputBindingModel = inputKey("Z"),
     val viewParty: InputBindingModel = inputKey("V"),
     val save: InputBindingModel = inputKey("S"),
-    val commandHint: TextBlock = inlineText("Press ? for commands."),
+    val commandHint: TextBlock = literalText("Press ? for commands."),
     val helpPages: List<TextBlock> = emptyList(),
     val commandLabels: DungeonCommandLabelsModel = DungeonCommandLabelsModel(),
 )
@@ -334,7 +334,7 @@ data class WildernessPacingModel(
 )
 
 data class TitleMenuPromptsModel(
-    val header: TextBlock = inlineText("Rylween", ""),
+    val header: TextBlock = literalText("Rylween", ""),
     val createNewParty: InputBindingModel = inputKey("N", label = "New Party"),
     val continueSavedGame: InputBindingModel = inputKey("L", label = "Load Game"),
     val terminateParty: InputBindingModel = inputKey("D", label = "Delete Save"),
@@ -343,18 +343,18 @@ data class TitleMenuPromptsModel(
     val documentation: InputBindingModel = inputKey("M", label = "Manual"),
     val leave: InputBindingModel = inputKey("E", label = "Exit"),
     val continueUnavailableReasonLabel: String = "no save",
-    val continueUnavailable: TextBlock = inlineText("No saved party exists for this user."),
+    val continueUnavailable: TextBlock = literalText("No saved party exists for this user."),
     val overwriteConfirm: TextBlock =
-        inlineText(
+        literalText(
             "Creating a new party will overwrite the saved party for this user.",
             "",
             "(Y)es",
             "(N)o",
         ),
-    val terminateConfirm: TextBlock = inlineText("Terminate saved party?", "", "(Y)es", "(N)o"),
-    val terminated: TextBlock = inlineText("Saved party terminated."),
-    val terminateFailed: TextBlock = inlineText("Could not delete saved party."),
-    val invalidInput: TextBlock = inlineText("Invalid input."),
+    val terminateConfirm: TextBlock = literalText("Terminate saved party?", "", "(Y)es", "(N)o"),
+    val terminated: TextBlock = literalText("Saved party terminated."),
+    val terminateFailed: TextBlock = literalText("Could not delete saved party."),
+    val invalidInput: TextBlock = literalText("Invalid input."),
 )
 
 data class SavePromptsModel(
@@ -374,29 +374,29 @@ data class CharacterCreationPromptsModel(
     val genderFemaleLabel: String = "Female",
     val race: TextBlock = missingPrompt("character_creation.race"),
     val classMenu: TextBlock = missingPrompt("character_creation.class_menu"),
-    val invalidInput: TextBlock = inlineText("Invalid input."),
+    val invalidInput: TextBlock = literalText("Invalid input."),
     val saving: TextBlock = missingPrompt("character_creation.saving"),
-    val saveConfirmation: TextBlock = inlineText("OK"),
+    val saveConfirmation: TextBlock = literalText("OK"),
 )
 
 data class PriestSpellPromptsModel(
     val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberCount, ")") },
-    val none: TextBlock = inlineText("(N)one"),
+    val none: TextBlock = literalText("(N)one"),
     val noneKey: Char = 'N',
     val firstSpellKey: Char = 'A',
-    val mageCombatOnly: TextBlock = inlineText("Sorry. Mage spells are", "combat-only."),
-    val wrongClass: TextBlock = inlineText("Wrong class."),
-    val dead: TextBlock = inlineText("Dead."),
-    val invalidCaster: TextBlock = inlineText("Not a party member."),
-    val invalidSpell: TextBlock = inlineText("Not possible."),
-    val noSpells: TextBlock = inlineText("No priest spells are", "declared."),
+    val mageCombatOnly: TextBlock = literalText("Sorry. Mage spells are", "combat-only."),
+    val wrongClass: TextBlock = literalText("Wrong class."),
+    val dead: TextBlock = literalText("Dead."),
+    val invalidCaster: TextBlock = literalText("Not a party member."),
+    val invalidSpell: TextBlock = literalText("Not possible."),
+    val noSpells: TextBlock = literalText("No priest spells are", "declared."),
 )
 
 data class InventoryUsePromptsModel(
-    val usePrompt: TextBlock = inlineText("Use what?"),
-    val quaff: TextBlock = inlineText("Quaff what?"),
-    val noItems: TextBlock = inlineText("You are not carrying", "anything."),
-    val noItem: TextBlock = inlineText("There is nothing", "in that slot."),
+    val usePrompt: TextBlock = literalText("Use what?"),
+    val quaff: TextBlock = literalText("Quaff what?"),
+    val noItems: TextBlock = literalText("You are not carrying", "anything."),
+    val noItem: TextBlock = literalText("There is nothing", "in that slot."),
     val invalidSlot: TextBlock =
         structuredText {
             line("Inventory slot ", InventoryText.slotName)
@@ -411,12 +411,12 @@ data class InventoryUsePromptsModel(
     fun choose(
         prompt: TextBlock,
         choiceLines: List<String>,
-    ): TextBlock = combineTextBlocks(prompt, TextBlock.Inline(choiceLines))
+    ): TextBlock = combineTextBlocks(prompt, literalText(*choiceLines.toTypedArray()))
 }
 
 data class EquipmentPromptsModel(
-    val inventory: TextBlock = inlineText("Ready what?"),
-    val who: TextBlock = inlineText("Who? (1-N)"),
+    val inventory: TextBlock = literalText("Ready what?"),
+    val who: TextBlock = literalText("Who? (1-N)"),
     val noAvailable: TextBlock =
         structuredText {
             line("No ", TextPart.EquipmentKindName, " available.")
@@ -425,8 +425,8 @@ data class EquipmentPromptsModel(
         structuredText {
             line("Equipped ", TextPart.SelectedItemName, ".")
         },
-    val readyWeapons: TextBlock = inlineText("Do you want to ready", "some weapons before", "leaving?", ""),
-    val readyArmors: TextBlock = inlineText("Do you want to ready", "some armors before", "leaving?", ""),
+    val readyWeapons: TextBlock = literalText("Do you want to ready", "some weapons before", "leaving?", ""),
+    val readyArmors: TextBlock = literalText("Do you want to ready", "some armors before", "leaving?", ""),
 )
 
 data class TownPromptsModel(
@@ -439,19 +439,19 @@ data class TownPromptsModel(
 data class PartyPromptsModel(
     val viewWho: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberCount, "/Q/A)") },
     val journalHeader: TextBlock = missingPrompt("party.journal_header"),
-    val journalEmpty: TextBlock = inlineText("No journal entries."),
-    val inventoryHeader: TextBlock = inlineText("Inventory:"),
-    val dropPrompt: TextBlock = inlineText("Drop what?"),
-    val dropEmptySlot: TextBlock = inlineText("Nothing to drop."),
-    val dropAborted: TextBlock = inlineText("Aborted."),
+    val journalEmpty: TextBlock = literalText("No journal entries."),
+    val inventoryHeader: TextBlock = literalText("Inventory:"),
+    val dropPrompt: TextBlock = literalText("Drop what?"),
+    val dropEmptySlot: TextBlock = literalText("Nothing to drop."),
+    val dropAborted: TextBlock = literalText("Aborted."),
     val dropDropped: TextBlock =
         structuredText {
             line("You drop the")
             line(TextPart.SelectedItemName, ".")
         },
-    val dropCapacityReduced: TextBlock = inlineText("You are forced to", "leave some of your", "food behind..."),
-    val dropOverflowConfirm: TextBlock = inlineText("Drop an item? (Y/N)"),
-    val dropOverflowPrompt: TextBlock = inlineText("Drop which item?", "RETURN leaves."),
+    val dropCapacityReduced: TextBlock = literalText("You are forced to", "leave some of your", "food behind..."),
+    val dropOverflowConfirm: TextBlock = literalText("Drop an item? (Y/N)"),
+    val dropOverflowPrompt: TextBlock = literalText("Drop which item?", "RETURN leaves."),
 )
 
 data class WildernessPromptsModel(
@@ -460,7 +460,7 @@ data class WildernessPromptsModel(
     val outOfMoves: TextBlock = missingPrompt("wilderness.out_of_moves"),
     val notInWilderness: TextBlock = missingPrompt("wilderness.not_in_wilderness"),
     val nothingToEnter: TextBlock = missingPrompt("wilderness.nothing_to_enter"),
-    val impassable: TextBlock = inlineText("Impassable."),
+    val impassable: TextBlock = literalText("Impassable."),
     val quitConfirm: TextBlock = missingPrompt("wilderness.quit_confirm"),
     val dungeonHandoff: TextBlock = missingPrompt("wilderness.dungeon_handoff"),
 )
@@ -473,7 +473,7 @@ data class DungeonPromptsModel(
     val leaveCavern: TextBlock = missingPrompt("dungeon.leave_cavern"),
 )
 
-private fun missingPrompt(name: String): TextBlock = inlineText("[missing prompt: $name]")
+private fun missingPrompt(name: String): TextBlock = literalText("[missing prompt: $name]")
 
 internal fun ConversationTopic.defaultLabel(): String =
     when (this) {

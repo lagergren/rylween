@@ -275,7 +275,7 @@ fun flow(
  * Detection rule for triple-quoted multi-line authoring: if the caller
  * passed exactly one string, and it contains a newline, treat it as
  * `trimIndent().split("\n")`; otherwise behave like a normal vararg. This
- * keeps `say("a", "b")` and `say("simple sentence.")` unchanged.
+ * keeps `writeText("a", "b")` and `writeText("simple sentence.")` unchanged.
  */
 private fun expandMultiline(lines: Array<out String>): List<String> =
     if (lines.size == 1 && '\n' in lines[0]) {

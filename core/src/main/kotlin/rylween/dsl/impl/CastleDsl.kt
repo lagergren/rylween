@@ -21,8 +21,8 @@ import rylween.dsl.RylNextDsl
 import rylween.dsl.SceneId
 import rylween.dsl.StructuredTextBlockBuilder
 import rylween.dsl.TextBlock
-import rylween.dsl.inlineText
 import rylween.dsl.inputKey
+import rylween.dsl.literalText
 import rylween.dsl.structuredText
 
 /** Room-event categories encoded in a generated castle room map. */
@@ -112,28 +112,28 @@ data class CastleScriptsModel(
 
 /** Text prompts and narration used by the castle runtime session. */
 data class CastleTextModel(
-    val roomMonster: TextBlock = inlineText(),
-    val trapTriesDisarmSuffix: TextBlock = inlineText(),
-    val trapDisarmSucceed: TextBlock = inlineText(),
-    val trapDisarmFail: TextBlock = inlineText(),
+    val roomMonster: TextBlock = literalText(),
+    val trapTriesDisarmSuffix: TextBlock = literalText(),
+    val trapDisarmSucceed: TextBlock = literalText(),
+    val trapDisarmFail: TextBlock = literalText(),
     val pitfallIllustration: ImageId? = null,
     val treasureIllustration: ImageId? = null,
-    val treasureMenu: TextBlock = inlineText(),
-    val treasureFull: TextBlock = inlineText(),
-    val treasureTaken: TextBlock = inlineText(),
-    val moveNorth: TextBlock = inlineText(),
-    val moveSouth: TextBlock = inlineText(),
-    val moveEast: TextBlock = inlineText(),
-    val moveWest: TextBlock = inlineText(),
-    val stairsIntro: TextBlock = inlineText(),
+    val treasureMenu: TextBlock = literalText(),
+    val treasureFull: TextBlock = literalText(),
+    val treasureTaken: TextBlock = literalText(),
+    val moveNorth: TextBlock = literalText(),
+    val moveSouth: TextBlock = literalText(),
+    val moveEast: TextBlock = literalText(),
+    val moveWest: TextBlock = literalText(),
+    val stairsIntro: TextBlock = literalText(),
     val stairsIllustration: ImageId? = null,
-    val stairsGuardianOffer: TextBlock = inlineText(),
-    val stairsMenu: TextBlock = inlineText(),
-    val stairsLeave: TextBlock = inlineText(),
-    val teleportVortex: TextBlock = inlineText(),
-    val teleportOutside: TextBlock = inlineText(),
-    val giveMenu: TextBlock = inlineText(),
-    val stairsGuardianGrateful: TextBlock = inlineText(),
+    val stairsGuardianOffer: TextBlock = literalText(),
+    val stairsMenu: TextBlock = literalText(),
+    val stairsLeave: TextBlock = literalText(),
+    val teleportVortex: TextBlock = literalText(),
+    val teleportOutside: TextBlock = literalText(),
+    val giveMenu: TextBlock = literalText(),
+    val stairsGuardianGrateful: TextBlock = literalText(),
     val floorNames: List<String> = emptyList(),
 )
 

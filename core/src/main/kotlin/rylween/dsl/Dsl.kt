@@ -131,41 +131,85 @@ class ScriptScope(
         showTextAndWait(structuredText(body))
     }
 
-    /** Dialogue-oriented alias for [writeText]. Prefer it only for spoken lines. */
+    /** Legacy dialogue-oriented alias for [writeText]. */
+    @Deprecated(
+        message = "Use writeText; spoken lines are content, not a separate script action.",
+        replaceWith = ReplaceWith("writeText(text)"),
+    )
     fun say(text: TextBlock): Unit = writeText(text)
 
-    /** Dialogue-oriented alias for [writeText]. Prefer it only for spoken lines. */
+    /** Legacy dialogue-oriented alias for [writeText]. */
+    @Deprecated(
+        message = "Use writeText; spoken lines are content, not a separate script action.",
+        replaceWith = ReplaceWith("writeText(id)"),
+    )
     fun say(id: TextId): Unit = writeText(id)
 
-    /** Dialogue-oriented alias for [writeText]. Prefer it only for spoken lines. */
+    /** Legacy dialogue-oriented alias for [writeText]. */
+    @Deprecated(
+        message = "Use writeText; spoken lines are content, not a separate script action.",
+        replaceWith = ReplaceWith("writeText(*lines)"),
+    )
     fun say(vararg lines: String): Unit = writeText(*lines)
 
-    /** Dialogue-oriented alias for [writeText]. Prefer it only for spoken lines. */
+    /** Legacy dialogue-oriented alias for [writeText]. */
+    @Deprecated(
+        message = "Use writeText; spoken lines are content, not a separate script action.",
+        replaceWith = ReplaceWith("writeText(body)"),
+    )
     fun say(body: StructuredTextBlockBuilder.() -> Unit): Unit = writeText(body)
 
     /** Compatibility alias for older authored scripts. New code should use [writeText]. */
+    @Deprecated(
+        message = "Use writeText for script text output.",
+        replaceWith = ReplaceWith("writeText(text)"),
+    )
     fun screen(text: TextBlock): Unit = writeText(text)
 
     /** Compatibility alias for older authored scripts. New code should use [writeText]. */
+    @Deprecated(
+        message = "Use writeText for script text output.",
+        replaceWith = ReplaceWith("writeText(id)"),
+    )
     fun screen(id: TextId): Unit = writeText(id)
 
     /** Compatibility alias for older authored scripts. New code should use [writeText]. */
+    @Deprecated(
+        message = "Use writeText for script text output.",
+        replaceWith = ReplaceWith("writeText(*lines)"),
+    )
     fun screen(vararg lines: String): Unit = writeText(*lines)
 
     /** Compatibility alias for older authored scripts. New code should use [writeText]. */
+    @Deprecated(
+        message = "Use writeText for script text output.",
+        replaceWith = ReplaceWith("writeText(body)"),
+    )
     fun screen(body: StructuredTextBlockBuilder.() -> Unit): Unit = writeText(body)
 
     /** Compatibility alias for older authored scripts. New code should use [showTextAndWait]. */
+    @Deprecated(
+        message = "Use showTextAndWait for write/wait/clear pages.",
+        replaceWith = ReplaceWith("showTextAndWait(*lines)"),
+    )
     fun readScreen(vararg lines: String) {
         showTextAndWait(*lines)
     }
 
     /** Compatibility alias for older authored scripts. New code should use [showTextAndWait]. */
+    @Deprecated(
+        message = "Use showTextAndWait for write/wait/clear pages.",
+        replaceWith = ReplaceWith("showTextAndWait(text)"),
+    )
     fun readScreen(text: TextBlock) {
         showTextAndWait(text)
     }
 
     /** Compatibility alias for older authored scripts. New code should use [showTextAndWait]. */
+    @Deprecated(
+        message = "Use showTextAndWait for write/wait/clear pages.",
+        replaceWith = ReplaceWith("showTextAndWait(body)"),
+    )
     fun readScreen(body: StructuredTextBlockBuilder.() -> Unit) {
         showTextAndWait(body)
     }
@@ -174,7 +218,7 @@ class ScriptScope(
 
     fun journal(text: TextBlock): Unit = record(ScriptStatementNode.AppendJournal(text))
 
-    fun journal(vararg lines: String): Unit = journal(textLines(*lines))
+    fun journal(vararg lines: String): Unit = journal(literalText(*lines))
 
     fun journal(body: StructuredTextBlockBuilder.() -> Unit): Unit = journal(structuredText(body))
 
@@ -358,7 +402,7 @@ class ScriptScope(
     ) {
         val builder = MenuBuilder(ctx)
         builder.body()
-        record(builder.build(textLines(*promptLines)))
+        record(builder.build(literalText(*promptLines)))
     }
 
     fun menu(
@@ -610,8 +654,8 @@ class ScriptRewardBuilder {
         pickedUp: String? = null,
     ) {
         promptDrop(
-            TextBlock.Inline(listOf(cantCarry)),
-            pickedUp?.let { TextBlock.Inline(listOf(it)) },
+            literalText(cantCarry),
+            pickedUp?.let { literalText(it) },
         )
     }
 
@@ -658,7 +702,7 @@ class RandomItemOfferBuilder(
     private val pool: ItemPoolId,
 ) {
     private var offerText: TextBlock? = null
-    private var choicePromptText: TextBlock = inlineText("(B)uy it", "(N)o thanks")
+    private var choicePromptText: TextBlock = literalText("(B)uy it", "(N)o thanks")
     private var brokeText: TextBlock? = null
     private var dealText: TextBlock? = null
     private var declinedText: TextBlock? = null
@@ -678,7 +722,7 @@ class RandomItemOfferBuilder(
     private var declinedPauseMillis: Int = 1_000
 
     fun offer(vararg lines: String) {
-        offerText = inlineText(*lines)
+        offerText = literalText(*lines)
     }
 
     fun offer(body: RandomItemOfferTextBuilder.() -> Unit) {
@@ -686,7 +730,7 @@ class RandomItemOfferBuilder(
     }
 
     fun choicePrompt(vararg lines: String) {
-        choicePromptText = inlineText(*lines)
+        choicePromptText = literalText(*lines)
     }
 
     fun choicePrompt(body: RandomItemOfferTextBuilder.() -> Unit) {
@@ -710,7 +754,7 @@ class RandomItemOfferBuilder(
     }
 
     fun broke(vararg lines: String) {
-        brokeText = inlineText(*lines)
+        brokeText = literalText(*lines)
     }
 
     fun broke(body: RandomItemOfferTextBuilder.() -> Unit) {
@@ -718,7 +762,7 @@ class RandomItemOfferBuilder(
     }
 
     fun full(vararg lines: String) {
-        messagesModel = messagesModel.copy(cantCarry = inlineText(*lines))
+        messagesModel = messagesModel.copy(cantCarry = literalText(*lines))
     }
 
     fun full(body: RandomItemOfferTextBuilder.() -> Unit) {
@@ -738,7 +782,7 @@ class RandomItemOfferBuilder(
     }
 
     fun promptDrop(pickedUp: String) {
-        promptDrop(inlineText(pickedUp))
+        promptDrop(literalText(pickedUp))
     }
 
     fun promptDrop(pickedUp: TextId) {
@@ -746,7 +790,7 @@ class RandomItemOfferBuilder(
     }
 
     fun deal(vararg lines: String) {
-        dealText = inlineText(*lines)
+        dealText = literalText(*lines)
     }
 
     fun deal(body: RandomItemOfferTextBuilder.() -> Unit) {
@@ -754,7 +798,7 @@ class RandomItemOfferBuilder(
     }
 
     fun declined(vararg lines: String) {
-        declinedText = inlineText(*lines)
+        declinedText = literalText(*lines)
     }
 
     fun declined(body: RandomItemOfferTextBuilder.() -> Unit) {
@@ -1042,7 +1086,7 @@ class ChoiceScope(
         yes: ScriptScope.() -> Unit,
         no: ScriptScope.() -> Unit = {},
     ) {
-        yesNo(TextBlock.Inline(promptLines.toList()), yes, no)
+        yesNo(literalText(*promptLines), yes, no)
     }
 
     fun takeOrLeave(
@@ -1119,7 +1163,7 @@ class ChoiceScope(
         onAccepted: ScriptScope.() -> Unit,
         onRejected: ScriptScope.() -> Unit,
     ) {
-        textInput(inlineText(prompt), acceptedInputs, caseSensitive, trim, maxLength, onAccepted, onRejected)
+        textInput(literalText(prompt), acceptedInputs, caseSensitive, trim, maxLength, onAccepted, onRejected)
     }
 
     fun member(
@@ -2512,7 +2556,7 @@ class WildernessKeysBuilder(
     }
 
     fun commandHint(vararg lines: String) {
-        commandHintText = inlineText(*lines)
+        commandHintText = literalText(*lines)
     }
 
     fun commandHint(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -2571,7 +2615,7 @@ class WildernessHelpPagesBuilder {
     private val pages = mutableListOf<TextBlock>()
 
     fun page(vararg lines: String) {
-        pages += inlineText(*lines)
+        pages += literalText(*lines)
     }
 
     fun page(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -2653,7 +2697,7 @@ class DungeonKeysBuilder(
     private var helpPageText = initial.helpPages
 
     fun commandHint(vararg lines: String) {
-        commandHintText = inlineText(*lines)
+        commandHintText = literalText(*lines)
     }
 
     fun commandHint(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -2819,19 +2863,19 @@ class WildernessEventBuilder {
     private var caveNoMovesText: TextBlock? = null
 
     fun caveFoundPrompt(vararg lines: String) {
-        caveFoundPromptText = inlineText(*lines)
+        caveFoundPromptText = literalText(*lines)
     }
 
     fun caveFoundPrompt(body: StructuredTextBlockBuilder.() -> Unit) {
-        caveFoundPromptText = StructuredTextBlockBuilder().apply(body).build()
+        caveFoundPromptText = structuredText(body)
     }
 
     fun caveNoMoves(vararg lines: String) {
-        caveNoMovesText = inlineText(*lines)
+        caveNoMovesText = literalText(*lines)
     }
 
     fun caveNoMoves(body: StructuredTextBlockBuilder.() -> Unit) {
-        caveNoMovesText = StructuredTextBlockBuilder().apply(body).build()
+        caveNoMovesText = structuredText(body)
     }
 
     fun build(): WildernessEventModel =
@@ -2865,14 +2909,14 @@ class TerrainTransitionBuilder {
         id: TerrainId,
         vararg lines: String,
     ) {
-        entries += TerrainTransitionTextModel(id, inlineText(*lines))
+        entries += TerrainTransitionTextModel(id, literalText(*lines))
     }
 
     fun terrain(
         id: TerrainId,
         body: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        entries += TerrainTransitionTextModel(id, StructuredTextBlockBuilder().apply(body).build())
+        entries += TerrainTransitionTextModel(id, structuredText(body))
     }
 
     fun build(): TerrainTransitionModel = TerrainTransitionModel(chancePercent = chancePercent, entries = entries.toList())

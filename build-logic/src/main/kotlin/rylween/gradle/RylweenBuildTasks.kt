@@ -522,6 +522,11 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
     private data class ImageHandles(
         val staticNames: List<String>,
         val sceneNames: List<String>,
+        val encounterNames: List<String>,
+        val portraitNames: List<String>,
+        val castleNames: List<String>,
+        val dungeonNames: List<String>,
+        val missionNames: List<String>,
     )
 
     private data class SpellHandles(
@@ -841,7 +846,7 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
 
     private fun imageHandles(source: String): ImageHandles {
         val handles =
-            Regex("""\bImages\.(Static|Scene|Backdrop)\.([A-Za-z][A-Za-z0-9_]*)""")
+            Regex("""\bImages\.(Static|Scene|Backdrop|Encounter|Portrait|Castle|Dungeon|Mission)\.([A-Za-z][A-Za-z0-9_]*)""")
                 .findAll(source)
                 .map { match ->
                     match.groupValues[1] to
@@ -850,15 +855,39 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
                             offset = match.groupOffset(2),
                         )
                 }.toList()
-        val staticHandles = handles.filter { it.first == "Static" }.map { it.second }
-        val sceneHandles = handles.filter { it.first == "Scene" || it.first == "Backdrop" }.map { it.second }
+        val grouped = handles.groupBy({ it.first }, { it.second })
+        val staticHandles = grouped["Static"].orEmpty()
+        val sceneHandles = grouped["Scene"].orEmpty() + grouped["Backdrop"].orEmpty()
+        val encounterHandles = grouped["Encounter"].orEmpty()
+        val portraitHandles = grouped["Portrait"].orEmpty()
+        val castleHandles = grouped["Castle"].orEmpty()
+        val dungeonHandles = grouped["Dungeon"].orEmpty()
+        val missionHandles = grouped["Mission"].orEmpty()
         validateNoCatalogIdCollisions(source, "static image", staticHandles)
         validateNoCatalogIdCollisions(source, "scene image", sceneHandles) { name -> sceneImageSlug(name) }
+        validateNoCatalogIdCollisions(source, "encounter image", encounterHandles) { name -> encounterImageSlug(name) }
+        validateNoCatalogIdCollisions(source, "portrait image", portraitHandles) { name -> portraitImageSlug(name) }
+        validateNoCatalogIdCollisions(source, "castle image", castleHandles) { name -> castleImageSlug(name) }
+        validateNoCatalogIdCollisions(source, "dungeon image", dungeonHandles) { name -> dungeonImageSlug(name) }
+        validateNoCatalogIdCollisions(source, "mission image", missionHandles) { name -> missionImageSlug(name) }
         return ImageHandles(
             staticNames = staticHandles.distinctNamesInOrder(),
             sceneNames = sceneHandles.distinctNamesInOrder(),
+            encounterNames = encounterHandles.distinctNamesInOrder(),
+            portraitNames = portraitHandles.distinctNamesInOrder(),
+            castleNames = castleHandles.distinctNamesInOrder(),
+            dungeonNames = dungeonHandles.distinctNamesInOrder(),
+            missionNames = missionHandles.distinctNamesInOrder(),
         ).also {
-            if (it.staticNames.isEmpty() && it.sceneNames.isEmpty()) {
+            if (
+                it.staticNames.isEmpty() &&
+                it.sceneNames.isEmpty() &&
+                it.encounterNames.isEmpty() &&
+                it.portraitNames.isEmpty() &&
+                it.castleNames.isEmpty() &&
+                it.dungeonNames.isEmpty() &&
+                it.missionNames.isEmpty()
+            ) {
                 sourceFailure(source, 0, "The game source must reference at least one image handle.")
             }
         }
@@ -873,11 +902,21 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
             handles.sceneNames.joinToString(separator = "\n") { name ->
                 """    val $name: ImageId = image("${sceneImageSlug(name)}")"""
             }
+        val encounterLines = generateImageGroupLines(handles.encounterNames, ::encounterImageSlug)
+        val portraitLines = generateImageGroupLines(handles.portraitNames, ::portraitImageSlug)
+        val castleLines = generateImageGroupLines(handles.castleNames, ::castleImageSlug)
+        val dungeonLines = generateImageGroupLines(handles.dungeonNames, ::dungeonImageSlug)
+        val missionLines = generateImageGroupLines(handles.missionNames, ::missionImageSlug)
         return """
             |class ImageRefs {
             |    val Static: StaticAnsiImageRefs = StaticAnsiImageRefs()
             |    val Scene: SceneImageRefs = SceneImageRefs()
             |    val Backdrop: SceneImageRefs = Scene
+            |    val Encounter: EncounterImageRefs = EncounterImageRefs()
+            |    val Portrait: PortraitImageRefs = PortraitImageRefs()
+            |    val Castle: CastleImageRefs = CastleImageRefs()
+            |    val Dungeon: DungeonImageRefs = DungeonImageRefs()
+            |    val Mission: MissionImageRefs = MissionImageRefs()
             |}
             |
             |class StaticAnsiImageRefs {
@@ -888,9 +927,37 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
             |$sceneLines
             |}
             |
+            |class EncounterImageRefs {
+            |$encounterLines
+            |}
+            |
+            |class PortraitImageRefs {
+            |$portraitLines
+            |}
+            |
+            |class CastleImageRefs {
+            |$castleLines
+            |}
+            |
+            |class DungeonImageRefs {
+            |$dungeonLines
+            |}
+            |
+            |class MissionImageRefs {
+            |$missionLines
+            |}
+            |
             |val Images: ImageRefs = ImageRefs()
             """.trimMargin()
     }
+
+    private fun generateImageGroupLines(
+        names: List<String>,
+        slug: (String) -> String,
+    ): String =
+        names.joinToString(separator = "\n") { name ->
+            """    val $name: ImageId = image("${slug(name)}")"""
+        }
 
     private fun spellHandles(source: String): SpellHandles {
         fun nestedSpellNames(group: String): List<String> {
@@ -1491,6 +1558,41 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
     private fun flagStateSlug(stateName: String): String = stateName.toSlug()
 
     private fun sceneImageSlug(name: String): String = "blitgfx.${name.toSlug()}"
+
+    private fun encounterImageSlug(name: String): String = "blitgfx.monster_${name.toSlug()}"
+
+    private fun portraitImageSlug(name: String): String {
+        fun named(
+            prefix: String,
+            kind: String,
+        ): String = "portrait.gender.${prefix.toSlug()}.$kind.${name.removePrefix(prefix).toSlug()}"
+
+        return when {
+            name == "default" -> "portrait.character.default"
+            name == "femaleDefault" -> "portrait.gender.female"
+            name == "maleDefault" -> "portrait.gender.male"
+            name.startsWith("female") && name.removePrefix("female") in classPortraitSuffixes -> named("female", "class")
+            name.startsWith("female") -> named("female", "race")
+            name.startsWith("male") && name.removePrefix("male") in classPortraitSuffixes -> named("male", "class")
+            name.startsWith("male") -> named("male", "race")
+            name in classPortraitNames -> "portrait.class.${name.toSlug()}"
+            else -> "portrait.character.${name.toSlug()}"
+        }
+    }
+
+    private val classPortraitNames = setOf("fighter", "thief", "mage", "priest", "bard", "ranger")
+
+    private val classPortraitSuffixes = classPortraitNames.map { name -> name.toUpperCamel() }.toSet()
+
+    private fun castleImageSlug(name: String): String =
+        when (name) {
+            "jaaraGate" -> "blitgfx.${name.toSlug()}"
+            else -> "blitgfx.castle_${name.toSlug()}"
+        }
+
+    private fun dungeonImageSlug(name: String): String = "blitgfx.dungeon_${name.toSlug()}"
+
+    private fun missionImageSlug(name: String): String = "blitgfx.${name.toSlug()}"
 
     private fun sceneSlug(
         group: SceneGroupHandles,
