@@ -76,6 +76,18 @@ private val BITMAP_ASSETS =
         "water-connect-atlas.png" to "bitmap/assets/water-connect-atlas.png",
         "party-rider.png" to "bitmap/assets/party-rider.png",
         "party-overview.png" to "bitmap/assets/party-overview.png",
+        "wilderness/terrain-plain.png" to "bitmap-web/wilderness/terrain-plain.png",
+        "wilderness/terrain-forest.png" to "bitmap-web/wilderness/terrain-forest.png",
+        "wilderness/terrain-foothills.png" to "bitmap-web/wilderness/terrain-foothills.png",
+        "wilderness/terrain-mountain.png" to "bitmap-web/wilderness/terrain-mountain.png",
+        "wilderness/terrain-desert.png" to "bitmap-web/wilderness/terrain-desert.png",
+        "wilderness/terrain-swamp.png" to "bitmap-web/wilderness/terrain-swamp.png",
+        "wilderness/terrain-water.png" to "bitmap-web/wilderness/terrain-water.png",
+        "wilderness/terrain-town.png" to "bitmap-web/wilderness/terrain-town.png",
+        "wilderness/terrain-hut.png" to "bitmap-web/wilderness/terrain-hut.png",
+        "wilderness/terrain-castle.png" to "bitmap-web/wilderness/terrain-castle.png",
+        "wilderness/terrain-road.png" to "bitmap-web/wilderness/terrain-road.png",
+        "wilderness/terrain-void.png" to "bitmap-web/wilderness/terrain-void.png",
         "scene-thord-mainstreet.png" to "bitmap/assets/scene-thord-mainstreet.png",
         "scene-merchant.png" to "bitmap/assets/scene-merchant.png",
         "scene-smith.png" to "bitmap/assets/scene-smith.png",
@@ -648,7 +660,7 @@ private class BitmapWebServer(
         val viewport = world.bitmapViewport(point, content, config.mapTiles, config.tileSize)
         val body =
             jsonObject(
-                "start" to jsonObject("x" to "12", "y" to "10"),
+                "start" to jsonObject("x" to "12", "y" to "10", "facing" to BitmapWildernessFacing.South.name.json()),
                 "position" to jsonObject("x" to point.x.toString(), "y" to point.y.toString()),
                 "facing" to facing.name.json(),
                 "mapWidth" to world.width.toString(),
@@ -872,7 +884,7 @@ private fun serverLogValue(value: String): String = "\"" + value.replace("\\", "
 
 private fun String?.toBitmapFacingOrDefault(): BitmapWildernessFacing =
     BitmapWildernessFacing.entries.firstOrNull { facing -> facing.name.equals(this, ignoreCase = true) }
-        ?: BitmapWildernessFacing.North
+        ?: BitmapWildernessFacing.South
 
 private fun writeWebSocketHandshake(
     output: java.io.OutputStream,

@@ -1095,8 +1095,8 @@ contract, while the authored game remains portable JSON/data.
     carry server-computed projections for all four facings, the browser can
     toggle 2D/3D wilderness display with `2`, Shift+arrow changes only display
     facing, and `/tools/wilderness-perspective` loads the real authored map
-    outside Thord at 12x10 for isolated walking/rotation checks without a save
-    or party state.
+    outside Thord at 12x10 facing south, so Thord is visible directly ahead,
+    for isolated walking/rotation checks without a save or party state.
     - [x] K2a. Build the projection test tool first. Given a world coordinate,
       a facing direction, and a requested perspective grid/depth, produce an
       ordered list of visible terrain cells with world coordinates, relative
@@ -1111,10 +1111,10 @@ contract, while the authored game remains portable JSON/data.
       or draw bundled classpath images for each current terrain type, with a few
       coordinate-stable variants where variation improves the view. Assets must
       stay under the existing game resources / jar / Docker packaging path so a
-      server install does not need an unpacked image tree. Closed as
-      deterministic transparent canvas sprites compiled into the served
-      TypeScript output; they are bundled in the runtime web jar/Docker image
-      and do not require an unpacked server-side asset tree.
+      server install does not need an unpacked image tree. Closed as generated
+      transparent PNG terrain panels served from bundled `bitmap-web`
+      resources; they are bundled in the runtime web jar/Docker image and do
+      not require an unpacked server-side asset tree.
     - [x] K2c. Implement the pseudo-3D renderer as deterministic blitting, not
       a physics/3D engine. Use the K2a projection output, draw far-to-near,
       scale sprites by distance, and layer terrain silhouettes so nearer forest,
@@ -1139,8 +1139,8 @@ contract, while the authored game remains portable JSON/data.
       while the same party/world coordinate remains unchanged. Include a
       screenshot artifact so terrain scale/overlap regressions are easy to
       inspect. The smoke also opens `/tools/wilderness-perspective`, verifies
-      the outside-Thord start position, Shift+arrow rotation, arrow walking, and
-      `2` toggling back to 2D.
+      the outside-Thord start position facing south with Thord directly ahead,
+      Shift+arrow rotation, arrow walking, and `2` toggling back to 2D.
 
 ## Complete migration inventory
 
