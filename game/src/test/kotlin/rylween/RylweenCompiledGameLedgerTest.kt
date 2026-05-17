@@ -2614,6 +2614,45 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun rewardVocabularySeparatesPlayerGainsCostsAndDebugGrants() {
+        val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val guide = File("docs/dsl-authoring.md").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+        val directPlayerGains =
+            Regex("""party\.(gold|torches|food)\s*\+=""")
+                .findAll(gameSource)
+                .map { match -> match.value }
+                .toSet()
+
+        check("fun gainGold(" in scriptDsl && "reward { gold(amount) }" in scriptDsl) {
+            "player-facing gold gains must compile through the reward vocabulary"
+        }
+        check("fun gainTorches(" in scriptDsl && "fun gainFood(" in scriptDsl) {
+            "simple resource gains should have named helpers instead of authored direct scalar increments"
+        }
+        check("Debug/sysop-only gold grant" in scriptDsl && "fun addGold(" in scriptDsl) {
+            "secret addGold must be documented as a debug/sysop action, not normal reward authoring"
+        }
+        check(directPlayerGains.isEmpty()) {
+            "authored game player-facing resource gains should use gain helpers or reward blocks, not direct increments: " +
+                directPlayerGains.joinToString()
+        }
+        check("gainGold(amount)" in gameSource && "gainTorches(amount)" in gameSource && "gainGold(goldAmount)" in gameSource) {
+            "current dungeon gold/torch finds must use the named gain vocabulary"
+        }
+        check("### Rewards And Resources" in guide && "Secret debug/sysop grants" in guide) {
+            "DSL guide must document reward/resource/debug ownership"
+        }
+        check("- [x] I15. Unify reward and direct resource mutation vocabulary." in planSource) {
+            "plans/dsl-improvements.md must record I15 closeout"
+        }
+        check("Resolved pairs:" in planSource && "I14" in planSource && "I15" in planSource) {
+            "I19 duplicate-mechanism register must mark selector and reward/resource pairs resolved"
+        }
+    }
+
+    @Test
     fun dslAuthoringGuideDocumentsCurrentSourceModelAndAudit() {
         val guide = File("docs/dsl-authoring.md").readText()
         val rootReadme = File("README.md").readText()
