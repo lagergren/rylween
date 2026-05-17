@@ -31,7 +31,7 @@ class RuntimeReplayPlanTest {
                     "(C)hurch",
                     "(G)uild",
                     "(L)eave",
-                    "The smith welcomes you",
+                    "The smith welcomes",
                     "The smith offers you some",
                     "Do you want supper,",
                     "The innkeeper leaves.",
@@ -104,11 +104,13 @@ class RuntimeReplayPlanTest {
             "master-crown-discovery-route",
             expected =
                 listOf(
-                    "suited for this than I am",
+                    "better suited for",
+                    "this than I am",
                     "ugly pendant",
                     "grant you the second",
                     "skullweed plant",
-                    "DWARF STONE",
+                    "DWARF",
+                    "STONE",
                     "Nolrim's crypt",
                     "dagger you seek",
                     "purple dwarf stone",
@@ -131,7 +133,7 @@ class RuntimeReplayPlanTest {
                     "No thanks.",
                     "Sold!",
                     "- I don't deal in that",
-                    "The smith welcomes you",
+                    "The smith welcomes",
                     "The smith offers you some",
                     "The smith is disappointed.",
                     "Armor or Weapon?",
@@ -220,7 +222,8 @@ class RuntimeReplayPlanTest {
             saveFile = saveFile,
             expected =
                 listOf(
-                    "FIRE SHIELD",
+                    "FIRE",
+                    "SHIELD",
                     "Bracelets of Thun",
                     "Master Crown",
                     "Today, you have killed",

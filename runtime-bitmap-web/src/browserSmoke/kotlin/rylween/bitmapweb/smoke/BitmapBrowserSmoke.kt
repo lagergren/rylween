@@ -81,6 +81,8 @@ private class BitmapBrowserSmoke(
             ).platformExecutable()
     private val bundleFile = options.root.resolve("build/compiled/rylween-bundle.json")
     private val screenshotFile = options.reportDir.resolve("bitmap-first-frame.png")
+    private val perspectiveScreenshotFile = options.reportDir.resolve("bitmap-wilderness-3d.png")
+    private val perspectiveToolScreenshotFile = options.reportDir.resolve("bitmap-wilderness-perspective-tool.png")
     private var serverProcess: Process? = null
 
     fun run() {
@@ -220,6 +222,22 @@ private class BitmapBrowserSmoke(
                 .ScreenshotOptions()
                 .setPath(screenshotFile),
         )
+        val perspectiveFrame =
+            page
+                .evaluate("() => window.__rylweenBitmapSetWildernessView && window.__rylweenBitmapSetWildernessView('3d', 'East')")
+                .asMap()
+        check(perspectiveFrame["wildernessViewMode"] == "3d") {
+            "bitmap wilderness display did not switch to 3D"
+        }
+        check((perspectiveFrame["perspectiveCells"] as? Number)?.toInt() ?: 0 > 0) {
+            "bitmap wilderness 3D view did not receive perspective cells"
+        }
+        page.screenshot(
+            Page
+                .ScreenshotOptions()
+                .setPath(perspectiveScreenshotFile),
+        )
+        smokePerspectiveTool(page, baseUrl)
         println(
             "bitmap browser smoke ok: " +
                 "browser=${options.browserName} " +
@@ -227,8 +245,58 @@ private class BitmapBrowserSmoke(
                 "backdrop=${frame["backdrop"]} " +
                 "commands=${frame["commandCount"]} " +
                 "mapCells=${frame["mapCells"]} " +
+                "perspectiveCells=${perspectiveFrame["perspectiveCells"]} " +
                 "assets=${images.joinToString(",") { image -> image.asMap()["category"].toString() + ":" + image.asMap()["id"] }} " +
-                "screenshot=${screenshotFile.absolutePathString()}",
+                "screenshot=${screenshotFile.absolutePathString()} " +
+                "perspectiveScreenshot=${perspectiveScreenshotFile.absolutePathString()} " +
+                "toolScreenshot=${perspectiveToolScreenshotFile.absolutePathString()}",
+        )
+    }
+
+    private fun smokePerspectiveTool(
+        page: Page,
+        baseUrl: String,
+    ) {
+        page.navigate("$baseUrl/tools/wilderness-perspective")
+        page.waitForFunction(toolRenderedPredicate(), null, Page.WaitForFunctionOptions().setTimeout(30_000.0))
+        val initial =
+            page
+                .evaluate(
+                    "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool()",
+                ).asMap()
+        check(initial["x"].asInt() == 12 && initial["y"].asInt() == 10) {
+            "wilderness perspective tool must start outside Thord at 12x10: $initial"
+        }
+        check(initial["facing"] == "North" && initial["mode"] == "3d") {
+            "wilderness perspective tool must start facing north in 3D mode: $initial"
+        }
+        page.keyboard().down("Shift")
+        page.keyboard().press("ArrowRight")
+        page.keyboard().up("Shift")
+        page.waitForFunction(
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().facing === 'East'",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.keyboard().press("ArrowRight")
+        page.waitForFunction(
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().x === 13",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.keyboard().press("2")
+        val afterInput =
+            page
+                .evaluate(
+                    "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool()",
+                ).asMap()
+        check(afterInput["x"].asInt() == 13 && afterInput["facing"] == "East" && afterInput["mode"] == "2d") {
+            "wilderness perspective tool controls failed: $afterInput"
+        }
+        page.screenshot(
+            Page
+                .ScreenshotOptions()
+                .setPath(perspectiveToolScreenshotFile),
         )
     }
 
@@ -311,6 +379,32 @@ private class BitmapBrowserSmoke(
           return Promise.all(chosen.map(sample));
         }
         """.trimIndent()
+
+    private fun toolRenderedPredicate(): String =
+        """
+        () => {
+          const smoke = window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool();
+          const canvas = document.getElementById("wildernessTool");
+          if (!smoke || !(canvas instanceof HTMLCanvasElement)) return false;
+          const context = canvas.getContext("2d");
+          if (!context || smoke.cells <= 0 || smoke.mapCells <= 0) return false;
+          const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+          const step = Math.max(4, Math.floor(data.length / 5000 / 4) * 4);
+          let nonBlank = 0;
+          const colors = new Set();
+          for (let index = 0; index < data.length; index += step) {
+            const r = data[index];
+            const g = data[index + 1];
+            const b = data[index + 2];
+            const a = data[index + 3];
+            if (a > 8 && r + g + b > 18) {
+              nonBlank += 1;
+              colors.add(r + "," + g + "," + b + "," + a);
+            }
+          }
+          return nonBlank > 180 && colors.size > 18;
+        }
+        """.trimIndent()
 }
 
 private fun runProcess(
@@ -366,3 +460,5 @@ private fun isWindows(): Boolean =
 private fun Any?.asMap(): Map<String, Any?> = this as? Map<String, Any?> ?: error("expected map, got ${this?.javaClass?.name ?: "null"}")
 
 private fun Any?.asList(): List<Any?> = this as? List<Any?> ?: error("expected list, got ${this?.javaClass?.name ?: "null"}")
+
+private fun Any?.asInt(): Int = (this as? Number)?.toInt() ?: error("expected number, got ${this?.javaClass?.name ?: "null"}")

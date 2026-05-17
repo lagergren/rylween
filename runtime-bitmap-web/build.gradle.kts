@@ -82,8 +82,10 @@ val generateBitmapWebClientJs: TaskProvider<NpmTask> by tasks.registering(NpmTas
     dependsOn(npmInstallBitmapWeb)
     workingDir = layout.projectDirectory.asFile
     inputs.file(layout.projectDirectory.file("src/main/resources/bitmap-web/client.ts"))
+    inputs.file(layout.projectDirectory.file("src/main/resources/bitmap-web/wilderness-perspective.ts"))
     inputs.file(layout.projectDirectory.file("tsconfig.json"))
     outputs.file(bitmapWebGeneratedResources.map { directory -> directory.file("bitmap-web/client.js") })
+    outputs.file(bitmapWebGeneratedResources.map { directory -> directory.file("bitmap-web/wilderness-perspective.js") })
     args.set(listOf("run", "build"))
 }
 

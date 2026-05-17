@@ -9,9 +9,11 @@ type TerrainAtlasIndex = { row: number; col: number };
 type TileColors = { base: string; shadow: string };
 type PartyStat = [string, string | number | undefined | null];
 type TextEffect = "None" | "Fast" | "Reveal";
+type WildernessFacing = "North" | "East" | "South" | "West";
 type TextRevealSettings = { enabled: boolean; charsPerSecond: number };
 type TextDisplaySettings = { bitmapFont: boolean; bitmapFontScale: number };
 type RuntimePreferenceSettings = { pauseDelayScale: number };
+type WildernessDisplaySettings = { perspective: boolean; facing: WildernessFacing };
 type TextReveal = {
     complete: boolean;
     duration: number;
@@ -47,9 +49,40 @@ type BitmapTile = {
     waterMask?: number;
 };
 
+type BitmapPerspectiveRect = {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+};
+
+type BitmapPerspectiveCell = {
+    worldX: number;
+    worldY: number;
+    forward: number;
+    side: number;
+    distanceBand: number;
+    scale: number;
+    rect: BitmapPerspectiveRect;
+    zOrder: number;
+    tile: BitmapTile;
+};
+
+type BitmapPerspectiveView = {
+    facing: WildernessFacing;
+    cells: BitmapPerspectiveCell[];
+};
+
+type BitmapPerspectiveSet = {
+    width: number;
+    height: number;
+    views: BitmapPerspectiveView[];
+};
+
 type BitmapMap = {
     rows?: BitmapTile[][];
     tileSize?: number;
+    perspective?: BitmapPerspectiveSet | null;
 };
 
 type BitmapStatusMember = {
@@ -178,6 +211,7 @@ const serverInfoPopover = requireElement("serverInfoPopover", HTMLElement);
 const userAccount = requireElement("userAccount", HTMLElement);
 const textRevealToggle = requireElement("textRevealToggle", HTMLInputElement);
 const bitmapFontToggle = requireElement("bitmapFontToggle", HTMLInputElement);
+const wildernessPerspectiveToggle = requireElement("wildernessPerspectiveToggle", HTMLInputElement);
 const bitmapFontScale = requireElement("bitmapFontScale", HTMLInputElement);
 const bitmapFontScaleValue = requireElement("bitmapFontScaleValue", HTMLElement);
 const textRevealSpeed = requireElement("textRevealSpeed", HTMLInputElement);
@@ -201,6 +235,7 @@ const textRevealSpeedKey = "rylween.bitmap.textReveal.speed";
 const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap";
 const bitmapFontScaleKey = "rylween.bitmap.textFont.scale";
 const pauseDelayScaleKey = "rylween.bitmap.pauseDelay.scale";
+const wildernessPerspectiveKey = "rylween.bitmap.wilderness.perspective";
 const pauseDelayScaleMessagePrefix = "settings:pauseDelayScale=";
 const defaultBitmapFontScale = 1.75;
 const minBitmapFontScale = 1.45;
@@ -218,6 +253,10 @@ const textDisplaySettings: TextDisplaySettings = {
 };
 const runtimePreferenceSettings: RuntimePreferenceSettings = {
     pauseDelayScale: storedNumber(pauseDelayScaleKey, defaultPauseDelayScale, minPauseDelayScale, maxPauseDelayScale)
+};
+const wildernessDisplaySettings: WildernessDisplaySettings = {
+    perspective: storedBoolean(wildernessPerspectiveKey, false),
+    facing: "North"
 };
 const layout: Layout = {
     map: {x: 114, y: 64, w: 420, h: 482},
@@ -357,6 +396,7 @@ const bitmapAssets: BitmapAssets = {
 const portraitAssets = new Map<string, HTMLImageElement>();
 const gameImageAssets = new Map<string, HTMLImageElement>();
 const compiledBitmapAssets = new Map<string, BitmapImageAsset>();
+const perspectiveSpriteCache = new Map<string, HTMLCanvasElement>();
 
 function storedBoolean(key: string, fallback: boolean): boolean {
     const value = window.localStorage.getItem(key);
@@ -421,6 +461,15 @@ function configureRuntimePreferenceControls(): void {
         window.localStorage.setItem(pauseDelayScaleKey, String(runtimePreferenceSettings.pauseDelayScale));
         updatePauseDelayScaleValue();
         sendRuntimePreferences();
+    });
+}
+
+function configureWildernessDisplayControls(): void {
+    wildernessPerspectiveToggle.checked = wildernessDisplaySettings.perspective;
+    wildernessPerspectiveToggle.addEventListener("change", () => {
+        wildernessDisplaySettings.perspective = wildernessPerspectiveToggle.checked;
+        window.localStorage.setItem(wildernessPerspectiveKey, String(wildernessDisplaySettings.perspective));
+        if (frame) draw(frame);
     });
 }
 
@@ -496,11 +545,15 @@ type BitmapSmokeSnapshot = {
     statusLineCount: number;
     commandCount: number;
     mapCells: number;
+    wildernessFacing: WildernessFacing;
+    wildernessViewMode: string;
+    perspectiveCells: number;
     compiledImageAssets: BitmapSmokeAsset[];
 };
 
 type BitmapSmokeWindow = Window & {
     __rylweenBitmapSmoke?: () => BitmapSmokeSnapshot;
+    __rylweenBitmapSetWildernessView?: (mode: string, facing?: WildernessFacing) => BitmapSmokeSnapshot;
 };
 
 function bitmapSmokeSnapshot(): BitmapSmokeSnapshot {
@@ -512,6 +565,9 @@ function bitmapSmokeSnapshot(): BitmapSmokeSnapshot {
         statusLineCount: frame?.statusLines?.length ?? 0,
         commandCount: currentCommands.length,
         mapCells: (frame?.map?.rows || []).reduce((count, row) => count + row.length, 0),
+        wildernessFacing: wildernessDisplaySettings.facing,
+        wildernessViewMode: wildernessDisplaySettings.perspective ? "3d" : "2d",
+        perspectiveCells: perspectiveView(frame?.map)?.cells.length ?? 0,
         compiledImageAssets: Array.from(compiledBitmapAssets.values()).map((asset) => ({
             id: asset.id,
             resource: asset.resource || "",
@@ -522,6 +578,14 @@ function bitmapSmokeSnapshot(): BitmapSmokeSnapshot {
 }
 
 (window as BitmapSmokeWindow).__rylweenBitmapSmoke = bitmapSmokeSnapshot;
+(window as BitmapSmokeWindow).__rylweenBitmapSetWildernessView = (mode: string, facing?: WildernessFacing): BitmapSmokeSnapshot => {
+    wildernessDisplaySettings.perspective = mode === "3d";
+    if (facing) wildernessDisplaySettings.facing = facing;
+    window.localStorage.setItem(wildernessPerspectiveKey, String(wildernessDisplaySettings.perspective));
+    wildernessPerspectiveToggle.checked = wildernessDisplaySettings.perspective;
+    if (frame) draw(frame);
+    return bitmapSmokeSnapshot();
+};
 
 function connect(): void {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -876,9 +940,14 @@ window.addEventListener("keydown", (event: KeyboardEvent) => {
         toggleCommandPalette();
         return;
     }
+    if (!(frame && frame.textInput) && handleWildernessDisplayShortcut(event)) {
+        event.preventDefault();
+        return;
+    }
     const token = keyToken(event);
     if (!token) return;
     event.preventDefault();
+    updateFacingFromMovementToken(token);
     send(token);
 });
 
@@ -912,6 +981,57 @@ function keyToken(event: KeyboardEvent): string | null {
     if (event.key === "Delete") return "DELETE";
     if (event.key === " ") return " ";
     if (event.key.length === 1) return event.key;
+    return null;
+}
+
+function handleWildernessDisplayShortcut(event: KeyboardEvent): boolean {
+    if (!canUseWildernessPerspective()) return false;
+    if (!event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.key === "2") {
+        toggleWildernessPerspective();
+        return true;
+    }
+    if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return false;
+    const facing = facingForArrowKey(event.key);
+    if (!facing) return false;
+    setWildernessFacing(facing);
+    return true;
+}
+
+function canUseWildernessPerspective(): boolean {
+    return Boolean(frame && frame.mode === "wilderness" && frame.map && frame.map.perspective);
+}
+
+function toggleWildernessPerspective(): void {
+    wildernessDisplaySettings.perspective = !wildernessDisplaySettings.perspective;
+    window.localStorage.setItem(wildernessPerspectiveKey, String(wildernessDisplaySettings.perspective));
+    wildernessPerspectiveToggle.checked = wildernessDisplaySettings.perspective;
+    if (frame) draw(frame);
+}
+
+function setWildernessFacing(facing: WildernessFacing): void {
+    wildernessDisplaySettings.facing = facing;
+    if (frame) draw(frame);
+}
+
+function updateFacingFromMovementToken(token: string): void {
+    if (!canUseWildernessPerspective()) return;
+    const facing = facingForToken(token);
+    if (facing) setWildernessFacing(facing);
+}
+
+function facingForArrowKey(key: string): WildernessFacing | null {
+    if (key === "ArrowUp") return "North";
+    if (key === "ArrowRight") return "East";
+    if (key === "ArrowDown") return "South";
+    if (key === "ArrowLeft") return "West";
+    return null;
+}
+
+function facingForToken(token: string): WildernessFacing | null {
+    if (token === "ARROW_UP" || token === "8") return "North";
+    if (token === "ARROW_RIGHT" || token === "6") return "East";
+    if (token === "ARROW_DOWN") return "South";
+    if (token === "ARROW_LEFT" || token === "4") return "West";
     return null;
 }
 
@@ -1470,6 +1590,7 @@ function drawImageShade(color: string, alpha: number): void {
 }
 
 function drawMap(map: BitmapMap): void {
+    if (wildernessDisplaySettings.perspective && drawPerspectiveMap(map)) return;
     const rows = map.rows || [];
     const cols = rows[0] ? rows[0].length : 0;
     if (rows.length === 0 || cols === 0) return;
@@ -1485,6 +1606,301 @@ function drawMap(map: BitmapMap): void {
             drawTile(rows[row][col], x + col * size, y + row * size, size);
         }
     }
+}
+
+function drawPerspectiveMap(map: BitmapMap): boolean {
+    const view = perspectiveView(map);
+    if (!view || !map.perspective) return false;
+    const bounds = scenePanelBounds();
+    drawPerspectiveBackdrop(bounds, view.facing);
+    const sourceW = map.perspective.width || 1000;
+    const sourceH = map.perspective.height || 1000;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bounds.x, bounds.y, bounds.w, bounds.h);
+    ctx.clip();
+    for (const cell of view.cells) {
+        drawPerspectiveCell(cell, bounds, sourceW, sourceH);
+    }
+    ctx.restore();
+    drawSceneVignette(bounds);
+    drawPerspectiveFacingLabel(bounds, view.facing);
+    return true;
+}
+
+function perspectiveView(map: BitmapMap | null | undefined): BitmapPerspectiveView | null {
+    const views = map?.perspective?.views || [];
+    return views.find((view) => view.facing === wildernessDisplaySettings.facing) || views[0] || null;
+}
+
+function drawPerspectiveBackdrop(bounds: Bounds, facing: WildernessFacing): void {
+    const sky = ctx.createLinearGradient(0, bounds.y, 0, bounds.y + bounds.h);
+    sky.addColorStop(0, "#17252c");
+    sky.addColorStop(0.45, "#394735");
+    sky.addColorStop(1, "#11170d");
+    ctx.fillStyle = sky;
+    ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
+    const horizonY = bounds.y + bounds.h * 0.43;
+    ctx.fillStyle = "rgba(232, 204, 115, 0.09)";
+    ctx.fillRect(bounds.x, horizonY - 7, bounds.w, 14);
+    ctx.fillStyle = "rgba(22, 29, 16, 0.72)";
+    ctx.beginPath();
+    ctx.moveTo(bounds.x, bounds.y + bounds.h);
+    ctx.lineTo(bounds.x, horizonY + 34);
+    ctx.quadraticCurveTo(bounds.x + bounds.w * 0.5, horizonY - 8, bounds.x + bounds.w, horizonY + 34);
+    ctx.lineTo(bounds.x + bounds.w, bounds.y + bounds.h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(226, 197, 105, 0.24)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(bounds.x + bounds.w * 0.2, bounds.y + bounds.h);
+    ctx.lineTo(bounds.x + bounds.w * 0.47, horizonY + 22);
+    ctx.moveTo(bounds.x + bounds.w * 0.8, bounds.y + bounds.h);
+    ctx.lineTo(bounds.x + bounds.w * 0.53, horizonY + 22);
+    ctx.stroke();
+    ctx.font = "12px Menlo, Monaco, Consolas, monospace";
+    ctx.fillStyle = "rgba(228, 211, 157, 0.18)";
+    ctx.textAlign = "right";
+    ctx.fillText(facing.toUpperCase(), bounds.x + bounds.w - 14, bounds.y + 22);
+    ctx.textAlign = "left";
+}
+
+function drawPerspectiveCell(cell: BitmapPerspectiveCell, bounds: Bounds, sourceW: number, sourceH: number): void {
+    const rect = cell.rect;
+    const dx = bounds.x + rect.x / sourceW * bounds.w;
+    const dy = bounds.y + rect.y / sourceH * bounds.h;
+    const dw = rect.w / sourceW * bounds.w;
+    const dh = rect.h / sourceH * bounds.h;
+    if (dw <= 2 || dh <= 2) return;
+    const shadowAlpha = Math.max(0.12, Math.min(0.42, 0.46 - cell.forward * 0.06));
+    ctx.save();
+    ctx.globalAlpha = shadowAlpha;
+    ctx.fillStyle = "#020302";
+    ctx.beginPath();
+    ctx.ellipse(dx + dw / 2, dy + dh * 0.86, dw * 0.45, dh * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    const sprite = perspectiveSprite(cell.tile);
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalAlpha = cell.tile.slug === "void" ? 0.4 : 1;
+    ctx.drawImage(sprite, dx, dy, dw, dh);
+    ctx.restore();
+    if (cell.forward === 0 && cell.side === 0) {
+        drawPartyMarker(dx + dw / 2, dy + dh * 0.52, Math.max(44, Math.min(dw, dh) * 0.52));
+    }
+}
+
+function drawPerspectiveFacingLabel(bounds: Bounds, facing: WildernessFacing): void {
+    ctx.save();
+    ctx.fillStyle = "rgba(5, 8, 5, 0.62)";
+    ctx.fillRect(bounds.x + 14, bounds.y + 14, 104, 28);
+    ctx.strokeStyle = "rgba(218, 189, 107, 0.46)";
+    ctx.strokeRect(bounds.x + 14.5, bounds.y + 14.5, 103, 27);
+    ctx.font = "700 13px Menlo, Monaco, Consolas, monospace";
+    ctx.fillStyle = "#ead68a";
+    ctx.fillText("VIEW " + facing.toUpperCase(), bounds.x + 24, bounds.y + 33);
+    ctx.restore();
+}
+
+function perspectiveSprite(tile: BitmapTile): HTMLCanvasElement {
+    const slug = (tile.slug || "void").toLowerCase();
+    const settlement = (tile.settlement || "").toLowerCase();
+    const variant = Math.max(0, tile.variant || 0);
+    const key = slug + ":" + settlement + ":" + variant + ":" + String(tile.waterMask || 0);
+    const cached = perspectiveSpriteCache.get(key);
+    if (cached) return cached;
+    const sprite = document.createElement("canvas");
+    sprite.width = 256;
+    sprite.height = 200;
+    const g = sprite.getContext("2d");
+    if (!g) return sprite;
+    g.imageSmoothingEnabled = true;
+    drawPerspectiveGround(g, slug, settlement, variant);
+    if (settlement === "town") drawPerspectiveTown(g, variant);
+    else if (settlement === "castle") drawPerspectiveCastle(g, variant);
+    else if (settlement === "hut") drawPerspectiveHut(g, variant);
+    else if (isWaterTerrain(slug)) drawPerspectiveWater(g, variant, tile.waterMask || 0);
+    else if (slug.includes("forest")) drawPerspectiveForest(g, variant);
+    else if (slug.includes("mountain")) drawPerspectiveMountains(g, variant);
+    else if (slug.includes("desert")) drawPerspectiveDesert(g, variant);
+    else if (slug.includes("foothills")) drawPerspectiveFoothills(g, variant);
+    else if (slug.includes("swamp")) drawPerspectiveSwamp(g, variant);
+    else if (slug.includes("plain")) drawPerspectivePlain(g, variant);
+    else drawPerspectiveVoid(g);
+    perspectiveSpriteCache.set(key, sprite);
+    return sprite;
+}
+
+function drawPerspectiveGround(g: CanvasRenderingContext2D, slug: string, settlement: string, variant: number): void {
+    const colors = tileColors(slug, settlement, true);
+    const gradient = g.createLinearGradient(0, 84, 0, 192);
+    gradient.addColorStop(0, transparentize(colors.base, 0.1));
+    gradient.addColorStop(1, transparentize(colors.shadow, 0.34));
+    g.fillStyle = gradient;
+    g.beginPath();
+    g.ellipse(128, 164, 104, 28 + variant * 2, 0, 0, Math.PI * 2);
+    g.fill();
+}
+
+function drawPerspectivePlain(g: CanvasRenderingContext2D, variant: number): void {
+    g.strokeStyle = "#b9cc73";
+    g.lineWidth = 3;
+    for (let i = 0; i < 9; i += 1) {
+        const x = 44 + ((i * 29 + variant * 17) % 164);
+        const y = 120 + ((i * 13 + variant * 11) % 48);
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + 15, y - 5);
+        g.moveTo(x + 8, y);
+        g.lineTo(x + 20, y + 2);
+        g.stroke();
+    }
+}
+
+function drawPerspectiveForest(g: CanvasRenderingContext2D, variant: number): void {
+    const trees = 4 + variant % 3;
+    for (let i = 0; i < trees; i += 1) {
+        const x = 54 + ((i * 43 + variant * 19) % 140);
+        const y = 80 + ((i * 17 + variant * 9) % 40);
+        const h = 74 + ((i + variant) % 3) * 12;
+        g.fillStyle = "#4d321d";
+        g.fillRect(x + 9, y + h * 0.55, 10, h * 0.34);
+        g.fillStyle = i % 2 === 0 ? "#416f35" : "#5a8842";
+        perspectiveTriangle(g, x - 17, y + h * 0.62, x + 14, y, x + 45, y + h * 0.62);
+        g.fillStyle = "#2f5a2e";
+        perspectiveTriangle(g, x - 10, y + h * 0.82, x + 14, y + h * 0.24, x + 38, y + h * 0.82);
+    }
+}
+
+function drawPerspectiveMountains(g: CanvasRenderingContext2D, variant: number): void {
+    const peaks = [
+        [24, 164, 88, 38, 146, 164],
+        [82, 166, 150, 22, 232, 166],
+        [4, 170, 68, 70, 128, 170]
+    ];
+    peaks.slice(variant % 2, 3).forEach((peak, index) => {
+        g.fillStyle = index === 0 ? "#86887f" : "#a3a49a";
+        perspectiveTriangle(g, peak[0], peak[1], peak[2], peak[3], peak[4], peak[5]);
+        g.fillStyle = "rgba(238, 238, 220, 0.82)";
+        perspectiveTriangle(g, peak[2], peak[3], peak[2] - 14, peak[3] + 34, peak[2] + 18, peak[3] + 36);
+        g.fillStyle = "rgba(55, 56, 52, 0.34)";
+        perspectiveTriangle(g, peak[2], peak[3], peak[4], peak[5], peak[2] + 14, peak[3] + 46);
+    });
+}
+
+function drawPerspectiveWater(g: CanvasRenderingContext2D, variant: number, mask: number): void {
+    g.strokeStyle = "#8fd3e2";
+    g.lineWidth = 4;
+    for (let i = 0; i < 5; i += 1) {
+        const y = 112 + i * 14;
+        g.beginPath();
+        g.moveTo(36, y);
+        g.bezierCurveTo(78, y - 14 + variant * 2, 106, y + 14, 148, y);
+        g.bezierCurveTo(178, y - 9, 198, y + 7, 226, y - 3);
+        g.stroke();
+    }
+    if (mask !== 0) {
+        g.fillStyle = "rgba(230, 238, 202, 0.34)";
+        g.fillRect(120, 92, 14, 78);
+    }
+}
+
+function drawPerspectiveDesert(g: CanvasRenderingContext2D, variant: number): void {
+    g.strokeStyle = "#f1d386";
+    g.lineWidth = 3;
+    for (let i = 0; i < 5; i += 1) {
+        const y = 112 + i * 13;
+        g.beginPath();
+        g.moveTo(28, y);
+        g.quadraticCurveTo(96 + variant * 9, y - 22, 228, y - 3);
+        g.stroke();
+    }
+}
+
+function drawPerspectiveFoothills(g: CanvasRenderingContext2D, variant: number): void {
+    g.fillStyle = "#9ca864";
+    for (let i = 0; i < 4; i += 1) {
+        const x = 22 + i * 54 + variant * 3;
+        perspectiveTriangle(g, x, 164, x + 32, 84 + (i % 2) * 18, x + 74, 164);
+    }
+}
+
+function drawPerspectiveSwamp(g: CanvasRenderingContext2D, variant: number): void {
+    g.fillStyle = "rgba(50, 74, 51, 0.86)";
+    g.beginPath();
+    g.ellipse(128, 145, 78, 29, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#8ba265";
+    for (let i = 0; i < 10; i += 1) {
+        const x = 36 + ((i * 31 + variant * 17) % 176);
+        const y = 96 + ((i * 11 + variant * 7) % 54);
+        g.fillRect(x, y, 6, 50);
+        g.fillRect(x - 9, y + 19, 23, 5);
+    }
+}
+
+function drawPerspectiveTown(g: CanvasRenderingContext2D, variant: number): void {
+    for (let i = 0; i < 3; i += 1) {
+        const x = 50 + i * 54 + (variant % 2) * 8;
+        const y = 88 + (i % 2) * 18;
+        g.fillStyle = "#815538";
+        g.fillRect(x, y + 34, 42, 42);
+        g.fillStyle = "#3e2820";
+        perspectiveTriangle(g, x - 7, y + 38, x + 21, y + 6, x + 49, y + 38);
+        g.fillStyle = "#d8c077";
+        g.fillRect(x + 8, y + 48, 9, 11);
+    }
+}
+
+function drawPerspectiveHut(g: CanvasRenderingContext2D, variant: number): void {
+    const x = 82 + variant * 4;
+    const y = 88;
+    g.fillStyle = "#6e4828";
+    g.fillRect(x, y + 38, 92, 58);
+    g.fillStyle = "#39291d";
+    perspectiveTriangle(g, x - 12, y + 42, x + 46, y, x + 104, y + 42);
+    g.fillStyle = "#21170f";
+    g.fillRect(x + 38, y + 62, 18, 34);
+}
+
+function drawPerspectiveCastle(g: CanvasRenderingContext2D, variant: number): void {
+    const x = 54 + variant * 3;
+    const y = 54;
+    g.fillStyle = "#918c84";
+    g.fillRect(x, y + 56, 148, 82);
+    g.fillRect(x + 8, y + 24, 34, 114);
+    g.fillRect(x + 106, y + 12, 34, 126);
+    g.fillStyle = "#34302e";
+    g.fillRect(x + 69, y + 92, 24, 46);
+    g.fillStyle = "#c4b889";
+    g.fillRect(x + 17, y + 42, 10, 14);
+    g.fillRect(x + 116, y + 34, 10, 14);
+}
+
+function drawPerspectiveVoid(g: CanvasRenderingContext2D): void {
+    g.strokeStyle = "rgba(215, 191, 115, 0.28)";
+    g.setLineDash([9, 8]);
+    g.strokeRect(48, 92, 160, 72);
+    g.setLineDash([]);
+}
+
+function perspectiveTriangle(g: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): void {
+    g.beginPath();
+    g.moveTo(x1, y1);
+    g.lineTo(x2, y2);
+    g.lineTo(x3, y3);
+    g.closePath();
+    g.fill();
+}
+
+function transparentize(color: string, alpha: number): string {
+    if (!color.startsWith("#") || color.length !== 7) return color;
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
 }
 
 function drawScenePanel(frame: BitmapFrame): void {
@@ -2489,5 +2905,6 @@ function wrapCanvasLines(text: string, maxWidth: number): string[] {
 configureTextRevealControls();
 configureTextDisplayControls();
 configureRuntimePreferenceControls();
+configureWildernessDisplayControls();
 refreshServerInfo().catch(() => undefined);
 connect();

@@ -702,7 +702,7 @@ val authoredRylween: RylweenModel =
                     dead = literalText("Dead.")
                     invalidCaster = literalText("Not a party member.")
                     invalidSpell = literalText("Not possible.")
-                    noSpells = literalText("No priest spells are", "declared.")
+                    noSpells = flowText("No priest spells are declared.")
                 }
                 inventoryUse {
                     usePrompt = literalText("Use what?")
@@ -713,16 +713,13 @@ val authoredRylween: RylweenModel =
                         line("Inventory slot ", InventoryText.slotName)
                         line("does not exist.")
                     }
-                    notUsable {
-                        line("Nothing happens")
-                        line("with ", InventoryText.itemName, ".")
-                    }
+                    notUsable = flowText("Nothing happens with ", InventoryText.itemName, ".")
                 }
                 equipment {
                     inventory = literalText("Ready what?")
                     who = literalText("Who? (1-N)")
-                    readyWeapons = literalText("Do you want to ready", "any weapons before", "leaving?", "")
-                    readyArmors = literalText("Do you want to ready", "any armors before", "leaving?", "")
+                    readyWeapons = flowText("Do you want to ready any weapons before leaving?")
+                    readyArmors = flowText("Do you want to ready any armors before leaving?")
                 }
                 save {
                     saving = literalText("Saving position...")
@@ -770,13 +767,13 @@ val authoredRylween: RylweenModel =
                             line("Welcome to ", TownText.name)
                         }
                     entryTax =
-                        structuredText {
-                            line("Our current tax rate")
-                            line("is ", TownText.taxPercent, "% - In order to")
-                            line("enter, we must request")
-                            line("you pay ", TownText.taxAmount, " au.")
-                            line("")
-                        }
+                        flowText(
+                            "Our current tax rate is ",
+                            TownText.taxPercent,
+                            "% - In order to enter, we must request you pay ",
+                            TownText.taxAmount,
+                            " au.",
+                        )
                     entryTaxThanks = literalText("Thank you!")
                 }
                 party {
@@ -791,16 +788,21 @@ val authoredRylween: RylweenModel =
                     dropPrompt = literalText("Drop what?")
                     dropEmptySlot = literalText("Nothing to drop.")
                     dropAborted = literalText("Aborted.")
-                    dropped {
-                        line("You drop the")
-                        line(itemName, ".")
-                    }
+                    dropped(flowText("You drop the ", TextPart.SelectedItemName, "."))
                     dropCapacityReduced = flowText("You are forced to leave some of your food behind...")
                 }
                 wilderness {
                     pass = literalText("You wait for an hour...")
                     noMoves = literalText("No moves left.")
-                    outOfMoves = literalText("You are out of moves", "for today.", "", "(S)ave and Quit", "(Q)uit (no save)")
+                    outOfMoves =
+                        literalText(
+                            """
+                            You are out of moves for today.
+
+                            (S)ave and Quit
+                            (Q)uit (no save)
+                            """,
+                        )
                     notInWilderness = literalText("The active party is not in the wilderness.")
                     nothingToEnter = literalText("There is nothing to enter here.")
                     impassable = literalText("Impassable.")
@@ -1201,18 +1203,18 @@ val authoredRylween: RylweenModel =
                     requires(
                         CharacterCreationStat.WeaponSkill,
                         minimum = 50,
-                        failureText = literalText("Weapon skill must be", "at least 50."),
+                        failureText = flowText("Weapon skill must be at least 50."),
                     )
                 }
                 playerClass(PcClass.Thief, "Thief")
                 playerClass(PcClass.Mage, "Mage") {
-                    requires(CharacterCreationStat.Wisdom, minimum = 50, failureText = literalText("Wisdom must be", "at least 50."))
+                    requires(CharacterCreationStat.Wisdom, minimum = 50, failureText = flowText("Wisdom must be at least 50."))
                 }
                 playerClass(PcClass.Priest, "Priest") {
-                    requires(CharacterCreationStat.Wisdom, minimum = 50, failureText = literalText("Wisdom must be", "at least 50."))
+                    requires(CharacterCreationStat.Wisdom, minimum = 50, failureText = flowText("Wisdom must be at least 50."))
                 }
                 playerClass(PcClass.Bard, "Bard") {
-                    requires(CharacterCreationStat.Charisma, minimum = 50, failureText = literalText("Charisma must be", "at least 50."))
+                    requires(CharacterCreationStat.Charisma, minimum = 50, failureText = flowText("Charisma must be at least 50."))
                 }
                 playerClass(PcClass.Ranger, "Ranger")
 
@@ -1337,24 +1339,17 @@ val authoredRylween: RylweenModel =
                         targetPrompt { lines("Who?", "") }
                         useWhat { lines("Use what?", "") }
                         spellAbort { line("(N)one") }
-                        runCoward { lines("Coward. You won't get", "any EXP for this battle.") }
-                        runDesperateFail { lines("You desperately try to", "get away, but fail!") }
+                        runCoward(flowText("Coward. You won't get any EXP for this battle."))
+                        runDesperateFail(flowText("You desperately try to get away, but fail!"))
                         runFailAway { line("You fail to get away!") }
                         runEscaped { line("You escaped...") }
                         notPossible { line("Not possible.") }
-                        magicImmune { lines("The magic item doesn't seem", "to work on this enemy!!!") }
-                        spellFizzle { lines("The spell fizzles!", "this creature is immune", "to ordinary magic!!!") }
+                        magicImmune(flowText("The magic item doesn't seem to work on this enemy!!!"))
+                        spellFizzle(flowText("The spell fizzles! This creature is immune to ordinary magic!!!"))
                         notEnoughMagic { line("Not enough magic!") }
-                        restGainHits { lines("You gain some hits pts", "as you rest this round.") }
-                        defendStance { lines("You put up a defensive", "stance...") }
-                        battleCry {
-                            lines(
-                                "HI-YAAAA!",
-                                "",
-                                "(You scare them enough",
-                                "to catch them off guard.)",
-                            )
-                        }
+                        restGainHits(flowText("You gain some hits pts as you rest this round."))
+                        defendStance(flowText("You put up a defensive stance..."))
+                        battleCry(flowText("HI-YAAAA! You scare them enough to catch them off guard."))
                         playerHit {
                             line(BattleText.attackerName, " hits for")
                             line(BattleText.damage, " damage pts!")
@@ -1375,7 +1370,7 @@ val authoredRylween: RylweenModel =
                         killed { line("...KILLED!") }
                         partyHeld { line("PARTY IS HELD!") }
                         partyDefeated { line("The party has fallen.") }
-                        victoryBested { lines("Thou hast bested", "thy foes.", "") }
+                        victoryBested(flowText("Thou hast bested thy foes."))
                         victoryEachSurvivor { line("Each survivor gets") }
                         victoryReward {
                             line(BattleText.experience, " experience pts")
@@ -1472,14 +1467,7 @@ val authoredRylween: RylweenModel =
                         lines("You find a cave!", "", "(E)nter", "(L)eave")
                     }
 
-                    caveNoMoves {
-                        lines(
-                            "You don't have enough",
-                            "moves left to explore",
-                            "the cave...",
-                            "",
-                        )
-                    }
+                    caveNoMoves(flowText("You don't have enough moves left to explore the cave..."))
                 }
 
                 // Terrain transitions are the short flavor messages that can
@@ -1500,18 +1488,32 @@ val authoredRylween: RylweenModel =
                     terrain(
                         Terrain.swamp,
                         flowText(
-                            "You are in the swampy marshlands of Rylween. Bubbles of gas rise to the surface where they burst and emit a foul smelling odor.",
+                            """
+                            You are in the swampy marshlands of Rylween. Bubbles of
+                            gas rise to the surface where they burst and emit a foul
+                            smelling odor.
+                            """,
                         ),
                     )
 
                     terrain(
                         Terrain.forest,
-                        flowText("The ancient forest is very tranquil. A soft breeze rustles the leaves of mighty oaks."),
+                        flowText(
+                            """
+                            The ancient forest is very tranquil. A soft breeze
+                            rustles the leaves of mighty oaks.
+                            """,
+                        ),
                     )
 
                     terrain(
                         Terrain.castle,
-                        flowText("You stand outside the castle Zadraz. The black steel building seems to want to swallow you whole."),
+                        flowText(
+                            """
+                            You stand outside the castle Zadraz. The black steel
+                            building seems to want to swallow you whole.
+                            """,
+                        ),
                     )
                 }
             }
@@ -1544,13 +1546,13 @@ val authoredRylween: RylweenModel =
                 // events; others are fixed story levels in named scenarios.
                 event(DungeonEvents.nothingSpecial) {
                     script {
-                        showTextAndWait("You find nothing", "special on this level.", "")
+                        showTextAndWait("You find nothing special on this level.")
                     }
                 }
 
                 event(DungeonEvents.emptyLevel) {
                     script {
-                        showTextAndWait("This level is empty.", "")
+                        showTextAndWait("This level is empty.")
                     }
                 }
 
@@ -1558,13 +1560,16 @@ val authoredRylween: RylweenModel =
                     recurring()
                     script {
                         showTextAndWait(
-                            "A message on the wall",
-                            "reads:",
-                            "",
-                            "'M U R T C E P S'",
-                            "THiNgs aren't aLways iN",
-                            "theIR naTuRAl oRDeR...",
-                            "",
+                            literalText(
+                                """
+                                A message on the wall
+                                reads:
+
+                                'M U R T C E P S'
+                                THiNgs aren't aLways iN
+                                theIR naTuRAl oRDeR...
+                                """,
+                            ),
                         )
                     }
                 }
@@ -1647,21 +1652,21 @@ val authoredRylween: RylweenModel =
                                             pause600ms()
                                             choose(random(0..2)) {
                                                 case(0) {
-                                                    writeText("Poisonous gas", "hisses out through", "hidden holes.", "")
+                                                    writeText("Poisonous gas hisses out through hidden holes.")
                                                     pause1500ms()
-                                                    writeText("The party coughs", "and retches.")
+                                                    writeText("The party coughs and retches.")
                                                     pause600ms()
-                                                    writeText("Finally. The gas clears.", "")
+                                                    writeText("Finally. The gas clears.")
                                                 }
                                                 case(1) {
-                                                    writeText("A spiked pitfall", "opens in the floor", "beneath you.", "")
+                                                    writeText("A spiked pitfall opens in the floor beneath you.")
                                                     pause1500ms()
-                                                    writeText("You climb out of it,", "badly wounded.", "")
+                                                    writeText("You climb out of it, badly wounded.")
                                                 }
                                                 case(2) {
-                                                    writeText("A large boulder", "drops from above!!!")
+                                                    writeText("A large boulder drops from above!!!")
                                                     pause1500ms()
-                                                    writeText("Badly bruised, you", "try to stand up again.", "")
+                                                    writeText("Badly bruised, you try to stand up again.")
                                                 }
                                             }
                                             forEachMember {
@@ -1706,35 +1711,36 @@ val authoredRylween: RylweenModel =
                 event(DungeonEvents.thunRiddle1) {
                     script {
                         showTextAndWait(
-                            "You stand before a",
-                            "mage dressed entirely",
-                            "in red.",
-                            "",
-                            "- Answer this, fools, or",
-                            "  die where you stand!",
-                            "",
+                            """
+                            You stand before a mage dressed entirely in red.
+
+                            - Answer this, fools, or die where you stand!
+                            """,
                         )
                         writeText(
-                            "'Between fire and ice,",
-                            "who ends the fight?",
-                            "Who stands between those",
-                            "two? Not red, not white",
-                            "but blue!",
-                            "",
+                            literalText(
+                                """
+                                'Between fire and ice,
+                                who ends the fight?
+                                Who stands between those
+                                two? Not red, not white
+                                but blue!
+                                """,
+                            ),
                         )
                         choice.textInput(
                             prompt = "Answer: ",
                             acceptedInputs = acceptedText("water"),
                             maxLength = 15,
                             onAccepted = {
-                                showTextAndWait("- Well done. Pass.", "")
+                                showTextAndWait("- Well done. Pass.")
                             },
                             onRejected = {
                                 showTextAndWait(
-                                    "- FOOLS! Meet thy doom!",
-                                    "at a gesture from him,",
-                                    "something evil appears.",
-                                    "",
+                                    """
+                                    - FOOLS! Meet thy doom! At a gesture from him,
+                                    something evil appears.
+                                    """,
                                 )
                                 encounter(Monsters.norker, mandatory = true)
                             },
@@ -1746,35 +1752,36 @@ val authoredRylween: RylweenModel =
                 event(DungeonEvents.thunRiddle2) {
                     script {
                         showTextAndWait(
-                            "You stand before a",
-                            "mage dressed entirely",
-                            "in green.",
-                            "",
-                            "- Answer this, fools, or",
-                            "  die where you stand!",
-                            "",
+                            """
+                            You stand before a mage dressed entirely in green.
+
+                            - Answer this, fools, or die where you stand!
+                            """,
                         )
                         writeText(
-                            "'Siblings we are,",
-                            "I'm black and she's",
-                            "white. Each dreary",
-                            "evening, I swallow her",
-                            "light.'",
-                            "",
+                            literalText(
+                                """
+                                'Siblings we are,
+                                I'm black and she's
+                                white. Each dreary
+                                evening, I swallow her
+                                light.'
+                                """,
+                            ),
                         )
                         choice.textInput(
                             prompt = "Answer: ",
                             acceptedInputs = acceptedText("night", "darkness"),
                             maxLength = 15,
                             onAccepted = {
-                                showTextAndWait("- Well done. Pass.", "")
+                                showTextAndWait("- Well done. Pass.")
                             },
                             onRejected = {
                                 showTextAndWait(
-                                    "- FOOLS! Meet thy doom!",
-                                    "at a gesture from him,",
-                                    "something evil appears.",
-                                    "",
+                                    """
+                                    - FOOLS! Meet thy doom! At a gesture from him,
+                                    something evil appears.
+                                    """,
                                 )
                                 encounter(Monsters.voodooLord, mandatory = true)
                             },
@@ -1786,35 +1793,36 @@ val authoredRylween: RylweenModel =
                 event(DungeonEvents.thunRiddle3) {
                     script {
                         showTextAndWait(
-                            "You stand before a",
-                            "mage dressed entirely",
-                            "in blue.",
-                            "",
-                            "- Answer this, fools, or",
-                            "  die where you stand!",
-                            "",
+                            """
+                            You stand before a mage dressed entirely in blue.
+
+                            - Answer this, fools, or die where you stand!
+                            """,
                         )
                         writeText(
-                            "'Tall as a house,",
-                            "round as a cup, and",
-                            "all the king's horses",
-                            "can't draw me up! What",
-                            "am I?'",
-                            "",
+                            literalText(
+                                """
+                                'Tall as a house,
+                                round as a cup, and
+                                all the king's horses
+                                can't draw me up! What
+                                am I?'
+                                """,
+                            ),
                         )
                         choice.textInput(
                             prompt = "Answer: ",
                             acceptedInputs = acceptedText("well", "a well"),
                             maxLength = 15,
                             onAccepted = {
-                                showTextAndWait("- Well done. Pass.", "")
+                                showTextAndWait("- Well done. Pass.")
                             },
                             onRejected = {
                                 showTextAndWait(
-                                    "- FOOLS! Meet thy doom!",
-                                    "at a gesture from him,",
-                                    "something evil appears.",
-                                    "",
+                                    """
+                                    - FOOLS! Meet thy doom! At a gesture from him,
+                                    something evil appears.
+                                    """,
                                 )
                                 encounter(Monsters.archdevil, mandatory = true)
                             },
@@ -1834,12 +1842,10 @@ val authoredRylween: RylweenModel =
                             }
                         }
                         showTextAndWait(
-                            "Before you are seven",
-                            "squares of 20x20 feet.",
-                            "To get across this room",
-                            "you will need to step",
-                            "on one of them.",
-                            "",
+                            """
+                            Before you are seven squares of 20x20 feet. To get
+                            across this room you will need to step on one of them.
+                            """,
                         )
                         ask.digit(
                             literalText(
@@ -1854,14 +1860,18 @@ val authoredRylween: RylweenModel =
                             1..7,
                         ) { pick ->
                             whenever(context.dungeonLevel + pick eq 20) {
-                                showTextAndWait("You feel a slight", "tingle in your bodies,", "but otherwise, nothing", "happens.", "")
+                                showTextAndWait(
+                                    """
+                                    You feel a slight tingle in your bodies, but
+                                    otherwise, nothing happens.
+                                    """,
+                                )
                             } otherwise {
                                 showTextAndWait(
-                                    "With a horrible scream",
-                                    "a shape of pure color",
-                                    "forms in thin air before",
-                                    "you!",
-                                    "",
+                                    """
+                                    With a horrible scream a shape of pure color forms
+                                    in thin air before you!
+                                    """,
                                 )
                                 encounter(Monsters.rainbowDemon, mandatory = true)
                             }
@@ -1872,14 +1882,10 @@ val authoredRylween: RylweenModel =
                 event(DungeonEvents.fireShieldGuardian) {
                     script {
                         showTextAndWait(
-                            "As you enter this level",
-                            "you hear a horrible",
-                            "evil laughter.",
-                            "Suddenly!",
-                            "Out of the shadows,",
-                            "something HIDEOUS",
-                            "emerges.",
-                            "",
+                            """
+                            As you enter this level you hear a horrible evil laughter.
+                            Suddenly! Out of the shadows, something HIDEOUS emerges.
+                            """,
                         )
                         encounter(Monsters.guardian, mandatory = true)
                     }
@@ -1889,14 +1895,11 @@ val authoredRylween: RylweenModel =
                     script {
                         whenever(!achieved(Milestones.fireShield)) {
                             showTextAndWait(
-                                "After you have bested",
-                                "the foul thing, the",
-                                "dungeon is strangely",
-                                "quiet. Upon entering",
-                                "this level, you find the",
-                                "marvelous FIRE SHIELD on",
-                                "a pedestal! You take it.",
-                                "",
+                                """
+                                After you have bested the foul thing, the dungeon is
+                                strangely quiet. Upon entering this level, you find
+                                the marvelous FIRE SHIELD on a pedestal! You take it.
+                                """,
                             )
                             achieve(Milestones.fireShield)
                             mark(Story.hermit.trollTooth.fireShieldAcquired)
@@ -1908,16 +1911,11 @@ val authoredRylween: RylweenModel =
                     script {
                         whenever(!achieved(Milestones.braceletsOfThun)) {
                             showTextAndWait(
-                                "This whole chamber",
-                                "shines of a bright",
-                                "white light! On a",
-                                "table before you,",
-                                "lie the fabled",
-                                "Bracelets of Thun!",
-                                "The glow fades as",
-                                "you put them in your",
-                                "backpack.",
-                                "",
+                                """
+                                This whole chamber shines of a bright white light!
+                                On a table before you, lie the fabled Bracelets of
+                                Thun! The glow fades as you put them in your backpack.
+                                """,
                             )
                             achieve(Milestones.braceletsOfThun)
                             mark(Story.bracelets.thun.braceletsTaken)
@@ -1929,12 +1927,11 @@ val authoredRylween: RylweenModel =
                     script {
                         whenever(!Story.masterCrown.daggerTaken) {
                             showTextAndWait(
-                                "Nolrim's body rests on",
-                                "a stone slab in this room.",
-                                "On his chest lies the",
-                                "dagger you seek. You put",
-                                "it in your backpack.",
-                                "",
+                                """
+                                Nolrim's body rests on a stone slab in this room.
+                                On his chest lies the dagger you seek. You put it
+                                in your backpack.
+                                """,
                             )
                             mark(Story.masterCrown.daggerTaken)
                         }
@@ -1945,23 +1942,14 @@ val authoredRylween: RylweenModel =
                     script {
                         whenever(!achieved(Milestones.masterCrown)) {
                             showTextAndWait(
-                                "FINALLY! In the hands of",
-                                "a long dead warrior, who",
-                                "is placed like a statue",
-                                "by the east wall of this",
-                                "chamber, is the Master",
-                                "Crown. The most powerful",
-                                "object in the realm.",
-                                "It shines with an inner",
-                                "light.",
-                                "",
+                                """
+                                FINALLY! In the hands of a long dead warrior, who is
+                                placed like a statue by the east wall of this chamber,
+                                is the Master Crown. The most powerful object in the
+                                realm. It shines with an inner light.
+                                """,
                             )
-                            showTextAndWait(
-                                "...but as you take it,",
-                                "THE WARRIOR COMES",
-                                "TO LIFE!!!",
-                                "",
-                            )
+                            showTextAndWait("...but as you take it, THE WARRIOR COMES TO LIFE!!!")
                             encounter(Monsters.longDeadWarrior, mandatory = true)
                             achieve(Milestones.masterCrown)
                             mark(Story.masterCrown.crownTaken)
@@ -1973,27 +1961,23 @@ val authoredRylween: RylweenModel =
                     script {
                         whenever(!Story.silverKey.noteFound) {
                             showTextAndWait(
-                                "This room shines like",
-                                "silver. You can see your",
-                                "mirror image in the",
-                                "walls. After searching",
-                                "the room thoroughly, you",
-                                "find nothing. No Silver",
-                                "Key, no treasure.",
-                                "",
+                                """
+                                This room shines like silver. You can see your mirror
+                                image in the walls. After searching the room thoroughly,
+                                you find nothing. No Silver Key, no treasure.
+                                """,
                             )
                             showTextAndWait(
-                                "You curse the rouge who",
-                                "tricked you and are just",
-                                "about to leave...",
-                                "",
+                                """
+                                You curse the rouge who tricked you and are just
+                                about to leave...
+                                """,
                             )
                             showTextAndWait(
-                                "...when you spot a paper",
-                                "of some kind in a crack",
-                                "in the wall... You pull",
-                                "it out and read...",
-                                "",
+                                """
+                                ...when you spot a paper of some kind in a crack in
+                                the wall... You pull it out and read...
+                                """,
                             )
                             showTextAndWait {
                                 line("'Guild Master: This is")
@@ -2012,19 +1996,19 @@ val authoredRylween: RylweenModel =
                     recurring()
                     script {
                         showTextAndWait(
-                            "You bump into a hobgoblin",
-                            "patrol. With shiny and",
-                            "well used scimitars, they",
-                            "attack you!",
-                            "",
+                            """
+                            You bump into a hobgoblin patrol. With shiny and well
+                            used scimitars, they attack you!
+                            """,
                         )
                         encounter(Monsters.hobgoblin, mandatory = true)
                         whenever(chance(39)) {
                             showTextAndWait(
-                                "You find a scribbled",
-                                "note on the leader:",
-                                "Password: 'RISH EKKIN'",
-                                "",
+                                """
+                                You find a scribbled note on the leader:
+
+                                Password: 'RISH EKKIN'
+                                """,
                             )
                         }
                     }
@@ -2033,10 +2017,7 @@ val authoredRylween: RylweenModel =
                 event(DungeonEvents.royalGuard1) {
                     script {
                         showTextAndWait(
-                            "As you enter this room",
-                            "an army of hobgoblin",
-                            "skeletons attack you!",
-                            "",
+                            "As you enter this room an army of hobgoblin skeletons attack you!",
                         )
                         encounter(Monsters.hobgoblinSkeleton, mandatory = true)
                     }
@@ -2045,13 +2026,11 @@ val authoredRylween: RylweenModel =
                 event(DungeonEvents.royalGuard2) {
                     script {
                         showTextAndWait(
-                            "As you enter this room",
-                            "an army of undead",
-                            "hobgoblins, smelling",
-                            "of rotting flesh and",
-                            "brandishing gleaming",
-                            "tridents attack you.",
-                            "",
+                            """
+                            As you enter this room an army of undead hobgoblins,
+                            smelling of rotting flesh and brandishing gleaming
+                            tridents attack you.
+                            """,
                         )
                         encounter(Monsters.undeadHobgoblin, mandatory = true)
                     }
@@ -2061,12 +2040,12 @@ val authoredRylween: RylweenModel =
                     script {
                         whenever(!achieved(Milestones.silverKey)) {
                             showTextAndWait(
-                                "You stand before a",
-                                "silk curtain. You hear",
-                                "someone moving behind",
-                                "it. A voice calls:",
-                                "- What's the password?",
-                                "",
+                                """
+                                You stand before a silk curtain. You hear someone
+                                moving behind it. A voice calls:
+
+                                - What's the password?
+                                """,
                             )
                             choice.textInput(
                                 prompt = "Password: ",
@@ -2074,31 +2053,33 @@ val authoredRylween: RylweenModel =
                                 maxLength = 15,
                                 onAccepted = {
                                     showTextAndWait(
-                                        "- Step inside and identify",
-                                        "yourself. You do so. The",
-                                        "hobgoblin chief eyes you",
-                                        "suspiciously for a few",
-                                        "seconds. Not hesitating",
-                                        "a moment you attack.",
-                                        "",
+                                        """
+                                        - Step inside and identify yourself. You do so.
+                                        The hobgoblin chief eyes you suspiciously for a
+                                        few seconds. Not hesitating a moment you attack.
+                                        """,
                                     )
                                     encounter(Monsters.hobgoblinChief, mandatory = true)
                                 },
                                 onRejected = {
-                                    writeText("- GUARDS! GUARDS!", "", "(Hobgoblin guards rush", " to confront you.)")
+                                    writeText(
+                                        """
+                                        - GUARDS! GUARDS!
+
+                                        (Hobgoblin guards rush to confront you.)
+                                        """,
+                                    )
                                     pause2s()
                                     encounter(Monsters.hobgoblin, mandatory = true)
                                     encounter(Monsters.hobgoblinChief, mandatory = true)
                                 },
                             )
                             showTextAndWait(
-                                "You have killed the chief",
-                                "of the hobgoblin tribe.",
-                                "The precious Silver Key",
-                                "hangs around his neck.",
-                                "With trembling hands",
-                                "you pick it up!!!",
-                                "",
+                                """
+                                You have killed the chief of the hobgoblin tribe.
+                                The precious Silver Key hangs around his neck. With
+                                trembling hands you pick it up!!!
+                                """,
                             )
                             achieve(Milestones.silverKey)
                             mark(Story.silverKey.keyTaken)
@@ -2109,23 +2090,21 @@ val authoredRylween: RylweenModel =
                 event(DungeonEvents.orcNest) {
                     script {
                         showTextAndWait(
-                            "Some orcs watch a trapdoor",
-                            "in the floor here. As",
-                            "you enter, they attack!",
-                            "",
+                            """
+                            Some orcs watch a trapdoor in the floor here. As you
+                            enter, they attack!
+                            """,
                         )
                         encounter(Monsters.orc, mandatory = true)
                         showTextAndWait(
-                            "The last of the guardians",
-                            "lie dead. Suddenly, more",
-                            "orcs rush out of their",
-                            "sleeping quarters,",
-                            "disturbed by the noise.",
-                            "",
+                            """
+                            The last of the guardians lie dead. Suddenly, more orcs
+                            rush out of their sleeping quarters, disturbed by the noise.
+                            """,
                         )
                         encounter(Monsters.orc, mandatory = true)
                         encounter(Monsters.orc, mandatory = true)
-                        showTextAndWait("You have slain the orcs.", "")
+                        showTextAndWait("You have slain the orcs.")
                     }
                 }
 
@@ -2134,11 +2113,10 @@ val authoredRylween: RylweenModel =
                     script {
                         whenever(Story.peasant.wife.accepted and !Story.peasant.wife.rescued) {
                             showTextAndWait(
-                                "The peasant's wife is in",
-                                "this room. You untie",
-                                "her bonds and let her",
-                                "join your party!",
-                                "",
+                                """
+                                The peasant's wife is in this room. You untie her
+                                bonds and let her join your party!
+                                """,
                             )
                             mark(Story.peasant.wife.rescued)
                         }
@@ -2149,11 +2127,7 @@ val authoredRylween: RylweenModel =
                     recurring()
                     script {
                         showTextAndWait(
-                            "You are spotted by",
-                            "some priests. They",
-                            "attack you with blind",
-                            "fury.",
-                            "",
+                            "You are spotted by some priests. They attack you with blind fury.",
                         )
                         encounter(Monsters.erethorPriest, mandatory = true)
                     }
@@ -2163,76 +2137,62 @@ val authoredRylween: RylweenModel =
                     script {
                         whenever(!Story.erethor.lute.luteTaken) {
                             showTextAndWait(
-                                "This is the altar chamber",
-                                "of the temple. Hooded",
-                                "shapes kneel at the",
-                                "blood stained altar at",
-                                "the end of this chamber.",
-                                "",
+                                """
+                                This is the altar chamber of the temple. Hooded shapes
+                                kneel at the blood stained altar at the end of this chamber.
+                                """,
                             )
-                            showTextAndWait("You rush to attack the", "priests...", "")
-                            showTextAndWait("They quickly turn around", "and draw their daggers.", "")
+                            showTextAndWait("You rush to attack the priests...")
+                            showTextAndWait("They quickly turn around and draw their daggers.")
                             showTextAndWait(
-                                "The acolyte kneels before",
-                                "the altar in silent prayer",
-                                "while the others form a",
-                                "circle around him to",
-                                "protect him.",
-                                "",
+                                """
+                                The acolyte kneels before the altar in silent prayer
+                                while the others form a circle around him to protect him.
+                                """,
                             )
                             showTextAndWait(
-                                "Suddenly there is an",
-                                "ear splitting bang",
-                                "and a ghastly creature",
-                                "emerges from the shadows",
-                                "of this uncanny sanctuary.",
-                                "",
+                                """
+                                Suddenly there is an ear splitting bang and a ghastly
+                                creature emerges from the shadows of this uncanny sanctuary.
+                                """,
                             )
                             encounter(Monsters.erethor, mandatory = true)
                             encounter(Monsters.erethorPriest, mandatory = true)
-                            showTextAndWait("More priests rush to", "attack you...", "")
+                            showTextAndWait("More priests rush to attack you...")
                             encounter(Monsters.erethorPriest, mandatory = true)
                             showTextAndWait(
-                                "The last priest lies",
-                                "dead. You stand still",
-                                "for a moment, and then",
-                                "start searching the",
-                                "hall for the Lute.",
-                                "",
+                                """
+                                The last priest lies dead. You stand still for a moment,
+                                and then start searching the hall for the Lute.
+                                """,
                             )
                             party.randomMember(MemberChoiceFilter.AliveOnly) { surprised ->
-                                showTextAndWait {
-                                    line(partyName(surprised), " suddenly")
-                                    line("hears something behind")
-                                    line(pronoun(surprised, PronounCase.Object), "!")
-                                    line("")
-                                }
+                                showTextAndWait(
+                                    flowText(
+                                        partyName(surprised),
+                                        " suddenly hears something behind ",
+                                        pronoun(surprised, PronounCase.Object),
+                                        "!",
+                                    ),
+                                )
                             }
                             showTextAndWait(
-                                "You scream in terror",
-                                "when you see the source",
-                                "of that sound! ERETHOR",
-                                "HAS COME TO LIFE ONCE",
-                                "AGAIN!!!",
-                                "",
+                                """
+                                You scream in terror when you see the source of that sound!
+                                ERETHOR HAS COME TO LIFE ONCE AGAIN!!!
+                                """,
                             )
                             encounter(Monsters.erethor, mandatory = true)
                             showTextAndWait(
-                                "This time Erethor",
-                                "remains dead. His flesh",
-                                "blisters and bursts.",
-                                "A rotten smell spreads",
-                                "throughout the hall.",
-                                "",
+                                """
+                                This time Erethor remains dead. His flesh blisters and
+                                bursts. A rotten smell spreads throughout the hall.
+                                """,
                             )
                             party.randomMember(MemberChoiceFilter.AliveOnly) { finder ->
-                                showTextAndWait {
-                                    line(partyName(finder), " finds the")
-                                    line("Lute on a pedestal,")
-                                    line("and you are all glad")
-                                    line("to leave this place.")
-                                    line("")
-                                }
+                                showTextAndWait(
+                                    flowText(partyName(finder), " finds the Lute on a pedestal, and you are all glad to leave this place."),
+                                )
                             }
                             mark(Story.erethor.lute.luteTaken)
                         }
@@ -2530,33 +2490,37 @@ val authoredRylween: RylweenModel =
                     questionReplies(QuestionTopic.People) {
                         job(NpcJobs.merchant, flowText("- Well, I don't know that many people."))
                         job(NpcJobs.ranger, flowText("- No I'm a lone ranger."))
-                        job(NpcJobs.fighter) {
-                            lines {
-                                line("- Well, I met this")
-                                line(character(Roles.banditsQuestGiver).job, " who seeks")
-                                line("revenge on a band of")
-                                line("bandits.")
-                            }
-                        }
+                        job(
+                            NpcJobs.fighter,
+                            flowText(
+                                "- Well, I met this ",
+                                character(Roles.banditsQuestGiver).job,
+                                " who seeks revenge on a band of bandits.",
+                            ),
+                        )
                         job(NpcJobs.wizard, flowText("- OH! Well... not really."))
-                        job(NpcJobs.priest) {
-                            lines {
-                                line("- I've heard of a ", character(Roles.hermitTrollTooth).job)
-                                line("who lives in the swamps")
-                                line("by ", town(Towns.ollk).name, ". Perhaps")
-                                line("he can help you.")
-                            }
-                        }
+                        job(
+                            NpcJobs.priest,
+                            flowText(
+                                "- I've heard of a ",
+                                character(Roles.hermitTrollTooth).job,
+                                " who lives in the swamps by ",
+                                town(Towns.ollk).name,
+                                ". Perhaps he can help you.",
+                            ),
+                        )
                         job(NpcJobs.thief, flowText("- No. Sorry. Dunno."))
                         job(NpcJobs.peasant, flowText("- I think it's time someone found the Foot of Jazzy and defeated Ydarg!"))
-                        job(NpcJobs.bard) {
-                            lines {
-                                line("- Rumor has it that a")
-                                line(character(Roles.fighterIntro).job, " called")
-                                line(character(Roles.fighterIntro).name)
-                                line("has a mission for you.")
-                            }
-                        }
+                        job(
+                            NpcJobs.bard,
+                            flowText(
+                                "- Rumor has it that a ",
+                                character(Roles.fighterIntro).job,
+                                " called ",
+                                character(Roles.fighterIntro).name,
+                                " has a mission for you.",
+                            ),
+                        )
                         job(NpcJobs.drifter, flowText("- Don't know anyone."))
                         job(NpcJobs.halfOrc, flowText("- ME ALONE AND STRONG!"))
                         job(NpcJobs.halfElf, flowText("- There are many huts in the Wilderness."))
@@ -2613,36 +2577,33 @@ val authoredRylween: RylweenModel =
                         rumor(flowText("You will need the Bracelets of Thun to resist the most evil of all spells..."))
                         rumor(flowText("The scythe is a useless weapon."))
                         rumor(flowText("Some say that you need gems to enter the old Temple of Thun."))
-                        rumor {
-                            lines {
-                                line("Seek the ", character(Roles.hermitTrollTooth).job)
-                                line("if you want to know")
-                                line("of the Fire Shield")
-                            }
-                        }
-                        rumor {
-                            lines {
-                                line("The ", character(Roles.hermitTrollTooth).job)
-                                line("lives in the swamp.")
-                            }
-                        }
+                        rumor(flowText("Seek the ", character(Roles.hermitTrollTooth).job, " if you want to know of the Fire Shield"))
+                        rumor(flowText("The ", character(Roles.hermitTrollTooth).job, " lives in the swamp."))
                         rumor(flowText("Always post a guard when you camp in the Wilderness."))
                         rumor(flowText("The Foot of Jazzy is one of the objects Baron Ydarg can't control!"))
                         rumor(flowText("Skullweed plant grows deep in the swamp. It is a powerful reagent."))
                         rumor(Rumors.banditsQuestGiver) {
                             excludeWhen(Story.garth.bandits.recovered, Story.garth.bandits.closed)
-                            lines {
-                                line("A ", character(Roles.banditsQuestGiver).job, " named ", character(Roles.banditsQuestGiver).name)
-                                line("will pay you for")
-                                line("killing some bandits.")
-                            }
+                            text(
+                                flowText(
+                                    "A ",
+                                    character(Roles.banditsQuestGiver).job,
+                                    " named ",
+                                    character(Roles.banditsQuestGiver).name,
+                                    " will pay you for killing some bandits.",
+                                ),
+                            )
                         }
                         rumor(Rumors.rangerQuestGiver) {
-                            lines {
-                                line("A ", character(Roles.rangersQuestGiver).job, " called ", character(Roles.rangersQuestGiver).name)
-                                line("seeks a brave party")
-                                line("of adventurers.")
-                            }
+                            text(
+                                flowText(
+                                    "A ",
+                                    character(Roles.rangersQuestGiver).job,
+                                    " called ",
+                                    character(Roles.rangersQuestGiver).name,
+                                    " seeks a brave party of adventurers.",
+                                ),
+                            )
                         }
                         rumor(flowText("It is always wise to haggle."))
                         rumor(flowText("Cthulhu will rise again!"))
@@ -2655,41 +2616,34 @@ val authoredRylween: RylweenModel =
                         rumor(flowText("Never meddle in the affairs of wizards, for they are subtle, and swift to anger."))
                         rumor(flowText("Magical objects can be a great aid in battle."))
                         rumor(flowText("Seek the holy hand grenade!"))
-                        rumor(Rumors.crownSeer) {
-                            lines {
-                                line("A ", character(Roles.crownSeer).job, " named ", character(Roles.crownSeer).name)
-                                line("knows of the Crown.")
-                                line("He lives ", character(Roles.crownSeer).location, "!")
-                            }
-                        }
-                        rumor {
-                            lines {
-                                line(town(Towns.murn).name, " is situated")
-                                line("somewhere near ", town(Towns.murn).near(), "!")
-                            }
-                        }
+                        rumor(
+                            Rumors.crownSeer,
+                            flowText(
+                                "A ",
+                                character(Roles.crownSeer).job,
+                                " named ",
+                                character(Roles.crownSeer).name,
+                                " knows of the Crown. He lives ",
+                                character(Roles.crownSeer).location,
+                                "!",
+                            ),
+                        )
+                        rumor(flowText(town(Towns.murn).name, " is situated somewhere near ", town(Towns.murn).near(), "!"))
                         rumor(Rumors.templeOfThunSeer) {
-                            lines {
-                                line("Seek ", character(Roles.templeOfThunSeer).name, " if you")
-                                line("search the Temple of")
-                                line("Thun! He lives ", character(Roles.templeOfThunSeer).location)
-                            }
+                            text(
+                                flowText(
+                                    "Seek ",
+                                    character(Roles.templeOfThunSeer).name,
+                                    " if you search the Temple of Thun! He lives ",
+                                    character(Roles.templeOfThunSeer).location,
+                                ),
+                            )
                         }
                         rumor(flowText("The more powerful creatures, the more experience."))
                         rumor(flowText("A good sword beats four aces!"))
                         rumor(flowText("You need FIVE items, no less, no more to kill Ydarg!"))
-                        rumor {
-                            lines {
-                                line(town(Towns.wilor).name, " is situated")
-                                line("at ", town(Towns.wilor).near(radius = 0), ".")
-                            }
-                        }
-                        rumor {
-                            lines {
-                                line(town(Towns.ollk).name, " is situated")
-                                line("somewhere near ", town(Towns.ollk).near(), "!")
-                            }
-                        }
+                        rumor(flowText(town(Towns.wilor).name, " is situated at ", town(Towns.wilor).near(radius = 0), "."))
+                        rumor(flowText(town(Towns.ollk).name, " is situated somewhere near ", town(Towns.ollk).near(), "!"))
                     }
                 }
 
@@ -2709,7 +2663,7 @@ val authoredRylween: RylweenModel =
                             },
                             yes = {
                                 whenever(party.gold lt price) {
-                                    writeText("- No money, eh?", "  don't bother", "  to come back!")
+                                    writeText("- No money, eh? Don't bother to come back!")
                                     pause2s()
                                 } otherwise {
                                     party.gold -= price
@@ -2718,7 +2672,13 @@ val authoredRylween: RylweenModel =
                                             it.hp -= 1
                                         }
                                     }
-                                    writeText("You spend a very", "exhausting hour", "upstairs.", "(PERVERT!) ;-)", "")
+                                    writeText(
+                                        """
+                                        You spend a very exhausting hour upstairs.
+
+                                        (PERVERT!) ;-)
+                                        """,
+                                    )
                                     pause2s()
                                 }
                             },
@@ -3806,138 +3766,134 @@ val authoredRylween: RylweenModel =
                 showBackdrop(Images.Backdrop.ydargCastle)
                 showBackdrop(Images.Castle.jaaraGate)
                 writeText(
-                    flowText(
-                        """
-                        At the gate of Zadraz, white mist thickens into the shape of Jaara.
+                    """
+                    At the gate of Zadraz, white mist thickens into the shape of Jaara.
 
-                        - Do not be afraid, adventurers. I am Jaara, guardian of the gate. Baron Ydarg has imprisoned me here forever.
-                        """,
-                    ),
+                    - Do not be afraid, adventurers. I am Jaara, guardian of the gate. Baron Ydarg has imprisoned me here forever.
+                    """,
                 )
                 waitInput("after Jaara appears with the key")
                 writeText(
-                    flowText(
-                        """
-                        You show the Silver Key to Jaara. Her eyes widen, then she smiles and waves towards the drawbridge.
-                        """,
-                    ),
+                    """
+                    You show the Silver Key to Jaara. Her eyes widen, then she smiles and waves towards the drawbridge.
+                    """,
                 )
                 waitInput("after showing Jaara the key")
                 writeText(
-                    flowText(
-                        """
-                        It falls to the ground with a resounding ***KRASH***. Jaara slowly fades away until nothing remains.
-                        """,
-                    ),
+                    """
+                    It falls to the ground with a resounding ***KRASH***. Jaara slowly fades away until nothing remains.
+                    """,
                 )
                 waitInput("after Jaara opens the gate")
                 writeText(
-                    flowText(
-                        """
-                        You enter.
+                    """
+                    You enter.
 
-                        The first door you enter slams shut behind you!
-                        """,
-                    ),
+                    The first door you enter slams shut behind you!
+                    """,
                 )
                 waitInput("after entering castle Ydarg")
             }
 
             scene(sceneId("castle.ydarg.completed")) {
                 writeText(
-                    flowText(
-                        """
-                        The last trapdoor slams shut behind you. You are high above the forest, on the roof of this fortress. Suddenly, a voice speaks:
-                        """,
-                    ),
+                    """
+                    The last trapdoor slams shut behind you. You are high above the forest, on the roof of this fortress. Suddenly, a voice speaks:
+                    """,
                 )
                 writeText(
-                    flowText(
-                        """
-                        - Fools! You have come far, but here ends your journey!
+                    """
+                    - Fools! You have come far, but here ends your journey!
 
-                        The night sky above lights up with green flashes, and Ydarg's minions rush to attack you!
-                        """,
-                    ),
+                    The night sky above lights up with green flashes, and Ydarg's minions rush to attack you!
+                    """,
                 )
                 encounter(Monsters.cryptHorror, mandatory = true)
                 encounter(Monsters.nightGaunt, mandatory = true)
                 encounter(Monsters.thyraga, mandatory = true)
                 encounter(Monsters.liche, mandatory = true)
                 writeText(
-                    flowText(
-                        """
-                        Corpses of the nightmare terrors are strewn all around. A dark cloaked figure appears before you. He takes a broad step over the dead and dying, and gazes at you with cold glowing green eyes.
-                        """,
-                    ),
+                    """
+                    Corpses of the nightmare terrors are strewn all around. A dark cloaked figure appears before you. He takes a broad step over the dead and dying, and gazes at you with cold glowing green eyes.
+                    """,
                 )
                 writeText(
-                    flowText(
-                        """
-                        - So. You have completed the battle test. I must confess that you impress me. But now...
+                    """
+                    - So. You have completed the battle test. I must confess that you impress me. But now...
 
-                        (He waves a pointed stick and energy begins to form in the air before you.)
-                        """,
-                    ),
+                    (He waves a pointed stick and energy begins to form in the air before you.)
+                    """,
                 )
                 writeText(
-                    flowText(
-                        """
-                        A glowing energy sphere appears, and at a gesture from Ydarg's stick, it hurtles towards you!!!
-                        """,
-                    ),
+                    """
+                    A glowing energy sphere appears, and at a gesture from Ydarg's stick, it hurtles towards you!!!
+                    """,
                 )
                 writeText(
-                    flowText(
-                        """
-                        Suddenly! You feel someone else near. The four gray-clad mages raise their hands, and the sphere is absorbed by their hands!
-                        """,
-                    ),
+                    """
+                    Suddenly! You feel someone else near. The four gray-clad mages raise their hands, and the sphere is absorbed by their hands!
+                    """,
                 )
                 writeText(
-                    flowText(
-                        """
-                        - CURSES! Ydarg growls. - So this is what it has come to! You got here by cold steel, and that is the way you shall perish!
-                        """,
-                    ),
+                    """
+                    - CURSES! Ydarg growls. - So this is what it has come to! You got here by cold steel, and that is the way you shall perish!
+                    """,
                 )
                 writeText(
-                    flowText(
-                        """
-                        He pulls a huge trident from his robe and utters a single syllable. Without warning he appears a foot before you!!!
-                        """,
-                    ),
+                    """
+                    He pulls a huge trident from his robe and utters a single syllable. Without warning he appears a foot before you!!!
+                    """,
                 )
-                writeText("Let the battle commence!", "")
+                writeText("Let the battle commence!")
                 encounter(Monsters.baronYdarg, mandatory = true)
                 writeText(
-                    flowText(
-                        """
-                        Ydarg's trident clatters to the ground before you. He shudders and falls over. As you rush to kill him he screams:
-                        """,
-                    ),
+                    """
+                    Ydarg's trident clatters to the ground before you. He shudders and falls over. As you rush to kill him he screams:
+                    """,
                 )
                 writeText(
-                    flowText(
-                        """
-                        - It is not over! I shall see you in hell! In another world! A time to come! You have tainted Zadraz with your ancient items, but I will triumph again!!! Anew...
-                        """,
-                    ),
+                    """
+                    - It is not over! I shall see you in hell! In another world! A time to come! You have tainted Zadraz with your ancient items, but I will triumph again!!! Anew...
+                    """,
                 )
-                writeText(flowText("His cloak collapses, and when you tear it away, you reveal nothing but..."))
-                writeText("dust...", "")
                 writeText(
-                    "CONGRATULATIONS!",
-                    "",
-                    "You have banished Ydarg",
-                    "from this dimension.",
-                    "Please ask your SysOp to",
-                    "reset the game.",
-                    "",
+                    """
+                    His cloak collapses, and when you tear it away, you reveal
+                    nothing but...
+                    """,
+                )
+                writeText("dust...")
+                writeText(
+                    """
+                    CONGRATULATIONS!
+
+                    You have banished Ydarg
+                    from this dimension.
+                    Please ask your SysOp to
+                    reset the game.
+                    """,
                 )
                 achieve(Milestones.ydargVictory)
-                writeText("Be ready for:", "HEROES OF RYLWEEN", "- The second coming.", "Soon online at a BBS", "near you!", "")
-                writeText("See Ya!!!", "", "     /Marcus", "")
+                writeText(
+                    literalText(
+                        """
+                        Be ready for:
+                        HEROES OF RYLWEEN
+                        - The second coming.
+                        Soon online at a BBS
+                        near you!
+                        """,
+                    ),
+                )
+                writeText(
+                    literalText(
+                        """
+                        See Ya!!!
+
+                             /Marcus
+                        """,
+                    ),
+                )
             }
 
             // Town service scenes are normal scripts. Reusable helpers such as
@@ -3971,7 +3927,7 @@ val authoredRylween: RylweenModel =
                                 accepting = MemberChoiceFilter.Any,
                             ) { m ->
                                 whenever(m.dead) {
-                                    writeText(flowText("- GET THAT CORPSE OUTTA HERE! (You are thrown out)."))
+                                    writeText("- GET THAT CORPSE OUTTA HERE! (You are thrown out).")
                                     pause1500ms()
                                     breakLoop("corpse exits the church service")
                                 } otherwise {
@@ -3992,7 +3948,7 @@ val authoredRylween: RylweenModel =
                                             choice.payNoThanks(
                                                 price,
                                                 broke = {
-                                                    writeText(flowText("You don't have enough gold!"))
+                                                    writeText("You don't have enough gold!")
                                                     pause1s()
                                                 },
                                                 paid = {
@@ -4025,7 +3981,7 @@ val authoredRylween: RylweenModel =
                                 } otherwise {
                                     whenever(m.mp eq m.wisdom) {
                                         clearText()
-                                        writeText(flowText("That character needs no spell points to be restored."))
+                                        writeText("That character needs no spell points to be restored.")
                                         pause2s()
                                     } otherwise {
                                         clearText()
@@ -4121,13 +4077,7 @@ val authoredRylween: RylweenModel =
                 shopService(Buildings.smith) {
                     image = Images.Scene.smith
                     closed("Shop Closed.")
-                    intro(
-                        "Smith.",
-                        "",
-                        "The smith welcomes you",
-                        "to his small shop.",
-                        "",
-                    )
+                    intro(flowText("Smith. The smith welcomes you to his small shop."))
                     menu("(B)uy", "(S)ell", "(L)eave")
                     goodbye("Well, bye then...")
 
@@ -4156,11 +4106,15 @@ val authoredRylween: RylweenModel =
                             ),
                         )
                         declined(
-                            "The smith is disappointed.",
-                            "- Maybe another time,",
-                            "you tell him.",
-                            "- Yeah, he answers.",
-                            "",
+                            flowText(
+                                """
+                                The smith is disappointed.
+
+                                - Maybe another time, you tell him.
+
+                                - Yeah, he answers.
+                                """,
+                            ),
                         )
                         runsRumorAfterAccept = true
                     }
@@ -4265,7 +4219,12 @@ val authoredRylween: RylweenModel =
                                 } otherwise {
                                     party.gold -= cost
                                     clearText()
-                                    writeText(flowText("You are served a well tasting dinner. Some of your health returns."))
+                                    writeText(
+                                        """
+                                        You are served a well tasting dinner.
+                                        Some of your health returns.
+                                        """,
+                                    )
                                     healLivingMembers(6)
                                     pause2s()
                                 }
@@ -4394,7 +4353,7 @@ val authoredRylween: RylweenModel =
                                     take = {
                                         whenever(party.gold lt cost) {
                                             clearText()
-                                            writeText(flowText("- AHA! No gold! You are thrown out."))
+                                            writeText("- AHA! No gold! You are thrown out.")
                                             pause2s()
                                             clearMapWindow()
                                             breakLoop("thrown out of inn")
@@ -4403,7 +4362,7 @@ val authoredRylween: RylweenModel =
                                             clearText()
                                             writeText("You go to bed...")
                                             pause1s()
-                                            writeText("Zzzz...", "")
+                                            writeText("Zzzz...")
                                             party.restedHours set 14
                                             pause1500ms()
                                             writeText(
@@ -4434,7 +4393,7 @@ val authoredRylween: RylweenModel =
                             no = {
                                 loop {
                                     clearText()
-                                    writeText("The innkeeper leaves.", "")
+                                    writeText("The innkeeper leaves.")
                                     menu("(C)hitchat with guests", "(L)eave") {
                                         option('C') {
                                             speak(Buildings.inn)
@@ -4462,14 +4421,7 @@ val authoredRylween: RylweenModel =
                 shopService(Buildings.merchant) {
                     image = Images.Scene.merchant
                     closed("Shop Closed.")
-                    intro(
-                        "Merchant",
-                        "",
-                        "Can I help you? I",
-                        "trade in the finest",
-                        "items in the realm!",
-                        "",
-                    )
+                    intro(flowText("Merchant. Can I help you? I trade in the finest items in the realm!"))
                     menu("(B)uy item", "(S)ell item", "(L)eave")
                     goodbye("Well, bye then...")
 
@@ -4496,7 +4448,7 @@ val authoredRylween: RylweenModel =
                                 Items.torch,
                                 resource = ShopResources.torches,
                                 cap = ShopQuantityCaps.fixed(Resource.Torches, 80),
-                                tooMany = literalText("You can carry no", "more than 80", "torches..."),
+                                tooMany = flowText("You can carry no more than 80 torches..."),
                                 label = "Torch",
                                 zeroQuantityDeal = ShopZeroQuantityDeal.always,
                                 description = flowText("Ah, the finest torches in the realm."),
@@ -4539,7 +4491,7 @@ val authoredRylween: RylweenModel =
                         accepts(Items.ration, Items.blanket, Items.tent, Items.rope)
                         acceptsKinds(ItemKind.Potion, ItemKind.Treasure, ItemKind.MagicItem)
                         rejects(Items.donkey)
-                        wrongKind("- I don't deal in that", "  kind of stuff!")
+                        wrongKind(flowText("- I don't deal in that kind of stuff!"))
                         offer {
                             line("- Ok. Give ya ", price, "!")
                             line("")
@@ -4571,19 +4523,17 @@ val authoredRylween: RylweenModel =
                     whenever(chance(priestBonus + 5)) {
                         clearText()
                         writeText(
-                            flowText(
-                                """
-                                Just as you are about to sit down at a table, a scruffy little man pulls at your sleeve...
-                                """,
-                            ),
+                            """
+                            Just as you are about to sit down at a table,
+                            a scruffy little man pulls at your sleeve...
+                            """,
                         )
                         pause3s()
                         writeText(
-                            flowText(
-                                """
-                                - Hey, hey, hey! You! Yes... you! I have an offer that may interest you...
-                                """,
-                            ),
+                            """
+                            - Hey, hey, hey! You! Yes... you! I have an offer
+                            that may interest you...
+                            """,
                         )
                         pause3s()
                         clearText()
@@ -4596,10 +4546,10 @@ val authoredRylween: RylweenModel =
                                 line("  Aurum!")
                                 line("")
                             }
-                            broke("- You don't have that", "  much gold!")
+                            broke(flowText("- You don't have that much gold!"))
                             full("- You can't carry it!")
                             deal("- Deal!!!")
-                            declined("- Fine, I can live with", "  that.")
+                            declined(flowText("- Fine, I can live with that."))
                         }
                     }
                 }
@@ -4644,7 +4594,7 @@ val authoredRylween: RylweenModel =
                                 ) { storyteller ->
                                     whenever(storyteller.dead) {
                                         clearText()
-                                        writeText(flowText("Dead men tell no stories..."))
+                                        writeText("Dead men tell no stories...")
                                         pause2s()
                                     } otherwise {
                                         clearText()
@@ -4657,7 +4607,7 @@ val authoredRylween: RylweenModel =
                                         }
                                         pause2s()
 
-                                        writeText("- YEAAH! Roars the crowd!", "")
+                                        writeText("- YEAAH! Roars the crowd!")
                                         pause2s()
 
                                         localInt(0) { isBoast ->
@@ -4710,23 +4660,28 @@ val authoredRylween: RylweenModel =
                                                     storyteller.charisma += 3
                                                 }
                                                 whenever((score gt 300) and (score lt 401)) {
-                                                    writeText(flowText("Very good! You've been through much!"))
+                                                    writeText("Very good! You've been through much!")
                                                     pause2s()
                                                     storyteller.charisma += 1
                                                 }
                                                 whenever((score gt 150) and (score lt 301)) {
-                                                    writeText("Nice story, Sir!", "")
+                                                    writeText("Nice story, Sir!")
                                                     pause2s()
                                                 }
                                                 whenever((score gt 100) and (score lt 151)) {
-                                                    writeText("The mob is bored.", "")
+                                                    writeText("The mob is bored.")
                                                     pause2s()
                                                     whenever(storyteller.charisma gt 0) {
                                                         storyteller.charisma -= 1
                                                     }
                                                 }
                                                 whenever(score lt 101) {
-                                                    writeText(flowText("Most of the crowd falls asleep. The rest beg you to stop."))
+                                                    writeText(
+                                                        """
+                                                        Most of the crowd falls asleep.
+                                                        The rest beg you to stop.
+                                                        """,
+                                                    )
                                                     pause2s()
                                                     whenever(storyteller.charisma gte 3) {
                                                         storyteller.charisma -= 3
@@ -4744,24 +4699,34 @@ val authoredRylween: RylweenModel =
                                     rumors += 1
                                 }
                                 whenever(rumors gt 4) {
-                                    writeText(flowText("The tavern has suddenly become very quiet."))
+                                    writeText("The tavern has suddenly become very quiet.")
                                     waitInput("after quiet tavern rumor")
                                 } otherwise {
                                     choose(random(0..4)) {
                                         case(0) {
-                                            writeText(flowText("After listening a while you hear an old man say to another:"))
+                                            writeText(
+                                                """
+                                                After listening a while you hear an old
+                                                man say to another:
+                                                """,
+                                            )
                                         }
                                         case(1) {
-                                            writeText("A drunken bard bellows:", "")
+                                            writeText("A drunken bard bellows:")
                                         }
                                         case(2) {
-                                            writeText(flowText("A halfling you rescued from a brawl whispers:"))
+                                            writeText("A halfling you rescued from a brawl whispers:")
                                         }
                                         case(3) {
-                                            writeText(flowText("The tavern keeper motions to you to come closer, and whispers:"))
+                                            writeText(
+                                                """
+                                                The tavern keeper motions to you to come
+                                                closer, and whispers:
+                                                """,
+                                            )
                                         }
                                         case(4) {
-                                            writeText("A bargirl tells you:", "")
+                                            writeText("A bargirl tells you:")
                                         }
                                     }
                                     pause600ms()
@@ -4772,7 +4737,7 @@ val authoredRylween: RylweenModel =
 
                             option('O') {
                                 clearText()
-                                writeText("Order:", "")
+                                writeText("Order:")
                                 menu(
                                     "(A) Ale       2 au",
                                     "(B) Mead      3 au",
@@ -4790,7 +4755,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
-                                                writeText(flowText("AAH! (your health returns)."))
+                                                writeText("AAH! (your health returns).")
                                                 pause1s()
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(2) / 2) + 1, it.maxHp)
@@ -4808,7 +4773,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
-                                                writeText(flowText("AAH! (your health returns)."))
+                                                writeText("AAH! (your health returns).")
                                                 pause1s()
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(3) / 2) + 1, it.maxHp)
@@ -4826,7 +4791,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
-                                                writeText(flowText("AAH! (your health returns)."))
+                                                writeText("AAH! (your health returns).")
                                                 pause1s()
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(4) / 2) + 1, it.maxHp)
@@ -4844,7 +4809,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
-                                                writeText(flowText("You are the laughing stock of the entire tavern..."))
+                                                writeText("You are the laughing stock of the entire tavern...")
                                                 pause2s()
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(1) / 2) + 1, it.maxHp)
@@ -4871,14 +4836,11 @@ val authoredRylween: RylweenModel =
                     // helper splits to fit the text-window width. Paragraphs are
                     // separated by blank lines.
                     writeText(
-                        flowText(
-                            """
+                        """
                         Sorry. The Adventurers' Guild is permanently closed for renovation.
 
                         Come back when Rylween v3 ships in 1994. Or thereabouts.
-
                         """,
-                        ),
                     )
 
                     menu(
@@ -4977,7 +4939,7 @@ val authoredRylween: RylweenModel =
                     writeText {
                         line(partyName(caster), " utters a word.")
                     }
-                    writeText(flowText("Your images waver and blur in front of your enemies"))
+                    writeText("Your images waver and blur in front of your enemies")
                     pause2s()
                     battle.monsterWeaponSkill /= 2
                     battle.monsterConfused set true
@@ -4988,11 +4950,20 @@ val authoredRylween: RylweenModel =
                 ask.monsterAlive(literalText("Who?", "")) { target ->
                     clearText()
                     whenever(random(0..199) lt target.hp) {
-                        writeText(flowText("Through INCREDIBLE resistance, the enemy is still alive, badly wounded."))
+                        writeText(
+                            """
+                            Through INCREDIBLE resistance, the enemy is still
+                            alive, badly wounded.
+                            """,
+                        )
                         pause2s()
                         target.hp set 1
                     } otherwise {
-                        writeText(flowText("The enemy is wiped straight off the surface of the earth!"))
+                        writeText(
+                            """
+                            The enemy is wiped straight off the surface of the earth!
+                            """,
+                        )
                         pause2s()
                         target.dead set true
                         target.hp set 0
@@ -5006,7 +4977,7 @@ val authoredRylween: RylweenModel =
                     writeText {
                         line(partyName(caster), " utters a word.")
                     }
-                    writeText(flowText("The enemies freeze dead in their tracks."))
+                    writeText("The enemies freeze dead in their tracks.")
                     pause2s()
                     battle.monstersHeld set true
                 }
@@ -5018,7 +4989,11 @@ val authoredRylween: RylweenModel =
                     writeText {
                         line(partyName(caster), " utters a word.")
                     }
-                    writeText(flowText("The enemy is now stopped from using magic against you this round."))
+                    writeText(
+                        """
+                        The enemy is now stopped from using magic against you this round.
+                        """,
+                    )
                     pause3s()
                     battle.antimagic set true
                 }
@@ -5077,7 +5052,7 @@ val authoredRylween: RylweenModel =
             spell(Spells.Monster.hold, slot = 3, baseCost = 0, name = "Hold Creature") {
                 writeText("Hold Creature!")
                 pause600ms()
-                writeText("You realize with horror", "that you cannot move!")
+                writeText("You realize with horror that you cannot move!")
                 pause1500ms()
                 battle.partyHeld set true
             }
@@ -5085,7 +5060,7 @@ val authoredRylween: RylweenModel =
             spell(Spells.Monster.confusion, slot = 4, baseCost = 0, name = "Confusion") {
                 writeText("Confusion!")
                 pause600ms()
-                writeText("You are almost blinded", "by a colorful haze.")
+                writeText("You are almost blinded by a colorful haze.")
                 pause1500ms()
                 battle.partyConfused set true
             }
@@ -5219,18 +5194,20 @@ val authoredRylween: RylweenModel =
                                 line("together over ", pronoun(caster, PronounCase.Possessive), " head.")
                             }
                             writeText(
-                                flowText(
-                                    "There is a deafening clap of thunder, and you hear beings scream in agony in the dungeon below...",
-                                ),
+                                """
+                                There is a deafening clap of thunder, and you hear
+                                beings scream in agony in the dungeon below...
+                                """,
                             )
                             waitInput("after banish evil")
                             clearText()
                             realm.banished set true
                         } otherwise {
                             writeText(
-                                flowText(
-                                    "There is no particular target for this banishing. This spell is meant for use in dungeons and caves.",
-                                ),
+                                """
+                                There is no particular target for this banishing.
+                                This spell is meant for use in dungeons and caves.
+                                """,
                             )
                             waitInput("after banish no target")
                             clearText()
@@ -5251,12 +5228,12 @@ val authoredRylween: RylweenModel =
                             caster.mp -= cost
                             whenever(chance(59)) {
                                 clearText()
-                                writeText("There is nothing", "special near.", "")
+                                writeText("There is nothing special near.")
                                 waitInput("after revelation nothing near")
                                 clearText()
                             } otherwise {
                                 clearText()
-                                writeText("Something special is", "near!")
+                                writeText("Something special is near!")
                                 pause1500ms()
                                 clearText()
                                 choose(random(0..2)) {
@@ -5267,9 +5244,10 @@ val authoredRylween: RylweenModel =
                             }
                         } otherwise {
                             writeText(
-                                flowText(
-                                    "This spell can be used in dungeons only, where there is a limited radius for the caster to enchant.",
-                                ),
+                                """
+                                This spell can be used in dungeons only, where there
+                                is a limited radius for the caster to enchant.
+                                """,
                             )
                             waitInput("after revelation dungeon-only")
                             clearText()
@@ -5316,9 +5294,9 @@ val authoredRylween: RylweenModel =
                             ),
                         ) { direction ->
                             clearText()
-                            ask.digit(literalText("How many miles do you", "want to travel? (1-9)"), 1..9) { distance ->
+                            ask.digit(flowText("How many miles do you want to travel? (1-9)"), 1..9) { distance ->
                                 teleportParty(direction, distance)
-                                writeText("You appear to be", "somewhere else.")
+                                writeText("You appear to be somewhere else.")
                                 renderMap()
                                 pause1500ms()
                                 clearText()
@@ -5336,7 +5314,7 @@ val authoredRylween: RylweenModel =
                 withCurrentCasterCost(55) { caster, cost ->
                     clearText()
                     whenever(context.inDungeon or context.inCastle) {
-                        writeText("The roof would cave", "in on you!", "")
+                        writeText("The roof would cave in on you!")
                         waitInput("after earthquake dungeon warning")
                         clearText()
                     } otherwise {
@@ -5347,7 +5325,7 @@ val authoredRylween: RylweenModel =
                                 line("three syllables in an archaic tongue...")
                             }
                             pause2s()
-                            writeText("and the ground cracks", "open!")
+                            writeText("and the ground cracks open!")
                             pause3s()
                             clearMapWindow()
                             showBackdrop(Images.Backdrop.cave)
@@ -5359,7 +5337,12 @@ val authoredRylween: RylweenModel =
                                         discoverCave(random(5..18), Dungeons.randomCave, lit(10))
                                     } otherwise {
                                         clearText()
-                                        writeText("You don't have enough", "moves left to explore", "the cave...", "")
+                                        writeText(
+                                            """
+                                            You don't have enough moves left to explore
+                                            the cave...
+                                            """,
+                                        )
                                         waitInput("after earthquake no moves")
                                         clearMapWindow()
                                         clearText()
@@ -5525,9 +5508,10 @@ val authoredRylween: RylweenModel =
                             line(partyName(caster), " throws the")
                         }
                         writeText(
-                            flowText(
-                                "gem at the enemy. It breaks before them in a rain of sparks. They bump into each other as they try to see you.",
-                            ),
+                            """
+                            gem at the enemy. It breaks before them in a rain of
+                            sparks. They bump into each other as they try to see you.
+                            """,
                         )
                         waitInput("after gem of confusion")
                         clearText()
@@ -5547,9 +5531,10 @@ val authoredRylween: RylweenModel =
                             line(partyName(caster), " throws the")
                         }
                         writeText(
-                            flowText(
-                                "gem at the enemy. It breaks, releasing a brilliant cloud of light which completely surrounds them. As the light fades, your enemies are blind.",
-                            ),
+                            """
+                            gem at the enemy. It breaks, releasing a brilliant cloud of light which completely surrounds them.
+                            As the light fades, your enemies are blind.
+                            """,
                         )
                         waitInput("after gem of blindness")
                         clearText()
@@ -5613,7 +5598,12 @@ val authoredRylween: RylweenModel =
 
                 effect {
                     clearText()
-                    writeText(flowText("The party feels their spirits grow. You are all stronger than before."))
+                    writeText(
+                        """
+                        The party feels their spirits grow. You are all stronger
+                        than before.
+                        """,
+                    )
                     waitInput("after blessing scroll")
                     clearText()
 
@@ -5632,7 +5622,7 @@ val authoredRylween: RylweenModel =
 
                 effect {
                     clearText()
-                    writeText("The party is fully", "healed!", "")
+                    writeText("The party is fully healed!")
                     waitInput("after staff of curing")
                     clearText()
 
@@ -5688,10 +5678,20 @@ val authoredRylween: RylweenModel =
                             line("axe at the enemy!")
                         }
                         pause1500ms()
-                        writeText(flowText("It wounds them severely as it spins around, wielded by hands you cannot see!"))
+                        writeText(
+                            """
+                            It wounds them severely as it spins around, wielded by
+                            hands you cannot see!
+                            """,
+                        )
                         pause4s()
                         clearText()
-                        writeText(flowText("With a raging battle cry, you attack the mortally wounded foes!"))
+                        writeText(
+                            """
+                            With a raging battle cry, you attack the mortally
+                            wounded foes!
+                            """,
+                        )
                         pause3s()
 
                         forEachMonster { foe ->
@@ -5713,7 +5713,7 @@ val authoredRylween: RylweenModel =
                             line("holy pin, and lobbeth the holy hand grenade at the foes...")
                         }
                         pause3s()
-                        writeText("KA-BLAM!", "")
+                        writeText("KA-BLAM!")
                         pause1500ms()
                         clearText()
 
@@ -5735,7 +5735,12 @@ val authoredRylween: RylweenModel =
                         writeText {
                             line(partyName(caster), " plays the")
                         }
-                        writeText(flowText("Flute of Madness. It produces a shrill, fragile sound, and breaks. Nothing happens."))
+                        writeText(
+                            """
+                            Flute of Madness. It produces a shrill, fragile sound,
+                            and breaks. Nothing happens.
+                            """,
+                        )
                         waitInput("after flute of madness")
                         clearText()
                     }
@@ -5773,21 +5778,15 @@ val authoredRylween: RylweenModel =
             scene(Scenes.Missions.bandits) {
                 clearText()
                 showTextAndWait(
-                    "You come across the",
-                    "camp of the bandits.",
-                    "One of them spots you",
-                    "and they attack!",
-                    "",
+                    """
+                    You come across the camp of the bandits. One of them spots you
+                    and they attack!
+                    """,
                 )
                 encounter(Monsters.bandit, mandatory = true)
                 renderMap()
                 clearText()
-                showTextAndWait {
-                    line("You find the cargo")
-                    line("the ", character(Roles.banditsQuestGiver).job, " wanted")
-                    line("you to bring him.")
-                    line("")
-                }
+                showTextAndWait(flowText("You find the cargo the ", character(Roles.banditsQuestGiver).job, " wanted you to bring him."))
                 mark(Story.garth.bandits.recovered)
             }
 
@@ -5795,15 +5794,13 @@ val authoredRylween: RylweenModel =
                 encounter(Monsters.troll, mandatory = true)
                 renderMap()
                 clearText()
-                writeText {
-                    line("You break off a troll")
-                    line("tooth to give the")
-                    line(character(Roles.hermitTrollTooth).job, ".")
-                    line("After wiping the slime of")
-                    line("it, you put it in your")
-                    line("backpack.")
-                    line("")
-                }
+                writeText(
+                    flowText(
+                        "You break off a troll tooth to give the ",
+                        character(Roles.hermitTrollTooth).job,
+                        ". After wiping the slime of it, you put it in your backpack.",
+                    ),
+                )
                 waitInput("after troll tooth")
                 clearText()
                 mark(Story.hermit.trollTooth.extracted)
@@ -5823,23 +5820,18 @@ val authoredRylween: RylweenModel =
 
             scene(Scenes.Missions.thunTemple) {
                 clearText()
-                showTextAndWait {
-                    line("You stand before the")
-                    line("ancient temple of Thun.")
-                    line("Around you are the ruins")
-                    line("of the once proud city")
-                    line("of Thun...")
-                    line("")
-                }
-                showTextAndWait {
-                    line("You see an altar")
-                    line("with five sockets before")
-                    line("you. Each is roughly")
-                    line("gem-sized. An inscription")
-                    line("says: 'Insert the gems")
-                    line("and your path shall open'")
-                    line("")
-                }
+                showTextAndWait(
+                    """
+                    You stand before the ancient temple of Thun. Around you are
+                    the ruins of the once proud city of Thun...
+                    """,
+                )
+                showTextAndWait(
+                    """
+                    You see an altar with five sockets before you. Each is roughly
+                    gem-sized. An inscription says: 'Insert the gems and your path shall open'
+                    """,
+                )
                 menu(
                     structuredText {
                         line("Do you want to put")
@@ -5852,21 +5844,16 @@ val authoredRylween: RylweenModel =
                     defaultOption('Y') {
                         whenever(party.inventory.count(ItemPools.thunAltarGems) lt 5) {
                             clearText()
-                            showTextAndWait {
-                                line("You don't have five")
-                                line("different gems.")
-                                line("")
-                            }
+                            showTextAndWait("You don't have five different gems.")
                         } otherwise {
                             party.inventory.consume(ItemPools.thunAltarGems, 5)
                             clearText()
-                            showTextAndWait {
-                                line("With a resounding 'CRUNG'")
-                                line("the altar slides away")
-                                line("to reveal a dark pit.")
-                                line("You enter...")
-                                line("")
-                            }
+                            showTextAndWait(
+                                """
+                                With a resounding 'CRUNG' the altar slides away to
+                                reveal a dark pit. You enter...
+                                """,
+                            )
                             enterDungeon(Dungeons.thunTemple, levels = 18)
                             clearMapWindow()
                             renderMap()
@@ -5895,49 +5882,41 @@ val authoredRylween: RylweenModel =
                     option('A') {
                         clearText()
                         writeText(
-                            "You run screaming into",
-                            "a large celebration of",
-                            "some sort. There are",
-                            "about forty kobolds here.",
-                            "At first, they are very",
-                            "surprised, and you manage",
-                            "to slay many, before they",
-                            "attack...",
-                            "",
+                            """
+                            You run screaming into a large celebration of some sort.
+                            There are about forty kobolds here. At first, they are
+                            very surprised, and you manage to slay many, before they attack...
+                            """,
                         )
                         waitInput()
                         clearText()
                         encounter(Monsters.koboldHorde, mandatory = true)
                         clearText()
                         writeText(
-                            "Piles of dead kobolds are",
-                            "lying all around. Still,",
-                            "they keep coming!",
-                            "",
+                            """
+                            Piles of dead kobolds are lying all around. Still, they
+                            keep coming!
+                            """,
                         )
                         waitInput()
                         encounter(Monsters.koboldHorde, mandatory = true)
                         clearText()
                         writeText(
-                            "You have annihilated most",
-                            "of the village. You pause",
-                            "to wipe the blood of your",
-                            "weapons, when suddenly,",
-                            "some ORCS rush out to",
-                            "attack you from nowhere.",
-                            "",
+                            """
+                            You have annihilated most of the village. You pause to wipe
+                            the blood of your weapons, when suddenly, some ORCS rush out
+                            to attack you from nowhere.
+                            """,
                         )
                         waitInput()
                         encounter(Monsters.orc, mandatory = true)
                         renderMap()
                         clearText()
                         showTextAndWait(
-                            "The entire village is",
-                            "wiped out. You snatch",
-                            "an ugly pendant from the",
-                            "head of the kobold chief",
-                            "to prove the bloody deed.",
-                            "",
+                            """
+                            The entire village is wiped out. You snatch an ugly pendant
+                            from the head of the kobold chief to prove the bloody deed.
+                            """,
                         )
                         mark(Story.masterCrown.task1Done)
                     }
@@ -5949,11 +5928,10 @@ val authoredRylween: RylweenModel =
                 clearText()
                 showBackdrop(Images.Mission.skullweedSwamp)
                 writeText(
-                    "On the ground before you",
-                    "grows the skullweed plant.",
-                    "You break off a few plants",
-                    "and put in your backpack.",
-                    "",
+                    """
+                    On the ground before you grows the skullweed plant. You break
+                    off a few plants and put in your backpack.
+                    """,
                 )
                 waitInput("after skullweed pickup")
                 clearText()
@@ -5963,65 +5941,45 @@ val authoredRylween: RylweenModel =
             scene(Scenes.Missions.borinMeet) {
                 clearText()
                 showTextAndWait(
-                    "You arrive at a village",
-                    "which looks typically",
-                    "dwarfish. As you approach",
-                    "the village square, an",
-                    "old dwarf who introduces",
-                    "himself as Borin greets",
-                    "you.",
-                    "",
+                    """
+                    You arrive at a village which looks typically dwarfish. As you
+                    approach the village square, an old dwarf who introduces himself
+                    as Borin greets you.
+                    """,
                 )
                 showTextAndWait(
-                    "You explain why you are",
-                    "here, and he frowns.",
-                    "- Well, he says, you",
-                    "actually COULD have a",
-                    "stone of that type",
-                    "if you do our tribe a",
-                    "favor...",
-                    "",
+                    """
+                    You explain why you are here, and he frowns.
+
+                    - Well, he says, you actually COULD have a stone of that type
+                    if you do our tribe a favor...
+                    """,
                 )
                 showTextAndWait(
-                    "- Years have passed, and",
-                    "much of our knowledge",
-                    "about the making of",
-                    "arms is gone. We haven't",
-                    "practiced it for",
-                    "generations, and the",
-                    "arms we produce nowadays",
-                    "are not as unbeatable as",
-                    "they once were...",
-                    "",
+                    """
+                    - Years have passed, and much of our knowledge about the making
+                    of arms is gone. We haven't practiced it for generations, and
+                    the arms we produce nowadays are not as unbeatable as they once were...
+                    """,
                 )
                 showTextAndWait(
-                    "- When our king Nolrim",
-                    "died, nine hundred years",
-                    "ago we buried him with his",
-                    "trusty dagger Reebar. If",
-                    "we had this to study",
-                    "we could once again become",
-                    "the greatest smiths that",
-                    "there are...",
-                    "",
+                    """
+                    - When our king Nolrim died, nine hundred years ago we buried
+                    him with his trusty dagger Reebar. If we had this to study we
+                    could once again become the greatest smiths that there are...
+                    """,
                 )
                 showTextAndWait(
-                    "- If you go to Nolrim's",
-                    "crypt, breach the traps my",
-                    "ancestors set to protect",
-                    "him against looters, and",
-                    "return Reebar, I will not",
-                    "only give you the stone,",
-                    "but also lots of gold,and",
-                    "some dwarven treasures.",
-                    "",
+                    """
+                    - If you go to Nolrim's crypt, breach the traps my ancestors
+                    set to protect him against looters, and return Reebar, I will
+                    not only give you the stone, but also lots of gold, and some
+                    dwarven treasures.
+                    """,
                 )
-                showTextAndWait {
-                    line("- Nolrim's crypt is at")
-                    line(location(Locations.nolrimCrypt).coordinates, ". Be careful, and")
-                    line("fare the well.")
-                    line("")
-                }
+                showTextAndWait(
+                    flowText("- Nolrim's crypt is at ", location(Locations.nolrimCrypt).coordinates, ". Be careful, and fare the well."),
+                )
                 journal {
                     line("Nolrim's Crypt is at ", location(Locations.nolrimCrypt).coordinates, ".")
                 }
@@ -6070,77 +6028,63 @@ val authoredRylween: RylweenModel =
                     enter = {
                         clearText()
                         writeText(
-                            "You enter the cave.",
-                            "piles of treasure are",
-                            "thrown all around.",
-                            "You note with terror",
-                            "that some OGRES sit",
-                            "among the gold and",
-                            "and jewels! They spot",
-                            "you and run screaming",
-                            "to attack!",
-                            "",
+                            """
+                            You enter the cave. Piles of treasure are thrown all around.
+                            You note with terror that some OGRES sit among the gold and
+                            jewels! They spot you and run screaming to attack!
+                            """,
                         )
                         waitInput()
                         encounter(Monsters.ogre, mandatory = true)
                         renderMap()
                         clearText()
                         writeText(
-                            "You defeat the ogres and",
-                            "start searching for the",
-                            "fabled Foot of Jazzy.",
-                            "Just as you begin to",
-                            "wonder if the half-orc",
-                            "lied to you, you hear a",
-                            "sound and quickly turn",
-                            "around. An OGRE LORD has",
-                            "quietly entered the cave!",
-                            "",
+                            """
+                            You defeat the ogres and start searching for the fabled
+                            Foot of Jazzy. Just as you begin to wonder if the half-orc
+                            lied to you, you hear a sound and quickly turn around.
+                            An OGRE LORD has quietly entered the cave!
+                            """,
                         )
                         waitInput()
                         encounter(Monsters.ogreLord, mandatory = true)
                         renderMap()
                         clearText()
                         showTextAndWait(
-                            "You defeat the Ogre Lord.",
-                            "You take all the gold",
-                            "you find, 5,645 gold coins!",
-                            "You also find a Mithril",
-                            "Mail some unfortunate",
-                            "warrior has left here.",
-                            "",
+                            """
+                            You defeat the Ogre Lord. You take all the gold you find,
+                            5,645 gold coins! You also find a Mithril Mail some
+                            unfortunate warrior has left here.
+                            """,
                         )
                         reward {
                             gold(5_645)
                             items(Items.mithrilMail)
                         }
                         party.randomMember(MemberChoiceFilter.AliveOnly) { noteFinder ->
-                            showTextAndWait {
-                                line("...There is however no")
-                                line("trace of the Foot. Just")
-                                line("as you are about to give")
-                                line("up, ", partyName(noteFinder), " finds a note!")
-                                line("It is written in shaky")
-                                line("hand with a strange")
-                                line("brown ink...")
-                                line("")
-                            }
+                            showTextAndWait(
+                                flowText(
+                                    "...There is however no trace of the Foot. Just as you are about to give up, ",
+                                    partyName(noteFinder),
+                                    " finds a note! It is written in shaky hand with a strange brown ink...",
+                                ),
+                            )
                         }
                         showTextAndWait(
-                            "'THEY SHALL NOT HAVE THE",
-                            "FOOT! I'm dying and I'll",
-                            "soon be dead, but I will",
-                            "use my last strength to",
-                            "teleport it away from",
-                            "here to the eastern peaks,",
-                            "Jazzy's regions.'",
-                            "         - Kastagir.",
-                            "",
+                            literalText(
+                                """
+                                'THEY SHALL NOT HAVE THE
+                                FOOT! I'm dying and I'll
+                                soon be dead, but I will
+                                use my last strength to
+                                teleport it away from
+                                here to the eastern peaks,
+                                Jazzy's regions.'
+                                         - Kastagir.
+                                """,
+                            ),
                         )
-                        showTextAndWait(
-                            "You leave the cave.",
-                            "",
-                        )
+                        showTextAndWait("You leave the cave.")
                         mark(Story.jazzy.ogre.ogresCleared)
                     },
                     leave = {
@@ -6152,67 +6096,51 @@ val authoredRylween: RylweenModel =
             scene(Scenes.Missions.jazzyFoot) {
                 clearText()
                 writeText(
-                    "Something about this whole",
-                    "area is weird. The air",
-                    "seems to be loaded with",
-                    "electricity. Suddenly you",
-                    "spot an object on the",
-                    "ground. It is a delicate",
-                    "ivory statue in the shape",
-                    "of a human foot. THIS IS",
-                    "THE FOOT OF JAZZY!",
-                    "",
+                    """
+                    Something about this whole area is weird. The air seems to be
+                    loaded with electricity. Suddenly you spot an object on the ground.
+                    It is a delicate ivory statue in the shape of a human foot.
+                    THIS IS THE FOOT OF JAZZY!
+                    """,
                 )
                 waitInput("after finding the foot")
                 clearText()
                 writeText(
-                    "Just as you touch it,",
-                    "the sky splits open and",
-                    "amid the wailing of",
-                    "hundreds of tortured",
-                    "souls, Jazzy's minions",
-                    "attack you, for",
-                    "the heresy they find you",
-                    "guilty of...",
-                    "",
+                    """
+                    Just as you touch it, the sky splits open and amid the wailing
+                    of hundreds of tortured souls, Jazzy's minions attack you, for
+                    the heresy they find you guilty of...
+                    """,
                 )
                 waitInput("before Jazzy minions")
                 encounter(Monsters.wingedThing, mandatory = true)
                 renderMap()
                 clearText()
                 writeText(
-                    "Quiet settles again, as",
-                    "you destroy the foul",
-                    "creatures, one by one.",
-                    "You reach for the foot",
-                    "again, when suddenly,",
-                    "something EVEN MORE",
-                    "horrible happens...",
-                    "",
+                    """
+                    Quiet settles again, as you destroy the foul creatures, one by one.
+                    You reach for the foot again, when suddenly, something EVEN MORE
+                    horrible happens...
+                    """,
                 )
                 waitInput("after Jazzy minions")
                 clearText()
                 writeText(
-                    "A twenty foot tall",
-                    "being materializes",
-                    "in front of you! You will",
-                    "have to fight Jazzy,",
-                    "himself!",
-                    "",
+                    """
+                    A twenty foot tall being materializes in front of you! You will
+                    have to fight Jazzy, himself!
+                    """,
                 )
                 waitInput("before Jazzy")
                 encounter(Monsters.jazzy, mandatory = true)
                 renderMap()
                 clearText()
                 writeText(
-                    "Today, you have killed a",
-                    "god. You watch silently as",
-                    "the huge body starts to",
-                    "melt. It fades away into",
-                    "Nothingness. This time,",
-                    "when you pick up the foot,",
-                    "nothing happens.",
-                    "",
+                    """
+                    Today, you have killed a god. You watch silently as the huge
+                    body starts to melt. It fades away into Nothingness. This time,
+                    when you pick up the foot, nothing happens.
+                    """,
                 )
                 waitInput("after Jazzy defeat")
                 clearText()
@@ -6237,39 +6165,30 @@ val authoredRylween: RylweenModel =
             scene(Scenes.Missions.hobgoblinCaravan) {
                 clearText()
                 showTextAndWait(
-                    "Just before you is a",
-                    "caravan of hobgoblins on",
-                    "white, well-bred horses.",
-                    "",
+                    "Just before you is a caravan of hobgoblins on white, well-bred horses.",
                 )
                 showTextAndWait(
-                    "It is unusual that these",
-                    "foul creatures have such",
-                    "beautiful animals. Hoping",
-                    "that they can give you a",
-                    "clue about the key, you",
-                    "emit a loud battle cry",
-                    "and attack!",
-                    "",
+                    """
+                    It is unusual that these foul creatures have such beautiful animals.
+                    Hoping that they can give you a clue about the key, you emit a loud
+                    battle cry and attack!
+                    """,
                 )
                 encounter(Monsters.ridingHobgoblin, mandatory = true)
                 renderMap()
                 clearText()
-                showTextAndWait {
-                    line("Before you kill the last")
-                    line("hobgoblin you ask him")
-                    line("about the key. The foul")
-                    line("creature blurts:")
-                    line("- Boss has it! In ze cave!")
-                    line("at home, yess, ", location(Locations.hobgoblinCave).coordinates, "...")
-                    line("pleeez sirs, don't kill")
-                    line("me...")
-                    line("")
-                }
                 showTextAndWait(
-                    "(at this point you sever",
-                    " his carotid artery).",
-                    "",
+                    flowText {
+                        paragraph("Before you kill the last hobgoblin you ask him about the key. The foul creature blurts:")
+                        paragraph(
+                            "- Boss has it! In ze cave! at home, yess, ",
+                            location(Locations.hobgoblinCave).coordinates,
+                            "... pleeez sirs, don't kill me...",
+                        )
+                    },
+                )
+                showTextAndWait(
+                    "(at this point you sever his carotid artery).",
                 )
                 journal {
                     line("The hobgoblin cave is at ", location(Locations.hobgoblinCave).coordinates, ".")
@@ -6298,22 +6217,17 @@ val authoredRylween: RylweenModel =
             scene(Scenes.Missions.borinGift) {
                 clearText()
                 showTextAndWait(
-                    "Borin greets you. He",
-                    "can hardly believe his",
-                    "eyes when you show him",
-                    "the dagger. He motions",
-                    "to you to follow him,",
-                    "and guides you to his",
-                    "hut.",
-                    "",
+                    """
+                    Borin greets you. He can hardly believe his eyes when you show
+                    him the dagger. He motions to you to follow him, and guides you
+                    to his hut.
+                    """,
                 )
                 showTextAndWait(
-                    "Smiling, he offers you",
-                    "3,578 gold coins and 3",
-                    "gems. You greedily accept",
-                    "the gift. He also hands",
-                    "you a purple dwarf stone.",
-                    "",
+                    """
+                    Smiling, he offers you 3,578 gold coins and 3 gems. You greedily
+                    accept the gift. He also hands you a purple dwarf stone.
+                    """,
                 )
                 reward {
                     gold(3_578)
@@ -6328,22 +6242,18 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.garth) {
                     whenState(Story.garth.bandits.none) {
                         writeText(
-                            flowText(
-                                """
+                            """
                             In fact, I have a mission for you. It will bring you much gold!
                             """,
-                            ),
                         )
                         waitInput("after Garth mission offer")
                         clearText()
                         writeText(
-                            flowText(
-                                """
+                            """
                             I was robbed by bandits just to the east of here. If you find
                             these bandits, kill them, and return my cargo here, I'll pay
                             you 2,000 gold and a ruby my grandfather gave me.
                             """,
-                            ),
                         )
                         waitInput("after Garth bandits story")
                         clearText()
@@ -6352,23 +6262,22 @@ val authoredRylween: RylweenModel =
 
                     whenState(Story.garth.bandits.accepted) {
                         writeText(
-                            flowText(
-                                """
-                                Find those bandits and bring my cargo back here. Then I'll pay you.
-                                """,
-                            ),
+                            """
+                            Find those bandits and bring my cargo back here. Then I'll pay you.
+                            """,
                         )
                         waitInput("after Garth accepted reminder")
                         clearText()
                     }
 
                     whenState(Story.garth.bandits.recovered) {
-                        writeText {
-                            line("The ", character(Roles.banditsQuestGiver).job, " is GRATEFUL!")
-                            line("He pays you 2,000 gold")
-                            line("and hands you a red gem.")
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "The ",
+                                character(Roles.banditsQuestGiver).job,
+                                " is GRATEFUL! He pays you 2,000 gold and hands you a red gem.",
+                            ),
+                        )
                         waitInput("after Garth reward intro")
                         clearText()
                         reward {
@@ -6386,20 +6295,19 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.nrimTo) {
                     whenState(Story.ranger.letter.none) {
                         writeText(
+                            """
+                            - Greetings, adventurers. I have a mission for you. He hands you a letter.
+                            """,
+                        )
+                        writeText(
                             flowText(
-                                """
-                                - Greetings, adventurers. I have a mission for you. He hands you a letter.
-                                """,
+                                "- If you deliver this to my brother, ",
+                                character(Roles.rangerBrother).name,
+                                ", who lives ",
+                                character(Roles.rangerBrother).location,
+                                ", he will give you a great weapon!",
                             ),
                         )
-                        writeText {
-                            line("- If you deliver this")
-                            line("to my brother, ", character(Roles.rangerBrother).name, ",")
-                            line("who lives ", character(Roles.rangerBrother).location, ",")
-                            line("he will give you")
-                            line("a great weapon!")
-                            line("")
-                        }
                         journal {
                             line(
                                 character(Roles.rangerBrother).name,
@@ -6415,42 +6323,34 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.areth) {
                     whenState(Story.fighter.priestBook.none) {
-                        writeText {
-                            line("- Greetings. Once upon")
-                            line("a time, I was a mighty")
-                            line(character(Npcs.areth).job, ". Before I")
-                            line("retired I managed to")
-                            line("slay over two hundred")
-                            line("orcs. All")
-                            line("of this, because of my")
-                            line("Dancing Blade. I have")
-                            line("no use for this weapon")
-                            line("")
-                        }
-                        writeText {
-                            line("anymore, and I will give")
-                            line("it to you, if you do me a")
-                            line("small favor. A ", character(Roles.priestWithBook).job)
-                            line("named ", character(Roles.priestWithBook).name, " has got")
-                            line("one of my books. We are")
-                            line("old friends, and I lent")
-                            line("it to him. However, I")
-                            line("haven't heard much from")
-                            line("him lately.")
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "- Greetings. Once upon a time, I was a mighty ",
+                                character(Npcs.areth).job,
+                                ". Before I retired I managed to slay over two hundred orcs.",
+                                " All of this, because of my Dancing Blade. I have no use for this weapon",
+                            ),
+                        )
+                        writeText(
+                            flowText(
+                                "anymore, and I will give it to you, if you do me a small favor. A ",
+                                character(Roles.priestWithBook).job,
+                                " named ",
+                                character(Roles.priestWithBook).name,
+                                " has got one of my books. We are old friends, and I lent it to him.",
+                                " However, I haven't heard much from him lately.",
+                            ),
+                        )
                         mark(Story.fighter.priestBook.priestTold)
                     }
 
                     whenState(Story.fighter.priestBook.wizardRobbed) {
                         writeText(
-                            flowText(
-                                """
-                                - Oh! Thank you!!!
+                            """
+                            - Oh! Thank you!!!
 
-                                He removes a floor board and gives you a WONDERFUL blade. It sparkles in the light!
-                                """,
-                            ),
+                            He removes a floor board and gives you a WONDERFUL blade. It sparkles in the light!
+                            """,
                         )
                         mark(Story.fighter.priestBook.fighterGrateful)
                         reward {
@@ -6466,13 +6366,11 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.nevaak) {
                     whenState(Story.fighter.priestBook.priestVisited) {
                         writeText(
-                            flowText(
-                                """
+                            """
                             You persuade him to give you the book. After showing him your
                             sharp weapons, he chickens out and pulls it out of his robe.
                             He throws it at you and flees...
                             """,
-                            ),
                         )
                         mark(Story.fighter.priestBook.wizardRobbed)
                     }
@@ -6480,81 +6378,78 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.gorm) {
                     whenState(Story.fighter.priestBook.priestTold) {
-                        writeText {
-                            line("When you mention the")
-                            line("book, he nods and looks")
-                            line("a bit embarrassed.")
-                            line("- Yes, I know. I happened")
-                            line("to lose it. A ", character(Roles.wizardRobbed).job)
-                            line("called ", character(Roles.wizardRobbed).name, " stole it")
-                            line("from my bedroom a week")
-                            line("ago...")
-                            line("")
-                        }
                         writeText(
                             flowText(
-                                """
+                                "When you mention the book, he nods and looks a bit embarrassed.",
+                                " - Yes, I know. I happened to lose it. A ",
+                                character(Roles.wizardRobbed).job,
+                                " called ",
+                                character(Roles.wizardRobbed).name,
+                                " stole it from my bedroom a week ago...",
+                            ),
+                        )
+                        writeText(
+                            """
                             He quickly fled, but I know it's him, because he made
                             inquiries about it, and tried to steal it from me when I
                             was having dinner.
                             """,
+                        )
+                        writeText(
+                            flowText(
+                                "I don't know his whereabouts, but please find the book and take it back to ",
+                                character(Roles.fighterIntro).name,
+                                " if you can.",
                             ),
                         )
-                        writeText {
-                            line("I don't know his")
-                            line("whereabouts, but please")
-                            line("find the book and")
-                            line("take it back to ", character(Roles.fighterIntro).name)
-                            line("if you can.")
-                            line("")
-                        }
                         mark(Story.fighter.priestBook.priestVisited)
                     }
                 }
 
                 npc(Npcs.bernak) {
                     whenState(Story.silverKey.none) {
-                        writeText("- There is an item of", "great power, he hisses.", "")
+                        writeText("- There is an item of great power, he hisses.")
                         writeText(
-                            "- It is called the",
-                            "SILVER KEY. It has taken",
-                            "me many years of research",
-                            "to find its location, and",
-                            "this only to be stopped",
-                            "by a guardian telling me",
-                            "that 'only those of pure",
-                            "heart can enter'.",
-                            "",
+                            """
+                            - It is called the SILVER KEY. It has taken me many years
+                            of research to find its location, and this only to be
+                            stopped by a guardian telling me that 'only those of pure
+                            heart can enter'.
+                            """,
                         )
-                        writeText("- I fled for my life as", "horned creatures chased", "me through the woods.", "")
                         writeText(
-                            "I have an offer to make",
-                            "thee. I will sell you",
-                            "a map to the location of",
-                            "the SILVER KEY for 50,000",
-                            "gold coins. The price is",
-                            "reasonable. 10,000 gold for",
-                            "each of those fruitless",
-                            "years.",
-                            "",
+                            """
+                            - I fled for my life as horned creatures chased me
+                            through the woods.
+                            """,
+                        )
+                        writeText(
+                            """
+                            I have an offer to make thee. I will sell you a map to the
+                            location of the SILVER KEY for 50,000 gold coins. The price
+                            is reasonable. 10,000 gold for each of those fruitless years.
+                            """,
                         )
                         menu("(B)uy it", "(N)o thanks") {
                             option('B') {
                                 pay(
                                     amount = lit(50_000),
                                     broke = {
-                                        writeText("- Sorry! 50,000! No more", "no less. Come back when", "you have the gold.", "")
+                                        writeText(
+                                            """
+                                            - Sorry! 50,000! No more no less.
+                                            Come back when you have the gold.
+                                            """,
+                                        )
                                     },
                                     ok = {
-                                        writeText {
-                                            line("He quietly slips you the")
-                                            line("precious map. It")
-                                            line("tells you that the Pit")
-                                            line("of the Key is at")
-                                            line(location(Locations.silverKeyPit).coordinates, "!")
-                                            line("")
-                                            line("")
-                                        }
+                                        writeText(
+                                            flowText(
+                                                "He quietly slips you the precious map. It tells you that the Pit of the Key is at ",
+                                                location(Locations.silverKeyPit).coordinates,
+                                                "!",
+                                            ),
+                                        )
                                         journal {
                                             line("The Pit of the Silver Key is at ", location(Locations.silverKeyPit).coordinates, ".")
                                         }
@@ -6571,81 +6466,63 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.tybalt) {
                     whenState(Story.erethor.lute.none) {
                         writeText(
-                            "- Rumor has it that",
-                            "Erethor's Lute, a",
-                            "musical instrument with",
-                            "magical properties",
-                            "exists somewhere in",
-                            "the realm.",
-                            "",
+                            """
+                            - Rumor has it that Erethor's Lute, a musical instrument
+                            with magical properties exists somewhere in the realm.
+                            """,
                         )
-                        writeText("- Erethor is a mighty", "demon...", "")
+                        writeText("- Erethor is a mighty demon...")
                         writeText(
-                            "- I am a very poor man",
-                            "myself, but I know of",
-                            "the Cloak of Gods,",
-                            "the most powerful of",
-                            "all armors. I will",
-                            "",
+                            """
+                            - I am a very poor man myself, but I know of the Cloak of
+                            Gods, the most powerful of all armors. I will trade this
+                            information if you find me Erethor's Lute. One of Erethor's
+                            temples, where mad priests practice blasphemous magic is
+                            located at 6x20, near the western peaks.
+                            """,
                         )
                         writeText(
-                            "trade this information",
-                            "if you find me Erethor's",
-                            "Lute. One of Erethor's",
-                            "temples, where mad",
-                            "priests practice",
-                            "blasphemous magic is",
-                            "located at 6x20, near",
-                            "the western peaks.",
-                            "",
-                        )
-                        writeText(
-                            "- This may be a dangerous",
-                            "mission for such a",
-                            "small reward, but the",
-                            "Cloak will make it's",
-                            "bearer almost",
-                            "invulnerable.",
-                            "",
+                            """
+                            - This may be a dangerous mission for such a small reward,
+                            but the Cloak will make it's bearer almost invulnerable.
+                            """,
                         )
                         journal("Erethor's temple is situated at 6x20.")
                         mark(Story.erethor.lute.rumorTold)
                     }
 
                     whenState(Story.erethor.lute.luteTaken) {
-                        writeText("You hand him the", "golden lute...", "")
+                        writeText("You hand him the golden lute...")
                         writeText(
-                            "- I can't believe you",
-                            "actually made it!!!",
-                            "- Now for my part of",
-                            "the deal. Listen closely,",
-                            "for I shall say this only",
-                            "once.",
-                            "",
+                            """
+                            - I can't believe you actually made it!!!
+
+                            - Now for my part of the deal. Listen closely, for I shall
+                            say this only once.
+                            """,
                         )
-                        writeText {
-                            line("- Take this note here")
-                            line("and seek out my friend")
-                            line(character(Roles.minstrelCloak).name, ". He is also a")
-                            line("minstrel.")
-                            line(character(Roles.minstrelCloak).name, " lives ", character(Roles.minstrelCloak).location, ".")
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "- Take this note here and seek out my friend ",
+                                character(Roles.minstrelCloak).name,
+                                ". He is also a minstrel. ",
+                                character(Roles.minstrelCloak).name,
+                                " lives ",
+                                character(Roles.minstrelCloak).location,
+                                ".",
+                            ),
+                        )
                         journal {
                             line(character(Roles.minstrelCloak).name, " lives ", character(Roles.minstrelCloak).location, ".")
                         }
                         writeText(
-                            "- We used to travel",
-                            "together, and he found",
-                            "the Cloak in a long dead",
-                            "hero's tomb. Now that",
-                            "we have the Lute, the",
-                            "Cloak is yours. Just",
-                            "deliver this explaining",
-                            "note!",
-                            "",
+                            """
+                            - We used to travel together, and he found the Cloak in a
+                            long dead hero's tomb. Now that we have the Lute, the Cloak
+                            is yours. Just deliver this explaining note!
+                            """,
                         )
-                        writeText("He hands you a piece of", "paper and bids you", "farewell.", "")
+                        writeText("He hands you a piece of paper and bids you farewell.")
                         mark(Story.erethor.lute.noteReceived)
                     }
                 }
@@ -6653,33 +6530,34 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.harry) {
                     whenState(Story.bracelets.thun.none) {
                         writeText(
-                            "- I have a map of the",
-                            "road to the temple of",
-                            "Thun! The legend says",
-                            "it keeps the Bracelets",
-                            "of Thun, which is one of",
-                            "the objects that can",
-                            "destroy Baron Ydarg!",
-                            "",
+                            """
+                            - I have a map of the road to the temple of Thun! The legend
+                            says it keeps the Bracelets of Thun, which is one of the
+                            objects that can destroy Baron Ydarg!
+                            """,
                         )
-                        writeText("- I will sell it to you", "for 10000 gold pieces!", "")
+                        writeText("- I will sell it to you for 10000 gold pieces!")
                         menu("(B)uy it", "(N)o thanks") {
                             option('B') {
                                 pay(
                                     amount = lit(10_000),
                                     broke = {
-                                        writeText("- Sorry! 10000! No more", "no less. Come back when", "you have the gold.", "")
+                                        writeText(
+                                            """
+                                            - Sorry! 10000! No more no less.
+                                            Come back when you have the gold.
+                                            """,
+                                        )
                                     },
                                     ok = {
-                                        writeText {
-                                            line("- Ok, here. He slowly")
-                                            line("hands you an old map. It")
-                                            line("tells you that the temple")
-                                            line("of Thun is situated at")
-                                            line(location(Locations.thunTemple).coordinates, "!")
-                                            line("")
-                                            line("")
-                                        }
+                                        writeText(
+                                            flowText(
+                                                "- Ok, here. He slowly hands you an old map.",
+                                                " It tells you that the temple of Thun is situated at ",
+                                                location(Locations.thunTemple).coordinates,
+                                                "!",
+                                            ),
+                                        )
                                         journal {
                                             line("The Temple of Thun is at ", location(Locations.thunTemple).coordinates, ".")
                                         }
@@ -6696,14 +6574,17 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.marraga) {
                     whenState(Story.ranger.letter.accepted) {
                         writeText(
-                            "- OH! A message from my",
-                            "brother! This is indeed",
-                            "great news. I will give",
-                            "you this sword for",
-                            "delivering the letter!",
-                            "",
+                            """
+                            - OH! A message from my brother! This is indeed great news.
+                            I will give you this sword for delivering the letter!
+                            """,
                         )
-                        writeText("He produces a sparkling", "sword and wishes you a", "happy journey.", "")
+                        writeText(
+                            """
+                            He produces a sparkling sword and wishes you a happy
+                            journey.
+                            """,
+                        )
                         reward {
                             items(Items.magicSword)
                             promptDrop(
@@ -6717,24 +6598,18 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.broth) {
                     whenState(Story.nymph.seeker.none) {
-                        writeText {
-                            line("I heard that a")
-                            line(character(Roles.wizardThreeTasks).job, " called ", character(Roles.wizardThreeTasks).name)
-                            line("knows of the")
-                            line("Crown. I have roamed the")
-                            line("land in search of him,")
-                            line("since I want this item")
-                            line("to be found. Here! Take")
-                            line("this ring and show it")
-                            line("to him. You are better")
-                            line("suited for this than I am.")
-                            line("")
-                        }
-                        writeText {
-                            line(character(Roles.wizardThreeTasks).name, " lives")
-                            line(character(Roles.wizardThreeTasks).location)
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "I heard that a ",
+                                character(Roles.wizardThreeTasks).job,
+                                " called ",
+                                character(Roles.wizardThreeTasks).name,
+                                " knows of the Crown. I have roamed the land in search of him,",
+                                " since I want this item to be found. Here! Take this ring and show it to him.",
+                                " You are better suited for this than I am.",
+                            ),
+                        )
+                        writeText(flowText(character(Roles.wizardThreeTasks).name, " lives ", character(Roles.wizardThreeTasks).location))
                         journal {
                             line(character(Roles.wizardThreeTasks).name, " lives ", character(Roles.wizardThreeTasks).location, ".")
                         }
@@ -6745,75 +6620,66 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.gotharp) {
                     whenState(Story.silverKey.noteFound) {
                         mark(Story.silverKey.thiefSqueezed)
-                        writeText {
-                            line("You push him up against")
-                            line("a wall and start asking")
-                            line("him questions. After")
-                            line("some 'mild' persuasion")
-                            line("he tells you that he")
-                            line("sold the Key to a")
-                            line("traveling ", character(Roles.silverKeySmith).job)
-                            line("who was interested in")
-                            line("its metallurgical")
-                            line("structure.")
-                            line("")
-                        }
-                        writeText {
-                            line("After breaking a few")
-                            line("of his teeth, he also")
-                            line("willingly reveals that")
-                            line("the ", character(Roles.silverKeySmith).job, " went by the")
-                            line("name of ", character(Roles.silverKeySmith).name, "...")
-                            line("")
-                        }
-                        writeText("You let go of your grip", "of his collar, and he", "falls to the floor.", "")
+                        writeText(
+                            flowText(
+                                "You push him up against a wall and start asking him questions.",
+                                " After some 'mild' persuasion he tells you that he sold the Key to a traveling ",
+                                character(Roles.silverKeySmith).job,
+                                " who was interested in its metallurgical structure.",
+                            ),
+                        )
+                        writeText(
+                            flowText(
+                                "After breaking a few of his teeth, he also willingly reveals that the ",
+                                character(Roles.silverKeySmith).job,
+                                " went by the name of ",
+                                character(Roles.silverKeySmith).name,
+                                "...",
+                            ),
+                        )
+                        writeText(
+                            """
+                            You let go of your grip of his collar, and he falls to
+                            the floor.
+                            """,
+                        )
                     }
                 }
 
                 npc(Npcs.ron) {
                     whenState(Story.peasant.wife.none) {
                         writeText(
-                            "- Oh, I'm so depressed.",
-                            "Orcs have kidnapped my",
-                            "wife, Tammy, and demand",
-                            "a ransom for her. I will",
-                            "give you my entire fortune",
-                            "if you retrieve her.",
-                            "",
+                            """
+                            - Oh, I'm so depressed. Orcs have kidnapped my wife, Tammy,
+                            and demand a ransom for her. I will give you my entire
+                            fortune if you retrieve her.
+                            """,
                         )
                         writeText(
-                            "About 3000 gold coins,",
-                            "a fine armor, and",
-                            "some strange items my",
-                            "father left me, will be",
-                            "yours if you rescue her.",
-                            "",
+                            """
+                            About 3000 gold coins, a fine armor, and some strange items
+                            my father left me, will be yours if you rescue her.
+                            """,
                         )
-                        writeText("The orcs have a cave", "at 42x23 in Lonewood.", "")
+                        writeText("The orcs have a cave at 42x23 in Lonewood.")
                         journal("The orc cavern is at 42x23.")
                         mark(Story.peasant.wife.accepted)
                     }
 
                     whenState(Story.peasant.wife.rescued) {
                         writeText(
-                            "When he sees Tammy enter",
-                            "the room, he cries tears",
-                            "of happiness and kisses",
-                            "her. When they have had",
-                            "this happy reunion, he",
-                            "motions to you to follow.",
-                            "",
+                            """
+                            When he sees Tammy enter the room, he cries tears of happiness
+                            and kisses her. When they have had this happy reunion, he
+                            motions to you to follow.
+                            """,
                         )
                         writeText(
-                            "He hands you 3,000 gold,",
-                            "an Adamantium Armor of",
-                            "advanced craftsmanship",
-                            "and some other assorted",
-                            "objects: an amber potion,",
-                            "a holy hand grenade,",
-                            "a fire wand, and",
-                            "a crystal.",
-                            "",
+                            """
+                            He hands you 3,000 gold, an Adamantium Armor of advanced
+                            craftsmanship and some other assorted objects: an amber
+                            potion, a holy hand grenade, a fire wand, and a crystal.
+                            """,
                         )
                         mark(Story.peasant.wife.paid)
                         reward {
@@ -6826,15 +6692,14 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.kaal) {
                     whenState(Story.erethor.lute.noteReceived) {
-                        writeText {
-                            line("After reading the note")
-                            line(character(Roles.minstrelCloak).name, " cries tears")
-                            line("of happiness. He")
-                            line("shakes all your hands")
-                            line("and produces a purple")
-                            line("cloak.")
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "After reading the note ",
+                                character(Roles.minstrelCloak).name,
+                                " cries tears of happiness. He shakes all your hands",
+                                " and produces a purple cloak.",
+                            ),
+                        )
                         reward {
                             items(Items.cloakOfGods)
                             promptDrop(
@@ -6842,14 +6707,13 @@ val authoredRylween: RylweenModel =
                                 pickedUp = "You take the cloak.",
                             )
                         }
-                        writeText {
-                            line("He bids you farewell")
-                            line("and tells you that")
-                            line("he'll travel to")
-                            line(character(Roles.erethorLuteBard).name, " the very")
-                            line("next day...")
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "He bids you farewell and tells you that he'll travel to ",
+                                character(Roles.erethorLuteBard).name,
+                                " the very next day...",
+                            ),
+                        )
                         mark(Story.erethor.lute.cloakReceived)
                     }
                 }
@@ -6857,20 +6721,18 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.leander) {
                     whenState(Story.jazzy.ogre.none) {
                         writeText(
-                            "- ME HEAR YOU LOOK",
-                            "FOR POWER ITEMS!",
-                            "",
-                            "- ME VERY POOR! SELL",
-                            "YOU INFORMATION ABOUT",
-                            "FOOT OF JAZZY, YES?",
-                            "",
+                            """
+                            - ME HEAR YOU LOOK FOR POWER ITEMS!
+
+                            - ME VERY POOR! SELL YOU INFORMATION ABOUT FOOT OF JAZZY, YES?
+                            """,
                         )
                         writeText(
-                            "- LET US TRADE! OFFER",
-                            "ITEM AND I'LL TELL YA!",
-                            "",
-                            "(You offer him something).",
-                            "",
+                            """
+                            - LET US TRADE! OFFER ITEM AND I'LL TELL YA!
+
+                            (You offer him something).
+                            """,
                         )
                         ask.inventorySlot(literalText("Offer what?"), filter = InventorySlotChoiceFilter.NonEmpty) { slot ->
                             whenever(party.inventory.itemCost(slot) lt 35) {
@@ -6879,12 +6741,13 @@ val authoredRylween: RylweenModel =
                                 pause1s()
                             } otherwise {
                                 clearText()
-                                writeText {
-                                    line("- YEEES! NICE NIICE!")
-                                    line("GO TO CAVE AT ", location(Locations.beastCave).coordinates, "!")
-                                    line("BEAST HAS THE FOOT.")
-                                    line("")
-                                }
+                                writeText(
+                                    flowText(
+                                        "- YEEES! NICE NIICE! GO TO CAVE AT ",
+                                        location(Locations.beastCave).coordinates,
+                                        "! BEAST HAS THE FOOT.",
+                                    ),
+                                )
                                 journal {
                                     line("The 'Beast Cave' is at ", location(Locations.beastCave).coordinates, ".")
                                 }
@@ -6901,27 +6764,26 @@ val authoredRylween: RylweenModel =
                     whenState(Story.nymph.seeker.told) {
                         whenever(Story.masterCrown.none) {
                             writeText(
-                                "- Ah, a seeker! Yes, I",
-                                "know about the Master",
-                                "Crown, but since I'm",
-                                "neither good nor evil,",
-                                "I have no interest in it.",
-                                "I will give you the",
-                                "information if you do",
-                                "three tasks for me.",
-                                "",
+                                """
+                                - Ah, a seeker! Yes, I know about the Master Crown, but
+                                since I'm neither good nor evil, I have no interest in it.
+                                I will give you the information if you do three tasks for me.
+                                """,
                             )
-                            writeText("(Since there is nothing", "else you can do,you agree", "to complete the three", "tasks).", "")
-                            writeText {
-                                line("- Firstly, I want you to")
-                                line("go to the kobold lair at")
-                                line(location(Locations.koboldVillage).coordinates, ", and kill all life")
-                                line("there. It is close to my")
-                                line("home village, and the foul")
-                                line("creatures have many times")
-                                line("attacked us. Farewell.")
-                                line("")
-                            }
+                            writeText(
+                                """
+                                (Since there is nothing else you can do, you agree
+                                to complete the three tasks).
+                                """,
+                            )
+                            writeText(
+                                flowText(
+                                    "- Firstly, I want you to go to the kobold lair at ",
+                                    location(Locations.koboldVillage).coordinates,
+                                    ", and kill all life there. It is close to my home village,",
+                                    " and the foul creatures have many times attacked us. Farewell.",
+                                ),
+                            )
                             journal {
                                 line("The kobold lair is at ", location(Locations.koboldVillage).coordinates, ".")
                             }
@@ -6932,50 +6794,39 @@ val authoredRylween: RylweenModel =
 
                     whenState(Story.masterCrown.task1Done) {
                         writeText(
-                            "You hand him the pendant.",
-                            "He stares at you, almost",
-                            "admiring.",
-                            "- WELL DONE! I will now",
-                            "grant you the second",
-                            "quest.",
-                            "",
+                            """
+                            You hand him the pendant. He stares at you, almost admiring.
+
+                            - WELL DONE! I will now grant you the second quest.
+                            """,
                         )
                         writeText(
-                            "- Being a magician, I'm",
-                            "always searching for",
-                            "powerful spell reagents.",
-                            "There is one plant I need",
-                            "but can't find it. It is",
-                            "called Skullweed, and is",
-                            "purple with small green",
-                            "twigs. Find this plant",
-                            "for me, and be rewarded!",
-                            "",
+                            """
+                            - Being a magician, I'm always searching for powerful spell
+                            reagents. There is one plant I need but can't find it. It is
+                            called Skullweed, and is purple with small green twigs.
+                            Find this plant for me, and be rewarded!
+                            """,
                         )
                         mark(Story.masterCrown.task2Assigned)
                     }
 
                     whenState(Story.masterCrown.task2Done) {
                         writeText(
-                            "- Well done again,",
-                            "adventurers. The third",
-                            "of my tasks will perhaps",
-                            "be the toughest one",
-                            "of them all! Find me a",
-                            "DWARF STONE. It is a",
-                            "stone of magnetic iron",
-                            "which gives the wielder",
-                            "the power of levitation.",
+                            """
+                            - Well done again, adventurers. The third of my tasks will
+                            perhaps be the toughest one of them all! Find me a DWARF
+                            STONE. It is a stone of magnetic iron which gives the
+                            wielder the power of levitation.
+                            """,
                         )
-                        writeText {
-                            line("- Begin your search in")
-                            line("the dwarven colony, near")
-                            line(location(Locations.borinCamp).coordinates, ". Be sure to treat")
-                            line("the dwarves with respect,")
-                            line("for they are swift to")
-                            line("anger.")
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "- Begin your search in the dwarven colony, near ",
+                                location(Locations.borinCamp).coordinates,
+                                ". Be sure to treat the dwarves with respect, for they are swift to anger.",
+                            ),
+                        )
                         journal {
                             line("The dwarf village is at ", location(Locations.borinCamp).coordinates, ".")
                         }
@@ -6983,17 +6834,16 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenState(Story.masterCrown.borinPaid) {
-                        writeText {
-                            line("- I JUST CAN'T TELL YOU")
-                            line("HOW GRATEFUL I AM!")
-                            line("He takes the stone and")
-                            line("smiles broadly at you.")
-                            line("- Very well, seekers! The")
-                            line("Master Crown is hidden in")
-                            line("a dungeon near ", location(Locations.masterCrownDungeon).coordinates, "!")
-                            line("Fare thee well.")
-                            line("")
-                        }
+                        writeText(
+                            flowText {
+                                paragraph("- I JUST CAN'T TELL YOU HOW GRATEFUL I AM! He takes the stone and smiles broadly at you.")
+                                paragraph(
+                                    "- Very well, seekers! The Master Crown is hidden in a dungeon near ",
+                                    location(Locations.masterCrownDungeon).coordinates,
+                                    "! Fare thee well.",
+                                )
+                            },
+                        )
                         journal {
                             line("The Master Crown dungeon is at ", location(Locations.masterCrownDungeon).coordinates, ".")
                         }
@@ -7003,33 +6853,31 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.azaaza) {
                     whenState(Story.silverKey.thiefSqueezed) {
-                        writeText("You ask him if he still", "has the Key, prepared", "for the worst...", "")
                         writeText(
-                            "- Nah, sorry. I kinda",
-                            "studied it enough and",
-                            "was gonna bring it to",
-                            "Ollk to sell it. However",
-                            "on the road between Wilor",
-                            "and Ollk I was caught by",
-                            "filthy hobgoblins!",
-                            "",
+                            """
+                            You ask him if he still has the Key, prepared for the
+                            worst...
+                            """,
                         )
                         writeText(
-                            "- I managed to get away,",
-                            "but they followed me! Just",
-                            "to the south-west of here",
-                            "one of their arrows hit",
-                            "my horse.",
-                            "",
+                            """
+                            - Nah, sorry. I kinda studied it enough and was gonna bring
+                            it to Ollk to sell it. However on the road between Wilor
+                            and Ollk I was caught by filthy hobgoblins!
+                            """,
                         )
                         writeText(
-                            "- They clubbed me",
-                            "unconscious and took all",
-                            "my belongings!!! Including",
-                            "that key. Find them and",
-                            "take it back. It's yours",
-                            "if you get it.",
-                            "",
+                            """
+                            - I managed to get away, but they followed me! Just to the
+                            south-west of here one of their arrows hit my horse.
+                            """,
+                        )
+                        writeText(
+                            """
+                            - They clubbed me unconscious and took all my belongings!!!
+                            Including that key. Find them and take it back. It's yours
+                            if you get it.
+                            """,
                         )
                         mark(Story.silverKey.smithConfessed)
                     }
@@ -7037,32 +6885,25 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.marcus) {
                     whenState(Story.hermit.trollTooth.none) {
-                        writeText {
-                            line("- Welcome, chosen ones!")
-                            line("the ", character(Npcs.marcus).job, " cackles.")
-                            line("- I know of the Fire")
-                            line("Shield, an item of")
-                            line("great power.")
-                            line("Go find me teeth of")
-                            line("a troll, and I will")
-                            line("tell you about it.")
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "- Welcome, chosen ones! the ",
+                                character(Npcs.marcus).job,
+                                " cackles. - I know of the Fire Shield, an item of great power.",
+                                " Go find me teeth of a troll, and I will tell you about it.",
+                            ),
+                        )
                         mark(Story.hermit.trollTooth.accepted)
                     }
 
                     whenState(Story.hermit.trollTooth.extracted) {
-                        writeText {
-                            line("You hand him the troll")
-                            line("tooth.")
-                            line("- Oh YES! He cackles.")
-                            line("At areas uncharted, near")
-                            line(location(Locations.hermitDungeon).coordinates, " is the cave you")
-                            line("seek. Beware of the")
-                            line("guardian the ancients")
-                            line("gave birth to...")
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "You hand him the troll tooth. - Oh YES! He cackles. At areas uncharted, near ",
+                                location(Locations.hermitDungeon).coordinates,
+                                " is the cave you seek. Beware of the guardian the ancients gave birth to...",
+                            ),
+                        )
                         journal {
                             line("The Fire Shield Dungeon is at ", location(Locations.hermitDungeon).coordinates, ".")
                         }
