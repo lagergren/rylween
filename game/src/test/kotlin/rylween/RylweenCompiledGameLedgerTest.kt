@@ -1915,6 +1915,104 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun scriptAndRuntimeLoopOwnershipStaysDocumented() {
+        val guide = File("docs/dsl-authoring.md").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+        val scriptKernel = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
+        val scriptSourceModel = File("core/src/main/kotlin/rylween/dsl/ScriptSourceModel.kt").readText()
+        val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val runtimeLoopContracts =
+            mapOf(
+                "runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt" to
+                    listOf(
+                        "wilderness/title loops are runtime mode loops",
+                        "authored text, choices,",
+                        "formulas, and policies",
+                        "compiled content/runtime-system rows",
+                    ),
+                "runtime/src/main/kotlin/rylween/runtime/ShopService.kt" to
+                    listOf(
+                        "Shop buy/sell prompts are runtime service loops",
+                        "labels, text, bindings, catalog rows, policies, and formulas",
+                        "authored data in the compiled bundle",
+                    ),
+                "runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt" to
+                    listOf(
+                        "battle round is a runtime service loop",
+                        "game text is rendered from authored",
+                        "runtime-system text blocks",
+                        "fed by compiled rows",
+                    ),
+                "runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt" to
+                    listOf(
+                        "runtime mode loop, not an authored script-control loop",
+                        "dungeon prose, prompt wording, rewards, events, and handoff policies",
+                        "compiled content/runtime-system rows",
+                    ),
+                "runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt" to
+                    listOf(
+                        "runtime mode loop, not an authored script-control loop",
+                        "castle text, room records, scripts, and rewards",
+                        "compiled content and",
+                        "runtime-system rows",
+                    ),
+            )
+        val runtimeLoopSources =
+            runtimeLoopContracts.keys.joinToString("\n") { path ->
+                "// $path\n${File(path).readText()}"
+            }
+
+        listOf(
+            "Script Loops And Runtime Loops",
+            "loop { ... }",
+            "breakLoop(...)",
+            "CompiledOpcode.Loop",
+            "host-owned state machines",
+            "compiled content",
+            "runtimeSystems",
+            "player-facing text, menu policy, rewards, or balance",
+        ).forEach { token ->
+            check(token in guide) {
+                "DSL authoring guide must document loop ownership token: $token"
+            }
+        }
+        check(
+            "lowers this node to `CompiledOpcode.Loop`" in scriptKernel &&
+                "runtime mode loop like wilderness, dungeon, castle, shop, or battle" in scriptKernel &&
+                "mode/service loops such as wilderness, town, dungeon, castle, shop, or battle" in scriptSourceModel &&
+                "breakLoop" in scriptDsl &&
+                "engine cadence loops; those belong in runtime hosts" in scriptDsl,
+        ) {
+            "source-script loop APIs must document that authored loops are not runtime mode loops"
+        }
+        runtimeLoopContracts.forEach { (path, tokens) ->
+            val source = File(path).readText().replace(Regex("\\s+"), " ")
+            tokens.forEach { token ->
+                check(token in source) {
+                    "$path must document runtime-loop ownership token: $token"
+                }
+            }
+        }
+        listOf(
+            "Shop Closed.",
+            "The best healing",
+            "What now?",
+            "Coward. You won't get",
+            "You have used your last torch.",
+        ).forEach { token ->
+            check(token !in runtimeLoopSources) {
+                "runtime mode loops must consume authored gameplay text instead of hardcoding: $token"
+            }
+        }
+        check(
+            "- [x] I21. Document and guard authored script loops versus reusable domain" in planSource &&
+                "Script Loops And Runtime Loops" in planSource,
+        ) {
+            "plans/dsl-improvements.md must record I21 closeout"
+        }
+    }
+
+    @Test
     fun textDisplayDslUsesClearAuthoringVocabulary() {
         val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
         val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()

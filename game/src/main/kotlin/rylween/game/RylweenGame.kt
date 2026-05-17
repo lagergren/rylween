@@ -4820,9 +4820,8 @@ val authoredRylween: RylweenModel =
                                 tooMany = literalText("You can carry no", "more than 80", "torches..."),
                                 label = "Torch",
                                 zeroQuantityDeal = ShopZeroQuantityDeal.always,
-                            ) {
-                                lines("Ah, the finest torches", "in the realm.")
-                            }
+                                description = flowText("Ah, the finest torches in the realm."),
+                            )
                             resource(
                                 'B',
                                 Items.ration,
@@ -4835,46 +4834,24 @@ val authoredRylween: RylweenModel =
                                     },
                                 label = "Food Ration",
                                 price = ShopPrices.leaderLevelPlus(1),
-                            ) {
-                                lines(
-                                    "Better food is not",
-                                    "available anywhere else",
-                                    "in the entire realm.",
-                                )
-                            }
-                            item('C', Items.blanket, label = "Blanket") {
-                                lines("Our blankets are very", "warm and soft.")
-                            }
-                            item('D', Items.tent, label = "Tent") {
-                                lines(
-                                    "No one manufactures",
-                                    "better tents than",
-                                    "we do!",
-                                )
-                            }
-                            item('E', Items.rope, label = "Rope") {
-                                lines("The finest hemp", "ropes in the realm.")
-                            }
+                                description = flowText("Better food is not available anywhere else in the entire realm."),
+                            )
+                            item('C', Items.blanket, label = "Blanket", description = flowText("Our blankets are very warm and soft."))
+                            item('D', Items.tent, label = "Tent", description = flowText("No one manufactures better tents than we do!"))
+                            item('E', Items.rope, label = "Rope", description = flowText("The finest hemp ropes in the realm."))
                             item(
                                 'F',
                                 Items.redPotion,
                                 label = "Healing Potion",
                                 price = ShopPrices.itemCostPlusLeaderLevelTimes(3),
-                            ) {
-                                lines(
-                                    "The best healing",
-                                    "potions available",
-                                    "for money!",
-                                )
-                            }
-                            item('G', Items.donkey, label = "Donkey") {
-                                lines(
-                                    "Our stout donkeys",
-                                    "are bred just for",
-                                    "carrying your food",
-                                    "and equipment.",
-                                )
-                            }
+                                description = flowText("The best healing potions available for money!"),
+                            )
+                            item(
+                                'G',
+                                Items.donkey,
+                                label = "Donkey",
+                                description = flowText("Our stout donkeys are bred just for carrying your food and equipment."),
+                            )
                         }
                     }
 
