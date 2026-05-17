@@ -152,6 +152,33 @@ from the current authoring API; reusable/static screen declarations still use
 their own `screen(...)` builders under `visuals { staticScreens { ... } }` and
 `speak { textTables { ... } }`.
 
+## Prompt And Input Taxonomy
+
+Prompt helpers share the same compiled continuation plumbing, but they should
+not be flattened into one generic prompt primitive. Each shape has a different
+input contract, validation rule, UI affordance, and resume payload.
+
+| Shape | Use It For | Resume Payload |
+| --- | --- | --- |
+| `menu(...)` | Local one-key script branches with authored menu rows. Use it when the script owns the labels and branch commands. | The chosen keyed branch, with an optional default branch for invalid input. |
+| `choice.yesNo(...)` | Yes/no confirmations that should use the standard Y/N bindings. | The yes or no branch selected by the shared yes/no key model. |
+| `choice.enterOrLeave(...)` | Short enter/leave prompts such as cave and service entry decisions. | The enter or leave branch. |
+| `choice.takeOrLeave(...)` | Short take/leave prompts for authored offers. | The take or leave branch. |
+| `choice.payNoThanks(...)` | Payment prompts that also need the standard broke/paid handling. | The paid branch after a successful debit, the broke branch on insufficient gold, or no action for no-thanks. |
+| `choice.randomItemOffer(...)` | Random authored item offers with shared offer text and purchase behavior. | The generated offer result and its buy/leave handling. |
+| `choice.member(...)` / `ask.member(...)` | Party member selection. Use `MemberChoiceFilter` for semantic intent such as living, dead, or spellcaster members, and `accepting` when old-game behavior needs a different accepted set. | A `MemberRef` backed by the selected one-based party member number. |
+| `choice.inventorySlot(...)` / `ask.inventorySlot(...)` | Inventory slot selection for item, equipment, drop, and offer flows. | An `InventorySlotRef` backed by the chosen inventory slot. |
+| `ask.monsterAlive(...)` | Battle target selection from live encounter slots. Do not use it for party or non-battle selection. | A `MonsterRef` tied to the selected living monster slot. |
+| `ask.digit(...)` | Small numeric prompts where each accepted value is a digit key. | An integer expression for the chosen digit. |
+| `ask.wildernessDirection(...)` | Direction prompts that should follow the wilderness movement key model. | An integer expression for the chosen direction command. |
+| `choice.textInput(...)` | Free-form string entry such as passwords, riddles, or future name-like prompts. Use `acceptedText(...)`, trimming, case, and max-length policy instead of key-menu branches. | The accepted or rejected branch after comparing the submitted string. |
+
+`writeText(...)` and `showTextAndWait(...)` only display text; they are not
+input prompts by themselves. Runtime and domain prompts for shops, battles,
+dungeons, towns, command help, and global menus should live in their
+`runtimeSystems` rows or owning domain runners rather than in a generic script
+prompt shape.
+
 ## Adding Content
 
 Add content in the matching `content { ... }` section of `RylweenGame.kt`.
