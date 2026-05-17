@@ -49,6 +49,13 @@
           <input id="bitmapFontScale" type="range" min="1.45" max="2.10" step="0.05" value="1.75">
         </div>
         <div class="preference-range">
+          <label for="bitmapLineSpacing">
+            <span>Text line spacing</span>
+            <output id="bitmapLineSpacingValue">1.10x</output>
+          </label>
+          <input id="bitmapLineSpacing" type="range" min="0.90" max="1.40" step="0.05" value="1.10">
+        </div>
+        <div class="preference-range">
           <label for="textRevealSpeed">
             <span>Reveal speed</span>
             <output id="textRevealSpeedValue">220 cps</output>
@@ -67,6 +74,6 @@
       <div id="canvasTooltip" class="canvas-tooltip" hidden></div>
     </section>
   </main>
-  <script src="/static/client.js"></script>
+  <script src="/static/client.js?v=20260517-view-mode-keys"></script>
 </body>
 </html>

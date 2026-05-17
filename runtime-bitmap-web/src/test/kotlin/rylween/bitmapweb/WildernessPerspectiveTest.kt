@@ -34,6 +34,19 @@ class WildernessPerspectiveTest {
     }
 
     @Test
+    fun projectionIncludesSideCellsAtThePartyRowForContinuousView() {
+        val view = buildBitmapWildernessPerspective(GridPoint(10, 10), BitmapWildernessFacing.North, depth = 2, sideRange = 2, ::testTile)
+
+        assertEquals(
+            listOf(-2, -1, 0, 1, 2),
+            view.cells
+                .filter { cell -> cell.forward == 0 }
+                .map { cell -> cell.side }
+                .sorted(),
+        )
+    }
+
+    @Test
     fun projectionKeepsOutOfBoundsCellsAsVoidTerrain() {
         val view =
             buildBitmapWildernessPerspective(GridPoint(0, 1), BitmapWildernessFacing.West, depth = 2, sideRange = 1) { point ->
@@ -44,6 +57,42 @@ class WildernessPerspectiveTest {
         assertEquals(GridPoint(-2, 1), GridPoint(outOfBounds.worldX, outOfBounds.worldY))
         assertEquals("void", outOfBounds.tile.slug)
         assertEquals(false, outOfBounds.tile.passable)
+    }
+
+    @Test
+    fun bitmapViewportClampsPerspectiveEdgesToAuthoredTerrain() {
+        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
+        val content = bundle.content
+        val world = WorldMap.from(content, content.worldMaps.single().id)
+
+        val view =
+            world
+                .bitmapViewport(GridPoint(0, 1), content, tiles = 8, tileSize = 64)
+                .perspective
+                ?.view(BitmapWildernessFacing.West)
+                ?: error("missing perspective view")
+
+        val outOfBoundsCells = view.cells.filter { cell -> cell.worldX < 0 || cell.worldY < 1 }
+        assertTrue(outOfBoundsCells.isNotEmpty())
+        assertTrue(outOfBoundsCells.none { cell -> cell.tile.slug == "void" })
+    }
+
+    @Test
+    fun bitmapViewportKeepsCurrentSettlementVisibleForPerspectiveBackdrop() {
+        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
+        val content = bundle.content
+        val world = WorldMap.from(content, content.worldMaps.single().id)
+
+        val view =
+            world
+                .bitmapViewport(GridPoint(12, 11), content, tiles = 8, tileSize = 64)
+                .perspective
+                ?.view(BitmapWildernessFacing.North)
+                ?: error("missing perspective view")
+
+        val center = view.cellAt(forward = 0, side = 0)
+        assertEquals("town", center.tile.slug)
+        assertEquals("town", center.tile.settlement)
     }
 
     @Test

@@ -9,7 +9,9 @@
  */
 package rylween.dsl
 
-import rylween.dsl.impl.*
+import rylween.dsl.impl.Gender
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.sourceId
 
 abstract class IntExpr {
     abstract val ast: IntAst
@@ -157,6 +159,16 @@ class BoolSlot(
     infix fun set(value: Boolean): Unit = script.record(ScriptStatementNode.Set(lvalue, IntAst.Lit(if (value) 1 else 0)))
 }
 
+/**
+ * Script-facing receiver for party state, selectors, and party-owned resources.
+ *
+ * The value-returning helpers are kept public even when the current game mostly
+ * uses the block overloads. They are part of the author DSL: a designer can
+ * bind a selected member to a local value, use it in multiple statements, or
+ * use the shorter block form that delegates to the same selector. IntelliJ can
+ * miss those downstream DSL call sites when inspecting this core module alone.
+ */
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class PartyRef(
     private val script: ScriptScope,
 ) {

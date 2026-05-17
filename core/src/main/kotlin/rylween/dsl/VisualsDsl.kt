@@ -80,6 +80,22 @@ class ImageAssetsBuilder {
         bitmap(id, resource = resource, placement = ImagePlacement.MapWindow, transition = transition)
     }
 
+    /**
+     * Declares several bitmap map-window assets from one classpath directory.
+     *
+     * This keeps game content explicit about each image id while avoiding long,
+     * repeated resource prefixes for grouped assets such as party portraits.
+     * The helper does not scan the filesystem; every asset remains a normal
+     * authored image declaration and is validated/packaged like [bitmapMapWindow].
+     */
+    fun bitmapMapWindowGroup(
+        resourceDirectory: String,
+        transition: ImageTransition = ImageTransition.Fade,
+        body: BitmapMapWindowGroupBuilder.() -> Unit,
+    ) {
+        BitmapMapWindowGroupBuilder(this, resourceDirectory, transition).apply(body)
+    }
+
     fun bitmap(
         id: ImageId,
         resource: String,
@@ -97,6 +113,29 @@ class ImageAssetsBuilder {
     }
 
     fun build(): List<ImageAssetModel> = images.toList()
+}
+
+@RylNextDsl
+class BitmapMapWindowGroupBuilder internal constructor(
+    private val images: ImageAssetsBuilder,
+    resourceDirectory: String,
+    private val defaultTransition: ImageTransition,
+) {
+    private val directory = resourceDirectory.trimEnd('/')
+
+    /**
+     * Adds one bitmap image from the group's resource directory.
+     *
+     * The caller supplies only the file name relative to the group directory,
+     * while the compiled model still receives the full classpath resource path.
+     */
+    fun image(
+        id: ImageId,
+        fileName: String,
+        transition: ImageTransition = defaultTransition,
+    ) {
+        images.bitmapMapWindow(id, "$directory/${fileName.trimStart('/')}", transition)
+    }
 }
 
 @RylNextDsl

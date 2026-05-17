@@ -791,7 +791,8 @@ internal object ReplayPlans {
 
     private fun waitForInput(count: Int = 1): String = "A".repeat(count)
 
-    private fun battle(attacks: Int = 5): String = "F" + buildString { targetSlots(attacks).forEach { slot -> append('A').append(slot) } }
+    private fun battle(attacks: Int = 5): String =
+        "F" + buildString { targetSlots(attacks).forEach { slot -> append('A').append(slot) } } + "\n"
 
     private fun targetSlots(attacks: Int): String = "ABCDEFGH".take(attacks).ifEmpty { "A".repeat(attacks) }
 }

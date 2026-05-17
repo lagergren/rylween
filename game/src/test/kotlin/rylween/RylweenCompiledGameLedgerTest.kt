@@ -492,21 +492,21 @@ class RylweenCompiledGameLedgerTest {
             runtimeSystems.presentation.images.any { image ->
                 image.id == "blitgfx.castle_stairs_guardians" &&
                     image.kind == "Bitmap" &&
-                    image.resource == "bitmap/assets/scene-castle-stairs-guardians.png"
+                    image.resource == "bitmap/assets/scenes/scene-castle-stairs-guardians.png"
             },
         )
         check(
             runtimeSystems.presentation.images.any { image ->
                 image.id == "blitgfx.jaara_gate" &&
                     image.kind == "Bitmap" &&
-                    image.resource == "bitmap/assets/scene-jaara-gate.png"
+                    image.resource == "bitmap/assets/scenes/scene-jaara-gate.png"
             },
         )
         check(
             runtimeSystems.presentation.images.any { image ->
                 image.id == "blitgfx.skullweed_swamp" &&
                     image.kind == "Bitmap" &&
-                    image.resource == "bitmap/assets/scene-skullweed-swamp.png"
+                    image.resource == "bitmap/assets/scenes/scene-skullweed-swamp.png"
             },
         )
         check(
@@ -1156,7 +1156,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             nextDsl.visuals.images
                 .single { it.id == Images.Scene.tavern && it.kind == ImageAssetKind.Bitmap }
-                .resource == "bitmap/assets/scene-tavern.png",
+                .resource == "bitmap/assets/scenes/scene-tavern.png",
         )
         check(nextDsl.visuals.staticScreens.size == 7)
         check(
@@ -1715,11 +1715,11 @@ class RylweenCompiledGameLedgerTest {
         val compiledBitmapAssets = runtimeSystems.presentation.images.filter { image -> image.kind == "Bitmap" }
         val requiredCompiledImages =
             listOf(
-                "blitgfx.towne_mainstreet" to "bitmap/assets/scene-thord-mainstreet.png",
-                "blitgfx.merchant" to "bitmap/assets/scene-merchant.png",
-                "blitgfx.monster_goblinoid" to "bitmap/assets/monster-goblinoid.png",
-                "blitgfx.dungeon_chest" to "bitmap/assets/scene-dungeon-chest.png",
-                "blitgfx.jaara_gate" to "bitmap/assets/scene-jaara-gate.png",
+                "blitgfx.towne_mainstreet" to "bitmap/assets/scenes/scene-thord-mainstreet.png",
+                "blitgfx.merchant" to "bitmap/assets/scenes/scene-merchant.png",
+                "blitgfx.monster_goblinoid" to "bitmap/assets/monsters/monster-goblinoid.png",
+                "blitgfx.dungeon_chest" to "bitmap/assets/scenes/scene-dungeon-chest.png",
+                "blitgfx.jaara_gate" to "bitmap/assets/scenes/scene-jaara-gate.png",
             )
 
         requiredCompiledImages.forEach { (id, resource) ->

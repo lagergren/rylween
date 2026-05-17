@@ -297,6 +297,8 @@ Take off armor you are wearing.
 
 A status sheet for one party member or all of them if you want. You will also
 see some general information about the party.
+Use the left and right arrows to browse party pages. Return or Escape takes you
+back to the game.
 
 ### W = Wield Weapon
 
@@ -329,6 +331,12 @@ graphics.
 
 2 = Move South (or arrow down)
 ```
+
+In the illustrated browser 3D wilderness view, movement is relative to the
+direction you face. Up or 8 steps forward, down or numpad 2 steps back, left or
+4 turns counterclockwise, and right or 6 turns clockwise. The tiled 2D map keeps
+the absolute movement above. Use Preferences or top-row 3 for the 3D view. Use
+top-row 2 to return to the tiled map view.
 
 ## The Four Towns of Rylween
 
