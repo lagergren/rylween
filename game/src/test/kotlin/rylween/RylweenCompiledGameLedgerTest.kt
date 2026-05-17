@@ -138,6 +138,10 @@ class RylweenCompiledGameLedgerTest {
                 ?.size == 5,
         )
         check(leveling.maxLevel == 28)
+        check(leveling.xpThresholds[1] == 0 && leveling.xpThresholds[10] == 60_000 && leveling.xpThresholds[28] == 2_800_000)
+        check(
+            (2..leveling.maxLevel).all { level -> leveling.xpThresholds[level] > leveling.xpThresholds[level - 1] },
+        )
         check(leveling.classGrowth.size == 6)
         check(characterCreation.statRoll == CharacterCreationStatRollModel(min = 15, max = 70))
         check(characterCreation.start.map == Maps.wilderness)
@@ -1872,6 +1876,12 @@ class RylweenCompiledGameLedgerTest {
                 "readScreen(" !in gameDsl,
         ) {
             "authored game source must not keep legacy text constructor or read-screen names"
+        }
+        check(!Regex("""\bsay\s*[\({]""").containsMatchIn(gameDsl)) {
+            "dialogue text should use writeText so speech is content, not a separate display action"
+        }
+        check(!Regex("\\bwriteText\\(\\s*\"\"\"").containsMatchIn(gameDsl)) {
+            "triple-quoted prose should enter writeText through flowText unless it is an explicit structured line block"
         }
         check("screen(\"" !in gameDsl && "screen {" !in gameDsl) {
             "screen() should remain for static/reusable screen declarations, not script text writes"

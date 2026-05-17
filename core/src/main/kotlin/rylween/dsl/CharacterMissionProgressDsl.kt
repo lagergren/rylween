@@ -471,6 +471,17 @@ class LevelingBuilder {
     private var thresholdModel: List<Int> = emptyList()
     private val classGrowthModel = mutableListOf<ClassLevelUpModel>()
 
+    /**
+     * Declares the exact experience required for each level.
+     *
+     * Levels are one-based in authored party/member state, so index `1` is the
+     * threshold for level 1 and should be `0`; index `0` is deliberately unused
+     * to keep the table readable against level numbers. Runtimes consume this
+     * compiled table directly instead of deriving their own formula, because
+     * classic D&D-style progressions often vary by class or by high-level band.
+     * If a future game needs generated per-class progressions, add that as a
+     * typed authoring model that still compiles to this explicit table shape.
+     */
     fun xpThresholds(vararg thresholds: Int) {
         thresholdModel = thresholds.toList()
     }

@@ -273,16 +273,16 @@ class CampRulesBuilder {
     var temperatureMax: Int = 0
     var ambushChancePercent: Int = 0
     var ambushTier: EncounterTier? = null
-    var notTired: TextBlock = inlineText()
-    var notEnoughFood: TextBlock = inlineText()
-    var guardPrompt: TextBlock = inlineText()
-    var guardMemberPrompt: TextBlock = inlineText()
-    var guardMemberDead: TextBlock = inlineText()
-    var standsGuard: TextBlock = inlineText()
-    var sleeping: TextBlock = inlineText()
-    var rested: TextBlock = inlineText()
-    var ambush: TextBlock = inlineText()
-    var surpriseKill: TextBlock = inlineText()
+    var notTired: TextBlock = literalText()
+    var notEnoughFood: TextBlock = literalText()
+    var guardPrompt: TextBlock = literalText()
+    var guardMemberPrompt: TextBlock = literalText()
+    var guardMemberDead: TextBlock = literalText()
+    var standsGuard: TextBlock = literalText()
+    var sleeping: TextBlock = literalText()
+    var rested: TextBlock = literalText()
+    var ambush: TextBlock = literalText()
+    var surpriseKill: TextBlock = literalText()
     private val bands = mutableListOf<TemperatureBandRange>()
     private val damage = mutableMapOf<TemperatureBand, Int>()
     private val temperatureMessage = mutableMapOf<TemperatureBand, TextBlock>()
@@ -339,13 +339,13 @@ class HuntRulesBuilder {
     var timeCost: Int = 0
     var foodMin: Int = 0
     var foodMax: Int = 0
-    var whoPrompt: TextBlock = inlineText()
-    var dead: TextBlock = inlineText()
-    var notRanger: TextBlock = inlineText()
-    var tooFewMoves: TextBlock = inlineText()
-    var tries: TextBlock = inlineText()
-    var succeeds: TextBlock = inlineText()
-    var fails: TextBlock = inlineText()
+    var whoPrompt: TextBlock = literalText()
+    var dead: TextBlock = literalText()
+    var notRanger: TextBlock = literalText()
+    var tooFewMoves: TextBlock = literalText()
+    var tries: TextBlock = literalText()
+    var succeeds: TextBlock = literalText()
+    var fails: TextBlock = literalText()
 
     internal fun build(): HuntRulesModel =
         HuntRulesModel(
