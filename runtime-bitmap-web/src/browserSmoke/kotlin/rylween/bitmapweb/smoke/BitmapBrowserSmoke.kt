@@ -267,8 +267,11 @@ private class BitmapBrowserSmoke(
         check(initial["x"].asInt() == 12 && initial["y"].asInt() == 10) {
             "wilderness perspective tool must start outside Thord at 12x10: $initial"
         }
-        check(initial["facing"] == "North" && initial["mode"] == "3d") {
-            "wilderness perspective tool must start facing north in 3D mode: $initial"
+        check(initial["facing"] == "South" && initial["mode"] == "3d") {
+            "wilderness perspective tool must start facing south in 3D mode: $initial"
+        }
+        check(initial["frontTile"] == "town" && initial["visibleSettlements"].asList().contains("town")) {
+            "wilderness perspective tool must show Thord when facing south from 12x10: $initial"
         }
         page.keyboard().down("Shift")
         page.keyboard().press("ArrowRight")
@@ -387,7 +390,7 @@ private class BitmapBrowserSmoke(
           const canvas = document.getElementById("wildernessTool");
           if (!smoke || !(canvas instanceof HTMLCanvasElement)) return false;
           const context = canvas.getContext("2d");
-          if (!context || smoke.cells <= 0 || smoke.mapCells <= 0) return false;
+          if (!context || smoke.cells <= 0 || smoke.mapCells <= 0 || !smoke.terrainAssetsReady) return false;
           const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
           const step = Math.max(4, Math.floor(data.length / 5000 / 4) * 4);
           let nonBlank = 0;

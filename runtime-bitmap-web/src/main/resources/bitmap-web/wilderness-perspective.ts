@@ -37,6 +37,9 @@
         mode: "2d" | "3d";
         cells: number;
         mapCells: number;
+        frontTile?: string;
+        terrainAssetsReady: boolean;
+        visibleSettlements: string[];
     };
     type ToolSmokeWindow = Window & {
         __rylweenWildernessPerspectiveTool?: () => ToolSnapshot;
@@ -63,20 +66,49 @@
     const toolFacing = toolElement("toolFacing", HTMLSelectElement);
     const toolPerspective = toolElement("toolPerspective", HTMLInputElement);
     const toolStatus = toolElement("toolStatus", HTMLElement);
-    const toolSpriteCache = new Map<string, HTMLCanvasElement>();
+    const toolAssetVersion = "20260517-wilderness-perspective-assets";
+    const toolPerspectiveTerrainAssets: Record<string, HTMLImageElement> = {
+        plain: toolLoadAsset("/assets/wilderness/terrain-plain.png"),
+        forest: toolLoadAsset("/assets/wilderness/terrain-forest.png"),
+        foothills: toolLoadAsset("/assets/wilderness/terrain-foothills.png"),
+        mountain: toolLoadAsset("/assets/wilderness/terrain-mountain.png"),
+        desert: toolLoadAsset("/assets/wilderness/terrain-desert.png"),
+        swamp: toolLoadAsset("/assets/wilderness/terrain-swamp.png"),
+        water: toolLoadAsset("/assets/wilderness/terrain-water.png"),
+        town: toolLoadAsset("/assets/wilderness/terrain-town.png"),
+        hut: toolLoadAsset("/assets/wilderness/terrain-hut.png"),
+        castle: toolLoadAsset("/assets/wilderness/terrain-castle.png"),
+        road: toolLoadAsset("/assets/wilderness/terrain-road.png"),
+        void: toolLoadAsset("/assets/wilderness/terrain-void.png")
+    };
 
     let toolState = {
         x: 12,
         y: 10,
-        facing: "North" as ToolFacing,
+        facing: "South" as ToolFacing,
         perspective: true,
         mapWidth: 0,
         mapHeight: 0,
         data: null as ToolResponse | null,
     };
 
+    function toolLoadAsset(path: string): HTMLImageElement {
+        const image = new Image();
+        image.src = path + "?v=" + toolAssetVersion;
+        image.addEventListener("load", toolDraw);
+        return image;
+    }
+
     function toolSnapshot(): ToolSnapshot {
         const view = toolPerspectiveView(toolState.data?.viewport || null, toolState.facing);
+        const front = view?.cells.find((cell) => cell.forward === 1 && cell.side === 0);
+        const visibleSettlements = Array.from(
+            new Set(
+                (view?.cells || [])
+                    .map((cell) => cell.tile.settlement || "")
+                    .filter((settlement) => settlement.length > 0),
+            ),
+        );
         return {
             x: toolState.x,
             y: toolState.y,
@@ -84,6 +116,9 @@
             mode: toolState.perspective ? "3d" : "2d",
             cells: view?.cells.length ?? 0,
             mapCells: (toolState.data?.viewport.rows || []).reduce((count, row) => count + row.length, 0),
+            frontTile: front ? toolTerrainKey(front.tile) : undefined,
+            terrainAssetsReady: Object.values(toolPerspectiveTerrainAssets).every((image) => image.complete && image.naturalWidth > 0),
+            visibleSettlements,
         };
     }
 
@@ -256,7 +291,8 @@
             w: cell.rect.w / sourceW * bounds.w,
             h: cell.rect.h / sourceH * bounds.h,
         };
-        const sprite = toolPerspectiveSprite(cell.tile);
+        const sprite = toolPerspectiveAsset(cell.tile);
+        if (!sprite || !sprite.complete || sprite.naturalWidth === 0) return;
         toolCtx.save();
         toolCtx.globalAlpha = Math.max(0.5, Math.min(1, 0.5 + cell.scale * 0.55));
         toolCtx.drawImage(sprite, rect.x, rect.y, rect.w, rect.h);
@@ -268,196 +304,22 @@
         toolCtx.restore();
     }
 
-    function toolPerspectiveSprite(tile: ToolTile): HTMLCanvasElement {
-        const slug = tile.settlement || tile.slug || "void";
-        const variant = Math.abs(Number(tile.variant || 0)) % 4;
-        const key = slug + ":" + variant;
-        const cached = toolSpriteCache.get(key);
-        if (cached) return cached;
-        const sprite = document.createElement("canvas");
-        sprite.width = 360;
-        sprite.height = 250;
-        const context = sprite.getContext("2d");
-        if (!context) return sprite;
-        context.clearRect(0, 0, sprite.width, sprite.height);
-        toolDrawGround(context, slug, variant);
-        switch (slug) {
-            case "forest":
-                toolDrawForest(context, variant);
-                break;
-            case "mountain":
-                toolDrawMountains(context, variant);
-                break;
-            case "water":
-                toolDrawWater(context, variant);
-                break;
-            case "desert":
-                toolDrawDesert(context, variant);
-                break;
-            case "foothills":
-                toolDrawFoothills(context, variant);
-                break;
-            case "swamp":
-                toolDrawSwamp(context, variant);
-                break;
-            case "town":
-                toolDrawTown(context, variant);
-                break;
-            case "hut":
-                toolDrawHut(context, variant);
-                break;
-            case "castle":
-                toolDrawCastle(context, variant);
-                break;
-            case "void":
-                toolDrawVoid(context);
-                break;
-            default:
-                toolDrawPlain(context, variant);
-        }
-        toolSpriteCache.set(key, sprite);
-        return sprite;
+    function toolPerspectiveAsset(tile: ToolTile): HTMLImageElement | null {
+        return toolPerspectiveTerrainAssets[toolTerrainKey(tile)] || null;
     }
 
-    function toolDrawGround(context: CanvasRenderingContext2D, slug: string, variant: number): void {
-        const colors = toolTileColors({slug});
-        const y = 158 + variant * 3;
-        context.fillStyle = colors.base;
-        context.beginPath();
-        context.ellipse(180, y, 160, 54, 0, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = colors.edge;
-        context.lineWidth = 3;
-        context.stroke();
-    }
-
-    function toolDrawPlain(context: CanvasRenderingContext2D, variant: number): void {
-        context.strokeStyle = "rgba(194, 181, 95, 0.65)";
-        for (let index = 0; index < 11; index += 1) {
-            const x = 44 + index * 27 + (variant % 2) * 7;
-            context.beginPath();
-            context.moveTo(x, 154);
-            context.lineTo(x + 8, 132 - (index % 3) * 6);
-            context.lineTo(x + 13, 157);
-            context.stroke();
-        }
-    }
-
-    function toolDrawForest(context: CanvasRenderingContext2D, variant: number): void {
-        for (let index = 0; index < 8; index += 1) {
-            const x = 56 + index * 35 + ((index + variant) % 2) * 10;
-            const h = 72 + ((index + variant) % 3) * 14;
-            context.fillStyle = "#172916";
-            toolTriangle(context, x, 154 - h, x - 34, 172, x + 34, 172);
-            context.fillStyle = "#274d25";
-            toolTriangle(context, x, 126 - h * 0.35, x - 27, 168, x + 27, 168);
-            context.fillStyle = "#5a3418";
-            context.fillRect(x - 4, 160, 8, 32);
-        }
-    }
-
-    function toolDrawMountains(context: CanvasRenderingContext2D, variant: number): void {
-        for (let index = 0; index < 3; index += 1) {
-            const x = 94 + index * 82 + variant * 4;
-            const top = 58 + (index % 2) * 18;
-            context.fillStyle = "#374041";
-            toolTriangle(context, x, top, x - 78, 178, x + 86, 178);
-            context.fillStyle = "#65706a";
-            toolTriangle(context, x, top, x - 18, 101, x + 24, 99);
-        }
-    }
-
-    function toolDrawWater(context: CanvasRenderingContext2D, variant: number): void {
-        context.strokeStyle = "rgba(145, 203, 209, 0.72)";
-        context.lineWidth = 5;
-        for (let row = 0; row < 5; row += 1) {
-            context.beginPath();
-            for (let index = 0; index < 9; index += 1) {
-                const x = 50 + index * 34;
-                const y = 126 + row * 14 + Math.sin(index + variant) * 4;
-                if (index === 0) context.moveTo(x, y);
-                else context.quadraticCurveTo(x + 14, y - 7, x + 29, y);
-            }
-            context.stroke();
-        }
-    }
-
-    function toolDrawDesert(context: CanvasRenderingContext2D, variant: number): void {
-        context.strokeStyle = "rgba(101, 72, 31, 0.54)";
-        for (let index = 0; index < 6; index += 1) {
-            context.beginPath();
-            context.arc(70 + index * 42, 142 + ((index + variant) % 2) * 15, 28, Math.PI, Math.PI * 1.85);
-            context.stroke();
-        }
-    }
-
-    function toolDrawFoothills(context: CanvasRenderingContext2D, variant: number): void {
-        context.fillStyle = "#56633b";
-        for (let index = 0; index < 5; index += 1) {
-            context.beginPath();
-            context.ellipse(65 + index * 58, 150 + ((index + variant) % 2) * 10, 46, 30, -0.08, 0, Math.PI * 2);
-            context.fill();
-        }
-    }
-
-    function toolDrawSwamp(context: CanvasRenderingContext2D, variant: number): void {
-        context.fillStyle = "rgba(58, 82, 54, 0.82)";
-        for (let index = 0; index < 7; index += 1) {
-            context.fillRect(46 + index * 41, 112 + ((index + variant) % 3) * 10, 8, 60);
-        }
-        context.strokeStyle = "rgba(101, 124, 78, 0.76)";
-        context.beginPath();
-        context.moveTo(42, 154);
-        context.bezierCurveTo(104, 132, 154, 180, 216, 148);
-        context.bezierCurveTo(248, 132, 288, 154, 326, 143);
-        context.stroke();
-    }
-
-    function toolDrawTown(context: CanvasRenderingContext2D, variant: number): void {
-        for (let index = 0; index < 5; index += 1) {
-            const x = 82 + index * 40;
-            const y = 110 + ((index + variant) % 2) * 12;
-            context.fillStyle = "#8d7049";
-            context.fillRect(x, y, 34, 46);
-            context.fillStyle = "#442820";
-            toolTriangle(context, x + 17, y - 22, x - 4, y + 4, x + 38, y + 4);
-        }
-    }
-
-    function toolDrawHut(context: CanvasRenderingContext2D, variant: number): void {
-        context.fillStyle = "#7b5a34";
-        context.fillRect(132, 112 + variant * 2, 92, 58);
-        context.fillStyle = "#3b2316";
-        toolTriangle(context, 178, 72 + variant * 2, 112, 124, 244, 124);
-        context.fillStyle = "#1b120c";
-        context.fillRect(170, 134, 18, 36);
-    }
-
-    function toolDrawCastle(context: CanvasRenderingContext2D, variant: number): void {
-        context.fillStyle = "#3c4145";
-        context.fillRect(118, 90, 124, 78);
-        context.fillRect(104, 70 + variant * 2, 30, 98);
-        context.fillRect(226, 70 + variant * 2, 30, 98);
-        context.fillStyle = "#111315";
-        context.fillRect(166, 126, 28, 42);
-        context.strokeStyle = "#7d8583";
-        context.strokeRect(118.5, 90.5, 123, 77);
-    }
-
-    function toolDrawVoid(context: CanvasRenderingContext2D): void {
-        context.fillStyle = "rgba(11, 12, 13, 0.82)";
-        context.fillRect(52, 106, 256, 82);
-        context.strokeStyle = "rgba(120, 112, 96, 0.35)";
-        context.strokeRect(52.5, 106.5, 255, 81);
-    }
-
-    function toolTriangle(context: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): void {
-        context.beginPath();
-        context.moveTo(x1, y1);
-        context.lineTo(x2, y2);
-        context.lineTo(x3, y3);
-        context.closePath();
-        context.fill();
+    function toolTerrainKey(tile: ToolTile): string {
+        const slug = (tile.settlement || tile.slug || "void").toLowerCase();
+        if (slug === "town" || slug === "hut" || slug === "castle") return slug;
+        if (slug.includes("forest")) return "forest";
+        if (slug.includes("mountain")) return "mountain";
+        if (slug.includes("water")) return "water";
+        if (slug.includes("desert")) return "desert";
+        if (slug.includes("foothills")) return "foothills";
+        if (slug.includes("swamp")) return "swamp";
+        if (slug.includes("road")) return "road";
+        if (slug.includes("plain")) return "plain";
+        return "void";
     }
 
     function toolTileColors(tile: ToolTile): { base: string; edge: string } {
