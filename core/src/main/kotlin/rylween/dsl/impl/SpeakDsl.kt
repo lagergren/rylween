@@ -53,7 +53,7 @@ class SpeakTextTablesBuilder {
         id: TextId,
         body: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        screens += ReusableScreenTextModel(id, StructuredTextBlockBuilder().apply(body).build())
+        screens += ReusableScreenTextModel(id, structuredText(body))
     }
 
     fun chitchatPrompt(
@@ -104,7 +104,7 @@ class ChitchatPromptTextBuilder(
         variants +=
             ChitchatPromptVariantModel(
                 ChitchatPromptAudience.Any,
-                StructuredTextBlockBuilder().apply(body).build(),
+                structuredText(body),
             )
     }
 
@@ -112,7 +112,7 @@ class ChitchatPromptTextBuilder(
         variants +=
             ChitchatPromptVariantModel(
                 ChitchatPromptAudience.Female,
-                StructuredTextBlockBuilder().apply(body).build(),
+                structuredText(body),
             )
     }
 
@@ -120,7 +120,7 @@ class ChitchatPromptTextBuilder(
         variants +=
             ChitchatPromptVariantModel(
                 ChitchatPromptAudience.Male,
-                StructuredTextBlockBuilder().apply(body).build(),
+                structuredText(body),
             )
     }
 
@@ -135,7 +135,7 @@ class JobTextTableBuilder {
         id: NpcJobId,
         body: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        replies += JobTextModel(id, StructuredTextBlockBuilder().apply(body).build())
+        replies += JobTextModel(id, structuredText(body))
     }
 
     fun build(): List<JobTextModel> = replies.toList()

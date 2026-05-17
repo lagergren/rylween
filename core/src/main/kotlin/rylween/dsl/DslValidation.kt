@@ -330,6 +330,16 @@ fun validateLeveling(
         "leveling XP thresholds must include indexes through max level ${leveling.maxLevel}"
     }
     check(leveling.xpThresholds.all { it >= 0 }) { "leveling XP thresholds must be non-negative" }
+    check(leveling.xpThresholds[1] == 0) {
+        "leveling XP threshold for level 1 must be 0"
+    }
+    (2..leveling.maxLevel).forEach { level ->
+        val previous = leveling.xpThresholds[level - 1]
+        val current = leveling.xpThresholds[level]
+        check(current > previous) {
+            "leveling XP thresholds must strictly increase from level ${level - 1} ($previous) to level $level ($current)"
+        }
+    }
     check(leveling.hitPointFloor in formulas.map { it.id }.toSet()) {
         "leveling hit point floor references missing formula ${leveling.hitPointFloor.slug}"
     }

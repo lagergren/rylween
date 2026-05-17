@@ -13,83 +13,23 @@ package rylween.game
 
 import rylween.dsl.*
 
-private object EncounterImages {
-    val goblinoid = image("blitgfx.monster_goblinoid")
-    val undead = image("blitgfx.monster_undead")
-    val beast = image("blitgfx.monster_beast")
-    val flying = image("blitgfx.monster_flying")
-    val vermin = image("blitgfx.monster_vermin")
-    val brute = image("blitgfx.monster_brute")
-    val humanoidMagic = image("blitgfx.monster_humanoid_magic")
-    val boss = image("blitgfx.monster_boss")
-}
-
-private object CharacterPortraitImages {
-    val default = image("portrait.character.default")
-    val fighter = image("portrait.class.fighter")
-    val thief = image("portrait.class.thief")
-    val mage = image("portrait.class.mage")
-    val priest = image("portrait.class.priest")
-    val bard = image("portrait.class.bard")
-    val ranger = image("portrait.class.ranger")
-    val femaleDefault = image("portrait.gender.female")
-    val femaleFighter = image("portrait.gender.female.class.fighter")
-    val femaleThief = image("portrait.gender.female.class.thief")
-    val femaleMage = image("portrait.gender.female.class.mage")
-    val femalePriest = image("portrait.gender.female.class.priest")
-    val femaleBard = image("portrait.gender.female.class.bard")
-    val femaleRanger = image("portrait.gender.female.class.ranger")
-    val maleHuman = image("portrait.gender.male.race.human")
-    val maleDwarf = image("portrait.gender.male.race.dwarf")
-    val maleElf = image("portrait.gender.male.race.elf")
-    val maleHalfling = image("portrait.gender.male.race.halfling")
-    val femaleHuman = image("portrait.gender.female.race.human")
-    val femaleDwarf = image("portrait.gender.female.race.dwarf")
-    val femaleElf = image("portrait.gender.female.race.elf")
-    val femaleHalfling = image("portrait.gender.female.race.halfling")
-}
-
-private object CastleImages {
-    val jaaraGate = image("blitgfx.jaara_gate")
-    val stairsGuardians = image("blitgfx.castle_stairs_guardians")
-    val treasure = image("blitgfx.castle_treasure")
-    val pitfall = image("blitgfx.castle_pitfall")
-}
-
-private object DungeonImages {
-    val chest = image("blitgfx.dungeon_chest")
-    val trap = image("blitgfx.dungeon_trap")
-}
-
-private object MissionImages {
-    val skullweedSwamp = image("blitgfx.skullweed_swamp")
-}
-
-private fun MonsterBuilder.goblinoid() = encounterImage(EncounterImages.goblinoid)
-
-private fun MonsterBuilder.undead() = encounterImage(EncounterImages.undead)
-
-private fun MonsterBuilder.beast() = encounterImage(EncounterImages.beast)
-
-private fun MonsterBuilder.flying() = encounterImage(EncounterImages.flying)
-
-private fun MonsterBuilder.vermin() = encounterImage(EncounterImages.vermin)
-
-private fun MonsterBuilder.brute() = encounterImage(EncounterImages.brute)
-
-private fun MonsterBuilder.humanoidMagic() = encounterImage(EncounterImages.humanoidMagic)
-
-private fun MonsterBuilder.boss() = encounterImage(EncounterImages.boss)
-
 // =============================================================================
 // 06. Full-game authoring area
 // =============================================================================
 //
 // This section contains the authored current game in the order below:
 //
-//   content:
-//     metadata, limits, handles, visuals, layouts, terrain, maps, items,
-//     monsters, spells, text, scenes, missions, towns, buildings, menus.
+//   rylween
+//     content
+//       metadata, limits, flags, visuals, staticScreens, layouts
+//       terrain, terminal, worldMap, realm, items, itemPools
+//       castles, runtimeSystems, gameProgress, winningConfiguration
+//       leveling, characterCreation, rewards, monsters, combat
+//       dungeons, towns, townSystem, missions, scenes, dialogue
+//     state/runtimeState/stateFixture
+//       realm, locations, npcs, parties, inventory, members, journal
+//     script bodies
+//       scene, dialogue branch, spell, itemUse, dungeon event, castle hook
 //
 // Add new game content here; reusable DSL/runtime implementation belongs in the
 // packages named above, not in this game-authoring file.
@@ -246,14 +186,14 @@ val authoredRylween: RylweenModel =
                     ansiMapWindow(Images.Scene.encounterBanner3, "tiles/encounter-banner-3.ans")
                     ansiMapWindow(Images.Scene.encounterBanner4, "tiles/encounter-banner-4.ans")
                     ansiMapWindow(Images.Scene.encounterBanner5, "tiles/encounter-banner-5.ans")
-                    ansiMapWindow(EncounterImages.goblinoid, "tiles/encounter-banner-1.ans")
-                    ansiMapWindow(EncounterImages.undead, "tiles/encounter-banner-3.ans")
-                    ansiMapWindow(EncounterImages.beast, "tiles/encounter-banner-4.ans")
-                    ansiMapWindow(EncounterImages.flying, "tiles/encounter-banner-2.ans")
-                    ansiMapWindow(EncounterImages.vermin, "tiles/encounter-banner-5.ans")
-                    ansiMapWindow(EncounterImages.brute, "tiles/encounter-banner-1.ans")
-                    ansiMapWindow(EncounterImages.humanoidMagic, "tiles/encounter-banner-3.ans")
-                    ansiMapWindow(EncounterImages.boss, "tiles/encounter-banner-5.ans")
+                    ansiMapWindow(Images.Encounter.goblinoid, "tiles/encounter-banner-1.ans")
+                    ansiMapWindow(Images.Encounter.undead, "tiles/encounter-banner-3.ans")
+                    ansiMapWindow(Images.Encounter.beast, "tiles/encounter-banner-4.ans")
+                    ansiMapWindow(Images.Encounter.flying, "tiles/encounter-banner-2.ans")
+                    ansiMapWindow(Images.Encounter.vermin, "tiles/encounter-banner-5.ans")
+                    ansiMapWindow(Images.Encounter.brute, "tiles/encounter-banner-1.ans")
+                    ansiMapWindow(Images.Encounter.humanoidMagic, "tiles/encounter-banner-3.ans")
+                    ansiMapWindow(Images.Encounter.boss, "tiles/encounter-banner-5.ans")
                     ansiMapWindow(Images.Scene.cave, "tiles/cave-entrance.ans")
                     ansiMapWindow(Images.Scene.insideCave, "tiles/cave-interior.ans")
                     ansiMapWindow(Images.Scene.church, "tiles/towne-church.ans")
@@ -275,14 +215,14 @@ val authoredRylween: RylweenModel =
                     bitmapMapWindow(Images.Scene.encounterBanner3, "bitmap/assets/monster-undead.png")
                     bitmapMapWindow(Images.Scene.encounterBanner4, "bitmap/assets/monster-beast.png")
                     bitmapMapWindow(Images.Scene.encounterBanner5, "bitmap/assets/monster-vermin.png")
-                    bitmapMapWindow(EncounterImages.goblinoid, "bitmap/assets/monster-goblinoid.png")
-                    bitmapMapWindow(EncounterImages.undead, "bitmap/assets/monster-undead.png")
-                    bitmapMapWindow(EncounterImages.beast, "bitmap/assets/monster-beast.png")
-                    bitmapMapWindow(EncounterImages.flying, "bitmap/assets/monster-flying.png")
-                    bitmapMapWindow(EncounterImages.vermin, "bitmap/assets/monster-vermin.png")
-                    bitmapMapWindow(EncounterImages.brute, "bitmap/assets/monster-brute.png")
-                    bitmapMapWindow(EncounterImages.humanoidMagic, "bitmap/assets/monster-humanoid-magic.png")
-                    bitmapMapWindow(EncounterImages.boss, "bitmap/assets/monster-boss.png")
+                    bitmapMapWindow(Images.Encounter.goblinoid, "bitmap/assets/monster-goblinoid.png")
+                    bitmapMapWindow(Images.Encounter.undead, "bitmap/assets/monster-undead.png")
+                    bitmapMapWindow(Images.Encounter.beast, "bitmap/assets/monster-beast.png")
+                    bitmapMapWindow(Images.Encounter.flying, "bitmap/assets/monster-flying.png")
+                    bitmapMapWindow(Images.Encounter.vermin, "bitmap/assets/monster-vermin.png")
+                    bitmapMapWindow(Images.Encounter.brute, "bitmap/assets/monster-brute.png")
+                    bitmapMapWindow(Images.Encounter.humanoidMagic, "bitmap/assets/monster-humanoid-magic.png")
+                    bitmapMapWindow(Images.Encounter.boss, "bitmap/assets/monster-boss.png")
                     bitmapMapWindow(Images.Scene.cave, "bitmap/assets/scene-cave-entrance.png")
                     bitmapMapWindow(Images.Scene.insideCave, "bitmap/assets/scene-cave-interior.png")
                     bitmapMapWindow(Images.Scene.church, "bitmap/assets/scene-church.png")
@@ -295,36 +235,36 @@ val authoredRylween: RylweenModel =
                     bitmapMapWindow(Images.Scene.towneMainstreet, "bitmap/assets/scene-thord-mainstreet.png")
                     bitmapMapWindow(Images.Scene.wildernessNoTent, "bitmap/assets/scene-camp-night.png")
                     bitmapMapWindow(Images.Scene.towneGuild, "bitmap/assets/scene-guild-closed.png")
-                    bitmapMapWindow(DungeonImages.chest, "bitmap/assets/scene-dungeon-chest.png")
-                    bitmapMapWindow(DungeonImages.trap, "bitmap/assets/scene-dungeon-trap.png")
-                    bitmapMapWindow(CastleImages.treasure, "bitmap/assets/scene-dungeon-chest.png")
-                    bitmapMapWindow(CastleImages.pitfall, "bitmap/assets/scene-dungeon-trap.png")
-                    bitmapMapWindow(CastleImages.jaaraGate, "bitmap/assets/scene-jaara-gate.png")
-                    bitmapMapWindow(CastleImages.stairsGuardians, "bitmap/assets/scene-castle-stairs-guardians.png")
-                    bitmapMapWindow(MissionImages.skullweedSwamp, "bitmap/assets/scene-skullweed-swamp.png")
+                    bitmapMapWindow(Images.Dungeon.chest, "bitmap/assets/scene-dungeon-chest.png")
+                    bitmapMapWindow(Images.Dungeon.trap, "bitmap/assets/scene-dungeon-trap.png")
+                    bitmapMapWindow(Images.Castle.treasure, "bitmap/assets/scene-dungeon-chest.png")
+                    bitmapMapWindow(Images.Castle.pitfall, "bitmap/assets/scene-dungeon-trap.png")
+                    bitmapMapWindow(Images.Castle.jaaraGate, "bitmap/assets/scene-jaara-gate.png")
+                    bitmapMapWindow(Images.Castle.stairsGuardians, "bitmap/assets/scene-castle-stairs-guardians.png")
+                    bitmapMapWindow(Images.Mission.skullweedSwamp, "bitmap/assets/scene-skullweed-swamp.png")
 
-                    bitmapMapWindow(CharacterPortraitImages.default, "bitmap/assets/portrait-default.png")
-                    bitmapMapWindow(CharacterPortraitImages.fighter, "bitmap/assets/portrait-fighter.png")
-                    bitmapMapWindow(CharacterPortraitImages.thief, "bitmap/assets/portrait-thief.png")
-                    bitmapMapWindow(CharacterPortraitImages.mage, "bitmap/assets/portrait-mage.png")
-                    bitmapMapWindow(CharacterPortraitImages.priest, "bitmap/assets/portrait-priest.png")
-                    bitmapMapWindow(CharacterPortraitImages.bard, "bitmap/assets/portrait-bard.png")
-                    bitmapMapWindow(CharacterPortraitImages.ranger, "bitmap/assets/portrait-ranger.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleDefault, "bitmap/assets/portrait-female-default.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleFighter, "bitmap/assets/portrait-female-fighter.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleThief, "bitmap/assets/portrait-female-thief.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleMage, "bitmap/assets/portrait-female-mage.png")
-                    bitmapMapWindow(CharacterPortraitImages.femalePriest, "bitmap/assets/portrait-female-priest.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleBard, "bitmap/assets/portrait-female-bard.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleRanger, "bitmap/assets/portrait-female-ranger.png")
-                    bitmapMapWindow(CharacterPortraitImages.maleHuman, "bitmap/assets/portrait-male-human.png")
-                    bitmapMapWindow(CharacterPortraitImages.maleDwarf, "bitmap/assets/portrait-male-dwarf.png")
-                    bitmapMapWindow(CharacterPortraitImages.maleElf, "bitmap/assets/portrait-male-elf.png")
-                    bitmapMapWindow(CharacterPortraitImages.maleHalfling, "bitmap/assets/portrait-male-halfling.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleHuman, "bitmap/assets/portrait-female-human.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleDwarf, "bitmap/assets/portrait-female-dwarf.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleElf, "bitmap/assets/portrait-female-elf.png")
-                    bitmapMapWindow(CharacterPortraitImages.femaleHalfling, "bitmap/assets/portrait-female-halfling.png")
+                    bitmapMapWindow(Images.Portrait.default, "bitmap/assets/portrait-default.png")
+                    bitmapMapWindow(Images.Portrait.fighter, "bitmap/assets/portrait-fighter.png")
+                    bitmapMapWindow(Images.Portrait.thief, "bitmap/assets/portrait-thief.png")
+                    bitmapMapWindow(Images.Portrait.mage, "bitmap/assets/portrait-mage.png")
+                    bitmapMapWindow(Images.Portrait.priest, "bitmap/assets/portrait-priest.png")
+                    bitmapMapWindow(Images.Portrait.bard, "bitmap/assets/portrait-bard.png")
+                    bitmapMapWindow(Images.Portrait.ranger, "bitmap/assets/portrait-ranger.png")
+                    bitmapMapWindow(Images.Portrait.femaleDefault, "bitmap/assets/portrait-female-default.png")
+                    bitmapMapWindow(Images.Portrait.femaleFighter, "bitmap/assets/portrait-female-fighter.png")
+                    bitmapMapWindow(Images.Portrait.femaleThief, "bitmap/assets/portrait-female-thief.png")
+                    bitmapMapWindow(Images.Portrait.femaleMage, "bitmap/assets/portrait-female-mage.png")
+                    bitmapMapWindow(Images.Portrait.femalePriest, "bitmap/assets/portrait-female-priest.png")
+                    bitmapMapWindow(Images.Portrait.femaleBard, "bitmap/assets/portrait-female-bard.png")
+                    bitmapMapWindow(Images.Portrait.femaleRanger, "bitmap/assets/portrait-female-ranger.png")
+                    bitmapMapWindow(Images.Portrait.maleHuman, "bitmap/assets/portrait-male-human.png")
+                    bitmapMapWindow(Images.Portrait.maleDwarf, "bitmap/assets/portrait-male-dwarf.png")
+                    bitmapMapWindow(Images.Portrait.maleElf, "bitmap/assets/portrait-male-elf.png")
+                    bitmapMapWindow(Images.Portrait.maleHalfling, "bitmap/assets/portrait-male-halfling.png")
+                    bitmapMapWindow(Images.Portrait.femaleHuman, "bitmap/assets/portrait-female-human.png")
+                    bitmapMapWindow(Images.Portrait.femaleDwarf, "bitmap/assets/portrait-female-dwarf.png")
+                    bitmapMapWindow(Images.Portrait.femaleElf, "bitmap/assets/portrait-female-elf.png")
+                    bitmapMapWindow(Images.Portrait.femaleHalfling, "bitmap/assets/portrait-female-halfling.png")
                 }
 
                 // Static screens are named document/report routes. Some are
@@ -652,7 +592,7 @@ val authoredRylween: RylweenModel =
                     trapTriesDisarmSuffix = literalText("tries to", "disarm it...", "")
                     trapDisarmSucceed = literalText("AND SUCCEEDS!")
                     trapDisarmFail = literalText("BUT FAILS!")
-                    treasureIllustration = CastleImages.treasure
+                    treasureIllustration = Images.Castle.treasure
                     treasureMenu = literalText("(T)ake it", "(L)eave it")
                     treasureFull = literalText("You can't carry more.")
                     treasureTaken = literalText("", "Ok.")
@@ -661,8 +601,8 @@ val authoredRylween: RylweenModel =
                     moveEast = literalText("East.")
                     moveWest = literalText("West.")
                     stairsIntro = flowText("You stand before the stairs to the next level.")
-                    stairsIllustration = CastleImages.stairsGuardians
-                    pitfallIllustration = CastleImages.pitfall
+                    stairsIllustration = Images.Castle.stairsGuardians
+                    pitfallIllustration = Images.Castle.pitfall
                     stairsGuardianOffer =
                         flowText(
                             """
@@ -711,7 +651,7 @@ val authoredRylween: RylweenModel =
 
             scene(sceneId("castle.ydarg.entry_blocked")) {
                 showBackdrop(Images.Backdrop.ydargCastle)
-                showBackdrop(CastleImages.jaaraGate)
+                showBackdrop(Images.Castle.jaaraGate)
                 writeText(
                     flowText(
                         """
@@ -734,7 +674,7 @@ val authoredRylween: RylweenModel =
 
             scene(sceneId("castle.ydarg.entered")) {
                 showBackdrop(Images.Backdrop.ydargCastle)
-                showBackdrop(CastleImages.jaaraGate)
+                showBackdrop(Images.Castle.jaaraGate)
                 writeText(
                     flowText(
                         """
@@ -1331,6 +1271,12 @@ val authoredRylween: RylweenModel =
             leveling {
                 maxLevel = 28
                 hitPointFloor = Formulas.levelUpHitPointFloor
+                // XP thresholds are indexed by level: slot 0 is unused and
+                // level 1 is always 0 XP. The current curve keeps the classic
+                // low-level doubling feel, then widens high-level bands
+                // smoothly so the cap stays in the original 2.8M range.
+                // Keep this as explicit balance data; a future class-specific
+                // formula should still compile down to the same table shape.
                 xpThresholds(
                     0,
                     0,
@@ -1340,26 +1286,26 @@ val authoredRylween: RylweenModel =
                     12_000,
                     20_000,
                     28_000,
-                    36_000,
+                    38_000,
                     48_000,
-                    54_000,
-                    64_000,
-                    74_000,
-                    86_000,
+                    60_000,
+                    77_000,
                     98_000,
-                    110_000,
-                    125_000,
-                    150_000,
-                    180_000,
-                    240_000,
-                    300_000,
-                    400_000,
-                    550_000,
-                    700_000,
-                    900_000,
-                    1_100_000,
-                    1_500_000,
-                    2_000_000,
+                    123_000,
+                    156_000,
+                    198_000,
+                    252_000,
+                    319_000,
+                    403_000,
+                    507_000,
+                    632_000,
+                    782_000,
+                    962_000,
+                    1_171_000,
+                    1_413_000,
+                    1_693_000,
+                    2_015_000,
+                    2_382_000,
                     2_800_000,
                 )
                 classLevelUp(PcClass.Fighter) {
@@ -1448,28 +1394,28 @@ val authoredRylween: RylweenModel =
                 }
                 playerClass(PcClass.Ranger, "Ranger")
 
-                portrait(CharacterPortraitImages.default)
-                portrait(CharacterPortraitImages.fighter, klass = PcClass.Fighter)
-                portrait(CharacterPortraitImages.thief, klass = PcClass.Thief)
-                portrait(CharacterPortraitImages.mage, klass = PcClass.Mage)
-                portrait(CharacterPortraitImages.priest, klass = PcClass.Priest)
-                portrait(CharacterPortraitImages.bard, klass = PcClass.Bard)
-                portrait(CharacterPortraitImages.ranger, klass = PcClass.Ranger)
-                portrait(CharacterPortraitImages.femaleDefault, gender = Gender.Female)
-                portrait(CharacterPortraitImages.femaleFighter, gender = Gender.Female, klass = PcClass.Fighter)
-                portrait(CharacterPortraitImages.femaleThief, gender = Gender.Female, klass = PcClass.Thief)
-                portrait(CharacterPortraitImages.femaleMage, gender = Gender.Female, klass = PcClass.Mage)
-                portrait(CharacterPortraitImages.femalePriest, gender = Gender.Female, klass = PcClass.Priest)
-                portrait(CharacterPortraitImages.femaleBard, gender = Gender.Female, klass = PcClass.Bard)
-                portrait(CharacterPortraitImages.femaleRanger, gender = Gender.Female, klass = PcClass.Ranger)
-                portrait(CharacterPortraitImages.maleHuman, gender = Gender.Male, race = Race.Human)
-                portrait(CharacterPortraitImages.maleDwarf, gender = Gender.Male, race = Race.Dwarf)
-                portrait(CharacterPortraitImages.maleElf, gender = Gender.Male, race = Race.Elf)
-                portrait(CharacterPortraitImages.maleHalfling, gender = Gender.Male, race = Race.Halfling)
-                portrait(CharacterPortraitImages.femaleHuman, gender = Gender.Female, race = Race.Human)
-                portrait(CharacterPortraitImages.femaleDwarf, gender = Gender.Female, race = Race.Dwarf)
-                portrait(CharacterPortraitImages.femaleElf, gender = Gender.Female, race = Race.Elf)
-                portrait(CharacterPortraitImages.femaleHalfling, gender = Gender.Female, race = Race.Halfling)
+                portrait(Images.Portrait.default)
+                portrait(Images.Portrait.fighter, klass = PcClass.Fighter)
+                portrait(Images.Portrait.thief, klass = PcClass.Thief)
+                portrait(Images.Portrait.mage, klass = PcClass.Mage)
+                portrait(Images.Portrait.priest, klass = PcClass.Priest)
+                portrait(Images.Portrait.bard, klass = PcClass.Bard)
+                portrait(Images.Portrait.ranger, klass = PcClass.Ranger)
+                portrait(Images.Portrait.femaleDefault, gender = Gender.Female)
+                portrait(Images.Portrait.femaleFighter, gender = Gender.Female, klass = PcClass.Fighter)
+                portrait(Images.Portrait.femaleThief, gender = Gender.Female, klass = PcClass.Thief)
+                portrait(Images.Portrait.femaleMage, gender = Gender.Female, klass = PcClass.Mage)
+                portrait(Images.Portrait.femalePriest, gender = Gender.Female, klass = PcClass.Priest)
+                portrait(Images.Portrait.femaleBard, gender = Gender.Female, klass = PcClass.Bard)
+                portrait(Images.Portrait.femaleRanger, gender = Gender.Female, klass = PcClass.Ranger)
+                portrait(Images.Portrait.maleHuman, gender = Gender.Male, race = Race.Human)
+                portrait(Images.Portrait.maleDwarf, gender = Gender.Male, race = Race.Dwarf)
+                portrait(Images.Portrait.maleElf, gender = Gender.Male, race = Race.Elf)
+                portrait(Images.Portrait.maleHalfling, gender = Gender.Male, race = Race.Halfling)
+                portrait(Images.Portrait.femaleHuman, gender = Gender.Female, race = Race.Human)
+                portrait(Images.Portrait.femaleDwarf, gender = Gender.Female, race = Race.Dwarf)
+                portrait(Images.Portrait.femaleElf, gender = Gender.Female, race = Race.Elf)
+                portrait(Images.Portrait.femaleHalfling, gender = Gender.Female, race = Race.Halfling)
             }
 
             // Formulas are named integer expressions shared by encounters,
@@ -1889,7 +1835,7 @@ val authoredRylween: RylweenModel =
                 event(DungeonEvents.goldChest) {
                     recurring()
                     script {
-                        showBackdrop(DungeonImages.chest)
+                        showBackdrop(Images.Dungeon.chest)
                         menu(
                             "You find a chest!",
                             "",
@@ -1914,7 +1860,7 @@ val authoredRylween: RylweenModel =
 
                                         whenever(random(0..9) lt trapChance) {
                                             clearText()
-                                            showBackdrop(DungeonImages.trap)
+                                            showBackdrop(Images.Dungeon.trap)
                                             writeText("A TRAP!")
                                             pause600ms()
                                             choose(random(0..2)) {
@@ -2099,7 +2045,7 @@ val authoredRylween: RylweenModel =
                     recurring()
                     script {
                         localInt(context.dungeonLevel - 12) { antechamber ->
-                            readScreen {
+                            showTextAndWait {
                                 line("A plaque here reads:")
                                 line("ANTECHAMBER #", antechamber)
                                 line("")
@@ -2267,7 +2213,7 @@ val authoredRylween: RylweenModel =
                                 "it out and read...",
                                 "",
                             )
-                            readScreen {
+                            showTextAndWait {
                                 line("'Guild Master: This is")
                                 line("the proof that I, ", character(Roles.masterThief).name)
                                 line("am worthy of the title")
@@ -2473,7 +2419,7 @@ val authoredRylween: RylweenModel =
                                 "",
                             )
                             party.member(3) { surprised ->
-                                readScreen {
+                                showTextAndWait {
                                     line(partyName(surprised), " suddenly")
                                     line("hears something behind")
                                     line(pronoun(surprised, PronounCase.Object), "!")
@@ -2498,7 +2444,7 @@ val authoredRylween: RylweenModel =
                                 "",
                             )
                             party.member(4) { finder ->
-                                readScreen {
+                                showTextAndWait {
                                     line(partyName(finder), " finds the")
                                     line("Lute on a pedestal,")
                                     line("and you are all glad")
@@ -3558,7 +3504,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 30..50
                     weaponSkill = 35
                     tier = EncounterTiers.weak
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.orc) {
@@ -3567,7 +3513,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 50..99
                     weaponSkill = 50
                     tier = EncounterTiers.weak
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.troll) {
@@ -3576,7 +3522,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 99..199
                     weaponSkill = 55
                     tier = EncounterTiers.weak
-                    brute()
+                    encounterImage(Images.Encounter.brute)
                 }
 
                 monster(Monsters.warrior) {
@@ -3585,7 +3531,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 50..99
                     weaponSkill = 60
                     tier = EncounterTiers.weak
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.goblin) {
@@ -3594,7 +3540,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 50..80
                     weaponSkill = 30
                     tier = EncounterTiers.weak
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.wildDog) {
@@ -3603,7 +3549,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 15..40
                     weaponSkill = 60
                     tier = EncounterTiers.weak
-                    beast()
+                    encounterImage(Images.Encounter.beast)
                 }
 
                 monster(Monsters.knight) {
@@ -3612,7 +3558,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 25..99
                     weaponSkill = 75
                     tier = EncounterTiers.weak
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.bandit) {
@@ -3621,7 +3567,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 50..99
                     weaponSkill = 50
                     tier = EncounterTiers.weak
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.hobgoblin) {
@@ -3631,7 +3577,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 40
                     spellPower = 5
                     tier = EncounterTiers.weak
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.zombie) {
@@ -3641,7 +3587,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 65
                     spellPower = 5
                     tier = EncounterTiers.weak
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.stirge) {
@@ -3650,7 +3596,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 10..20
                     weaponSkill = 90
                     tier = EncounterTiers.wild
-                    flying()
+                    encounterImage(Images.Encounter.flying)
                 }
 
                 monster(Monsters.guardian) {
@@ -3658,7 +3604,7 @@ val authoredRylween: RylweenModel =
                     count = 1..1
                     hitPoints = 250..350
                     weaponSkill = 80
-                    boss()
+                    encounterImage(Images.Encounter.boss)
                 }
 
                 monster(Monsters.norker) {
@@ -3666,7 +3612,7 @@ val authoredRylween: RylweenModel =
                     count = 1..1
                     hitPoints = 350..400
                     weaponSkill = 90
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.voodooLord) {
@@ -3674,7 +3620,7 @@ val authoredRylween: RylweenModel =
                     count = 1..1
                     hitPoints = 300..350
                     weaponSkill = 80
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.archdevil) {
@@ -3683,7 +3629,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 450..450
                     weaponSkill = 85
                     spellPower = 60
-                    boss()
+                    encounterImage(Images.Encounter.boss)
                 }
 
                 monster(Monsters.koboldHorde) {
@@ -3691,7 +3637,7 @@ val authoredRylween: RylweenModel =
                     count = 6..8
                     hitPoints = 30..45
                     weaponSkill = 25
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.rainbowDemon) {
@@ -3700,7 +3646,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 150..250
                     weaponSkill = 95
                     spellPower = 10
-                    boss()
+                    encounterImage(Images.Encounter.boss)
                 }
 
                 monster(Monsters.longDeadWarrior) {
@@ -3708,7 +3654,7 @@ val authoredRylween: RylweenModel =
                     count = 1..1
                     hitPoints = 400..500
                     weaponSkill = 80
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.ogre) {
@@ -3716,7 +3662,7 @@ val authoredRylween: RylweenModel =
                     count = 4..7
                     hitPoints = 90..190
                     weaponSkill = 65
-                    brute()
+                    encounterImage(Images.Encounter.brute)
                 }
 
                 monster(Monsters.ogreLord) {
@@ -3725,7 +3671,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 190..270
                     weaponSkill = 85
                     spellPower = 25
-                    brute()
+                    encounterImage(Images.Encounter.brute)
                 }
 
                 monster(Monsters.wingedThing) {
@@ -3733,7 +3679,7 @@ val authoredRylween: RylweenModel =
                     count = 7..8
                     hitPoints = 150..200
                     weaponSkill = 95
-                    flying()
+                    encounterImage(Images.Encounter.flying)
                 }
 
                 monster(Monsters.jazzy) {
@@ -3743,7 +3689,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 95
                     spellPower = 50
                     immune = true
-                    boss()
+                    encounterImage(Images.Encounter.boss)
                 }
 
                 monster(Monsters.ridingHobgoblin) {
@@ -3752,7 +3698,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 30..70
                     weaponSkill = 40
                     spellPower = 10
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.hobgoblinChief) {
@@ -3761,7 +3707,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 150..230
                     weaponSkill = 100
                     spellPower = 40
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.hobgoblinSkeleton) {
@@ -3769,7 +3715,7 @@ val authoredRylween: RylweenModel =
                     count = 5..6
                     hitPoints = 50..60
                     weaponSkill = 90
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.undeadHobgoblin) {
@@ -3777,7 +3723,7 @@ val authoredRylween: RylweenModel =
                     count = 5..5
                     hitPoints = 60..70
                     weaponSkill = 95
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.cryptHorror) {
@@ -3786,7 +3732,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 100..200
                     weaponSkill = 60
                     spellPower = 5
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.nightGaunt) {
@@ -3795,7 +3741,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 200..350
                     weaponSkill = 90
                     spellPower = 10
-                    flying()
+                    encounterImage(Images.Encounter.flying)
                 }
 
                 monster(Monsters.thyraga) {
@@ -3803,7 +3749,7 @@ val authoredRylween: RylweenModel =
                     count = 1..2
                     hitPoints = 250..300
                     weaponSkill = 90
-                    boss()
+                    encounterImage(Images.Encounter.boss)
                 }
 
                 monster(Monsters.liche) {
@@ -3811,7 +3757,7 @@ val authoredRylween: RylweenModel =
                     count = 1..1
                     hitPoints = 300..400
                     weaponSkill = 85
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.baronYdarg) {
@@ -3821,7 +3767,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 90
                     spellPower = 5
                     immune = true
-                    boss()
+                    encounterImage(Images.Encounter.boss)
                 }
 
                 monster(Monsters.gnoll) {
@@ -3830,7 +3776,7 @@ val authoredRylween: RylweenModel =
                     countMaxLevelDivisor = 2
                     hitPoints = 60..80
                     weaponSkill = 70
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.erethorPriest) {
@@ -3839,7 +3785,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 80..99
                     weaponSkill = 70
                     spellPower = 50
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.erethor) {
@@ -3848,7 +3794,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 600..900
                     weaponSkill = 80
                     spellPower = 10
-                    boss()
+                    encounterImage(Images.Encounter.boss)
                 }
 
                 monster(Monsters.wanderMage) {
@@ -3858,7 +3804,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 20
                     spellPower = 80
                     tier = EncounterTiers.wild
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.hillGiant) {
@@ -3867,7 +3813,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 100..190
                     weaponSkill = 40
                     tier = EncounterTiers.wild
-                    brute()
+                    encounterImage(Images.Encounter.brute)
                 }
 
                 monster(Monsters.wizard) {
@@ -3877,7 +3823,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 40
                     spellPower = 70
                     tier = EncounterTiers.wild
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.druid) {
@@ -3887,7 +3833,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 60
                     spellPower = 60
                     tier = EncounterTiers.wild
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.saberToothTiger) {
@@ -3896,7 +3842,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 100..120
                     weaponSkill = 95
                     tier = EncounterTiers.wild
-                    beast()
+                    encounterImage(Images.Encounter.beast)
                 }
 
                 monster(Monsters.headHunter) {
@@ -3905,7 +3851,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 60..80
                     weaponSkill = 65
                     tier = EncounterTiers.wild
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.skeleton) {
@@ -3914,7 +3860,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 20..60
                     weaponSkill = 70
                     tier = EncounterTiers.wild
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.vampireBat) {
@@ -3923,7 +3869,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 10..20
                     weaponSkill = 55
                     tier = EncounterTiers.wild
-                    flying()
+                    encounterImage(Images.Encounter.flying)
                 }
 
                 monster(Monsters.giantSnake) {
@@ -3932,7 +3878,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 40..90
                     weaponSkill = 60
                     tier = EncounterTiers.wild
-                    vermin()
+                    encounterImage(Images.Encounter.vermin)
                 }
 
                 monster(Monsters.ghoul) {
@@ -3942,7 +3888,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 35
                     spellPower = 10
                     tier = EncounterTiers.wild
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.spider) {
@@ -3951,7 +3897,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 10..20
                     weaponSkill = 95
                     tier = EncounterTiers.wild
-                    vermin()
+                    encounterImage(Images.Encounter.vermin)
                 }
 
                 monster(Monsters.hugeLizard) {
@@ -3960,7 +3906,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 30..60
                     weaponSkill = 75
                     tier = EncounterTiers.wild
-                    vermin()
+                    encounterImage(Images.Encounter.vermin)
                 }
 
                 monster(Monsters.dryder) {
@@ -3970,7 +3916,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 75
                     spellPower = 20
                     tier = EncounterTiers.wild
-                    vermin()
+                    encounterImage(Images.Encounter.vermin)
                 }
 
                 monster(Monsters.xvart) {
@@ -3980,7 +3926,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 80
                     spellPower = 10
                     tier = EncounterTiers.deep
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.jellyCube) {
@@ -3990,7 +3936,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 50
                     spellPower = 2
                     tier = EncounterTiers.deep
-                    vermin()
+                    encounterImage(Images.Encounter.vermin)
                 }
 
                 monster(Monsters.troglodyte) {
@@ -4000,7 +3946,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 70
                     spellPower = 5
                     tier = EncounterTiers.deep
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.bugbear) {
@@ -4009,7 +3955,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 40..50
                     weaponSkill = 70
                     tier = EncounterTiers.deep
-                    goblinoid()
+                    encounterImage(Images.Encounter.goblinoid)
                 }
 
                 monster(Monsters.drowElf) {
@@ -4019,7 +3965,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 70
                     spellPower = 50
                     tier = EncounterTiers.deep
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.phantom) {
@@ -4029,7 +3975,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 80
                     spellPower = 40
                     tier = EncounterTiers.deep
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.worg) {
@@ -4039,7 +3985,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 60
                     spellPower = 20
                     tier = EncounterTiers.deep
-                    beast()
+                    encounterImage(Images.Encounter.beast)
                 }
 
                 monster(Monsters.rustMonster) {
@@ -4048,7 +3994,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 150..250
                     weaponSkill = 70
                     tier = EncounterTiers.deep
-                    vermin()
+                    encounterImage(Images.Encounter.vermin)
                 }
 
                 monster(Monsters.owlbear) {
@@ -4057,7 +4003,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 100..120
                     weaponSkill = 70
                     tier = EncounterTiers.deep
-                    beast()
+                    encounterImage(Images.Encounter.beast)
                 }
 
                 monster(Monsters.werewolf) {
@@ -4066,7 +4012,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 300..300
                     weaponSkill = 90
                     tier = EncounterTiers.deep
-                    beast()
+                    encounterImage(Images.Encounter.beast)
                 }
 
                 monster(Monsters.hookHorror) {
@@ -4075,7 +4021,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 70..100
                     weaponSkill = 85
                     tier = EncounterTiers.deep
-                    vermin()
+                    encounterImage(Images.Encounter.vermin)
                 }
 
                 monster(Monsters.minotaur) {
@@ -4084,7 +4030,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 200..240
                     weaponSkill = 80
                     tier = EncounterTiers.deep
-                    brute()
+                    encounterImage(Images.Encounter.brute)
                 }
 
                 monster(Monsters.imp) {
@@ -4094,7 +4040,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 90
                     spellPower = 30
                     tier = EncounterTiers.deep
-                    boss()
+                    encounterImage(Images.Encounter.boss)
                 }
 
                 monster(Monsters.svirfneblin) {
@@ -4104,7 +4050,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 90
                     spellPower = 20
                     tier = EncounterTiers.deep
-                    humanoidMagic()
+                    encounterImage(Images.Encounter.humanoidMagic)
                 }
 
                 monster(Monsters.yeti) {
@@ -4113,7 +4059,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 300..350
                     weaponSkill = 60
                     tier = EncounterTiers.deep
-                    beast()
+                    encounterImage(Images.Encounter.beast)
                 }
 
                 monster(Monsters.wight) {
@@ -4123,7 +4069,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 95
                     spellPower = 35
                     tier = EncounterTiers.deep
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.wraith) {
@@ -4133,7 +4079,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 80
                     spellPower = 25
                     tier = EncounterTiers.deep
-                    undead()
+                    encounterImage(Images.Encounter.undead)
                 }
 
                 monster(Monsters.basilisk) {
@@ -4143,7 +4089,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 60
                     spellPower = 20
                     tier = EncounterTiers.deep
-                    vermin()
+                    encounterImage(Images.Encounter.vermin)
                 }
 
                 monster(Monsters.wyvern) {
@@ -4152,7 +4098,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 350..450
                     weaponSkill = 80
                     tier = EncounterTiers.deep
-                    flying()
+                    encounterImage(Images.Encounter.flying)
                 }
 
                 monster(Monsters.tunnelWorm) {
@@ -4161,7 +4107,7 @@ val authoredRylween: RylweenModel =
                     hitPoints = 300..350
                     weaponSkill = 45
                     tier = EncounterTiers.deep
-                    vermin()
+                    encounterImage(Images.Encounter.vermin)
                 }
 
                 monster(Monsters.skagerbergKiller) {
@@ -4171,7 +4117,7 @@ val authoredRylween: RylweenModel =
                     weaponSkill = 100
                     spellPower = 20
                     immune = true
-                    boss()
+                    encounterImage(Images.Encounter.boss)
                 }
             }
 
@@ -4291,13 +4237,11 @@ val authoredRylween: RylweenModel =
                     clearText()
                     statusLine()
                     writeText(
-                        """
-                    You enter the church
-                    of Dalina, a beautiful
-                    goddess. This is one of
-                    her two temples.
-
-                    """,
+                        flowText(
+                            """
+                            You enter the church of Dalina, a beautiful goddess. This is one of her two temples.
+                            """,
+                        ),
                     )
 
                     menu(
@@ -4969,24 +4913,19 @@ val authoredRylween: RylweenModel =
                     whenever(chance(priestBonus + 5)) {
                         clearText()
                         writeText(
-                            """
-                    Just as you are about
-                    to sit down at a,
-                    table, a scruffy
-                    little man, pulls
-                    at your sleeve...
-
-                    """,
+                            flowText(
+                                """
+                                Just as you are about to sit down at a table, a scruffy little man pulls at your sleeve...
+                                """,
+                            ),
                         )
                         pause3s()
                         writeText(
-                            """
-                    - Hey, hey, hey! You!
-                      yes... you! I have
-                      and offer that may
-                      interest you...
-
-                    """,
+                            flowText(
+                                """
+                                - Hey, hey, hey! You! Yes... you! I have an offer that may interest you...
+                                """,
+                            ),
                         )
                         pause3s()
                         clearText()
@@ -6328,7 +6267,7 @@ val authoredRylween: RylweenModel =
                 encounter(Monsters.bandit, mandatory = true)
                 renderMap()
                 clearText()
-                readScreen {
+                showTextAndWait {
                     line("You find the cargo")
                     line("the ", character(Roles.banditsQuestGiver).job, " wanted")
                     line("you to bring him.")
@@ -6369,7 +6308,7 @@ val authoredRylween: RylweenModel =
 
             scene(Scenes.Missions.thunTemple) {
                 clearText()
-                readScreen {
+                showTextAndWait {
                     line("You stand before the")
                     line("ancient temple of Thun.")
                     line("Around you are the ruins")
@@ -6377,7 +6316,7 @@ val authoredRylween: RylweenModel =
                     line("of Thun...")
                     line("")
                 }
-                readScreen {
+                showTextAndWait {
                     line("You see an altar")
                     line("with five sockets before")
                     line("you. Each is roughly")
@@ -6398,7 +6337,7 @@ val authoredRylween: RylweenModel =
                     defaultOption('Y') {
                         whenever(party.inventory.count(ItemPools.thunAltarGems) lt 5) {
                             clearText()
-                            readScreen {
+                            showTextAndWait {
                                 line("You don't have five")
                                 line("different gems.")
                                 line("")
@@ -6406,7 +6345,7 @@ val authoredRylween: RylweenModel =
                         } otherwise {
                             party.inventory.consume(ItemPools.thunAltarGems, 5)
                             clearText()
-                            readScreen {
+                            showTextAndWait {
                                 line("With a resounding 'CRUNG'")
                                 line("the altar slides away")
                                 line("to reveal a dark pit.")
@@ -6493,7 +6432,7 @@ val authoredRylween: RylweenModel =
 
             scene(Scenes.Missions.skullweed) {
                 clearText()
-                showBackdrop(MissionImages.skullweedSwamp)
+                showBackdrop(Images.Mission.skullweedSwamp)
                 writeText(
                     "On the ground before you",
                     "grows the skullweed plant.",
@@ -6562,7 +6501,7 @@ val authoredRylween: RylweenModel =
                     "some dwarven treasures.",
                     "",
                 )
-                readScreen {
+                showTextAndWait {
                     line("- Nolrim's crypt is at")
                     line(location(Locations.nolrimCrypt).coordinates, ". Be careful, and")
                     line("fare the well.")
@@ -6661,7 +6600,7 @@ val authoredRylween: RylweenModel =
                             items(Items.mithrilMail)
                         }
                         party.member(2) { noteFinder ->
-                            readScreen {
+                            showTextAndWait {
                                 line("...There is however no")
                                 line("trace of the Foot. Just")
                                 line("as you are about to give")
@@ -6801,7 +6740,7 @@ val authoredRylween: RylweenModel =
                 encounter(Monsters.ridingHobgoblin, mandatory = true)
                 renderMap()
                 clearText()
-                readScreen {
+                showTextAndWait {
                     line("Before you kill the last")
                     line("hobgoblin you ask him")
                     line("about the key. The foul")
@@ -6897,17 +6836,12 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenState(Story.garth.bandits.accepted) {
-                        // POC of triple-quoted authoring: each source line maps to
-                        // one rendered line, indentation is stripped, trailing
-                        // blank stays as a visual spacer. Legacy comma-separated
-                        // vararg form (see other branches) still works unchanged.
                         writeText(
-                            """
-                        Find those bandits and
-                        bring my cargo back
-                        here. Then I'll pay you.
-
-                        """,
+                            flowText(
+                                """
+                                Find those bandits and bring my cargo back here. Then I'll pay you.
+                                """,
+                            ),
                         )
                         waitInput("after Garth accepted reminder")
                         clearText()
@@ -6936,15 +6870,14 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.nrimTo) {
                     whenState(Story.ranger.letter.none) {
-                        say(
-                            """
-                        - Greetings, adventurers.
-                        I have a mission for you.
-                        He hands you a letter.
-
-                        """,
+                        writeText(
+                            flowText(
+                                """
+                                - Greetings, adventurers. I have a mission for you. He hands you a letter.
+                                """,
+                            ),
                         )
-                        say {
+                        writeText {
                             line("- If you deliver this")
                             line("to my brother, ", character(Roles.rangerBrother).name, ",")
                             line("who lives ", character(Roles.rangerBrother).location, ",")
@@ -6967,7 +6900,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.areth) {
                     whenState(Story.fighter.priestBook.none) {
-                        say {
+                        writeText {
                             line("- Greetings. Once upon")
                             line("a time, I was a mighty")
                             line(character(Npcs.areth).job, ". Before I")
@@ -6979,7 +6912,7 @@ val authoredRylween: RylweenModel =
                             line("no use for this weapon")
                             line("")
                         }
-                        say {
+                        writeText {
                             line("anymore, and I will give")
                             line("it to you, if you do me a")
                             line("small favor. A ", character(Roles.priestWithBook).job)
@@ -6995,16 +6928,14 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenState(Story.fighter.priestBook.wizardRobbed) {
-                        say(
-                            """
-                        - Oh! Thank you!!!
+                        writeText(
+                            flowText(
+                                """
+                                - Oh! Thank you!!!
 
-                        He removes a floor board
-                        and gives you a WONDERFUL
-                        blade. It sparkles in
-                        the light!
-
-                        """,
+                                He removes a floor board and gives you a WONDERFUL blade. It sparkles in the light!
+                                """,
+                            ),
                         )
                         mark(Story.fighter.priestBook.fighterGrateful)
                         reward {
@@ -7019,7 +6950,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.nevaak) {
                     whenState(Story.fighter.priestBook.priestVisited) {
-                        say(
+                        writeText(
                             flowText(
                                 """
                             You persuade him to give you the book. After showing him your
@@ -7034,7 +6965,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.gorm) {
                     whenState(Story.fighter.priestBook.priestTold) {
-                        say {
+                        writeText {
                             line("When you mention the")
                             line("book, he nods and looks")
                             line("a bit embarrassed.")
@@ -7045,7 +6976,7 @@ val authoredRylween: RylweenModel =
                             line("ago...")
                             line("")
                         }
-                        say(
+                        writeText(
                             flowText(
                                 """
                             He quickly fled, but I know it's him, because he made
@@ -7054,7 +6985,7 @@ val authoredRylween: RylweenModel =
                             """,
                             ),
                         )
-                        say {
+                        writeText {
                             line("I don't know his")
                             line("whereabouts, but please")
                             line("find the book and")
@@ -7068,8 +6999,8 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.bernak) {
                     whenState(Story.silverKey.none) {
-                        say("- There is an item of", "great power, he hisses.", "")
-                        say(
+                        writeText("- There is an item of", "great power, he hisses.", "")
+                        writeText(
                             "- It is called the",
                             "SILVER KEY. It has taken",
                             "me many years of research",
@@ -7080,8 +7011,8 @@ val authoredRylween: RylweenModel =
                             "heart can enter'.",
                             "",
                         )
-                        say("- I fled for my life as", "horned creatures chased", "me through the woods.", "")
-                        say(
+                        writeText("- I fled for my life as", "horned creatures chased", "me through the woods.", "")
+                        writeText(
                             "I have an offer to make",
                             "thee. I will sell you",
                             "a map to the location of",
@@ -7097,10 +7028,10 @@ val authoredRylween: RylweenModel =
                                 pay(
                                     amount = lit(50_000),
                                     broke = {
-                                        say("- Sorry! 50,000! No more", "no less. Come back when", "you have the gold.", "")
+                                        writeText("- Sorry! 50,000! No more", "no less. Come back when", "you have the gold.", "")
                                     },
                                     ok = {
-                                        say {
+                                        writeText {
                                             line("He quietly slips you the")
                                             line("precious map. It")
                                             line("tells you that the Pit")
@@ -7124,7 +7055,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.tybalt) {
                     whenState(Story.erethor.lute.none) {
-                        say(
+                        writeText(
                             "- Rumor has it that",
                             "Erethor's Lute, a",
                             "musical instrument with",
@@ -7133,8 +7064,8 @@ val authoredRylween: RylweenModel =
                             "the realm.",
                             "",
                         )
-                        say("- Erethor is a mighty", "demon...", "")
-                        say(
+                        writeText("- Erethor is a mighty", "demon...", "")
+                        writeText(
                             "- I am a very poor man",
                             "myself, but I know of",
                             "the Cloak of Gods,",
@@ -7142,7 +7073,7 @@ val authoredRylween: RylweenModel =
                             "all armors. I will",
                             "",
                         )
-                        say(
+                        writeText(
                             "trade this information",
                             "if you find me Erethor's",
                             "Lute. One of Erethor's",
@@ -7153,7 +7084,7 @@ val authoredRylween: RylweenModel =
                             "the western peaks.",
                             "",
                         )
-                        say(
+                        writeText(
                             "- This may be a dangerous",
                             "mission for such a",
                             "small reward, but the",
@@ -7167,8 +7098,8 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenState(Story.erethor.lute.luteTaken) {
-                        say("You hand him the", "golden lute...", "")
-                        say(
+                        writeText("You hand him the", "golden lute...", "")
+                        writeText(
                             "- I can't believe you",
                             "actually made it!!!",
                             "- Now for my part of",
@@ -7177,7 +7108,7 @@ val authoredRylween: RylweenModel =
                             "once.",
                             "",
                         )
-                        say {
+                        writeText {
                             line("- Take this note here")
                             line("and seek out my friend")
                             line(character(Roles.minstrelCloak).name, ". He is also a")
@@ -7188,7 +7119,7 @@ val authoredRylween: RylweenModel =
                         journal {
                             line(character(Roles.minstrelCloak).name, " lives ", character(Roles.minstrelCloak).location, ".")
                         }
-                        say(
+                        writeText(
                             "- We used to travel",
                             "together, and he found",
                             "the Cloak in a long dead",
@@ -7199,14 +7130,14 @@ val authoredRylween: RylweenModel =
                             "note!",
                             "",
                         )
-                        say("He hands you a piece of", "paper and bids you", "farewell.", "")
+                        writeText("He hands you a piece of", "paper and bids you", "farewell.", "")
                         mark(Story.erethor.lute.noteReceived)
                     }
                 }
 
                 npc(Npcs.harry) {
                     whenState(Story.bracelets.thun.none) {
-                        say(
+                        writeText(
                             "- I have a map of the",
                             "road to the temple of",
                             "Thun! The legend says",
@@ -7216,16 +7147,16 @@ val authoredRylween: RylweenModel =
                             "destroy Baron Ydarg!",
                             "",
                         )
-                        say("- I will sell it to you", "for 10000 gold pieces!", "")
+                        writeText("- I will sell it to you", "for 10000 gold pieces!", "")
                         menu("(B)uy it", "(N)o thanks") {
                             option('B') {
                                 pay(
                                     amount = lit(10_000),
                                     broke = {
-                                        say("- Sorry! 10000! No more", "no less. Come back when", "you have the gold.", "")
+                                        writeText("- Sorry! 10000! No more", "no less. Come back when", "you have the gold.", "")
                                     },
                                     ok = {
-                                        say {
+                                        writeText {
                                             line("- Ok, here. He slowly")
                                             line("hands you an old map. It")
                                             line("tells you that the temple")
@@ -7249,7 +7180,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.marraga) {
                     whenState(Story.ranger.letter.accepted) {
-                        say(
+                        writeText(
                             "- OH! A message from my",
                             "brother! This is indeed",
                             "great news. I will give",
@@ -7257,7 +7188,7 @@ val authoredRylween: RylweenModel =
                             "delivering the letter!",
                             "",
                         )
-                        say("He produces a sparkling", "sword and wishes you a", "happy journey.", "")
+                        writeText("He produces a sparkling", "sword and wishes you a", "happy journey.", "")
                         reward {
                             items(Items.magicSword)
                             promptDrop(
@@ -7271,7 +7202,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.broth) {
                     whenState(Story.nymph.seeker.none) {
-                        say {
+                        writeText {
                             line("I heard that a")
                             line(character(Roles.wizardThreeTasks).job, " called ", character(Roles.wizardThreeTasks).name)
                             line("knows of the")
@@ -7284,7 +7215,7 @@ val authoredRylween: RylweenModel =
                             line("suited for this than I am.")
                             line("")
                         }
-                        say {
+                        writeText {
                             line(character(Roles.wizardThreeTasks).name, " lives")
                             line(character(Roles.wizardThreeTasks).location)
                             line("")
@@ -7299,7 +7230,7 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.gotharp) {
                     whenState(Story.silverKey.noteFound) {
                         mark(Story.silverKey.thiefSqueezed)
-                        say {
+                        writeText {
                             line("You push him up against")
                             line("a wall and start asking")
                             line("him questions. After")
@@ -7312,7 +7243,7 @@ val authoredRylween: RylweenModel =
                             line("structure.")
                             line("")
                         }
-                        say {
+                        writeText {
                             line("After breaking a few")
                             line("of his teeth, he also")
                             line("willingly reveals that")
@@ -7320,13 +7251,13 @@ val authoredRylween: RylweenModel =
                             line("name of ", character(Roles.silverKeySmith).name, "...")
                             line("")
                         }
-                        say("You let go of your grip", "of his collar, and he", "falls to the floor.", "")
+                        writeText("You let go of your grip", "of his collar, and he", "falls to the floor.", "")
                     }
                 }
 
                 npc(Npcs.ron) {
                     whenState(Story.peasant.wife.none) {
-                        say(
+                        writeText(
                             "- Oh, I'm so depressed.",
                             "Orcs have kidnapped my",
                             "wife, Tammy, and demand",
@@ -7335,7 +7266,7 @@ val authoredRylween: RylweenModel =
                             "if you retrieve her.",
                             "",
                         )
-                        say(
+                        writeText(
                             "About 3000 gold coins,",
                             "a fine armor, and",
                             "some strange items my",
@@ -7343,13 +7274,13 @@ val authoredRylween: RylweenModel =
                             "yours if you rescue her.",
                             "",
                         )
-                        say("The orcs have a cave", "at 42x23 in Lonewood.", "")
+                        writeText("The orcs have a cave", "at 42x23 in Lonewood.", "")
                         journal("The orc cavern is at 42x23.")
                         mark(Story.peasant.wife.accepted)
                     }
 
                     whenState(Story.peasant.wife.rescued) {
-                        say(
+                        writeText(
                             "When he sees Tammy enter",
                             "the room, he cries tears",
                             "of happiness and kisses",
@@ -7358,7 +7289,7 @@ val authoredRylween: RylweenModel =
                             "motions to you to follow.",
                             "",
                         )
-                        say(
+                        writeText(
                             "He hands you 3,000 gold,",
                             "an Adamantium Armor of",
                             "advanced craftsmanship",
@@ -7380,7 +7311,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.kaal) {
                     whenState(Story.erethor.lute.noteReceived) {
-                        say {
+                        writeText {
                             line("After reading the note")
                             line(character(Roles.minstrelCloak).name, " cries tears")
                             line("of happiness. He")
@@ -7396,7 +7327,7 @@ val authoredRylween: RylweenModel =
                                 pickedUp = "You take the cloak.",
                             )
                         }
-                        say {
+                        writeText {
                             line("He bids you farewell")
                             line("and tells you that")
                             line("he'll travel to")
@@ -7410,7 +7341,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.leander) {
                     whenState(Story.jazzy.ogre.none) {
-                        say(
+                        writeText(
                             "- ME HEAR YOU LOOK",
                             "FOR POWER ITEMS!",
                             "",
@@ -7419,7 +7350,7 @@ val authoredRylween: RylweenModel =
                             "FOOT OF JAZZY, YES?",
                             "",
                         )
-                        say(
+                        writeText(
                             "- LET US TRADE! OFFER",
                             "ITEM AND I'LL TELL YA!",
                             "",
@@ -7429,11 +7360,11 @@ val authoredRylween: RylweenModel =
                         ask.inventorySlot(literalText("Offer what?"), filter = InventorySlotChoiceFilter.NonEmpty) { slot ->
                             whenever(party.inventory.itemCost(slot) lt 35) {
                                 clearText()
-                                say("- NAH, THINK NOT!.")
+                                writeText("- NAH, THINK NOT!.")
                                 pause1s()
                             } otherwise {
                                 clearText()
-                                say {
+                                writeText {
                                     line("- YEEES! NICE NIICE!")
                                     line("GO TO CAVE AT ", location(Locations.beastCave).coordinates, "!")
                                     line("BEAST HAS THE FOOT.")
@@ -7454,7 +7385,7 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.ithienn) {
                     whenState(Story.nymph.seeker.told) {
                         whenever(Story.masterCrown.none) {
-                            say(
+                            writeText(
                                 "- Ah, a seeker! Yes, I",
                                 "know about the Master",
                                 "Crown, but since I'm",
@@ -7465,8 +7396,8 @@ val authoredRylween: RylweenModel =
                                 "three tasks for me.",
                                 "",
                             )
-                            say("(Since there is nothing", "else you can do,you agree", "to complete the three", "tasks).", "")
-                            say {
+                            writeText("(Since there is nothing", "else you can do,you agree", "to complete the three", "tasks).", "")
+                            writeText {
                                 line("- Firstly, I want you to")
                                 line("go to the kobold lair at")
                                 line(location(Locations.koboldVillage).coordinates, ", and kill all life")
@@ -7485,7 +7416,7 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenState(Story.masterCrown.task1Done) {
-                        say(
+                        writeText(
                             "You hand him the pendant.",
                             "He stares at you, almost",
                             "admiring.",
@@ -7494,7 +7425,7 @@ val authoredRylween: RylweenModel =
                             "quest.",
                             "",
                         )
-                        say(
+                        writeText(
                             "- Being a magician, I'm",
                             "always searching for",
                             "powerful spell reagents.",
@@ -7510,7 +7441,7 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenState(Story.masterCrown.task2Done) {
-                        say(
+                        writeText(
                             "- Well done again,",
                             "adventurers. The third",
                             "of my tasks will perhaps",
@@ -7521,7 +7452,7 @@ val authoredRylween: RylweenModel =
                             "which gives the wielder",
                             "the power of levitation.",
                         )
-                        say {
+                        writeText {
                             line("- Begin your search in")
                             line("the dwarven colony, near")
                             line(location(Locations.borinCamp).coordinates, ". Be sure to treat")
@@ -7537,7 +7468,7 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenState(Story.masterCrown.borinPaid) {
-                        say {
+                        writeText {
                             line("- I JUST CAN'T TELL YOU")
                             line("HOW GRATEFUL I AM!")
                             line("He takes the stone and")
@@ -7557,8 +7488,8 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.azaaza) {
                     whenState(Story.silverKey.thiefSqueezed) {
-                        say("You ask him if he still", "has the Key, prepared", "for the worst...", "")
-                        say(
+                        writeText("You ask him if he still", "has the Key, prepared", "for the worst...", "")
+                        writeText(
                             "- Nah, sorry. I kinda",
                             "studied it enough and",
                             "was gonna bring it to",
@@ -7568,7 +7499,7 @@ val authoredRylween: RylweenModel =
                             "filthy hobgoblins!",
                             "",
                         )
-                        say(
+                        writeText(
                             "- I managed to get away,",
                             "but they followed me! Just",
                             "to the south-west of here",
@@ -7576,7 +7507,7 @@ val authoredRylween: RylweenModel =
                             "my horse.",
                             "",
                         )
-                        say(
+                        writeText(
                             "- They clubbed me",
                             "unconscious and took all",
                             "my belongings!!! Including",
@@ -7591,7 +7522,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.marcus) {
                     whenState(Story.hermit.trollTooth.none) {
-                        say {
+                        writeText {
                             line("- Welcome, chosen ones!")
                             line("the ", character(Npcs.marcus).job, " cackles.")
                             line("- I know of the Fire")
@@ -7606,7 +7537,7 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenState(Story.hermit.trollTooth.extracted) {
-                        say {
+                        writeText {
                             line("You hand him the troll")
                             line("tooth.")
                             line("- Oh YES! He cackles.")

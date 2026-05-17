@@ -252,17 +252,17 @@ class ShopServiceBuilder(
     private val building: BuildingId,
 ) {
     var image: ImageId? = null
-    private var closedText: TextBlock = inlineText("Shop Closed.")
+    private var closedText: TextBlock = literalText("Shop Closed.")
     private var introText: TextBlock? = null
     private var menuText: TextBlock? = null
     private var keysModel: ShopMenuKeysModel = ShopMenuKeysModel()
-    private var goodbyeText: TextBlock = inlineText("Well, bye then...")
+    private var goodbyeText: TextBlock = literalText("Well, bye then...")
     private var buyModel: ShopBuyModel? = null
     private var sellModel: ShopSellModel? = null
     private var interludeModel: ShopInterludeModel? = null
 
     fun closed(vararg lines: String) {
-        closedText = inlineText(*lines)
+        closedText = literalText(*lines)
     }
 
     fun closed(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -270,7 +270,7 @@ class ShopServiceBuilder(
     }
 
     fun intro(vararg lines: String) {
-        introText = inlineText(*lines)
+        introText = literalText(*lines)
     }
 
     fun intro(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -278,7 +278,7 @@ class ShopServiceBuilder(
     }
 
     fun menu(vararg lines: String) {
-        menuText = inlineText(*lines)
+        menuText = literalText(*lines)
     }
 
     fun menu(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -290,7 +290,7 @@ class ShopServiceBuilder(
     }
 
     fun goodbye(vararg lines: String) {
-        goodbyeText = inlineText(*lines)
+        goodbyeText = literalText(*lines)
     }
 
     fun goodbye(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -374,7 +374,7 @@ class ShopInterludeBuilder(
     }
 
     fun offer(vararg lines: String) {
-        offerText = inlineText(*lines)
+        offerText = literalText(*lines)
     }
 
     fun offer(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -386,7 +386,7 @@ class ShopInterludeBuilder(
     }
 
     fun accepted(vararg lines: String) {
-        acceptedTexts += inlineText(*lines)
+        acceptedTexts += literalText(*lines)
     }
 
     fun accepted(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -398,7 +398,7 @@ class ShopInterludeBuilder(
     }
 
     fun declined(vararg lines: String) {
-        declinedText = inlineText(*lines)
+        declinedText = literalText(*lines)
     }
 
     fun declined(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -426,13 +426,13 @@ class ShopInterludeBuilder(
 class ShopBuyBuilder {
     private var promptText: TextBlock? = null
     private val catalogModels = mutableListOf<ShopCatalogModel>()
-    private var tooExpensiveText: TextBlock = inlineText("Too expensive!")
-    private var cantCarryText: TextBlock = inlineText("You cannot carry more.")
-    private var dealText: TextBlock = inlineText("Deal!")
+    private var tooExpensiveText: TextBlock = literalText("Too expensive!")
+    private var cantCarryText: TextBlock = literalText("You cannot carry more.")
+    private var dealText: TextBlock = literalText("Deal!")
     private var boughtText: TextBlock? = null
     private var unitPriceText: TextBlock? = null
     private var singlePriceText: TextBlock? = null
-    private var payPromptText: TextBlock = inlineText("(P)ay", "(N)one")
+    private var payPromptText: TextBlock = literalText("(P)ay", "(N)one")
     private var paymentKeysModel: ShopPurchaseKeysModel = ShopPurchaseKeysModel()
     private var applicationModel =
         RewardApplicationBuilder()
@@ -441,7 +441,7 @@ class ShopBuyBuilder {
             }.build()
 
     fun prompt(vararg lines: String) {
-        promptText = inlineText(*lines)
+        promptText = literalText(*lines)
     }
 
     fun prompt(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -449,15 +449,15 @@ class ShopBuyBuilder {
     }
 
     fun tooExpensive(vararg lines: String) {
-        tooExpensiveText = inlineText(*lines)
+        tooExpensiveText = literalText(*lines)
     }
 
     fun cantCarry(vararg lines: String) {
-        cantCarryText = inlineText(*lines)
+        cantCarryText = literalText(*lines)
     }
 
     fun deal(vararg lines: String) {
-        dealText = inlineText(*lines)
+        dealText = literalText(*lines)
     }
 
     fun bought(body: ShopTextBuilder.() -> Unit) {
@@ -473,7 +473,7 @@ class ShopBuyBuilder {
     }
 
     fun payPrompt(vararg lines: String) {
-        payPromptText = inlineText(*lines)
+        payPromptText = literalText(*lines)
     }
 
     fun paymentKeys(body: ShopPurchaseKeysBuilder.() -> Unit) {
@@ -540,7 +540,7 @@ class ShopCatalogBuilder(
     }
 
     fun intro(vararg lines: String) {
-        introText = inlineText(*lines)
+        introText = literalText(*lines)
     }
 
     fun resource(
@@ -552,7 +552,7 @@ class ShopCatalogBuilder(
         label: String? = null,
         price: ShopPriceModel = ShopPriceModel.ItemCost,
         zeroQuantityDeal: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly,
-        quantityPrompt: TextBlock = inlineText("How many? "),
+        quantityPrompt: TextBlock = literalText("How many? "),
         description: TextBlock? = null,
     ) {
         resource(inputKey(key), item, resource, cap, tooMany, label, price, zeroQuantityDeal, quantityPrompt, description)
@@ -567,7 +567,7 @@ class ShopCatalogBuilder(
         label: String? = null,
         price: ShopPriceModel = ShopPriceModel.ItemCost,
         zeroQuantityDeal: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly,
-        quantityPrompt: TextBlock = inlineText("How many? "),
+        quantityPrompt: TextBlock = literalText("How many? "),
         description: TextBlock? = null,
     ) {
         looseEntries +=
@@ -590,7 +590,7 @@ class ShopCatalogBuilder(
         label: String? = null,
         price: ShopPriceModel = ShopPriceModel.ItemCost,
         zeroQuantityDeal: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly,
-        quantityPrompt: TextBlock = inlineText("How many? "),
+        quantityPrompt: TextBlock = literalText("How many? "),
         description: StructuredTextBlockBuilder.() -> Unit,
     ) {
         resource(
@@ -616,7 +616,7 @@ class ShopCatalogBuilder(
         label: String? = null,
         price: ShopPriceModel = ShopPriceModel.ItemCost,
         zeroQuantityDeal: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly,
-        quantityPrompt: TextBlock = inlineText("How many? "),
+        quantityPrompt: TextBlock = literalText("How many? "),
         description: StructuredTextBlockBuilder.() -> Unit,
     ) {
         resource(
@@ -644,7 +644,7 @@ class ShopCatalogBuilder(
         vararg footerLines: String,
         body: ShopCatalogPageBuilder.() -> Unit,
     ) {
-        page(inlineText(*footerLines), body)
+        page(literalText(*footerLines), body)
     }
 
     fun build(): ShopCatalogModel =
@@ -757,7 +757,7 @@ class ShopSellBuilder {
     private val acceptedKindModels = mutableSetOf<ItemKind>()
     private val acceptedItemModels = mutableSetOf<ItemId>()
     private val rejectedItemModels = mutableSetOf<ItemId>()
-    private var wrongKindText: TextBlock = inlineText("Wrong kind.")
+    private var wrongKindText: TextBlock = literalText("Wrong kind.")
     private var offerText: TextBlock? = null
     private var declinedText: TextBlock? = null
     private var soldText: TextBlock? = null
@@ -766,7 +766,7 @@ class ShopSellBuilder {
     private var saleKeysModel: ShopSaleKeysModel = ShopSaleKeysModel()
 
     fun prompt(vararg lines: String) {
-        promptText = inlineText(*lines)
+        promptText = literalText(*lines)
     }
 
     fun acceptsKinds(vararg kinds: ItemKind) {
@@ -782,7 +782,7 @@ class ShopSellBuilder {
     }
 
     fun wrongKind(vararg lines: String) {
-        wrongKindText = inlineText(*lines)
+        wrongKindText = literalText(*lines)
     }
 
     fun offer(body: ShopTextBuilder.() -> Unit) {
@@ -790,11 +790,11 @@ class ShopSellBuilder {
     }
 
     fun declined(vararg lines: String) {
-        declinedText = inlineText(*lines)
+        declinedText = literalText(*lines)
     }
 
     fun sold(vararg lines: String) {
-        soldText = inlineText(*lines)
+        soldText = literalText(*lines)
     }
 
     fun saleKeys(body: ShopSaleKeysBuilder.() -> Unit) {

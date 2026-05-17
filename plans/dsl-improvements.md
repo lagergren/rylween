@@ -782,6 +782,110 @@ B1-B9 first-pass notes:
   The audit corrected current-facing `.dsl.kts` and authored `Op` wording in
   comments/plan/spec text and leaves the remaining implementation follow-ups
   tracked under I4b, I4e.3, I5, and I8a/I8b.
+- [x] I11. Straighten the current XP thresholds. Inconsistency found: the
+  authored `xpThresholds(...)` row was monotonic but not cadence-consistent
+  around level 10, and the index/level mapping was implicit. Fix applied:
+  current-game XP now keeps level 1 at index 1 with 0 XP, raises level 10 to a
+  smooth 60,000 XP point, and uses steadily widening high-level bands ending at
+  the existing 2,800,000 XP cap. `LevelingBuilder.xpThresholds` now documents
+  the index mapping and why runtimes consume an explicit compiled table instead
+  of deriving a hidden formula. Validation rejects non-positive level-1 mapping
+  and non-increasing level thresholds. Future formula work should add a typed
+  authoring model only when class-specific or multi-game progression needs it,
+  and should still compile to the explicit threshold table consumed by runtimes.
+- [x] I12. Move private image-id objects out of the current game authoring
+  surface. Inconsistency found: generated `Images.Static/Scene/Backdrop`
+  handles already existed, but encounter, portrait, castle, dungeon, and
+  mission image ids were hand-written as private Kotlin objects in
+  `RylweenGame.kt`. Fix applied: the catalog generator now recognizes
+  `Images.Encounter`, `Images.Portrait`, `Images.Castle`, `Images.Dungeon`,
+  and `Images.Mission` groups and emits their exact slugs, so game authoring
+  uses one generated image-handle mechanism instead of private Kotlin handle
+  objects.
+- [x] I13. Consolidate text display and prompt-building shapes. Inconsistency
+  found: current DSL code still has many near-equivalent text entry points:
+  `writeText`, `showTextAndWait`, `say`, compatibility `screen/readScreen`,
+  prompt builders with `vararg String`, prompt builders with
+  `StructuredTextBlockBuilder`, `literalText`, `structuredText`, `flowText`,
+  and implementation defaults still using `inlineText`. Fix applied:
+  `writeText(text)` is the canonical immediate display verb,
+  `showTextAndWait(text)` is the canonical write/wait/clear page verb, and
+  `literalText`/`structuredText`/`flowText` are the canonical text-data
+  constructors. `say`, script `screen`, and `readScreen` are now deprecated
+  compatibility bridges; the current game source no longer calls them.
+  Implementation defaults now use `literalText` rather than `inlineText`, and
+  open-coded structured-text builder calls were collapsed to `structuredText`
+  where the builder was not a specialized receiver. Ledger coverage now rejects
+  current-game `readScreen`, script `say`, legacy text constructors, and direct
+  triple-quoted prose passed to `writeText`; prose-shaped triple-quoted text
+  should enter through `flowText("""...""")` unless line breaks are intentional
+  structured layout rows. Remaining repeated `vararg`/structured prompt setter
+  boilerplate is tracked separately under I17/I19 so it can be collapsed by
+  builder family without removing useful domain method names.
+- [ ] I14. Add filtered non-interactive party-member selectors. Inconsistency
+  found: `MemberChoiceFilter` already exists for player prompts and battle has
+  `battle.randomAliveMember`, but non-combat authored scripts still sometimes
+  use fixed `party.member(3)` or `party.member(4)` for narration. This can name
+  a dead member or a missing member. Fix plan: add a reusable non-combat
+  selector such as `party.randomMember(MemberChoiceFilter.AliveOnly)` and
+  `party.firstMember(MemberChoiceFilter.AliveOnly)`, make its one-based vs.
+  zero-based index semantics explicit across normal and battle scripts, compile
+  it as a typed query rather than a stringly battle query, and replace the
+  Erethor Lute chamber hardcoded member references plus any similar narration
+  sites. Tests should cover dead/member-count edge cases.
+- [ ] I15. Unify reward and direct resource mutation vocabulary. Inconsistency
+  found: normal authored scripts can use `reward { gold(...); items(...) }`,
+  direct state slots such as `party.gold += ...`, inventory-pool consumption
+  helpers, and secret/debug-only `addGold(...)`. The runtime implementation
+  applies rewards through one compiled opcode, while some service/debug flows
+  still look like separate mechanisms to authors. Fix plan: document the
+  intended ownership split: `reward { ... }` for player-facing grants with
+  item-placement policy and messages, direct slot mutation for local mechanical
+  costs/damage, and `secrets { addGold(...) }` only for debug/sysop actions.
+  Add helper names or validation only where current authored content is using
+  the wrong layer; do not hide simple arithmetic costs behind rewards.
+- [ ] I16. Reorder the current game DSL into an author-first hierarchy.
+  Inconsistency found: the current file order is historically accreted, so
+  realm configuration, creation rules, progress/leveling, and other global
+  systems do not all appear before lower-level content. Fix plan: reorder
+  `RylweenGame.kt` conservatively into global identity/balance/progress,
+  presentation/layout, catalogs, systems, world/map, missions/scenes/dialogue,
+  and fixtures. Keep generated handle names stable and run bundle/ledger
+  equivalence checks so this is source readability only, not a content change.
+- [ ] I17. Audit repeated painful call shapes and collapse only real
+  duplication. Inconsistency found: builders repeat patterns like
+  `foo(vararg lines)`, `foo { line(...) }`, nullable `fooText` storage,
+  `TextLineSink` adapters, and repeated menu/prompt/key field groups. Fix plan:
+  inventory these shapes by builder family, add one or two shared internal
+  receiver helpers where they remove boilerplate without changing authoring
+  syntax, and leave explicit domain names when they carry different gameplay
+  meaning. Each cleanup should have a ledger test proving the current game
+  still emits the same prompt rows.
+- [x] I18. Document current mission chains. Inconsistency found: missions,
+  dialogue-started quest flags, random-step triggers, location handles, and
+  power-item unlocks were spread across the authored source and tests. Fix
+  applied: `docs/MISSIONS.md` now lists each current mission chain, trigger
+  style, main flags, coordinates or runtime-placement notes, rewards, and
+  unlocks, and calls out the hardcoded member-number narration debt tracked by
+  I14.
+- [ ] I19. Keep a near-duplicate mechanism register and retire split shapes
+  deliberately. Rule: if two DSL/runtime constructs do nearly the same thing but
+  differ in naming, owner, renderer, continuation behavior, or validation, add
+  the pair here before refactoring it. Known pairs to resolve:
+  `writeText`/`showTextAndWait`/`screen`/`readScreen`/`say` vs. reusable
+  `TextBlock` data; `inlineText`/`literalText`/`flowText`/`structuredText`
+  construction; one-key menu choices vs. string input prompts; manual/journal/
+  score/heroes popups vs. static screens and dynamic reports; `reward { ... }`
+  vs. direct party resource mutation vs. secret/debug `addGold`; prompt member
+  filters vs. battle-only random alive-member selection vs. hardcoded
+  `party.member(n)` narration; generated image handles vs. any private image-id
+  objects; authored command/key bindings vs. runtime-owned fallback defaults;
+  authored script loops vs. native runtime service loops; shop/menu/prompt
+  builder overload pairs that all assign `TextBlock` fields. Fix method: choose
+  one canonical owner and public name, keep a short compatibility bridge only
+  when it prevents churn, add validation or ledger coverage proving the old and
+  new forms compile to the same model, then remove the duplicate from current
+  game source before closing the entry.
 
 ### J. Optional non-JVM runtime productization
 

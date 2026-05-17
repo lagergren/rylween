@@ -41,6 +41,70 @@ The runtime contract is the compiled bundle, not the Kotlin DSL objects. This
 is what lets ANSI, bitmap, server, or future native runtimes share the same game
 content without importing the game source.
 
+## Current Hierarchy
+
+The top-level opening tags are nested like this in the current game source:
+
+```text
+rylween
+  content
+    metadata
+    limits
+    flags
+      story / encounter
+    visuals
+      images
+      staticScreens
+    layouts
+    terrain
+    terminal
+    worldMap
+      layer
+    realm
+      upkeep / camp / hunt / timeOfDay
+    items
+    itemPools
+    castles
+      castle
+        rooms / text / hooks
+    runtimeSystems
+      titleMenu / magic / inventoryUse / equipment / save / characterCreation
+      town / partyViews / wilderness / dungeons / commandHelp
+    gameProgress
+    winningConfiguration
+    leveling
+    characterCreation
+    rewards
+    monsters
+    combat
+    dungeons
+      event
+        script
+      scenario
+    towns
+    townSystem
+    missions
+      mission
+    scenes
+      scene
+    dialogue
+      npc
+        whenState
+  state / runtimeState / stateFixture
+    realm
+    locations
+    npcs
+    parties
+      party
+        resources / counters / flags / milestones / inventory / members / journal
+```
+
+Script bodies appear under `scene`, `dialogue` branches, spell and item-use
+effects, dungeon events, and castle hooks. Those bodies can use text/view
+actions, local control flow, prompts, state mutations, and child-session
+handoffs such as `encounter(...)`, `enterDungeon(...)`, `speak(...)`, or
+`shopService(...)`.
+
 ## Syntax Rules
 
 The DSL is hosted by Kotlin, but game authoring should read like structured game
@@ -49,7 +113,9 @@ notes:
 - Use generated handles such as `Items.fireWand`, `Scenes.Missions.bandits`,
   `Towns.thord`, and `Terrain.forest` instead of raw strings.
 - Put game prose in `writeText`, `showTextAndWait`, `literalText`,
-  `structuredText`, `flowText`, or runtime-system prompt rows.
+  `structuredText`, `flowText`, or runtime-system prompt rows. Use
+  `flowText("""...""")` for natural paragraphs that the renderer should wrap;
+  use literal line lists only when each row is an intentional menu or layout row.
 - Use block helpers such as `localInt { ... }`, `ask.member { ... }`,
   `ask.monsterAlive { ... }`, and `withCurrentCasterCost { ... }` instead of
   raw Kotlin temporaries in script bodies.
@@ -78,8 +144,11 @@ scene(Scenes.Missions.bandits) {
 }
 ```
 
-`say(...)` is still available as a dialogue-oriented alias. New non-dialogue
-scripts should use `writeText(...)` or `showTextAndWait(...)`.
+`writeText(...)` is the only normal script verb for text output.
+`showTextAndWait(...)` is the read-and-dismiss page verb: it writes text, waits
+for Return/Enter, and clears the text window. Historical aliases such as
+`say(...)`, `screen(...)`, and `readScreen(...)` remain only as compatibility
+bridges for old scripts.
 
 ## Adding Content
 
