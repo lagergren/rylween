@@ -146,9 +146,11 @@ scene(Scenes.Missions.bandits) {
 
 `writeText(...)` is the only normal script verb for text output.
 `showTextAndWait(...)` is the read-and-dismiss page verb: it writes text, waits
-for Return/Enter, and clears the text window. Historical aliases such as
-`say(...)`, `screen(...)`, and `readScreen(...)` remain only as compatibility
-bridges for old scripts.
+for Return/Enter, and clears the text window. Historical script aliases such as
+`say(...)`, text-output `screen(...)`, and `readScreen(...)` have been removed
+from the current authoring API; reusable/static screen declarations still use
+their own `screen(...)` builders under `visuals { staticScreens { ... } }` and
+`speak { textTables { ... } }`.
 
 ## Adding Content
 

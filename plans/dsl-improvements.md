@@ -433,9 +433,9 @@ Decisions from the first `RylweenGame.dsl.kts` pass:
 - First-pass speak dispatcher shape is `speak { standardConversation { ... } }`. It declares the reusable NPC selection, visited-bit recognition, branch-selection policy, C/Q/R/B top-level menu, L/M/P/N question submenu, well/weather/health chitchat roll, once-per-conversation rumour behavior, and the narrow native services the reusable runner needs. Game authors still provide per-NPC branch content in `dialogue { ... }` rather than writing the conversation loop.
 - Reusable speak text now has its own `speak { textTables { ... } }` shape for shared screens, chitchat prompt/reply tables, question reply tables, and town rumour rolls. This is intentionally separate from inline mission dialogue: table text is reusable system content, while one-off NPC quest branches can remain local structured blocks.
 - `SpeakSession` is the first reusable runtime runner for the standard conversation shape. It selects NPCs in the requested building at the current town from realized runtime placements, falls back to fixed character declarations when a fixture has not realized NPC state, marks per-party visited bits, automatically runs the first matching `dialogue { npc(...) { whenState(...) { ... } } }` branch before showing the reusable menu, runs C/Q/R/B plus L/M/P/N menus, resolves chitchat and question replies by NPC job, applies once-per-conversation rumour fallback, and filters standard town rumours with `excludeWhen(...)`. Dialogue branches execute through the same stateful script runner as town services, so rewards, flags, milestones, waits, and drop prompts can resume without replaying side effects. The service bridge can now run or resume the source `Speak` statement as a nested session, and service scripts can call `tellRumour()` to draw from the same standard rumour table. Runtime text rendering resolves role names, realized/fixed role locations, town names, and deterministic fuzzy town coordinates. Explicit branch leave-vs-menu control and richer rumour selection policy are still pending.
-- `screen(...)` is a script action; `line(...)` and `lines(...)` are reusable text-building extensions. `TextLineSink` is the shared receiver for structured text in screens, menus, rumours, shop prompts, random-item offers, dungeon entrance prompts, and other future text-bearing blocks, so helper-specific text builders should expose domain parts such as `itemName` or `price` without reimplementing their own line DSL. Reusable text tables use structured `lines { line(...) }` blocks when the content benefits from one line per source row, and `lines("...", "...")` as a compact equivalent for short exact reference rows. One-off literal `screen("...", "...")` remains authoring sugar that records the same structured text shape.
+- `writeText(...)` is the script action for text-window output, and `showTextAndWait(...)` is the write/wait/clear page action. `screen(...)` is reserved for reusable/static screen declarations such as static reports and speak text-table pages. `line(...)` and `lines(...)` are reusable text-building extensions. `TextLineSink` is the shared receiver for structured text in screens, menus, rumours, shop prompts, random-item offers, dungeon entrance prompts, and other future text-bearing blocks, so helper-specific text builders should expose domain parts such as `itemName` or `price` without reimplementing their own line DSL. Reusable text tables use structured `lines { line(...) }` blocks when the content benefits from one line per source row, and `lines("...", "...")` as a compact equivalent for short exact reference rows.
 - Dungeon entry is modeled as a generic `enterDungeon(Dungeons.*, levels = n)` script operation that a Kotlin/server/C backend can interpret as a runtime handoff. The repeated E/L prompt shape lives in the reusable DSL as `dungeonEntrance(...)`, while the game source supplies the dungeon handle, level count, and prompt text. Dungeon handoff now starts a `DungeonSession` that builds a fresh per-run level event table, and mission-triggered dungeon handoffs carry a post-dungeon script continuation so the original `clearMapWindow`/`renderMap` tail operations resume after leaving the dungeon. Those continuations now persist in strict runtime save snapshots when the active dungeon is saved.
-- Mission journal updates are now first-class script actions via `journal { ... }`. Authored scripts should use typed text refs such as `location(Locations.nolrimCrypt).coordinates` instead of placeholder strings like `{dx5}` or generated numeric binding tables. `readScreen(...)` is now a reusable DSL script verb meaning "show this screen, wait for input, clear text"; game-specific prose stays inline in the owning scene or branch unless it is reused as declared text.
+- Mission journal updates are now first-class script actions via `journal { ... }`. Authored scripts should use typed text refs such as `location(Locations.nolrimCrypt).coordinates` instead of placeholder strings like `{dx5}` or generated numeric binding tables. Use `showTextAndWait(...)` for "show this screen, wait for input, clear text"; game-specific prose stays inline in the owning scene or branch unless it is reused as declared text.
 - Character references in reusable text should point at semantic roles, not placeholder strings such as `{name15}` or `{loc15}`. The terminal renderer now resolves `character(Roles.crownSeer).name` and `.location` from compiled character declarations plus realized NPC placement state. The Kotlin runtime can now populate that state from fixed, random town-or-wilderness, and random-wilderness character declarations. Rumour handles are semantic and generated handles do not carry old switch positions or selection numbers. Rumours can also declare story-state exclusions, such as hiding the bandit-merchant rumour once `Story.garth.bandits` is recovered or closed.
 - Town declarations use generated `Towns.*` handles, e.g. `town(Towns.ollk) { name = "Ollk"; ... }`. The source scanner derives those handles from declaration usage, so authors do not maintain a handwritten catalog; slugs and dense ids remain compiler/runtime identities.
 - Town service availability and reusable building behavior are separate. `towns { ... services { inn(); tavern() } }` says which services a town offers; `townSystem { menu { ... } buildingServices { ... } }` says how the reusable town-entry loop maps keys to services, scenes, and opening hours. Current service hours are exact to `data/world.json5`: smith and merchant `6..18`, tavern `6..1`, inn/church always open.
@@ -474,7 +474,7 @@ Decisions from the first `RylweenGame.dsl.kts` pass:
 - Item records now describe what an item is: kind, display name, cost, storage behavior, and equipment combat values. They do not describe what using the item does.
 - Potion effects are authored as ordinary `itemUse(...)` scripts. Red Potion asks `Who?`, filters living members, consumes the active item, and heals HP; Blue Potion asks `Who?`, filters living members, consumes the active item, and applies poison damage/death state; Amber Potion asks `Who?`, filters spellcasters with alive acceptance, consumes the active item, and restores mana. A future Purple Potion should be added by declaring the item in `items { ... }` and adding an `itemUse(...) { inventory(); effect { ... } }` body, not by adding Kotlin enum cases or C/native branches.
 - Item use is wrapped in explicit metadata: usable contexts, consume policy, and an effect body. `InventoryItemUseSession` runs non-combat `itemUse(... Inventory ...)` scripts through the same resumable script machinery as service/mission flows, including `consumeActiveItem()` for the selected slot. The current battle magic items use reusable consume policies: most consume before use, while the resurrection gem is script-controlled so a failed living-member target can retry without consuming the item.
-- Text/screens have two paths: reusable records can stay as `TextId` handles, while one-off dialogue can be written inline as structured text blocks inside the owning dialogue/mission branch. Do not mint a global text or scene id just to hold a one-off NPC response. `screen` should stay the action that displays a `TextBlock`; `line`/`lines` should stay the shared construction vocabulary available to reusable text receivers. The Borin gift scene now uses inline text for its local narration.
+- Text/screens have two paths: reusable records can stay as `TextId` handles, while one-off dialogue can be written inline as structured text blocks inside the owning dialogue/mission branch. Do not mint a global text or scene id just to hold a one-off NPC response. `writeText` displays a `TextBlock`; `screen` declares reusable/static screen routes; `line`/`lines` stay the shared construction vocabulary available to reusable text receivers. The Borin gift scene now uses inline text for its local narration.
 - Reward bundles and scripted rewards now name item-placement semantics separately from loot membership. Standard battle uses first-free inventory slot placement and exact reference behavior `SkipIfInventoryFull`; scripted rewards use the same typed policy shape for overflow prompts without custom inventory loops in authored content. `RewardGrantSession` applies gold and slotted items, prompts for drop-slot overflow, resumes without replaying already-applied gold, and leaves special inventory projections to explicit milestone state such as `achieve(Milestones.silverKey)`. The Borin gift reward now grants gold and semantic gem handles without numeric ids.
 - Standard battle framework rules now carry the player/monster combat tunables from `data/world.json5`: attack hit bonus `1`, attack damage spread max `4`, confusion divisor `3`, attack HP divisor `12`, battle-cry weapon-skill penalty `4`, defend weapon-skill penalty `2`, defend rest threshold `5`, monster-melee hit bonus `1`, damage divisor `6`, damage spread max `9`, and damage minimum `1`. These are reusable Kotlin DSL/runtime rules, not game-specific custom battle loops.
 - `BattleSession` is the reusable combat runtime slice. It is backend-neutral: terminal, C, server, and future native adapters feed semantic inputs and render `TextBlock`s, while the session owns encounter allocation from authored monster tiers, seeded foe count and HP rolls, runtime mode, flee success/failure, mandatory-run denial, per-member action prompts, attack/defend/battle cry, mage spell choice and cost payment, combat item-use choice/use, monster melee/spell turns, party defeat, victory rewards, loot, and level-up application/narration. The game declaration keeps game-specific behavior author-facing: `standardBattle { ... }` declares reusable rules and prompt/menu text, `formulas { ... }` declares encounter/reward/level formulas, `monsters { ... }` declares this game's encounter catalog, and `spell(...)` / `itemUse(...)` blocks declare this game's effects and inline battle text. Combat script text now supports typed party/monster names and pronouns directly, so authored battle prose does not need placeholder strings.
@@ -525,7 +525,7 @@ B1-B9 first-pass notes:
 - [x] D4. NPC placement and visited state. DSL delta: content placement plus mutable `state { npcs { at(...) } visited(...) }`. Native decision: runtime coordinates and visited bitsets. Current game source status: character content distinguishes `randomPlacement()`, `fixed(...)`, `fixedNear(...)`, and `unplaced()`; `realizeNpcPlacements(...)` populates runtime NPC state from declarations; `SpeakSession` and text rendering consume realized placements; visited bits remain per party; authored map rows provide passable non-settlement wilderness points and project realized wilderness NPCs back into the runtime map as hut terrain. Broader NPC-placement/dialogue parity coverage belongs under H11.
 - [x] D5. Flags and story progress. DSL delta: typed flag families with explicit states and setters. Native decision: dense flag storage and save serialization. Runtime status: `mark(...)` mutates party flag state in `StatefulScriptBridge`, runtime/save-state validation checks declared flags, inferred transition graph validation rejects regressive same-flag transitions, and strict runtime snapshots persist party flag state.
 - [x] D6. Missions and triggers. DSL delta: `mission(...) { randomStep(percent = ...); at(...); onTerrain(...); requires(...); runs(...) }`. Native decision: trigger polling and typed op dispatch. Current runtime status: `WildernessSession` polls authored random-step, fixed-position, realized-location, and terrain missions after successful seeded movement, evaluates typed requirements, persists RNG only for active random mission rolls, and hands triggered scenes to the same resumable script bridge used by services. Authored mission content covers 17 current wilderness missions and seven dungeon-entry prompts/handoffs; mission-triggered dungeon handoffs resume their owning script after dungeon exit; mission-level scenarios cover the Kobold/Ogre/Jazzy/Hobgoblin completion chains.
-- [x] D7. Dialogue and chitchat. DSL delta: `speak { standardConversation { ... } textTables { ... } questionAction(...) { ... } }` plus `dialogue { npc(Npcs.garth) { whenState(...) { say(...) } } }`. Native decision: NPC lookup/visited bits, input, rendering, RNG, and text formatting stay narrow services behind a reusable runtime conversation runner. Current status: role-bearing quest NPCs have authored dialogue branches; the standard conversation shape owns C/Q/R/B and L/M/P/N menus, first-matching branch dispatch, visited recognition, chitchat/question replies, once-per-conversation rumour fallback, no-NPC/no-rumour fallback screens, and bargirl lodging as an authored question action. `SpeakSession` runs realized/fixed/wilderness NPC selection, visited-bit mutation, dialogue scripts, question-action scripts, seeded chitchat/rumour selection, role/town text rendering, and nested service continuations. Full branch parity coverage belongs under H11.
+- [x] D7. Dialogue and chitchat. DSL delta: `speak { standardConversation { ... } textTables { ... } questionAction(...) { ... } }` plus `dialogue { npc(Npcs.garth) { whenState(...) { writeText(...) } } }`. Native decision: NPC lookup/visited bits, input, rendering, RNG, and text formatting stay narrow services behind a reusable runtime conversation runner. Current status: role-bearing quest NPCs have authored dialogue branches; the standard conversation shape owns C/Q/R/B and L/M/P/N menus, first-matching branch dispatch, visited recognition, chitchat/question replies, once-per-conversation rumour fallback, no-NPC/no-rumour fallback screens, and bargirl lodging as an authored question action. `SpeakSession` runs realized/fixed/wilderness NPC selection, visited-bit mutation, dialogue scripts, question-action scripts, seeded chitchat/rumour selection, role/town text rendering, and nested service continuations. Full branch parity coverage belongs under H11.
 - [x] D8. Rumours. DSL delta: rumour tables with anonymous inline entries by default, semantic `Rumours.*` only for externally referenced/gated entries, role/town text refs, and optional `excludeWhen(...)` filters. Native decision: RNG selection plus filtering against typed party state; old C switch positions stay out of authoring. Current status: `RumourTables.standardTown` carries the current town-rumour content, authoring uses role/town refs rather than numeric selection ids or `{name15}` placeholders, `excludeWhen(...)` gates recovered/closed rumours, and seeded standard rumours render through the same terminal world-text resolver used by `SpeakSession` and `tellRumour()`. Richer rumour weighting/policy is future content polish, not D debt.
 - [x] D9. Retire or justify wilderness-only randomized NPC placement. Closed: the no-caller `RandomizedWilderness` model/runtime branch and compiled-loader support were removed. Wilderness-only generated placement is still expressible through a normal `randomPlacement { wilderness(...) }` policy if real authored content ever needs it, but there is no separate no-effect default authoring concept or compiled/runtime variant.
 
@@ -592,7 +592,7 @@ B1-B9 first-pass notes:
 - [x] I1. Whole-tree Kotlin idiom, duplication, and ownership sweep. Scope at the time: Kotlin under `src/main/kotlin`, the now-archived ANSI runtime, `runtime/src/main/kotlin`, `game/src/main/dsl`, and `src/test/kotlin`. Current status: closed for the diagnostic debt known at the time of the pass. Real dead code was removed from reward grants, inventory ops, script bindings/root helpers, speak rumours, wilderness/world-map commands, shop/town/runtime accessors, and terminal prompt helpers; Ydarg mandatory battle startup and pitfall damage were simplified; save-string quoting is shared between compatibility hashing and state snapshots; CLI startup handling now uses `runCatching`; duplicate line-terminal town/wilderness driver loops were collapsed into one adapter loop; intentional CLI `print`/`println` usage and authored Ydarg DSL surface are explicitly suppressed rather than left as bogus warnings; and `RylweenGame.dsl.kts` moved to `game/src/main/dsl` so IntelliJ no longer treats the authored script as an ignored Kotlin source-root file. `RylweenCompiledGame` is now generated into the `game` source set under its package path, so runtime/test source sets depend on the game output instead of carrying the compiled-game harness as their own generated source. Exit validation is now the active `./gradlew check --console=plain` graph plus `git diff --check`.
 - [x] I2. Runtime package/domain consolidation. Scope: make runtime ownership readable without merging everything into oversized files. Current status: root `rylween.runtime` now holds shared primitives only: live state/RNG, snapshots, command binding helpers, navigation/direction, inventory/equipment state ops, script bindings/continuations, typed expression evaluation, and common session input enums. Domain sessions moved into explicit packages: `runtime.battle`, `runtime.wilderness`, `runtime.dungeon`, `runtime.town`, `runtime.party`, `runtime.reward`, `runtime.score`, and `runtime.castle`. The stale empty `src/main/kotlin/rylween/game` source directory was removed; the generated compiled-game harness remains under `build/generated`. Shared cleanup landed with the move: wilderness/castle movement commands use one cardinal-direction helper, generic typed expression evaluation moved out of battle, flag state helpers moved out of speak, and parent-session status mapping for equipment, inventory item use, priest spell, and drop flows is centralized instead of repeated in wilderness/dungeon/castle.
 - [x] I3. Source naming and crawl-domain convergence. Scope: reduce redundant `Rylween*` source names now that package ownership is explicit, and decide which tiny files should merge by cohesive runtime role rather than historical port step. Current status: source filenames under `src/main/kotlin/rylween`, the now-archived ANSI runtime, `runtime/src/main/kotlin`, and `src/test/kotlin/rylween` now use package-local concept names such as `WildernessSession.kt`, `ShopSession.kt`, `TerminalFrontend.kt`, `RuntimeSave.kt`, and `DslValidationTest.kt` instead of repeating the project name. The temporary authored-script Kotlin file was removed after its remaining flows moved into `RylweenGame.dsl.kts`. Public type names are intentionally unchanged so API consumers do not need aliases. The castle terminal adapter moved through the normal terminal frontend package before the old host was archived; Ydarg remains authored castle/crawl content only, while existing shared movement command, child-session, save, script hook, and view helpers carry the common behavior. Tiny-file audit decision: command-binding files, save helpers, and session files remain separate when they represent one cohesive role; no merge is currently worth trading away locality. Exit validation is now the active compile/test/check graph.
-- [x] I4. Warning-driven cleanup pass across active source. Scope: inspect IDE/compiler warnings as design signals, not cosmetic noise. Current status: closed for the current warning surface. Real dead/stale warnings found during this pass were fixed or moved into smaller source files; remaining suppressions are intentional public DSL/API compatibility surface: script/menu/choice receivers, reward/random-offer authoring overloads, alternate combat input-binding overloads, the deprecated `flow(text, columns)` compatibility shim, secret/equipment prompt builders, and party prompt rows consumed through `runtimeSystems`. The remaining ktlint wildcard-import reports are existing file-level compatibility suppressions in broad model/compiler files, not new warnings introduced by this pass.
+- [x] I4. Warning-driven cleanup pass across active source. Scope: inspect IDE/compiler warnings as design signals, not cosmetic noise. Current status: closed for the current warning surface. Real dead/stale warnings found during this pass were fixed or moved into smaller source files; remaining suppressions are intentional public DSL/API compatibility surface: script/menu/choice receivers, reward/random-offer authoring overloads, alternate combat input-binding overloads, secret/equipment prompt builders, and party prompt rows consumed through `runtimeSystems`. The remaining ktlint wildcard-import reports are existing file-level compatibility suppressions in broad model/compiler files, not new warnings introduced by this pass.
   - [x] I4a. DSL unused-suppression audit. The current `core/src/main/kotlin/rylween/dsl/impl` sweep found no `data class` declarations suppressed as unused, and no implementation data class isolated to its own declaration file only. The actual unused suppressions are on authoring receiver/builder APIs in `Dsl.kt` plus the alternate `InputBindingModel` combat-action overloads in `CombatDsl.kt`; these are public DSL surface, not missing runtime data models.
   - [x] I4b. Narrow or remove broad DSL receiver suppressions before closing I4. Current status: removed broad `unused`/`MemberVisibilityCanBePrivate` suppressions from the equipment-kind prompt builder, character builder, formula builder, and wilderness prompt builder after their public DSL use was clear from current game authoring. Remaining suppressions are limited to the script/menu/choice kernel receivers, reward/random-offer authoring overloads, and generated/public prompt rows where the declaration is intentionally exposed for authored DSL syntax or compatibility coverage.
   - [x] I4c. Removed obvious Kotlin helper contamination from current game authoring. The visuals image table no longer declares local `fun` helpers inside `RylweenGame.kt`; reusable DSL helpers `ansiFullScreen`, `ansiMapWindow`, and `bitmapMapWindow` carry that repetition instead. Current `listOf(...)` calls in the game source were replaced with domain helpers such as `itemPools(...)` and `acceptedText(...)`. Remaining raw `val` script locals are tracked under I9 because they require source-script language work, not just cleanup.
@@ -617,21 +617,20 @@ B1-B9 first-pass notes:
   - [x] I8c. Game DSL text-shape rules. Current status: reusable text data now
     uses the preferred constructor vocabulary `literalText`, `structuredText`,
     and `flowText`; script display uses `writeText`; read-and-dismiss pages use
-    `showTextAndWait`; and `say` is documented as a dialogue-only alias. The
-    older `inlineText`, `textLines`, `flow`, `screen`, and `readScreen` names
-    remain compatibility aliases for implementation and migration code, but the
-    authored game source no longer uses the legacy constructor/read-screen names
-    or `screen` as a script text-write action.
+    `showTextAndWait`. The older `inlineText`, `textLines`, `flow`, text-output
+    `screen`, `say`, and `readScreen` aliases were retired by I19 after the
+    authored game source and implementation code stopped using them.
   - [x] I8c.1. Text display vocabulary cleanup. Audited the author-facing text
     constructor and display action surface (`inlineText`, `textLines`,
     `structuredText`, `flow`, `screen`, `say`, `readScreen`, `emit`, and related
     helpers) and settled on explicit names that distinguish text data from text
     display side effects. `TextDsl.kt` now documents literal/structured/flow
     data constructors, `ScriptScope` exposes `writeText` and
-    `showTextAndWait`, and the compiled/runtime model remains stable behind
-    compatibility aliases. The compiled-game ledger rejects legacy constructor
-    and read-screen vocabulary in current game authoring and keeps `screen(...)`
-    reserved for static/reusable screen declarations rather than script writes.
+    `showTextAndWait`, and the compiled/runtime model remains stable without
+    legacy display aliases. The compiled-game ledger rejects legacy constructor
+    and read-screen vocabulary in current game authoring, rejects the retired
+    alias functions in the authoring API, and keeps `screen(...)` reserved for
+    static/reusable screen declarations rather than script writes.
   - [x] I8c.2. Hard-wrapped prose cleanup. Converted the obvious manual
     26-column prose in realm fatigue/camp prompts, castle runtime text, title
     and utility prompts, and Castle Ydarg scene narration to `flowText` so
@@ -811,17 +810,19 @@ B1-B9 first-pass notes:
   `writeText(text)` is the canonical immediate display verb,
   `showTextAndWait(text)` is the canonical write/wait/clear page verb, and
   `literalText`/`structuredText`/`flowText` are the canonical text-data
-  constructors. `say`, script `screen`, and `readScreen` are now deprecated
-  compatibility bridges; the current game source no longer calls them.
+  constructors. I19 later retired `say`, script `screen`, `readScreen`,
+  `inlineText`, `textLines`, and old `flow` compatibility bridges after the
+  current game source and implementation code stopped calling them.
   Implementation defaults now use `literalText` rather than `inlineText`, and
   open-coded structured-text builder calls were collapsed to `structuredText`
   where the builder was not a specialized receiver. Ledger coverage now rejects
-  current-game `readScreen`, script `say`, legacy text constructors, and direct
-  triple-quoted prose passed to `writeText`; prose-shaped triple-quoted text
-  should enter through `flowText("""...""")` unless line breaks are intentional
-  structured layout rows. Remaining repeated `vararg`/structured prompt setter
-  boilerplate is tracked separately under I17/I19 so it can be collapsed by
-  builder family without removing useful domain method names.
+  current-game `readScreen`, script `say`, legacy text constructors, retired
+  alias functions in the authoring API, and direct triple-quoted prose passed to
+  `writeText`; prose-shaped triple-quoted text should enter through
+  `flowText("""...""")` unless line breaks are intentional structured layout
+  rows. Remaining repeated `vararg`/structured prompt setter boilerplate is
+  tracked separately under I17/I19 so it can be collapsed by builder family
+  without removing useful domain method names.
 - [x] I14. Add filtered non-interactive party-member selectors. Inconsistency
   found: `MemberChoiceFilter` already exists for player prompts and battle has
   `battle.randomAliveMember`, but non-combat authored scripts still sometimes
@@ -894,26 +895,67 @@ B1-B9 first-pass notes:
   style, main flags, coordinates or runtime-placement notes, rewards, and
   unlocks, and calls out the hardcoded member-number narration debt tracked by
   I14.
-- [ ] I19. Keep a near-duplicate mechanism register and retire split shapes
+- [x] I19. Keep a near-duplicate mechanism register and retire split shapes
   deliberately. Rule: if two DSL/runtime constructs do nearly the same thing but
   differ in naming, owner, renderer, continuation behavior, or validation, add
-  the pair here before refactoring it. Resolved pairs: I14 closed prompt member
-  filters vs. battle-only random alive-member selection vs. hardcoded
-  `party.member(n)` narration by adding typed filtered non-combat selectors;
-  I15 closed `reward { ... }` vs. direct player-facing resource gains vs.
-  secret/debug `addGold` by documenting ownership and adding current-game gain
-  helpers. Known pairs to resolve:
-  `writeText`/`showTextAndWait`/`screen`/`readScreen`/`say` vs. reusable
-  `TextBlock` data; `inlineText`/`literalText`/`flowText`/`structuredText`
-  construction; one-key menu choices vs. string input prompts; manual/journal/
-  score/heroes popups vs. static screens and dynamic reports; generated image
-  handles vs. any private image-id objects; authored command/key bindings vs.
-  runtime-owned fallback defaults; authored script loops vs. native runtime
-  service loops; shop/menu/prompt builder overload pairs that all assign
-  `TextBlock` fields. Fix method: choose one canonical owner and public name,
-  keep a short compatibility bridge only when it prevents churn, add validation
-  or ledger coverage proving the old and new forms compile to the same model,
-  then remove the duplicate from current game source before closing the entry.
+  the pair here before refactoring it. Resolved pairs: I13/I19 closed
+  `writeText`/`showTextAndWait`/text-output `screen`/`readScreen`/`say` vs.
+  reusable `TextBlock` data by making `writeText` the only normal text-output
+  script verb, `showTextAndWait` the read-and-dismiss page verb, and reserving
+  `screen(...)` for reusable/static screen declarations. I13/I19 also closed
+  `inlineText`/`textLines`/old `flow` vs. `literalText`/`flowText`/
+  `structuredText` by retiring the legacy constructor aliases after current
+  authoring stopped using them. I14 closed prompt member filters vs. battle-only
+  random alive-member selection vs. hardcoded `party.member(n)` narration by
+  adding typed filtered non-combat selectors. I15 closed `reward { ... }` vs.
+  direct player-facing resource gains vs. secret/debug `addGold` by documenting
+  ownership and adding current-game gain helpers. I12 closed generated image
+  handles vs. private image-id objects by generating all current image handle
+  groups. I8e/H16/J1b closed authored command/key bindings vs. runtime fallback
+  defaults by moving active command contracts into runtime-system rows while
+  keeping frontend key decoding and diagnostics host-owned. G5/G7/C8 closed
+  manual/journal/score/heroes popup overlap by classifying static resources,
+  runtime-backed reports, and the mutable party journal separately. I17 closed
+  the repeated random-offer/shop dynamic text-builder construction while keeping
+  domain row names explicit. Retired split shapes: script `screen`/`readScreen`/
+  `say` aliases and `inlineText`/`textLines`/`flow` aliases were removed from
+  the authoring API; ledger coverage rejects their return. Remaining similar
+  shapes are intentional: one-key choices and text-input prompts share compiled
+  continuation machinery but keep different input contracts; authored script
+  loops and native service loops both compile/execute looping behavior but live
+  at different ownership levels, with compiled script loops used for authored
+  control flow and domain runners used for reusable battle/shop/town/dungeon
+  state machines. Future duplicate-looking constructs should be registered here
+  before refactoring, but this item is closed for the current known set.
+- [ ] I20. Document the prompt/input taxonomy and add guardrails for future
+  prompt shapes. Follow-up discovered during I19: one-key menu choices, Y/N
+  helpers, member/inventory/monster pickers, and free-form text input all share
+  compiled continuation plumbing, but they should not collapse into one generic
+  "prompt" DSL because their validation, accepted inputs, UI affordances, and
+  resume payloads differ. Fix plan: add a concise table to
+  `docs/dsl-authoring.md` explaining when to use `menu`, `choice.yesNo`,
+  `choice.member`, `choice.inventorySlot`, `ask.monsterAlive`, and
+  `choice.textInput`; then add ledger coverage that new current-game prompt
+  forms are either in that taxonomy or explicitly documented before use.
+- [ ] I21. Document and guard authored script loops versus reusable domain
+  runner loops. Follow-up discovered during I19: both source-script `loop { ... }`
+  and runtime services such as shops, battles, towns, dungeons, and castles can
+  loop and block/resume, but they operate at different ownership levels. Fix
+  plan: document that source loops are authored control flow compiled into the
+  VM, while domain runners are host-owned state machines parameterized by
+  authored content/runtime-system rows. Add an architectural ledger check that
+  new runtime loops with player-facing text, menu policy, rewards, or balance
+  must consume existing authored models or introduce a new explicit model rather
+  than hardcoding those facts.
+- [ ] I22. Revisit repeated text-field setter overloads only when another
+  concrete edit creates real churn. Follow-up discovered during I17/I19: many
+  builders intentionally expose domain methods with matching
+  `vararg String`/structured-text overload pairs. The public method names should
+  remain domain-specific, but the implementation can still use shared private
+  helpers when repeated setter mechanics become noisy. Fix plan: on the next
+  prompt-builder change, either add a small internal helper/delegate for
+  assigning `TextBlock` fields, with row-equivalence tests, or explicitly record
+  why the duplicate is clearer left local.
 
 ### J. Optional non-JVM runtime productization
 
@@ -2006,7 +2048,7 @@ hosts should not re-enter the authored source interpreter in compiled mode.
 
 ## Landed: deferred-wrap `TextBlock.Flow` variant
 
-`flow(...)` now emits a deferred-wrap text variant instead of baking the classic
+`flowText(...)` emits a deferred-wrap text variant instead of baking the classic
 26-column ANSI text-window width into authored prose. The current model is:
 
 ```kotlin
@@ -2028,8 +2070,9 @@ runtime prompt rows. Renderers can now choose their own wrap discipline:
 - Browser/CSS: emit `<p>` tags and let the viewport flow.
 - Bitmap font: measure glyph advance widths and wrap pixel-by-pixel.
 
-Call-site syntax (`screen(flow("""..."""))`) did not change, so the existing
-migrations in `RylweenGame.kt` remain valid.
+Call-site syntax uses explicit constructors such as
+`writeText(flowText("""..."""))`, so authored prose names both the display
+action and the deferred-wrap text data.
 
 Still pending under this banner:
 
@@ -2040,7 +2083,7 @@ Still pending under this banner:
   default. A previous attempt at this broke verbatim-substring asserts in
   `RuntimeReplayPlanTest` for lines that are exactly 26 chars long
   ("The smith is disappointed."). The fix is either DSL-side shortening
-  via `flow`, or test assertions taught to tolerate wrapped output.
+  via `flowText`, or test assertions taught to tolerate wrapped output.
 
 ## Active: bitmap runtime polish and abstraction cleanup
 
