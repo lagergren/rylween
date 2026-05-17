@@ -231,22 +231,19 @@ fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = Str
  * are separated by blank lines in the source, and renderers wrap them at output
  * time using their own column or pixel measurement.
  */
-fun flowText(text: String): TextBlock {
-    val trimmed = text.trimIndent()
-    val paragraphs =
-        trimmed
-            .split(Regex("\\n\\s*\\n"))
-            .map { paragraph -> paragraph.trim().replace('\n', ' ') }
-            .filter(String::isNotEmpty)
-            .map { paragraph -> TextLine(listOf(TextPart.Literal(paragraph))) }
-    return TextBlock.Flow(paragraphs)
-}
+fun flowText(text: String): TextBlock = TextBlock.Flow(flowParagraphs(text))
+
+/** Creates a single deferred-wrap paragraph from literal and dynamic parts. */
+fun flowText(vararg parts: Any): TextBlock = TextBlock.Flow(listOf(TextLine(parts.map(::textPart))))
+
+/** Creates deferred-wrap text with multiple paragraphs and optional dynamic parts. */
+fun flowText(body: FlowTextBlockBuilder.() -> Unit): TextBlock = FlowTextBlockBuilder().apply(body).build()
 
 /**
  * Detection rule for triple-quoted multi-line authoring: if the caller
  * passed exactly one string, and it contains a newline, treat it as
  * `trimIndent().split("\n")`; otherwise behave like a normal vararg. This
- * keeps `writeText("a", "b")` and `writeText("simple sentence.")` unchanged.
+ * keeps `literalText("a", "b")` and `literalText("simple sentence.")` unchanged.
  */
 private fun expandMultiline(lines: Array<out String>): List<String> =
     if (lines.size == 1 && '\n' in lines[0]) {
@@ -313,6 +310,36 @@ class StructuredTextBlockBuilder : TextLineSink {
     }
 
     fun build(): TextBlock = TextBlock.Structured(lines.toList())
+}
+
+/** Builder for deferred-wrap prose paragraphs that may include dynamic text parts. */
+@RylNextDsl
+class FlowTextBlockBuilder {
+    private val paragraphs = mutableListOf<TextLine>()
+
+    /**
+     * Adds one paragraph. String newlines inside [parts] are normalized by the
+     * renderer, so use another [paragraph] call for intentional paragraph breaks.
+     */
+    fun paragraph(vararg parts: Any) {
+        paragraphs += TextLine(parts.map(::textPart))
+    }
+
+    /** Adds one or more literal paragraphs from triple-quoted prose. */
+    fun paragraphs(text: String) {
+        flowParagraphs(text).forEach(paragraphs::add)
+    }
+
+    fun build(): TextBlock = TextBlock.Flow(paragraphs.toList())
+}
+
+private fun flowParagraphs(text: String): List<TextLine> {
+    val trimmed = text.trimIndent()
+    return trimmed
+        .split(Regex("\\n\\s*\\n"))
+        .map { paragraph -> paragraph.trim().replace('\n', ' ') }
+        .filter(String::isNotEmpty)
+        .map { paragraph -> TextLine(listOf(TextPart.Literal(paragraph))) }
 }
 
 /** Text-placeholder helper for NPC name, job, and location. */

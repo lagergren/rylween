@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rylween Wilderness Perspective Tool</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="tool-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">R</div>
+        <div class="title">Wilderness Perspective Tool</div>
+      </div>
+      <div class="top-actions">
+        <span id="toolStatus" class="account-pill">Loading map</span>
+      </div>
+    </header>
+    <section class="tool-stage">
+      <canvas id="wildernessTool" width="960" height="640" tabindex="0" aria-label="Wilderness perspective map tool"></canvas>
+      <aside class="tool-panel">
+        <h2>Position</h2>
+        <label>
+          <span>X</span>
+          <input id="toolX" type="number" min="0" value="12">
+        </label>
+        <label>
+          <span>Y</span>
+          <input id="toolY" type="number" min="1" value="10">
+        </label>
+        <label>
+          <span>Facing</span>
+          <select id="toolFacing">
+            <option>North</option>
+            <option>East</option>
+            <option>South</option>
+            <option>West</option>
+          </select>
+        </label>
+        <label class="preference-check">
+          <input id="toolPerspective" type="checkbox" checked>
+          <span>3D view</span>
+        </label>
+        <p>Arrows walk. Shift+arrows rotate. Press 2 to switch 2D/3D.</p>
+      </aside>
+    </section>
+  </main>
+  <script src="/static/wilderness-perspective.js"></script>
+</body>
+</html>

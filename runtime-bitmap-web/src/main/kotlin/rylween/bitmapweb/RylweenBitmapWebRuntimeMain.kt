@@ -13,10 +13,12 @@ import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
 import rylween.compiled.toExternalBundleArtifact
+import rylween.dsl.impl.GridPoint
 import rylween.game.RylweenCompiledGame
 import rylween.runtime.RuntimeLog
 import rylween.runtime.RuntimeSessionConfig
 import rylween.runtime.RuntimeSessionFactory
+import rylween.runtime.WorldMap
 import rylween.webcommon.WebHttpRequest
 import rylween.webcommon.WebServerStatus
 import rylween.webcommon.WebSocketConnection
@@ -58,6 +60,7 @@ private val BITMAP_WEB_STATIC =
     mapOf(
         "styles.css" to ServedResource("bitmap-web/styles.css", "text/css; charset=utf-8"),
         "client.js" to ServedResource("bitmap-web/client.js", "application/javascript; charset=utf-8"),
+        "wilderness-perspective.js" to ServedResource("bitmap-web/wilderness-perspective.js", "application/javascript; charset=utf-8"),
     )
 private val BITMAP_ASSETS =
     mapOf(
@@ -407,12 +410,14 @@ private class BitmapWebServer(
         when (request.path) {
             "/" -> routeHome(socket, request, clientId)
             "/play" -> routePlayPage(socket, request, clientId)
+            "/tools/wilderness-perspective" -> routeWildernessPerspectiveTool(socket, request, clientId)
             "/login" -> routeLoginPage(socket, request, clientId)
             "/register" -> routeRegisterPage(socket, request, clientId)
             "/api/login" -> routeLogin(socket, request, clientId)
             "/api/register" -> routeRegister(socket, request, clientId)
             "/api/logout" -> routeLogout(socket, request, clientId)
             "/api/status" -> routeStatus(socket, request, clientId)
+            "/api/wilderness-perspective" -> routeWildernessPerspectiveData(socket, request, clientId)
             "/auth.css" -> serveCommonResource(socket, "auth.css", "text/css; charset=utf-8", clientId)
             "/healthz" -> {
                 serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
@@ -459,6 +464,27 @@ private class BitmapWebServer(
         }
         serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
         respondText(socket, "200 OK", "text/html; charset=utf-8", bitmapPageHtml())
+    }
+
+    private fun routeWildernessPerspectiveTool(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        if (config.authRequired && authenticatedAccount(request) == null) {
+            serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/login")
+            redirect(socket, "/login")
+            return
+        }
+        val bytes =
+            javaClass.classLoader.getResourceAsStream("bitmap-web/wilderness-perspective.html")?.use(InputStream::readBytes)
+                ?: run {
+                    serverLog.event("bitmap.http.response id=$clientId status=404 path=${request.path}")
+                    respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "tool not found\n")
+                    return
+                }
+        serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
+        respondBytes(socket, "text/html; charset=utf-8", bytes)
     }
 
     private fun routeLoginPage(
@@ -595,6 +621,43 @@ private class BitmapWebServer(
                 activeUsers = activeUsers.toList().sorted(),
             ).toJson()
         serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
+        respondText(socket, "200 OK", "application/json; charset=utf-8", body)
+    }
+
+    private fun routeWildernessPerspectiveData(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        if (config.authRequired && authenticatedAccount(request) == null) {
+            serverLog.event("bitmap.http.response id=$clientId status=401 path=${request.path}")
+            respondText(socket, "401 Unauthorized", "application/json; charset=utf-8", """{"error":"login required"}""")
+            return
+        }
+        val content = game.bundle.content
+        val mapRef = content.worldMaps.singleOrNull()?.id ?: error("wilderness perspective tool requires one world map")
+        val world = WorldMap.from(content, mapRef)
+        val requestedX = request.query["x"]?.toIntOrNull() ?: 12
+        val requestedY = request.query["y"]?.toIntOrNull() ?: 10
+        val point =
+            GridPoint(
+                x = requestedX.coerceIn(0, (world.width - 1).coerceAtLeast(0)),
+                y = requestedY.coerceIn(1, world.height.coerceAtLeast(1)),
+            )
+        val facing = request.query["facing"].toBitmapFacingOrDefault()
+        val viewport = world.bitmapViewport(point, content, config.mapTiles, config.tileSize)
+        val body =
+            jsonObject(
+                "start" to jsonObject("x" to "12", "y" to "10"),
+                "position" to jsonObject("x" to point.x.toString(), "y" to point.y.toString()),
+                "facing" to facing.name.json(),
+                "mapWidth" to world.width.toString(),
+                "mapHeight" to world.height.toString(),
+                "viewport" to viewport.toJson(),
+            )
+        serverLog.event(
+            "bitmap.http.response id=$clientId status=200 path=${request.path} perspective=${point.x},${point.y},${facing.name}",
+        )
         respondText(socket, "200 OK", "application/json; charset=utf-8", body)
     }
 
@@ -806,6 +869,10 @@ private fun streamServerLog(line: String) {
 }
 
 private fun serverLogValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+private fun String?.toBitmapFacingOrDefault(): BitmapWildernessFacing =
+    BitmapWildernessFacing.entries.firstOrNull { facing -> facing.name.equals(this, ignoreCase = true) }
+        ?: BitmapWildernessFacing.North
 
 private fun writeWebSocketHandshake(
     output: java.io.OutputStream,

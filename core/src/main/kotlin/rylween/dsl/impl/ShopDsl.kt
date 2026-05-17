@@ -265,12 +265,20 @@ class ShopServiceBuilder(
         closedText = literalText(*lines)
     }
 
+    fun closed(text: TextBlock) {
+        closedText = text
+    }
+
     fun closed(body: StructuredTextBlockBuilder.() -> Unit) {
         closedText = structuredText(body)
     }
 
     fun intro(vararg lines: String) {
         introText = literalText(*lines)
+    }
+
+    fun intro(text: TextBlock) {
+        introText = text
     }
 
     fun intro(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -291,6 +299,10 @@ class ShopServiceBuilder(
 
     fun goodbye(vararg lines: String) {
         goodbyeText = literalText(*lines)
+    }
+
+    fun goodbye(text: TextBlock) {
+        goodbyeText = text
     }
 
     fun goodbye(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -389,12 +401,12 @@ class ShopInterludeBuilder(
         acceptedTexts += literalText(*lines)
     }
 
-    fun accepted(body: StructuredTextBlockBuilder.() -> Unit) {
-        acceptedTexts += structuredText(body)
-    }
-
     fun accepted(text: TextBlock) {
         acceptedTexts += text
+    }
+
+    fun accepted(body: StructuredTextBlockBuilder.() -> Unit) {
+        acceptedTexts += structuredText(body)
     }
 
     fun declined(vararg lines: String) {
@@ -442,6 +454,10 @@ class ShopBuyBuilder {
 
     fun prompt(vararg lines: String) {
         promptText = literalText(*lines)
+    }
+
+    fun prompt(text: TextBlock) {
+        promptText = text
     }
 
     fun prompt(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -541,6 +557,10 @@ class ShopCatalogBuilder(
 
     fun intro(vararg lines: String) {
         introText = literalText(*lines)
+    }
+
+    fun intro(text: TextBlock) {
+        introText = text
     }
 
     fun resource(
@@ -769,6 +789,10 @@ class ShopSellBuilder {
         promptText = literalText(*lines)
     }
 
+    fun prompt(text: TextBlock) {
+        promptText = text
+    }
+
     fun acceptsKinds(vararg kinds: ItemKind) {
         acceptedKindModels += kinds
     }
@@ -783,6 +807,10 @@ class ShopSellBuilder {
 
     fun wrongKind(vararg lines: String) {
         wrongKindText = literalText(*lines)
+    }
+
+    fun wrongKind(text: TextBlock) {
+        wrongKindText = text
     }
 
     fun offer(body: ShopTextBuilder.() -> Unit) {

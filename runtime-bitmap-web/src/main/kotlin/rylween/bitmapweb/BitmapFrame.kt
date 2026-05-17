@@ -276,6 +276,7 @@ internal data class BitmapCommandHint(
 internal data class BitmapMap(
     val tileSize: Int,
     val rows: List<List<BitmapTile>>,
+    val perspective: BitmapPerspectiveSet? = null,
 ) {
     fun toJson(): String =
         jsonObject(
@@ -284,6 +285,7 @@ internal data class BitmapMap(
                 rows.joinToString(prefix = "[", postfix = "]") { row ->
                     row.joinToString(prefix = "[", postfix = "]") { tile -> tile.toJson() }
                 },
+            "perspective" to (perspective?.toJson() ?: "null"),
         )
 }
 
@@ -314,12 +316,12 @@ internal data class BitmapTile(
         )
 }
 
-private fun jsonObject(vararg entries: Pair<String, String>): String =
+internal fun jsonObject(vararg entries: Pair<String, String>): String =
     entries.joinToString(prefix = "{", postfix = "}") { (name, value) -> "${name.json()}:$value" }
 
-private fun List<String>.jsonArray(): String = joinToString(prefix = "[", postfix = "]") { value -> value.json() }
+internal fun List<String>.jsonArray(): String = joinToString(prefix = "[", postfix = "]") { value -> value.json() }
 
-private fun String.json(): String =
+internal fun String.json(): String =
     buildString {
         append('"')
         this@json.forEach { char ->

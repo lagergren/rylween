@@ -574,7 +574,7 @@ internal class BitmapRuntimeScreen(
     }
 }
 
-private fun WorldMap.bitmapViewport(
+internal fun WorldMap.bitmapViewport(
     center: GridPoint,
     content: CompiledContentBundle,
     tiles: Int,
@@ -585,6 +585,10 @@ private fun WorldMap.bitmapViewport(
         rows =
             viewport(center, tiles, tiles).map { row ->
                 row.map { cell -> cell.toBitmapTile(this, content) }
+            },
+        perspective =
+            buildBitmapWildernessPerspectiveSet(center) { point ->
+                bitmapTileAt(point, content, center = point == center)
             },
     )
 
@@ -653,12 +657,19 @@ private fun ExternalRuntimeTextBlock.renderBitmapDungeon(depth: Int): List<Strin
 private fun RuntimeMapCell.toBitmapTile(
     world: WorldMap,
     content: CompiledContentBundle,
+): BitmapTile = world.bitmapTileAt(point, content, center)
+
+internal fun WorldMap.bitmapTileAt(
+    point: GridPoint,
+    content: CompiledContentBundle,
+    center: Boolean,
 ): BitmapTile {
+    val terrain = terrainAt(point)
     val slug = terrain?.let { content.slug(it.id) } ?: "void"
     val waterMask =
         terrain
             ?.takeIf { terrain -> terrain.isBitmapWater(content) }
-            ?.let { waterMask(world, point, content) }
+            ?.let { waterMask(this, point, content) }
             ?: 0
     return BitmapTile(
         slug = slug,

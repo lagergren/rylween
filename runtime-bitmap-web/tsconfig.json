@@ -8,5 +8,8 @@
     "removeComments": false,
     "outDir": "build/generated/resources/bitmapWeb/bitmap-web"
   },
-  "files": ["src/main/resources/bitmap-web/client.ts"]
+  "files": [
+    "src/main/resources/bitmap-web/client.ts",
+    "src/main/resources/bitmap-web/wilderness-perspective.ts"
+  ]
 }
