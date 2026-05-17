@@ -927,7 +927,7 @@ B1-B9 first-pass notes:
   control flow and domain runners used for reusable battle/shop/town/dungeon
   state machines. Future duplicate-looking constructs should be registered here
   before refactoring, but this item is closed for the current known set.
-- [ ] I20. Document the prompt/input taxonomy and add guardrails for future
+- [x] I20. Document the prompt/input taxonomy and add guardrails for future
   prompt shapes. Follow-up discovered during I19: one-key menu choices, Y/N
   helpers, member/inventory/monster pickers, and free-form text input all share
   compiled continuation plumbing, but they should not collapse into one generic
@@ -936,7 +936,14 @@ B1-B9 first-pass notes:
   `docs/dsl-authoring.md` explaining when to use `menu`, `choice.yesNo`,
   `choice.member`, `choice.inventorySlot`, `ask.monsterAlive`, and
   `choice.textInput`; then add ledger coverage that new current-game prompt
-  forms are either in that taxonomy or explicitly documented before use.
+  forms are either in that taxonomy or explicitly documented before use. Fix
+  applied: `docs/dsl-authoring.md` now has a Prompt And Input Taxonomy table
+  covering script menus, Y/N and short menu helpers, member/inventory/monster
+  pickers, digit/direction prompts, random item offers, and free-form text
+  input. The guide also calls out display-only text actions and runtime/domain
+  prompts as separate ownership areas. Ledger coverage now fails if a
+  current-game `choice.*` or `ask.*` prompt form appears without being listed in
+  that taxonomy.
 - [ ] I21. Document and guard authored script loops versus reusable domain
   runner loops. Follow-up discovered during I19: both source-script `loop { ... }`
   and runtime services such as shops, battles, towns, dungeons, and castles can

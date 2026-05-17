@@ -1851,6 +1851,70 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun promptInputTaxonomyStaysDocumented() {
+        val guide = File("docs/dsl-authoring.md").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+        val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val documentedPromptForms =
+            setOf(
+                "menu(...)",
+                "choice.yesNo(...)",
+                "choice.enterOrLeave(...)",
+                "choice.takeOrLeave(...)",
+                "choice.payNoThanks(...)",
+                "choice.randomItemOffer(...)",
+                "choice.member(...)",
+                "choice.inventorySlot(...)",
+                "choice.textInput(...)",
+                "ask.member(...)",
+                "ask.inventorySlot(...)",
+                "ask.monsterAlive(...)",
+                "ask.digit(...)",
+                "ask.wildernessDirection(...)",
+            )
+
+        check("Prompt And Input Taxonomy" in guide) {
+            "DSL authoring guide must document the prompt/input taxonomy"
+        }
+        documentedPromptForms.forEach { token ->
+            check(token in guide) {
+                "DSL authoring guide prompt taxonomy must document $token"
+            }
+        }
+        listOf(
+            "acceptedText(...)",
+            "MemberChoiceFilter",
+            "InventorySlotRef",
+            "input contract",
+            "runtimeSystems",
+            "owning domain runners",
+            "input prompts by themselves",
+        ).forEach { token ->
+            check(token in guide) {
+                "DSL authoring guide prompt taxonomy must explain $token"
+            }
+        }
+
+        val currentPromptForms =
+            Regex("""\b(?:choice|ask)\.[A-Za-z][A-Za-z0-9_]*\(""")
+                .findAll(gameDsl)
+                .map { match -> match.value.removeSuffix("(") + "(...)" }
+                .toSortedSet()
+        val undocumentedPromptForms = currentPromptForms - documentedPromptForms
+
+        check(undocumentedPromptForms.isEmpty()) {
+            "current-game prompt forms must be added to docs/dsl-authoring.md before use: " +
+                undocumentedPromptForms.joinToString()
+        }
+        check(
+            "- [x] I20. Document the prompt/input taxonomy" in planSource &&
+                "Prompt And Input Taxonomy" in planSource,
+        ) {
+            "plans/dsl-improvements.md must record I20 closeout"
+        }
+    }
+
+    @Test
     fun textDisplayDslUsesClearAuthoringVocabulary() {
         val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
         val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
