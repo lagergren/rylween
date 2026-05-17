@@ -837,17 +837,23 @@ B1-B9 first-pass notes:
   `party.randomMember(MemberChoiceFilter.AliveOnly)`. Runtime selector tests
   cover one-based filtering, dead-member exclusion, spellcaster filtering, random
   choice indexing, and the empty-match `0` fallback.
-- [ ] I15. Unify reward and direct resource mutation vocabulary. Inconsistency
+- [x] I15. Unify reward and direct resource mutation vocabulary. Inconsistency
   found: normal authored scripts can use `reward { gold(...); items(...) }`,
   direct state slots such as `party.gold += ...`, inventory-pool consumption
   helpers, and secret/debug-only `addGold(...)`. The runtime implementation
   applies rewards through one compiled opcode, while some service/debug flows
-  still look like separate mechanisms to authors. Fix plan: document the
-  intended ownership split: `reward { ... }` for player-facing grants with
-  item-placement policy and messages, direct slot mutation for local mechanical
-  costs/damage, and `secrets { addGold(...) }` only for debug/sysop actions.
-  Add helper names or validation only where current authored content is using
-  the wrong layer; do not hide simple arithmetic costs behind rewards.
+  still looked like separate mechanisms to authors. Fix applied:
+  `reward { ... }` is documented as the player-facing gold/inventory grant
+  vocabulary, `gainGold(...)` compiles simple player-facing gold finds through
+  that same reward opcode, and `gainTorches(...)`/`gainFood(...)` name simple
+  resource gains without exposing raw scalar increments in authored content.
+  Direct state slots remain appropriate for costs, damage, timers, counters, and
+  local mechanics; `pay(...)` remains the preferred gold-cost helper; and
+  `secrets { addGold(...) }` is documented as debug/sysop-only. Current dungeon
+  gold and torch finds now use the named gain helpers, while item-bearing mission
+  rewards still use `reward { ... }` with placement/drop policy. Ledger coverage
+  rejects direct current-game `party.gold +=`, `party.torches +=`, and
+  `party.food +=` player-facing increments.
 - [ ] I16. Reorder the current game DSL into an author-first hierarchy.
   Inconsistency found: the current file order is historically accreted, so
   realm configuration, creation rules, progress/leveling, and other global
@@ -875,21 +881,23 @@ B1-B9 first-pass notes:
 - [ ] I19. Keep a near-duplicate mechanism register and retire split shapes
   deliberately. Rule: if two DSL/runtime constructs do nearly the same thing but
   differ in naming, owner, renderer, continuation behavior, or validation, add
-  the pair here before refactoring it. Known pairs to resolve:
+  the pair here before refactoring it. Resolved pairs: I14 closed prompt member
+  filters vs. battle-only random alive-member selection vs. hardcoded
+  `party.member(n)` narration by adding typed filtered non-combat selectors;
+  I15 closed `reward { ... }` vs. direct player-facing resource gains vs.
+  secret/debug `addGold` by documenting ownership and adding current-game gain
+  helpers. Known pairs to resolve:
   `writeText`/`showTextAndWait`/`screen`/`readScreen`/`say` vs. reusable
   `TextBlock` data; `inlineText`/`literalText`/`flowText`/`structuredText`
   construction; one-key menu choices vs. string input prompts; manual/journal/
-  score/heroes popups vs. static screens and dynamic reports; `reward { ... }`
-  vs. direct party resource mutation vs. secret/debug `addGold`; prompt member
-  filters vs. battle-only random alive-member selection vs. hardcoded
-  `party.member(n)` narration; generated image handles vs. any private image-id
-  objects; authored command/key bindings vs. runtime-owned fallback defaults;
-  authored script loops vs. native runtime service loops; shop/menu/prompt
-  builder overload pairs that all assign `TextBlock` fields. Fix method: choose
-  one canonical owner and public name, keep a short compatibility bridge only
-  when it prevents churn, add validation or ledger coverage proving the old and
-  new forms compile to the same model, then remove the duplicate from current
-  game source before closing the entry.
+  score/heroes popups vs. static screens and dynamic reports; generated image
+  handles vs. any private image-id objects; authored command/key bindings vs.
+  runtime-owned fallback defaults; authored script loops vs. native runtime
+  service loops; shop/menu/prompt builder overload pairs that all assign
+  `TextBlock` fields. Fix method: choose one canonical owner and public name,
+  keep a short compatibility bridge only when it prevents churn, add validation
+  or ledger coverage proving the old and new forms compile to the same model,
+  then remove the duplicate from current game source before closing the entry.
 
 ### J. Optional non-JVM runtime productization
 

@@ -1795,7 +1795,7 @@ val authoredRylween: RylweenModel =
                                 line("You find ", amount)
                                 lines("gold pieces.", "")
                             }
-                            party.gold += amount
+                            gainGold(amount)
                             waitInput("after dungeon gold")
                             clearText()
                         }
@@ -1810,7 +1810,7 @@ val authoredRylween: RylweenModel =
                                 line("You find ", amount, " torches.")
                                 line("")
                             }
-                            party.torches += amount
+                            gainTorches(amount)
                             waitInput("after dungeon torches")
                             clearText()
                         }
@@ -1898,7 +1898,7 @@ val authoredRylween: RylweenModel =
                                                 line(goldAmount, " pieces of gold.")
                                                 line("")
                                             }
-                                            party.gold += goldAmount
+                                            gainGold(goldAmount)
                                             waitInput("after chest gold")
                                             clearText()
                                         }

@@ -576,9 +576,35 @@ class ScriptScope(
 
     fun consumeActiveItem(): Unit = record(ScriptStatementNode.ConsumeActiveItem)
 
+    /**
+     * Grants player-facing gold or inventory rewards.
+     *
+     * Use this for mission payoffs, found treasure, and gifts where the player
+     * is receiving something as content. Mechanical costs, damage, timers, and
+     * temporary counters should keep using the direct state slots that own those
+     * mechanics. Debug/sysop grants belong under `secrets { ... }`, not here.
+     */
     fun reward(body: ScriptRewardBuilder.() -> Unit) {
         record(ScriptStatementNode.GrantReward(ScriptRewardBuilder().apply(body).build()))
     }
+
+    fun gainGold(amount: IntExpr) {
+        reward { gold(amount) }
+    }
+
+    fun gainGold(amount: Int): Unit = gainGold(lit(amount))
+
+    fun gainTorches(amount: IntExpr) {
+        party.torches += amount
+    }
+
+    fun gainTorches(amount: Int): Unit = gainTorches(lit(amount))
+
+    fun gainFood(amount: IntExpr) {
+        party.food += amount
+    }
+
+    fun gainFood(amount: Int): Unit = gainFood(lit(amount))
 
     fun shopService(
         building: BuildingId,
@@ -610,7 +636,7 @@ class ScriptScope(
 /**
  * Builds a reward embedded inside a script statement.
  *
- * Designers use this from `grantReward { ... }` style blocks to describe gold,
+ * Designers use this from `reward { ... }` style blocks to describe gold,
  * items, inventory-overflow policy, and the player-facing text shown when an
  * item must be dropped before the reward can be placed.
  */
@@ -1557,6 +1583,13 @@ class SecretPlayerBuilder(
         onKey(key, SecretActionModel.AddTimeLeft(amount, refreshStatus))
     }
 
+    /**
+     * Debug/sysop-only gold grant bound to a secret key action.
+     *
+     * Normal authored rewards should use `reward { gold(...) }` or
+     * `gainGold(...)` so they compile through the same reward vocabulary used by
+     * mission and dungeon content.
+     */
     fun addGold(
         key: Char,
         amount: Int,
