@@ -179,6 +179,34 @@ dungeons, towns, command help, and global menus should live in their
 `runtimeSystems` rows or owning domain runners rather than in a generic script
 prompt shape.
 
+## Script Loops And Runtime Loops
+
+`loop { ... }` is authored script control flow. It lowers to
+`CompiledOpcode.Loop` and is appropriate for local scripted menus or repeated
+story/service branches that run inside a scene, dialogue branch, spell effect,
+item use, dungeon event, or castle hook. Leave it with `breakLoop(...)` when the
+authored branch is finished.
+
+Runtime mode loops are different. Wilderness/title, town, dungeon, castle,
+shop, and battle loops are host-owned state machines. They own live input
+cadence, rendering, save/load boundaries, RNG advancement, command help,
+targeting, catalog paging, room movement, and handoff to compiled script roots.
+They must consume authored text, menu bindings, formulas, rewards, balance
+constants, and policies from compiled content or `runtimeSystems` rows. If a
+new runtime loop needs player-facing text, menu policy, rewards, or balance
+data, add an explicit authored model/export row first instead of hardcoding
+those facts in runtime code.
+
+Use this split when deciding where a repeated flow belongs:
+
+- If it is a local branch in one authored scene or service script, use
+  `loop { ... }` and `breakLoop(...)`.
+- If it is a reusable gameplay mode with persistence, redraws, command help,
+  input cadence, random encounters, shops, battles, dungeons, castles, or town
+  services, keep the loop in runtime code and feed it from compiled rows.
+- If the loop belongs in runtime code but needs new game facts, model those
+  facts in the DSL before the runtime consumes them.
+
 ## Adding Content
 
 Add content in the matching `content { ... }` section of `RylweenGame.kt`.
