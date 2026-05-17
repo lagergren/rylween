@@ -137,6 +137,66 @@ body {
     padding: 12px;
 }
 
+.tool-shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.tool-stage {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 16px;
+    padding: 16px;
+}
+
+.tool-stage canvas {
+    width: min(100%, 960px);
+    max-height: calc(100vh - 92px);
+    justify-self: center;
+}
+
+.tool-panel {
+    align-self: start;
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid #5a6e47;
+    background: rgb(21 27 18 / 96%);
+    color: #f1ead6;
+    font-size: 13px;
+}
+
+.tool-panel h2 {
+    margin: 0;
+    font-size: 13px;
+    color: #d9cfaa;
+}
+
+.tool-panel label {
+    display: grid;
+    gap: 6px;
+    color: #d8cfb3;
+    font-weight: 700;
+}
+
+.tool-panel input,
+.tool-panel select {
+    width: 100%;
+    padding: 7px 8px;
+    border: 1px solid #4e6042;
+    background: #10150e;
+    color: #f1ead6;
+    font: inherit;
+}
+
+.tool-panel p {
+    margin: 0;
+    color: #bdb496;
+    line-height: 1.45;
+}
+
 canvas {
     width: min(100%, 1280px);
     max-height: calc(100vh - 86px);

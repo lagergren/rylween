@@ -375,8 +375,16 @@ class BattleTextBuilder(
         runCowardText = structuredText(body)
     }
 
+    fun runCoward(text: TextBlock) {
+        runCowardText = text
+    }
+
     fun runDesperateFail(body: StructuredTextBlockBuilder.() -> Unit) {
         runDesperateFailText = structuredText(body)
+    }
+
+    fun runDesperateFail(text: TextBlock) {
+        runDesperateFailText = text
     }
 
     fun runFailAway(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -395,8 +403,16 @@ class BattleTextBuilder(
         magicImmuneText = structuredText(body)
     }
 
+    fun magicImmune(text: TextBlock) {
+        magicImmuneText = text
+    }
+
     fun spellFizzle(body: StructuredTextBlockBuilder.() -> Unit) {
         spellFizzleText = structuredText(body)
+    }
+
+    fun spellFizzle(text: TextBlock) {
+        spellFizzleText = text
     }
 
     fun notEnoughMagic(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -407,12 +423,24 @@ class BattleTextBuilder(
         restGainHitsText = structuredText(body)
     }
 
+    fun restGainHits(text: TextBlock) {
+        restGainHitsText = text
+    }
+
     fun defendStance(body: StructuredTextBlockBuilder.() -> Unit) {
         defendStanceText = structuredText(body)
     }
 
+    fun defendStance(text: TextBlock) {
+        defendStanceText = text
+    }
+
     fun battleCry(body: StructuredTextBlockBuilder.() -> Unit) {
         battleCryText = structuredText(body)
+    }
+
+    fun battleCry(text: TextBlock) {
+        battleCryText = text
     }
 
     fun playerHit(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -453,6 +481,10 @@ class BattleTextBuilder(
 
     fun victoryBested(body: StructuredTextBlockBuilder.() -> Unit) {
         victoryBestedText = structuredText(body)
+    }
+
+    fun victoryBested(text: TextBlock) {
+        victoryBestedText = text
     }
 
     fun victoryEachSurvivor(body: StructuredTextBlockBuilder.() -> Unit) {

@@ -21,6 +21,7 @@ import rylween.dsl.TownHandle
 import rylween.dsl.ViewCommand
 import rylween.dsl.analyzeScriptSources
 import rylween.dsl.fallbackText
+import rylween.dsl.flowText
 import rylween.dsl.impl.CharacterCreationStat
 import rylween.dsl.impl.CharacterCreationStatRollModel
 import rylween.dsl.impl.CharacterPlacementModel
@@ -1046,7 +1047,7 @@ class RylweenCompiledGameLedgerTest {
         )
         check(
             nextDsl.prompts.inventoryUse.notUsable
-                .fallbackText() == "Nothing happens\nwith {selected_item_name}.",
+                .fallbackText() == "Nothing happens with {selected_item_name}.",
         )
         check(
             runtimeSystems.prompts.inventoryUse.invalidSlot.render { kind ->
@@ -1056,7 +1057,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             runtimeSystems.prompts.inventoryUse.notUsable.render { kind ->
                 if (kind == "selectedItemName") "Fire Wand" else null
-            } == listOf("Nothing happens", "with Fire Wand."),
+            } == listOf("Nothing happens with Fire Wand."),
         )
         check(
             nextDsl.prompts.party.journalEmpty
@@ -1110,7 +1111,7 @@ class RylweenCompiledGameLedgerTest {
                 "external runtime bundle must not ship stale prompt field $staleField"
             }
         }
-        check(nextDsl.prompts.equipment.readyArmors == literalText("Do you want to ready", "any armors before", "leaving?", ""))
+        check(nextDsl.prompts.equipment.readyArmors == flowText("Do you want to ready any armors before leaving?"))
         check(nextDsl.realm.upkeep.foodTickEvery == 5)
         check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
         check(
@@ -2048,8 +2049,8 @@ class RylweenCompiledGameLedgerTest {
         check(!Regex("""\bsay\s*[\({]""").containsMatchIn(gameDsl)) {
             "dialogue text should use writeText so speech is content, not a separate display action"
         }
-        check(!Regex("\\bwriteText\\(\\s*\"\"\"").containsMatchIn(gameDsl)) {
-            "triple-quoted prose should enter writeText through flowText unless it is an explicit structured line block"
+        check("fun writeText(text: String)" in scriptDsl && "fun showTextAndWait(text: String)" in scriptDsl) {
+            "script display actions must accept single-string prose and route it through deferred-wrap flow text"
         }
         check("screen(\"" !in gameDsl && "screen {" !in gameDsl) {
             "screen() should remain for static/reusable screen declarations, not script text writes"
@@ -2069,6 +2070,16 @@ class RylweenCompiledGameLedgerTest {
             pattern: String,
         ): Boolean = Regex(pattern).containsMatchIn(source)
 
+        fun deferredCallContains(text: String): Boolean {
+            val prosePattern =
+                text
+                    .split(Regex("\\s+"))
+                    .joinToString("\\s+") { part -> Regex.escape(part) }
+            return Regex(
+                """\b(flowText|writeText|showTextAndWait)\s*\([\s\S]{0,500}$prosePattern""",
+            ).containsMatchIn(gameDsl)
+        }
+
         listOf(
             "- Sorry. There's nothing new I can tell you.",
             "- Thanks, and the same to you!",
@@ -2079,8 +2090,8 @@ class RylweenCompiledGameLedgerTest {
             "The party feels their spirits grow. You are all stronger than before.",
             "You are served a well tasting dinner. Some of your health returns.",
         ).forEach { text ->
-            check(Regex("""\bflowText\s*\(\s*${Regex.escape("\"$text\"")}""").containsMatchIn(gameDsl)) {
-                "plain prose should use flowText in the game DSL: $text"
+            check(deferredCallContains(text)) {
+                "plain prose should use deferred-wrap text in the game DSL: $text"
             }
         }
         listOf(

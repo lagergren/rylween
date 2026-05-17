@@ -108,6 +108,8 @@ class ScriptScope(
 
     fun writeText(id: TextId): Unit = writeText(TextBlock.Ref(id))
 
+    fun writeText(text: String): Unit = writeText(flowText(text))
+
     fun writeText(vararg lines: String): Unit = writeText(literalText(*lines))
 
     fun writeText(body: StructuredTextBlockBuilder.() -> Unit): Unit = writeText(structuredText(body))
@@ -119,6 +121,10 @@ class ScriptScope(
      */
     fun showTextAndWait(vararg lines: String) {
         showTextAndWait(literalText(*lines))
+    }
+
+    fun showTextAndWait(text: String) {
+        showTextAndWait(flowText(text))
     }
 
     fun showTextAndWait(text: TextBlock) {
@@ -670,12 +676,20 @@ class RandomItemOfferBuilder(
         offerText = literalText(*lines)
     }
 
+    fun offer(text: TextBlock) {
+        offerText = text
+    }
+
     fun offer(body: RandomItemOfferTextBuilder.() -> Unit) {
         offerText = randomItemOfferText(body)
     }
 
     fun choicePrompt(vararg lines: String) {
         choicePromptText = literalText(*lines)
+    }
+
+    fun choicePrompt(text: TextBlock) {
+        choicePromptText = text
     }
 
     fun choicePrompt(body: RandomItemOfferTextBuilder.() -> Unit) {
@@ -702,12 +716,20 @@ class RandomItemOfferBuilder(
         brokeText = literalText(*lines)
     }
 
+    fun broke(text: TextBlock) {
+        brokeText = text
+    }
+
     fun broke(body: RandomItemOfferTextBuilder.() -> Unit) {
         brokeText = randomItemOfferText(body)
     }
 
     fun full(vararg lines: String) {
         messagesModel = messagesModel.copy(cantCarry = literalText(*lines))
+    }
+
+    fun full(text: TextBlock) {
+        messagesModel = messagesModel.copy(cantCarry = text)
     }
 
     fun full(body: RandomItemOfferTextBuilder.() -> Unit) {
@@ -738,12 +760,20 @@ class RandomItemOfferBuilder(
         dealText = literalText(*lines)
     }
 
+    fun deal(text: TextBlock) {
+        dealText = text
+    }
+
     fun deal(body: RandomItemOfferTextBuilder.() -> Unit) {
         dealText = randomItemOfferText(body)
     }
 
     fun declined(vararg lines: String) {
         declinedText = literalText(*lines)
+    }
+
+    fun declined(text: TextBlock) {
+        declinedText = text
     }
 
     fun declined(body: RandomItemOfferTextBuilder.() -> Unit) {
@@ -2133,6 +2163,10 @@ class PartyPromptsBuilder(
         dropDroppedText = SelectedItemPromptBuilder().apply(body).build()
     }
 
+    fun dropped(text: TextBlock) {
+        dropDroppedText = text
+    }
+
     fun build(): PartyPromptsModel =
         PartyPromptsModel(
             viewWho = viewWho,
@@ -2818,12 +2852,20 @@ class WildernessEventBuilder {
         caveFoundPromptText = literalText(*lines)
     }
 
+    fun caveFoundPrompt(text: TextBlock) {
+        caveFoundPromptText = text
+    }
+
     fun caveFoundPrompt(body: StructuredTextBlockBuilder.() -> Unit) {
         caveFoundPromptText = structuredText(body)
     }
 
     fun caveNoMoves(vararg lines: String) {
         caveNoMovesText = literalText(*lines)
+    }
+
+    fun caveNoMoves(text: TextBlock) {
+        caveNoMovesText = text
     }
 
     fun caveNoMoves(body: StructuredTextBlockBuilder.() -> Unit) {

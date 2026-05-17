@@ -1084,48 +1084,63 @@ contract, while the authored game remains portable JSON/data.
     `/assets/game-image/<id>` resources in the browser, and writes a screenshot
     report. It does not require a system-installed Chrome/Chromium or an
     unpacked resource tree beside the server install.
-  - [ ] K2. Optional pseudo-3D wilderness map view for the bitmap/browser
+  - [x] K2. Optional pseudo-3D wilderness map view for the bitmap/browser
     renderer. Scope: keep the existing tiled 2D wilderness map as the default
     and add a toggleable forward-facing presentation mode that consumes the same
     authored wilderness map terrain ids. The feature should be renderer/UI
     state first, not a gameplay rule: normal movement still uses current
     wilderness movement semantics, while a presentation facing direction
     controls only how the 3D view is projected unless a later design explicitly
-    makes facing part of saved game state.
-    - [ ] K2a. Build the projection test tool first. Given a world coordinate,
+    makes facing part of saved game state. Finished slice: bitmap frames now
+    carry server-computed projections for all four facings, the browser can
+    toggle 2D/3D wilderness display with `2`, Shift+arrow changes only display
+    facing, and `/tools/wilderness-perspective` loads the real authored map
+    outside Thord at 12x10 for isolated walking/rotation checks without a save
+    or party state.
+    - [x] K2a. Build the projection test tool first. Given a world coordinate,
       a facing direction, and a requested perspective grid/depth, produce an
       ordered list of visible terrain cells with world coordinates, relative
       forward/side offsets, terrain id, distance band, scale, destination
       rectangle, and z-order. Cover all four facings, map edges/out-of-bounds
       behavior, and a hand-checked terrain patch from the real wilderness map.
       This tool should not depend on browser rendering; it is the correctness
-      oracle for the later blitter.
-    - [ ] K2b. Define the bitmap terrain sprite set and asset policy. Generate
+      oracle for the later blitter. Implemented by `WildernessPerspective` and
+      `WildernessPerspectiveTest`; the standalone browser tool consumes the
+      same projection API rather than duplicating coordinate math.
+    - [x] K2b. Define the bitmap terrain sprite set and asset policy. Generate
       or draw bundled classpath images for each current terrain type, with a few
       coordinate-stable variants where variation improves the view. Assets must
       stay under the existing game resources / jar / Docker packaging path so a
-      server install does not need an unpacked image tree.
-    - [ ] K2c. Implement the pseudo-3D renderer as deterministic blitting, not
+      server install does not need an unpacked image tree. Closed as
+      deterministic transparent canvas sprites compiled into the served
+      TypeScript output; they are bundled in the runtime web jar/Docker image
+      and do not require an unpacked server-side asset tree.
+    - [x] K2c. Implement the pseudo-3D renderer as deterministic blitting, not
       a physics/3D engine. Use the K2a projection output, draw far-to-near,
       scale sprites by distance, and layer terrain silhouettes so nearer forest,
       mountain, town, and similar markers occlude farther ones naturally. Keep
       this isolated from the current 2D tile renderer so the two modes can be
       compared and toggled.
-    - [ ] K2d. Add semantic view-mode and facing controls. Use a wilderness
+    - [x] K2d. Add semantic view-mode and facing controls. Use a wilderness
       command binding such as `2` for 2D/3D toggle only after confirming it is
       unassigned in the current command table, and add Shift+direction browser
       input for rotating the presentation facing without moving the party.
       Preserve keyboard accessibility and keep the controls represented as
-      semantic actions rather than hardcoded browser-only key checks.
-    - [ ] K2e. Persist only the right state. Store the user's preferred map view
+      semantic actions rather than hardcoded browser-only key checks. Browser
+      implementation uses `2` as a display-local toggle in wilderness frames;
+      arrow keys still move, and Shift+arrow rotates the display without sending
+      runtime movement input.
+    - [x] K2e. Persist only the right state. Store the user's preferred map view
       mode in browser preferences. Treat facing as session/display state
       initialized from the last movement direction or a stable default unless
       playtesting shows it needs to survive save/load.
-    - [ ] K2f. Add visual acceptance coverage. Extend the bitmap browser smoke
+    - [x] K2f. Add visual acceptance coverage. Extend the bitmap browser smoke
       to toggle into 3D mode, rotate at least once, and prove the canvas changes
       while the same party/world coordinate remains unchanged. Include a
       screenshot artifact so terrain scale/overlap regressions are easy to
-      inspect.
+      inspect. The smoke also opens `/tools/wilderness-perspective`, verifies
+      the outside-Thord start position, Shift+arrow rotation, arrow walking, and
+      `2` toggling back to 2D.
 
 ## Complete migration inventory
 
@@ -2103,15 +2118,29 @@ runtime prompt rows. Renderers can now choose their own wrap discipline:
 - Browser/CSS: emit `<p>` tags and let the viewport flow.
 - Bitmap font: measure glyph advance widths and wrap pixel-by-pixel.
 
-Call-site syntax uses explicit constructors such as
-`writeText(flowText("""..."""))`, so authored prose names both the display
-action and the deferred-wrap text data.
+Call-site syntax now lets the author write `writeText("""...""")` and
+`showTextAndWait("""...""")` for plain prose; those overloads route through
+`flowText(...)` automatically. Dynamic prose can use
+`flowText("literal", character(...).name, "...")` or `flowText { paragraph(...)
+}` so role names, coordinates, selected item names, and other placeholders can
+still wrap at runtime without returning to hand-broken ANSI line arrays. Keep
+explicit `literalText(...)`, `line(...)`, or `lines(...)` only for true fixed
+layout: menus, ASCII diagrams, poetry/riddles with intentional line breaks,
+status tables, and short combat/token layouts.
 
-Still pending under this banner:
+Closed follow-up under this banner:
 
-- Apply the same wrap discipline to non-journal text-window writers
-  (interlude, shop catalog footer, NPC dialogue). Today these still
-  hard-truncate non-flow lines at column 26 in `RuntimeScreen.writeText`.
+- The authored game source has been swept beyond the first shop/conversation
+  pass: long single-string `writeText("...")` and `showTextAndWait("...")`
+  prose now uses triple-quoted flow text, long static `flowText("...")`
+  literals were converted or split, and dynamic prose uses `flowText(...)`
+  with typed placeholders. Remaining explicit `line(...)`/`lines(...)`
+  blocks are intentional fixed-layout cases such as menus/prompts, ASCII
+  diagrams, riddles/quoted notes, combat token layouts, short status strings,
+  and dynamic numeric layouts that control line breaks.
+
+Remaining follow-up:
+
 - Decide whether `writeText` should reserve a 1-column right margin by
   default. A previous attempt at this broke verbatim-substring asserts in
   `RuntimeReplayPlanTest` for lines that are exactly 26 chars long
@@ -2228,6 +2257,17 @@ Completed in this pass:
   boots Strong in the bitmap server, verifies the first browser canvas frame,
   samples representative compiled `/assets/game-image/<id>` resources, and
   writes a screenshot report.
+- Closed K2 with the optional bitmap wilderness perspective view: server frames
+  include all four forward-facing terrain projections, the browser toggles 2D/3D
+  with `2`, Shift+arrow rotates display facing without moving the party, and
+  `/tools/wilderness-perspective` walks/rotates outside Thord without save or
+  party state.
+- Broadened the deferred-wrap text sweep beyond direct script writes:
+  shop prose, conversation reply/rumor rows, mission scenes, and dynamic dialogue
+  can now use flow text with typed dynamic parts. A follow-up source scan
+  eliminated remaining long one-line prose literals; explicit line arrays left
+  in authored content are intentional fixed-layout cases such as menus,
+  riddles/quoted notes, combat token layouts, and numeric/status displays.
 - Verification completed with `./gradlew :game:test --tests
   rylween.RylweenCompiledGameLedgerTest :runtime:checkRuntimeFullPlaythrough
   --console=plain`, `./gradlew ktlintFormat --console=plain`,

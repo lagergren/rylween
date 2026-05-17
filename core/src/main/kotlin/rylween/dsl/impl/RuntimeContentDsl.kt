@@ -384,19 +384,19 @@ data class PriestSpellPromptsModel(
     val none: TextBlock = literalText("(N)one"),
     val noneKey: Char = 'N',
     val firstSpellKey: Char = 'A',
-    val mageCombatOnly: TextBlock = literalText("Sorry. Mage spells are", "combat-only."),
+    val mageCombatOnly: TextBlock = flowText("Sorry. Mage spells are combat-only."),
     val wrongClass: TextBlock = literalText("Wrong class."),
     val dead: TextBlock = literalText("Dead."),
     val invalidCaster: TextBlock = literalText("Not a party member."),
     val invalidSpell: TextBlock = literalText("Not possible."),
-    val noSpells: TextBlock = literalText("No priest spells are", "declared."),
+    val noSpells: TextBlock = flowText("No priest spells are declared."),
 )
 
 data class InventoryUsePromptsModel(
     val usePrompt: TextBlock = literalText("Use what?"),
     val quaff: TextBlock = literalText("Quaff what?"),
-    val noItems: TextBlock = literalText("You are not carrying", "anything."),
-    val noItem: TextBlock = literalText("There is nothing", "in that slot."),
+    val noItems: TextBlock = flowText("You are not carrying anything."),
+    val noItem: TextBlock = flowText("There is nothing in that slot."),
     val invalidSlot: TextBlock =
         structuredText {
             line("Inventory slot ", InventoryText.slotName)
@@ -425,8 +425,8 @@ data class EquipmentPromptsModel(
         structuredText {
             line("Equipped ", TextPart.SelectedItemName, ".")
         },
-    val readyWeapons: TextBlock = literalText("Do you want to ready", "some weapons before", "leaving?", ""),
-    val readyArmors: TextBlock = literalText("Do you want to ready", "some armors before", "leaving?", ""),
+    val readyWeapons: TextBlock = flowText("Do you want to ready some weapons before leaving?"),
+    val readyArmors: TextBlock = flowText("Do you want to ready some armors before leaving?"),
 )
 
 data class TownPromptsModel(
@@ -449,7 +449,7 @@ data class PartyPromptsModel(
             line("You drop the")
             line(TextPart.SelectedItemName, ".")
         },
-    val dropCapacityReduced: TextBlock = literalText("You are forced to", "leave some of your", "food behind..."),
+    val dropCapacityReduced: TextBlock = flowText("You are forced to leave some of your food behind..."),
     val dropOverflowConfirm: TextBlock = literalText("Drop an item? (Y/N)"),
     val dropOverflowPrompt: TextBlock = literalText("Drop which item?", "RETURN leaves."),
 )
