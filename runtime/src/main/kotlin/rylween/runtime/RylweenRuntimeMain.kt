@@ -638,7 +638,7 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches(RuntimeCommandActionId.Enter, command) -> {
-                            val entered = enterLocation(runtime, loopContext)
+                            val entered = enterLocation(runtime, world, loopContext)
                             runtime = entered
                             entered.currentMode == RuntimeMode.Wilderness
                         }
@@ -1432,6 +1432,7 @@ class GameRuntime private constructor(
 
     private fun enterLocation(
         runtime: RuntimeState,
+        world: WorldMap,
         context: RuntimeLoopContext,
     ): RuntimeState {
         val input = context.input
@@ -1439,7 +1440,7 @@ class GameRuntime private constructor(
         val screen = context.screen
         log.event("wilderness.enter position=${runtime.logPosition()}")
         val town = content.towns.firstOrNull { it.position == runtime.party.position }
-        if (town != null) return enterTown(runtime, input, screen, town, log)
+        if (town != null) return enterTown(runtime, world, input, screen, town, log)
         val castle = systems.castleRows.firstOrNull { castle -> castle.entry == runtime.party.position }
         if (castle != null) {
             log.event("wilderness.enter_castle castle=${castle.id}")
@@ -1456,6 +1457,7 @@ class GameRuntime private constructor(
 
     private fun enterTown(
         runtime: RuntimeState,
+        world: WorldMap,
         input: RuntimeInputPort,
         screen: RuntimeScreenPort,
         town: rylween.compiled.CompiledTown,
@@ -1484,7 +1486,7 @@ class GameRuntime private constructor(
         }
 
         var current = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
-        val taxResult = collectTownEntryTaxIfNeeded(current, input, screen, town, log) ?: return runtime
+        val taxResult = collectTownEntryTaxIfNeeded(current, world, input, screen, town, log) ?: return runtime
         current = taxResult.runtime
         var menuNotice = taxResult.noticeLines
 
@@ -1518,7 +1520,11 @@ class GameRuntime private constructor(
                 log.event("town.invalid_choice key=$choice")
                 continue
             }
-            if (command.action == TOWN_LEAVE_ACTION) return current.leaveTown()
+            if (command.action == TOWN_LEAVE_ACTION) {
+                val left = current.leaveTown()
+                screen.renderWilderness(left, world)
+                return left
+            }
             val service =
                 serviceEntries.firstOrNull { entry -> entry.command.action == command.action }?.service ?: continue
             log.event("town.service town=${slug(town.id)} building=${slug(service.building)}")
@@ -1536,6 +1542,7 @@ class GameRuntime private constructor(
 
     private fun collectTownEntryTaxIfNeeded(
         runtime: RuntimeState,
+        world: WorldMap,
         input: RuntimeInputPort,
         screen: RuntimeScreenPort,
         town: rylween.compiled.CompiledTown,
@@ -1555,6 +1562,7 @@ class GameRuntime private constructor(
             } ?: return null
         if (tax.leave.matches(choice)) {
             log.event("town.tax.leave town=${slug(town.id)} key=$choice")
+            screen.renderWilderness(runtime.leaveTown(), world)
             return null
         }
         val paid = runtime.withParty(runtime.party.withGold(runtime.party.resources.gold - amount))
@@ -2298,6 +2306,7 @@ internal class RuntimeInput(
         val chars = scripted ?: return null
         while (chars.isNotEmpty()) {
             val next = chars.removeFirst()
+            if (next == '\n' || next == '\r') return '\n'
             if (!next.isWhitespace()) return next.uppercaseChar()
         }
         return null

@@ -73,7 +73,7 @@ private const val BATTLE_LOOT_NAME = "battleLootName"
 private const val BATTLE_LEVEL_MEMBER_NAME = "battleLevelMemberName"
 private const val BATTLE_LEVELS_GAINED = "battleLevelsGained"
 private const val BATTLE_MESSAGE_PAGE_LINES = 4
-private const val BATTLE_VICTORY_PAGE_LINES = 9
+private const val BATTLE_VICTORY_PAGE_LINES = 7
 
 /** Result of a battle handoff. */
 internal data class BattleResult(
@@ -222,10 +222,9 @@ internal class BattleRunner(
             round++
         }
         val finished = encounter.finish()
-        showBattleMessages(
+        showBattleMessagesUntilReturn(
             messages = finished.messages,
             pageLines = BATTLE_VICTORY_PAGE_LINES,
-            delayMs = pacing.victoryPauseMs,
         )
         return BattleResult(finished.runtime)
     }
@@ -239,6 +238,39 @@ internal class BattleRunner(
         messages.chunked(pageLines).forEach { page ->
             screen.writeText(page)
             input.pause(delayMs)
+        }
+    }
+
+    /**
+     * Shows post-battle pages as blocking reward/summary screens.
+     *
+     * Ordinary combat narration can be timed, but the victory summary contains
+     * rewards, loot, and level-up information that the player must be able to
+     * read before the runtime returns to the previous exploration mode.
+     */
+    private fun showBattleMessagesUntilReturn(
+        messages: List<String>,
+        pageLines: Int,
+    ) {
+        if (messages.isEmpty()) return
+        messages.chunked(pageLines).forEach { page ->
+            val lines = page.withReturnPrompt()
+            screen.writeText(lines)
+            waitForReturn(lines)
+        }
+    }
+
+    /** Adds the authored return prompt while preserving normal text wrapping. */
+    private fun List<String>.withReturnPrompt(): List<String> =
+        pausePrompts?.let { prompts -> withPausePrompt(prompts) }
+            ?: (dropLastWhile(String::isBlank) + "" + "RETURN")
+
+    /** Ignores stray keys on post-battle pages until RETURN/ENTER is pressed. */
+    private fun waitForReturn(lines: List<String>) {
+        var choice = input.readCommand() ?: return
+        while (choice != '\n') {
+            if (choice == '!') screen.redrawCurrentView(lines)
+            choice = input.readCommand() ?: return
         }
     }
 

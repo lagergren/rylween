@@ -20,6 +20,7 @@ import rylween.compiled.ExternalRuntimeTextBlock
 /** Builds text-window pages for runtime party state. */
 internal object PartyPages {
     private const val TEXT_PAGE_LINES = 9
+    private const val PARTY_PAGE_NAVIGATION_HINT = "Left/Right browse pages, RETURN/ESC back"
 
     private fun partyPageViews(
         content: CompiledContentBundle,
@@ -61,20 +62,44 @@ internal object PartyPages {
         screen: RuntimeScreenPort,
         runtime: RuntimeState,
     ): Boolean {
-        val pauseLine = PausePrompts(systems.prompts).line()
+        val pages = partyPageViews(content, systems, runtime.party)
+        if (pages.isEmpty()) return true
         val creation = systems.characterCreation
-        return try {
-            partyPageViews(content, systems, runtime.party).forEach { page ->
+        var pageIndex = 0
+        try {
+            while (true) {
+                val page = pages[pageIndex]
                 val preview = page.memberIndex?.let { index -> creation?.partyPortraitPreview(content, runtime.party, index) }
                 screen.showCharacterPortrait(preview)
-                screen.showPartyPage(page, pauseLine)
-                if (input.readCommand() == null) return false
+                screen.showPartyPage(page, PARTY_PAGE_NAVIGATION_HINT)
+                when (input.readCommand()) {
+                    null -> return false
+                    '\n',
+                    RuntimeInputTokens.ESCAPE_COMMAND,
+                    -> return true
+                    '4',
+                    '8',
+                    -> pageIndex = previousPageIndex(pageIndex, pages.size)
+                    '6',
+                    '2',
+                    -> pageIndex = nextPageIndex(pageIndex, pages.size)
+                }
             }
-            true
         } finally {
             screen.showCharacterPortrait(null)
         }
+        return true
     }
+
+    private fun previousPageIndex(
+        index: Int,
+        count: Int,
+    ): Int = (index + count - 1) % count
+
+    private fun nextPageIndex(
+        index: Int,
+        count: Int,
+    ): Int = (index + 1) % count
 
     private fun partySummaryPage(party: PartyState): List<String> =
         listOf(

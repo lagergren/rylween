@@ -226,64 +226,66 @@ val authoredRylween: RylweenModel =
                     ansiMapWindow(Images.Scene.wildernessNoTent, "tiles/wilderness-no-tent.ans")
                     ansiMapWindow(Images.Scene.towneGuild, "tiles/towne-guild.ans")
 
-                    bitmapMapWindow(Images.Scene.ydargCastle, "bitmap/assets/scene-ydarg-castle.png")
-                    bitmapMapWindow(Images.Scene.tent, "bitmap/assets/scene-camp-tent.png")
-                    bitmapMapWindow(Images.Scene.battleVictory, "bitmap/assets/scene-battle-victory.png")
-                    bitmapMapWindow(Images.Scene.encounterBanner1, "bitmap/assets/monster-goblinoid.png")
-                    bitmapMapWindow(Images.Scene.encounterBanner2, "bitmap/assets/monster-flying.png")
-                    bitmapMapWindow(Images.Scene.encounterBanner3, "bitmap/assets/monster-undead.png")
-                    bitmapMapWindow(Images.Scene.encounterBanner4, "bitmap/assets/monster-beast.png")
-                    bitmapMapWindow(Images.Scene.encounterBanner5, "bitmap/assets/monster-vermin.png")
-                    bitmapMapWindow(Images.Encounter.goblinoid, "bitmap/assets/monster-goblinoid.png")
-                    bitmapMapWindow(Images.Encounter.undead, "bitmap/assets/monster-undead.png")
-                    bitmapMapWindow(Images.Encounter.beast, "bitmap/assets/monster-beast.png")
-                    bitmapMapWindow(Images.Encounter.flying, "bitmap/assets/monster-flying.png")
-                    bitmapMapWindow(Images.Encounter.vermin, "bitmap/assets/monster-vermin.png")
-                    bitmapMapWindow(Images.Encounter.brute, "bitmap/assets/monster-brute.png")
-                    bitmapMapWindow(Images.Encounter.humanoidMagic, "bitmap/assets/monster-humanoid-magic.png")
-                    bitmapMapWindow(Images.Encounter.boss, "bitmap/assets/monster-boss.png")
-                    bitmapMapWindow(Images.Scene.cave, "bitmap/assets/scene-cave-entrance.png")
-                    bitmapMapWindow(Images.Scene.insideCave, "bitmap/assets/scene-cave-interior.png")
-                    bitmapMapWindow(Images.Scene.church, "bitmap/assets/scene-church.png")
-                    bitmapMapWindow(Images.Scene.smith, "bitmap/assets/scene-smith.png")
-                    bitmapMapWindow(Images.Scene.inn, "bitmap/assets/scene-inn.png")
-                    bitmapMapWindow(Images.Scene.merchant, "bitmap/assets/scene-merchant.png")
-                    bitmapMapWindow(Images.Scene.tavern, "bitmap/assets/scene-tavern.png")
-                    bitmapMapWindow(Images.Scene.hut, "bitmap/assets/scene-wilderness-hut.png")
-                    bitmapMapWindow(Images.Scene.death, "bitmap/assets/scene-death.png")
-                    bitmapMapWindow(Images.Scene.towneMainstreet, "bitmap/assets/scene-thord-mainstreet.png")
-                    bitmapMapWindow(Images.Scene.wildernessNoTent, "bitmap/assets/scene-camp-night.png")
-                    bitmapMapWindow(Images.Scene.towneGuild, "bitmap/assets/scene-guild-closed.png")
-                    bitmapMapWindow(Images.Dungeon.chest, "bitmap/assets/scene-dungeon-chest.png")
-                    bitmapMapWindow(Images.Dungeon.trap, "bitmap/assets/scene-dungeon-trap.png")
-                    bitmapMapWindow(Images.Castle.treasure, "bitmap/assets/scene-dungeon-chest.png")
-                    bitmapMapWindow(Images.Castle.pitfall, "bitmap/assets/scene-dungeon-trap.png")
-                    bitmapMapWindow(Images.Castle.jaaraGate, "bitmap/assets/scene-jaara-gate.png")
-                    bitmapMapWindow(Images.Castle.stairsGuardians, "bitmap/assets/scene-castle-stairs-guardians.png")
-                    bitmapMapWindow(Images.Mission.skullweedSwamp, "bitmap/assets/scene-skullweed-swamp.png")
+                    bitmapMapWindow(Images.Scene.ydargCastle, "bitmap/assets/scenes/scene-ydarg-castle.png")
+                    bitmapMapWindow(Images.Scene.tent, "bitmap/assets/scenes/scene-camp-tent.png")
+                    bitmapMapWindow(Images.Scene.battleVictory, "bitmap/assets/scenes/scene-battle-victory.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner1, "bitmap/assets/monsters/monster-goblinoid.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner2, "bitmap/assets/monsters/monster-flying.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner3, "bitmap/assets/monsters/monster-undead.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner4, "bitmap/assets/monsters/monster-beast.png")
+                    bitmapMapWindow(Images.Scene.encounterBanner5, "bitmap/assets/monsters/monster-vermin.png")
+                    bitmapMapWindow(Images.Encounter.goblinoid, "bitmap/assets/monsters/monster-goblinoid.png")
+                    bitmapMapWindow(Images.Encounter.undead, "bitmap/assets/monsters/monster-undead.png")
+                    bitmapMapWindow(Images.Encounter.beast, "bitmap/assets/monsters/monster-beast.png")
+                    bitmapMapWindow(Images.Encounter.flying, "bitmap/assets/monsters/monster-flying.png")
+                    bitmapMapWindow(Images.Encounter.vermin, "bitmap/assets/monsters/monster-vermin.png")
+                    bitmapMapWindow(Images.Encounter.brute, "bitmap/assets/monsters/monster-brute.png")
+                    bitmapMapWindow(Images.Encounter.humanoidMagic, "bitmap/assets/monsters/monster-humanoid-magic.png")
+                    bitmapMapWindow(Images.Encounter.boss, "bitmap/assets/monsters/monster-boss.png")
+                    bitmapMapWindow(Images.Scene.cave, "bitmap/assets/scenes/scene-cave-entrance.png")
+                    bitmapMapWindow(Images.Scene.insideCave, "bitmap/assets/scenes/scene-cave-interior.png")
+                    bitmapMapWindow(Images.Scene.church, "bitmap/assets/scenes/scene-church.png")
+                    bitmapMapWindow(Images.Scene.smith, "bitmap/assets/scenes/scene-smith.png")
+                    bitmapMapWindow(Images.Scene.inn, "bitmap/assets/scenes/scene-inn.png")
+                    bitmapMapWindow(Images.Scene.merchant, "bitmap/assets/scenes/scene-merchant.png")
+                    bitmapMapWindow(Images.Scene.tavern, "bitmap/assets/scenes/scene-tavern.png")
+                    bitmapMapWindow(Images.Scene.hut, "bitmap/assets/scenes/scene-wilderness-hut.png")
+                    bitmapMapWindow(Images.Scene.death, "bitmap/assets/scenes/scene-death.png")
+                    bitmapMapWindow(Images.Scene.towneMainstreet, "bitmap/assets/scenes/scene-thord-mainstreet.png")
+                    bitmapMapWindow(Images.Scene.wildernessNoTent, "bitmap/assets/scenes/scene-camp-night.png")
+                    bitmapMapWindow(Images.Scene.towneGuild, "bitmap/assets/scenes/scene-guild-closed.png")
+                    bitmapMapWindow(Images.Dungeon.chest, "bitmap/assets/scenes/scene-dungeon-chest.png")
+                    bitmapMapWindow(Images.Dungeon.trap, "bitmap/assets/scenes/scene-dungeon-trap.png")
+                    bitmapMapWindow(Images.Castle.treasure, "bitmap/assets/scenes/scene-dungeon-chest.png")
+                    bitmapMapWindow(Images.Castle.pitfall, "bitmap/assets/scenes/scene-dungeon-trap.png")
+                    bitmapMapWindow(Images.Castle.jaaraGate, "bitmap/assets/scenes/scene-jaara-gate.png")
+                    bitmapMapWindow(Images.Castle.stairsGuardians, "bitmap/assets/scenes/scene-castle-stairs-guardians.png")
+                    bitmapMapWindow(Images.Mission.skullweedSwamp, "bitmap/assets/scenes/scene-skullweed-swamp.png")
 
-                    bitmapMapWindow(Images.Portrait.default, "bitmap/assets/portrait-default.png")
-                    bitmapMapWindow(Images.Portrait.fighter, "bitmap/assets/portrait-fighter.png")
-                    bitmapMapWindow(Images.Portrait.thief, "bitmap/assets/portrait-thief.png")
-                    bitmapMapWindow(Images.Portrait.mage, "bitmap/assets/portrait-mage.png")
-                    bitmapMapWindow(Images.Portrait.priest, "bitmap/assets/portrait-priest.png")
-                    bitmapMapWindow(Images.Portrait.bard, "bitmap/assets/portrait-bard.png")
-                    bitmapMapWindow(Images.Portrait.ranger, "bitmap/assets/portrait-ranger.png")
-                    bitmapMapWindow(Images.Portrait.femaleDefault, "bitmap/assets/portrait-female-default.png")
-                    bitmapMapWindow(Images.Portrait.femaleFighter, "bitmap/assets/portrait-female-fighter.png")
-                    bitmapMapWindow(Images.Portrait.femaleThief, "bitmap/assets/portrait-female-thief.png")
-                    bitmapMapWindow(Images.Portrait.femaleMage, "bitmap/assets/portrait-female-mage.png")
-                    bitmapMapWindow(Images.Portrait.femalePriest, "bitmap/assets/portrait-female-priest.png")
-                    bitmapMapWindow(Images.Portrait.femaleBard, "bitmap/assets/portrait-female-bard.png")
-                    bitmapMapWindow(Images.Portrait.femaleRanger, "bitmap/assets/portrait-female-ranger.png")
-                    bitmapMapWindow(Images.Portrait.maleHuman, "bitmap/assets/portrait-male-human.png")
-                    bitmapMapWindow(Images.Portrait.maleDwarf, "bitmap/assets/portrait-male-dwarf.png")
-                    bitmapMapWindow(Images.Portrait.maleElf, "bitmap/assets/portrait-male-elf.png")
-                    bitmapMapWindow(Images.Portrait.maleHalfling, "bitmap/assets/portrait-male-halfling.png")
-                    bitmapMapWindow(Images.Portrait.femaleHuman, "bitmap/assets/portrait-female-human.png")
-                    bitmapMapWindow(Images.Portrait.femaleDwarf, "bitmap/assets/portrait-female-dwarf.png")
-                    bitmapMapWindow(Images.Portrait.femaleElf, "bitmap/assets/portrait-female-elf.png")
-                    bitmapMapWindow(Images.Portrait.femaleHalfling, "bitmap/assets/portrait-female-halfling.png")
+                    bitmapMapWindowGroup("bitmap/assets/party/portraits") {
+                        image(Images.Portrait.default, "portrait-default.png")
+                        image(Images.Portrait.fighter, "portrait-fighter.png")
+                        image(Images.Portrait.thief, "portrait-thief.png")
+                        image(Images.Portrait.mage, "portrait-mage.png")
+                        image(Images.Portrait.priest, "portrait-priest.png")
+                        image(Images.Portrait.bard, "portrait-bard.png")
+                        image(Images.Portrait.ranger, "portrait-ranger.png")
+                        image(Images.Portrait.femaleDefault, "portrait-female-default.png")
+                        image(Images.Portrait.femaleFighter, "portrait-female-fighter.png")
+                        image(Images.Portrait.femaleThief, "portrait-female-thief.png")
+                        image(Images.Portrait.femaleMage, "portrait-female-mage.png")
+                        image(Images.Portrait.femalePriest, "portrait-female-priest.png")
+                        image(Images.Portrait.femaleBard, "portrait-female-bard.png")
+                        image(Images.Portrait.femaleRanger, "portrait-female-ranger.png")
+                        image(Images.Portrait.maleHuman, "portrait-male-human.png")
+                        image(Images.Portrait.maleDwarf, "portrait-male-dwarf.png")
+                        image(Images.Portrait.maleElf, "portrait-male-elf.png")
+                        image(Images.Portrait.maleHalfling, "portrait-male-halfling.png")
+                        image(Images.Portrait.femaleHuman, "portrait-female-human.png")
+                        image(Images.Portrait.femaleDwarf, "portrait-female-dwarf.png")
+                        image(Images.Portrait.femaleElf, "portrait-female-elf.png")
+                        image(Images.Portrait.femaleHalfling, "portrait-female-halfling.png")
+                    }
                 }
 
                 // Static screens are named document/report routes. Some are
@@ -2662,25 +2664,28 @@ val authoredRylween: RylweenModel =
                                 line("(N)o")
                             },
                             yes = {
-                                whenever(party.gold lt price) {
-                                    writeText("- No money, eh? Don't bother to come back!")
-                                    pause2s()
-                                } otherwise {
-                                    party.gold -= price
-                                    forEachMember {
-                                        whenever(it.hp gt 1) {
-                                            it.hp -= 1
+                                pay(
+                                    price,
+                                    broke = {
+                                        writeText("- No money, eh? Don't bother to come back!")
+                                        pause2s()
+                                    },
+                                    ok = {
+                                        forEachMember {
+                                            whenever(it.hp gt 1) {
+                                                it.hp -= 1
+                                            }
                                         }
-                                    }
-                                    writeText(
-                                        """
-                                        You spend a very exhausting hour upstairs.
+                                        writeText(
+                                            """
+                                            You spend a very exhausting hour upstairs.
 
-                                        (PERVERT!) ;-)
-                                        """,
-                                    )
-                                    pause2s()
-                                }
+                                            (PERVERT!) ;-)
+                                            """,
+                                        )
+                                        pause2s()
+                                    },
+                                )
                             },
                         )
                     }
@@ -4209,25 +4214,28 @@ val authoredRylween: RylweenModel =
                             "(Y)es",
                             "(N)o",
                             yes = {
-                                whenever(party.gold lt cost) {
-                                    clearText()
-                                    writeText {
-                                        line("Sorry, supper is ", cost)
-                                        line("gold.")
-                                    }
-                                    pause1s()
-                                } otherwise {
-                                    party.gold -= cost
-                                    clearText()
-                                    writeText(
-                                        """
-                                        You are served a well tasting dinner.
-                                        Some of your health returns.
-                                        """,
-                                    )
-                                    healLivingMembers(6)
-                                    pause2s()
-                                }
+                                pay(
+                                    cost,
+                                    broke = {
+                                        clearText()
+                                        writeText {
+                                            line("Sorry, supper is ", cost)
+                                            line("gold.")
+                                        }
+                                        pause1s()
+                                    },
+                                    ok = {
+                                        clearText()
+                                        writeText(
+                                            """
+                                            You are served a well tasting dinner.
+                                            Some of your health returns.
+                                            """,
+                                        )
+                                        healLivingMembers(6)
+                                        pause2s()
+                                    },
+                                )
                             },
                         )
 
@@ -4351,37 +4359,40 @@ val authoredRylween: RylweenModel =
                                 choice.takeOrLeave(
                                     literalText("(T)ake it", "(L)eave"),
                                     take = {
-                                        whenever(party.gold lt cost) {
-                                            clearText()
-                                            writeText("- AHA! No gold! You are thrown out.")
-                                            pause2s()
-                                            clearMapWindow()
-                                            breakLoop("thrown out of inn")
-                                        } otherwise {
-                                            party.gold -= cost
-                                            clearText()
-                                            writeText("You go to bed...")
-                                            pause1s()
-                                            writeText("Zzzz...")
-                                            party.restedHours set 14
-                                            pause1500ms()
-                                            writeText(
-                                                flowText(
-                                                    """
-                                                    You wake up a little before dawn, well rested.
+                                        pay(
+                                            cost,
+                                            broke = {
+                                                clearText()
+                                                writeText("- AHA! No gold! You are thrown out.")
+                                                pause2s()
+                                                clearMapWindow()
+                                                breakLoop("thrown out of inn")
+                                            },
+                                            ok = {
+                                                clearText()
+                                                writeText("You go to bed...")
+                                                pause1s()
+                                                writeText("Zzzz...")
+                                                party.restedHours set 14
+                                                pause1500ms()
+                                                writeText(
+                                                    flowText(
+                                                        """
+                                                        You wake up a little before dawn, well rested.
 
-                                                    You have breakfast and leave the inn.
-                                                    """,
-                                                ),
-                                            )
-                                            waitInput("after inn lodging")
-                                            realm.hour set 5
-                                            forEachMember {
-                                                it.hp.addClamped(it.maxHp / 4, it.maxHp)
-                                            }
-                                            clearMapWindow()
-                                            breakLoop("slept at inn")
-                                        }
+                                                        You have breakfast and leave the inn.
+                                                        """,
+                                                    ),
+                                                )
+                                                waitInput("after inn lodging")
+                                                realm.hour set 5
+                                                forEachMember {
+                                                    it.hp.addClamped(it.maxHp / 4, it.maxHp)
+                                                }
+                                                clearMapWindow()
+                                                breakLoop("slept at inn")
+                                            },
+                                        )
                                     },
                                     leave = {
                                         clearText()

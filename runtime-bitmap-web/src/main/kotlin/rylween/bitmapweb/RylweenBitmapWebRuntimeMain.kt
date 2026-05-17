@@ -64,18 +64,18 @@ private val BITMAP_WEB_STATIC =
     )
 private val BITMAP_ASSETS =
     mapOf(
-        "title-rider.png" to "bitmap/assets/title-rider.png",
-        "title-logo.png" to "bitmap/assets/title-logo.png",
-        "screen-frame.png" to "bitmap/assets/screen-frame.png",
-        "town-mainstreet.png" to "bitmap/assets/town-mainstreet.png",
-        "encounter-scorpion.png" to "bitmap/assets/encounter-scorpion.png",
-        "encounter-bestiary.png" to "bitmap/assets/encounter-bestiary.png",
-        "scene-atlas.png" to "bitmap/assets/scene-atlas.png",
-        "terrain-atlas.png" to "bitmap/assets/terrain-atlas.png",
-        "castle-atlas.png" to "bitmap/assets/castle-atlas.png",
-        "water-connect-atlas.png" to "bitmap/assets/water-connect-atlas.png",
-        "party-rider.png" to "bitmap/assets/party-rider.png",
-        "party-overview.png" to "bitmap/assets/party-overview.png",
+        "title/title-rider.png" to "bitmap/assets/title/title-rider.png",
+        "title/title-logo.png" to "bitmap/assets/title/title-logo.png",
+        "ui/screen-frame.png" to "bitmap/assets/ui/screen-frame.png",
+        "town/town-mainstreet.png" to "bitmap/assets/town/town-mainstreet.png",
+        "encounters/encounter-scorpion.png" to "bitmap/assets/encounters/encounter-scorpion.png",
+        "encounters/encounter-bestiary.png" to "bitmap/assets/encounters/encounter-bestiary.png",
+        "atlases/scene-atlas.png" to "bitmap/assets/atlases/scene-atlas.png",
+        "atlases/terrain-atlas.png" to "bitmap/assets/atlases/terrain-atlas.png",
+        "atlases/castle-atlas.png" to "bitmap/assets/atlases/castle-atlas.png",
+        "atlases/water-connect-atlas.png" to "bitmap/assets/atlases/water-connect-atlas.png",
+        "party/party-rider.png" to "bitmap/assets/party/party-rider.png",
+        "party/party-overview.png" to "bitmap/assets/party/party-overview.png",
         "wilderness/terrain-plain.png" to "bitmap-web/wilderness/terrain-plain.png",
         "wilderness/terrain-forest.png" to "bitmap-web/wilderness/terrain-forest.png",
         "wilderness/terrain-foothills.png" to "bitmap-web/wilderness/terrain-foothills.png",
@@ -88,23 +88,23 @@ private val BITMAP_ASSETS =
         "wilderness/terrain-castle.png" to "bitmap-web/wilderness/terrain-castle.png",
         "wilderness/terrain-road.png" to "bitmap-web/wilderness/terrain-road.png",
         "wilderness/terrain-void.png" to "bitmap-web/wilderness/terrain-void.png",
-        "scene-thord-mainstreet.png" to "bitmap/assets/scene-thord-mainstreet.png",
-        "scene-merchant.png" to "bitmap/assets/scene-merchant.png",
-        "scene-smith.png" to "bitmap/assets/scene-smith.png",
-        "scene-inn.png" to "bitmap/assets/scene-inn.png",
-        "scene-tavern.png" to "bitmap/assets/scene-tavern.png",
-        "scene-church.png" to "bitmap/assets/scene-church.png",
-        "scene-guild-closed.png" to "bitmap/assets/scene-guild-closed.png",
-        "scene-camp-tent.png" to "bitmap/assets/scene-camp-tent.png",
-        "scene-camp-night.png" to "bitmap/assets/scene-camp-night.png",
-        "monster-goblinoid.png" to "bitmap/assets/monster-goblinoid.png",
-        "monster-undead.png" to "bitmap/assets/monster-undead.png",
-        "monster-beast.png" to "bitmap/assets/monster-beast.png",
-        "monster-flying.png" to "bitmap/assets/monster-flying.png",
-        "monster-vermin.png" to "bitmap/assets/monster-vermin.png",
-        "monster-brute.png" to "bitmap/assets/monster-brute.png",
-        "monster-humanoid-magic.png" to "bitmap/assets/monster-humanoid-magic.png",
-        "monster-boss.png" to "bitmap/assets/monster-boss.png",
+        "scenes/scene-thord-mainstreet.png" to "bitmap/assets/scenes/scene-thord-mainstreet.png",
+        "scenes/scene-merchant.png" to "bitmap/assets/scenes/scene-merchant.png",
+        "scenes/scene-smith.png" to "bitmap/assets/scenes/scene-smith.png",
+        "scenes/scene-inn.png" to "bitmap/assets/scenes/scene-inn.png",
+        "scenes/scene-tavern.png" to "bitmap/assets/scenes/scene-tavern.png",
+        "scenes/scene-church.png" to "bitmap/assets/scenes/scene-church.png",
+        "scenes/scene-guild-closed.png" to "bitmap/assets/scenes/scene-guild-closed.png",
+        "scenes/scene-camp-tent.png" to "bitmap/assets/scenes/scene-camp-tent.png",
+        "scenes/scene-camp-night.png" to "bitmap/assets/scenes/scene-camp-night.png",
+        "monsters/monster-goblinoid.png" to "bitmap/assets/monsters/monster-goblinoid.png",
+        "monsters/monster-undead.png" to "bitmap/assets/monsters/monster-undead.png",
+        "monsters/monster-beast.png" to "bitmap/assets/monsters/monster-beast.png",
+        "monsters/monster-flying.png" to "bitmap/assets/monsters/monster-flying.png",
+        "monsters/monster-vermin.png" to "bitmap/assets/monsters/monster-vermin.png",
+        "monsters/monster-brute.png" to "bitmap/assets/monsters/monster-brute.png",
+        "monsters/monster-humanoid-magic.png" to "bitmap/assets/monsters/monster-humanoid-magic.png",
+        "monsters/monster-boss.png" to "bitmap/assets/monsters/monster-boss.png",
     )
 
 fun main(args: Array<String>) {
@@ -514,7 +514,7 @@ private class BitmapWebServer(
             socket,
             "200 OK",
             "text/html; charset=utf-8",
-            webAuthPageHtml(WebAuthPageMode.Login, backgroundImage = "/assets/title-rider.png"),
+            webAuthPageHtml(WebAuthPageMode.Login, backgroundImage = "/assets/title/title-rider.png"),
         )
     }
 
@@ -533,7 +533,7 @@ private class BitmapWebServer(
             socket,
             "200 OK",
             "text/html; charset=utf-8",
-            webAuthPageHtml(WebAuthPageMode.Register, backgroundImage = "/assets/title-rider.png"),
+            webAuthPageHtml(WebAuthPageMode.Register, backgroundImage = "/assets/title/title-rider.png"),
         )
     }
 
@@ -560,7 +560,7 @@ private class BitmapWebServer(
                     socket,
                     "401 Unauthorized",
                     "text/html; charset=utf-8",
-                    webAuthPageHtml(WebAuthPageMode.Login, result.message, email, backgroundImage = "/assets/title-rider.png"),
+                    webAuthPageHtml(WebAuthPageMode.Login, result.message, email, backgroundImage = "/assets/title/title-rider.png"),
                 )
             }
         }
@@ -596,7 +596,13 @@ private class BitmapWebServer(
                     socket,
                     "400 Bad Request",
                     "text/html; charset=utf-8",
-                    webAuthPageHtml(WebAuthPageMode.Register, result.message, email, name, backgroundImage = "/assets/title-rider.png"),
+                    webAuthPageHtml(
+                        WebAuthPageMode.Register,
+                        result.message,
+                        email,
+                        name,
+                        backgroundImage = "/assets/title/title-rider.png",
+                    ),
                 )
             }
         }
