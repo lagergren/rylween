@@ -854,7 +854,7 @@ B1-B9 first-pass notes:
   rewards still use `reward { ... }` with placement/drop policy. Ledger coverage
   rejects direct current-game `party.gold +=`, `party.torches +=`, and
   `party.food +=` player-facing increments.
-- [ ] I16. Reorder the current game DSL into an author-first hierarchy.
+- [x] I16. Reorder the current game DSL into an author-first hierarchy.
   Inconsistency found: the current file order is historically accreted, so
   realm configuration, creation rules, progress/leveling, and other global
   systems do not all appear before lower-level content. Fix plan: reorder
@@ -862,7 +862,15 @@ B1-B9 first-pass notes:
   presentation/layout, catalogs, systems, world/map, missions/scenes/dialogue,
   and fixtures. Keep generated handle names stable and run bundle/ledger
   equivalence checks so this is source readability only, not a content change.
-- [ ] I17. Audit repeated painful call shapes and collapse only real
+  Fix applied: the top-level current-game source now documents and follows an
+  author-first order: identity/state (`metadata`, `limits`, `flags`, `secrets`),
+  presentation (`visuals`, `layouts`, `terminal`), world/systems (`terrain`,
+  `worldMap`, `realm`, `castle`, prompts, pacing), catalogs/progression, rules,
+  content tables, and behavior. The move was deliberately conservative: small
+  self-contained debug/presentation blocks were lifted earlier, and castle hook
+  scenes were moved down with the other behavior scripts. Ledger coverage now
+  asserts the top-level source order and hierarchy comment.
+- [x] I17. Audit repeated painful call shapes and collapse only real
   duplication. Inconsistency found: builders repeat patterns like
   `foo(vararg lines)`, `foo { line(...) }`, nullable `fooText` storage,
   `TextLineSink` adapters, and repeated menu/prompt/key field groups. Fix plan:
@@ -870,7 +878,15 @@ B1-B9 first-pass notes:
   receiver helpers where they remove boilerplate without changing authoring
   syntax, and leave explicit domain names when they carry different gameplay
   meaning. Each cleanup should have a ledger test proving the current game
-  still emits the same prompt rows.
+  still emits the same prompt rows. Fix applied: the audit separated real
+  construction duplication from intentionally distinct author verbs. Repeated
+  `RandomItemOfferTextBuilder().apply(body).build()` call sites now go through
+  one internal `randomItemOfferText(...)` helper, and shop dynamic text setters
+  now reuse the existing `shopText(...)` helper. Domain methods such as
+  `offer`, `bought`, `unitPrice`, `singlePrice`, `sold`, and `declined` remain
+  explicit because they name different gameplay rows even when their setter
+  mechanics match. Ledger coverage asserts the helper consolidation and locks
+  the current smith, merchant, and tavern dynamic text rows.
 - [x] I18. Document current mission chains. Inconsistency found: missions,
   dialogue-started quest flags, random-step triggers, location handles, and
   power-item unlocks were spread across the authored source and tests. Fix

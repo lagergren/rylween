@@ -715,6 +715,8 @@ class RandomItemOfferTextBuilder : TextLineSink {
     fun build(): TextBlock = text.build()
 }
 
+private fun randomItemOfferText(body: RandomItemOfferTextBuilder.() -> Unit): TextBlock = RandomItemOfferTextBuilder().apply(body).build()
+
 /**
  * Builds a random shop/treasure offer inside a script choice.
  *
@@ -752,7 +754,7 @@ class RandomItemOfferBuilder(
     }
 
     fun offer(body: RandomItemOfferTextBuilder.() -> Unit) {
-        offerText = RandomItemOfferTextBuilder().apply(body).build()
+        offerText = randomItemOfferText(body)
     }
 
     fun choicePrompt(vararg lines: String) {
@@ -760,7 +762,7 @@ class RandomItemOfferBuilder(
     }
 
     fun choicePrompt(body: RandomItemOfferTextBuilder.() -> Unit) {
-        choicePromptText = RandomItemOfferTextBuilder().apply(body).build()
+        choicePromptText = randomItemOfferText(body)
     }
 
     fun choiceKeys(
@@ -784,7 +786,7 @@ class RandomItemOfferBuilder(
     }
 
     fun broke(body: RandomItemOfferTextBuilder.() -> Unit) {
-        brokeText = RandomItemOfferTextBuilder().apply(body).build()
+        brokeText = randomItemOfferText(body)
     }
 
     fun full(vararg lines: String) {
@@ -792,7 +794,7 @@ class RandomItemOfferBuilder(
     }
 
     fun full(body: RandomItemOfferTextBuilder.() -> Unit) {
-        messagesModel = messagesModel.copy(cantCarry = RandomItemOfferTextBuilder().apply(body).build())
+        messagesModel = messagesModel.copy(cantCarry = randomItemOfferText(body))
     }
 
     // Public authoring overload: random offers can customize the picked-up
@@ -820,7 +822,7 @@ class RandomItemOfferBuilder(
     }
 
     fun deal(body: RandomItemOfferTextBuilder.() -> Unit) {
-        dealText = RandomItemOfferTextBuilder().apply(body).build()
+        dealText = randomItemOfferText(body)
     }
 
     fun declined(vararg lines: String) {
@@ -828,7 +830,7 @@ class RandomItemOfferBuilder(
     }
 
     fun declined(body: RandomItemOfferTextBuilder.() -> Unit) {
-        declinedText = RandomItemOfferTextBuilder().apply(body).build()
+        declinedText = randomItemOfferText(body)
     }
 
     fun build(): RandomItemOfferModel =
