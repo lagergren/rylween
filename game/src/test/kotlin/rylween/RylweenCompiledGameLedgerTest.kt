@@ -1866,6 +1866,12 @@ class RylweenCompiledGameLedgerTest {
         check("fun writeText(" in scriptDsl && "fun showTextAndWait(" in scriptDsl) {
             "script display actions must name write-only text and write/wait/clear text explicitly"
         }
+        check("fun say(" !in scriptDsl && "fun readScreen(" !in scriptDsl && "fun screen(" !in scriptDsl) {
+            "legacy script display aliases must stay retired from ScriptScope"
+        }
+        check("fun inlineText(" !in textDsl && "fun textLines(" !in textDsl && "fun flow(" !in textDsl) {
+            "legacy text constructor aliases must stay retired from the authoring API"
+        }
         check("literalText(" in gameDsl && "flowText(" in gameDsl && "showTextAndWait(" in gameDsl) {
             "authored game source must use the preferred text constructor and read-and-dismiss vocabulary"
         }
@@ -2774,6 +2780,32 @@ class RylweenCompiledGameLedgerTest {
         check("{item_price}" in tavernRandomOffer.offer.offer.fallbackText())
         check("- [x] I17. Audit repeated painful call shapes and collapse only real" in planSource) {
             "plans/dsl-improvements.md must record I17 closeout"
+        }
+    }
+
+    @Test
+    fun nearDuplicateMechanismRegisterIsClosedWithRetirementGuards() {
+        val planSource = File("plans/dsl-improvements.md").readText()
+        val guide = File("docs/dsl-authoring.md").readText()
+        val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val textDsl = File("core/src/main/kotlin/rylween/dsl/TextDsl.kt").readText()
+
+        check("- [x] I19. Keep a near-duplicate mechanism register and retire split shapes" in planSource) {
+            "plans/dsl-improvements.md must record I19 closeout"
+        }
+        check(
+            "Retired split shapes:" in planSource &&
+                "script `screen`/`readScreen`/" in planSource &&
+                "`say` aliases" in planSource &&
+                "`inlineText`/`textLines`/`flow` aliases" in planSource,
+        ) {
+            "I19 must document the concrete duplicate mechanisms retired"
+        }
+        check("Historical aliases" !in guide && "compatibility bridges for old scripts" !in guide) {
+            "DSL guide must not advertise retired script aliases"
+        }
+        check("Deprecated(" !in scriptDsl && "Deprecated(" !in textDsl) {
+            "retired text/display aliases should not remain as deprecated bridges"
         }
     }
 

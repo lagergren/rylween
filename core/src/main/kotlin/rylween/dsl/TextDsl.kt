@@ -243,35 +243,6 @@ fun flowText(text: String): TextBlock {
 }
 
 /**
- * Compatibility alias for older DSL code. New authored content should use
- * [literalText] so literal data is not confused with script display actions.
- */
-fun inlineText(vararg lines: String): TextBlock = literalText(*lines)
-
-/**
- * Compatibility alias for older DSL code that needed literal lines as a
- * structured block. Prefer [literalText] for fixed lines and [structuredText]
- * only when the block contains dynamic parts.
- */
-fun textLines(vararg lines: String): TextBlock = structuredText { lines(*expandMultiline(lines).toTypedArray()) }
-
-/**
- * Compatibility alias for older DSL code. Prefer [flowText] so deferred-wrap
- * prose reads like a text constructor rather than a control-flow operation.
- */
-fun flow(text: String): TextBlock = flowText(text)
-
-@Deprecated(
-    message = "flow text is renderer-wrapped; pass renderer width at output time",
-    replaceWith = ReplaceWith("flowText(text)"),
-)
-@Suppress("UNUSED_PARAMETER")
-fun flow(
-    text: String,
-    columns: Int,
-): TextBlock = flowText(text)
-
-/**
  * Detection rule for triple-quoted multi-line authoring: if the caller
  * passed exactly one string, and it contains a newline, treat it as
  * `trimIndent().split("\n")`; otherwise behave like a normal vararg. This
