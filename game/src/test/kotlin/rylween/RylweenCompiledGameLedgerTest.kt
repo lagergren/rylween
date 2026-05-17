@@ -2572,6 +2572,48 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun filteredPartyMemberSelectorsAreTypedAndUsedForNarration() {
+        val kernelSource = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
+        val expressionSource = File("core/src/main/kotlin/rylween/dsl/ExpressionDsl.kt").readText()
+        val compiledBundleSource = File("core/src/main/kotlin/rylween/compiled/CompiledBundle.kt").readText()
+        val scriptExecutorSource = File("runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt").readText()
+        val selectorTestSource = File("runtime/src/test/kotlin/rylween/runtime/PartyMemberSelectorsTest.kt").readText()
+        val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+        val hardcodedNarrationMembers =
+            Regex("""party\.member\(\d+\)""")
+                .findAll(gameSource)
+                .map { match -> match.value }
+                .toSet()
+
+        check("enum class PartyMemberSelection" in kernelSource && "data class PartyMemberQuery(" in kernelSource) {
+            "non-interactive party member selectors must compile as typed source queries"
+        }
+        check(
+            "fun firstMember(" in expressionSource &&
+                "fun randomMember(" in expressionSource &&
+                "IntAst.PartyMemberQuery" in expressionSource,
+        ) {
+            "PartyRef must expose filtered first/random member selector helpers"
+        }
+        check("CompiledIntExpr.PartyMemberQuery" in compiledBundleSource && "partyMemberQuery(" in scriptExecutorSource) {
+            "filtered party member selectors must lower into compiled runtime execution"
+        }
+        check("party.randomMember(MemberChoiceFilter.AliveOnly)" in gameSource && hardcodedNarrationMembers.isEmpty()) {
+            "authored narration must use filtered selectors instead of fixed member numbers: $hardcodedNarrationMembers"
+        }
+        check(
+            "memberChoicesUseOneBasedPartyNumbersAndFiltersDeadMembers" in selectorTestSource &&
+                "partyMemberSelectionReturnsZeroWhenNoMemberMatches" in selectorTestSource,
+        ) {
+            "selector tests must cover one-based choices and empty-match behavior"
+        }
+        check("- [x] I14. Add filtered non-interactive party-member selectors." in planSource) {
+            "plans/dsl-improvements.md must record I14 selector closeout"
+        }
+    }
+
+    @Test
     fun dslAuthoringGuideDocumentsCurrentSourceModelAndAudit() {
         val guide = File("docs/dsl-authoring.md").readText()
         val rootReadme = File("README.md").readText()

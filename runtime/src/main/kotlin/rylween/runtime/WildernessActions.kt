@@ -31,6 +31,7 @@ import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.applyCompiledBinary
 import rylween.compiled.compareCompiled
+import rylween.dsl.PartyMemberSelection
 import rylween.dsl.PronounCase
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.PcClass
@@ -714,6 +715,11 @@ internal class WildernessActions(
             is CompiledIntExpr.PartyScalar -> partyScalar(content.strings.value(expr.nameString))
             is CompiledIntExpr.InventoryPoolCount -> countInventoryPool(expr.pool)
             is CompiledIntExpr.MemberField -> memberField(int(expr.member), content.strings.value(expr.fieldString))
+            is CompiledIntExpr.PartyMemberQuery ->
+                when (expr.selection) {
+                    PartyMemberSelection.First -> memberChoices(expr.filter).firstOrNull() ?: 0
+                    PartyMemberSelection.Random -> 0
+                }
             is CompiledIntExpr.Local,
             is CompiledIntExpr.Random,
             is CompiledIntExpr.MonsterField,

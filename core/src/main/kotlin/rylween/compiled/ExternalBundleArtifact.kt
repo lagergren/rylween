@@ -2414,6 +2414,12 @@ private class ExternalBundleArtifactWriter {
                 )
             is IntAst.BattleFlag -> jsonObject("op" to JsonString("battleFlag"), "name" to JsonString(ast.name))
             is IntAst.BattleQuery -> jsonObject("op" to JsonString("battleQuery"), "name" to JsonString(ast.name))
+            is IntAst.PartyMemberQuery ->
+                jsonObject(
+                    "op" to JsonString("partyMemberQuery"),
+                    "selection" to JsonString(ast.selection.name),
+                    "filter" to JsonString(ast.filter.name),
+                )
             is IntAst.RealmScalar -> jsonObject("op" to JsonString("realmScalar"), "name" to JsonString(ast.name))
             is IntAst.PartyScalar -> jsonObject("op" to JsonString("partyScalar"), "name" to JsonString(ast.name))
             is IntAst.InventoryPoolCount ->

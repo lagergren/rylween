@@ -505,6 +505,7 @@ intExpr:
     tag 10 PartyScalar(nameString)
     tag 11 InventoryPoolCount(itemPoolHandle)
     tag 12 InventorySlotCost(slot: intExpr)
+    tag 13 PartyMemberQuery(selection: enumName, filter: enumName)
 
 boolExpr:
     tag 0 Cmp(left: intExpr, op: enumName, right: intExpr)

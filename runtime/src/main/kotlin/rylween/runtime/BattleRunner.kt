@@ -46,6 +46,7 @@ import rylween.compiled.applyCompiledBinary
 import rylween.compiled.compareCompiled
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.NativeAllowlist
+import rylween.dsl.PartyMemberSelection
 import rylween.dsl.PronounCase
 import rylween.dsl.impl.CombatActionKind
 import rylween.dsl.impl.CombatActionRequirement
@@ -1235,6 +1236,7 @@ internal class BattleRunner(
 
                 is CompiledIntExpr.BattleFlag -> readBattleFlag(content.strings.value(expr.nameString))
                 is CompiledIntExpr.BattleQuery -> readBattleQuery(content.strings.value(expr.nameString))
+                is CompiledIntExpr.PartyMemberQuery -> readPartyMemberQuery(expr.selection, expr.filter)
                 is CompiledIntExpr.RealmScalar -> readRealmScalar(content.strings.value(expr.nameString))
                 is CompiledIntExpr.PartyScalar -> readPartyScalar(content.strings.value(expr.nameString))
                 is CompiledIntExpr.InventoryPoolCount -> encounter.runtime.party.countInventoryPool(expr.pool)
@@ -1455,6 +1457,21 @@ internal class BattleRunner(
                 else -> error("unknown compiled battle query $name")
             }
 
+        private fun readPartyMemberQuery(
+            selection: PartyMemberSelection,
+            filter: MemberChoiceFilter,
+        ): Int {
+            val matching =
+                encounter.runtime.party
+                    .memberChoices(filter)
+                    .map { memberNumber -> memberNumber - 1 }
+            if (matching.isEmpty()) return 0
+            if (selection == PartyMemberSelection.First) return matching.first()
+            val draw = encounter.runtime.party.drawRandom(0, matching.lastIndex)
+            encounter = encounter.copy(runtime = encounter.runtime.withParty(draw.party))
+            return matching[draw.value]
+        }
+
         private fun randomAliveMember(): Int {
             val alive =
                 encounter.runtime.party.members
@@ -1661,6 +1678,7 @@ internal class BattleRunner(
                 is CompiledIntExpr.MonsterField,
                 is CompiledIntExpr.BattleFlag,
                 is CompiledIntExpr.BattleQuery,
+                is CompiledIntExpr.PartyMemberQuery,
                 is CompiledIntExpr.RealmScalar,
                 is CompiledIntExpr.PartyScalar,
                 is CompiledIntExpr.InventoryPoolCount,

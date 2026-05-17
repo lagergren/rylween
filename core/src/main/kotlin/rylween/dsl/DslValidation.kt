@@ -1774,6 +1774,7 @@ fun validateScriptRewards(
                 is IntAst.MonsterField -> validateIntExpression(ast.monster, label)
                 is IntAst.BattleFlag -> Unit
                 is IntAst.BattleQuery -> Unit
+                is IntAst.PartyMemberQuery -> Unit
                 is IntAst.RealmScalar -> Unit
                 is IntAst.PartyScalar -> Unit
                 is IntAst.InventoryPoolCount -> validateSlottedItemPool(ast.pool, label)
@@ -2630,6 +2631,7 @@ private fun validateFlagReferences(
                 is IntAst.Var,
                 is IntAst.BattleFlag,
                 is IntAst.BattleQuery,
+                is IntAst.PartyMemberQuery,
                 is IntAst.RealmScalar,
                 is IntAst.PartyScalar,
                 is IntAst.InventoryPoolCount,
