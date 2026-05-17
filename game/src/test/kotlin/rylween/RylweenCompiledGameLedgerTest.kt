@@ -2653,6 +2653,131 @@ class RylweenCompiledGameLedgerTest {
     }
 
     @Test
+    fun currentGameDslUsesAuthorFirstTopLevelOrder() {
+        val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+
+        fun topLevelIndex(token: String): Int =
+            Regex("""(?m)^ {12}${Regex.escape(token)}""")
+                .find(gameSource)
+                ?.range
+                ?.first
+                ?: -1
+
+        val orderedTopLevelTokens =
+            listOf(
+                "metadata {",
+                "limits {",
+                "flags {",
+                "secrets {",
+                "visuals {",
+                "layouts {",
+                "terminal {",
+                "terrain {",
+                "worldMap(Maps.wilderness) {",
+                "realm {",
+                "castle(Castles.ydarg) {",
+                "prompts {",
+                "pacing {",
+                "items {",
+                "gameProgress {",
+                "leveling {",
+                "characterCreation {",
+                "formulas {",
+                "rewards {",
+                "combat {",
+                "wilderness {",
+                "dungeons {",
+                "speak {",
+                "towns {",
+                "townSystem {",
+                "characters {",
+                "monsters {",
+                "missions {",
+                "scene(sceneId(\"castle.ydarg.already_completed\")) {",
+                "scene(Scenes.Towne.church) {",
+                "scene(Scenes.Missions.erethorEntry) {",
+                "dialogue {",
+            )
+
+        orderedTopLevelTokens
+            .map { token ->
+                token to
+                    topLevelIndex(token).also { index ->
+                        check(index >= 0) { "current game DSL is missing top-level token: $token" }
+                    }
+            }.zipWithNext()
+            .forEach { (left, right) ->
+                check(left.second < right.second) {
+                    "current game DSL top-level order is wrong: ${left.first.trim()} should precede ${right.first.trim()}"
+                }
+            }
+        check(
+            "global identity/state: metadata, limits, flags, secrets" in gameSource &&
+                "behavior: missions, castle scenes, town scenes, mission scenes, dialogue" in gameSource,
+        ) {
+            "RylweenGame.kt must document the author-first top-level hierarchy"
+        }
+        check("- [x] I16. Reorder the current game DSL into an author-first hierarchy." in planSource) {
+            "plans/dsl-improvements.md must record I16 closeout"
+        }
+    }
+
+    @Test
+    fun repeatedTextBuilderCallShapesUseSharedHelpersWithoutChangingRows() {
+        val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
+        val shopDsl = File("core/src/main/kotlin/rylween/dsl/impl/ShopDsl.kt").readText()
+        val planSource = File("plans/dsl-improvements.md").readText()
+        val directRandomOfferBuilders =
+            Regex("""RandomItemOfferTextBuilder\(\)\.apply\(body\)\.build\(\)""")
+                .findAll(scriptDsl)
+                .count()
+        val directShopTextBuilders =
+            Regex("""ShopTextBuilder\(\)\.apply\(body\)\.build\(\)""")
+                .findAll(shopDsl)
+                .count()
+        val smithShop =
+            RylweenCompiledGame.nextDsl.scenes
+                .single { it.id == Scenes.Towne.smith }
+                .statementNodes
+                .filterIsInstance<ScriptStatementNode.ShopService>()
+                .single()
+                .shop
+        val merchantShop =
+            RylweenCompiledGame.nextDsl.scenes
+                .single { it.id == Scenes.Towne.merchant }
+                .statementNodes
+                .filterIsInstance<ScriptStatementNode.ShopService>()
+                .single()
+                .shop
+        val tavernRandomOffer =
+            RylweenCompiledGame.nextDsl.scenes
+                .single { it.id == Scenes.Towne.tavern }
+                .statementNodes
+                .filterIsInstance<ScriptStatementNode.If>()
+                .flatMap { op -> op.thenStatements }
+                .filterIsInstance<ScriptStatementNode.RandomItemOffer>()
+                .single { op -> op.offer.pool == ItemPools.tavernScruffySpecials }
+
+        check("private fun randomItemOfferText(" in scriptDsl && directRandomOfferBuilders == 1) {
+            "random item offer DSL should centralize custom text-builder construction"
+        }
+        check("fun shopText(" in shopDsl && directShopTextBuilders == 1) {
+            "shop DSL should centralize custom shop text-builder construction"
+        }
+        check(checkNotNull(smithShop.buy).bought?.fallbackText() == "Bought {selected_item_name}.")
+        check(checkNotNull(smithShop.buy).singlePrice?.fallbackText() == "Price: {price}\n")
+        check(smithShop.sell?.offer?.fallbackText() == "Ok! Give ya {price}!\n")
+        check(checkNotNull(merchantShop.buy).unitPrice?.fallbackText() == "{price} gold each, sir.")
+        check(merchantShop.sell?.offer?.fallbackText() == "- Ok. Give ya {price}!\n")
+        check("{item_name}" in tavernRandomOffer.offer.offer.fallbackText())
+        check("{item_price}" in tavernRandomOffer.offer.offer.fallbackText())
+        check("- [x] I17. Audit repeated painful call shapes and collapse only real" in planSource) {
+            "plans/dsl-improvements.md must record I17 closeout"
+        }
+    }
+
+    @Test
     fun dslAuthoringGuideDocumentsCurrentSourceModelAndAudit() {
         val guide = File("docs/dsl-authoring.md").readText()
         val rootReadme = File("README.md").readText()

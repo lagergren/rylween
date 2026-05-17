@@ -461,15 +461,15 @@ class ShopBuyBuilder {
     }
 
     fun bought(body: ShopTextBuilder.() -> Unit) {
-        boughtText = ShopTextBuilder().apply(body).build()
+        boughtText = shopText(body)
     }
 
     fun unitPrice(body: ShopTextBuilder.() -> Unit) {
-        unitPriceText = ShopTextBuilder().apply(body).build()
+        unitPriceText = shopText(body)
     }
 
     fun singlePrice(body: ShopTextBuilder.() -> Unit) {
-        singlePriceText = ShopTextBuilder().apply(body).build()
+        singlePriceText = shopText(body)
     }
 
     fun payPrompt(vararg lines: String) {
@@ -786,7 +786,7 @@ class ShopSellBuilder {
     }
 
     fun offer(body: ShopTextBuilder.() -> Unit) {
-        offerText = ShopTextBuilder().apply(body).build()
+        offerText = shopText(body)
     }
 
     fun declined(vararg lines: String) {
