@@ -1813,7 +1813,7 @@ private class CompiledBundleCompiler(
     private fun compileStatements(statements: List<ScriptStatement>): List<CompiledInstruction> = statements.map(::compileStatement)
 
     private fun compileStatement(statement: ScriptStatement): CompiledInstruction =
-        when (val op = statement.legacyOp()) {
+        when (val op = statement.asStatementNode()) {
             is ScriptStatementNode.Screen -> instruction(CompiledOpcode.Screen, CompiledOperand.TextBlockValue(text(op.text)))
             is ScriptStatementNode.Emit -> instruction(CompiledOpcode.Emit, CompiledOperand.Handle(textRef(op.text.id)))
             is ScriptStatementNode.WaitInput ->
@@ -2819,7 +2819,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
 
         fun collectStatements(statements: List<ScriptStatement>) {
             statements.forEach { statement ->
-                when (val op = statement.legacyOp()) {
+                when (val op = statement.asStatementNode()) {
                     is ScriptStatementNode.Screen -> collectText(op.text)
                     is ScriptStatementNode.AppendJournal -> collectText(op.text)
                     is ScriptStatementNode.If -> {
@@ -2879,7 +2879,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
         speak.questionActions.forEach { collectScript(it.script) }
     }.distinctBy { it.slug }
 
-private fun ScriptStatement.legacyOp(): ScriptStatementNode =
+private fun ScriptStatement.asStatementNode(): ScriptStatementNode =
     this as? ScriptStatementNode ?: error("unsupported script statement implementation: ${this::class.simpleName}")
 
 private fun flagStateSlug(state: FlagState): String = "${state.flag.slug}.${state.native}"

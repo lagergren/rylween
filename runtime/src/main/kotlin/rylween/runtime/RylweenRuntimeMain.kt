@@ -813,7 +813,8 @@ class GameRuntime private constructor(
                             }.getOrDefault(false)
                         log.event("title.terminate save=${save.file.path} deleted=$deleted")
                         screen.writeText(
-                            titleTerminateResultLines(deleted, screen.textColumns) + save.file.path,
+                            titleTerminateResultLines(deleted, screen.textColumns) +
+                                runtimeGeneratedDetailText(save.file.path),
                         )
                         input.readCommand()
                     }
@@ -852,7 +853,8 @@ class GameRuntime private constructor(
                     log.event("title.invalid key=$command")
                     screen.writeText(
                         systems.prompts.titleMenu.invalidInput
-                            .render({ null }, screen.textColumns) + "Key: $command",
+                            .render({ null }, screen.textColumns) +
+                            runtimeGeneratedDetailText("Key: $command"),
                     )
                     input.readCommand()
                 }
@@ -926,7 +928,11 @@ class GameRuntime private constructor(
                         .render({ null }, wrapWidth),
                 )
                 add(commands.menuLine(RuntimeCommandActionId.CreateNewParty))
-                add(commands.menuLine(RuntimeCommandActionId.ContinueSavedGame).withAvailability(hasSavedGame, "no save"))
+                add(
+                    commands
+                        .menuLine(RuntimeCommandActionId.ContinueSavedGame)
+                        .withAvailability(hasSavedGame, systems.prompts.titleMenu.continueUnavailableReasonLabel),
+                )
                 if (hasSavedGame) add(commands.menuLine(RuntimeCommandActionId.TerminateParty))
                 add(commands.menuLine(RuntimeCommandActionId.Scoreboard))
                 add(commands.menuLine(RuntimeCommandActionId.HallOfFame))
@@ -1137,7 +1143,8 @@ class GameRuntime private constructor(
             }
             screen.writeText(
                 systems.prompts.characterCreation.invalidInput
-                    .renderCreation(wrapWidth = screen.textColumns) + "Key: $command",
+                    .renderCreation(wrapWidth = screen.textColumns) +
+                    runtimeGeneratedDetailText("Key: $command"),
             )
         }
     }
@@ -1378,7 +1385,7 @@ class GameRuntime private constructor(
         persistRuntime(runtime, save, log, "command")
         screen.writeText(
             systems.prompts.save.done
-                .render({ null }, screen.textColumns) + save.file.path,
+                .render({ null }, screen.textColumns) + runtimeGeneratedDetailText(save.file.path),
         )
     }
 

@@ -465,8 +465,8 @@ val authoredRylween: RylweenModel =
                     }
                     fatigueAt(0, literalText("You begin to feel tired"), statusLabel = "TIRED")
                     fatigueAt(-4, literalText("You are exhausted!!!"), drain = true, statusLabel = "EXHAUSTED")
-                    fatigueAt(-8, literalText("You begin to feel weak", "from lack of sleep.", ""), drain = true, statusLabel = "WEAK")
-                    fatigueBelow(-8, literalText("You faint from lack", "of well needed sleep."), drain = true, statusLabel = "FAINT")
+                    fatigueAt(-8, flowText("You begin to feel weak from lack of sleep."), drain = true, statusLabel = "WEAK")
+                    fatigueBelow(-8, flowText("You faint from lack of well needed sleep."), drain = true, statusLabel = "FAINT")
                 }
                 // Hunt is a reusable ranger action. The fields define chance,
                 // move cost, food range, target prompts, and result text.
@@ -518,36 +518,29 @@ val authoredRylween: RylweenModel =
                         }
                     guardMemberDead = literalText("Dead.")
                     standsGuard =
-                        literalText(
-                            "Guard stands watch.",
-                            "They won't get any",
-                            "health back during",
-                            "this rest.",
-                            "",
+                        flowText(
+                            """
+                            Guard stands watch. They won't get any health back during this rest.
+                            """,
                         )
                     sleeping = literalText("Zzz...")
-                    rested = literalText("You wake up 8 hours", "later. Well rested.", "")
+                    rested = flowText("You wake up 8 hours later. Well rested.")
                     ambush = literalText("Ambush!!!")
                     surpriseKill =
-                        literalText(
-                            "A camper is dead",
-                            "before you can",
-                            "react!!!",
-                            "",
-                        )
+                        flowText("A camper is dead before you can react!!!")
                     temperatureBand(
                         band = TemperatureBand.Low,
                         range = 6 until 10,
                         damage = 5,
                         message = literalText("Low Temperature."),
-                        noShelter = literalText("No good equipment,", "Party loses 5 health."),
+                        noShelter = flowText("No good equipment, Party loses 5 health."),
                     )
                     temperatureBand(
                         band = TemperatureBand.VeryLow,
                         range = 10..15,
                         damage = 5,
                         message = literalText("Very low temperature."),
-                        noShelter = literalText("No good equipment,", "Party loses 10 health."),
+                        noShelter = flowText("No good equipment, Party loses 10 health."),
                     )
                 }
             }
@@ -655,7 +648,7 @@ val authoredRylween: RylweenModel =
                 // and narration consumed by the reusable castle runtime.
                 text {
                     floorNames("(Ground Level)", "(First Floor)", "(Base of Tower)", "(Top of Tower)")
-                    roomMonster = literalText("You are spotted by", "monsters!")
+                    roomMonster = flowText("You are spotted by monsters!")
                     trapTriesDisarmSuffix = literalText("tries to", "disarm it...", "")
                     trapDisarmSucceed = literalText("AND SUCCEEDS!")
                     trapDisarmFail = literalText("BUT FAILS!")
@@ -667,24 +660,20 @@ val authoredRylween: RylweenModel =
                     moveSouth = literalText("South.")
                     moveEast = literalText("East.")
                     moveWest = literalText("West.")
-                    stairsIntro = literalText("You stand before the", "stairs to the next level.", "")
+                    stairsIntro = flowText("You stand before the stairs to the next level.")
                     stairsIllustration = CastleImages.stairsGuardians
                     pitfallIllustration = CastleImages.pitfall
                     stairsGuardianOffer =
-                        literalText(
-                            "A mage imprisoned in a",
-                            "fiery sphere offers to",
-                            "open trapdoor at the top",
-                            "of the stairs if you",
-                            "give him an item of power!",
-                            "He also offers to teleport",
-                            "you out of the castle,",
-                            "for free.",
-                            "",
+                        flowText(
+                            """
+                            A mage imprisoned in a fiery sphere offers to open trapdoor at the top of the stairs if you give him an item of power!
+
+                            He also offers to teleport you out of the castle, for free.
+                            """,
                         )
                     stairsMenu = literalText("Choose:", "", "(T)eleport Out", "(G)ive him an item", "(L)eave")
                     stairsLeave = literalText("You take the nearest exit!")
-                    teleportVortex = literalText("The world fades into a", "vortex of agonizing", "vertigo...", "")
+                    teleportVortex = flowText("The world fades into a vortex of agonizing vertigo...")
                     teleportOutside = literalText("And you are outside...")
                     giveMenu =
                         literalText(
@@ -697,16 +686,12 @@ val authoredRylween: RylweenModel =
                             "5. Nothing",
                         )
                     stairsGuardianGrateful =
-                        literalText(
-                            "The sphere fades away",
-                            "and the mage steps out.",
-                            "He is grateful. Before",
-                            "he teleports away, he",
-                            "casts an OPEN spell on the",
-                            "trapdoor above and speaks:",
-                            "- I will aid thee in the",
-                            "final battle!",
-                            "",
+                        flowText(
+                            """
+                            The sphere fades away and the mage steps out. He is grateful. Before he teleports away, he casts an OPEN spell on the trapdoor above and speaks:
+
+                            - I will aid thee in the final battle!
+                            """,
                         )
                 }
             }
@@ -716,12 +701,11 @@ val authoredRylween: RylweenModel =
             scene(sceneId("castle.ydarg.already_completed")) {
                 showBackdrop(Images.Backdrop.ydargCastle)
                 writeText(
-                    "The once so mighty",
-                    "castle Zadraz is now",
-                    "nothing but a ruin.",
-                    "You have nothing else",
-                    "to do here.",
-                    "",
+                    flowText(
+                        """
+                        The once so mighty castle Zadraz is now nothing but a ruin. You have nothing else to do here.
+                        """,
+                    ),
                 )
             }
 
@@ -729,24 +713,21 @@ val authoredRylween: RylweenModel =
                 showBackdrop(Images.Backdrop.ydargCastle)
                 showBackdrop(CastleImages.jaaraGate)
                 writeText(
-                    "At the gate of Zadraz,",
-                    "white mist thickens",
-                    "into the shape of a young",
-                    "woman.",
-                    "",
-                    "- Do not be afraid,",
-                    "adventurers. I am Jaara,",
-                    "guardian of the gate.",
-                    "Baron Ydarg has imprisoned",
-                    "me here forever.",
-                    "",
+                    flowText(
+                        """
+                        At the gate of Zadraz, white mist thickens into the shape of a young woman.
+
+                        - Do not be afraid, adventurers. I am Jaara, guardian of the gate. Baron Ydarg has imprisoned me here forever.
+                        """,
+                    ),
                 )
                 waitInput("after Jaara appears without the key")
                 writeText(
-                    "- You don't have the",
-                    "Silver Key. The gate will",
-                    "remain sealed.",
-                    "",
+                    flowText(
+                        """
+                        - You don't have the Silver Key. The gate will remain sealed.
+                        """,
+                    ),
                 )
                 waitInput("after Jaara blocks the gate")
             }
@@ -755,139 +736,125 @@ val authoredRylween: RylweenModel =
                 showBackdrop(Images.Backdrop.ydargCastle)
                 showBackdrop(CastleImages.jaaraGate)
                 writeText(
-                    "At the gate of Zadraz,",
-                    "white mist thickens",
-                    "into the shape of Jaara.",
-                    "",
-                    "- Do not be afraid,",
-                    "adventurers. I am Jaara,",
-                    "guardian of the gate.",
-                    "Baron Ydarg has imprisoned",
-                    "me here forever.",
-                    "",
+                    flowText(
+                        """
+                        At the gate of Zadraz, white mist thickens into the shape of Jaara.
+
+                        - Do not be afraid, adventurers. I am Jaara, guardian of the gate. Baron Ydarg has imprisoned me here forever.
+                        """,
+                    ),
                 )
                 waitInput("after Jaara appears with the key")
                 writeText(
-                    "You show the Silver Key to",
-                    "Jaara. Her eyes widen,",
-                    "then she smiles and waves",
-                    "towards the drawbridge.",
-                    "",
+                    flowText(
+                        """
+                        You show the Silver Key to Jaara. Her eyes widen, then she smiles and waves towards the drawbridge.
+                        """,
+                    ),
                 )
                 waitInput("after showing Jaara the key")
                 writeText(
-                    "It falls to the",
-                    "ground with a resounding",
-                    "***KRASH***. Jaara",
-                    "slowly fades away until",
-                    "nothing remains.",
+                    flowText(
+                        """
+                        It falls to the ground with a resounding ***KRASH***. Jaara slowly fades away until nothing remains.
+                        """,
+                    ),
                 )
                 waitInput("after Jaara opens the gate")
-                writeText("You enter.", "", "The first door you enter", "slams shut behind you!")
+                writeText(
+                    flowText(
+                        """
+                        You enter.
+
+                        The first door you enter slams shut behind you!
+                        """,
+                    ),
+                )
                 waitInput("after entering castle Ydarg")
             }
 
             scene(sceneId("castle.ydarg.completed")) {
                 writeText(
-                    "The last trapdoor",
-                    "slams shut behind you.",
-                    "You are high above the",
-                    "forest, on the roof",
-                    "of this fortress.",
-                    "Suddenly, a voice speaks:",
-                    "",
+                    flowText(
+                        """
+                        The last trapdoor slams shut behind you. You are high above the forest, on the roof of this fortress. Suddenly, a voice speaks:
+                        """,
+                    ),
                 )
                 writeText(
-                    "- Fools! You have come",
-                    "far, but here ends",
-                    "your journey!",
-                    "",
-                    "The night sky above lights",
-                    "up with green flashes, and",
-                    "Ydarg's minions rush",
-                    "to attack you!",
-                    "",
+                    flowText(
+                        """
+                        - Fools! You have come far, but here ends your journey!
+
+                        The night sky above lights up with green flashes, and Ydarg's minions rush to attack you!
+                        """,
+                    ),
                 )
                 encounter(Monsters.cryptHorror, mandatory = true)
                 encounter(Monsters.nightGaunt, mandatory = true)
                 encounter(Monsters.thyraga, mandatory = true)
                 encounter(Monsters.liche, mandatory = true)
                 writeText(
-                    "Corpses of the nightmare",
-                    "terrors are strewn all",
-                    "around. A dark cloaked",
-                    "figure appears before you.",
-                    "He takes a broad step over",
-                    "the dead and dying, and",
-                    "gazes at you with cold",
-                    "glowing green eyes.",
-                    "",
+                    flowText(
+                        """
+                        Corpses of the nightmare terrors are strewn all around. A dark cloaked figure appears before you. He takes a broad step over the dead and dying, and gazes at you with cold glowing green eyes.
+                        """,
+                    ),
                 )
                 writeText(
-                    "- So. You have completed",
-                    "the battle test. I must",
-                    "confess that you impress",
-                    "me. But now...",
-                    "",
-                    "(He waves a pointed stick",
-                    "and energy begins to form",
-                    "in the air before you.)",
-                    "",
+                    flowText(
+                        """
+                        - So. You have completed the battle test. I must confess that you impress me. But now...
+
+                        (He waves a pointed stick and energy begins to form in the air before you.)
+                        """,
+                    ),
                 )
                 writeText(
-                    "A glowing energy sphere",
-                    "appears, and at a gesture",
-                    "from Ydarg's stick, it",
-                    "hurtles towards you!!!",
-                    "",
+                    flowText(
+                        """
+                        A glowing energy sphere appears, and at a gesture from Ydarg's stick, it hurtles towards you!!!
+                        """,
+                    ),
                 )
                 writeText(
-                    "Suddenly! You feel someone",
-                    "else near. The four",
-                    "gray-clad mages raise",
-                    "their hands, and the",
-                    "sphere is absorbed by",
-                    "their hands!",
-                    "",
+                    flowText(
+                        """
+                        Suddenly! You feel someone else near. The four gray-clad mages raise their hands, and the sphere is absorbed by their hands!
+                        """,
+                    ),
                 )
                 writeText(
-                    "- CURSES! Ydarg growls.",
-                    "- So this is what it",
-                    "has come to! You got",
-                    "here by cold steel, and",
-                    "that is the way you shall",
-                    "perish!",
-                    "",
+                    flowText(
+                        """
+                        - CURSES! Ydarg growls. - So this is what it has come to! You got here by cold steel, and that is the way you shall perish!
+                        """,
+                    ),
                 )
                 writeText(
-                    "He pulls a huge trident",
-                    "from his robe and utters",
-                    "a single syllable. Without",
-                    "warning he appears a foot",
-                    "before you!!!",
-                    "",
+                    flowText(
+                        """
+                        He pulls a huge trident from his robe and utters a single syllable. Without warning he appears a foot before you!!!
+                        """,
+                    ),
                 )
                 writeText("Let the battle commence!", "")
                 encounter(Monsters.baronYdarg, mandatory = true)
                 writeText(
-                    "Ydarg's trident clatters",
-                    "to the ground before you.",
-                    "He shudders and falls over.",
-                    "As you rush to kill him",
-                    "he screams:",
-                    "",
+                    flowText(
+                        """
+                        Ydarg's trident clatters to the ground before you. He shudders and falls over. As you rush to kill him he screams:
+                        """,
+                    ),
                 )
                 writeText(
-                    "- It is not over! I shall",
-                    "see you in hell! In",
-                    "another world! A time",
-                    "to come! You have tainted",
-                    "Zadraz with your ancient",
-                    "items, but I will triumph",
-                    "again!!! Anew...",
-                    "",
+                    flowText(
+                        """
+                        - It is not over! I shall see you in hell! In another world! A time to come! You have tainted Zadraz with your ancient items, but I will triumph again!!! Anew...
+                        """,
+                    ),
                 )
-                writeText("His cloak collapses, and", "when you tear it away,", "you reveal nothing but...", "")
+                writeText(flowText("His cloak collapses, and when you tear it away, you reveal nothing but..."))
                 writeText("dust...", "")
                 writeText(
                     "CONGRATULATIONS!",
@@ -951,7 +918,8 @@ val authoredRylween: RylweenModel =
                     hallOfFame = inputKey("H", label = "Heroes")
                     documentation = inputKey("M", label = "Manual")
                     leave = inputKey("E", label = "Exit")
-                    continueUnavailable = literalText("There is no saved party for this account.")
+                    continueUnavailableReasonLabel = "no save"
+                    continueUnavailable = flowText("There is no saved party for this account.")
                     overwriteConfirm =
                         literalText(
                             "Creating a new party will overwrite the saved party for this account.",
@@ -967,7 +935,7 @@ val authoredRylween: RylweenModel =
                 priest {
                     who = structuredText { line("Who? (1-", HuntText.partyMemberCount, ")") }
                     none = literalText("(N)one")
-                    mageCombatOnly = literalText("Sorry. Mage spells are", "combat-only.")
+                    mageCombatOnly = flowText("Sorry. Mage spells are combat-only.")
                     wrongClass = literalText("Not a spellcaster!")
                     dead = literalText("Dead.")
                     invalidCaster = literalText("Not a party member.")
@@ -977,8 +945,8 @@ val authoredRylween: RylweenModel =
                 inventoryUse {
                     usePrompt = literalText("Use what?")
                     quaff = literalText("Quaff what?")
-                    noItems = literalText("You are not carrying", "anything.")
-                    noItem = literalText("There is nothing", "in that slot.")
+                    noItems = flowText("You are not carrying anything.")
+                    noItem = flowText("There is nothing in that slot.")
                     invalidSlot {
                         line("Inventory slot ", InventoryText.slotName)
                         line("does not exist.")
@@ -1001,7 +969,7 @@ val authoredRylween: RylweenModel =
                 }
                 characterCreation {
                     header = literalText("Party Creation", "")
-                    partyName = literalText("What is the name of your", "party?", "")
+                    partyName = flowText("What is the name of your party?")
                     statsPage {
                         line("Stats for char: ", memberNumber)
                         line("")
@@ -1029,11 +997,7 @@ val authoredRylween: RylweenModel =
                         line("")
                     }
                     classMenu =
-                        literalText(
-                            "Pick a class for this",
-                            "character...",
-                            "",
-                        )
+                        flowText("Pick a class for this character...")
                     invalidInput = literalText("Invalid input.")
                     saving = literalText("Saving...")
                     saveConfirmation = literalText("OK")
@@ -1069,7 +1033,7 @@ val authoredRylween: RylweenModel =
                         line("You drop the")
                         line(itemName, ".")
                     }
-                    dropCapacityReduced = literalText("You are forced to", "leave some of your", "food behind...")
+                    dropCapacityReduced = flowText("You are forced to leave some of your food behind...")
                 }
                 wilderness {
                     pass = literalText("You wait for an hour...")
@@ -1078,7 +1042,7 @@ val authoredRylween: RylweenModel =
                     notInWilderness = literalText("The active party is not in the wilderness.")
                     nothingToEnter = literalText("There is nothing to enter here.")
                     impassable = literalText("Impassable.")
-                    quitConfirm = literalText("Do you really want", "to quit?", "")
+                    quitConfirm = flowText("Do you really want to quit?")
                     dungeonHandoff {
                         line("Entering ", dungeonName, ".")
                         line("Levels: ", levels)
@@ -1095,9 +1059,9 @@ val authoredRylween: RylweenModel =
                     enterLevel {
                         line("You enter level ", level, ".")
                     }
-                    atMaxDepth = literalText("The cave doesn't", "go deeper.")
-                    noTorches = literalText("You have used your last", "torch. You can't go", "any further.", "")
-                    leaveCavern = literalText("You leave the", "hideous cavern!", "")
+                    atMaxDepth = flowText("The cave doesn't go deeper.")
+                    noTorches = flowText("You have used your last torch. You can't go any further.")
+                    leaveCavern = flowText("You leave the hideous cavern!")
                 }
             }
 
@@ -4537,7 +4501,7 @@ val authoredRylween: RylweenModel =
                             """,
                             ),
                         )
-                        accepted(flowText("""You accept."""))
+                        accepted(flowText("You accept."))
                         accepted(
                             flowText(
                                 """

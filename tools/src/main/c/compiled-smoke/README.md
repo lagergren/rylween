@@ -145,7 +145,7 @@ does not use Kotlin reflective `_type` markers; entries use explicit `kind`,
 
 ```json
 {
-  "schemaVersion": 7,
+  "schemaVersion": 8,
   "realm": {},
   "pacing": {},
   "prompts": {},
@@ -688,5 +688,6 @@ the current script set and run parity playthroughs:
 - a scenario driver that can feed the same semantic inputs/checkpoints used by
   the Kotlin playthrough harness, or an emitted equivalent scenario tape
 
-Until J2 exists, these semantics are still provided by the Kotlin session
-runtime and authored `Op` interpreter.
+Current Kotlin runtimes provide these semantics through the compiled script VM
+contract. The authored source script IR remains an authoring/compiler model, not
+the runtime execution contract.

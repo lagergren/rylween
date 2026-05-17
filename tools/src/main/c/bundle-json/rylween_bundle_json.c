@@ -6,7 +6,7 @@
 
 enum {
     BUNDLE_SCHEMA_VERSION = 3,
-    RUNTIME_SYSTEMS_SCHEMA_VERSION = 7
+    RUNTIME_SYSTEMS_SCHEMA_VERSION = 8
 };
 
 static const char *SECTION_ORDER[] = {

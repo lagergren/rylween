@@ -297,6 +297,7 @@ data class ExternalWildernessPacing(
 
 data class ExternalTitleMenuPrompts(
     val header: ExternalRuntimeTextBlock,
+    val continueUnavailableReasonLabel: String,
     val continueUnavailable: ExternalRuntimeTextBlock,
     val overwriteConfirm: ExternalRuntimeTextBlock,
     val terminateConfirm: ExternalRuntimeTextBlock,
@@ -1194,7 +1195,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun runtimeSystemsJson(game: GameModel): JsonValue =
         jsonObject(
-            "schemaVersion" to JsonNumber("7"),
+            "schemaVersion" to JsonNumber("8"),
             "realm" to realmJson(game.realm),
             "prompts" to promptsJson(game.prompts),
             "pacing" to pacingJson(game.pacing),
@@ -1591,6 +1592,7 @@ private class ExternalBundleArtifactWriter {
                         promptGroupJson(
                             "titleMenu",
                             textField("header", prompts.titleMenu.header),
+                            stringField("continueUnavailableReasonLabel", prompts.titleMenu.continueUnavailableReasonLabel),
                             textField("continueUnavailable", prompts.titleMenu.continueUnavailable),
                             textField("overwriteConfirm", prompts.titleMenu.overwriteConfirm),
                             textField("terminateConfirm", prompts.titleMenu.terminateConfirm),
@@ -2741,6 +2743,7 @@ private class ExternalRuntimeSystemsReader(
             titleMenu =
                 ExternalTitleMenuPrompts(
                     header = titleMenu.requiredTextPrompt("header"),
+                    continueUnavailableReasonLabel = titleMenu.requiredStringPrompt("continueUnavailableReasonLabel"),
                     continueUnavailable = titleMenu.requiredTextPrompt("continueUnavailable"),
                     overwriteConfirm = titleMenu.requiredTextPrompt("overwriteConfirm"),
                     terminateConfirm = titleMenu.requiredTextPrompt("terminateConfirm"),

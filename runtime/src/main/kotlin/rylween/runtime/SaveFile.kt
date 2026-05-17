@@ -320,10 +320,10 @@ internal object SaveFile {
         val rows = locations.sortedBy { placement -> content.slug(placement.location) }
         put("locations.count", rows.size.toString())
         rows.forEachIndexed { index, placement ->
-            val number = index + 1
-            put("location.$number.id", content.slug(placement.location))
-            put("location.$number.x", placement.point.x.toString())
-            put("location.$number.y", placement.point.y.toString())
+            val prefix = oneBasedRecordPrefix("location", index)
+            put("$prefix.id", content.slug(placement.location))
+            put("$prefix.x", placement.point.x.toString())
+            put("$prefix.y", placement.point.y.toString())
         }
     }
 
@@ -334,8 +334,7 @@ internal object SaveFile {
         val rows = npcs.sortedBy { placement -> content.slug(placement.npc) }
         put("npcs.count", rows.size.toString())
         rows.forEachIndexed { index, placement ->
-            val number = index + 1
-            val prefix = "npc.$number"
+            val prefix = oneBasedRecordPrefix("npc", index)
             put("$prefix.id", content.slug(placement.npc))
             putWorldPosition(prefix, placement.position, content)
         }
@@ -433,7 +432,7 @@ internal object SaveFile {
         )
         put("party.journal.count", party.journal.size.toString())
         party.journal.forEachIndexed { index, line ->
-            put("party.journal.${index + 1}", line)
+            put(oneBasedRecordPrefix("party.journal", index), line)
         }
         party.inventory.forEach { slot ->
             put("inventory.${slot.slot}", slot.item?.let(content::slug).orEmpty())
@@ -819,7 +818,7 @@ internal object SaveFile {
         val sorted = records.sortedBy(UserSaveRecord::id)
         put(USERS_COUNT, sorted.size.toString())
         sorted.forEachIndexed { index, record ->
-            val prefix = "user.${index + 1}"
+            val prefix = oneBasedRecordPrefix("user", index)
             put("$prefix.id", record.id)
             record.values.entries.sortedBy(Map.Entry<String, String>::key).forEach { (key, value) ->
                 put("$prefix.$key", value)
@@ -846,7 +845,7 @@ internal object SaveFile {
         val sorted = entries.distinctBy { entry -> entry.userId to entry.partyName }.sortedBy(RuntimeHeroEntry::partyName)
         put(HEROES_COUNT, sorted.size.toString())
         sorted.forEachIndexed { index, entry ->
-            val prefix = "hero.${index + 1}"
+            val prefix = oneBasedRecordPrefix("hero", index)
             put("$prefix.user", entry.userId)
             put("$prefix.party", entry.partyName)
         }
@@ -876,6 +875,11 @@ internal object SaveFile {
                     ?.get(1)
                     ?.toIntOrNull()
             }.toSet()
+
+    private fun oneBasedRecordPrefix(
+        family: String,
+        zeroBasedIndex: Int,
+    ): String = "$family.${zeroBasedIndex + 1}"
 
     private fun Map<String, String>.required(key: String): String = get(key) ?: error("compiled save missing $key")
 
