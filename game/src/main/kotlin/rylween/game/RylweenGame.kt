@@ -21,11 +21,13 @@ import rylween.dsl.*
 //
 //   rylween
 //     content
-//       metadata, limits, flags, visuals, staticScreens, layouts
-//       terrain, terminal, worldMap, realm, items, itemPools
-//       castles, runtimeSystems, gameProgress, winningConfiguration
-//       leveling, characterCreation, rewards, monsters, combat
-//       dungeons, towns, townSystem, missions, scenes, dialogue
+//       global identity/state: metadata, limits, flags, secrets
+//       presentation: visuals/staticScreens, layouts, terminal
+//       world and systems: terrain, worldMap, realm, castle, prompts, pacing
+//       catalogs/progression: items, gameProgress, leveling
+//       authored rules: characterCreation, formulas, rewards, combat, wilderness
+//       content tables: dungeons, speak, towns, townSystem, characters, monsters
+//       behavior: missions, castle scenes, town scenes, mission scenes, dialogue
 //     state/runtimeState/stateFixture
 //       realm, locations, npcs, parties, inventory, members, journal
 //     script bodies
@@ -169,6 +171,23 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Secrets are explicit sysop/debug hooks from the original game.
+            // Keeping them authored prevents hidden runtime-only special cases.
+            secrets {
+                playersNamed("Marcus Lagergren", "Marcus") {
+                    alwaysRunFromNonMandatoryEncounters()
+                    addTimeLeft('/', amount = 50, refreshStatus = true)
+                    setInventory('(', slot = 12, item = Items.drumsOfDeath)
+                    setInventory(')', slot = 11, item = Items.gemOfResurrection)
+                    setInventory('&', slot = 10, item = Items.kaelsAxe)
+                    setInventory('*', slot = 9, item = Items.holyHandGrenade)
+                    addGold('+', amount = 1_000, refreshStatus = true)
+                }
+                playerNamed("Karl Skagerberg") {
+                    spawnEncounterEvery(everySteps = 101, monster = Monsters.skagerbergKiller)
+                }
+            }
+
             // Visuals bind logical image/static-screen ids to concrete assets.
             // Frontends choose the ANSI or bitmap representation for an id.
             visuals {
@@ -280,6 +299,31 @@ val authoredRylween: RylweenModel =
                 }
             }
 
+            // Layout regions describe the classic screen geometry. Runtime text
+            // wrapping uses these dimensions instead of hardcoded window sizes.
+            layouts {
+                region(ScreenRegions.textWindow, x = 49, y = 5, width = 26, height = 11)
+                region(ScreenRegions.topLeft, x = 0, y = 0)
+                region(ScreenRegions.statuslineTop, x = 3, y = 21)
+                region(ScreenRegions.statuslineBottom, x = 13, y = 22)
+                region(ScreenRegions.mapWindow, x = 8, y = 6, width = 16, height = 9)
+            }
+
+            // Terminal presentation maps terrain to ANSI-era glyphs and colors.
+            // Bitmap/web frontends can ignore this without changing game rules.
+            terminal {
+                terrain(Terrain.mountain, glyph = "/\\", color = PaletteColors.white)
+                terrain(Terrain.water, glyph = "~~", color = PaletteColors.blue)
+                terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
+                terrain(Terrain.town, glyph = "TT", color = PaletteColors.white)
+                terrain(Terrain.hut, glyph = "HH", color = PaletteColors.white)
+                terrain(Terrain.foothills, glyph = "^^", color = PaletteColors.white)
+                terrain(Terrain.desert, glyph = "::", color = PaletteColors.red)
+                terrain(Terrain.swamp, glyph = "%%", color = PaletteColors.magenta)
+                terrain(Terrain.forest, glyph = "gg", color = PaletteColors.green)
+                terrain(Terrain.castle, glyph = "CC", color = PaletteColors.white)
+            }
+
             // Terrain declares what each world-map character means. Movement,
             // settlement entry, and NPC placement all read these semantics.
             terrain {
@@ -293,23 +337,6 @@ val authoredRylween: RylweenModel =
                 terrain(Terrain.swamp, mapCode = 't')
                 terrain(Terrain.forest, mapCode = 'g')
                 terrain(Terrain.castle, mapCode = '2') { settlement(TerrainSettlement.Castle) }
-            }
-
-            // Secrets are explicit sysop/debug hooks from the original game.
-            // Keeping them authored prevents hidden runtime-only special cases.
-            secrets {
-                playersNamed("Marcus Lagergren", "Marcus") {
-                    alwaysRunFromNonMandatoryEncounters()
-                    addTimeLeft('/', amount = 50, refreshStatus = true)
-                    setInventory('(', slot = 12, item = Items.drumsOfDeath)
-                    setInventory(')', slot = 11, item = Items.gemOfResurrection)
-                    setInventory('&', slot = 10, item = Items.kaelsAxe)
-                    setInventory('*', slot = 9, item = Items.holyHandGrenade)
-                    addGold('+', amount = 1_000, refreshStatus = true)
-                }
-                playerNamed("Karl Skagerberg") {
-                    spawnEncounterEvery(everySteps = 101, monster = Monsters.skagerbergKiller)
-                }
             }
 
             // World maps are authored as terrain rows. Size and storage counts
@@ -359,31 +386,6 @@ val authoredRylween: RylweenModel =
                         "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
                     )
                 }
-            }
-
-            // Terminal presentation maps terrain to ANSI-era glyphs and colors.
-            // Bitmap/web frontends can ignore this without changing game rules.
-            terminal {
-                terrain(Terrain.mountain, glyph = "/\\", color = PaletteColors.white)
-                terrain(Terrain.water, glyph = "~~", color = PaletteColors.blue)
-                terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
-                terrain(Terrain.town, glyph = "TT", color = PaletteColors.white)
-                terrain(Terrain.hut, glyph = "HH", color = PaletteColors.white)
-                terrain(Terrain.foothills, glyph = "^^", color = PaletteColors.white)
-                terrain(Terrain.desert, glyph = "::", color = PaletteColors.red)
-                terrain(Terrain.swamp, glyph = "%%", color = PaletteColors.magenta)
-                terrain(Terrain.forest, glyph = "gg", color = PaletteColors.green)
-                terrain(Terrain.castle, glyph = "CC", color = PaletteColors.white)
-            }
-
-            // Layout regions describe the classic screen geometry. Runtime text
-            // wrapping uses these dimensions instead of hardcoded window sizes.
-            layouts {
-                region(ScreenRegions.textWindow, x = 49, y = 5, width = 26, height = 11)
-                region(ScreenRegions.topLeft, x = 0, y = 0)
-                region(ScreenRegions.statuslineTop, x = 3, y = 21)
-                region(ScreenRegions.statuslineBottom, x = 13, y = 22)
-                region(ScreenRegions.mapWindow, x = 8, y = 6, width = 16, height = 9)
             }
 
             // Realm rules are global balance and survival systems: resource
@@ -634,180 +636,6 @@ val authoredRylween: RylweenModel =
                             """,
                         )
                 }
-            }
-
-            // Castle scenes are script roots named from the castle model above.
-            // They keep the story beats authored while the castle runner stays generic.
-            scene(sceneId("castle.ydarg.already_completed")) {
-                showBackdrop(Images.Backdrop.ydargCastle)
-                writeText(
-                    flowText(
-                        """
-                        The once so mighty castle Zadraz is now nothing but a ruin. You have nothing else to do here.
-                        """,
-                    ),
-                )
-            }
-
-            scene(sceneId("castle.ydarg.entry_blocked")) {
-                showBackdrop(Images.Backdrop.ydargCastle)
-                showBackdrop(Images.Castle.jaaraGate)
-                writeText(
-                    flowText(
-                        """
-                        At the gate of Zadraz, white mist thickens into the shape of a young woman.
-
-                        - Do not be afraid, adventurers. I am Jaara, guardian of the gate. Baron Ydarg has imprisoned me here forever.
-                        """,
-                    ),
-                )
-                waitInput("after Jaara appears without the key")
-                writeText(
-                    flowText(
-                        """
-                        - You don't have the Silver Key. The gate will remain sealed.
-                        """,
-                    ),
-                )
-                waitInput("after Jaara blocks the gate")
-            }
-
-            scene(sceneId("castle.ydarg.entered")) {
-                showBackdrop(Images.Backdrop.ydargCastle)
-                showBackdrop(Images.Castle.jaaraGate)
-                writeText(
-                    flowText(
-                        """
-                        At the gate of Zadraz, white mist thickens into the shape of Jaara.
-
-                        - Do not be afraid, adventurers. I am Jaara, guardian of the gate. Baron Ydarg has imprisoned me here forever.
-                        """,
-                    ),
-                )
-                waitInput("after Jaara appears with the key")
-                writeText(
-                    flowText(
-                        """
-                        You show the Silver Key to Jaara. Her eyes widen, then she smiles and waves towards the drawbridge.
-                        """,
-                    ),
-                )
-                waitInput("after showing Jaara the key")
-                writeText(
-                    flowText(
-                        """
-                        It falls to the ground with a resounding ***KRASH***. Jaara slowly fades away until nothing remains.
-                        """,
-                    ),
-                )
-                waitInput("after Jaara opens the gate")
-                writeText(
-                    flowText(
-                        """
-                        You enter.
-
-                        The first door you enter slams shut behind you!
-                        """,
-                    ),
-                )
-                waitInput("after entering castle Ydarg")
-            }
-
-            scene(sceneId("castle.ydarg.completed")) {
-                writeText(
-                    flowText(
-                        """
-                        The last trapdoor slams shut behind you. You are high above the forest, on the roof of this fortress. Suddenly, a voice speaks:
-                        """,
-                    ),
-                )
-                writeText(
-                    flowText(
-                        """
-                        - Fools! You have come far, but here ends your journey!
-
-                        The night sky above lights up with green flashes, and Ydarg's minions rush to attack you!
-                        """,
-                    ),
-                )
-                encounter(Monsters.cryptHorror, mandatory = true)
-                encounter(Monsters.nightGaunt, mandatory = true)
-                encounter(Monsters.thyraga, mandatory = true)
-                encounter(Monsters.liche, mandatory = true)
-                writeText(
-                    flowText(
-                        """
-                        Corpses of the nightmare terrors are strewn all around. A dark cloaked figure appears before you. He takes a broad step over the dead and dying, and gazes at you with cold glowing green eyes.
-                        """,
-                    ),
-                )
-                writeText(
-                    flowText(
-                        """
-                        - So. You have completed the battle test. I must confess that you impress me. But now...
-
-                        (He waves a pointed stick and energy begins to form in the air before you.)
-                        """,
-                    ),
-                )
-                writeText(
-                    flowText(
-                        """
-                        A glowing energy sphere appears, and at a gesture from Ydarg's stick, it hurtles towards you!!!
-                        """,
-                    ),
-                )
-                writeText(
-                    flowText(
-                        """
-                        Suddenly! You feel someone else near. The four gray-clad mages raise their hands, and the sphere is absorbed by their hands!
-                        """,
-                    ),
-                )
-                writeText(
-                    flowText(
-                        """
-                        - CURSES! Ydarg growls. - So this is what it has come to! You got here by cold steel, and that is the way you shall perish!
-                        """,
-                    ),
-                )
-                writeText(
-                    flowText(
-                        """
-                        He pulls a huge trident from his robe and utters a single syllable. Without warning he appears a foot before you!!!
-                        """,
-                    ),
-                )
-                writeText("Let the battle commence!", "")
-                encounter(Monsters.baronYdarg, mandatory = true)
-                writeText(
-                    flowText(
-                        """
-                        Ydarg's trident clatters to the ground before you. He shudders and falls over. As you rush to kill him he screams:
-                        """,
-                    ),
-                )
-                writeText(
-                    flowText(
-                        """
-                        - It is not over! I shall see you in hell! In another world! A time to come! You have tainted Zadraz with your ancient items, but I will triumph again!!! Anew...
-                        """,
-                    ),
-                )
-                writeText(flowText("His cloak collapses, and when you tear it away, you reveal nothing but..."))
-                writeText("dust...", "")
-                writeText(
-                    "CONGRATULATIONS!",
-                    "",
-                    "You have banished Ydarg",
-                    "from this dimension.",
-                    "Please ask your SysOp to",
-                    "reset the game.",
-                    "",
-                )
-                achieve(Milestones.ydargVictory)
-                writeText("Be ready for:", "HEROES OF RYLWEEN", "- The second coming.", "Soon online at a BBS", "near you!", "")
-                writeText("See Ya!!!", "", "     /Marcus", "")
             }
 
             // Prompts are reusable runtime text and input bindings. Keep wording
@@ -4225,6 +4053,180 @@ val authoredRylween: RylweenModel =
                     requires(Story.silverKey.caveLocated)
                     runs(Scenes.Missions.hobgoblinCave)
                 }
+            }
+
+            // Castle scenes are script roots named from the castle model above.
+            // They keep the story beats authored while the castle runner stays generic.
+            scene(sceneId("castle.ydarg.already_completed")) {
+                showBackdrop(Images.Backdrop.ydargCastle)
+                writeText(
+                    flowText(
+                        """
+                        The once so mighty castle Zadraz is now nothing but a ruin. You have nothing else to do here.
+                        """,
+                    ),
+                )
+            }
+
+            scene(sceneId("castle.ydarg.entry_blocked")) {
+                showBackdrop(Images.Backdrop.ydargCastle)
+                showBackdrop(Images.Castle.jaaraGate)
+                writeText(
+                    flowText(
+                        """
+                        At the gate of Zadraz, white mist thickens into the shape of a young woman.
+
+                        - Do not be afraid, adventurers. I am Jaara, guardian of the gate. Baron Ydarg has imprisoned me here forever.
+                        """,
+                    ),
+                )
+                waitInput("after Jaara appears without the key")
+                writeText(
+                    flowText(
+                        """
+                        - You don't have the Silver Key. The gate will remain sealed.
+                        """,
+                    ),
+                )
+                waitInput("after Jaara blocks the gate")
+            }
+
+            scene(sceneId("castle.ydarg.entered")) {
+                showBackdrop(Images.Backdrop.ydargCastle)
+                showBackdrop(Images.Castle.jaaraGate)
+                writeText(
+                    flowText(
+                        """
+                        At the gate of Zadraz, white mist thickens into the shape of Jaara.
+
+                        - Do not be afraid, adventurers. I am Jaara, guardian of the gate. Baron Ydarg has imprisoned me here forever.
+                        """,
+                    ),
+                )
+                waitInput("after Jaara appears with the key")
+                writeText(
+                    flowText(
+                        """
+                        You show the Silver Key to Jaara. Her eyes widen, then she smiles and waves towards the drawbridge.
+                        """,
+                    ),
+                )
+                waitInput("after showing Jaara the key")
+                writeText(
+                    flowText(
+                        """
+                        It falls to the ground with a resounding ***KRASH***. Jaara slowly fades away until nothing remains.
+                        """,
+                    ),
+                )
+                waitInput("after Jaara opens the gate")
+                writeText(
+                    flowText(
+                        """
+                        You enter.
+
+                        The first door you enter slams shut behind you!
+                        """,
+                    ),
+                )
+                waitInput("after entering castle Ydarg")
+            }
+
+            scene(sceneId("castle.ydarg.completed")) {
+                writeText(
+                    flowText(
+                        """
+                        The last trapdoor slams shut behind you. You are high above the forest, on the roof of this fortress. Suddenly, a voice speaks:
+                        """,
+                    ),
+                )
+                writeText(
+                    flowText(
+                        """
+                        - Fools! You have come far, but here ends your journey!
+
+                        The night sky above lights up with green flashes, and Ydarg's minions rush to attack you!
+                        """,
+                    ),
+                )
+                encounter(Monsters.cryptHorror, mandatory = true)
+                encounter(Monsters.nightGaunt, mandatory = true)
+                encounter(Monsters.thyraga, mandatory = true)
+                encounter(Monsters.liche, mandatory = true)
+                writeText(
+                    flowText(
+                        """
+                        Corpses of the nightmare terrors are strewn all around. A dark cloaked figure appears before you. He takes a broad step over the dead and dying, and gazes at you with cold glowing green eyes.
+                        """,
+                    ),
+                )
+                writeText(
+                    flowText(
+                        """
+                        - So. You have completed the battle test. I must confess that you impress me. But now...
+
+                        (He waves a pointed stick and energy begins to form in the air before you.)
+                        """,
+                    ),
+                )
+                writeText(
+                    flowText(
+                        """
+                        A glowing energy sphere appears, and at a gesture from Ydarg's stick, it hurtles towards you!!!
+                        """,
+                    ),
+                )
+                writeText(
+                    flowText(
+                        """
+                        Suddenly! You feel someone else near. The four gray-clad mages raise their hands, and the sphere is absorbed by their hands!
+                        """,
+                    ),
+                )
+                writeText(
+                    flowText(
+                        """
+                        - CURSES! Ydarg growls. - So this is what it has come to! You got here by cold steel, and that is the way you shall perish!
+                        """,
+                    ),
+                )
+                writeText(
+                    flowText(
+                        """
+                        He pulls a huge trident from his robe and utters a single syllable. Without warning he appears a foot before you!!!
+                        """,
+                    ),
+                )
+                writeText("Let the battle commence!", "")
+                encounter(Monsters.baronYdarg, mandatory = true)
+                writeText(
+                    flowText(
+                        """
+                        Ydarg's trident clatters to the ground before you. He shudders and falls over. As you rush to kill him he screams:
+                        """,
+                    ),
+                )
+                writeText(
+                    flowText(
+                        """
+                        - It is not over! I shall see you in hell! In another world! A time to come! You have tainted Zadraz with your ancient items, but I will triumph again!!! Anew...
+                        """,
+                    ),
+                )
+                writeText(flowText("His cloak collapses, and when you tear it away, you reveal nothing but..."))
+                writeText("dust...", "")
+                writeText(
+                    "CONGRATULATIONS!",
+                    "",
+                    "You have banished Ydarg",
+                    "from this dimension.",
+                    "Please ask your SysOp to",
+                    "reset the game.",
+                    "",
+                )
+                achieve(Milestones.ydargVictory)
+                writeText("Be ready for:", "HEROES OF RYLWEEN", "- The second coming.", "Soon online at a BBS", "near you!", "")
+                writeText("See Ya!!!", "", "     /Marcus", "")
             }
 
             // Town service scenes are normal scripts. Reusable helpers such as
