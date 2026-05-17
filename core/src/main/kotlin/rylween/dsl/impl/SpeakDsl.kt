@@ -9,7 +9,23 @@
  */
 package rylween.dsl.impl
 
-import rylween.dsl.*
+import rylween.dsl.DslDefaultKeyActions
+import rylween.dsl.InputBindingModel
+import rylween.dsl.KeyActionId
+import rylween.dsl.NpcJobId
+import rylween.dsl.RumorId
+import rylween.dsl.RumorTableId
+import rylween.dsl.RylNextDsl
+import rylween.dsl.ScriptScope
+import rylween.dsl.StructuredTextBlockBuilder
+import rylween.dsl.TextBlock
+import rylween.dsl.TextId
+import rylween.dsl.TextLine
+import rylween.dsl.TextLineSink
+import rylween.dsl.TextPart
+import rylween.dsl.inputKey
+import rylween.dsl.recordAuthoredScript
+import rylween.dsl.structuredText
 
 @RylNextDsl
 class SpeakBuilder {
@@ -54,6 +70,13 @@ class SpeakTextTablesBuilder {
         body: StructuredTextBlockBuilder.() -> Unit,
     ) {
         screens += ReusableScreenTextModel(id, structuredText(body))
+    }
+
+    fun screen(
+        id: TextId,
+        text: TextBlock,
+    ) {
+        screens += ReusableScreenTextModel(id, text)
     }
 
     fun chitchatPrompt(
@@ -108,6 +131,10 @@ class ChitchatPromptTextBuilder(
             )
     }
 
+    fun any(text: TextBlock) {
+        variants += ChitchatPromptVariantModel(ChitchatPromptAudience.Any, text)
+    }
+
     fun female(body: StructuredTextBlockBuilder.() -> Unit) {
         variants +=
             ChitchatPromptVariantModel(
@@ -116,12 +143,20 @@ class ChitchatPromptTextBuilder(
             )
     }
 
+    fun female(text: TextBlock) {
+        variants += ChitchatPromptVariantModel(ChitchatPromptAudience.Female, text)
+    }
+
     fun male(body: StructuredTextBlockBuilder.() -> Unit) {
         variants +=
             ChitchatPromptVariantModel(
                 ChitchatPromptAudience.Male,
                 structuredText(body),
             )
+    }
+
+    fun male(text: TextBlock) {
+        variants += ChitchatPromptVariantModel(ChitchatPromptAudience.Male, text)
     }
 
     fun build(): ChitchatPromptTextModel = ChitchatPromptTextModel(subject, variants.toList())
@@ -138,6 +173,13 @@ class JobTextTableBuilder {
         replies += JobTextModel(id, structuredText(body))
     }
 
+    fun job(
+        id: NpcJobId,
+        text: TextBlock,
+    ) {
+        replies += JobTextModel(id, text)
+    }
+
     fun build(): List<JobTextModel> = replies.toList()
 }
 
@@ -151,11 +193,22 @@ class RumorTextTableBuilder(
         entries += RumorEntryBuilder(null).apply(body).build()
     }
 
+    fun rumor(block: TextBlock) {
+        entries += RumorEntryBuilder(null).apply { text(block) }.build()
+    }
+
     fun rumor(
         id: RumorId,
         body: RumorEntryBuilder.() -> Unit,
     ) {
         entries += RumorEntryBuilder(id).apply(body).build()
+    }
+
+    fun rumor(
+        id: RumorId,
+        block: TextBlock,
+    ) {
+        entries += RumorEntryBuilder(id).apply { text(block) }.build()
     }
 
     fun build(): RumorTextTableModel = RumorTextTableModel(id, entries.toList())
@@ -165,18 +218,27 @@ class RumorTextTableBuilder(
 class RumorEntryBuilder(
     private val id: RumorId?,
 ) : TextLineSink {
-    private val text = StructuredTextBlockBuilder()
+    private val structuredText = StructuredTextBlockBuilder()
+    private var textBlock: TextBlock? = null
+    private var hasStructuredLines = false
     private val excludedStates = mutableListOf<FlagState>()
 
     override fun addTextLine(line: TextLine) {
-        text.addTextLine(line)
+        require(textBlock == null) { "rumor entry cannot mix flow text and structured lines" }
+        hasStructuredLines = true
+        structuredText.addTextLine(line)
+    }
+
+    fun text(text: TextBlock) {
+        require(!hasStructuredLines) { "rumor entry cannot mix structured lines and text block" }
+        textBlock = text
     }
 
     fun excludeWhen(vararg states: FlagState) {
         excludedStates += states
     }
 
-    fun build(): RumorEntryModel = RumorEntryModel(id, text.build(), excludedStates.toList())
+    fun build(): RumorEntryModel = RumorEntryModel(id, textBlock ?: structuredText.build(), excludedStates.toList())
 }
 
 @RylNextDsl

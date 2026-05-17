@@ -556,15 +556,9 @@ val authoredRylween: RylweenModel =
                 // chooses and applies traps through the generic room system.
                 pitfall {
                     damageDivisor = 6
-                    trap {
-                        lines("Arrows speed through", "the air and hits the", "party!", "")
-                    }
-                    trap {
-                        lines("Poison needles shoot", "out from the floor!", "")
-                    }
-                    trap {
-                        lines("A volley of shurikens", "is hurled from a hatch", "in the wall!", "")
-                    }
+                    trap(flowText("Arrows speed through the air and hits the party!"))
+                    trap(flowText("Poison needles shoot out from the floor!"))
+                    trap(flowText("A volley of shurikens is hurled from a hatch in the wall!"))
                 }
 
                 // Stairs define each power-item gate required to climb higher in
@@ -1493,72 +1487,32 @@ val authoredRylween: RylweenModel =
                 terrainTransitions {
                     chancePercent = 9
 
-                    terrain(Terrain.plain) {
-                        lines(
-                            "The rich green plainland",
-                            "of Rylween stretches far",
-                            "in all the directions.",
-                            "",
-                        )
-                    }
+                    terrain(Terrain.plain, flowText("The rich green plainland of Rylween stretches far in all the directions."))
 
-                    terrain(Terrain.hut) {
-                        lines("You have found a hut.", "")
-                    }
+                    terrain(Terrain.hut, flowText("You have found a hut."))
 
-                    terrain(Terrain.town) {
-                        lines("You are close to a towne.", "")
-                    }
+                    terrain(Terrain.town, flowText("You are close to a towne."))
 
-                    terrain(Terrain.foothills) {
-                        lines(
-                            "Small foothills make your",
-                            "progress more arduous.",
-                            "",
-                        )
-                    }
+                    terrain(Terrain.foothills, flowText("Small foothills make your progress more arduous."))
 
-                    terrain(Terrain.desert) {
-                        lines(
-                            "You are in a hot and dry",
-                            "desert. The sun fries",
-                            "you mercilessly.",
-                            "",
-                        )
-                    }
+                    terrain(Terrain.desert, flowText("You are in a hot and dry desert. The sun fries you mercilessly."))
 
-                    terrain(Terrain.swamp) {
-                        lines(
-                            "You are in the swampy",
-                            "marshlands of Rylween.",
-                            "Bubbles of gas rise to",
-                            "the surface where they",
-                            "burst and emit a foul",
-                            "smelling odor.",
-                            "",
-                        )
-                    }
+                    terrain(
+                        Terrain.swamp,
+                        flowText(
+                            "You are in the swampy marshlands of Rylween. Bubbles of gas rise to the surface where they burst and emit a foul smelling odor.",
+                        ),
+                    )
 
-                    terrain(Terrain.forest) {
-                        lines(
-                            "The ancient forest is",
-                            "very tranquil. A soft",
-                            "breeze rustles the",
-                            "leaves of mighty oaks.",
-                            "",
-                        )
-                    }
+                    terrain(
+                        Terrain.forest,
+                        flowText("The ancient forest is very tranquil. A soft breeze rustles the leaves of mighty oaks."),
+                    )
 
-                    terrain(Terrain.castle) {
-                        lines(
-                            "You stand outside the",
-                            "castle Zadraz. The",
-                            "black steel building",
-                            "seems to want to swallow",
-                            "you whole.",
-                            "",
-                        )
-                    }
+                    terrain(
+                        Terrain.castle,
+                        flowText("You stand outside the castle Zadraz. The black steel building seems to want to swallow you whole."),
+                    )
                 }
             }
 
@@ -2503,193 +2457,79 @@ val authoredRylween: RylweenModel =
                 // Text tables hold reusable conversation prose by subject, job,
                 // topic, and rumor id. Dialogue branches below handle story arcs.
                 textTables {
-                    screen(T.Speak.noNpc) {
-                        lines("No one is here!")
-                    }
-                    screen(T.Speak.noRumor) {
-                        lines("- Sorry. There's", "nothing new I can", "tell you.", "")
-                    }
+                    screen(T.Speak.noNpc, flowText("No one is here!"))
+                    screen(T.Speak.noRumor, flowText("- Sorry. There's nothing new I can tell you."))
 
                     chitchatPrompt(ChitchatSubject.Well) {
-                        female {
-                            lines("- You look well today,", "  miss...")
-                        }
-                        male {
-                            lines("- You look well today,", "  Sir...")
-                        }
+                        female(flowText("- You look well today, miss..."))
+                        male(flowText("- You look well today, Sir..."))
                     }
                     chitchatPrompt(ChitchatSubject.Weather) {
-                        any {
-                            lines("- Nice weather we're", "  having...")
-                        }
+                        any(flowText("- Nice weather we're having..."))
                     }
                     chitchatPrompt(ChitchatSubject.Health) {
-                        female {
-                            lines("- Is all well with", "  you, miss?")
-                        }
-                        male {
-                            lines("- Is all well with", "  you, Sir?")
-                        }
+                        female(flowText("- Is all well with you, miss?"))
+                        male(flowText("- Is all well with you, Sir?"))
                     }
 
                     chitchatReplies(ChitchatSubject.Well) {
-                        job(NpcJobs.merchant) {
-                            lines("- Thanks, and the same", "to you!")
-                        }
-                        job(NpcJobs.ranger) {
-                            lines("- I do? Really? Are", "you joking?")
-                        }
-                        job(NpcJobs.fighter) {
-                            lines("- Thank you. My health", "is slowly returning", "after a hard battle.")
-                        }
-                        job(NpcJobs.wizard) {
-                            lines("- Aha?")
-                        }
-                        job(NpcJobs.priest) {
-                            lines("- You too, my son.")
-                        }
-                        job(NpcJobs.thief) {
-                            lines("- What? No! Shhh!", "They can hear you.")
-                        }
-                        job(NpcJobs.peasant) {
-                            lines("- Thank you! You too.")
-                        }
-                        job(NpcJobs.bard) {
-                            lines("- That inspires me.", "I'll compose a song", "about you!")
-                        }
-                        job(NpcJobs.drifter) {
-                            lines("- YEAH? Take that!")
-                        }
-                        job(NpcJobs.halfOrc) {
-                            lines("- ME NOT LOOK WELL!", "ME BIG AND UGLY!")
-                        }
-                        job(NpcJobs.halfElf) {
-                            lines("- Oh...")
-                        }
-                        job(NpcJobs.smith) {
-                            lines("- I thank thee, my lad!")
-                        }
-                        job(NpcJobs.bargirl) {
-                            lines("- You too, honey!")
-                        }
-                        job(NpcJobs.innkeeper) {
-                            lines("- The same to you.")
-                        }
-                        job(NpcJobs.tavernkeeper) {
-                            lines("- You've had too much", "to drink, boy?")
-                        }
-                        job(NpcJobs.hermit) {
-                            lines("- It is written in the", "scrolls of Skelos...")
-                        }
+                        job(NpcJobs.merchant, flowText("- Thanks, and the same to you!"))
+                        job(NpcJobs.ranger, flowText("- I do? Really? Are you joking?"))
+                        job(NpcJobs.fighter, flowText("- Thank you. My health is slowly returning after a hard battle."))
+                        job(NpcJobs.wizard, flowText("- Aha?"))
+                        job(NpcJobs.priest, flowText("- You too, my son."))
+                        job(NpcJobs.thief, flowText("- What? No! Shhh! They can hear you."))
+                        job(NpcJobs.peasant, flowText("- Thank you! You too."))
+                        job(NpcJobs.bard, flowText("- That inspires me. I'll compose a song about you!"))
+                        job(NpcJobs.drifter, flowText("- YEAH? Take that!"))
+                        job(NpcJobs.halfOrc, flowText("- ME NOT LOOK WELL! ME BIG AND UGLY!"))
+                        job(NpcJobs.halfElf, flowText("- Oh..."))
+                        job(NpcJobs.smith, flowText("- I thank thee, my lad!"))
+                        job(NpcJobs.bargirl, flowText("- You too, honey!"))
+                        job(NpcJobs.innkeeper, flowText("- The same to you."))
+                        job(NpcJobs.tavernkeeper, flowText("- You've had too much to drink, boy?"))
+                        job(NpcJobs.hermit, flowText("- It is written in the scrolls of Skelos..."))
                     }
                     chitchatReplies(ChitchatSubject.Weather) {
-                        job(NpcJobs.merchant) {
-                            lines("- I think it will rain.")
-                        }
-                        job(NpcJobs.ranger) {
-                            lines("- Not a fine weather for", "tracking, mind you!")
-                        }
-                        job(NpcJobs.fighter) {
-                            lines("- Yeah! But my armor", "gets quite rusty.")
-                        }
-                        job(NpcJobs.wizard) {
-                            lines("- Really?")
-                        }
-                        job(NpcJobs.priest) {
-                            lines("- The gods have been", "kind to us, my son!")
-                        }
-                        job(NpcJobs.thief) {
-                            lines("- Perfect weather", "for stealing!")
-                        }
-                        job(NpcJobs.peasant) {
-                            lines("- Yeah, the crops grow", "better than ever.")
-                        }
-                        job(NpcJobs.bard) {
-                            lines("- This rain really", "inspires me. (He", "starts singing).")
-                        }
-                        job(NpcJobs.drifter) {
-                            lines("- Hehehehe...")
-                        }
-                        job(NpcJobs.halfOrc) {
-                            lines("- YEAH! NICE'N SLIMY!")
-                        }
-                        job(NpcJobs.halfElf) {
-                            lines("- I find it depressing.")
-                        }
-                        job(NpcJobs.smith) {
-                            lines("- Well, kinda good.")
-                        }
-                        job(NpcJobs.bargirl) {
-                            lines("- Let's not talk about", "the weather, honey?")
-                        }
-                        job(NpcJobs.innkeeper) {
-                            lines("- Well. Can't complain.")
-                        }
-                        job(NpcJobs.tavernkeeper) {
-                            lines("- Want a drink, sonny?")
-                        }
-                        job(NpcJobs.hermit) {
-                            lines("- Yes, a day like this", "is destined to come!")
-                        }
+                        job(NpcJobs.merchant, flowText("- I think it will rain."))
+                        job(NpcJobs.ranger, flowText("- Not a fine weather for tracking, mind you!"))
+                        job(NpcJobs.fighter, flowText("- Yeah! But my armor gets quite rusty."))
+                        job(NpcJobs.wizard, flowText("- Really?"))
+                        job(NpcJobs.priest, flowText("- The gods have been kind to us, my son!"))
+                        job(NpcJobs.thief, flowText("- Perfect weather for stealing!"))
+                        job(NpcJobs.peasant, flowText("- Yeah, the crops grow better than ever."))
+                        job(NpcJobs.bard, flowText("- This rain really inspires me. (He starts singing)."))
+                        job(NpcJobs.drifter, flowText("- Hehehehe..."))
+                        job(NpcJobs.halfOrc, flowText("- YEAH! NICE'N SLIMY!"))
+                        job(NpcJobs.halfElf, flowText("- I find it depressing."))
+                        job(NpcJobs.smith, flowText("- Well, kinda good."))
+                        job(NpcJobs.bargirl, flowText("- Let's not talk about the weather, honey?"))
+                        job(NpcJobs.innkeeper, flowText("- Well. Can't complain."))
+                        job(NpcJobs.tavernkeeper, flowText("- Want a drink, sonny?"))
+                        job(NpcJobs.hermit, flowText("- Yes, a day like this is destined to come!"))
                     }
                     chitchatReplies(ChitchatSubject.Health) {
-                        job(NpcJobs.merchant) {
-                            lines("- All's well, thanks.")
-                        }
-                        job(NpcJobs.ranger) {
-                            lines("- I'm fine.")
-                        }
-                        job(NpcJobs.fighter) {
-                            lines("- Yep.")
-                        }
-                        job(NpcJobs.wizard) {
-                            lines("- Health... yes.")
-                        }
-                        job(NpcJobs.priest) {
-                            lines("- All is well, my son.")
-                        }
-                        job(NpcJobs.thief) {
-                            lines("- Yeh, quite nice.")
-                        }
-                        job(NpcJobs.peasant) {
-                            lines("- Are you kidding?")
-                        }
-                        job(NpcJobs.bard) {
-                            lines("- Yes. I will sing", "a song of health", "for you!")
-                        }
-                        job(NpcJobs.drifter) {
-                            lines("(He chuckles under", "his breath).")
-                        }
-                        job(NpcJobs.halfOrc) {
-                            lines("- ME JUST FINE!")
-                        }
-                        job(NpcJobs.halfElf) {
-                            lines("- Very well, thanks.")
-                        }
-                        job(NpcJobs.smith) {
-                            lines("- Fine, laddie!")
-                        }
-                        job(NpcJobs.bargirl) {
-                            lines("- Sure, honey!")
-                        }
-                        job(NpcJobs.innkeeper) {
-                            lines("- Well...")
-                        }
-                        job(NpcJobs.tavernkeeper) {
-                            lines("- Just fine. Do you", "want something to", "drink?")
-                        }
-                        job(NpcJobs.hermit) {
-                            lines("- Oh. Meneth Sabaoth.")
-                        }
+                        job(NpcJobs.merchant, flowText("- All's well, thanks."))
+                        job(NpcJobs.ranger, flowText("- I'm fine."))
+                        job(NpcJobs.fighter, flowText("- Yep."))
+                        job(NpcJobs.wizard, flowText("- Health... yes."))
+                        job(NpcJobs.priest, flowText("- All is well, my son."))
+                        job(NpcJobs.thief, flowText("- Yeh, quite nice."))
+                        job(NpcJobs.peasant, flowText("- Are you kidding?"))
+                        job(NpcJobs.bard, flowText("- Yes. I will sing a song of health for you!"))
+                        job(NpcJobs.drifter, flowText("(He chuckles under his breath)."))
+                        job(NpcJobs.halfOrc, flowText("- ME JUST FINE!"))
+                        job(NpcJobs.halfElf, flowText("- Very well, thanks."))
+                        job(NpcJobs.smith, flowText("- Fine, laddie!"))
+                        job(NpcJobs.bargirl, flowText("- Sure, honey!"))
+                        job(NpcJobs.innkeeper, flowText("- Well..."))
+                        job(NpcJobs.tavernkeeper, flowText("- Just fine. Do you want something to drink?"))
+                        job(NpcJobs.hermit, flowText("- Oh. Meneth Sabaoth."))
                     }
 
                     questionReplies(QuestionTopic.People) {
-                        job(NpcJobs.merchant) {
-                            lines("- Well, I don't know", "that many people.")
-                        }
-                        job(NpcJobs.ranger) {
-                            lines("- No I'm a lone ranger.")
-                        }
+                        job(NpcJobs.merchant, flowText("- Well, I don't know that many people."))
+                        job(NpcJobs.ranger, flowText("- No I'm a lone ranger."))
                         job(NpcJobs.fighter) {
                             lines {
                                 line("- Well, I met this")
@@ -2698,9 +2538,7 @@ val authoredRylween: RylweenModel =
                                 line("bandits.")
                             }
                         }
-                        job(NpcJobs.wizard) {
-                            lines("- OH! Well... not really.")
-                        }
+                        job(NpcJobs.wizard, flowText("- OH! Well... not really."))
                         job(NpcJobs.priest) {
                             lines {
                                 line("- I've heard of a ", character(Roles.hermitTrollTooth).job)
@@ -2709,12 +2547,8 @@ val authoredRylween: RylweenModel =
                                 line("he can help you.")
                             }
                         }
-                        job(NpcJobs.thief) {
-                            lines("- No. Sorry. Dunno.")
-                        }
-                        job(NpcJobs.peasant) {
-                            lines("- I think it's time", "someone found the", "Foot of Jazzy and", "defeated Ydarg!")
-                        }
+                        job(NpcJobs.thief, flowText("- No. Sorry. Dunno."))
+                        job(NpcJobs.peasant, flowText("- I think it's time someone found the Foot of Jazzy and defeated Ydarg!"))
                         job(NpcJobs.bard) {
                             lines {
                                 line("- Rumor has it that a")
@@ -2723,151 +2557,62 @@ val authoredRylween: RylweenModel =
                                 line("has a mission for you.")
                             }
                         }
-                        job(NpcJobs.drifter) {
-                            lines("- Don't know anyone.")
-                        }
-                        job(NpcJobs.halfOrc) {
-                            lines("- ME ALONE AND STRONG!")
-                        }
-                        job(NpcJobs.halfElf) {
-                            lines("- There are many huts", "in the Wilderness.")
-                        }
-                        job(NpcJobs.smith) {
-                            lines("- Sorry, can't help ya.")
-                        }
-                        job(NpcJobs.bargirl) {
-                            lines("- Well...")
-                        }
-                        job(NpcJobs.innkeeper) {
-                            lines("- Want to meet interesting", "travelers? Try the", "inn or the tavern.")
-                        }
-                        job(NpcJobs.tavernkeeper) {
-                            lines("- Don't know about", "anyone particular.")
-                        }
-                        job(NpcJobs.hermit) {
-                            lines("- Many faces shine", "through the mist.")
-                        }
+                        job(NpcJobs.drifter, flowText("- Don't know anyone."))
+                        job(NpcJobs.halfOrc, flowText("- ME ALONE AND STRONG!"))
+                        job(NpcJobs.halfElf, flowText("- There are many huts in the Wilderness."))
+                        job(NpcJobs.smith, flowText("- Sorry, can't help ya."))
+                        job(NpcJobs.bargirl, flowText("- Well..."))
+                        job(NpcJobs.innkeeper, flowText("- Want to meet interesting travelers? Try the inn or the tavern."))
+                        job(NpcJobs.tavernkeeper, flowText("- Don't know about anyone particular."))
+                        job(NpcJobs.hermit, flowText("- Many faces shine through the mist."))
                     }
                     questionReplies(QuestionTopic.Magic) {
-                        job(NpcJobs.merchant) {
-                            lines("- It is said that the", "Master Crown is the", "most powerful object", "in the realm.")
-                        }
-                        job(NpcJobs.ranger) {
-                            lines("- You will need five", "magical items to", "defeat Baron Ydarg.")
-                        }
-                        job(NpcJobs.fighter) {
-                            lines("- What? I don't believe", "in magic...")
-                        }
-                        job(NpcJobs.wizard) {
-                            lines("- Magic... Yes, Magic.")
-                        }
-                        job(NpcJobs.priest) {
-                            lines("- Yes, my son, but we", "are all puny beings", "compared to the gods.")
-                        }
-                        job(NpcJobs.thief) {
-                            lines("- I know nothing of it.")
-                        }
-                        job(NpcJobs.peasant) {
-                            lines("- I don't know much about", "magic. Gems often have", "magical properties,", "though.")
-                        }
-                        job(NpcJobs.bard) {
-                            lines("- Magic is the subject", "of many of my songs.", "Ballad of the Fire", "Shield, for instance.")
-                        }
-                        job(NpcJobs.drifter) {
-                            lines("- GO AWAY!")
-                        }
-                        job(NpcJobs.halfOrc) {
-                            lines("- ME HAVE TRUSTY SWORD!", "ME NOT CARE 'BOUT", "MAGIK!")
-                        }
-                        job(NpcJobs.halfElf) {
-                            lines("- Yes, my people were", "created from the magic", "of Mother Earth.")
-                        }
-                        job(NpcJobs.smith) {
-                            lines("- Rumor has it that", "some ogres have the foot", "of Jazzy, a powerful", "item.")
-                        }
-                        job(NpcJobs.bargirl) {
-                            lines("- I know nothing about", "that.")
-                        }
-                        job(NpcJobs.innkeeper) {
-                            lines("- Magic? Well, they say", "that Baron Ydarg can", "be defeated only with", "the Silver Key.")
-                        }
-                        job(NpcJobs.tavernkeeper) {
-                            lines("- Sorry. Can't help you.")
-                        }
-                        job(NpcJobs.hermit) {
-                            lines("- The Crown, the Shield,", "the Bracelets and the Foot", "is all you need.")
-                        }
+                        job(NpcJobs.merchant, flowText("- It is said that the Master Crown is the most powerful object in the realm."))
+                        job(NpcJobs.ranger, flowText("- You will need five magical items to defeat Baron Ydarg."))
+                        job(NpcJobs.fighter, flowText("- What? I don't believe in magic..."))
+                        job(NpcJobs.wizard, flowText("- Magic... Yes, Magic."))
+                        job(NpcJobs.priest, flowText("- Yes, my son, but we are all puny beings compared to the gods."))
+                        job(NpcJobs.thief, flowText("- I know nothing of it."))
+                        job(NpcJobs.peasant, flowText("- I don't know much about magic. Gems often have magical properties, though."))
+                        job(NpcJobs.bard, flowText("- Magic is the subject of many of my songs. Ballad of the Fire Shield, for instance."))
+                        job(NpcJobs.drifter, flowText("- GO AWAY!"))
+                        job(NpcJobs.halfOrc, flowText("- ME HAVE TRUSTY SWORD! ME NOT CARE 'BOUT MAGIK!"))
+                        job(NpcJobs.halfElf, flowText("- Yes, my people were created from the magic of Mother Earth."))
+                        job(NpcJobs.smith, flowText("- Rumor has it that some ogres have the foot of Jazzy, a powerful item."))
+                        job(NpcJobs.bargirl, flowText("- I know nothing about that."))
+                        job(
+                            NpcJobs.innkeeper,
+                            flowText("- Magic? Well, they say that Baron Ydarg can be defeated only with the Silver Key."),
+                        )
+                        job(NpcJobs.tavernkeeper, flowText("- Sorry. Can't help you."))
+                        job(NpcJobs.hermit, flowText("- The Crown, the Shield, the Bracelets and the Foot is all you need."))
                     }
                     questionReplies(QuestionTopic.Lodging) {
-                        job(NpcJobs.merchant) {
-                            lines("- Well. The city inn is", "a good try.")
-                        }
-                        job(NpcJobs.ranger) {
-                            lines("- I sleep under the open", "skies. Just beware of", "bandits if you do this!")
-                        }
-                        job(NpcJobs.fighter) {
-                            lines("- Well. I usually stay at", "the inn when I'm in town.")
-                        }
-                        job(NpcJobs.wizard) {
-                            lines("- Oh??? Eternal sleep!")
-                        }
-                        job(NpcJobs.priest) {
-                            lines("- I hire a room at", "the inn to meditate!")
-                        }
-                        job(NpcJobs.thief) {
-                            lines("- I sleep in the shadows.")
-                        }
-                        job(NpcJobs.peasant) {
-                            lines("- I sleep in my own", "room at my farm.")
-                        }
-                        job(NpcJobs.bard) {
-                            lines("- Imagine the beauty", "and danger to camp in", "the Wilderness these days.")
-                        }
-                        job(NpcJobs.drifter) {
-                            lines("- Look, why don't you", "just _GO AWAY_???")
-                        }
-                        job(NpcJobs.halfOrc) {
-                            lines("- ME NEVER GET TIRED!")
-                        }
-                        job(NpcJobs.halfElf) {
-                            lines("- I rent a room at the inn!")
-                        }
-                        job(NpcJobs.smith) {
-                            lines("- Well, sleeping at the", "inn is often nicer than", "in the Wilderness.")
-                        }
-                        job(NpcJobs.innkeeper) {
-                            lines("- Well. My inn is the", "best in the realm!")
-                        }
-                        job(NpcJobs.tavernkeeper) {
-                            lines("- I dunno, try my", "brother's inn.")
-                        }
-                        job(NpcJobs.hermit) {
-                            lines("- Yes. You are indeed", "the one...")
-                        }
+                        job(NpcJobs.merchant, flowText("- Well. The city inn is a good try."))
+                        job(NpcJobs.ranger, flowText("- I sleep under the open skies. Just beware of bandits if you do this!"))
+                        job(NpcJobs.fighter, flowText("- Well. I usually stay at the inn when I'm in town."))
+                        job(NpcJobs.wizard, flowText("- Oh??? Eternal sleep!"))
+                        job(NpcJobs.priest, flowText("- I hire a room at the inn to meditate!"))
+                        job(NpcJobs.thief, flowText("- I sleep in the shadows."))
+                        job(NpcJobs.peasant, flowText("- I sleep in my own room at my farm."))
+                        job(NpcJobs.bard, flowText("- Imagine the beauty and danger to camp in the Wilderness these days."))
+                        job(NpcJobs.drifter, flowText("- Look, why don't you just _GO AWAY_???"))
+                        job(NpcJobs.halfOrc, flowText("- ME NEVER GET TIRED!"))
+                        job(NpcJobs.halfElf, flowText("- I rent a room at the inn!"))
+                        job(NpcJobs.smith, flowText("- Well, sleeping at the inn is often nicer than in the Wilderness."))
+                        job(NpcJobs.innkeeper, flowText("- Well. My inn is the best in the realm!"))
+                        job(NpcJobs.tavernkeeper, flowText("- I dunno, try my brother's inn."))
+                        job(NpcJobs.hermit, flowText("- Yes. You are indeed the one..."))
                     }
 
                     rumorTable(RumorTables.standardTown) {
-                        rumor {
-                            lines("Baron Ydarg's castle", "Zadraz is hidden in a", "forest to the southwest.")
-                        }
-                        rumor {
-                            lines("The Silver Key unlocks", "the gate to Ydarg's", "dimension.")
-                        }
-                        rumor {
-                            lines("You will need the Fire", "shield to defeat baron", "Ydarg.")
-                        }
-                        rumor {
-                            lines("You will need the", "Master Crown to", "defeat Baron Ydarg.")
-                        }
-                        rumor {
-                            lines("You will need the", "Bracelets of Thun", "to resist the most", "evil of all spells...")
-                        }
-                        rumor {
-                            lines("The scythe is a", "useless weapon.")
-                        }
-                        rumor {
-                            lines("Some say that you", "need gems to enter", "the old Temple of", "Thun.")
-                        }
+                        rumor(flowText("Baron Ydarg's castle Zadraz is hidden in a forest to the southwest."))
+                        rumor(flowText("The Silver Key unlocks the gate to Ydarg's dimension."))
+                        rumor(flowText("You will need the Fire shield to defeat baron Ydarg."))
+                        rumor(flowText("You will need the Master Crown to defeat Baron Ydarg."))
+                        rumor(flowText("You will need the Bracelets of Thun to resist the most evil of all spells..."))
+                        rumor(flowText("The scythe is a useless weapon."))
+                        rumor(flowText("Some say that you need gems to enter the old Temple of Thun."))
                         rumor {
                             lines {
                                 line("Seek the ", character(Roles.hermitTrollTooth).job)
@@ -2881,15 +2626,9 @@ val authoredRylween: RylweenModel =
                                 line("lives in the swamp.")
                             }
                         }
-                        rumor {
-                            lines("Always post a guard", "when you camp in the", "Wilderness.")
-                        }
-                        rumor {
-                            lines("The Foot of Jazzy is", "one of the objects", "Baron Ydarg can't", "control!")
-                        }
-                        rumor {
-                            lines("Skullweed plant grows", "deep in the swamp. It is", "a powerful reagent.")
-                        }
+                        rumor(flowText("Always post a guard when you camp in the Wilderness."))
+                        rumor(flowText("The Foot of Jazzy is one of the objects Baron Ydarg can't control!"))
+                        rumor(flowText("Skullweed plant grows deep in the swamp. It is a powerful reagent."))
                         rumor(Rumors.banditsQuestGiver) {
                             excludeWhen(Story.garth.bandits.recovered, Story.garth.bandits.closed)
                             lines {
@@ -2905,39 +2644,17 @@ val authoredRylween: RylweenModel =
                                 line("of adventurers.")
                             }
                         }
-                        rumor {
-                            lines("It is always wise to", "haggle.")
-                        }
-                        rumor {
-                            lines("Cthulhu will rise again!")
-                        }
-                        rumor {
-                            lines("Baron Ydarg's castle", "in this dimension lies", "far to the southwest.")
-                        }
-                        rumor {
-                            lines("Exploring caves can", "be profitable.")
-                        }
-                        rumor {
-                            lines("Flee from all beasts", "that you are uncertain", "of.")
-                        }
-                        rumor {
-                            lines("Before meddling in", "the business of a god,", "be a demigod yourself.")
-                        }
-                        rumor {
-                            lines("Jazzy is a mighty", "lesser god or a demon.")
-                        }
-                        rumor {
-                            lines("Baron Ydarg's castle", "Zadraz is a gate to", "another dimension.")
-                        }
-                        rumor {
-                            lines("Never meddle in the", "affairs of wizards, for", "they are subtle, and", "swift to anger.")
-                        }
-                        rumor {
-                            lines("Magical objects can be", "a great aid in battle.")
-                        }
-                        rumor {
-                            lines("Seek the holy", "hand grenade!")
-                        }
+                        rumor(flowText("It is always wise to haggle."))
+                        rumor(flowText("Cthulhu will rise again!"))
+                        rumor(flowText("Baron Ydarg's castle in this dimension lies far to the southwest."))
+                        rumor(flowText("Exploring caves can be profitable."))
+                        rumor(flowText("Flee from all beasts that you are uncertain of."))
+                        rumor(flowText("Before meddling in the business of a god, be a demigod yourself."))
+                        rumor(flowText("Jazzy is a mighty lesser god or a demon."))
+                        rumor(flowText("Baron Ydarg's castle Zadraz is a gate to another dimension."))
+                        rumor(flowText("Never meddle in the affairs of wizards, for they are subtle, and swift to anger."))
+                        rumor(flowText("Magical objects can be a great aid in battle."))
+                        rumor(flowText("Seek the holy hand grenade!"))
                         rumor(Rumors.crownSeer) {
                             lines {
                                 line("A ", character(Roles.crownSeer).job, " named ", character(Roles.crownSeer).name)
@@ -2958,15 +2675,9 @@ val authoredRylween: RylweenModel =
                                 line("Thun! He lives ", character(Roles.templeOfThunSeer).location)
                             }
                         }
-                        rumor {
-                            lines("The more powerful", "creatures, the more", "experience.")
-                        }
-                        rumor {
-                            lines("A good sword beats", "four aces!")
-                        }
-                        rumor {
-                            lines("You need FIVE items,", "no less, no more", "to kill Ydarg!")
-                        }
+                        rumor(flowText("The more powerful creatures, the more experience."))
+                        rumor(flowText("A good sword beats four aces!"))
+                        rumor(flowText("You need FIVE items, no less, no more to kill Ydarg!"))
                         rumor {
                             lines {
                                 line(town(Towns.wilor).name, " is situated")
@@ -4260,14 +3971,7 @@ val authoredRylween: RylweenModel =
                                 accepting = MemberChoiceFilter.Any,
                             ) { m ->
                                 whenever(m.dead) {
-                                    writeText {
-                                        lines(
-                                            "- GET THAT CORPSE",
-                                            "OUTTA HERE!",
-                                            "(You are thrown out).",
-                                            "",
-                                        )
-                                    }
+                                    writeText(flowText("- GET THAT CORPSE OUTTA HERE! (You are thrown out)."))
                                     pause1500ms()
                                     breakLoop("corpse exits the church service")
                                 } otherwise {
@@ -4288,12 +3992,7 @@ val authoredRylween: RylweenModel =
                                             choice.payNoThanks(
                                                 price,
                                                 broke = {
-                                                    writeText {
-                                                        lines(
-                                                            "You don't have enough",
-                                                            "gold!",
-                                                        )
-                                                    }
+                                                    writeText(flowText("You don't have enough gold!"))
                                                     pause1s()
                                                 },
                                                 paid = {
@@ -4326,13 +4025,7 @@ val authoredRylween: RylweenModel =
                                 } otherwise {
                                     whenever(m.mp eq m.wisdom) {
                                         clearText()
-                                        writeText {
-                                            lines(
-                                                "That character needs",
-                                                "no spell points",
-                                                "to be restored.",
-                                            )
-                                        }
+                                        writeText(flowText("That character needs no spell points to be restored."))
                                         pause2s()
                                     } otherwise {
                                         clearText()
@@ -4572,14 +4265,7 @@ val authoredRylween: RylweenModel =
                                 } otherwise {
                                     party.gold -= cost
                                     clearText()
-                                    writeText {
-                                        lines(
-                                            "You are served a well",
-                                            "tasting dinner. Some",
-                                            "of your health returns.",
-                                            "",
-                                        )
-                                    }
+                                    writeText(flowText("You are served a well tasting dinner. Some of your health returns."))
                                     healLivingMembers(6)
                                     pause2s()
                                 }
@@ -4708,12 +4394,7 @@ val authoredRylween: RylweenModel =
                                     take = {
                                         whenever(party.gold lt cost) {
                                             clearText()
-                                            writeText {
-                                                lines(
-                                                    "- AHA! No gold!",
-                                                    "You are thrown out.",
-                                                )
-                                            }
+                                            writeText(flowText("- AHA! No gold! You are thrown out."))
                                             pause2s()
                                             clearMapWindow()
                                             breakLoop("thrown out of inn")
@@ -4725,17 +4406,15 @@ val authoredRylween: RylweenModel =
                                             writeText("Zzzz...", "")
                                             party.restedHours set 14
                                             pause1500ms()
-                                            writeText {
-                                                lines(
-                                                    "You wake up a little",
-                                                    "before dawn, well",
-                                                    "rested.",
-                                                    "",
-                                                    "You have breakfast",
-                                                    "and leave the inn.",
-                                                    "",
-                                                )
-                                            }
+                                            writeText(
+                                                flowText(
+                                                    """
+                                                    You wake up a little before dawn, well rested.
+
+                                                    You have breakfast and leave the inn.
+                                                    """,
+                                                ),
+                                            )
                                             waitInput("after inn lodging")
                                             realm.hour set 5
                                             forEachMember {
@@ -4965,13 +4644,7 @@ val authoredRylween: RylweenModel =
                                 ) { storyteller ->
                                     whenever(storyteller.dead) {
                                         clearText()
-                                        writeText {
-                                            lines(
-                                                "Dead men",
-                                                "tell no",
-                                                "stories...",
-                                            )
-                                        }
+                                        writeText(flowText("Dead men tell no stories..."))
                                         pause2s()
                                     } otherwise {
                                         clearText()
@@ -5028,26 +4701,16 @@ val authoredRylween: RylweenModel =
 
                                                 clearText()
                                                 whenever(score gt 400) {
-                                                    writeText {
-                                                        lines(
-                                                            "Superb Story! Let's",
-                                                            "give 'em some ale, lads!",
-                                                            "You are given a whole",
-                                                            "tray of ale!",
-                                                            "",
-                                                        )
-                                                    }
+                                                    writeText(
+                                                        flowText(
+                                                            "Superb Story! Let's give 'em some ale, lads! You are given a whole tray of ale!",
+                                                        ),
+                                                    )
                                                     pause2s()
                                                     storyteller.charisma += 3
                                                 }
                                                 whenever((score gt 300) and (score lt 401)) {
-                                                    writeText {
-                                                        lines(
-                                                            "Very good! You've been",
-                                                            "through much!",
-                                                            "",
-                                                        )
-                                                    }
+                                                    writeText(flowText("Very good! You've been through much!"))
                                                     pause2s()
                                                     storyteller.charisma += 1
                                                 }
@@ -5063,14 +4726,7 @@ val authoredRylween: RylweenModel =
                                                     }
                                                 }
                                                 whenever(score lt 101) {
-                                                    writeText {
-                                                        lines(
-                                                            "Most of the crowd",
-                                                            "falls asleep. The rest",
-                                                            "beg you to stop.",
-                                                            "",
-                                                        )
-                                                    }
+                                                    writeText(flowText("Most of the crowd falls asleep. The rest beg you to stop."))
                                                     pause2s()
                                                     whenever(storyteller.charisma gte 3) {
                                                         storyteller.charisma -= 3
@@ -5088,48 +4744,21 @@ val authoredRylween: RylweenModel =
                                     rumors += 1
                                 }
                                 whenever(rumors gt 4) {
-                                    writeText {
-                                        lines(
-                                            "The tavern has suddenly",
-                                            "become very quiet.",
-                                            "",
-                                        )
-                                    }
+                                    writeText(flowText("The tavern has suddenly become very quiet."))
                                     waitInput("after quiet tavern rumor")
                                 } otherwise {
                                     choose(random(0..4)) {
                                         case(0) {
-                                            writeText {
-                                                lines(
-                                                    "After listening a while",
-                                                    "you hear an old man say",
-                                                    "to another:",
-                                                    "",
-                                                )
-                                            }
+                                            writeText(flowText("After listening a while you hear an old man say to another:"))
                                         }
                                         case(1) {
                                             writeText("A drunken bard bellows:", "")
                                         }
                                         case(2) {
-                                            writeText {
-                                                lines(
-                                                    "A halfling you rescued",
-                                                    "from a brawl whispers:",
-                                                    "",
-                                                )
-                                            }
+                                            writeText(flowText("A halfling you rescued from a brawl whispers:"))
                                         }
                                         case(3) {
-                                            writeText {
-                                                lines(
-                                                    "The tavern keeper",
-                                                    "motions to you to",
-                                                    "come closer, and",
-                                                    "whispers :",
-                                                    "",
-                                                )
-                                            }
+                                            writeText(flowText("The tavern keeper motions to you to come closer, and whispers:"))
                                         }
                                         case(4) {
                                             writeText("A bargirl tells you:", "")
@@ -5161,12 +4790,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
-                                                writeText {
-                                                    lines(
-                                                        "AAH! (your health",
-                                                        "returns).",
-                                                    )
-                                                }
+                                                writeText(flowText("AAH! (your health returns)."))
                                                 pause1s()
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(2) / 2) + 1, it.maxHp)
@@ -5184,12 +4808,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
-                                                writeText {
-                                                    lines(
-                                                        "AAH! (your health",
-                                                        "returns).",
-                                                    )
-                                                }
+                                                writeText(flowText("AAH! (your health returns)."))
                                                 pause1s()
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(3) / 2) + 1, it.maxHp)
@@ -5207,12 +4826,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
-                                                writeText {
-                                                    lines(
-                                                        "AAH! (your health",
-                                                        "returns).",
-                                                    )
-                                                }
+                                                writeText(flowText("AAH! (your health returns)."))
                                                 pause1s()
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(4) / 2) + 1, it.maxHp)
@@ -5230,13 +4844,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
-                                                writeText {
-                                                    lines(
-                                                        "You are the laughing",
-                                                        "stock of the entire",
-                                                        "tavern...",
-                                                    )
-                                                }
+                                                writeText(flowText("You are the laughing stock of the entire tavern..."))
                                                 pause2s()
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(1) / 2) + 1, it.maxHp)
@@ -5368,12 +4976,8 @@ val authoredRylween: RylweenModel =
                     clearText()
                     writeText {
                         line(partyName(caster), " utters a word.")
-                        lines(
-                            "Your images waver and",
-                            "blur in front of your",
-                            "enemies",
-                        )
                     }
+                    writeText(flowText("Your images waver and blur in front of your enemies"))
                     pause2s()
                     battle.monsterWeaponSkill /= 2
                     battle.monsterConfused set true
@@ -5384,24 +4988,11 @@ val authoredRylween: RylweenModel =
                 ask.monsterAlive(literalText("Who?", "")) { target ->
                     clearText()
                     whenever(random(0..199) lt target.hp) {
-                        writeText {
-                            lines(
-                                "Through INCREDIBLE",
-                                "resistance, the enemy",
-                                "is still alive, badly",
-                                "wounded.",
-                            )
-                        }
+                        writeText(flowText("Through INCREDIBLE resistance, the enemy is still alive, badly wounded."))
                         pause2s()
                         target.hp set 1
                     } otherwise {
-                        writeText {
-                            lines(
-                                "The enemy is wiped",
-                                "straight off the surface",
-                                "of the earth!",
-                            )
-                        }
+                        writeText(flowText("The enemy is wiped straight off the surface of the earth!"))
                         pause2s()
                         target.dead set true
                         target.hp set 0
@@ -5414,8 +5005,8 @@ val authoredRylween: RylweenModel =
                     clearText()
                     writeText {
                         line(partyName(caster), " utters a word.")
-                        lines("The enemies freeze dead", "in their tracks.")
                     }
+                    writeText(flowText("The enemies freeze dead in their tracks."))
                     pause2s()
                     battle.monstersHeld set true
                 }
@@ -5426,12 +5017,8 @@ val authoredRylween: RylweenModel =
                     clearText()
                     writeText {
                         line(partyName(caster), " utters a word.")
-                        lines(
-                            "The enemy is now",
-                            "stopped from using magic",
-                            "against you this round.",
-                        )
                     }
+                    writeText(flowText("The enemy is now stopped from using magic against you this round."))
                     pause3s()
                     battle.antimagic set true
                 }
@@ -5632,22 +5219,18 @@ val authoredRylween: RylweenModel =
                                 line("together over ", pronoun(caster, PronounCase.Possessive), " head.")
                             }
                             writeText(
-                                "There is a deafening clap",
-                                "of thunder, and you hear",
-                                "beings scream in agony",
-                                "in the dungeon below...",
-                                "",
+                                flowText(
+                                    "There is a deafening clap of thunder, and you hear beings scream in agony in the dungeon below...",
+                                ),
                             )
                             waitInput("after banish evil")
                             clearText()
                             realm.banished set true
                         } otherwise {
                             writeText(
-                                "There is no particular",
-                                "target for this banishing.",
-                                "This spell is meant for",
-                                "use in dungeons and caves.",
-                                "",
+                                flowText(
+                                    "There is no particular target for this banishing. This spell is meant for use in dungeons and caves.",
+                                ),
                             )
                             waitInput("after banish no target")
                             clearText()
@@ -5684,11 +5267,9 @@ val authoredRylween: RylweenModel =
                             }
                         } otherwise {
                             writeText(
-                                "This spell can be used in",
-                                "dungeons only, where there",
-                                "is a limited radius for",
-                                "the caster to enchant.",
-                                "",
+                                flowText(
+                                    "This spell can be used in dungeons only, where there is a limited radius for the caster to enchant.",
+                                ),
                             )
                             waitInput("after revelation dungeon-only")
                             clearText()
@@ -5708,9 +5289,8 @@ val authoredRylween: RylweenModel =
                         clearText()
                         writeText {
                             line(partyName(caster), " carefully")
-                            lines("prepares the ritual of")
                             line("Teleportation. ", pronoun(caster, PronounCase.Subject), " spends")
-                            lines("an hour chanting mantras", "and burning blue candles.", "")
+                            line("an hour chanting mantras and burning blue candles.")
                         }
                         realm.hour += 1
                         waitInput("after teleport ritual")
@@ -5718,12 +5298,9 @@ val authoredRylween: RylweenModel =
                         writeText {
                             line(pronoun(caster, PronounCase.Subject), " picks up a stone slab")
                             line("from ", pronoun(caster, PronounCase.Possessive), " satchel and")
-                            lines(
-                                "uses a special instrument",
-                                "to scratch the direction",
-                            )
+                            line("uses a special instrument to scratch the direction")
                             line(pronoun(caster, PronounCase.Subject), " wants you to teleport")
-                            lines("to.", "")
+                            line("to.")
                         }
                         waitInput("after teleport slab")
                         clearText()
@@ -5767,7 +5344,7 @@ val authoredRylween: RylweenModel =
                             caster.mp -= cost
                             writeText {
                                 line(partyName(caster), " utters")
-                                lines("three syllables in an", "archaic tongue...", "")
+                                line("three syllables in an archaic tongue...")
                             }
                             pause2s()
                             writeText("and the ground cracks", "open!")
@@ -5946,16 +5523,12 @@ val authoredRylween: RylweenModel =
                         clearText()
                         writeText {
                             line(partyName(caster), " throws the")
-                            lines(
-                                "at the enemy. It",
-                                "breaks before them in",
-                                "a rain of sparks.",
-                                "They bump into each",
-                                "other as they try to",
-                                "see you.",
-                                "",
-                            )
                         }
+                        writeText(
+                            flowText(
+                                "gem at the enemy. It breaks before them in a rain of sparks. They bump into each other as they try to see you.",
+                            ),
+                        )
                         waitInput("after gem of confusion")
                         clearText()
                         battle.monsterWeaponSkill /= 2
@@ -5972,17 +5545,12 @@ val authoredRylween: RylweenModel =
                         clearText()
                         writeText {
                             line(partyName(caster), " throws the")
-                            lines(
-                                "gem at the enemy.",
-                                "It breaks, releasing",
-                                "a brilliant cloud",
-                                "of light which completely",
-                                "surrounds them. As the",
-                                "light fades, your enemies",
-                                "are blind.",
-                                "",
-                            )
                         }
+                        writeText(
+                            flowText(
+                                "gem at the enemy. It breaks, releasing a brilliant cloud of light which completely surrounds them. As the light fades, your enemies are blind.",
+                            ),
+                        )
                         waitInput("after gem of blindness")
                         clearText()
                         battle.monsterWeaponSkill set 5
@@ -6045,15 +5613,7 @@ val authoredRylween: RylweenModel =
 
                 effect {
                     clearText()
-                    writeText {
-                        lines(
-                            "The party feels their",
-                            "spirits grow. You are",
-                            "all stronger than",
-                            "before.",
-                            "",
-                        )
-                    }
+                    writeText(flowText("The party feels their spirits grow. You are all stronger than before."))
                     waitInput("after blessing scroll")
                     clearText()
 
@@ -6125,26 +5685,13 @@ val authoredRylween: RylweenModel =
                         clearText()
                         writeText {
                             line(partyName(caster), " throws Kael's")
-                            lines("axe at the enemy!", "")
+                            line("axe at the enemy!")
                         }
                         pause1500ms()
-                        writeText {
-                            lines(
-                                "It wounds them severely",
-                                "as it spins around,",
-                                "wielded by hands you",
-                                "cannot see!",
-                            )
-                        }
+                        writeText(flowText("It wounds them severely as it spins around, wielded by hands you cannot see!"))
                         pause4s()
                         clearText()
-                        writeText {
-                            lines(
-                                "With a raging battle",
-                                "cry, you attack the",
-                                "mortally wounded foes!",
-                            )
-                        }
+                        writeText(flowText("With a raging battle cry, you attack the mortally wounded foes!"))
                         pause3s()
 
                         forEachMonster { foe ->
@@ -6163,12 +5710,7 @@ val authoredRylween: RylweenModel =
                         clearText()
                         writeText {
                             line(partyName(caster), " pulls the")
-                            lines(
-                                "holy pin, and lobbeth",
-                                "the holy hand grenade",
-                                "at the foes...",
-                                "",
-                            )
+                            line("holy pin, and lobbeth the holy hand grenade at the foes...")
                         }
                         pause3s()
                         writeText("KA-BLAM!", "")
@@ -6192,14 +5734,8 @@ val authoredRylween: RylweenModel =
                         clearText()
                         writeText {
                             line(partyName(caster), " plays the")
-                            lines(
-                                "Flute of Madness.",
-                                "It produces a shrill,",
-                                "fragile sound, and breaks.",
-                                "Nothing happens.",
-                                "",
-                            )
                         }
+                        writeText(flowText("Flute of Madness. It produces a shrill, fragile sound, and breaks. Nothing happens."))
                         waitInput("after flute of madness")
                         clearText()
                     }

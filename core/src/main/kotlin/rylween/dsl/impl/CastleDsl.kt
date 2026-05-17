@@ -302,6 +302,10 @@ class CastlePitfallBuilder(
         trapTypes += structuredText(body)
     }
 
+    fun trap(text: TextBlock) {
+        trapTypes += text
+    }
+
     fun build(): CastlePitfallModel =
         CastlePitfallModel(
             damageDivisor = damageDivisor,

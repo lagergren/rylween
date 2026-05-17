@@ -2866,6 +2866,13 @@ class TerrainTransitionBuilder {
 
     fun terrain(
         id: TerrainId,
+        text: TextBlock,
+    ) {
+        entries += TerrainTransitionTextModel(id, text)
+    }
+
+    fun terrain(
+        id: TerrainId,
         body: StructuredTextBlockBuilder.() -> Unit,
     ) {
         entries += TerrainTransitionTextModel(id, structuredText(body))
