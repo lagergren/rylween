@@ -523,6 +523,7 @@ private class CompiledBundleValidator(
 
             is CompiledIntExpr.BattleFlag -> string(expr.nameString, "battle flag")
             is CompiledIntExpr.BattleQuery -> string(expr.nameString, "battle query")
+            is CompiledIntExpr.PartyMemberQuery -> Unit
             is CompiledIntExpr.RealmScalar -> string(expr.nameString, "realm scalar")
             is CompiledIntExpr.PartyScalar -> string(expr.nameString, "party scalar")
             is CompiledIntExpr.InventoryPoolCount -> handle(expr.pool, "inventory pool count")

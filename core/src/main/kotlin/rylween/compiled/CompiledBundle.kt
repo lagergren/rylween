@@ -30,6 +30,7 @@ import rylween.dsl.LValueAst
 import rylween.dsl.LocationId
 import rylween.dsl.LootTableId
 import rylween.dsl.MapLayerId
+import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.MissionId
 import rylween.dsl.MonsterId
 import rylween.dsl.NativeStringArg
@@ -37,6 +38,7 @@ import rylween.dsl.NpcId
 import rylween.dsl.NpcJobId
 import rylween.dsl.NpcRole
 import rylween.dsl.PartyId
+import rylween.dsl.PartyMemberSelection
 import rylween.dsl.RewardBundleId
 import rylween.dsl.RumorTableId
 import rylween.dsl.SceneId
@@ -964,6 +966,11 @@ sealed interface CompiledIntExpr {
 
     data class BattleQuery(
         val nameString: Int,
+    ) : CompiledIntExpr
+
+    data class PartyMemberQuery(
+        val selection: PartyMemberSelection,
+        val filter: MemberChoiceFilter,
     ) : CompiledIntExpr
 
     data class RealmScalar(
@@ -2073,6 +2080,7 @@ private class CompiledBundleCompiler(
             is IntAst.MonsterField -> CompiledIntExpr.MonsterField(intExpr(expr.monster), strings.id(expr.field))
             is IntAst.BattleFlag -> CompiledIntExpr.BattleFlag(strings.id(expr.name))
             is IntAst.BattleQuery -> CompiledIntExpr.BattleQuery(strings.id(expr.name))
+            is IntAst.PartyMemberQuery -> CompiledIntExpr.PartyMemberQuery(expr.selection, expr.filter)
             is IntAst.RealmScalar -> CompiledIntExpr.RealmScalar(strings.id(expr.name))
             is IntAst.PartyScalar -> CompiledIntExpr.PartyScalar(strings.id(expr.name))
             is IntAst.InventoryPoolCount -> CompiledIntExpr.InventoryPoolCount(itemPoolRef(expr.pool))

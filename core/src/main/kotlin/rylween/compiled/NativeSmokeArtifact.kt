@@ -125,6 +125,7 @@ private enum class NativeSmokeIntExprTag(
     PartyScalar(10),
     InventoryPoolCount(11),
     InventorySlotCost(12),
+    PartyMemberQuery(13),
 }
 
 private enum class NativeSmokeBoolExprTag(
@@ -388,6 +389,11 @@ private class NativeSmokeArtifactWriter {
                 }
             is CompiledIntExpr.BattleFlag -> tag(NativeSmokeIntExprTag.BattleFlag) { stringId(expr.nameString) }
             is CompiledIntExpr.BattleQuery -> tag(NativeSmokeIntExprTag.BattleQuery) { stringId(expr.nameString) }
+            is CompiledIntExpr.PartyMemberQuery ->
+                tag(NativeSmokeIntExprTag.PartyMemberQuery) {
+                    enumName(expr.selection)
+                    enumName(expr.filter)
+                }
             is CompiledIntExpr.RealmScalar -> tag(NativeSmokeIntExprTag.RealmScalar) { stringId(expr.nameString) }
             is CompiledIntExpr.PartyScalar -> tag(NativeSmokeIntExprTag.PartyScalar) { stringId(expr.nameString) }
             is CompiledIntExpr.InventoryPoolCount ->
@@ -916,6 +922,10 @@ private class NativeSmokeArtifactReader(
             }
             NativeSmokeIntExprTag.InventoryPoolCount -> handleRef()
             NativeSmokeIntExprTag.InventorySlotCost -> intExpr()
+            NativeSmokeIntExprTag.PartyMemberQuery -> {
+                enumName()
+                enumName()
+            }
         }
     }
 

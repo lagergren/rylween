@@ -173,6 +173,26 @@ class PartyRef(
 
     fun member(index: IntExpr): MemberRef = MemberRef(script, index)
 
+    /**
+     * Selects the first party member matching [filter] for non-combat scripts.
+     *
+     * The compiled query returns the one-based party member number expected by
+     * normal script member fields and native text bindings. Battle-specific
+     * targeting keeps its existing zero-based combat-local selectors on
+     * [BattleRef].
+     */
+    fun firstMember(filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
+        MemberRef(script, script.localInt(Expr(IntAst.PartyMemberQuery(PartyMemberSelection.First, filter)), "member"))
+
+    /**
+     * Selects a random party member matching [filter] for non-combat scripts.
+     *
+     * Returns member `0` when no member matches so prose bindings render empty
+     * instead of naming a dead or absent member.
+     */
+    fun randomMember(filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
+        MemberRef(script, script.localInt(Expr(IntAst.PartyMemberQuery(PartyMemberSelection.Random, filter)), "member"))
+
     fun member(
         index: Int,
         body: ScriptScope.(MemberRef) -> Unit,
@@ -185,6 +205,20 @@ class PartyRef(
         body: ScriptScope.(MemberRef) -> Unit,
     ) {
         script.body(member(index))
+    }
+
+    fun firstMember(
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        body: ScriptScope.(MemberRef) -> Unit,
+    ) {
+        script.body(firstMember(filter))
+    }
+
+    fun randomMember(
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        body: ScriptScope.(MemberRef) -> Unit,
+    ) {
+        script.body(randomMember(filter))
     }
 }
 
@@ -281,6 +315,10 @@ class BattleRef(
         script.body(firstAliveMonster())
     }
 
+    /**
+     * Selects a random live combat participant using the battle runner's
+     * zero-based member slot convention.
+     */
     fun randomAliveMember(): MemberRef = MemberRef(script, script.localInt(Expr(IntAst.BattleQuery("random_alive_member")), "member"))
 
     fun randomAliveMember(body: ScriptScope.(MemberRef) -> Unit) {
