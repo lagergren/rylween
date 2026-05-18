@@ -542,6 +542,7 @@ internal class BitmapRuntimeScreen(
             condition = runtimeStatusLabel(systems),
             x = party.position.x,
             y = party.position.y,
+            facing = party.facing?.name,
             torches = party.resources.torches.coerceAtLeast(0),
             food = party.resources.food.coerceAtLeast(0),
             moves = party.resources.timeLeft.coerceAtLeast(0),

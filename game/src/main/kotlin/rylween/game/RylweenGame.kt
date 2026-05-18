@@ -1181,7 +1181,7 @@ val authoredRylween: RylweenModel =
                 start {
                     map = Maps.wilderness
                     position = Wilderness.xy(12, 9)
-                    facing = Facing.North
+                    facing = Facing.South
                     partyMemberMax = 4
                     level = 1
                     dailyTimeLeft = 175

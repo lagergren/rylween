@@ -269,7 +269,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 player = "Replay"
                 name = "Replay"
                 position = Wilderness.xy(12, 9)
-                facing = Facing.North
+                facing = Facing.South
 
                 resources {
                     gold = 1_000
@@ -323,7 +323,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 player = "Strong"
                 name = "Strong"
                 position = Wilderness.xy(12, 9)
-                facing = Facing.North
+                facing = Facing.South
 
                 resources {
                     gold = 10_000

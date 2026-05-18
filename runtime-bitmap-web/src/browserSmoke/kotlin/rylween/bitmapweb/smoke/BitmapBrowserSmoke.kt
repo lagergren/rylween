@@ -216,12 +216,16 @@ private class BitmapBrowserSmoke(
         page.navigate("$baseUrl/play")
         page.waitForFunction(renderedFramePredicate(), null, Page.WaitForFunctionOptions().setTimeout(30_000.0))
         val frame = page.evaluate("() => window.__rylweenBitmapSmoke && window.__rylweenBitmapSmoke()").asMap()
+        check(frame["wildernessFacing"] == "South") {
+            "bitmap wilderness should initialize from saved party facing south: $frame"
+        }
         val images = page.evaluate(compiledImageProbe()).asList()
         page.screenshot(
             Page
                 .ScreenshotOptions()
                 .setPath(screenshotFile),
         )
+        smokeTownLeaveFade(page)
         val perspectiveFrame =
             page
                 .evaluate("() => window.__rylweenBitmapSetWildernessView && window.__rylweenBitmapSetWildernessView('3d', 'East')")
@@ -250,6 +254,38 @@ private class BitmapBrowserSmoke(
                 "screenshot=${screenshotFile.absolutePathString()} " +
                 "perspectiveScreenshot=${perspectiveScreenshotFile.absolutePathString()} " +
                 "toolScreenshot=${perspectiveToolScreenshotFile.absolutePathString()}",
+        )
+    }
+
+    private fun smokeTownLeaveFade(page: Page) {
+        page.evaluate("() => window.__rylweenBitmapSetWildernessView && window.__rylweenBitmapSetWildernessView('3d', 'South')")
+        page.keyboard().press("ArrowUp")
+        page.waitForFunction(
+            "() => window.__rylweenBitmapSmoke && window.__rylweenBitmapSmoke().y === 10",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.keyboard().press("ArrowUp")
+        page.waitForFunction(
+            "() => window.__rylweenBitmapSmoke && window.__rylweenBitmapSmoke().y === 11",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.keyboard().press("E")
+        page.waitForFunction(
+            "() => { const smoke = window.__rylweenBitmapSmoke && window.__rylweenBitmapSmoke(); " +
+                "return smoke && smoke.mode === 'scene' && /towne/i.test(smoke.backdrop || ''); }",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
+        page.keyboard().press("L")
+        page.waitForTimeout(250.0)
+        page.keyboard().press("L")
+        page.waitForFunction(
+            "() => { const smoke = window.__rylweenBitmapSmoke && window.__rylweenBitmapSmoke(); " +
+                "return smoke && smoke.mode === 'wilderness' && smoke.centerSettlementSceneSuppressed === true; }",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
         )
     }
 
