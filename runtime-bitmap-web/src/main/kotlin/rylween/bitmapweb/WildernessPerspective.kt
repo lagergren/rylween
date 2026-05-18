@@ -16,7 +16,7 @@ import kotlin.math.roundToInt
 
 internal const val BITMAP_PERSPECTIVE_WIDTH = 1000
 internal const val BITMAP_PERSPECTIVE_HEIGHT = 1000
-internal const val DEFAULT_BITMAP_PERSPECTIVE_DEPTH = 5
+internal const val DEFAULT_BITMAP_PERSPECTIVE_DEPTH = 3
 internal const val DEFAULT_BITMAP_PERSPECTIVE_SIDE_RANGE = 2
 
 internal enum class BitmapWildernessFacing {
