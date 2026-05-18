@@ -77,8 +77,8 @@ private fun selectorMatches(
 private fun ExternalCharacterCreationPortrait.specificity(): Int =
     listOfNotNull(
         gender?.let { 1 },
-        pcClass?.let { 2 },
-        race?.let { 4 },
+        race?.let { 2 },
+        pcClass?.let { 4 },
     ).sum()
 
 private fun ExternalRuntimeCharacterCreation.raceLabel(race: Race): String =

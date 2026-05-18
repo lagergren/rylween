@@ -1103,6 +1103,11 @@ contract, while the authored game remains portable JSON/data.
     instead of darkness, removed the vector-looking drawn ridge/tree/grass
     details, and fades in the appropriate town/hut/castle backdrop when the
     party is standing on that wilderness settlement cell but has not entered it.
+    The tiled 2D bitmap map now defaults to a tighter 6x6 viewport at 68 px per
+    tile while retaining `--map-tiles` / `--tile-size` and matching
+    `RYLWEEN_BITMAP_MAP_TILES` / `RYLWEEN_BITMAP_TILE_SIZE` environment
+    overrides, documented in `runtime-bitmap-web/README.md`, so testers can
+    switch back to the old 8x8/64 px view.
     `/tools/wilderness-perspective` loads the real authored map outside Thord
     at 12x10 facing south, so Thord is visible directly ahead, for isolated
     walking/rotation checks without a save or party state.
@@ -1155,6 +1160,16 @@ contract, while the authored game remains portable JSON/data.
       unshifted left/right rotation, forward/backward arrow and numpad walking,
       top-row `2` returning to 2D, and then resets the tool screenshot to the
       south-facing 3D Thord view.
+    - [ ] K2g. Plan and implement natural 2D terrain transitions without
+      changing the authored wilderness map. The renderer should compute a
+      neighbor mask for each visible cell and draw bundled PNG alpha overlays
+      for terrain-family edges/corners such as forest-to-plain,
+      swamp-to-plain/forest, desert-to-plain/foothill, mountain/foothill
+      edges, and water shorelines. Keep the base tile id and gameplay terrain
+      unchanged; the transition layer is visual only. Add a small deterministic
+      render/projection test or smoke screenshot that proves a mixed terrain
+      patch blends naturally and that returning to square 8x8-style settings is
+      still just a viewport configuration change.
 
 ## Complete migration inventory
 
@@ -2279,9 +2294,28 @@ Completed in this pass:
   tiled 2D keeps absolute movement while updating the session facing from
   confirmed travel, standing on a settlement cell fades in the matching
   settlement scene before entry, the pseudo-3D background uses bundled PNG
-  terrain assets rather than drawn ridge/tree glyphs, and
-  `/tools/wilderness-perspective` walks/rotates outside Thord without save or
-  party state.
+  terrain assets rather than drawn ridge/tree glyphs, the 2D map viewport
+  defaults to 6x6 at 68 px tiles but remains configurable back to 8x8/64 px
+  through `--map-tiles`, `--tile-size`, `RYLWEEN_BITMAP_MAP_TILES`, and
+  `RYLWEEN_BITMAP_TILE_SIZE`, and `/tools/wilderness-perspective`
+  walks/rotates outside Thord without save or party state.
+- Documented the next 2D map visual polish step under K2g: keep authored terrain
+  cells unchanged, compute a renderer-only neighbor mask, and use bundled PNG
+  transition overlays so forest, swamp, desert, foothill/mountain, and water
+  boundaries blend naturally instead of cutting hard between square tiles.
+- Fixed bitmap/utility spell-list readability by rendering priest spell menu
+  entries with a space after the mnemonic, e.g. `(A) Healing`.
+- Tightened portrait selection for the party view and character preview: class
+  portraits now outrank race-only fallbacks, so a female human priest resolves
+  to the priest portrait instead of the generic female-human image.
+- Continued the text-output consistency sweep in the authored priest spells:
+  prose-shaped spell narration now uses `flowText(...)`, including dynamic
+  party names/pronouns, while fixed-layout prompts and command diagrams remain
+  structured/literal text blocks.
+- Fixed modal party-view input handling: invalid keys no longer redraw the
+  character/party page, while RETURN/ESC exits, arrow/numpad navigation changes
+  pages, and `!` remains the explicit redraw key. Existing document/journal
+  pages already use the shared RETURN/ESC-only modal input helper.
 - Closed a runtime battle presentation polish item: dead monster target rows now
   keep the target-list alignment while replacing the live target letter with
   leading space, the bitmap text panel dims those disabled target rows, and
@@ -2331,14 +2365,15 @@ Completed in this pass:
   route through slightly different code paths. Consolidate them around a small
   set of semantic display nodes so text, image, wait, prompt, and fade behavior
   is consistent across ANSI and bitmap runtimes.
-- Broadened the deferred-wrap text sweep beyond direct script writes:
-  shop prose, conversation reply/rumor rows, mission scenes, and dynamic dialogue
-  can now use flow text with typed dynamic parts. A follow-up source scan
-  eliminated remaining long one-line prose literals; explicit line arrays left
-  in authored content are intentional fixed-layout cases such as menus,
-  riddles/quoted notes, combat token layouts, and numeric/status displays.
-- Verification completed with `./gradlew :game:test --tests
-  rylween.RylweenCompiledGameLedgerTest :runtime:checkRuntimeFullPlaythrough
-  --console=plain`, `./gradlew ktlintFormat --console=plain`,
-  `./gradlew :runtime:checkRuntimePartyJournalScript --console=plain`, and
-  `./gradlew check --console=plain`.
+- Track the remaining deferred-wrap text sweep beyond direct script writes:
+  shop prose, conversation reply/rumor rows, mission scenes, spells, item
+  effects, and dynamic dialogue can use flow text with typed dynamic parts when
+  the line breaks are not semantically important. Keep explicit line arrays for
+  fixed-layout cases such as menus, riddles/quoted notes, combat token layouts,
+  command diagrams, and numeric/status displays. If repeated dynamic prose still
+  feels verbose, add a small typed flow builder convenience instead of falling
+  back to manual `line(...)` rows.
+- Verification completed for the current working pass with `./gradlew
+  ktlintFormat :runtime:test :game:test --tests
+  rylween.RylweenCompiledGameLedgerTest --console=plain` and `./gradlew check
+  --console=plain`.

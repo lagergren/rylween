@@ -52,8 +52,8 @@ private const val WATER_SOUTH = 4
 private const val WATER_WEST = 8
 private val manaStatusClasses = setOf(PcClass.Mage, PcClass.Priest)
 
-internal const val DEFAULT_BITMAP_VIEWPORT_TILES = 8
-internal const val DEFAULT_BITMAP_TILE_SIZE = 64
+internal const val DEFAULT_BITMAP_VIEWPORT_TILES = 6
+internal const val DEFAULT_BITMAP_TILE_SIZE = 68
 private const val BITMAP_CASTLE_TILE_SIZE = 80
 
 internal class BitmapRuntimeInput : RuntimeInputPort {

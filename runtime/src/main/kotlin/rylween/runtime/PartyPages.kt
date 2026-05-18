@@ -66,17 +66,22 @@ internal object PartyPages {
         if (pages.isEmpty()) return true
         val creation = systems.characterCreation
         var pageIndex = 0
+        var renderedPageIndex: Int? = null
         try {
             while (true) {
-                val page = pages[pageIndex]
-                val preview = page.memberIndex?.let { index -> creation?.partyPortraitPreview(content, runtime.party, index) }
-                screen.showCharacterPortrait(preview)
-                screen.showPartyPage(page, PARTY_PAGE_NAVIGATION_HINT)
+                if (renderedPageIndex != pageIndex) {
+                    val page = pages[pageIndex]
+                    val preview = page.memberIndex?.let { index -> creation?.partyPortraitPreview(content, runtime.party, index) }
+                    screen.showCharacterPortrait(preview)
+                    screen.showPartyPage(page, PARTY_PAGE_NAVIGATION_HINT)
+                    renderedPageIndex = pageIndex
+                }
                 when (input.readCommand()) {
                     null -> return false
                     '\n',
                     RuntimeInputTokens.ESCAPE_COMMAND,
                     -> return true
+                    '!' -> renderedPageIndex = null
                     '4',
                     '8',
                     -> pageIndex = previousPageIndex(pageIndex, pages.size)

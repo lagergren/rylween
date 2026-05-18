@@ -28,6 +28,12 @@ private const val INVENTORY_FIRST_KEY = 'A'
 private const val INVENTORY_ENTRY_WIDTH = 12
 private const val INVENTORY_ITEM_WIDTH = 9
 
+/** Formats priest spell menu rows with a readable gap between the key mnemonic and spell name. */
+internal fun priestSpellMenuLine(
+    key: Char,
+    spellName: String,
+): String = "($key) $spellName"
+
 /** Direct compiled implementations for reusable party utility commands. */
 internal class UtilityActions(
     private val content: CompiledContentBundle,
@@ -238,7 +244,7 @@ internal class UtilityActions(
 
     private fun priestSpellLines(spells: List<MenuChoice<CompiledSpell>>): List<String> =
         spells.map { choice ->
-            "(${choice.key})${content.strings.value(choice.value.nameString)}"
+            priestSpellMenuLine(choice.key, content.strings.value(choice.value.nameString))
         } +
             systems.prompts.priest.none
                 .renderUtility()
