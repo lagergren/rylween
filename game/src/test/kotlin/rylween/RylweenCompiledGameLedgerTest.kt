@@ -147,7 +147,7 @@ class RylweenCompiledGameLedgerTest {
         check(characterCreation.statRoll == CharacterCreationStatRollModel(min = 15, max = 70))
         check(characterCreation.start.map == Maps.wilderness)
         check(characterCreation.start.position == Wilderness.xy(12, 9))
-        check(characterCreation.start.facing == Facing.North)
+        check(characterCreation.start.facing == Facing.South)
         check(characterCreation.start.partyMemberMax == 4)
         check(characterCreation.start.level == 1)
         check(characterCreation.start.dailyTimeLeft == 175)
