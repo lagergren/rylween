@@ -1293,6 +1293,7 @@ class GameRuntime private constructor(
             party =
                 party.copy(
                     position = target,
+                    facing = movementFacing(dx, dy),
                     resources =
                         party.resources.copy(
                             timeLeft = max(0, party.resources.timeLeft - targetTerrain.movementCost),
@@ -1302,6 +1303,19 @@ class GameRuntime private constructor(
             moved = true,
         )
     }
+
+    /** Converts a confirmed cardinal move into the facing persisted with saves and bitmap status frames. */
+    private fun movementFacing(
+        dx: Int,
+        dy: Int,
+    ): Facing =
+        when {
+            dx == 0 && dy < 0 -> Facing.North
+            dx == 0 && dy > 0 -> Facing.South
+            dx < 0 && dy == 0 -> Facing.West
+            dx > 0 && dy == 0 -> Facing.East
+            else -> error("runtime movement must be cardinal, got dx=$dx dy=$dy")
+        }
 
     private fun printHelp(
         screen: RuntimeScreenPort,

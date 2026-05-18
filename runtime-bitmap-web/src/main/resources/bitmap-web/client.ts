@@ -70,6 +70,8 @@ type BitmapTextInput = {
 type BitmapTile = {
     slug?: string;
     settlement?: string;
+    x: number;
+    y: number;
     variant?: number;
     passable?: boolean;
     center?: boolean;
@@ -128,6 +130,7 @@ type BitmapStatus = {
     condition: string;
     x: number;
     y: number;
+    facing?: WildernessFacing | null;
     torches: number;
     food: number;
     moves: number;
@@ -260,8 +263,10 @@ let textReveal: TextReveal | null = null;
 let textRevealAnimation = 0;
 let wildernessRotationTransition: WildernessRotationTransition | null = null;
 let pendingWildernessMove: PendingWildernessMove | null = null;
+let centerSettlementSceneSuppressedKey: string | null = null;
+let serverFacingInitialized = false;
 let wildernessRotationAnimation = 0;
-const assetVersion = "20260517-view-mode-keys";
+const assetVersion = "20260518-town-leave-fade";
 const textRevealEnabledKey = "rylween.bitmap.textReveal.enabled";
 const textRevealSpeedKey = "rylween.bitmap.textReveal.speed";
 const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap";
@@ -296,7 +301,7 @@ const runtimePreferenceSettings: RuntimePreferenceSettings = {
 };
 const wildernessDisplaySettings: WildernessDisplaySettings = {
     perspective: storedBoolean(wildernessPerspectiveKey, false),
-    facing: "North"
+    facing: "South"
 };
 const wildernessBackdropThemes: Record<string, WildernessBackdropTheme> = {
     dawn: {
@@ -663,10 +668,13 @@ type BitmapSmokeSnapshot = {
     mode: string | null;
     backdrop: string | null;
     title: string | null;
+    x: number | null;
+    y: number | null;
     textLineCount: number;
     statusLineCount: number;
     commandCount: number;
     mapCells: number;
+    centerSettlementSceneSuppressed: boolean;
     wildernessFacing: WildernessFacing;
     wildernessViewMode: string;
     perspectiveCells: number;
@@ -683,10 +691,14 @@ function bitmapSmokeSnapshot(): BitmapSmokeSnapshot {
         mode: frame?.mode ?? null,
         backdrop: frame?.backdrop ?? null,
         title: frame?.title ?? null,
+        x: frame?.status?.x ?? null,
+        y: frame?.status?.y ?? null,
         textLineCount: frame?.textLines?.length ?? 0,
         statusLineCount: frame?.statusLines?.length ?? 0,
         commandCount: currentCommands.length,
         mapCells: (frame?.map?.rows || []).reduce((count, row) => count + row.length, 0),
+        centerSettlementSceneSuppressed:
+            Boolean(frame?.map && centerSettlementSceneSuppressedKey === mapCenterSettlementSceneKey(frame.map)),
         wildernessFacing: wildernessDisplaySettings.facing,
         wildernessViewMode: wildernessDisplaySettings.perspective ? "3d" : "2d",
         perspectiveCells: perspectiveView(frame?.map)?.cells.length ?? 0,
@@ -723,6 +735,7 @@ function connect(): void {
         const nextFrame = JSON.parse(event.data) as BitmapFrame;
         recordCompiledImageAssets(nextFrame.imageAssets || []);
         const previousFrame = frame;
+        applyServerWildernessFacing(nextFrame);
         applyPendingWildernessFacing(nextFrame);
         const fadeFromTitle = isTitleFrame(frame) && !isTitleFrame(nextFrame);
         const sceneFadeSnapshot = shouldFadeVisual(frame, nextFrame) ? captureScenePanel() : null;
@@ -735,6 +748,7 @@ function connect(): void {
         }
         titleFade = null;
         frame = nextFrame;
+        updateCenterSettlementSceneSuppression(previousFrame, nextFrame);
         syncTextReveal(frame, true, previousFrame);
         if (!continuingSceneFade) draw(frame);
         renderCommandPalette(frame.commands || []);
@@ -1207,6 +1221,14 @@ function trackFacingFromMovementToken(token: string): void {
     if (facing && status) pendingWildernessMove = {facing, x: status.x, y: status.y};
 }
 
+/** Initializes the browser-facing 3D compass from the runtime save once per connection. */
+function applyServerWildernessFacing(nextFrame: BitmapFrame): void {
+    if (serverFacingInitialized || nextFrame.mode !== "wilderness") return;
+    const facing = nextFrame.status?.facing;
+    serverFacingInitialized = true;
+    if (facing) wildernessDisplaySettings.facing = facing;
+}
+
 /** Applies facing after the runtime confirms that a wilderness movement changed position. */
 function applyPendingWildernessFacing(nextFrame: BitmapFrame): void {
     const pending = pendingWildernessMove;
@@ -1215,6 +1237,37 @@ function applyPendingWildernessFacing(nextFrame: BitmapFrame): void {
     if (nextFrame.status.x === pending.x && nextFrame.status.y === pending.y) return;
     wildernessRotationTransition = null;
     wildernessDisplaySettings.facing = pending.facing;
+}
+
+/**
+ * After leaving a settlement interior, keep the next wilderness frame in the
+ * normal outdoor 3D view until the party moves away from that settlement tile.
+ */
+function updateCenterSettlementSceneSuppression(previousFrame: BitmapFrame | null, nextFrame: BitmapFrame): void {
+    const nextKey = nextFrame.map ? mapCenterSettlementSceneKey(nextFrame.map) : null;
+    if (!nextKey) {
+        centerSettlementSceneSuppressedKey = null;
+        return;
+    }
+    if (nextFrame.mode === "wilderness" && nextFrame.map && isSettlementSceneFrame(previousFrame)) {
+        centerSettlementSceneSuppressedKey = nextKey;
+        return;
+    }
+    if (centerSettlementSceneSuppressedKey && centerSettlementSceneSuppressedKey !== nextKey) {
+        centerSettlementSceneSuppressedKey = null;
+    }
+}
+
+/** Recognizes full-panel settlement art that should fade out to wilderness on leave. */
+function isSettlementSceneFrame(candidate: BitmapFrame | null): boolean {
+    if (!candidate || candidate.map) return false;
+    const kind = normalizedKind(candidate.backdrop || candidate.mode || "");
+    return (
+        kind.includes("townemainstreet") ||
+        kind.includes("townmainstreet") ||
+        kind.includes("wildernesshut") ||
+        kind.includes("ydargcastle")
+    );
 }
 
 function scheduleWildernessRotationAnimation(): void {
@@ -1884,6 +1937,8 @@ function drawPerspectiveMap(map: BitmapMap): boolean {
  * party stands on a town, hut, or castle square but has not entered it yet.
  */
 function drawPerspectiveCenterSettlementScene(map: BitmapMap, bounds: Bounds, theme: WildernessBackdropTheme): boolean {
+    const key = mapCenterSettlementSceneKey(map);
+    if (!key || key === centerSettlementSceneSuppressedKey) return false;
     const kind = mapCenterSettlementBackdropKind(map);
     if (!kind) return false;
     ctx.fillStyle = "#070a06";
@@ -1899,6 +1954,14 @@ function drawPerspectiveCenterSettlementScene(map: BitmapMap, bounds: Bounds, th
 function mapCenterSettlementBackdropKind(map: BitmapMap): string | null {
     const center = mapCenterTile(map);
     return center ? perspectiveSettlementBackdropKind(perspectiveTerrainKey(center)) : null;
+}
+
+/** Keys the settlement tile under the party so suppression lasts only until the party moves away. */
+function mapCenterSettlementSceneKey(map: BitmapMap): string | null {
+    const center = mapCenterTile(map);
+    if (!center) return null;
+    const kind = perspectiveSettlementBackdropKind(perspectiveTerrainKey(center));
+    return kind ? center.x + "," + center.y + ":" + kind : null;
 }
 
 /** Applies the current wilderness time-of-day lighting to settlement scenes. */
