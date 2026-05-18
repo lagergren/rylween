@@ -10,9 +10,6 @@ type WildernessBackdropTheme = {
     skyTop: string;
     skyMid: string;
     skyLow: string;
-    ridgeFar: string;
-    ridgeNear: string;
-    forest: string;
     haze: string;
     glow: string;
     groundTint: string;
@@ -284,9 +281,6 @@ const maxBitmapLineSpacing = 1.4;
 const defaultPauseDelayScale = 1.0;
 const minPauseDelayScale = 0.25;
 const maxPauseDelayScale = 2.0;
-const visualNoiseA = 12.9898;
-const visualNoiseB = 78.233;
-const visualNoiseScale = 43758.5453123;
 const textRevealSettings: TextRevealSettings = {
     enabled: storedBoolean(textRevealEnabledKey, true),
     charsPerSecond: storedNumber(textRevealSpeedKey, 220, 90, 280)
@@ -308,9 +302,6 @@ const wildernessBackdropThemes: Record<string, WildernessBackdropTheme> = {
         skyTop: "#14233a",
         skyMid: "#5d6f74",
         skyLow: "#c79b57",
-        ridgeFar: "rgba(72, 79, 84, 0.8)",
-        ridgeNear: "rgba(45, 61, 46, 0.9)",
-        forest: "rgba(15, 39, 21, 0.78)",
         haze: "rgba(245, 183, 96, 0.18)",
         glow: "rgba(247, 184, 89, 0.36)",
         groundTint: "rgba(224, 179, 77, 0.12)",
@@ -320,9 +311,6 @@ const wildernessBackdropThemes: Record<string, WildernessBackdropTheme> = {
         skyTop: "#1f4667",
         skyMid: "#6e9eb0",
         skyLow: "#d5c28a",
-        ridgeFar: "rgba(89, 99, 97, 0.74)",
-        ridgeNear: "rgba(52, 76, 48, 0.88)",
-        forest: "rgba(19, 54, 26, 0.76)",
         haze: "rgba(217, 222, 178, 0.18)",
         glow: "rgba(246, 220, 142, 0.24)",
         groundTint: "rgba(221, 214, 121, 0.1)",
@@ -332,9 +320,6 @@ const wildernessBackdropThemes: Record<string, WildernessBackdropTheme> = {
         skyTop: "#171936",
         skyMid: "#624366",
         skyLow: "#b46840",
-        ridgeFar: "rgba(55, 52, 67, 0.82)",
-        ridgeNear: "rgba(39, 48, 43, 0.92)",
-        forest: "rgba(12, 30, 21, 0.82)",
         haze: "rgba(205, 91, 73, 0.2)",
         glow: "rgba(218, 92, 62, 0.3)",
         groundTint: "rgba(194, 88, 58, 0.12)",
@@ -344,9 +329,6 @@ const wildernessBackdropThemes: Record<string, WildernessBackdropTheme> = {
         skyTop: "#050713",
         skyMid: "#10182b",
         skyLow: "#1d2b36",
-        ridgeFar: "rgba(27, 32, 47, 0.88)",
-        ridgeNear: "rgba(14, 26, 25, 0.94)",
-        forest: "rgba(3, 13, 10, 0.9)",
         haze: "rgba(98, 124, 162, 0.14)",
         glow: "rgba(145, 174, 218, 0.14)",
         groundTint: "rgba(29, 45, 72, 0.2)",
@@ -1908,8 +1890,15 @@ function drawPerspectiveMap(map: BitmapMap): boolean {
     if (!view || !map.perspective) return false;
     const bounds = scenePanelBounds();
     const theme = wildernessBackdropThemeForStatus(frame?.status);
-    if (drawPerspectiveCenterSettlementScene(map, bounds, theme)) return true;
-    drawPerspectiveBackdrop(bounds, theme);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bounds.x, bounds.y, bounds.w, bounds.h);
+    ctx.clip();
+    if (drawPerspectiveCenterSettlementScene(map, bounds, theme)) {
+        ctx.restore();
+        return true;
+    }
+    drawPerspectiveBackdrop(bounds, theme, view);
     drawPerspectiveSettlementBackdrop(view, bounds);
     const transition = activeWildernessRotationTransition();
     if (transition) {
@@ -1928,6 +1917,7 @@ function drawPerspectiveMap(map: BitmapMap): boolean {
     }
     drawPerspectiveLighting(bounds, theme);
     drawSceneVignette(bounds);
+    ctx.restore();
     drawPerspectiveFacingLabel(bounds, view.facing);
     return true;
 }
@@ -1996,6 +1986,13 @@ function rotationProgress(transition: WildernessRotationTransition): number {
     return Math.max(0, Math.min(1, (performance.now() - transition.started) / transition.duration));
 }
 
+function perspectiveSceneTerrainKey(view: BitmapPerspectiveView): string {
+    const center = view.cells.find((cell) => cell.forward === 0 && cell.side === 0);
+    const ahead = view.cells.find((cell) => cell.forward === 1 && cell.side === 0);
+    const candidate = ahead || center || view.cells[0];
+    return candidate ? perspectiveTerrainKey(candidate.tile) : "plain";
+}
+
 function drawPerspectiveViewCells(view: BitmapPerspectiveView, bounds: Bounds, alpha = 1, offsetX = 0): void {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -2003,6 +2000,7 @@ function drawPerspectiveViewCells(view: BitmapPerspectiveView, bounds: Bounds, a
     ctx.beginPath();
     ctx.rect(bounds.x, bounds.y, bounds.w, bounds.h);
     ctx.clip();
+    drawPerspectiveRowBackfill(view, bounds);
     for (const cell of view.cells) {
         drawPerspectiveGroundCell(cell, bounds);
     }
@@ -2012,7 +2010,7 @@ function drawPerspectiveViewCells(view: BitmapPerspectiveView, bounds: Bounds, a
     ctx.restore();
 }
 
-function drawPerspectiveBackdrop(bounds: Bounds, theme: WildernessBackdropTheme): void {
+function drawPerspectiveBackdrop(bounds: Bounds, theme: WildernessBackdropTheme, view: BitmapPerspectiveView): void {
     const base = ctx.createLinearGradient(0, bounds.y, 0, bounds.y + bounds.h);
     base.addColorStop(0, theme.skyTop);
     base.addColorStop(0.35, theme.skyMid);
@@ -2020,10 +2018,10 @@ function drawPerspectiveBackdrop(bounds: Bounds, theme: WildernessBackdropTheme)
     base.addColorStop(1, "#11170f");
     ctx.fillStyle = base;
     ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
-    drawPerspectiveDistantLandscape(bounds, theme);
+    drawPerspectiveDistantLandscape(bounds, theme, perspectiveSceneTerrainKey(view));
 }
 
-function drawPerspectiveDistantLandscape(bounds: Bounds, theme: WildernessBackdropTheme): void {
+function drawPerspectiveDistantLandscape(bounds: Bounds, theme: WildernessBackdropTheme, terrainKey: string): void {
     ctx.save();
     const glow = ctx.createRadialGradient(
         bounds.x + bounds.w * 0.74,
@@ -2037,72 +2035,127 @@ function drawPerspectiveDistantLandscape(bounds: Bounds, theme: WildernessBackdr
     glow.addColorStop(1, "rgba(0, 0, 0, 0)");
     ctx.fillStyle = glow;
     ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h * 0.55);
-    drawPerspectiveRidge(bounds, bounds.y + bounds.h * 0.38, bounds.h * 0.2, theme.ridgeFar, 7, 0.17);
-    drawPerspectiveRidge(bounds, bounds.y + bounds.h * 0.49, bounds.h * 0.16, theme.ridgeNear, 6, 0.41);
-    drawPerspectiveTreeline(bounds, theme);
+    drawPerspectiveBackdropPngs(bounds, terrainKey);
     const haze = ctx.createLinearGradient(0, bounds.y + bounds.h * 0.25, 0, bounds.y + bounds.h * 0.72);
     haze.addColorStop(0, "rgba(0, 0, 0, 0)");
     haze.addColorStop(0.45, theme.haze);
     haze.addColorStop(1, "rgba(5, 8, 4, 0.24)");
     ctx.fillStyle = haze;
     ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h * 0.76);
-    const left = ctx.createLinearGradient(bounds.x, 0, bounds.x + bounds.w * 0.32, 0);
-    left.addColorStop(0, "rgba(2, 5, 2, 0.78)");
-    left.addColorStop(1, "rgba(2, 5, 2, 0)");
-    ctx.fillStyle = left;
-    ctx.fillRect(bounds.x, bounds.y, bounds.w * 0.32, bounds.h);
-    const right = ctx.createLinearGradient(bounds.x + bounds.w, 0, bounds.x + bounds.w * 0.68, 0);
-    right.addColorStop(0, "rgba(2, 5, 2, 0.78)");
-    right.addColorStop(1, "rgba(2, 5, 2, 0)");
-    ctx.fillStyle = right;
-    ctx.fillRect(bounds.x + bounds.w * 0.68, bounds.y, bounds.w * 0.32, bounds.h);
     ctx.restore();
 }
 
-function drawPerspectiveRidge(
-    bounds: Bounds,
-    baseline: number,
-    height: number,
-    color: string,
-    peaks: number,
-    phase: number
-): void {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(bounds.x, bounds.y + bounds.h);
-    ctx.lineTo(bounds.x, baseline);
-    for (let index = 0; index <= peaks; index += 1) {
-        const x = bounds.x + bounds.w * (index / peaks);
-        const peak = baseline - height * (0.42 + seededUnit(phase * 1000, index) * 0.58);
-        ctx.lineTo(x - bounds.w / peaks / 2, baseline - height * 0.2);
-        ctx.lineTo(x, peak);
-        ctx.lineTo(x + bounds.w / peaks / 2, baseline - height * 0.16);
+function drawPerspectiveBackdropPngs(bounds: Bounds, terrainKey: string): void {
+    const key = perspectiveBackdropKey(terrainKey);
+    const image = perspectiveTerrainAssets[key] || perspectiveTerrainAssets.plain;
+    const ground = perspectiveTerrainAssets[perspectiveGroundBackdropKey(key)] || image;
+    if (!imageReady(image) || !imageReady(ground)) {
+        drawPerspectiveFallbackBackdrop(bounds, key);
+        return;
     }
-    ctx.lineTo(bounds.x + bounds.w, bounds.y + bounds.h);
-    ctx.closePath();
-    ctx.fill();
+    const horizon = bounds.y + bounds.h * perspectiveBackdropHorizon(key);
+    drawPerspectiveGroundRaster(ground, key, bounds, horizon);
+    drawPerspectiveRepeatedRaster(image, bounds, perspectiveBackdropBaseY(key), perspectiveBackdropWidth(key), 0.78);
+    if (key === "forest" || key === "swamp") {
+        drawPerspectiveSideRaster(perspectiveTerrainAssets.forest, bounds, 0.7);
+    } else if (key !== "desert" && key !== "water") {
+        drawPerspectiveSideRaster(perspectiveTerrainAssets.plain, bounds, 0.52);
+    }
 }
 
-function drawPerspectiveTreeline(bounds: Bounds, theme: WildernessBackdropTheme): void {
-    ctx.fillStyle = theme.forest;
-    const baseY = bounds.y + bounds.h * 0.56;
-    for (let index = 0; index < 28; index += 1) {
-        const x = bounds.x + bounds.w * (index / 27);
-        const h = bounds.h * (0.12 + seededUnit(420, index) * 0.1);
-        const w = bounds.w * (0.022 + seededUnit(880, index) * 0.018);
-        ctx.beginPath();
-        ctx.moveTo(x, baseY - h);
-        ctx.lineTo(x - w, baseY + h * 0.15);
-        ctx.lineTo(x + w, baseY + h * 0.15);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillRect(x - w * 0.12, baseY - h * 0.08, w * 0.24, h * 0.34);
+function perspectiveBackdropKey(key: string): string {
+    if (key === "void") return "plain";
+    if (key === "road") return "plain";
+    return key;
+}
+
+function perspectiveGroundBackdropKey(key: string): string {
+    if (key === "mountain") return "foothills";
+    if (key === "forest") return "plain";
+    if (key === "void") return "plain";
+    return key;
+}
+
+function perspectiveBackdropHorizon(key: string): number {
+    if (key === "mountain" || key === "foothills") return 0.3;
+    if (key === "forest" || key === "swamp") return 0.36;
+    return 0.44;
+}
+
+function perspectiveBackdropBaseY(key: string): number {
+    if (key === "mountain" || key === "foothills") return 0.68;
+    if (key === "forest" || key === "swamp") return 0.76;
+    return 0.88;
+}
+
+function perspectiveBackdropWidth(key: string): number {
+    if (key === "mountain" || key === "foothills") return 0.48;
+    if (key === "forest" || key === "swamp") return 0.56;
+    return 0.52;
+}
+
+function drawPerspectiveGroundRaster(image: HTMLImageElement, key: string, bounds: Bounds, horizon: number): void {
+    const source = perspectiveTextureSource(image, key);
+    const targetH = bounds.y + bounds.h - horizon;
+    const targetW = bounds.w * 0.62;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalAlpha = 0.82;
+    for (let index = -1; index <= 2; index += 1) {
+        const x = bounds.x + index * targetW * 0.72;
+        ctx.drawImage(image, source.x, source.y, source.w, source.h, x, horizon, targetW, targetH);
     }
-    const ground = ctx.createLinearGradient(0, baseY, 0, bounds.y + bounds.h);
-    ground.addColorStop(0, "rgba(16, 31, 13, 0.82)");
-    ground.addColorStop(1, "rgba(6, 10, 5, 0.9)");
+    ctx.restore();
+}
+
+function drawPerspectiveRepeatedRaster(
+    image: HTMLImageElement,
+    bounds: Bounds,
+    baseYRatio: number,
+    widthRatio: number,
+    alpha: number,
+): void {
+    if (!imageReady(image)) return;
+    const targetW = bounds.w * widthRatio;
+    const targetH = targetW * (image.naturalHeight / image.naturalWidth);
+    const step = targetW * 0.48;
+    const count = Math.ceil(bounds.w / step) + 3;
+    const baseY = bounds.y + bounds.h * baseYRatio;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalAlpha = alpha;
+    for (let index = 0; index < count; index += 1) {
+        const x = bounds.x - targetW * 0.38 + index * step;
+        const y = baseY - targetH + (index % 2) * bounds.h * 0.018;
+        ctx.drawImage(image, x, y, targetW, targetH);
+    }
+    ctx.restore();
+}
+
+function drawPerspectiveSideRaster(image: HTMLImageElement, bounds: Bounds, alpha: number): void {
+    if (!imageReady(image)) return;
+    const targetW = bounds.w * 0.7;
+    const targetH = targetW * (image.naturalHeight / image.naturalWidth);
+    const y = bounds.y + bounds.h * 0.84 - targetH;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(image, bounds.x - targetW * 0.38, y, targetW, targetH);
+    ctx.drawImage(image, bounds.x + bounds.w - targetW * 0.62, y + bounds.h * 0.02, targetW, targetH);
+    ctx.restore();
+}
+
+function drawPerspectiveFallbackBackdrop(bounds: Bounds, key: string): void {
+    const horizon = bounds.y + bounds.h * perspectiveBackdropHorizon(key);
+    const ground = ctx.createLinearGradient(0, horizon, 0, bounds.y + bounds.h);
+    ground.addColorStop(0, key === "desert" ? "rgba(143, 112, 62, 0.82)" : "rgba(37, 58, 25, 0.82)");
+    ground.addColorStop(1, key === "desert" ? "rgba(79, 58, 34, 0.9)" : "rgba(12, 20, 9, 0.92)");
     ctx.fillStyle = ground;
-    ctx.fillRect(bounds.x, baseY, bounds.w, bounds.h - (baseY - bounds.y));
+    ctx.fillRect(bounds.x, horizon, bounds.w, bounds.y + bounds.h - horizon);
+}
+
+function imageReady(image: HTMLImageElement | null | undefined): image is HTMLImageElement {
+    return !!image && image.complete && image.naturalWidth > 0;
 }
 
 function drawPerspectiveLighting(bounds: Bounds, theme: WildernessBackdropTheme): void {
@@ -2158,6 +2211,55 @@ function drawSceneBackdropForKind(kind: string, bounds: Bounds): void {
     drawSemanticSceneTile(kind, bounds.x, bounds.y, bounds.w, bounds.h);
 }
 
+function drawPerspectiveRowBackfill(view: BitmapPerspectiveView, bounds: Bounds): void {
+    const rows = new Map<number, BitmapPerspectiveCell[]>();
+    for (const cell of view.cells) {
+        const row = rows.get(cell.forward) || [];
+        row.push(cell);
+        rows.set(cell.forward, row);
+    }
+    Array.from(rows.keys())
+        .sort((a, b) => b - a)
+        .forEach((forward) => {
+            const row = rows.get(forward) || [];
+            const left = row.reduce<BitmapPerspectiveCell | null>(
+                (candidate, cell) => (candidate === null || cell.side < candidate.side ? cell : candidate),
+                null,
+            );
+            const right = row.reduce<BitmapPerspectiveCell | null>(
+                (candidate, cell) => (candidate === null || cell.side > candidate.side ? cell : candidate),
+                null,
+            );
+            if (left) drawPerspectiveSideBackfillCell(left, bounds, -1);
+            if (right) drawPerspectiveSideBackfillCell(right, bounds, 1);
+        });
+}
+
+function drawPerspectiveSideBackfillCell(cell: BitmapPerspectiveCell, bounds: Bounds, side: -1 | 1): void {
+    const quad = perspectiveQuad(bounds, cell.forward, cell.side);
+    const extension =
+        side < 0 ?
+            {
+                nearLeft: {x: bounds.x, y: quad.nearLeft.y},
+                nearRight: quad.nearLeft,
+                farRight: quad.farLeft,
+                farLeft: {x: bounds.x, y: quad.farLeft.y}
+            } :
+            {
+                nearLeft: quad.nearRight,
+                nearRight: {x: bounds.x + bounds.w, y: quad.nearRight.y},
+                farRight: {x: bounds.x + bounds.w, y: quad.farRight.y},
+                farLeft: quad.farRight
+            };
+    const key = perspectiveTerrainKey(cell.tile);
+    const visualTile = key === "void" ? {...cell.tile, slug: "plain", passable: true} : cell.tile;
+    const alpha = key === "void" ? 0.16 : Math.max(0.18, 0.42 - cell.forward * 0.06);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    drawPerspectiveTerrainTexture({...cell, tile: visualTile}, extension, alpha);
+    ctx.restore();
+}
+
 function drawPerspectiveGroundCell(cell: BitmapPerspectiveCell, bounds: Bounds): void {
     const quad = perspectiveQuad(bounds, cell.forward, cell.side);
     const key = perspectiveTerrainKey(cell.tile);
@@ -2165,13 +2267,14 @@ function drawPerspectiveGroundCell(cell: BitmapPerspectiveCell, bounds: Bounds):
     const slug = (visualTile.slug || "plain").toLowerCase();
     const settlement = (visualTile.settlement || "").toLowerCase();
     const colors = tileColors(slug, settlement, visualTile.passable);
+    const alpha = key === "void" ? 0.08 : Math.max(0.22, 0.54 - cell.forward * 0.08);
     ctx.save();
-    ctx.globalAlpha = key === "void" ? 0.68 : 1;
+    ctx.globalAlpha = alpha;
     fillPerspectiveQuad(quad, colors.base);
-    fillPerspectiveQuad(quad, "rgba(0, 0, 0, " + Math.min(0.52, 0.1 + cell.forward * 0.07) + ")");
-    drawPerspectiveTerrainTexture({...cell, tile: visualTile}, quad);
-    if (key === "void" || cell.forward <= 1) {
-        ctx.strokeStyle = key === "void" ? "rgba(126, 154, 87, 0.07)" : "rgba(237, 212, 132, 0.045)";
+    fillPerspectiveQuad(quad, "rgba(0, 0, 0, " + Math.min(0.36, 0.06 + cell.forward * 0.05) + ")");
+    drawPerspectiveTerrainTexture({...cell, tile: visualTile}, quad, alpha);
+    if (cell.forward <= 1 && Math.abs(cell.side) <= 1) {
+        ctx.strokeStyle = "rgba(237, 212, 132, 0.035)";
         ctx.lineWidth = 0.55;
         strokePerspectiveQuad(quad);
     }
@@ -2204,7 +2307,7 @@ function drawPerspectiveCellContent(cell: BitmapPerspectiveCell, bounds: Bounds)
 }
 
 function perspectiveHorizonY(bounds: Bounds): number {
-    return bounds.y + bounds.h * 0.16;
+    return bounds.y + bounds.h * 0.44;
 }
 
 function perspectiveNearY(bounds: Bounds): number {
@@ -2216,7 +2319,7 @@ function perspectivePoint(bounds: Bounds, depth: number, side: number): CanvasPo
     const nearY = perspectiveNearY(bounds);
     const distance = depth + 1;
     const y = horizonY + (nearY - horizonY) / distance;
-    const unit = bounds.w * 0.34 / Math.pow(distance, 0.9);
+    const unit = bounds.w * 0.42 / Math.pow(distance, 0.72);
     return {x: bounds.x + bounds.w / 2 + side * unit, y};
 }
 
@@ -2262,7 +2365,7 @@ function clipPerspectiveQuad(quad: PerspectiveQuad): void {
     ctx.clip();
 }
 
-function drawPerspectiveTerrainTexture(cell: BitmapPerspectiveCell, quad: PerspectiveQuad): void {
+function drawPerspectiveTerrainTexture(cell: BitmapPerspectiveCell, quad: PerspectiveQuad, alphaScale = 1): void {
     const key = perspectiveTerrainKey(cell.tile);
     const bounds = perspectiveQuadBounds(quad);
     ctx.save();
@@ -2270,42 +2373,10 @@ function drawPerspectiveTerrainTexture(cell: BitmapPerspectiveCell, quad: Perspe
     const texture = perspectiveGroundTextureForTile(cell.tile);
     if (texture && texture.complete && texture.naturalWidth > 0) {
         const source = perspectiveTextureSource(texture, key);
-        ctx.globalAlpha = key === "plain" ? 0.74 : key === "water" || key === "desert" ? 0.58 : 0.42;
+        const textureAlpha = key === "plain" ? 0.74 : key === "water" || key === "desert" ? 0.58 : 0.42;
+        ctx.globalAlpha = textureAlpha * alphaScale;
         ctx.drawImage(texture, source.x, source.y, source.w, source.h, bounds.x, bounds.y, bounds.w, bounds.h);
         ctx.globalAlpha = 1;
-    }
-    if (key === "plain" || key === "foothills" || key === "forest" || key === "road") {
-        drawPerspectiveGrassDetail(cell, bounds, key);
-    }
-    if (key === "water") {
-        ctx.strokeStyle = "rgba(156, 210, 220, 0.42)";
-        ctx.lineWidth = 1;
-        for (let index = 0; index < 4; index += 1) {
-            const y = bounds.y + bounds.h * (0.25 + index * 0.17);
-            ctx.beginPath();
-            ctx.moveTo(bounds.x, y);
-            ctx.quadraticCurveTo(bounds.x + bounds.w * 0.35, y - 5, bounds.x + bounds.w * 0.68, y);
-            ctx.quadraticCurveTo(bounds.x + bounds.w * 0.85, y + 4, bounds.x + bounds.w, y - 1);
-            ctx.stroke();
-        }
-    } else if (key === "desert") {
-        ctx.strokeStyle = "rgba(245, 216, 143, 0.24)";
-        for (let index = 0; index < 4; index += 1) {
-            const y = bounds.y + bounds.h * (0.25 + index * 0.16);
-            ctx.beginPath();
-            ctx.moveTo(bounds.x + bounds.w * 0.1, y);
-            ctx.quadraticCurveTo(bounds.x + bounds.w * 0.5, y - 8, bounds.x + bounds.w * 0.9, y);
-            ctx.stroke();
-        }
-    } else {
-        ctx.strokeStyle = "rgba(197, 213, 122, 0.2)";
-        for (let index = 0; index < 5; index += 1) {
-            const x = bounds.x + bounds.w * (0.12 + index * 0.19);
-            ctx.beginPath();
-            ctx.moveTo(x, bounds.y + bounds.h * 0.72);
-            ctx.lineTo(x + bounds.w * 0.04, bounds.y + bounds.h * 0.58);
-            ctx.stroke();
-        }
     }
     ctx.restore();
 }
@@ -2325,38 +2396,6 @@ function perspectiveTextureSource(texture: HTMLImageElement, key: string): Bound
         w: texture.naturalWidth * 0.84,
         h: texture.naturalHeight * 0.42
     };
-}
-
-function drawPerspectiveGrassDetail(cell: BitmapPerspectiveCell, bounds: Bounds, key: string): void {
-    const density = key === "road" ? 0.45 : key === "foothills" ? 0.72 : 1;
-    const tufts = Math.max(5, Math.min(22, Math.floor(bounds.w * bounds.h / 3600 * density)));
-    const seed = perspectiveTerrainSeed(cell, key);
-    ctx.lineWidth = Math.max(0.6, Math.min(1.5, bounds.h * 0.015));
-    for (let index = 0; index < tufts; index += 1) {
-        const x = bounds.x + seededUnit(seed, index * 5 + 1) * bounds.w;
-        const y = bounds.y + (0.32 + seededUnit(seed, index * 5 + 2) * 0.62) * bounds.h;
-        const h = Math.max(2.2, bounds.h * (0.035 + seededUnit(seed, index * 5 + 3) * 0.055));
-        const lean = (seededUnit(seed, index * 5 + 4) - 0.5) * bounds.w * 0.035;
-        ctx.strokeStyle = index % 3 === 0 ? "rgba(222, 220, 132, 0.28)" : "rgba(138, 177, 78, 0.31)";
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + lean, y - h);
-        ctx.moveTo(x, y);
-        ctx.lineTo(x - lean * 0.55, y - h * 0.72);
-        ctx.stroke();
-    }
-}
-
-function perspectiveTerrainSeed(cell: BitmapPerspectiveCell, key: string): number {
-    let seed = (cell.forward + 13) * 73856093 + (cell.side + 31) * 19349663;
-    for (let index = 0; index < key.length; index += 1) seed += key.charCodeAt(index) * (index + 17);
-    return seed;
-}
-
-function seededUnit(seed: number, salt: number): number {
-    // Deterministic renderer-only noise for terrain details. This is not gameplay RNG.
-    const value = Math.sin((seed + 1) * visualNoiseA + salt * visualNoiseB) * visualNoiseScale;
-    return value - Math.floor(value);
 }
 
 function perspectiveGroundTextureForTile(tile: BitmapTile): HTMLImageElement | null {
