@@ -1098,11 +1098,10 @@ contract, while the authored game remains portable JSON/data.
     view keys, rotation has a
     short transition, a compass shows the current facing, and the view now
     renders an Eye-of-the-Beholder-style continuous perspective ground grid
-    from the same map cells instead of isolated terrain cards.
-    Follow-up polish clamps perspective-only edge samples to the nearest
-    authored map terrain so looking off the wilderness edge does not expose a
-    void/abyss, removes the bright horizon in favor of a darker crawler-style
-    far plane, and fades in the appropriate town/hut/castle backdrop when the
+    from the same map cells instead of isolated terrain cards. Follow-up polish
+    shortened the visible depth, fills side gaps from neighboring terrain PNGs
+    instead of darkness, removed the vector-looking drawn ridge/tree/grass
+    details, and fades in the appropriate town/hut/castle backdrop when the
     party is standing on that wilderness settlement cell but has not entered it.
     `/tools/wilderness-perspective` loads the real authored map outside Thord
     at 12x10 facing south, so Thord is visible directly ahead, for isolated
@@ -2279,8 +2278,10 @@ Completed in this pass:
   counterclockwise, right/6 rotate clockwise) with a compass/facing indicator,
   tiled 2D keeps absolute movement while updating the session facing from
   confirmed travel, standing on a settlement cell fades in the matching
-  settlement scene before entry, and `/tools/wilderness-perspective`
-  walks/rotates outside Thord without save or party state.
+  settlement scene before entry, the pseudo-3D background uses bundled PNG
+  terrain assets rather than drawn ridge/tree glyphs, and
+  `/tools/wilderness-perspective` walks/rotates outside Thord without save or
+  party state.
 - Closed a runtime battle presentation polish item: dead monster target rows now
   keep the target-list alignment while replacing the live target letter with
   leading space, the bitmap text panel dims those disabled target rows, and

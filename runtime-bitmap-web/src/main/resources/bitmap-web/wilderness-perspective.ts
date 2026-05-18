@@ -73,10 +73,7 @@
     const toolFacing = toolElement("toolFacing", HTMLSelectElement);
     const toolPerspective = toolElement("toolPerspective", HTMLInputElement);
     const toolStatus = toolElement("toolStatus", HTMLElement);
-    const toolAssetVersion = "20260517-view-mode-keys";
-    const toolVisualNoiseA = 12.9898;
-    const toolVisualNoiseB = 78.233;
-    const toolVisualNoiseScale = 43758.5453123;
+    const toolAssetVersion = "20260518-png-perspective";
     const toolPerspectiveTerrainAssets: Record<string, HTMLImageElement> = {
         plain: toolLoadAsset("/assets/wilderness/terrain-plain.png"),
         forest: toolLoadAsset("/assets/wilderness/terrain-forest.png"),
@@ -328,12 +325,13 @@
             return;
         }
         const bounds = {x: 40, y: 34, w: toolCanvas.width - 80, h: toolCanvas.height - 68};
-        toolDrawPerspectiveBackdrop(bounds, "dawn");
-        toolDrawPerspectiveSettlementBackdrop(view, bounds);
         toolCtx.save();
         toolCtx.beginPath();
         toolCtx.rect(bounds.x, bounds.y, bounds.w, bounds.h);
         toolCtx.clip();
+        toolDrawPerspectiveBackdrop(bounds, "dawn", view);
+        toolDrawPerspectiveSettlementBackdrop(view, bounds);
+        toolDrawPerspectiveRowBackfill(view, bounds);
         view.cells.forEach((cell) => toolDrawPerspectiveGroundCell(cell, bounds));
         view.cells.forEach((cell) => toolDrawPerspectiveCellContent(cell, bounds));
         toolCtx.restore();
@@ -343,7 +341,7 @@
         return map?.perspective?.views.find((view) => view.facing === facing) || null;
     }
 
-    function toolDrawPerspectiveBackdrop(bounds: ToolRect, time: string): void {
+    function toolDrawPerspectiveBackdrop(bounds: ToolRect, time: string, view: ToolPerspectiveView): void {
         const theme = toolBackdropTheme(time);
         const base = toolCtx.createLinearGradient(0, bounds.y, 0, bounds.y + bounds.h);
         base.addColorStop(0, theme.skyTop);
@@ -352,21 +350,25 @@
         base.addColorStop(1, "#11170f");
         toolCtx.fillStyle = base;
         toolCtx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
-        toolDrawPerspectiveDistantLandscape(bounds, theme);
+        toolDrawPerspectiveDistantLandscape(bounds, theme, toolPerspectiveSceneTerrainKey(view));
+    }
+
+    function toolPerspectiveSceneTerrainKey(view: ToolPerspectiveView): string {
+        const center = view.cells.find((cell) => cell.forward === 0 && cell.side === 0);
+        const ahead = view.cells.find((cell) => cell.forward === 1 && cell.side === 0);
+        const candidate = ahead || center || view.cells[0];
+        return candidate ? toolTerrainKey(candidate.tile) : "plain";
     }
 
     function toolDrawPerspectiveDistantLandscape(bounds: ToolRect, theme: {
         skyTop: string;
         skyMid: string;
         skyLow: string;
-        ridgeFar: string;
-        ridgeNear: string;
-        forest: string;
         haze: string;
         glow: string;
         groundTint: string;
         lightAlpha: number;
-    }): void {
+    }, terrainKey: string): void {
         toolCtx.save();
         const glow = toolCtx.createRadialGradient(
             bounds.x + bounds.w * 0.74,
@@ -380,27 +382,13 @@
         glow.addColorStop(1, "rgba(0, 0, 0, 0)");
         toolCtx.fillStyle = glow;
         toolCtx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h * 0.55);
-        toolDrawPerspectiveRidge(bounds, bounds.y + bounds.h * 0.38, bounds.h * 0.2, theme.ridgeFar, 7, 0.17);
-        toolDrawPerspectiveRidge(bounds, bounds.y + bounds.h * 0.49, bounds.h * 0.16, theme.ridgeNear, 6, 0.41);
-        toolDrawPerspectiveTreeline(bounds, theme.forest);
+        toolDrawPerspectiveBackdropPngs(bounds, terrainKey);
         const haze = toolCtx.createLinearGradient(0, bounds.y + bounds.h * 0.25, 0, bounds.y + bounds.h * 0.72);
         haze.addColorStop(0, "rgba(0, 0, 0, 0)");
         haze.addColorStop(0.45, theme.haze);
         haze.addColorStop(1, "rgba(5, 8, 4, 0.24)");
         toolCtx.fillStyle = haze;
         toolCtx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h * 0.76);
-        const left = toolCtx.createLinearGradient(bounds.x, 0, bounds.x + bounds.w * 0.32, 0);
-        left.addColorStop(0, "rgba(2, 5, 2, 0.78)");
-        left.addColorStop(1, "rgba(2, 5, 2, 0)");
-        toolCtx.fillStyle = left;
-        toolCtx.fillRect(bounds.x, bounds.y, bounds.w * 0.32, bounds.h);
-        const right = toolCtx.createLinearGradient(bounds.x + bounds.w, 0, bounds.x + bounds.w * 0.68, 0);
-        right.addColorStop(0, "rgba(2, 5, 2, 0.78)");
-        right.addColorStop(1, "rgba(2, 5, 2, 0)");
-        toolCtx.fillStyle = right;
-        toolCtx.fillRect(bounds.x + bounds.w * 0.68, bounds.y, bounds.w * 0.32, bounds.h);
-        toolCtx.fillStyle = theme.groundTint;
-        toolCtx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
         if (theme.lightAlpha > 0) {
             toolCtx.fillStyle = "rgba(0, 0, 0, " + theme.lightAlpha.toFixed(2) + ")";
             toolCtx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
@@ -408,59 +396,123 @@
         toolCtx.restore();
     }
 
-    function toolDrawPerspectiveRidge(
-        bounds: ToolRect,
-        baseline: number,
-        height: number,
-        color: string,
-        peaks: number,
-        phase: number,
-    ): void {
-        toolCtx.fillStyle = color;
-        toolCtx.beginPath();
-        toolCtx.moveTo(bounds.x, bounds.y + bounds.h);
-        toolCtx.lineTo(bounds.x, baseline);
-        for (let index = 0; index <= peaks; index += 1) {
-            const x = bounds.x + bounds.w * (index / peaks);
-            const peak = baseline - height * (0.42 + toolSeededUnit(phase * 1000, index) * 0.58);
-            toolCtx.lineTo(x - bounds.w / peaks / 2, baseline - height * 0.2);
-            toolCtx.lineTo(x, peak);
-            toolCtx.lineTo(x + bounds.w / peaks / 2, baseline - height * 0.16);
+    function toolDrawPerspectiveBackdropPngs(bounds: ToolRect, terrainKey: string): void {
+        const key = toolPerspectiveBackdropKey(terrainKey);
+        const image = toolPerspectiveTerrainAssets[key] || toolPerspectiveTerrainAssets.plain;
+        const ground = toolPerspectiveTerrainAssets[toolPerspectiveGroundBackdropKey(key)] || image;
+        if (!toolImageReady(image) || !toolImageReady(ground)) {
+            toolDrawPerspectiveFallbackBackdrop(bounds, key);
+            return;
         }
-        toolCtx.lineTo(bounds.x + bounds.w, bounds.y + bounds.h);
-        toolCtx.closePath();
-        toolCtx.fill();
+        const horizon = bounds.y + bounds.h * toolPerspectiveBackdropHorizon(key);
+        toolDrawPerspectiveGroundRaster(ground, key, bounds, horizon);
+        toolDrawPerspectiveRepeatedRaster(image, bounds, toolPerspectiveBackdropBaseY(key), toolPerspectiveBackdropWidth(key), 0.78);
+        if (key === "forest" || key === "swamp") {
+            toolDrawPerspectiveSideRaster(toolPerspectiveTerrainAssets.forest, bounds, 0.7);
+        } else if (key !== "desert" && key !== "water") {
+            toolDrawPerspectiveSideRaster(toolPerspectiveTerrainAssets.plain, bounds, 0.52);
+        }
     }
 
-    function toolDrawPerspectiveTreeline(bounds: ToolRect, color: string): void {
-        toolCtx.fillStyle = color;
-        const baseY = bounds.y + bounds.h * 0.56;
-        for (let index = 0; index < 28; index += 1) {
-            const x = bounds.x + bounds.w * (index / 27);
-            const h = bounds.h * (0.12 + toolSeededUnit(420, index) * 0.1);
-            const w = bounds.w * (0.022 + toolSeededUnit(880, index) * 0.018);
-            toolCtx.beginPath();
-            toolCtx.moveTo(x, baseY - h);
-            toolCtx.lineTo(x - w, baseY + h * 0.15);
-            toolCtx.lineTo(x + w, baseY + h * 0.15);
-            toolCtx.closePath();
-            toolCtx.fill();
-            toolCtx.fillRect(x - w * 0.12, baseY - h * 0.08, w * 0.24, h * 0.34);
+    function toolPerspectiveBackdropKey(key: string): string {
+        if (key === "void") return "plain";
+        if (key === "road") return "plain";
+        return key;
+    }
+
+    function toolPerspectiveGroundBackdropKey(key: string): string {
+        if (key === "mountain") return "foothills";
+        if (key === "forest") return "plain";
+        if (key === "void") return "plain";
+        return key;
+    }
+
+    function toolPerspectiveBackdropHorizon(key: string): number {
+        if (key === "mountain" || key === "foothills") return 0.3;
+        if (key === "forest" || key === "swamp") return 0.36;
+        return 0.44;
+    }
+
+    function toolPerspectiveBackdropBaseY(key: string): number {
+        if (key === "mountain" || key === "foothills") return 0.68;
+        if (key === "forest" || key === "swamp") return 0.76;
+        return 0.88;
+    }
+
+    function toolPerspectiveBackdropWidth(key: string): number {
+        if (key === "mountain" || key === "foothills") return 0.48;
+        if (key === "forest" || key === "swamp") return 0.56;
+        return 0.52;
+    }
+
+    function toolDrawPerspectiveGroundRaster(image: HTMLImageElement, key: string, bounds: ToolRect, horizon: number): void {
+        const source = toolPerspectiveTextureSource(image, key);
+        const targetH = bounds.y + bounds.h - horizon;
+        const targetW = bounds.w * 0.62;
+        toolCtx.save();
+        toolCtx.imageSmoothingEnabled = true;
+        toolCtx.globalAlpha = 0.82;
+        for (let index = -1; index <= 2; index += 1) {
+            const x = bounds.x + index * targetW * 0.72;
+            toolCtx.drawImage(image, source.x, source.y, source.w, source.h, x, horizon, targetW, targetH);
         }
-        const ground = toolCtx.createLinearGradient(0, baseY, 0, bounds.y + bounds.h);
-        ground.addColorStop(0, "rgba(16, 31, 13, 0.82)");
-        ground.addColorStop(1, "rgba(6, 10, 5, 0.9)");
+        toolCtx.restore();
+    }
+
+    function toolDrawPerspectiveRepeatedRaster(
+        image: HTMLImageElement,
+        bounds: ToolRect,
+        baseYRatio: number,
+        widthRatio: number,
+        alpha: number,
+    ): void {
+        if (!toolImageReady(image)) return;
+        const targetW = bounds.w * widthRatio;
+        const targetH = targetW * (image.naturalHeight / image.naturalWidth);
+        const step = targetW * 0.48;
+        const count = Math.ceil(bounds.w / step) + 3;
+        const baseY = bounds.y + bounds.h * baseYRatio;
+        toolCtx.save();
+        toolCtx.imageSmoothingEnabled = true;
+        toolCtx.globalAlpha = alpha;
+        for (let index = 0; index < count; index += 1) {
+            const x = bounds.x - targetW * 0.38 + index * step;
+            const y = baseY - targetH + (index % 2) * bounds.h * 0.018;
+            toolCtx.drawImage(image, x, y, targetW, targetH);
+        }
+        toolCtx.restore();
+    }
+
+    function toolDrawPerspectiveSideRaster(image: HTMLImageElement, bounds: ToolRect, alpha: number): void {
+        if (!toolImageReady(image)) return;
+        const targetW = bounds.w * 0.7;
+        const targetH = targetW * (image.naturalHeight / image.naturalWidth);
+        const y = bounds.y + bounds.h * 0.84 - targetH;
+        toolCtx.save();
+        toolCtx.imageSmoothingEnabled = true;
+        toolCtx.globalAlpha = alpha;
+        toolCtx.drawImage(image, bounds.x - targetW * 0.38, y, targetW, targetH);
+        toolCtx.drawImage(image, bounds.x + bounds.w - targetW * 0.62, y + bounds.h * 0.02, targetW, targetH);
+        toolCtx.restore();
+    }
+
+    function toolDrawPerspectiveFallbackBackdrop(bounds: ToolRect, key: string): void {
+        const horizon = bounds.y + bounds.h * toolPerspectiveBackdropHorizon(key);
+        const ground = toolCtx.createLinearGradient(0, horizon, 0, bounds.y + bounds.h);
+        ground.addColorStop(0, key === "desert" ? "rgba(143, 112, 62, 0.82)" : "rgba(37, 58, 25, 0.82)");
+        ground.addColorStop(1, key === "desert" ? "rgba(79, 58, 34, 0.9)" : "rgba(12, 20, 9, 0.92)");
         toolCtx.fillStyle = ground;
-        toolCtx.fillRect(bounds.x, baseY, bounds.w, bounds.h - (baseY - bounds.y));
+        toolCtx.fillRect(bounds.x, horizon, bounds.w, bounds.y + bounds.h - horizon);
+    }
+
+    function toolImageReady(image: HTMLImageElement | null | undefined): image is HTMLImageElement {
+        return !!image && image.complete && image.naturalWidth > 0;
     }
 
     function toolBackdropTheme(time: string): {
         skyTop: string;
         skyMid: string;
         skyLow: string;
-        ridgeFar: string;
-        ridgeNear: string;
-        forest: string;
         haze: string;
         glow: string;
         groundTint: string;
@@ -472,9 +524,6 @@
                     skyTop: "#1f4667",
                     skyMid: "#6e9eb0",
                     skyLow: "#d5c28a",
-                    ridgeFar: "rgba(89, 99, 97, 0.74)",
-                    ridgeNear: "rgba(52, 76, 48, 0.88)",
-                    forest: "rgba(19, 54, 26, 0.76)",
                     haze: "rgba(217, 222, 178, 0.18)",
                     glow: "rgba(246, 220, 142, 0.24)",
                     groundTint: "rgba(221, 214, 121, 0.1)",
@@ -485,9 +534,6 @@
                     skyTop: "#171936",
                     skyMid: "#624366",
                     skyLow: "#b46840",
-                    ridgeFar: "rgba(55, 52, 67, 0.82)",
-                    ridgeNear: "rgba(39, 48, 43, 0.92)",
-                    forest: "rgba(12, 30, 21, 0.82)",
                     haze: "rgba(205, 91, 73, 0.2)",
                     glow: "rgba(218, 92, 62, 0.3)",
                     groundTint: "rgba(194, 88, 58, 0.12)",
@@ -498,9 +544,6 @@
                     skyTop: "#050713",
                     skyMid: "#10182b",
                     skyLow: "#1d2b36",
-                    ridgeFar: "rgba(27, 32, 47, 0.88)",
-                    ridgeNear: "rgba(14, 26, 25, 0.94)",
-                    forest: "rgba(3, 13, 10, 0.9)",
                     haze: "rgba(98, 124, 162, 0.14)",
                     glow: "rgba(145, 174, 218, 0.14)",
                     groundTint: "rgba(29, 45, 72, 0.2)",
@@ -511,9 +554,6 @@
                     skyTop: "#14233a",
                     skyMid: "#5d6f74",
                     skyLow: "#c79b57",
-                    ridgeFar: "rgba(72, 79, 84, 0.8)",
-                    ridgeNear: "rgba(45, 61, 46, 0.9)",
-                    forest: "rgba(15, 39, 21, 0.78)",
                     haze: "rgba(245, 183, 96, 0.18)",
                     glow: "rgba(247, 184, 89, 0.36)",
                     groundTint: "rgba(224, 179, 77, 0.12)",
@@ -564,18 +604,68 @@
         toolCtx.drawImage(image, sourceX, sourceY, sourceW, sourceH, bounds.x, bounds.y, bounds.w, bounds.h);
     }
 
+    function toolDrawPerspectiveRowBackfill(view: ToolPerspectiveView, bounds: ToolRect): void {
+        const rows = new Map<number, ToolPerspectiveCell[]>();
+        for (const cell of view.cells) {
+            const row = rows.get(cell.forward) || [];
+            row.push(cell);
+            rows.set(cell.forward, row);
+        }
+        Array.from(rows.keys())
+            .sort((a, b) => b - a)
+            .forEach((forward) => {
+                const row = rows.get(forward) || [];
+                const left = row.reduce<ToolPerspectiveCell | null>(
+                    (candidate, cell) => (candidate === null || cell.side < candidate.side ? cell : candidate),
+                    null,
+                );
+                const right = row.reduce<ToolPerspectiveCell | null>(
+                    (candidate, cell) => (candidate === null || cell.side > candidate.side ? cell : candidate),
+                    null,
+                );
+                if (left) toolDrawPerspectiveSideBackfillCell(left, bounds, -1);
+                if (right) toolDrawPerspectiveSideBackfillCell(right, bounds, 1);
+            });
+    }
+
+    function toolDrawPerspectiveSideBackfillCell(cell: ToolPerspectiveCell, bounds: ToolRect, side: -1 | 1): void {
+        const quad = toolPerspectiveQuad(bounds, cell.forward, cell.side);
+        const extension =
+            side < 0 ?
+                {
+                    nearLeft: {x: bounds.x, y: quad.nearLeft.y},
+                    nearRight: quad.nearLeft,
+                    farRight: quad.farLeft,
+                    farLeft: {x: bounds.x, y: quad.farLeft.y},
+                } :
+                {
+                    nearLeft: quad.nearRight,
+                    nearRight: {x: bounds.x + bounds.w, y: quad.nearRight.y},
+                    farRight: {x: bounds.x + bounds.w, y: quad.farRight.y},
+                    farLeft: quad.farRight,
+        };
+        const key = toolTerrainKey(cell.tile);
+        const visualTile = key === "void" ? {...cell.tile, slug: "plain", passable: true} : cell.tile;
+        const alpha = key === "void" ? 0.16 : Math.max(0.18, 0.42 - cell.forward * 0.06);
+        toolCtx.save();
+        toolCtx.globalAlpha = alpha;
+        toolDrawPerspectiveTerrainTexture({...cell, tile: visualTile}, extension, alpha);
+        toolCtx.restore();
+    }
+
     function toolDrawPerspectiveGroundCell(cell: ToolPerspectiveCell, bounds: ToolRect): void {
         const quad = toolPerspectiveQuad(bounds, cell.forward, cell.side);
         const key = toolTerrainKey(cell.tile);
         const visualTile = key === "void" ? {...cell.tile, slug: "plain", passable: true} : cell.tile;
         const colors = toolTileColors(visualTile);
+        const alpha = key === "void" ? 0.08 : Math.max(0.22, 0.54 - cell.forward * 0.08);
         toolCtx.save();
-        toolCtx.globalAlpha = key === "void" ? 0.68 : 1;
+        toolCtx.globalAlpha = alpha;
         toolFillPerspectiveQuad(quad, colors.base);
-        toolFillPerspectiveQuad(quad, "rgba(0, 0, 0, " + Math.min(0.52, 0.1 + cell.forward * 0.07) + ")");
-        toolDrawPerspectiveTerrainTexture({...cell, tile: visualTile}, quad);
-        if (key === "void" || cell.forward <= 1) {
-            toolCtx.strokeStyle = key === "void" ? "rgba(126, 154, 87, 0.07)" : "rgba(237, 212, 132, 0.045)";
+        toolFillPerspectiveQuad(quad, "rgba(0, 0, 0, " + Math.min(0.36, 0.06 + cell.forward * 0.05) + ")");
+        toolDrawPerspectiveTerrainTexture({...cell, tile: visualTile}, quad, alpha);
+        if (cell.forward <= 1 && Math.abs(cell.side) <= 1) {
+            toolCtx.strokeStyle = "rgba(237, 212, 132, 0.035)";
             toolCtx.lineWidth = 0.55;
             toolStrokePerspectiveQuad(quad);
         }
@@ -608,7 +698,7 @@
     }
 
     function toolPerspectiveHorizonY(bounds: ToolRect): number {
-        return bounds.y + bounds.h * 0.16;
+        return bounds.y + bounds.h * 0.44;
     }
 
     function toolPerspectiveNearY(bounds: ToolRect): number {
@@ -620,7 +710,7 @@
         const nearY = toolPerspectiveNearY(bounds);
         const distance = depth + 1;
         const y = horizonY + (nearY - horizonY) / distance;
-        const unit = bounds.w * 0.34 / Math.pow(distance, 0.9);
+        const unit = bounds.w * 0.42 / Math.pow(distance, 0.72);
         return {x: bounds.x + bounds.w / 2 + side * unit, y};
     }
 
@@ -666,7 +756,7 @@
         toolCtx.clip();
     }
 
-    function toolDrawPerspectiveTerrainTexture(cell: ToolPerspectiveCell, quad: ToolPerspectiveQuad): void {
+    function toolDrawPerspectiveTerrainTexture(cell: ToolPerspectiveCell, quad: ToolPerspectiveQuad, alphaScale = 1): void {
         const key = toolTerrainKey(cell.tile);
         const bounds = toolPerspectiveQuadBounds(quad);
         toolCtx.save();
@@ -674,41 +764,10 @@
         const texture = toolPerspectiveGroundTexture(cell.tile);
         if (texture && texture.complete && texture.naturalWidth > 0) {
             const source = toolPerspectiveTextureSource(texture, key);
-            toolCtx.globalAlpha = key === "plain" ? 0.74 : key === "water" || key === "desert" ? 0.58 : 0.42;
+            const textureAlpha = key === "plain" ? 0.74 : key === "water" || key === "desert" ? 0.58 : 0.42;
+            toolCtx.globalAlpha = textureAlpha * alphaScale;
             toolCtx.drawImage(texture, source.x, source.y, source.w, source.h, bounds.x, bounds.y, bounds.w, bounds.h);
             toolCtx.globalAlpha = 1;
-        }
-        if (key === "plain" || key === "foothills" || key === "forest" || key === "road") {
-            toolDrawGrassDetail(cell, bounds, key);
-        }
-        if (key === "water") {
-            toolCtx.strokeStyle = "rgba(156, 210, 220, 0.42)";
-            for (let index = 0; index < 4; index += 1) {
-                const y = bounds.y + bounds.h * (0.25 + index * 0.17);
-                toolCtx.beginPath();
-                toolCtx.moveTo(bounds.x, y);
-                toolCtx.quadraticCurveTo(bounds.x + bounds.w * 0.35, y - 5, bounds.x + bounds.w * 0.68, y);
-                toolCtx.quadraticCurveTo(bounds.x + bounds.w * 0.85, y + 4, bounds.x + bounds.w, y - 1);
-                toolCtx.stroke();
-            }
-        } else if (key === "desert") {
-            toolCtx.strokeStyle = "rgba(245, 216, 143, 0.24)";
-            for (let index = 0; index < 4; index += 1) {
-                const y = bounds.y + bounds.h * (0.25 + index * 0.16);
-                toolCtx.beginPath();
-                toolCtx.moveTo(bounds.x + bounds.w * 0.1, y);
-                toolCtx.quadraticCurveTo(bounds.x + bounds.w * 0.5, y - 8, bounds.x + bounds.w * 0.9, y);
-                toolCtx.stroke();
-            }
-        } else {
-            toolCtx.strokeStyle = "rgba(197, 213, 122, 0.2)";
-            for (let index = 0; index < 5; index += 1) {
-                const x = bounds.x + bounds.w * (0.12 + index * 0.19);
-                toolCtx.beginPath();
-                toolCtx.moveTo(x, bounds.y + bounds.h * 0.72);
-                toolCtx.lineTo(x + bounds.w * 0.04, bounds.y + bounds.h * 0.58);
-                toolCtx.stroke();
-            }
         }
         toolCtx.restore();
     }
@@ -728,38 +787,6 @@
             w: texture.naturalWidth * 0.84,
             h: texture.naturalHeight * 0.42,
         };
-    }
-
-    function toolDrawGrassDetail(cell: ToolPerspectiveCell, bounds: ToolRect, key: string): void {
-        const density = key === "road" ? 0.45 : key === "foothills" ? 0.72 : 1;
-        const tufts = Math.max(5, Math.min(22, Math.floor(bounds.w * bounds.h / 3600 * density)));
-        const seed = toolTerrainSeed(cell, key);
-        toolCtx.lineWidth = Math.max(0.6, Math.min(1.5, bounds.h * 0.015));
-        for (let index = 0; index < tufts; index += 1) {
-            const x = bounds.x + toolSeededUnit(seed, index * 5 + 1) * bounds.w;
-            const y = bounds.y + (0.32 + toolSeededUnit(seed, index * 5 + 2) * 0.62) * bounds.h;
-            const h = Math.max(2.2, bounds.h * (0.035 + toolSeededUnit(seed, index * 5 + 3) * 0.055));
-            const lean = (toolSeededUnit(seed, index * 5 + 4) - 0.5) * bounds.w * 0.035;
-            toolCtx.strokeStyle = index % 3 === 0 ? "rgba(222, 220, 132, 0.28)" : "rgba(138, 177, 78, 0.31)";
-            toolCtx.beginPath();
-            toolCtx.moveTo(x, y);
-            toolCtx.lineTo(x + lean, y - h);
-            toolCtx.moveTo(x, y);
-            toolCtx.lineTo(x - lean * 0.55, y - h * 0.72);
-            toolCtx.stroke();
-        }
-    }
-
-    function toolTerrainSeed(cell: ToolPerspectiveCell, key: string): number {
-        let seed = (cell.forward + 13) * 73856093 + (cell.side + 31) * 19349663;
-        for (let index = 0; index < key.length; index += 1) seed += key.charCodeAt(index) * (index + 17);
-        return seed;
-    }
-
-    function toolSeededUnit(seed: number, salt: number): number {
-        // Deterministic renderer-only noise for terrain details. This is not gameplay RNG.
-        const value = Math.sin((seed + 1) * toolVisualNoiseA + salt * toolVisualNoiseB) * toolVisualNoiseScale;
-        return value - Math.floor(value);
     }
 
     function toolPerspectiveGroundTexture(tile: ToolTile): HTMLImageElement | null {
