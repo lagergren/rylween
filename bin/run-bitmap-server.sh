@@ -9,8 +9,8 @@ DATA_DIR="${RYLWEEN_DATA_DIR:-$HOME/.rylween/data}"
 HOST="${RYLWEEN_BITMAP_HOST:-${RYLWEEN_HOST:-127.0.0.1}}"
 PORT="${RYLWEEN_BITMAP_PORT:-${RYLWEEN_PORT:-8081}}"
 STATE="${RYLWEEN_BITMAP_STATE:-${RYLWEEN_STATE:-fresh-replay}}"
-MAP_TILES="${RYLWEEN_BITMAP_MAP_TILES:-8}"
-TILE_SIZE="${RYLWEEN_BITMAP_TILE_SIZE:-64}"
+MAP_TILES="${RYLWEEN_BITMAP_MAP_TILES:-6}"
+TILE_SIZE="${RYLWEEN_BITMAP_TILE_SIZE:-68}"
 RUN_NAME="${RYLWEEN_BITMAP_NAME:-${RYLWEEN_NAME:-}}"
 RUN_USER="${RYLWEEN_BITMAP_USER:-${RYLWEEN_USER:-}}"
 AUTH_ACCOUNT="${RYLWEEN_AUTH_ACCOUNT:-}"
@@ -37,8 +37,8 @@ Environment:
   RYLWEEN_BITMAP_STATE      Initial compiled state slug. Default: fresh-replay
   RYLWEEN_BITMAP_LOAD_FILE  Optional shared world save to load.
   RYLWEEN_BITMAP_SAVE_FILE  Optional shared world save path.
-  RYLWEEN_BITMAP_MAP_TILES  Wilderness viewport edge length. Default: 8
-  RYLWEEN_BITMAP_TILE_SIZE  Wilderness tile size in px. Default: 64
+  RYLWEEN_BITMAP_MAP_TILES  Wilderness viewport edge length. Default: 6
+  RYLWEEN_BITMAP_TILE_SIZE  Wilderness tile size in px. Default: 68
   RYLWEEN_BITMAP_BUNDLE     Optional external bundle path. Embedded game is used when omitted.
   RYLWEEN_AUTH_ACCOUNT      Optional account to create/verify before startup.
   RYLWEEN_AUTH_EMAIL        Optional email for RYLWEEN_AUTH_ACCOUNT.

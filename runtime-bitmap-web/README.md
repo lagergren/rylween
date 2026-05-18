@@ -19,6 +19,19 @@ Renderer-specific layout, art selection, transitions, and canvas presentation
 belong here. Shared gameplay behavior, command semantics, battle targeting,
 save/load, and script execution belong in `:runtime`.
 
+## Wilderness Viewport
+
+The bitmap wilderness map defaults to a 6x6 viewport at 68 px per tile. The
+server keeps this configurable for quick visual tuning:
+
+```sh
+./bin/run-bitmap-server.sh --build --name Strong --map-tiles 8 --tile-size 64
+```
+
+The same settings can be supplied with `RYLWEEN_BITMAP_MAP_TILES` and
+`RYLWEEN_BITMAP_TILE_SIZE`. Use `8` and `64` to return to the previous 8x8
+layout.
+
 ## Browser Smoke
 
 Run the browser canvas smoke with:
