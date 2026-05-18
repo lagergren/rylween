@@ -5099,11 +5099,7 @@ val authoredRylween: RylweenModel =
                                 } otherwise {
                                     target.hp.addClamped(healing, target.maxHp)
                                     clearText()
-                                    writeText {
-                                        line(partyName(caster), " heals")
-                                        line(partyName(target))
-                                        line("for ", healing, " hit points...")
-                                    }
+                                    writeText(flowText(partyName(caster), " heals ", partyName(target), " for ", healing, " hit points..."))
                                     pause1500ms()
                                     clearText()
                                 }
@@ -5130,11 +5126,7 @@ val authoredRylween: RylweenModel =
                         ) { target ->
                             target.fullHeal()
                             clearText()
-                            writeText {
-                                line(partyName(caster), " heals")
-                                line(partyName(target))
-                                line("fully...")
-                            }
+                            writeText(flowText(partyName(caster), " heals ", partyName(target), " fully..."))
                             pause1500ms()
                             clearText()
                         }
@@ -5162,23 +5154,20 @@ val authoredRylween: RylweenModel =
                                 party.memberCount += 1
                                 target.hp set 1
                                 clearText()
-                                writeText {
-                                    line(partyName(target), "'s eyelids")
-                                    lines("flicker, and finally")
-                                    line(
+                                writeText(
+                                    flowText(
+                                        partyName(target),
+                                        "'s eyelids flicker, and finally ",
                                         pronoun(target, PronounCase.Subject),
                                         " opens ",
                                         pronoun(target, PronounCase.Possessive),
                                         " eyes!",
-                                    )
-                                }
+                                    ),
+                                )
                                 pause2s()
                                 clearText()
                             } otherwise {
-                                writeText {
-                                    line(partyName(target), " is alive and")
-                                    line("healthy.")
-                                }
+                                writeText(flowText(partyName(target), " is alive and healthy."))
                                 pause1500ms()
                             }
                         }
@@ -5197,28 +5186,39 @@ val authoredRylween: RylweenModel =
                         whenever(context.inDungeon) {
                             caster.mp -= cost
                             clearText()
-                            writeText {
-                                line(partyName(caster), " raises ", pronoun(caster, PronounCase.Possessive), " hands.")
-                                line(pronoun(caster, PronounCase.Subject), " gathers divine power")
-                                line("between ", pronoun(caster, PronounCase.Possessive), " palms, and")
-                                line("suddenly clasps them.")
-                                line("together over ", pronoun(caster, PronounCase.Possessive), " head.")
-                            }
                             writeText(
-                                """
-                                There is a deafening clap of thunder, and you hear
-                                beings scream in agony in the dungeon below...
-                                """,
+                                flowText(
+                                    partyName(caster),
+                                    " raises ",
+                                    pronoun(caster, PronounCase.Possessive),
+                                    " hands. ",
+                                    pronoun(caster, PronounCase.Subject),
+                                    " gathers divine power between ",
+                                    pronoun(caster, PronounCase.Possessive),
+                                    " palms, and suddenly clasps them together over ",
+                                    pronoun(caster, PronounCase.Possessive),
+                                    " head.",
+                                ),
+                            )
+                            writeText(
+                                flowText(
+                                    """
+                                    There is a deafening clap of thunder, and you hear
+                                    beings scream in agony in the dungeon below...
+                                    """,
+                                ),
                             )
                             waitInput("after banish evil")
                             clearText()
                             realm.banished set true
                         } otherwise {
                             writeText(
-                                """
-                                There is no particular target for this banishing.
-                                This spell is meant for use in dungeons and caves.
-                                """,
+                                flowText(
+                                    """
+                                    There is no particular target for this banishing.
+                                    This spell is meant for use in dungeons and caves.
+                                    """,
+                                ),
                             )
                             waitInput("after banish no target")
                             clearText()
@@ -5255,10 +5255,12 @@ val authoredRylween: RylweenModel =
                             }
                         } otherwise {
                             writeText(
-                                """
-                                This spell can be used in dungeons only, where there
-                                is a limited radius for the caster to enchant.
-                                """,
+                                flowText(
+                                    """
+                                    This spell can be used in dungeons only, where there
+                                    is a limited radius for the caster to enchant.
+                                    """,
+                                ),
                             )
                             waitInput("after revelation dungeon-only")
                             clearText()
@@ -5276,21 +5278,27 @@ val authoredRylween: RylweenModel =
                     whenever(caster.mp gte cost) {
                         caster.mp -= cost
                         clearText()
-                        writeText {
-                            line(partyName(caster), " carefully")
-                            line("Teleportation. ", pronoun(caster, PronounCase.Subject), " spends")
-                            line("an hour chanting mantras and burning blue candles.")
-                        }
+                        writeText(
+                            flowText(
+                                partyName(caster),
+                                " carefully prepares the ritual of Teleportation. ",
+                                pronoun(caster, PronounCase.Subject),
+                                " spends an hour chanting mantras and burning blue candles.",
+                            ),
+                        )
                         realm.hour += 1
                         waitInput("after teleport ritual")
                         clearText()
-                        writeText {
-                            line(pronoun(caster, PronounCase.Subject), " picks up a stone slab")
-                            line("from ", pronoun(caster, PronounCase.Possessive), " satchel and")
-                            line("uses a special instrument to scratch the direction")
-                            line(pronoun(caster, PronounCase.Subject), " wants you to teleport")
-                            line("to.")
-                        }
+                        writeText(
+                            flowText(
+                                pronoun(caster, PronounCase.Subject),
+                                " picks up a stone slab from ",
+                                pronoun(caster, PronounCase.Possessive),
+                                " satchel and uses a special instrument to scratch the direction ",
+                                pronoun(caster, PronounCase.Subject),
+                                " wants you to teleport to.",
+                            ),
+                        )
                         waitInput("after teleport slab")
                         clearText()
                         ask.wildernessDirection(
@@ -5331,10 +5339,7 @@ val authoredRylween: RylweenModel =
                     } otherwise {
                         whenever(caster.mp gte cost) {
                             caster.mp -= cost
-                            writeText {
-                                line(partyName(caster), " utters")
-                                line("three syllables in an archaic tongue...")
-                            }
+                            writeText(flowText(partyName(caster), " utters three syllables in an archaic tongue..."))
                             pause2s()
                             writeText("and the ground cracks open!")
                             pause3s()
@@ -5349,10 +5354,12 @@ val authoredRylween: RylweenModel =
                                     } otherwise {
                                         clearText()
                                         writeText(
-                                            """
-                                            You don't have enough moves left to explore
-                                            the cave...
-                                            """,
+                                            flowText(
+                                                """
+                                                You don't have enough moves left to explore
+                                                the cave...
+                                                """,
+                                            ),
                                         )
                                         waitInput("after earthquake no moves")
                                         clearMapWindow()
