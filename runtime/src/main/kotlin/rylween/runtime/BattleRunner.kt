@@ -391,7 +391,8 @@ internal class BattleRunner(
         if (lines.size > 1) {
             screen.writeText(lines.take(1))
             input.pause(pacing.battleCryPauseMs)
-            messages += lines.drop(1)
+            screen.appendText(listOf("") + lines.drop(1))
+            input.pause(pacing.messagePauseMs)
         } else {
             messages += lines
         }

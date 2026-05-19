@@ -1817,7 +1817,7 @@ class RylweenCompiledGameLedgerTest {
                 "Coward. You won't get",
                 "any EXP for this battle.",
                 "The spell fizzles!",
-                "HI-YAAAA!",
+                "HI-YAAAH!",
                 " damage pts!!!",
                 "(A)ttack",
                 "(U)se Item",

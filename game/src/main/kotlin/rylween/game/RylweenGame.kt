@@ -1351,7 +1351,10 @@ val authoredRylween: RylweenModel =
                         notEnoughMagic { line("Not enough magic!") }
                         restGainHits(flowText("You gain some hits pts as you rest this round."))
                         defendStance(flowText("You put up a defensive stance..."))
-                        battleCry(flowText("HI-YAAAA! You scare them enough to catch them off guard."))
+                        battleCry {
+                            line("HI-YAAAH!")
+                            line("You scare them enough to catch them off guard.")
+                        }
                         playerHit {
                             line(BattleText.attackerName, " hits for")
                             line(BattleText.damage, " damage pts!")

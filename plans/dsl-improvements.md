@@ -515,7 +515,6 @@ B1-B9 first-pass notes:
 - [x] C7. Screen regions and layouts. DSL delta: `layouts { region(ScreenRegion.map/text/status, ...) }`. Native decision: cursor/viewport implementation only. Current status: classic text/map/status regions live in `layouts { ... }`, generated `ScreenRegions` handles come from that block, validation checks region dimensions and screen bounds, and the ANSI frontend consumes the layout model while retaining only cursor/window drawing mechanics.
 - [x] C8. Static screens and documents. DSL delta: title, help, manual, score display, Hall of Heroes, and ANSI/static screens declared as assets/documents. Native decision: file/asset rendering backend. Current status: `visuals { staticScreens { ... } }` declares frame/title/help/manual/score/vscore/heroes routes, help reuses authored command-help pages, the app packages the document resources, and both Kotlin frontends expose `--screen title|help|manual|score|vscore|heroes` via a shared terminal static-screen renderer. Score/vscore/heroes are dynamic runtime reports when launchers provide loaded state.
 - [x] C9. Bitmap visual assets and web tile rendering. DSL delta: reintroduce bitmap asset declarations only when a real frontend consumes them, such as `visuals { images { bitmap(...) } }` plus tile/sprite style metadata for terrain, NPCs, monsters, and scenes. Native/view decision: `runtime-web` and compiled bundles must load, validate, cache, and render those resources instead of treating bitmap declarations as dead DSL. Current status: authored bitmap assets under `visuals { images { bitmap(...) } }` are shipped as classpath resources in the game jar, organized under `bitmap/assets/{scenes,monsters,party/portraits,...}`, the bitmap web server validates every compiled bitmap row for `bitmap/assets/` placement, packaged resource presence, typed placement, and typed transition before serving `/assets/game-image/<id>`, and outgoing bitmap frames include the compiled bitmap image table. The browser client records that table and prefers compiled `/assets/game-image/<id>` scene/portrait resources before falling back to renderer-owned static atlases. Ledger coverage asserts representative service, monster, dungeon, and castle art ids/resources, verifies the Kotlin frame protocol exposes typed image metadata, and rejects arbitrary `blitgfx.*` image inference without a compiled bitmap declaration. The remaining browser-pixel proof is not DSL debt; it is tracked under K1/web-runtime verification.
-- [ ] C10. Terrain tags/classes only with a concrete consumer. DSL delta: add `tags(...)` or a clearer terrain-class authoring verb only after a renderer, validator, mission trigger, or gameplay grouping reads it. Native/runtime decision: tags must compile into a table that some runtime path uses; they are not decorative metadata. Exit criteria: at least one authored terrain tag/class is consumed by code and covered by validation/test, otherwise the public builder stays absent.
 
 ### D. Text, dialogue, NPCs, and story state
 
@@ -538,7 +537,6 @@ B1-B9 first-pass notes:
 - [x] E5. Upkeep and time. DSL delta: `upkeep { daily { ... } hourly { ... } }` with balance tables. Native decision: clock/tick scheduling and deterministic RNG. Current runtime status: `WildernessSession` has an explicit `TurnStart` step that advances the hour once per wilderness command cycle, regenerates mage/priest mana by seeded RNG, applies authored food tick/cost rules, applies authored starvation thresholds/damage/death text, decrements rested hours, and applies the authored fatigue ladder with sleep-deprivation drain. Broader save/load scheduling policy remains future work, but the current numeric rules are no longer hardcoded Kotlin balance.
 - [x] E6. Wilderness events and transitions. DSL delta: terrain transition scripts, random wilderness event tables, and authored wilderness input bindings. Native decision: random draw and event dispatch runner. Current runtime status: `WildernessSession` can move the active party across the authored `WorldMapGrid` using authored number-key or arrow-key bindings, reject impassable terrain/out-of-bounds movement, spend one move per successful step, pass time with the Space command, enter declared towns from town tiles, run the reusable town session, enter NPC huts through the normal scene/speak bridge, return to wilderness, run original C wilderness key bindings for Space/S/W/R/!/J/?/H/V/T/P/E/L/C/Z/Q/X, route S to a backend-neutral save step fulfilled by frontend save ports, route J to the shared party-journal session, route V to shared party view, route L to shared inventory drop, route Q to quaff potion item-use, route W/R/T/P to equipment prompt sessions, route Z to a reusable priest-spell prompt/session over authored spell effects, route C to camp, route H to hunt, model the reusable X quit-confirmation flow with cancel/finish outcomes, model the S/Q out-of-moves prompt with save-before-quit behavior, poll authored random-step missions such as bandits/troll tooth, terrain missions such as skullweed/Foot of Jazzy, fixed-position missions such as Erethor/husband cave, and realized-location missions such as Silver Key before generic wilderness events, dispatch authored terrain-transition narration on seeded quiet moves, check authored name-gated step secrets before generic random events, prompt E/L on cave discovery, apply cave entry cost/no-moves checks, hand off random-cave and authored mission dungeon starts, run a reusable `BattleSession` for random encounters by authored encounter tier, execute priest Teleport through semantic direction/distance prompts plus `teleportParty(...)`, execute priest Earthquake cave discovery through `discoverCave(...)`, execute Revelation's authored dungeon find-object branch with real item metadata, and dispatch authored castle entry by matching castle entry coordinates and running optional castle hook scripts. Torch spending is owned by dungeon descent/runtime mechanics rather than an unused generic script helper. The authored Ydarg entry coordinate is validated against the castle tile on the world map.
 - [x] E7. Character creation. DSL delta: `characterCreation { statRoll(...); start { ... }; race(...); playerClass(...) { requires(...) } }` plus the existing typed `stateFixture`/`runtimeState` start-state builders. Native decision: backend-neutral semantic input, RNG/stat roll primitive, class-gate validation, and state allocation. Current game source status: authored creation content now covers the reference 15..70 stat range, 12/9 wilderness start, starting resources, party size, daily move budget, Human/Dwarf/Elf/Halfling race order, Fighter/Thief/Mage/Priest/Bard/Ranger class order, and Fighter/Mage/Priest/Bard minimum-stat rejection text. Runtime status: `CharacterCreationSession` owns party-name/member-name/gender/race/class semantic input, reroll decisions, deterministic stat rolls, class rejection with slot reroll, caster starting mana, empty inventory allocation, and final `RuntimeSessionState` boot into wilderness. Closeout coverage locks the authored ledger and the allocate/reject session paths. Title-menu/new-party terminal integration belongs under H8/H11 frontend shell work, not E content/rule debt.
-- [ ] E8. Only add timing/configuration knobs for services when content needs them. DSL delta: configurable random-item offer pause durations or service-specific wait timings should be explicit authored model fields only after a current service varies them. Native/runtime decision: default pauses can remain implementation defaults while all current services share them. Exit criteria: if a script needs different timing, add the field, validation, and a test that proves the runtime uses it; otherwise keep unused `pauses(...)`-style builder methods out of the DSL.
 
 ### F. Items, spells, combat, monsters, and rewards
 
@@ -551,7 +549,6 @@ B1-B9 first-pass notes:
 - [x] F7. Monster AI and attacks. DSL delta: monster behavior scripts for melee/spells/specials. Native decision: RNG and target choice helpers. Current game source status: `standardBattle.monsterRound` models the current reference behavior as spell chance plus melee fallback; authored monster spell scripts cover frost, fire, hold, and confusion. Runtime coverage locks both the readied-armor melee fallback and authored monster-spell execution. No current reference monster needs an extra bespoke behavior hook; if one is discovered during broader playthrough parity, it should reopen as a named monster/content task instead of living as an open generic F item.
 - [x] F8. Rewards and loot. DSL delta: reward DSL for gold, experience, items, flags, and journal updates. Native decision: first-free-slot helper and overflow prompt. Current game source status: top-level `rewards { reward(Rewards.standardBattle) { experience; gold; itemPlacement; lootTable(...) } }` declares the standard battle reward bundle using semantic item pools and exact full-inventory behavior. Script-level `reward { gold(...); items(...) }` covers Borin's skip-if-full gift, the Ogre cave Mithril Mail reward, and Garth's prompt/drop merchant reward; `journal { ... }` covers Borin/Hobgoblin location notes with typed runtime location coordinates; shop and random-item purchase helpers default to prompt/drop inventory placement with semantic item handles. Runtime status: `BattleSession` applies standard battle XP/gold/loot rewards from authored formulas; `RandomItemOfferSession` executes scruffy-style item offers with item cost/name lookup, gold payment, first-free-slot placement, and prompt/drop overflow; the generic source `GrantReward` statement applies gold and slotted items through `RewardGrantSession`, prompts for drop-slot overflow, and resumes without replaying already-applied rewards. Closeout coverage asserts battle XP/gold/loot, reward-bundle configuration, mission rewards, Garth reward resume, and random-offer overflow behavior. Special inventory projections remain intentionally modeled as milestone state, so scripts use `achieve(...)` rather than granting special items as slotted rewards.
 - [x] F9. Leveling and experience. DSL delta: class progression tables and level-up formulas. Native decision: applying member stat changes. Current status: authored class XP thresholds/growth and hit-point-floor formula are in the game DSL, and battle victory applies and narrates level-ups after XP rewards. Closeout coverage now drives a compiled battle victory across an XP threshold and asserts the authored Fighter growth, hit-point-floor formula, final XP, and level-up narration.
-- [ ] F10. Keep item-use convenience aliases out until authored content needs them. DSL delta: use `usableIn(ItemUseContext.Combat, ItemUseContext.Inventory)` as the canonical multi-context form until a concrete game script benefits from a named alias. Native decision: aliases such as `combatAndInventory()` should not exist just to mirror likely future content. Exit criteria: either keep no alias, or add one with at least one authored use and test coverage.
 
 ### G. Dungeons, castles, secrets, and bespoke systems
 
@@ -1160,16 +1157,20 @@ contract, while the authored game remains portable JSON/data.
       unshifted left/right rotation, forward/backward arrow and numpad walking,
       top-row `2` returning to 2D, and then resets the tool screenshot to the
       south-facing 3D Thord view.
-    - [ ] K2g. Plan and implement natural 2D terrain transitions without
+    - [x] K2g. Plan and implement natural 2D terrain transitions without
       changing the authored wilderness map. The renderer should compute a
       neighbor mask for each visible cell and draw bundled PNG alpha overlays
       for terrain-family edges/corners such as forest-to-plain,
       swamp-to-plain/forest, desert-to-plain/foothill, mountain/foothill
       edges, and water shorelines. Keep the base tile id and gameplay terrain
-      unchanged; the transition layer is visual only. Add a small deterministic
-      render/projection test or smoke screenshot that proves a mixed terrain
-      patch blends naturally and that returning to square 8x8-style settings is
-      still just a viewport configuration change.
+      unchanged; the transition layer is visual only. Implemented in the
+      bitmap canvas renderer by drawing the base 2D atlas tiles first, then
+      applying priority-ordered atlas-derived transparent edge/corner PNG
+      overlays for forest, swamp, desert, foothills, mountain, and water before
+      the party marker. Browser smoke now waits for those bundled transition
+      assets before capturing the first-frame screenshot, and the 6x6/68 px
+      defaults remain normal `--map-tiles` / `--tile-size` configuration so
+      8x8-style settings are still just launch-time tuning.
 
 ## Complete migration inventory
 
@@ -1178,6 +1179,49 @@ JSON5 subtree and every game-owning C module should land in one of these rows.
 Rows marked "DSL" should become Kotlin content, state, or script. Rows marked
 "native" should remain generic engine service. Rows marked "temporary native"
 are allowed during migration but should have an explicit shrinking path.
+
+### Deferred until a concrete consumer exists
+
+These items are intentionally not normal next-step work. They should stay out of
+the public DSL until a specific game rule, renderer, validator, or authoring
+flow needs them and proves that need with authored content plus test coverage.
+
+- [ ] C10. Terrain tags/classes only with a concrete consumer. Who would need
+  it: a renderer that groups terrains for shared transitions or tile themes, a
+  mission/rule that targets terrain families instead of individual terrain ids,
+  a validator that enforces cross-terrain constraints, or a future authoring
+  tool that needs semantic terrain groups. Why useful: once a real consumer
+  exists, terrain classes would let authors say "forest-like", "wetland", or
+  "settlement" once instead of repeating every concrete terrain id across
+  render/theme/mission rules. Why deferred: current terrain behavior is already
+  covered by explicit terrain declarations, map codes,
+  movement/passability/settlement semantics, and renderer-specific visual
+  tables. Tags/classes would be decorative metadata unless a runtime path
+  actually reads the compiled table. Exit criteria: add a terrain-class/tag
+  authoring verb only with at least one compiled consumer and validation/test
+  coverage.
+- [ ] E8. Service timing/configuration knobs only when content needs them. Who
+  would need it: a town service, random item offer, modal story scene, or future
+  frontend pacing policy that genuinely needs timing different from the shared
+  defaults. Why useful: if one service needs a longer dramatic pause, shorter
+  transaction feedback, or host-specific timing metadata, an authored timing
+  row would keep that pacing policy in content rather than hardcoded runtime
+  branches. Why deferred: current services share the same pause/wait behavior,
+  and adding `pauses(...)`-style fields now would create unused DSL surface and
+  another value runtimes must preserve without gameplay meaning. Exit criteria:
+  when a concrete service varies timing, add the authored field, compile it into
+  runtime systems, validate it, and test that the runtime consumes it.
+- [ ] F10. Item-use convenience aliases only when authored content benefits.
+  Who would need it: game authors adding enough multi-context item-use scripts
+  that `usableIn(ItemUseContext.Combat, ItemUseContext.Inventory)` becomes a
+  repeated, error-prone call shape. Why useful: a named alias could make common
+  item-use intent clearer and reduce copy/paste mistakes if many future items
+  share the same context combination. Why deferred: there is already a
+  canonical, explicit multi-context form, and aliases such as
+  `combatAndInventory()` would be pure sugar until real authored content uses
+  them. Exit criteria: either keep no alias, or add one with at least one
+  authored use and coverage proving it compiles to the same item-use context
+  contract.
 
 | Area | Current owner | Target DSL owner | Native layer that remains |
 |------|---------------|------------------|---------------------------|
@@ -2299,10 +2343,13 @@ Completed in this pass:
   through `--map-tiles`, `--tile-size`, `RYLWEEN_BITMAP_MAP_TILES`, and
   `RYLWEEN_BITMAP_TILE_SIZE`, and `/tools/wilderness-perspective`
   walks/rotates outside Thord without save or party state.
-- Documented the next 2D map visual polish step under K2g: keep authored terrain
-  cells unchanged, compute a renderer-only neighbor mask, and use bundled PNG
-  transition overlays so forest, swamp, desert, foothill/mountain, and water
-  boundaries blend naturally instead of cutting hard between square tiles.
+- Closed K2g by adding a renderer-only 2D terrain transition layer. The
+  authored wilderness map cells still carry the same terrain ids and gameplay
+  rules; the browser computes visible-cell neighbors, draws bundled
+  atlas-derived transparent edge/corner PNG overlays for forest, swamp, desert,
+  foothills, mountain, and water, keeps the party marker above the blend layer,
+  and waits for the transition assets in browser smoke before capturing the 2D
+  first-frame screenshot.
 - Fixed bitmap/utility spell-list readability by rendering priest spell menu
   entries with a space after the mnemonic, e.g. `(A) Healing`.
 - Tightened portrait selection for the party view and character preview: class

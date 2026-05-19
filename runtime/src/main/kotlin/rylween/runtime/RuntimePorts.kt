@@ -136,6 +136,15 @@ interface RuntimeScreenPort {
     fun writeText(lines: List<String>)
 
     /**
+     * Adds blocking prose to the currently displayed text panel without changing
+     * the screen mode. Renderers that cannot append efficiently may redraw the
+     * combined panel, but should preserve the already displayed lines.
+     */
+    fun appendText(lines: List<String>) {
+        writeText(lines)
+    }
+
+    /**
      * Shows a non-blocking notice produced by free-roaming runtime actions, such
      * as impassable terrain, terrain transition descriptions, or upkeep warnings.
      *

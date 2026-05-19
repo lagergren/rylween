@@ -26,6 +26,8 @@ type TileColors = { base: string; shadow: string };
 type PartyStat = [string, string | number | undefined | null];
 type TextEffect = "None" | "Fast" | "Reveal";
 type WildernessFacing = "North" | "East" | "South" | "West";
+type StatusSeverity = "normal" | "warning" | "danger";
+type StatusChip = { label: string; value: string; color: string; width: number; severity?: StatusSeverity };
 type TextRevealSettings = { enabled: boolean; charsPerSecond: number };
 type TextDisplaySettings = { bitmapFont: boolean; bitmapFontScale: number; bitmapLineSpacing: number };
 type RuntimePreferenceSettings = { pauseDelayScale: number };
@@ -74,6 +76,9 @@ type BitmapTile = {
     center?: boolean;
     waterMask?: number;
 };
+type TerrainTransitionAsset = { edge: HTMLImageElement; corner: HTMLImageElement };
+type TerrainTransitionSide = "north" | "east" | "south" | "west";
+type TerrainTransitionCorner = "northwest" | "northeast" | "southeast" | "southwest";
 
 type BitmapPerspectiveRect = {
     x: number;
@@ -263,19 +268,19 @@ let pendingWildernessMove: PendingWildernessMove | null = null;
 let centerSettlementSceneSuppressedKey: string | null = null;
 let serverFacingInitialized = false;
 let wildernessRotationAnimation = 0;
-const assetVersion = "20260518-town-leave-fade";
+const assetVersion = "20260518-terrain-transitions";
 const textRevealEnabledKey = "rylween.bitmap.textReveal.enabled";
 const textRevealSpeedKey = "rylween.bitmap.textReveal.speed";
 const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap";
 const bitmapFontScaleKey = "rylween.bitmap.textFont.scale";
-const bitmapLineSpacingKey = "rylween.bitmap.textFont.lineSpacing";
+const bitmapLineSpacingKey = "rylween.bitmap.textFont.lineSpacing.v2";
 const pauseDelayScaleKey = "rylween.bitmap.pauseDelay.scale";
 const wildernessPerspectiveKey = "rylween.bitmap.wilderness.perspective";
 const pauseDelayScaleMessagePrefix = "settings:pauseDelayScale=";
 const defaultBitmapFontScale = 1.75;
 const minBitmapFontScale = 1.45;
 const maxBitmapFontScale = 2.1;
-const defaultBitmapLineSpacing = 1.1;
+const defaultBitmapLineSpacing = 1.2;
 const minBitmapLineSpacing = 0.9;
 const maxBitmapLineSpacing = 1.4;
 const defaultPauseDelayScale = 1.0;
@@ -487,6 +492,43 @@ const perspectiveTerrainAssets: Record<string, HTMLImageElement> = {
     road: loadAsset(assetUrl("/assets/wilderness/terrain-road.png")),
     void: loadAsset(assetUrl("/assets/wilderness/terrain-void.png"))
 };
+const terrainTransitionAssets: Record<string, TerrainTransitionAsset> = {
+    forest: {
+        edge: loadAsset(assetUrl("/assets/wilderness/transitions/edge-forest.png")),
+        corner: loadAsset(assetUrl("/assets/wilderness/transitions/corner-forest.png"))
+    },
+    swamp: {
+        edge: loadAsset(assetUrl("/assets/wilderness/transitions/edge-swamp.png")),
+        corner: loadAsset(assetUrl("/assets/wilderness/transitions/corner-swamp.png"))
+    },
+    desert: {
+        edge: loadAsset(assetUrl("/assets/wilderness/transitions/edge-desert.png")),
+        corner: loadAsset(assetUrl("/assets/wilderness/transitions/corner-desert.png"))
+    },
+    foothills: {
+        edge: loadAsset(assetUrl("/assets/wilderness/transitions/edge-foothills.png")),
+        corner: loadAsset(assetUrl("/assets/wilderness/transitions/corner-foothills.png"))
+    },
+    mountain: {
+        edge: loadAsset(assetUrl("/assets/wilderness/transitions/edge-mountain.png")),
+        corner: loadAsset(assetUrl("/assets/wilderness/transitions/corner-mountain.png"))
+    },
+    water: {
+        edge: loadAsset(assetUrl("/assets/wilderness/transitions/edge-water.png")),
+        corner: loadAsset(assetUrl("/assets/wilderness/transitions/corner-water.png"))
+    }
+};
+const terrainTransitionPriority: Record<string, number> = {
+    void: -1,
+    plain: 0,
+    road: 1,
+    foothills: 2,
+    desert: 3,
+    forest: 4,
+    swamp: 5,
+    mountain: 6,
+    water: 7
+};
 
 function storedBoolean(key: string, fallback: boolean): boolean {
     const value = window.localStorage.getItem(key);
@@ -524,14 +566,14 @@ function configureTextDisplayControls(): void {
     bitmapFontScale.value = String(textDisplaySettings.bitmapFontScale);
     bitmapLineSpacing.value = String(textDisplaySettings.bitmapLineSpacing);
     bitmapFontScale.disabled = !textDisplaySettings.bitmapFont;
-    bitmapLineSpacing.disabled = !textDisplaySettings.bitmapFont;
+    bitmapLineSpacing.disabled = false;
     updateBitmapFontScaleValue();
     updateBitmapLineSpacingValue();
     bitmapFontToggle.addEventListener("change", () => {
         textDisplaySettings.bitmapFont = bitmapFontToggle.checked;
         window.localStorage.setItem(bitmapFontEnabledKey, String(textDisplaySettings.bitmapFont));
         bitmapFontScale.disabled = !textDisplaySettings.bitmapFont;
-        bitmapLineSpacing.disabled = !textDisplaySettings.bitmapFont;
+        bitmapLineSpacing.disabled = false;
         if (frame) draw(frame);
     });
     bitmapFontScale.addEventListener("input", () => {
@@ -660,6 +702,7 @@ type BitmapSmokeSnapshot = {
     wildernessFacing: WildernessFacing;
     wildernessViewMode: string;
     perspectiveCells: number;
+    terrainTransitionAssetsReady: boolean;
     compiledImageAssets: BitmapSmokeAsset[];
 };
 
@@ -684,6 +727,7 @@ function bitmapSmokeSnapshot(): BitmapSmokeSnapshot {
         wildernessFacing: wildernessDisplaySettings.facing,
         wildernessViewMode: wildernessDisplaySettings.perspective ? "3d" : "2d",
         perspectiveCells: perspectiveView(frame?.map)?.cells.length ?? 0,
+        terrainTransitionAssetsReady: terrainTransitionAssetsReady(),
         compiledImageAssets: Array.from(compiledBitmapAssets.values()).map((asset) => ({
             id: asset.id,
             resource: asset.resource || "",
@@ -1871,6 +1915,7 @@ function drawMap(map: BitmapMap): void {
     const rows = map.rows || [];
     const cols = rows[0] ? rows[0].length : 0;
     if (rows.length === 0 || cols === 0) return;
+    const transitionLayer = shouldDrawTerrainTransitions(rows);
     const panelBounds = layout.map;
     const configured = map.tileSize || 64;
     const size = Math.min(configured, Math.floor((panelBounds.w - 8) / cols), Math.floor((panelBounds.h - 52) / rows.length));
@@ -1880,9 +1925,12 @@ function drawMap(map: BitmapMap): void {
     const y = panelBounds.y + Math.floor((panelBounds.h - mapH) / 2);
     for (let row = 0; row < rows.length; row += 1) {
         for (let col = 0; col < rows[row].length; col += 1) {
-            drawTile(rows[row][col], x + col * size, y + row * size, size);
+            drawTile(rows[row][col], x + col * size, y + row * size, size, !transitionLayer);
         }
     }
+    if (!transitionLayer) return;
+    drawTerrainTransitions(rows, x, y, size);
+    drawWildernessMapMarkers(rows, x, y, size);
 }
 
 function drawPerspectiveMap(map: BitmapMap): boolean {
@@ -2758,7 +2806,7 @@ function drawSemanticSceneTile(kind: string, x: number, y: number, w: number, h:
     ctx.fillText(truncateToWidth(kind.replace(/_/g, " "), w - 32), x + 16, y + h / 2);
 }
 
-function drawTile(tile: BitmapTile, x: number, y: number, size: number): void {
+function drawTile(tile: BitmapTile, x: number, y: number, size: number, drawCenter = true): void {
     const slug = (tile.slug || "").toLowerCase();
     const settlement = (tile.settlement || "").toLowerCase();
     const variant = tile.variant || 0;
@@ -2768,10 +2816,10 @@ function drawTile(tile: BitmapTile, x: number, y: number, size: number): void {
     }
     if (isWaterTerrain(slug)) {
         drawConnectedWater(tile, x, y, size);
-        if (tile.center) drawPartyMarker(x + size / 2, y + size / 2, size);
+        if (drawCenter && tile.center) drawPartyMarker(x + size / 2, y + size / 2, size);
         return;
     }
-    if (drawTerrainAtlasTile(slug, settlement, variant, x, y, size, tile.center === true)) return;
+    if (drawTerrainAtlasTile(slug, settlement, variant, x, y, size, drawCenter && tile.center === true)) return;
     const colors = tileColors(slug, settlement, tile.passable);
     ctx.fillStyle = colors.base;
     ctx.fillRect(x, y, size, size);
@@ -2790,12 +2838,161 @@ function drawTile(tile: BitmapTile, x: number, y: number, size: number): void {
     ctx.strokeStyle = "rgba(5, 7, 5, 0.45)";
     ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
     drawSettlementOverlay(settlement, x, y, size);
-    if (tile.center) {
+    if (drawCenter && tile.center) {
         ctx.strokeStyle = "#f2d35e";
         ctx.lineWidth = 3;
         ctx.strokeRect(x + 3.5, y + 3.5, size - 7, size - 7);
         ctx.lineWidth = 1;
     }
+}
+
+function shouldDrawTerrainTransitions(rows: BitmapTile[][]): boolean {
+    return rows.some((row) =>
+        row.some((tile) => {
+            const slug = (tile.slug || "").toLowerCase();
+            return !slug.includes("castle-room") && !slug.includes("castle-stairs") && terrainFamily(tile) !== null;
+        }),
+    );
+}
+
+function drawTerrainTransitions(rows: BitmapTile[][], startX: number, startY: number, size: number): void {
+    rows.forEach((row, rowIndex) => {
+        row.forEach((tile, colIndex) => {
+            const family = terrainFamily(tile);
+            if (!family) return;
+            const x = startX + colIndex * size;
+            const y = startY + rowIndex * size;
+            drawTerrainTransitionEdge(rows, family, colIndex, rowIndex, x, y, size, "north", 0, -1);
+            drawTerrainTransitionEdge(rows, family, colIndex, rowIndex, x, y, size, "east", 1, 0);
+            drawTerrainTransitionEdge(rows, family, colIndex, rowIndex, x, y, size, "south", 0, 1);
+            drawTerrainTransitionEdge(rows, family, colIndex, rowIndex, x, y, size, "west", -1, 0);
+            drawTerrainTransitionCorner(rows, family, colIndex, rowIndex, x, y, size, "northwest", -1, -1);
+            drawTerrainTransitionCorner(rows, family, colIndex, rowIndex, x, y, size, "northeast", 1, -1);
+            drawTerrainTransitionCorner(rows, family, colIndex, rowIndex, x, y, size, "southeast", 1, 1);
+            drawTerrainTransitionCorner(rows, family, colIndex, rowIndex, x, y, size, "southwest", -1, 1);
+        });
+    });
+}
+
+function drawTerrainTransitionEdge(
+    rows: BitmapTile[][],
+    family: string,
+    col: number,
+    row: number,
+    x: number,
+    y: number,
+    size: number,
+    side: TerrainTransitionSide,
+    dx: number,
+    dy: number,
+): void {
+    const overlay = terrainTransitionOverlayFamily(family, terrainFamilyAt(rows, col + dx, row + dy));
+    if (!overlay) return;
+    drawRotatedTransitionImage(terrainTransitionAssets[overlay].edge, x, y, size, terrainTransitionSideTurns(side));
+}
+
+function drawTerrainTransitionCorner(
+    rows: BitmapTile[][],
+    family: string,
+    col: number,
+    row: number,
+    x: number,
+    y: number,
+    size: number,
+    corner: TerrainTransitionCorner,
+    dx: number,
+    dy: number,
+): void {
+    const overlay = terrainTransitionOverlayFamily(family, terrainFamilyAt(rows, col + dx, row + dy));
+    if (!overlay) return;
+    if (terrainFamilyAt(rows, col + dx, row) === overlay || terrainFamilyAt(rows, col, row + dy) === overlay) return;
+    drawRotatedTransitionImage(terrainTransitionAssets[overlay].corner, x, y, size, terrainTransitionCornerTurns(corner));
+}
+
+function drawWildernessMapMarkers(rows: BitmapTile[][], startX: number, startY: number, size: number): void {
+    rows.forEach((row, rowIndex) => {
+        row.forEach((tile, colIndex) => {
+            if (tile.center) drawPartyMarker(startX + colIndex * size + size / 2, startY + rowIndex * size + size / 2, size);
+        });
+    });
+}
+
+function terrainTransitionOverlayFamily(current: string, neighbor: string | null): string | null {
+    if (!neighbor || current === neighbor) return null;
+    const overlay = terrainTransitionAssets[neighbor];
+    if (!overlay) return null;
+    const currentPriority = terrainTransitionPriority[current] ?? 0;
+    const neighborPriority = terrainTransitionPriority[neighbor] ?? 0;
+    return neighborPriority > currentPriority ? neighbor : null;
+}
+
+function terrainFamilyAt(rows: BitmapTile[][], col: number, row: number): string | null {
+    if (row < 0 || row >= rows.length) return null;
+    const cells = rows[row];
+    if (col < 0 || col >= cells.length) return null;
+    return terrainFamily(cells[col]);
+}
+
+function terrainFamily(tile: BitmapTile): string | null {
+    const slug = (tile.slug || "").toLowerCase();
+    const settlement = (tile.settlement || "").toLowerCase();
+    if (settlement || slug === "town" || slug === "castle" || slug === "hut") return null;
+    if (slug.includes("castle-room") || slug.includes("castle-stairs")) return null;
+    if (isWaterTerrain(slug)) return "water";
+    if (slug.includes("mountain")) return "mountain";
+    if (slug.includes("swamp")) return "swamp";
+    if (slug.includes("forest")) return "forest";
+    if (slug.includes("desert")) return "desert";
+    if (slug.includes("foothills")) return "foothills";
+    if (slug.includes("road")) return "road";
+    if (slug.includes("plain")) return "plain";
+    if (slug === "void") return null;
+    return tile.passable === false ? null : "plain";
+}
+
+function drawRotatedTransitionImage(image: HTMLImageElement, x: number, y: number, size: number, quarterTurns: number): void {
+    if (!image.complete || image.naturalWidth === 0) return;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.translate(x + size / 2, y + size / 2);
+    ctx.rotate(quarterTurns * Math.PI / 2);
+    ctx.drawImage(image, -size / 2, -size / 2, size, size);
+    ctx.restore();
+}
+
+function terrainTransitionSideTurns(side: TerrainTransitionSide): number {
+    switch (side) {
+        case "north":
+            return 1;
+        case "east":
+            return 2;
+        case "south":
+            return 3;
+        case "west":
+            return 0;
+    }
+}
+
+function terrainTransitionCornerTurns(corner: TerrainTransitionCorner): number {
+    switch (corner) {
+        case "northwest":
+            return 0;
+        case "northeast":
+            return 1;
+        case "southeast":
+            return 2;
+        case "southwest":
+            return 3;
+    }
+}
+
+function terrainTransitionAssetsReady(): boolean {
+    return Object.values(terrainTransitionAssets).every((asset) =>
+        asset.edge.complete &&
+        asset.edge.naturalWidth > 0 &&
+        asset.corner.complete &&
+        asset.corner.naturalWidth > 0,
+    );
 }
 
 function drawCastleGridTile(tile: BitmapTile, x: number, y: number, size: number, variant: number): void {
@@ -3134,12 +3331,12 @@ function drawStatus(status: BitmapStatus | null | undefined, lines: string[]): v
         return;
     }
 
-    const chips = [
+    const chips: StatusChip[] = [
         {label: "TIME", value: status.time, color: "#f0d46d", width: 138},
-        {label: "STATUS", value: status.condition, color: statusColor(status.condition), width: 164},
+        {label: "STATUS", value: status.condition, color: statusColor(status.condition), width: 164, severity: statusSeverity(status.condition)},
         {label: "POS", value: status.x + "x" + status.y, color: "#9ec1e4", width: 108},
         {label: "TORCHES", value: String(status.torches), color: "#d8c16d", width: 126},
-        {label: "FOOD", value: String(status.food), color: "#d6e68d", width: 104},
+        {label: "FOOD", value: String(status.food), color: foodStatusColor(status), width: 104, severity: foodStatusSeverity(status)},
         {label: "MOVES LEFT", value: String(status.moves), color: "#a9d4a2", width: 142},
         {label: "GOLD", value: String(status.gold), color: "#e8c56a", width: 116}
     ];
@@ -3147,7 +3344,7 @@ function drawStatus(status: BitmapStatus | null | undefined, lines: string[]): v
     const total = chips.reduce((sum, chip) => sum + chip.width, 0) + gap * (chips.length - 1);
     let cx = x + Math.floor((w - total) / 2);
     for (const chip of chips) {
-        drawStatusChip(cx, y + 14, chip.width, chip.label, chip.value, chip.color);
+        drawStatusChip(cx, y + 14, chip.width, chip.label, chip.value, chip.color, chip.severity);
         cx += chip.width + gap;
     }
 
@@ -3161,14 +3358,28 @@ function drawStatus(status: BitmapStatus | null | undefined, lines: string[]): v
     }
 }
 
-function drawStatusChip(x: number, y: number, w: number, label: string, value: string, color: string): void {
+function drawStatusChip(
+    x: number,
+    y: number,
+    w: number,
+    label: string,
+    value: string,
+    color: string,
+    severity: StatusSeverity = "normal"
+): void {
     ctx.font = "11px Menlo, Monaco, Consolas, monospace";
     ctx.fillStyle = "#899a72";
     ctx.fillText(label, x + 8, y + 17);
     const labelWidth = Math.min(w - 42, Math.ceil(ctx.measureText(label).width) + 20);
-    ctx.font = "700 15px Menlo, Monaco, Consolas, monospace";
+    ctx.font = (severity === "danger" ? "800 16px " : "700 15px ") + "Menlo, Monaco, Consolas, monospace";
+    if (severity === "danger") {
+        ctx.shadowColor = "rgba(220, 73, 58, 0.36)";
+        ctx.shadowBlur = 8;
+    }
     ctx.fillStyle = color;
     ctx.fillText(truncateToWidth(value, w - labelWidth - 8), x + labelWidth, y + 17);
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
 }
 
 function drawMemberStatus(member: BitmapStatusMember, x: number, y: number, w: number): void {
@@ -3210,8 +3421,36 @@ function drawTinyBar(x: number, y: number, w: number, h: number, value: number, 
 }
 
 function statusColor(condition: string): string {
-    if (condition === "STARVING") return "#dc6b57";
-    if (condition === "HUNGRY") return "#e0ad55";
+    if (statusSeverity(condition) === "danger") return "#e25a49";
+    if (statusSeverity(condition) === "warning") return "#e0ad55";
+    return "#9bd073";
+}
+
+function statusSeverity(condition: string): StatusSeverity {
+    switch (condition) {
+        case "STARVING":
+        case "EXHAUSTED":
+        case "WEAK":
+        case "FAINT":
+            return "danger";
+        case "HUNGRY":
+        case "TIRED":
+            return "warning";
+        default:
+            return "normal";
+    }
+}
+
+function foodStatusSeverity(status: BitmapStatus): StatusSeverity {
+    if (status.food <= 0) return "danger";
+    const livingMembers = Math.max(1, (status.members || []).filter((member) => !member.dead).length);
+    return status.food < livingMembers * 3 ? "warning" : "normal";
+}
+
+function foodStatusColor(status: BitmapStatus): string {
+    const severity = foodStatusSeverity(status);
+    if (severity === "danger") return "#e25a49";
+    if (severity === "warning") return "#e0ad55";
     return "#9bd073";
 }
 
@@ -3256,7 +3495,7 @@ function drawTextPanel(frame: BitmapFrame): void {
             for (const part of wrapCanvasLines(line, maxWidth)) {
                 if (ty > bottom) break;
                 drawRevealText(truncateToWidth(part, maxWidth), x, ty, lineColor, dimColor, reveal);
-                ty += 20;
+                ty += Math.ceil(20 * textDisplaySettings.bitmapLineSpacing);
             }
         }
     }

@@ -68,6 +68,7 @@ internal class RuntimeScreen(
     private var classicFrameActive = false
     private var activeMapImage: String? = null
     private var stickyMessageLines: List<String> = emptyList()
+    private var currentTextWindowLines: List<String> = emptyList()
 
     /** Clears the terminal and renders the compiled frame image, if present. */
     override fun bootFrame() {
@@ -193,11 +194,19 @@ internal class RuntimeScreen(
         writeTextWindow(lines)
     }
 
+    /** Preserves the current text window lines and adds the supplied lines below them. */
+    override fun appendText(lines: List<String>) {
+        if (lines.isEmpty()) return
+        stickyMessageLines = emptyList()
+        writeTextWindow(currentTextWindowLines + lines)
+    }
+
     private fun writeTextWindow(lines: List<String>) {
         ensureClassicFrame()
         log.event("screen.write_text lines=${lines.size} first=${lines.firstOrNull().orEmpty().take(40)}")
         clearRegion(textWindow)
-        lines.take(textWindow.height ?: lines.size).forEachIndexed { index, line ->
+        currentTextWindowLines = lines.take(textWindow.height ?: lines.size)
+        currentTextWindowLines.forEachIndexed { index, line ->
             gotoTextRow(index)
             terminal.writeRaw(line.take(textWindow.width ?: line.length))
         }
@@ -365,6 +374,7 @@ internal class RuntimeScreen(
         val party = runtime.party
         val food = party.resources.food.coerceAtLeast(0)
         val status = conditionStatus(runtime.runtimeStatusLabel(systems))
+        val foodColor = foodStatusColor(party)
         val top =
             buildString {
                 append(AnsiCodes.FG_GREEN)
@@ -374,7 +384,7 @@ internal class RuntimeScreen(
                 append("${AnsiCodes.FG_GREEN} X: ${AnsiCodes.FG_YELLOW}${party.position.x.toString().padStart(2)}   ")
                 append("${AnsiCodes.FG_GREEN} Y: ${AnsiCodes.FG_YELLOW}${party.position.y.toString().padStart(2)}")
                 append("${AnsiCodes.FG_GREEN}     ")
-                append("FD: ${AnsiCodes.FG_YELLOW}${food.toString().padStart(4)}${AnsiCodes.FG_GREEN}  ")
+                append("FD: $foodColor${food.toString().padStart(4)}${AnsiCodes.NORMAL_INTENSITY}${AnsiCodes.FG_GREEN}  ")
                 append("MV: ${AnsiCodes.FG_YELLOW}${party.resources.timeLeft.toString().padStart(3)}${AnsiCodes.FG_GREEN}  ")
                 append("AU: ${AnsiCodes.FG_YELLOW}${party.resources.gold.toString().padStart(6)}${AnsiCodes.FG_GREEN}")
             }
@@ -405,13 +415,21 @@ internal class RuntimeScreen(
         "$label${currentAnsiColor()}$current${AnsiCodes.FG_YELLOW}/$max${AnsiCodes.FG_GREEN}"
 
     private fun conditionStatus(label: String): String {
-        val color =
+        val colorAndStyle =
             when (label) {
-                "STARVING" -> AnsiCodes.FG_RED
-                "HUNGRY", "EXHAUSTED", "FAINT" -> AnsiCodes.FG_MAGENTA
+                "STARVING", "EXHAUSTED", "WEAK", "FAINT" -> AnsiCodes.BOLD + AnsiCodes.FG_RED
+                "HUNGRY", "TIRED" -> AnsiCodes.FG_YELLOW
                 else -> AnsiCodes.FG_YELLOW
             }
-        return "$color${label.take(8).padEnd(8)}${AnsiCodes.FG_GREEN}"
+        return "$colorAndStyle${label.take(8).padEnd(8)}${AnsiCodes.NORMAL_INTENSITY}${AnsiCodes.FG_GREEN}"
+    }
+
+    private fun foodStatusColor(party: PartyState): String {
+        val food = party.resources.food.coerceAtLeast(0)
+        if (food == 0) return AnsiCodes.BOLD + AnsiCodes.FG_RED
+        val livingMembers = party.members.count { member -> !member.dead }.coerceAtLeast(1)
+        if (food < livingMembers * 3) return AnsiCodes.FG_YELLOW
+        return AnsiCodes.FG_YELLOW
     }
 
     private fun HitPoints.currentAnsiColor(): String {
