@@ -88,6 +88,18 @@ private val BITMAP_ASSETS =
         "wilderness/terrain-castle.png" to "bitmap-web/wilderness/terrain-castle.png",
         "wilderness/terrain-road.png" to "bitmap-web/wilderness/terrain-road.png",
         "wilderness/terrain-void.png" to "bitmap-web/wilderness/terrain-void.png",
+        "wilderness/transitions/edge-forest.png" to "bitmap-web/wilderness/transitions/edge-forest.png",
+        "wilderness/transitions/corner-forest.png" to "bitmap-web/wilderness/transitions/corner-forest.png",
+        "wilderness/transitions/edge-swamp.png" to "bitmap-web/wilderness/transitions/edge-swamp.png",
+        "wilderness/transitions/corner-swamp.png" to "bitmap-web/wilderness/transitions/corner-swamp.png",
+        "wilderness/transitions/edge-desert.png" to "bitmap-web/wilderness/transitions/edge-desert.png",
+        "wilderness/transitions/corner-desert.png" to "bitmap-web/wilderness/transitions/corner-desert.png",
+        "wilderness/transitions/edge-foothills.png" to "bitmap-web/wilderness/transitions/edge-foothills.png",
+        "wilderness/transitions/corner-foothills.png" to "bitmap-web/wilderness/transitions/corner-foothills.png",
+        "wilderness/transitions/edge-mountain.png" to "bitmap-web/wilderness/transitions/edge-mountain.png",
+        "wilderness/transitions/corner-mountain.png" to "bitmap-web/wilderness/transitions/corner-mountain.png",
+        "wilderness/transitions/edge-water.png" to "bitmap-web/wilderness/transitions/edge-water.png",
+        "wilderness/transitions/corner-water.png" to "bitmap-web/wilderness/transitions/corner-water.png",
         "scenes/scene-thord-mainstreet.png" to "bitmap/assets/scenes/scene-thord-mainstreet.png",
         "scenes/scene-merchant.png" to "bitmap/assets/scenes/scene-merchant.png",
         "scenes/scene-smith.png" to "bitmap/assets/scenes/scene-smith.png",
@@ -133,6 +145,7 @@ private data class BitmapWebConfig(
     val bootstrapAccount: WebAuthBootstrapAccount?,
     val secureCookies: Boolean,
     val showTitleMenu: Boolean,
+    val debugSecrets: Boolean,
     val mapTiles: Int,
     val tileSize: Int,
 ) {
@@ -167,6 +180,7 @@ private data class BitmapWebConfig(
             var accountPassword = optionalEnv("RYLWEEN_AUTH_PASSWORD")
             var secureCookies = optionalEnv("RYLWEEN_AUTH_SECURE_COOKIES") == "true"
             var showTitleMenu = optionalEnv("RYLWEEN_BITMAP_NO_TITLE") != "true"
+            var debugSecrets = optionalEnv("RYLWEEN_BITMAP_DEBUG_SECRETS") == "true"
             var mapTiles = envOrDefault("RYLWEEN_BITMAP_MAP_TILES", DEFAULT_BITMAP_VIEWPORT_TILES.toString()).toInt()
             var tileSize = envOrDefault("RYLWEEN_BITMAP_TILE_SIZE", DEFAULT_BITMAP_TILE_SIZE.toString()).toInt()
             var index = 0
@@ -225,6 +239,9 @@ private data class BitmapWebConfig(
                     "--no-title" -> {
                         showTitleMenu = false
                     }
+                    "--debug-secrets" -> {
+                        debugSecrets = true
+                    }
                     "--map-tiles" -> {
                         index += 1
                         mapTiles = requiredValue(args, index, arg).toInt()
@@ -254,6 +271,7 @@ private data class BitmapWebConfig(
                 bootstrapAccount,
                 secureCookies,
                 showTitleMenu,
+                debugSecrets,
                 mapTiles,
                 tileSize,
             )
@@ -291,13 +309,14 @@ private data class BitmapWebConfig(
         private fun printUsage() {
             println(
                 """
-                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--data DIR] [--state SLUG] [--bundle FILE] [--user ID] [--load FILE] [--save FILE] [--account NAME --password PASSWORD [--email EMAIL]] [--secure-cookies] [--title|--no-title] [--map-tiles N] [--tile-size PX]
+                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--data DIR] [--state SLUG] [--bundle FILE] [--user ID] [--load FILE] [--save FILE] [--account NAME --password PASSWORD [--email EMAIL]] [--secure-cookies] [--title|--no-title] [--debug-secrets] [--map-tiles N] [--tile-size PX]
 
                 The bitmap runtime uses the embedded :game bundle by default. --bundle can point
                 at build/compiled/rylween-bundle.json to exercise an emitted artifact instead.
                 Authenticated saves and logs live under --data. --user keeps the local dev bypass.
                 --account/--password ensures an auth account exists before the server starts.
                 --secure-cookies adds the Secure cookie attribute for HTTPS deployments.
+                --debug-secrets enables hidden manual-test wilderness commands, including M for the annotated full map.
                 Map defaults: ${DEFAULT_BITMAP_VIEWPORT_TILES}x${DEFAULT_BITMAP_VIEWPORT_TILES} tiles at ${DEFAULT_BITMAP_TILE_SIZE}px.
                 """.trimIndent(),
             )
@@ -363,8 +382,9 @@ private class BitmapWebServer(
             "bitmap.server.start host=${config.host} port=${config.port} " +
                 "data=${config.dataDir.path} auth=${config.authRequired} secureCookies=${config.secureCookies} state=${config.stateSlug} " +
                 "devUser=${config.userId.orEmpty()} load=${config.loadFile?.path.orEmpty()} " +
-                "save=${config.worldSaveFile.path} title=${config.showTitleMenu} mapTiles=${config.mapTiles} " +
-                "tileSize=${config.tileSize} bundle=${game.source}",
+                "save=${config.worldSaveFile.path} title=${config.showTitleMenu} " +
+                "debugSecrets=${config.debugSecrets} mapTiles=${config.mapTiles} tileSize=${config.tileSize} " +
+                "bundle=${game.source}",
         )
         while (!serverSocket.isClosed) {
             val socket = serverSocket.accept()
@@ -838,6 +858,7 @@ private class BitmapWebServer(
                                     loadFile = loadFile,
                                     saveFile = saveFile,
                                     showTitleMenu = showTitleMenu,
+                                    debugSecrets = config.debugSecrets,
                                 ),
                             log = runtimeLog,
                         ).also { result ->
