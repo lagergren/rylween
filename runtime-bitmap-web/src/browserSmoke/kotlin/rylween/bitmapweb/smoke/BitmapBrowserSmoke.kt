@@ -400,6 +400,7 @@ private class BitmapBrowserSmoke(
           return smoke.mode && smoke.mode !== "boot" &&
             (smoke.mapCells > 0 || smoke.textLineCount > 0) &&
             smoke.commandCount > 0 &&
+            smoke.terrainTransitionAssetsReady === true &&
             nonBlank > 300 &&
             colors.size > 20;
         }

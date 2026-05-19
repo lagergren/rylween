@@ -39,7 +39,6 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToLong
 
-private const val BITMAP_TEXT_COLUMNS = 36
 private const val BITMAP_DOCUMENT_COLUMNS = 116
 private const val BITMAP_DOCUMENT_PAGE_LINES = 25
 private const val PAUSE_DELAY_SCALE_MESSAGE_PREFIX = "settings:pauseDelayScale="
@@ -191,7 +190,7 @@ internal class BitmapRuntimeScreen(
     private var message: String? = null
     private var stickyMessageLines = emptyList<String>()
 
-    override val textColumns: Int get() = BITMAP_TEXT_COLUMNS
+    override val textColumns: Int? get() = null
     override val documentColumns: Int get() = BITMAP_DOCUMENT_COLUMNS
     override val documentPageLines: Int get() = BITMAP_DOCUMENT_PAGE_LINES
 
@@ -358,7 +357,7 @@ internal class BitmapRuntimeScreen(
 
     override fun writeText(lines: List<String>) {
         stickyMessageLines = emptyList()
-        textLines = lines.flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
+        textLines = lines
         textInput = null
         textEffect = BitmapTextEffect.Reveal
         partyPage = null
@@ -367,8 +366,20 @@ internal class BitmapRuntimeScreen(
         send()
     }
 
+    override fun appendText(lines: List<String>) {
+        if (lines.isEmpty()) return
+        stickyMessageLines = emptyList()
+        textLines = textLines + lines
+        textInput = null
+        textEffect = BitmapTextEffect.Fast
+        partyPage = null
+        commands = emptyList()
+        message = null
+        send()
+    }
+
     override fun showMessage(lines: List<String>) {
-        stickyMessageLines = lines.flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
+        stickyMessageLines = lines
         textLines = stickyMessageLines
         textInput = null
         textEffect = BitmapTextEffect.Fast
@@ -469,10 +480,7 @@ internal class BitmapRuntimeScreen(
     private fun wildernessTextLines(
         runtime: RuntimeState,
         world: WorldMap,
-    ): List<String> =
-        (
-            runtimeWildernessContextLines(content, systems, runtime, world)
-        ).flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
+    ): List<String> = runtimeWildernessContextLines(content, systems, runtime, world)
 
     private fun dungeonTextLines(runtime: RuntimeState): List<String> {
         val depth = runtime.dungeon?.depth ?: 1
@@ -480,7 +488,7 @@ internal class BitmapRuntimeScreen(
             systems.dungeon.prompts.levelMenu
                 .renderBitmapDungeon(depth) +
                 systems.dungeon.commandHint.renderBitmapDungeon(depth)
-        ).flatMap { line -> line.wrap(BITMAP_TEXT_COLUMNS) }
+        )
     }
 
     private fun send() {
@@ -652,7 +660,7 @@ private fun ExternalRuntimeTextBlock.renderBitmapDungeon(depth: Int): List<Strin
                 else -> null
             }
         },
-        wrapWidth = BITMAP_TEXT_COLUMNS,
+        wrapWidth = null,
     )
 
 private fun RuntimeMapCell.toBitmapTile(

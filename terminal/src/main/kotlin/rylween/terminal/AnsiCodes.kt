@@ -13,6 +13,8 @@ object AnsiCodes {
     const val ESC: String = "\u001B"
     const val CSI: String = "$ESC["
     const val RESET: String = "${CSI}0m"
+    const val BOLD: String = "${CSI}1m"
+    const val NORMAL_INTENSITY: String = "${CSI}22m"
 
     private const val FG_BLACK_CODE: Int = 30
     private const val FG_RED_CODE: Int = 31

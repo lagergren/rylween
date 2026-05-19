@@ -32,6 +32,17 @@ The same settings can be supplied with `RYLWEEN_BITMAP_MAP_TILES` and
 `RYLWEEN_BITMAP_TILE_SIZE`. Use `8` and `64` to return to the previous 8x8
 layout.
 
+For local inspection, start the server with `--debug-secrets` or
+`RYLWEEN_BITMAP_DEBUG_SECRETS=true`; then press `M` in the wilderness to show
+the annotated full world map with towns, huts, and other locations.
+
+The 2D wilderness renderer keeps authored terrain cells unchanged and adds a
+visual-only transition pass with bundled transparent PNG overlays under
+`bitmap-web/wilderness/transitions`. These overlays are drawn from the same
+terrain atlas texture as the map tiles, then clipped to irregular edge/corner
+alpha masks. Those resources are classpath assets in the runtime web jar and
+Docker image; they do not require an unpacked server-side asset tree.
+
 ## Browser Smoke
 
 Run the browser canvas smoke with:

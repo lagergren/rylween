@@ -25,7 +25,7 @@ args=()
 
 usage() {
   cat <<'EOF'
-Usage: ./bin/run-bitmap-server.sh [--build] [--name NAME] [--host HOST] [--port PORT] [--state SLUG] [--map-tiles N] [--tile-size PX]
+Usage: ./bin/run-bitmap-server.sh [--build] [--name NAME] [--host HOST] [--port PORT] [--state SLUG] [--debug-secrets] [--map-tiles N] [--tile-size PX]
        ./bin/run-bitmap-server.sh --account NAME --password PASSWORD [--email EMAIL]
 
 Environment:
@@ -39,6 +39,7 @@ Environment:
   RYLWEEN_BITMAP_SAVE_FILE  Optional shared world save path.
   RYLWEEN_BITMAP_MAP_TILES  Wilderness viewport edge length. Default: 6
   RYLWEEN_BITMAP_TILE_SIZE  Wilderness tile size in px. Default: 68
+  RYLWEEN_BITMAP_DEBUG_SECRETS Set true to enable hidden manual-test wilderness commands.
   RYLWEEN_BITMAP_BUNDLE     Optional external bundle path. Embedded game is used when omitted.
   RYLWEEN_AUTH_ACCOUNT      Optional account to create/verify before startup.
   RYLWEEN_AUTH_EMAIL        Optional email for RYLWEEN_AUTH_ACCOUNT.
@@ -122,6 +123,9 @@ while [[ $# -gt 0 ]]; do
       SAVE_FILE="${arg#--save=}"
       ;;
     --title|--no-title)
+      args+=("$arg")
+      ;;
+    --debug-secrets)
       args+=("$arg")
       ;;
     --host)
