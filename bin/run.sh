@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-INSTALL_HOME="$ROOT_DIR/runtime/build/install/rylween"
+INSTALL_HOME="$ROOT_DIR/runtimes/runtime/build/install/rylween"
 LAUNCHER="$INSTALL_HOME/bin/rylween"
 BUNDLE="$ROOT_DIR/build/compiled/rylween-bundle.json"
 DATA_DIR="${RYLWEEN_DATA_DIR:-$HOME/.rylween/data}"

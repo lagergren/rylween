@@ -9,7 +9,9 @@ Important areas:
 - `RylweenCompiledGame.kt` exposes the compiled in-process game facade used by
   runtimes and tests.
 - `RylweenTestScenarios.kt` contains replay fixtures and authored runtime
-  states for verification.
+  states for verification. It stays in `main` because those named state images
+  are compiled into the playable bundle and selected by runtime smoke/playtest
+  launchers such as `--state fresh-replay` and `--state strong-replay`.
 - `src/main/resources/tiles` contains ANSI tile art.
 - `src/main/resources/bitmap` contains bitmap assets used by the bitmap web
   runtime.

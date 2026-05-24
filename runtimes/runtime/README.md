@@ -42,4 +42,4 @@ dungeon/castle continuation state.
 
 Web account credentials are deliberately not stored in the save file. They live
 under `<data-dir>/auth` and are documented in
-[`web-common`](../web-common/README.md).
+[`web-common`](../../support/web-common/README.md).

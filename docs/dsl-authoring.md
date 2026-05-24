@@ -12,7 +12,7 @@ The current authoring source is regular Kotlin:
   source-script IR.
 - `core/src/main/kotlin/rylween/compiled` lowers the authored model into the
   compiled bundle consumed by runtimes.
-- `runtime/src/main/kotlin` consumes compiled bundle rows. It should not import
+- `runtimes/runtime/src/main/kotlin` consumes compiled bundle rows. It should not import
   authored source-script IR or generated game handle catalogs.
 
 Run this after changing authoring or DSL code:
@@ -457,7 +457,7 @@ Use this placement rule during design review:
   shop rows, mission triggers, maps, assets, and runtime-system wording.
 - `core/src/main/kotlin/rylween/dsl`: reusable authoring vocabulary, source
   script IR, typed models, validation, and compiled-bundle lowering.
-- `runtime/src/main/kotlin`: host behavior over compiled rows: input loops,
+- `runtimes/runtime/src/main/kotlin`: host behavior over compiled rows: input loops,
   rendering, RNG cadence, persistence, save/load, and live subsystem state.
 - `runtime-bitmap-web` or `runtime-web`: frontend presentation, browser
   transport, preferences, and canvas/ANSI rendering.
@@ -503,7 +503,7 @@ The I10 audit found the current high-level separation sound:
   `RylweenGame.kt` and the source-script IR instead of the retired
   `RylweenGame.dsl.kts`/authored `Op` terminology.
 
-Remaining follow-up work stays tracked in `plans/dsl-improvements.md` rather
+Remaining follow-up work stays tracked in `docs/plans/dsl-improvements.md` rather
 than being hidden in this guide:
 
 - I4b: narrow or remove remaining broad DSL receiver suppressions.

@@ -60,8 +60,8 @@ private data class BrowserSmokeOptions(
             }
             return BrowserSmokeOptions(
                 root = root,
-                workDir = workDir ?: root.resolve("runtime-bitmap-web/build/bitmap-browser-smoke"),
-                reportDir = reportDir ?: root.resolve("runtime-bitmap-web/build/reports/bitmap-browser-smoke"),
+                workDir = workDir ?: root.resolve("runtimes/runtime-bitmap-web/build/bitmap-browser-smoke"),
+                reportDir = reportDir ?: root.resolve("runtimes/runtime-bitmap-web/build/reports/bitmap-browser-smoke"),
                 browserName = browserName,
             )
         }
@@ -73,11 +73,11 @@ private class BitmapBrowserSmoke(
 ) {
     private val dataDir = options.workDir.resolve("data")
     private val saveFile = dataDir.resolve("saves/world.rsave")
-    private val runtimeLauncher = options.root.resolve("runtime/build/install/rylween/bin/rylween").platformExecutable()
+    private val runtimeLauncher = options.root.resolve("runtimes/runtime/build/install/rylween/bin/rylween").platformExecutable()
     private val bitmapLauncher =
         options.root
             .resolve(
-                "runtime-bitmap-web/build/install/rylween-bitmap-web/bin/rylween-bitmap-web",
+                "runtimes/runtime-bitmap-web/build/install/rylween-bitmap-web/bin/rylween-bitmap-web",
             ).platformExecutable()
     private val bundleFile = options.root.resolve("build/compiled/rylween-bundle.json")
     private val screenshotFile = options.reportDir.resolve("bitmap-first-frame.png")

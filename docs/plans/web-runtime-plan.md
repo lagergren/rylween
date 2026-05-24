@@ -9,7 +9,7 @@ the same compiled JSON bundle and runtime rules as the current JVM runtime.
 
 ## Current Runtime Facts
 
-- `runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt` is the active
+- `runtimes/runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt` is the active
   playable runtime entry point. `GameRuntime.load(...)` reads:
   `CompiledGameBundle`, `ExternalRuntimeSystems`, and the bundle content hash
   from `build/compiled/rylween-bundle.json`.
@@ -17,7 +17,7 @@ the same compiled JSON bundle and runtime rules as the current JVM runtime.
   battle, dungeon, castle, utility commands, script execution, character
   creation, save/load, and static screens without composing old session
   adapters.
-- `terminal/src/main/kotlin/rylween/terminal/AnsiTerminal.kt` is the narrow
+- `support/terminal/src/main/kotlin/rylween/terminal/AnsiTerminal.kt` is the narrow
   transport interface: raw text output, flush, key token input, text-line input,
   and pause.
 - `RuntimeScreen` is still ANSI-specific. It reads presentation rows from
@@ -59,7 +59,7 @@ Build the web app first, using ANSI-in-browser as the proof of concept. Do not
 start by replacing the renderer. The smallest path that exercises the whole game
 is:
 
-1. Make the current runtime loop accept an injected terminal/session transport
+1. Make the current runtime loop accept an injected support/terminal/session transport
    instead of opening `AnsiTerminals.open(...)` internally.
 2. Add a small JVM web module that provides a WebSocket-backed `AnsiTerminal`.
 3. Render the stream with xterm.js in the browser so cursor positioning, window
