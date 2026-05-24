@@ -828,7 +828,7 @@ private fun bitmapMarkdownDocumentLines(lines: List<String>): List<String> =
 
         fun flushQuote() {
             if (quote.isEmpty()) return
-            addAll(("> " + quote.joinToString(" ")).wrap(BITMAP_DOCUMENT_COLUMNS))
+            addAll(quote.joinToString(" ").wrap(BITMAP_DOCUMENT_COLUMNS - 2).map { line -> "> $line" })
             quote.clear()
         }
 
