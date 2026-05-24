@@ -13,12 +13,12 @@ Module guides:
   authored game.
 - [`:core`](core/README.md) - DSL, validation, compiled bundle contracts.
 - [`:game`](game/README.md) - authored Rylween game script, fixtures, assets.
-- [`:runtime`](runtime/README.md) - shared game runtime and direct ANSI terminal.
-- [`:runtime-web`](runtime-web/README.md) - browser-served ANSI runtime.
-- [`:runtime-bitmap-web`](runtime-bitmap-web/README.md) - canvas bitmap runtime.
-- [`:web-common`](web-common/README.md) - shared web HTTP, WebSocket, auth, status.
-- [`:terminal`](terminal/README.md) - ANSI terminal primitives.
-- [`:tools`](tools/README.md) - compiled-bundle artifact tools and native probes.
+- [`:runtime`](runtimes/runtime/README.md) - shared game runtime and direct ANSI terminal.
+- [`:runtime-web`](runtimes/runtime-web/README.md) - browser-served ANSI runtime.
+- [`:runtime-bitmap-web`](runtimes/runtime-bitmap-web/README.md) - canvas bitmap runtime.
+- [`:web-common`](support/web-common/README.md) - shared web HTTP, WebSocket, auth, status.
+- [`:terminal`](support/terminal/README.md) - ANSI terminal primitives.
+- [`:tools`](support/tools/README.md) - compiled-bundle artifact tools and native probes.
 - [`build-logic`](build-logic/README.md) - Gradle conventions and custom tasks.
 - [`bin`](bin/README.md) - local developer/operator launcher scripts.
 - [`deploy/docker`](deploy/docker/README.md) - Docker images and reverse-proxy deployment notes.
@@ -56,7 +56,7 @@ Build and run the direct runtime:
 ./bin/run.sh --build --seed 1
 ./bin/run.sh --build --name Strong
 ./bin/run.sh --build --name StrongEndgame
-runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --user local --state fresh-replay --seed 1
+runtimes/runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --user local --state fresh-replay --seed 1
 ```
 
 The `bin/run.sh` wrapper is now the closest current equivalent to
@@ -118,8 +118,8 @@ Back up web game state and users as one artifact:
 The data directory is split by ownership: `saves/world.rsave` is game state,
 `auth/users` is account state, and `logs` is operational history. The exact file
 layout and field meanings are documented in
-[`web-common/README.md`](web-common/README.md) and
-[`runtime/README.md`](runtime/README.md).
+[`support/web-common/README.md`](support/web-common/README.md) and
+[`runtimes/runtime/README.md`](runtimes/runtime/README.md).
 
 Build the production-oriented ANSI web image for reverse-proxy deployment:
 
@@ -136,7 +136,7 @@ docker build -f deploy/docker/Dockerfile.bitmap-production -t rylween-bitmap-pro
 The production image still serves plain HTTP internally. Bind it to loopback or
 a private container network, terminate HTTPS at nginx/Caddy/HAProxy/a load
 balancer, and keep `RYLWEEN_AUTH_SECURE_COOKIES=true`. See
-[`web-common/README.md`](web-common/README.md) for the auth model and production
+[`support/web-common/README.md`](support/web-common/README.md) for the auth model and production
 hardening checklist.
 
 The runtime boots directly from the compiled bundle, renders static screens and
@@ -145,6 +145,24 @@ from compiled tables, handles direct save/load with bundle-hash validation, and
 is verified by `:runtime:check`. Long acceptance routes are generated from
 test-only replay plans and fed to the installed runtime through `--script`;
 the shipped launcher does not expose a replay-planning mode.
+
+
+
+## Verification
+
+Run the normal verification graph:
+
+```sh
+./gradlew check --console=plain
+```
+
+`check` also runs `checkDependencyUpdates`, which only reports newer dependency
+and plugin versions from `gradle/libs.versions.toml`. To apply those catalog
+updates intentionally, run:
+
+```sh
+./gradlew updateDependencyCatalog --console=plain
+```
 
 ## Cleanup
 

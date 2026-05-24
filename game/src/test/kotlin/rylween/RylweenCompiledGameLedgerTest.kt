@@ -1441,8 +1441,8 @@ class RylweenCompiledGameLedgerTest {
         val runtimeSourceRoots =
             listOf(
                 "core/src/main/kotlin",
-                "terminal/src/main/kotlin",
-                "runtime/src/main/kotlin",
+                "support/terminal/src/main/kotlin",
+                "runtimes/runtime/src/main/kotlin",
             )
         val offenders =
             runtimeSourceRoots.flatMap { root ->
@@ -1476,7 +1476,7 @@ class RylweenCompiledGameLedgerTest {
         val gameBuild = File("game/build.gradle.kts").readText()
         val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
         val runtimeMain =
-            File("runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
 
         check(!File("legacy").exists()) {
             "legacy source tree must not remain in the active repository checkout"
@@ -1543,7 +1543,7 @@ class RylweenCompiledGameLedgerTest {
         }
         check(
             ":runtime:installRuntime" in launcher &&
-                "runtime/build/install/rylween" in launcher &&
+                "runtimes/runtime/build/install/rylween" in launcher &&
                 "RUN_LAUNCHER" in launcher,
         ) {
             "bin/run.sh must launch the runtime"
@@ -1553,7 +1553,7 @@ class RylweenCompiledGameLedgerTest {
         }
         check(
             ":runtime-web:installRuntimeWeb" in dockerfile &&
-                "/src/runtime-web/build/install/rylween-web" in dockerfile &&
+                "/src/runtimes/runtime-web/build/install/rylween-web" in dockerfile &&
                 "/app/rylween-web/bin/rylween-web --bundle" in dockerfile,
         ) {
             "Dockerfile must run the current Kotlin web runtime install distribution"
@@ -1628,11 +1628,11 @@ class RylweenCompiledGameLedgerTest {
         val scriptKernel = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
         val commandIds = File("core/src/main/kotlin/rylween/compiled/RuntimeCommandIds.kt").readText()
         val externalBundle = File("core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt").readText()
-        val runtimeMain = File("runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
-        val dungeonRuntime = File("runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt").readText()
-        val castleRuntime = File("runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt").readText()
-        val wildernessActions = File("runtime/src/main/kotlin/rylween/runtime/WildernessActions.kt").readText()
-        val wildernessCommands = File("runtime/src/main/kotlin/rylween/runtime/WildernessCommands.kt").readText()
+        val runtimeMain = File("runtimes/runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
+        val dungeonRuntime = File("runtimes/runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt").readText()
+        val castleRuntime = File("runtimes/runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt").readText()
+        val wildernessActions = File("runtimes/runtime/src/main/kotlin/rylween/runtime/WildernessActions.kt").readText()
+        val wildernessCommands = File("runtimes/runtime/src/main/kotlin/rylween/runtime/WildernessCommands.kt").readText()
         val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
         val scriptKernelText = scriptKernel.replace(Regex("\\s+"), " ")
 
@@ -1706,12 +1706,12 @@ class RylweenCompiledGameLedgerTest {
     @Test
     fun bitmapWebRuntimeConsumesCompiledBitmapAssets() {
         val runtimeSystems = RylweenCompiledGame.nextRylween.toExternalBundleArtifact().readExternalRuntimeSystems()
-        val bitmapFrameSource = File("runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/BitmapFrame.kt").readText()
-        val bitmapPortsSource = File("runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/BitmapRuntimePorts.kt").readText()
+        val bitmapFrameSource = File("runtimes/runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/BitmapFrame.kt").readText()
+        val bitmapPortsSource = File("runtimes/runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/BitmapRuntimePorts.kt").readText()
         val bitmapServerSource =
-            File("runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/RylweenBitmapWebRuntimeMain.kt").readText()
-        val bitmapClientSource = File("runtime-bitmap-web/src/main/resources/bitmap-web/client.ts").readText()
-        val bitmapBuild = File("runtime-bitmap-web/build.gradle.kts").readText()
+            File("runtimes/runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/RylweenBitmapWebRuntimeMain.kt").readText()
+        val bitmapClientSource = File("runtimes/runtime-bitmap-web/src/main/resources/bitmap-web/client.ts").readText()
+        val bitmapBuild = File("runtimes/runtime-bitmap-web/build.gradle.kts").readText()
         val compiledBitmapAssets = runtimeSystems.presentation.images.filter { image -> image.kind == "Bitmap" }
         val requiredCompiledImages =
             listOf(
@@ -1778,9 +1778,9 @@ class RylweenCompiledGameLedgerTest {
         val commandIds =
             File("core/src/main/kotlin/rylween/compiled/RuntimeCommandIds.kt").readText()
         val runtimeMain =
-            File("runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt").readText()
         val runtimeScreen =
-            File("runtime/src/main/kotlin/rylween/runtime/RuntimeScreen.kt").readText()
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime/RuntimeScreen.kt").readText()
 
         check(
             "debugShowMap" in runtimeContentDsl &&
@@ -1854,7 +1854,7 @@ class RylweenCompiledGameLedgerTest {
     @Test
     fun promptInputTaxonomyStaysDocumented() {
         val guide = File("docs/dsl-authoring.md").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
         val gameDsl = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
         val documentedPromptForms =
             setOf(
@@ -1911,46 +1911,46 @@ class RylweenCompiledGameLedgerTest {
             "- [x] I20. Document the prompt/input taxonomy" in planSource &&
                 "Prompt And Input Taxonomy" in planSource,
         ) {
-            "plans/dsl-improvements.md must record I20 closeout"
+            "docs/plans/dsl-improvements.md must record I20 closeout"
         }
     }
 
     @Test
     fun scriptAndRuntimeLoopOwnershipStaysDocumented() {
         val guide = File("docs/dsl-authoring.md").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
         val scriptKernel = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
         val scriptSourceModel = File("core/src/main/kotlin/rylween/dsl/ScriptSourceModel.kt").readText()
         val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
         val runtimeLoopContracts =
             mapOf(
-                "runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt" to
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt" to
                     listOf(
                         "wilderness/title loops are runtime mode loops",
                         "authored text, choices,",
                         "formulas, and policies",
                         "compiled content/runtime-system rows",
                     ),
-                "runtime/src/main/kotlin/rylween/runtime/ShopService.kt" to
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/ShopService.kt" to
                     listOf(
                         "Shop buy/sell prompts are runtime service loops",
                         "labels, text, bindings, catalog rows, policies, and formulas",
                         "authored data in the compiled bundle",
                     ),
-                "runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt" to
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt" to
                     listOf(
                         "battle round is a runtime service loop",
                         "game text is rendered from authored",
                         "runtime-system text blocks",
                         "fed by compiled rows",
                     ),
-                "runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt" to
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt" to
                     listOf(
                         "runtime mode loop, not an authored script-control loop",
                         "dungeon prose, prompt wording, rewards, events, and handoff policies",
                         "compiled content/runtime-system rows",
                     ),
-                "runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt" to
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt" to
                     listOf(
                         "runtime mode loop, not an authored script-control loop",
                         "castle text, room records, scripts, and rewards",
@@ -2009,7 +2009,7 @@ class RylweenCompiledGameLedgerTest {
             "- [x] I21. Document and guard authored script loops versus reusable domain" in planSource &&
                 "Script Loops And Runtime Loops" in planSource,
         ) {
-            "plans/dsl-improvements.md must record I21 closeout"
+            "docs/plans/dsl-improvements.md must record I21 closeout"
         }
     }
 
@@ -2063,7 +2063,7 @@ class RylweenCompiledGameLedgerTest {
         val speakDsl = File("core/src/main/kotlin/rylween/dsl/impl/SpeakDsl.kt").readText()
         val castleDsl = File("core/src/main/kotlin/rylween/dsl/impl/CastleDsl.kt").readText()
         val rootDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
 
         fun sourceHas(
             source: String,
@@ -2128,14 +2128,14 @@ class RylweenCompiledGameLedgerTest {
             "- [x] I22. Revisit repeated text-field setter overloads" in planSource &&
                 "- [x] I23. Continue the literal-line prose audit." in planSource,
         ) {
-            "plans/dsl-improvements.md must record I22/I23 closeout"
+            "docs/plans/dsl-improvements.md must record I22/I23 closeout"
         }
     }
 
     @Test
     fun runtimeRenderedTextLiteralsStayClassified() {
         val runtimeSources =
-            File("runtime/src/main/kotlin/rylween/runtime")
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime")
                 .walkTopDown()
                 .filter { file -> file.isFile && file.extension == "kt" }
                 .joinToString("\n") { file -> "// ${file.path}\n${file.readText()}" }
@@ -2167,9 +2167,9 @@ class RylweenCompiledGameLedgerTest {
                 "build.gradle.kts",
                 "core/build.gradle.kts",
                 "game/build.gradle.kts",
-                "tools/build.gradle.kts",
-                "terminal/build.gradle.kts",
-                "runtime/build.gradle.kts",
+                "support/tools/build.gradle.kts",
+                "support/terminal/build.gradle.kts",
+                "runtimes/runtime/build.gradle.kts",
             )
         val hardcodedVersion = Regex("""(jvmToolchain|JavaLanguageVersion\.of)\(\s*\d+\s*\)""")
         val offenders =
@@ -2190,8 +2190,8 @@ class RylweenCompiledGameLedgerTest {
 
     @Test
     fun compiledBundleDiagnosticsStayToolOwned() {
-        val toolsBuild = File("tools/build.gradle.kts").readText()
-        val toolMain = File("tools/src/main/kotlin/rylween/tools/CompiledBundleArtifactMain.kt").readText()
+        val toolsBuild = File("support/tools/build.gradle.kts").readText()
+        val toolMain = File("support/tools/src/main/kotlin/rylween/tools/CompiledBundleArtifactMain.kt").readText()
         val compiledCoreSources =
             File("core/src/main/kotlin/rylween/compiled")
                 .walkTopDown()
@@ -2215,7 +2215,7 @@ class RylweenCompiledGameLedgerTest {
     @Test
     fun runtimeDoesNotComposeOldKotlinSessions() {
         val sources =
-            File("runtime/src/main/kotlin")
+            File("runtimes/runtime/src/main/kotlin")
                 .walkTopDown()
                 .filter { file -> file.isFile && file.extension == "kt" }
                 .toList()
@@ -2246,7 +2246,7 @@ class RylweenCompiledGameLedgerTest {
             }
         val build = File("build.gradle.kts").readText()
         val settings = File("settings.gradle.kts").readText()
-        val runtimeBuild = File("runtime/build.gradle.kts").readText()
+        val runtimeBuild = File("runtimes/runtime/build.gradle.kts").readText()
 
         check(sources.isNotEmpty()) {
             "runtime subproject source must exist"
@@ -2297,46 +2297,46 @@ class RylweenCompiledGameLedgerTest {
             "runtime Gradle smoke tasks must not ship test replay planners through the product CLI"
         }
         val runtimeMainSource =
-            File("runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt")
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt")
                 .readText()
         check("--replay" !in runtimeMainSource && "ReplayPlans" !in runtimeMainSource) {
             "runtime product CLI must not expose test-only replay plans"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/SaveFile.kt").isFile) {
+        check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/SaveFile.kt").isFile) {
             "runtime must own its direct save/load adapter"
         }
-        check("internal object SaveCodec" in File("runtime/src/main/kotlin/rylween/runtime/SaveFile.kt").readText()) {
+        check("internal object SaveCodec" in File("runtimes/runtime/src/main/kotlin/rylween/runtime/SaveFile.kt").readText()) {
             "runtime save escaping must stay in the save adapter, not terminal input/color code"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/PartyPages.kt").isFile) {
+        check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/PartyPages.kt").isFile) {
             "runtime must own direct party and journal pages"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/WildernessCommands.kt").isFile) {
+        check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/WildernessCommands.kt").isFile) {
             "runtime must read wilderness commands from runtime systems"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/WildernessActions.kt").isFile) {
+        check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/WildernessActions.kt").isFile) {
             "runtime must own direct hunt, camp, and upkeep actions"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt").isFile) {
+        check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt").isFile) {
             "runtime must own a direct compiled standard-battle runner"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt").isFile) {
+        check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt").isFile) {
             "runtime must own a direct compiled-script executor for scene roots"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt").isFile) {
+        check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt").isFile) {
             "runtime must own direct dungeon mode execution"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt").isFile) {
+        check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt").isFile) {
             "runtime must own generic direct castle mode execution"
         }
-        check(File("runtime/src/main/kotlin/rylween/runtime/UtilityActions.kt").isFile) {
+        check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/UtilityActions.kt").isFile) {
             "runtime must own direct inventory/equipment/priest utility commands"
         }
         val replayPlanSource =
-            File("runtime/src/test/kotlin/rylween/runtime/ReplayPlan.kt")
+            File("runtimes/runtime/src/test/kotlin/rylween/runtime/ReplayPlan.kt")
                 .readText()
         val replayPlanTestSource =
-            File("runtime/src/test/kotlin/rylween/runtime/RuntimeReplayPlanTest.kt")
+            File("runtimes/runtime/src/test/kotlin/rylween/runtime/RuntimeReplayPlanTest.kt")
                 .readText()
         check("ReplayPlans.build" in replayPlanTestSource && "--script" in replayPlanTestSource) {
             "runtime replay acceptance routes must be generated by tests and fed to the installed launcher as scripts"
@@ -2367,7 +2367,7 @@ class RylweenCompiledGameLedgerTest {
             }
         }
         val scriptExecutorSource =
-            File("runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt")
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt")
                 .readText()
         listOf(
             "CompiledOpcode.If",
@@ -2389,7 +2389,7 @@ class RylweenCompiledGameLedgerTest {
             }
         }
         val dungeonRuntimeSource =
-            File("runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt")
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt")
                 .readText()
         listOf("enterDungeon", "runDepthEvent", "CompiledDungeonRandomEvent", "dungeon_level", "postDungeon").forEach { token ->
             check(token in dungeonRuntimeSource) {
@@ -2397,7 +2397,7 @@ class RylweenCompiledGameLedgerTest {
             }
         }
         val castleRuntimeSource =
-            File("runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt")
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt")
                 .readText()
         listOf(
             "ExternalRuntimeCastle",
@@ -2410,7 +2410,7 @@ class RylweenCompiledGameLedgerTest {
             }
         }
         val utilitySource =
-            File("runtime/src/main/kotlin/rylween/runtime/UtilityActions.kt")
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime/UtilityActions.kt")
                 .readText()
         listOf("readyWeapon", "readyArmor", "quaff", "castPriestSpell", "ItemUseContext.Inventory").forEach { token ->
             check(token in utilitySource) {
@@ -2433,12 +2433,12 @@ class RylweenCompiledGameLedgerTest {
             }
         }
         val battleRunnerSource =
-            File("runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt")
+            File("runtimes/runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt")
                 .readText()
         check("runBattleScript" in battleRunnerSource && "CompiledOpcode.AskMonster" in battleRunnerSource) {
             "battle runner must execute compiled combat item/spell scripts, not just a hard-coded melee loop"
         }
-        check(!File("runtime/src/main/kotlin/rylween/runtime/BattleHost.kt").exists()) {
+        check(!File("runtimes/runtime/src/main/kotlin/rylween/runtime/BattleHost.kt").exists()) {
             "runtime must not grow a one-off hard-coded battle host"
         }
         val hardCodedBattleNarration =
@@ -2523,11 +2523,11 @@ class RylweenCompiledGameLedgerTest {
         val productionRuntimeRoots =
             listOf(
                 "core/src/main/kotlin/rylween/runtime",
-                "runtime/src/main/kotlin",
-                "runtime-web/src/main/kotlin",
-                "runtime-bitmap-web/src/main/kotlin",
-                "terminal/src/main/kotlin",
-                "web-common/src/main/kotlin",
+                "runtimes/runtime/src/main/kotlin",
+                "runtimes/runtime-web/src/main/kotlin",
+                "runtimes/runtime-bitmap-web/src/main/kotlin",
+                "support/terminal/src/main/kotlin",
+                "support/web-common/src/main/kotlin",
             )
         val bannedTokens =
             listOf(
@@ -2620,11 +2620,11 @@ class RylweenCompiledGameLedgerTest {
             listOf(
                 "core/src/main/kotlin",
                 "game/src/main/kotlin",
-                "runtime/src/main/kotlin",
-                "runtime-web/src/main/kotlin",
-                "runtime-bitmap-web/src/main/kotlin",
-                "terminal/src/main/kotlin",
-                "web-common/src/main/kotlin",
+                "runtimes/runtime/src/main/kotlin",
+                "runtimes/runtime-web/src/main/kotlin",
+                "runtimes/runtime-bitmap-web/src/main/kotlin",
+                "support/terminal/src/main/kotlin",
+                "support/web-common/src/main/kotlin",
             ).flatMap { root ->
                 File(root)
                     .walkTopDown()
@@ -2721,16 +2721,16 @@ class RylweenCompiledGameLedgerTest {
         val kernelSource = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
         val sourceModel = File("core/src/main/kotlin/rylween/dsl/ScriptSourceModel.kt").readText()
         val compiledBundleSource = File("core/src/main/kotlin/rylween/compiled/CompiledBundle.kt").readText()
-        val scriptExecutorSource = File("runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt").readText()
+        val scriptExecutorSource = File("runtimes/runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt").readText()
         val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
         val runtimeLoopDocs =
             mapOf(
-                "runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt" to "runtime mode loops",
-                "runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt" to "runtime mode loop",
-                "runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt" to "runtime mode loop",
-                "runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt" to "runtime service loop",
-                "runtime/src/main/kotlin/rylween/runtime/ShopService.kt" to "runtime service loops",
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt" to "runtime mode loops",
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/DungeonRuntime.kt" to "runtime mode loop",
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/CastleRuntime.kt" to "runtime mode loop",
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/BattleRunner.kt" to "runtime service loop",
+                "runtimes/runtime/src/main/kotlin/rylween/runtime/ShopService.kt" to "runtime service loops",
             )
 
         check("Script-control loops recorded here" in sourceModel && "mode/service loops" in sourceModel) {
@@ -2771,7 +2771,7 @@ class RylweenCompiledGameLedgerTest {
                 missingRuntimeDocs.joinToString()
         }
         check("- [x] I9g. Document and enforce loop ownership." in planSource) {
-            "plans/dsl-improvements.md must record I9g loop-ownership closeout"
+            "docs/plans/dsl-improvements.md must record I9g loop-ownership closeout"
         }
     }
 
@@ -2780,7 +2780,7 @@ class RylweenCompiledGameLedgerTest {
         val dslSource = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
         val expressionSource = File("core/src/main/kotlin/rylween/dsl/ExpressionDsl.kt").readText()
         val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
         val rawScriptVals =
             gameSource
                 .lineSequence()
@@ -2811,7 +2811,7 @@ class RylweenCompiledGameLedgerTest {
                 rawScriptVals.joinToString()
         }
         check("- [x] I9h. Remove raw Kotlin locals from authored game scripts." in planSource) {
-            "plans/dsl-improvements.md must record I9h temporary-block closeout"
+            "docs/plans/dsl-improvements.md must record I9h temporary-block closeout"
         }
     }
 
@@ -2820,10 +2820,10 @@ class RylweenCompiledGameLedgerTest {
         val kernelSource = File("core/src/main/kotlin/rylween/dsl/ScriptKernelDsl.kt").readText()
         val expressionSource = File("core/src/main/kotlin/rylween/dsl/ExpressionDsl.kt").readText()
         val compiledBundleSource = File("core/src/main/kotlin/rylween/compiled/CompiledBundle.kt").readText()
-        val scriptExecutorSource = File("runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt").readText()
-        val selectorTestSource = File("runtime/src/test/kotlin/rylween/runtime/PartyMemberSelectorsTest.kt").readText()
+        val scriptExecutorSource = File("runtimes/runtime/src/main/kotlin/rylween/runtime/ScriptExecutor.kt").readText()
+        val selectorTestSource = File("runtimes/runtime/src/test/kotlin/rylween/runtime/PartyMemberSelectorsTest.kt").readText()
         val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
         val hardcodedNarrationMembers =
             Regex("""party\.member\(\d+\)""")
                 .findAll(gameSource)
@@ -2853,7 +2853,7 @@ class RylweenCompiledGameLedgerTest {
             "selector tests must cover one-based choices and empty-match behavior"
         }
         check("- [x] I14. Add filtered non-interactive party-member selectors." in planSource) {
-            "plans/dsl-improvements.md must record I14 selector closeout"
+            "docs/plans/dsl-improvements.md must record I14 selector closeout"
         }
     }
 
@@ -2862,7 +2862,7 @@ class RylweenCompiledGameLedgerTest {
         val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
         val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
         val guide = File("docs/dsl-authoring.md").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
         val directPlayerGains =
             Regex("""party\.(gold|torches|food)\s*\+=""")
                 .findAll(gameSource)
@@ -2889,7 +2889,7 @@ class RylweenCompiledGameLedgerTest {
             "DSL guide must document reward/resource/debug ownership"
         }
         check("- [x] I15. Unify reward and direct resource mutation vocabulary." in planSource) {
-            "plans/dsl-improvements.md must record I15 closeout"
+            "docs/plans/dsl-improvements.md must record I15 closeout"
         }
         check("Resolved pairs:" in planSource && "I14" in planSource && "I15" in planSource) {
             "I19 duplicate-mechanism register must mark selector and reward/resource pairs resolved"
@@ -2899,7 +2899,7 @@ class RylweenCompiledGameLedgerTest {
     @Test
     fun currentGameDslUsesAuthorFirstTopLevelOrder() {
         val gameSource = File("game/src/main/kotlin/rylween/game/RylweenGame.kt").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
 
         fun topLevelIndex(token: String): Int =
             Regex("""(?m)^ {12}${Regex.escape(token)}""")
@@ -2963,7 +2963,7 @@ class RylweenCompiledGameLedgerTest {
             "RylweenGame.kt must document the author-first top-level hierarchy"
         }
         check("- [x] I16. Reorder the current game DSL into an author-first hierarchy." in planSource) {
-            "plans/dsl-improvements.md must record I16 closeout"
+            "docs/plans/dsl-improvements.md must record I16 closeout"
         }
     }
 
@@ -2971,7 +2971,7 @@ class RylweenCompiledGameLedgerTest {
     fun repeatedTextBuilderCallShapesUseSharedHelpersWithoutChangingRows() {
         val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
         val shopDsl = File("core/src/main/kotlin/rylween/dsl/impl/ShopDsl.kt").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
         val directRandomOfferBuilders =
             Regex("""RandomItemOfferTextBuilder\(\)\.apply\(body\)\.build\(\)""")
                 .findAll(scriptDsl)
@@ -3017,19 +3017,19 @@ class RylweenCompiledGameLedgerTest {
         check("{item_name}" in tavernRandomOffer.offer.offer.fallbackText())
         check("{item_price}" in tavernRandomOffer.offer.offer.fallbackText())
         check("- [x] I17. Audit repeated painful call shapes and collapse only real" in planSource) {
-            "plans/dsl-improvements.md must record I17 closeout"
+            "docs/plans/dsl-improvements.md must record I17 closeout"
         }
     }
 
     @Test
     fun nearDuplicateMechanismRegisterIsClosedWithRetirementGuards() {
-        val planSource = File("plans/dsl-improvements.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
         val guide = File("docs/dsl-authoring.md").readText()
         val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
         val textDsl = File("core/src/main/kotlin/rylween/dsl/TextDsl.kt").readText()
 
         check("- [x] I19. Keep a near-duplicate mechanism register and retire split shapes" in planSource) {
-            "plans/dsl-improvements.md must record I19 closeout"
+            "docs/plans/dsl-improvements.md must record I19 closeout"
         }
         check(
             "Retired split shapes:" in planSource &&
@@ -3053,8 +3053,8 @@ class RylweenCompiledGameLedgerTest {
         val rootReadme = File("README.md").readText()
         val gameReadme = File("game/README.md").readText()
         val coreReadme = File("core/README.md").readText()
-        val planSource = File("plans/dsl-improvements.md").readText()
-        val compiledRuntimeSpec = File("plans/compiled-vm-runtime-spec.md").readText()
+        val planSource = File("docs/plans/dsl-improvements.md").readText()
+        val compiledRuntimeSpec = File("docs/plans/compiled-vm-runtime-spec.md").readText()
         val currentSourcePath = "game/src/main/kotlin/rylween/game/RylweenGame.kt"
 
         listOf(
@@ -3085,7 +3085,7 @@ class RylweenCompiledGameLedgerTest {
             "module READMEs must link the DSL authoring guide"
         }
         check("- [x] I10. Author-facing DSL guide and design consistency audit." in planSource) {
-            "plans/dsl-improvements.md must record I10 closeout"
+            "docs/plans/dsl-improvements.md must record I10 closeout"
         }
         check(
             currentSourcePath in planSource &&

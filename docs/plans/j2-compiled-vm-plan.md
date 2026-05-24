@@ -73,7 +73,7 @@ product plan.
 
 The backend-neutral compiled script executor contracts now live under
 `core/src/main/kotlin/rylween/runtime/vm`, while the active production host
-lives in `runtime/src/main/kotlin/rylween/runtime`.
+lives in `runtimes/runtime/src/main/kotlin/rylween/runtime`.
 
 Core model:
 
@@ -377,7 +377,7 @@ diagnostics, host services, conformance fixtures, and the full acceptance
 playthrough. That scope belongs in a separate product task with an explicit
 target. The previous Rust server/MUD skeleton has been deferred and removed
 from the active checkout; a future server/MUD runtime should start from
-`plans/future-directions.md` when it becomes the next priority.
+`docs/plans/future-directions.md` when it becomes the next priority.
 
 If a non-JVM playable runtime is scheduled, create a new product task for that
 runtime. It must implement:

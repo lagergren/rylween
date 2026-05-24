@@ -41,7 +41,7 @@ ENV RYLWEEN_AUTH_SECURE_COOKIES=true
 
 WORKDIR /app
 COPY --from=builder /src/build/compiled/rylween-bundle.json /app/rylween-bundle.json
-COPY --from=builder /src/runtime-web/build/install/rylween-web /app/rylween-web
+COPY --from=builder /src/runtimes/runtime-web/build/install/rylween-web /app/rylween-web
 
 ENV PATH="/app/rylween-web/bin:${PATH}"
 VOLUME ["/data"]

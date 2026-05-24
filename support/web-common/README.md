@@ -71,7 +71,7 @@ to `~/.rylween/data`; containers default to `/data`.
       email-index.properties
   logs/
     web-server.log
-    runtime-bitmap-web/
+    runtimes/runtime-bitmap-web/
       server.log
       <user>-<timestamp>.log
 ```

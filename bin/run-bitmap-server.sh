@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-INSTALL_HOME="$ROOT_DIR/runtime-bitmap-web/build/install/rylween-bitmap-web"
+INSTALL_HOME="$ROOT_DIR/runtimes/runtime-bitmap-web/build/install/rylween-bitmap-web"
 LAUNCHER="$INSTALL_HOME/bin/rylween-bitmap-web"
 
 DATA_DIR="${RYLWEEN_DATA_DIR:-$HOME/.rylween/data}"

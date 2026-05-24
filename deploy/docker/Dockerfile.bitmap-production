@@ -41,7 +41,7 @@ ENV RYLWEEN_BITMAP_SAVE_FILE=/data/saves/world.rsave
 ENV RYLWEEN_AUTH_SECURE_COOKIES=true
 
 WORKDIR /app
-COPY --from=builder /src/runtime-bitmap-web/build/install/rylween-bitmap-web /app/rylween-bitmap-web
+COPY --from=builder /src/runtimes/runtime-bitmap-web/build/install/rylween-bitmap-web /app/rylween-bitmap-web
 
 ENV PATH="/app/rylween-bitmap-web/bin:${PATH}"
 VOLUME ["/data"]
