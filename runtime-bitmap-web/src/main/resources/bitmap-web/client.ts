@@ -271,7 +271,7 @@ let wildernessRotationAnimation = 0;
 const assetVersion = "20260518-terrain-transitions";
 const textRevealEnabledKey = "rylween.bitmap.textReveal.enabled";
 const textRevealSpeedKey = "rylween.bitmap.textReveal.speed";
-const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap";
+const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap.v2";
 const bitmapFontScaleKey = "rylween.bitmap.textFont.scale";
 const bitmapLineSpacingKey = "rylween.bitmap.textFont.lineSpacing.v2";
 const pauseDelayScaleKey = "rylween.bitmap.pauseDelay.scale";
@@ -280,9 +280,9 @@ const pauseDelayScaleMessagePrefix = "settings:pauseDelayScale=";
 const defaultBitmapFontScale = 1.75;
 const minBitmapFontScale = 1.45;
 const maxBitmapFontScale = 2.1;
-const defaultBitmapLineSpacing = 1.2;
+const defaultBitmapLineSpacing = 1.3;
 const minBitmapLineSpacing = 0.9;
-const maxBitmapLineSpacing = 1.4;
+const maxBitmapLineSpacing = 1.8;
 const defaultPauseDelayScale = 1.0;
 const minPauseDelayScale = 0.25;
 const maxPauseDelayScale = 2.0;
@@ -291,7 +291,7 @@ const textRevealSettings: TextRevealSettings = {
     charsPerSecond: storedNumber(textRevealSpeedKey, 220, 90, 280)
 };
 const textDisplaySettings: TextDisplaySettings = {
-    bitmapFont: storedBoolean(bitmapFontEnabledKey, true),
+    bitmapFont: storedBoolean(bitmapFontEnabledKey, false),
     bitmapFontScale: storedNumber(bitmapFontScaleKey, defaultBitmapFontScale, minBitmapFontScale, maxBitmapFontScale),
     bitmapLineSpacing: storedNumber(bitmapLineSpacingKey, defaultBitmapLineSpacing, minBitmapLineSpacing, maxBitmapLineSpacing)
 };
@@ -1568,8 +1568,17 @@ function drawTitleMenu(frame: BitmapFrame): void {
     drawTitleLogo(canvas.width / 2, 24);
     const lines = frame.textLines || [];
     const panelW = 430;
-    const rowH = 30;
-    const panelH = Math.max(246, lines.length * rowH + 58);
+    const textW = panelW - 58;
+    const rowGap = 10;
+    const wrapped = lines.map((line, index) => {
+        const isHeader = index === 0;
+        ctx.font = isHeader ? "700 25px Palatino, 'Palatino Linotype', Georgia, serif" : "17px Menlo, Monaco, Consolas, monospace";
+        return wrapCanvasLines(line, textW);
+    });
+    const panelH = Math.max(
+        246,
+        wrapped.reduce((height, row, index) => height + row.length * (index === 0 ? 30 : 22) + rowGap, 48)
+    );
     const x = Math.floor((canvas.width - panelW) / 2);
     const y = 214;
     ctx.save();
@@ -1579,12 +1588,18 @@ function drawTitleMenu(frame: BitmapFrame): void {
     ctx.lineWidth = 1;
     ctx.strokeRect(x + 0.5, y + 0.5, panelW - 1, panelH - 1);
     ctx.textAlign = "center";
+    let textY = y + 58;
     lines.forEach((line, index) => {
         const isHeader = index === 0;
         const isDisabled = line.toLowerCase().includes("no save");
         ctx.font = isHeader ? "700 25px Palatino, 'Palatino Linotype', Georgia, serif" : "17px Menlo, Monaco, Consolas, monospace";
         ctx.fillStyle = isHeader ? "#ead68a" : isDisabled ? "rgba(174, 166, 144, 0.55)" : "#f0ead4";
-        ctx.fillText(truncateToWidth(line, panelW - 58), canvas.width / 2, y + 58 + index * rowH);
+        const lineHeight = isHeader ? 30 : 22;
+        for (const part of wrapped[index]) {
+            ctx.fillText(part, canvas.width / 2, textY);
+            textY += lineHeight;
+        }
+        textY += rowGap;
     });
     ctx.restore();
 }
@@ -1639,7 +1654,7 @@ function drawStaticDocument(frame: BitmapFrame): void {
 
 function documentPromptLine(lines: string[]): string {
     const candidate = lines.length > 0 ? lines[lines.length - 1] : "";
-    return /^\(.*RETURN.*\)/i.test(candidate) || candidate.includes("ESC to exit") ? candidate : "";
+    return /^\(.*ENTER.*\)/i.test(candidate) || candidate.includes("ESC to exit") ? candidate : "";
 }
 
 function documentBodyLines(lines: string[], promptLine: string): string[] {
@@ -1657,43 +1672,58 @@ function drawDocumentLine(
     reveal: TextRevealDrawState
 ): { height: number; inCode: boolean } {
     if (line.startsWith("```")) {
-        return { height: inCode ? 12 : 8, inCode: !inCode };
+        return { height: inCode ? 16 : 10, inCode: !inCode };
     }
-    if (line.trim() === "") return { height: 13, inCode };
+    if (line.trim() === "") return { height: 18, inCode };
     if (inCode) {
+        ctx.font = "14px Menlo, Monaco, Consolas, monospace";
+        const parts = wrapCanvasLines(markdownInlineText(line), maxWidth);
+        const lineHeight = 22;
         ctx.fillStyle = "rgba(13, 18, 13, 0.7)";
-        ctx.fillRect(x - 10, y - 14, maxWidth + 20, 20);
-        ctx.font = "13px Menlo, Monaco, Consolas, monospace";
-        drawRevealText(truncateToWidth(markdownInlineText(line), maxWidth), x, y, "#d8d1b8", "rgba(216, 209, 184, 0.24)", reveal);
-        return { height: 20, inCode };
+        ctx.fillRect(x - 10, y - 17, maxWidth + 20, parts.length * lineHeight + 6);
+        parts.forEach((part, index) => {
+            drawRevealText(part, x, y + index * lineHeight, "#d8d1b8", "rgba(216, 209, 184, 0.24)", reveal);
+        });
+        return { height: parts.length * lineHeight + 8, inCode };
     }
     const heading = line.match(/^(#{1,3})\s+(.*)$/);
     if (heading) {
         const level = heading[1].length;
         ctx.font =
-            level === 1 ? "700 25px Palatino, 'Book Antiqua', Georgia, serif" :
-            level === 2 ? "700 20px Palatino, 'Book Antiqua', Georgia, serif" :
-            "700 16px Palatino, 'Book Antiqua', Georgia, serif";
+            level === 1 ? "700 27px Palatino, 'Book Antiqua', Georgia, serif" :
+            level === 2 ? "700 22px Palatino, 'Book Antiqua', Georgia, serif" :
+            "700 18px Palatino, 'Book Antiqua', Georgia, serif";
         const color = level === 1 ? "#f1d77b" : level === 2 ? "#e8c96d" : "#d8bd73";
-        const height = level === 1 ? 32 : level === 2 ? 27 : 22;
-        drawRevealText(truncateToWidth(markdownInlineText(heading[2]), maxWidth), x, y, color, "rgba(232, 201, 109, 0.25)", reveal);
-        return { height, inCode };
+        const lineHeight = level === 1 ? 34 : level === 2 ? 29 : 25;
+        const parts = wrapCanvasLines(markdownInlineText(heading[2]), maxWidth);
+        parts.forEach((part, index) => {
+            drawRevealText(part, x, y + index * lineHeight, color, "rgba(232, 201, 109, 0.25)", reveal);
+        });
+        return { height: parts.length * lineHeight + 4, inCode };
     }
     if (line.startsWith(">")) {
         const text = markdownInlineText(line.replace(/^>\s?/, ""));
-        ctx.fillStyle = "rgba(218, 189, 107, 0.42)";
-        ctx.fillRect(x - 12, y - 15, 3, 19);
-        ctx.font = "italic 15px Georgia, 'Times New Roman', serif";
-        drawRevealText(truncateToWidth(text, maxWidth - 10), x + 8, y, "#cfc39f", "rgba(207, 195, 159, 0.23)", reveal);
-        return { height: 21, inCode };
+        ctx.font = "italic 17px Georgia, 'Times New Roman', serif";
+        const quoteX = x + 10;
+        const parts = wrapCanvasLines(text, maxWidth - 20);
+        const lineHeight = 25;
+        parts.forEach((part, index) => {
+            drawRevealText(part, quoteX, y + index * lineHeight, "#d8cba7", "rgba(216, 203, 167, 0.23)", reveal);
+        });
+        return { height: parts.length * lineHeight + 4, inCode };
     }
-    ctx.font = "15px Georgia, 'Times New Roman', serif";
-    drawRevealText(truncateToWidth(markdownInlineText(line), maxWidth), x, y, "#efe4c6", "rgba(239, 228, 198, 0.25)", reveal);
-    return { height: 19, inCode };
+    ctx.font = "17px Georgia, 'Times New Roman', serif";
+    const parts = wrapCanvasLines(markdownInlineText(line), maxWidth);
+    const lineHeight = 24;
+    parts.forEach((part, index) => {
+        drawRevealText(part, x, y + index * lineHeight, "#efe4c6", "rgba(239, 228, 198, 0.25)", reveal);
+    });
+    return { height: parts.length * lineHeight, inCode };
 }
 
 function markdownInlineText(line: string): string {
     return line
+        .replace(/^#{1,6}\s+/, "")
         .replace(/&mdash;/g, "-")
         .replace(/\*\*([^*]+)\*\*/g, "$1")
         .replace(/\*([^*]+)\*/g, "$1")
@@ -3480,7 +3510,7 @@ function drawTextPanel(frame: BitmapFrame): void {
             for (const part of wrapFantasyLines(line, maxWidth, bitmapScale)) {
                 if (ty > bottom) break;
                 drawFantasyRevealText(
-                    truncateFantasyToWidth(part, maxWidth, bitmapScale),
+                    part,
                     x,
                     ty,
                     lineColor,
@@ -3491,11 +3521,11 @@ function drawTextPanel(frame: BitmapFrame): void {
                 ty += bitmapLineHeight;
             }
         } else {
-            ctx.font = "15px Menlo, Monaco, Consolas, monospace";
+            ctx.font = "17px Georgia, 'Times New Roman', serif";
             for (const part of wrapCanvasLines(line, maxWidth)) {
                 if (ty > bottom) break;
-                drawRevealText(truncateToWidth(part, maxWidth), x, ty, lineColor, dimColor, reveal);
-                ty += Math.ceil(20 * textDisplaySettings.bitmapLineSpacing);
+                drawRevealText(part, x, ty, lineColor, dimColor, reveal);
+                ty += Math.ceil(24 * textDisplaySettings.bitmapLineSpacing);
             }
         }
     }
@@ -3585,16 +3615,16 @@ function drawPartyInventoryText(page: BitmapPartyPage, x: number, y: number, max
         if (textDisplaySettings.bitmapFont) {
             for (const part of wrapFantasyLines(entry, maxWidth, bitmapScale)) {
                 if (ty > bottom) return;
-                drawFantasyText(truncateFantasyToWidth(part, maxWidth, bitmapScale), x, ty - fantasyFontHeight * bitmapScale, bitmapScale, "#efe4c6");
+                drawFantasyText(part, x, ty - fantasyFontHeight * bitmapScale, bitmapScale, "#efe4c6");
                 ty += bitmapLineHeight + 1;
             }
         } else {
-            ctx.font = "15px Menlo, Monaco, Consolas, monospace";
+            ctx.font = "17px Georgia, 'Times New Roman', serif";
             ctx.fillStyle = "#efe4c6";
             for (const part of wrapCanvasLines(entry, maxWidth)) {
                 if (ty > bottom) return;
-                ctx.fillText(truncateToWidth(part, maxWidth), x, ty);
-                ty += 20;
+                ctx.fillText(part, x, ty);
+                ty += 25;
             }
         }
     }

@@ -13,9 +13,11 @@ import rylween.webcommon.WebServerStatus
 import rylween.webcommon.WebSocketConnection
 import rylween.webcommon.WebSocketProtocol
 import rylween.webcommon.auth.WebAccount
+import rylween.webcommon.auth.WebAuthAvailability
 import rylween.webcommon.auth.WebAuthBootstrapAccount
 import rylween.webcommon.auth.WebAuthBootstrapResult
 import rylween.webcommon.auth.WebAuthCookies
+import rylween.webcommon.auth.WebAuthFieldAvailability
 import rylween.webcommon.auth.WebAuthPageMode
 import rylween.webcommon.auth.WebAuthResult
 import rylween.webcommon.auth.WebSessionStore
@@ -326,6 +328,7 @@ private class RuntimeWebServer(
             "/api/login" -> routeLogin(socket, request, clientId)
             "/api/register" -> routeRegister(socket, request, clientId)
             "/api/logout" -> routeLogout(socket, request, clientId)
+            "/api/auth/availability" -> routeAuthAvailability(socket, request, clientId)
             "/api/status" -> routeStatus(socket, request, clientId)
             "/auth.css" -> serveCommonResource(socket, "auth.css", "text/css; charset=utf-8", clientId)
             "/healthz" -> {
@@ -431,6 +434,17 @@ private class RuntimeWebServer(
         val form = request.formFields()
         val name = form["name"].orEmpty()
         val email = form["email"].orEmpty()
+        savedPartyNameConflict(name)?.let { message ->
+            serverLog.event("web.auth.register_failed id=$clientId email=${logValue(email)} name=${logValue(name)} reason=${logValue(message)}")
+            serverLog.event("web.http.response id=$clientId status=400 path=${request.path}")
+            respondText(
+                socket,
+                "400 Bad Request",
+                "text/html; charset=utf-8",
+                webAuthPageHtml(WebAuthPageMode.Register, message, email, name),
+            )
+            return
+        }
         when (val result = userStore.register(name, email, form["password"].orEmpty())) {
             is WebAuthResult.Success -> {
                 val token = sessions.create(result.account)
@@ -457,6 +471,30 @@ private class RuntimeWebServer(
                 )
             }
         }
+    }
+
+    private fun routeAuthAvailability(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        val name = request.query["name"].orEmpty()
+        val email = request.query["email"].orEmpty()
+        val availability = userStore.availability(name, email).withSavedPartyNameConflict(name)
+        serverLog.event("web.http.response id=$clientId status=200 path=${request.path}")
+        respondText(socket, "200 OK", "application/json; charset=utf-8", availability.toJson())
+    }
+
+    private fun savedPartyNameConflict(name: String): String? {
+        val slug = slugFrom(name) ?: return null
+        return "That adventurer name already has saved game data.".takeIf {
+            factory.hasUserSave(config.worldSaveFile, slug)
+        }
+    }
+
+    private fun WebAuthAvailability.withSavedPartyNameConflict(name: String): WebAuthAvailability {
+        val message = savedPartyNameConflict(name) ?: return this
+        return copy(name = WebAuthFieldAvailability(false, message))
     }
 
     private fun routeLogout(
@@ -664,6 +702,26 @@ private object WebConsole {
         System.out.println(value)
     }
 }
+
+private fun WebAuthAvailability.toJson(): String = """{"name":${name.toJson()},"email":${email.toJson()}}"""
+
+private fun WebAuthFieldAvailability.toJson(): String = """{"available":$available,"message":${message.jsonString()}}"""
+
+private fun String.jsonString(): String =
+    buildString {
+        append('"')
+        this@jsonString.forEach { char ->
+            when (char) {
+                '\\' -> append("\\\\")
+                '"' -> append("\\\"")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> append(char)
+            }
+        }
+        append('"')
+    }
 
 private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
