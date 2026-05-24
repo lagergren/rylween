@@ -30,7 +30,7 @@ COPY . .
 # compiled bundle or installed web runtime cannot be built:
 #   /src/build/compiled/rylween-bundle.json
 #     The compiled game data bundle emitted from the Kotlin DSL.
-#   /src/runtime-web/build/install/rylween-web/
+#   /src/runtimes/runtime-web/build/install/rylween-web/
 #     A Gradle install image for the Kotlin web runtime. Its bin/rylween-web
 #     file is a generated JVM start script whose main class serves the browser
 #     ANSI POC over HTTP/WebSocket; the Kotlin jars and dependencies live beside
@@ -54,7 +54,7 @@ WORKDIR /app
 COPY --from=builder /src/build/compiled/rylween-bundle.json /app/rylween-bundle.json
 # Copy the installed Kotlin web runtime distribution. /app/rylween-web/bin/rylween-web
 # is the generated launcher script, not a native binary or the old ANSI/Rust path.
-COPY --from=builder /src/runtime-web/build/install/rylween-web /app/rylween-web
+COPY --from=builder /src/runtimes/runtime-web/build/install/rylween-web /app/rylween-web
 
 ENV PATH="/app/rylween-web/bin:${PATH}"
 VOLUME ["/data"]

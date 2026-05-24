@@ -31,7 +31,7 @@ Kotlin JSON reader and inspection check through:
 `check` depends on these JSON checks. `checkRuntimeBundleBoot` emits the
 JSON bundle, installs the runtime, and runs the title screen
 from that bundle. `checkNativeJsonBundle` compiles a small C reader that reuses
-the vendored `tools/src/main/c/json5` parser source with a compatibility shim,
+the vendored `support/tools/src/main/c/json5` parser source with a compatibility shim,
 then validates the same JSON artifact structurally.
 
 ## Current Runtime Status
@@ -55,7 +55,7 @@ J1 is closed for the current artifact-backed runtime target. Kotlin emits,
 reads, hashes, inspects, validates, and boots from the strict JSON artifact.
 Schema version 3 also contains `runtimeSystems`, a stable non-reflective section
 for the first runtime-facing systems a non-Kotlin loader should consume
-directly: realm balance, reusable prompts, terminal/layout/static presentation,
+directly: realm balance, reusable prompts, support/terminal/layout/static presentation,
 command bindings, inventory and character-creation prompt text rows, wilderness
 events, town/speak runtime boundaries, and Ydarg as a `castles[]` entry. The native C reader validates schema version, section
 order, canonical `sections` SHA-256, core row counts, and the `runtimeSystems`
@@ -166,7 +166,7 @@ Version 4 includes authored upkeep text such as
 `realm.upkeep.starvationDeath`, so runtimes do not need local prose for
 starvation deaths. `readExternalRuntimeSystemsSummary()` validates this section
 on the Kotlin side and rejects reflective markers.
-`tools/src/main/c/bundle-json/rylween_bundle_json.c` validates the same section
+`support/tools/src/main/c/bundle-json/rylween_bundle_json.c` validates the same section
 on the C side before any future gameplay execution.
 
 The remaining sections document the J0 binary smoke artifact.

@@ -52,7 +52,7 @@ Run the browser canvas smoke with:
 ```
 
 The task resolves Playwright through Gradle and downloads the managed browser
-under `runtime-bitmap-web/build/playwright-browsers`; it does not use or install
+under `runtimes/runtime-bitmap-web/build/playwright-browsers`; it does not use or install
 a system Chrome/Chromium. The default browser is Chromium. To try another
 Playwright browser:
 
@@ -63,4 +63,4 @@ Playwright browser:
 The smoke seeds a Strong party, starts the installed bitmap server on a local
 ephemeral port, waits for the first rendered canvas frame, samples representative
 compiled `/assets/game-image/<id>` resources, and writes a screenshot to
-`runtime-bitmap-web/build/reports/bitmap-browser-smoke/bitmap-first-frame.png`.
+`runtimes/runtime-bitmap-web/build/reports/bitmap-browser-smoke/bitmap-first-frame.png`.

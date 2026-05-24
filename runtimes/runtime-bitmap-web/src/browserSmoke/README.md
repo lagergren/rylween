@@ -18,7 +18,7 @@ resolves the Playwright Java dependency and runs the Playwright CLI task
 browser into:
 
 ```text
-runtime-bitmap-web/build/playwright-browsers
+runtimes/runtime-bitmap-web/build/playwright-browsers
 ```
 
 This keeps the test self-contained with respect to browser dependencies. It does
@@ -38,7 +38,7 @@ accepted by `BitmapBrowserSmoke.kt`.
 The smoke test does the following:
 
 - resets an isolated work directory under
-  `runtime-bitmap-web/build/bitmap-browser-smoke`;
+  `runtimes/runtime-bitmap-web/build/bitmap-browser-smoke`;
 - seeds a Strong save game through the installed JVM runtime launcher;
 - starts the installed bitmap web runtime on an ephemeral `127.0.0.1` port;
 - waits for `/healthz` to report `ok`;
@@ -54,7 +54,7 @@ The smoke test does the following:
 Reports and logs are written to:
 
 ```text
-runtime-bitmap-web/build/reports/bitmap-browser-smoke
+runtimes/runtime-bitmap-web/build/reports/bitmap-browser-smoke
 ```
 
 Useful artifacts include `bitmap-first-frame.png`,

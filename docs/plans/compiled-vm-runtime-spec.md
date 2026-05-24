@@ -35,7 +35,7 @@ inside `scratch/legacy-archive.zip`:
 
 - `bin/run.sh` installs and runs `rylween`, whose
   entry point is
-  `runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt`.
+  `runtimes/runtime/src/main/kotlin/rylween/runtime/RylweenRuntimeMain.kt`.
   This is now the active runtime. It reads
   `CompiledGameBundle` plus stable `runtimeSystems` rows directly and must not
   depend on `RylweenKotlinEngine`, old session classes such as
@@ -365,10 +365,10 @@ requirements:
 
 The current JVM ANSI helpers live in:
 
-- `terminal/src/main/kotlin/rylween/terminal/AnsiCodes.kt`
-- `terminal/src/main/kotlin/rylween/terminal/AnsiInput.kt`
-- `terminal/src/main/kotlin/rylween/terminal/AnsiTerminal.kt`
-- `runtime/src/main/kotlin/rylween/runtime/RuntimeScreen.kt`
+- `support/terminal/src/main/kotlin/rylween/terminal/AnsiCodes.kt`
+- `support/terminal/src/main/kotlin/rylween/terminal/AnsiInput.kt`
+- `support/terminal/src/main/kotlin/rylween/terminal/AnsiTerminal.kt`
+- `runtimes/runtime/src/main/kotlin/rylween/runtime/RuntimeScreen.kt`
 
 Other runtimes may implement their own terminal layer, but the same commands
 and presentation tables must drive the game.
@@ -440,7 +440,7 @@ Those JVM pieces can remain as reference implementations and conformance
 oracles, but the bundle contract is the portable runtime API.
 
 The current JVM runtime demonstrates this boundary with
-`runtime/src/main/kotlin/rylween/runtime/SaveFile.kt`.
+`runtimes/runtime/src/main/kotlin/rylween/runtime/SaveFile.kt`.
 That file is not the cross-language save-file standard; it is the direct
 runtime's first persistent adapter and shows the required policy:
 store portable runtime ids, bind the save to the verified bundle hash, and

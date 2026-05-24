@@ -28,8 +28,8 @@ import javax.inject.Inject
 /**
  * Compiles the small native C probes that validate the emitted bundle contract.
  *
- * The tools project wires this task to `tools/src/main/c/compiled-smoke` and
- * `tools/src/main/c/bundle-json`; the task type lives in build logic so
+ * The tools project wires this task to `support/tools/src/main/c/compiled-smoke` and
+ * `support/tools/src/main/c/bundle-json`; the task type lives in build logic so
  * project build files stay focused on project wiring.
  */
 abstract class CompileNativeCExecutableTask
