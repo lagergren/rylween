@@ -614,7 +614,7 @@ internal fun fullScreenTextPages(lines: List<String>): List<List<String>> =
         .ifEmpty { listOf("") }
         .chunked(FULL_SCREEN_PAGE_LINES)
 
-internal fun documentPrompt(action: String): String = "(Press RETURN/ENTER $action) (ESC to exit)"
+internal fun documentPrompt(action: String): String = "(Press ENTER $action) (ESC to exit)"
 
 internal fun readDocumentAdvance(advance: () -> Char?): Char? {
     while (true) {

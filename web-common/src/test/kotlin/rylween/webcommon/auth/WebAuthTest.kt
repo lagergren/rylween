@@ -21,6 +21,21 @@ class WebAuthTest {
     }
 
     @Test
+    fun availabilityReportsDuplicateNameAndEmail() {
+        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+
+        store.register("Strong Party", "strong@example.test", "password123")
+
+        val duplicate = store.availability("Strong Party", "strong@example.test")
+        val fresh = store.availability("New Party", "new@example.test")
+
+        assertEquals(false, duplicate.name.available)
+        assertEquals(false, duplicate.email.available)
+        assertEquals(true, fresh.name.available)
+        assertEquals(true, fresh.email.available)
+    }
+
+    @Test
     fun bootstrapAccountIsCreatedOrVerified() {
         val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
         val bootstrap = WebAuthBootstrapAccount("Strong Party", "strong@example.test", "password123")

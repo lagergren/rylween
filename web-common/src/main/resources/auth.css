@@ -110,3 +110,23 @@ button:hover { background: #3d533f; }
 a {
   color: #c9dda1;
 }
+
+.field-status {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.field-status.ok {
+  color: #9bd073;
+}
+
+.field-status.bad {
+  color: var(--danger);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

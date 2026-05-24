@@ -40,6 +40,16 @@ data class WebAuthBootstrapAccount(
     val password: String,
 )
 
+data class WebAuthFieldAvailability(
+    val available: Boolean,
+    val message: String,
+)
+
+data class WebAuthAvailability(
+    val name: WebAuthFieldAvailability,
+    val email: WebAuthFieldAvailability,
+)
+
 sealed class WebAuthResult {
     data class Success(
         val account: WebAccount,
@@ -70,6 +80,33 @@ class WebUserStore(
     private val lock = ReentrantLock(true)
     private val usersDir = dataDir.resolve("users/by-slug")
     private val emailIndexFile = dataDir.resolve("users/email-index.properties")
+
+    fun availability(
+        displayName: String,
+        email: String,
+    ): WebAuthAvailability =
+        lock.withLock {
+            val cleanName = displayName.trim().take(40)
+            val slug = slugFrom(cleanName)
+            val normalizedEmail = normalizeEmail(email)
+            val emailIndex = loadProperties(emailIndexFile)
+            WebAuthAvailability(
+                name =
+                    when {
+                        cleanName.isBlank() || slug == null -> WebAuthFieldAvailability(false, "Enter an adventurer name.")
+                        userFile(slug).isFile -> WebAuthFieldAvailability(false, "That adventurer name is already registered.")
+                        else -> WebAuthFieldAvailability(true, "Adventurer name is available.")
+                    },
+                email =
+                    when {
+                        normalizedEmail == null -> WebAuthFieldAvailability(false, "Enter a valid email address.")
+                        emailIndex.getProperty(
+                            normalizedEmail,
+                        ) != null -> WebAuthFieldAvailability(false, "That email is already registered.")
+                        else -> WebAuthFieldAvailability(true, "Email is available.")
+                    },
+            )
+        }
 
     fun register(
         displayName: String,

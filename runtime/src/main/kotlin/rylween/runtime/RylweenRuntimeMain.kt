@@ -850,13 +850,7 @@ class GameRuntime private constructor(
                 }
 
                 else -> {
-                    log.event("title.invalid key=$command")
-                    screen.writeText(
-                        systems.prompts.titleMenu.invalidInput
-                            .render({ null }, screen.textColumns) +
-                            runtimeGeneratedDetailText("Key: $command"),
-                    )
-                    input.readCommand()
+                    log.event("title.ignored key=$command")
                 }
             }
         }

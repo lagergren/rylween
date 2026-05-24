@@ -22,7 +22,8 @@ fun webAuthPageHtml(
             """
             <label>
               Adventurer name
-              <input name="name" autocomplete="username" value="${displayName.htmlEscaped()}" required>
+              <input id="name" name="name" autocomplete="username" value="${displayName.htmlEscaped()}" required>
+              <span class="field-status" data-field-status="name" aria-live="polite"></span>
             </label>
             """.trimIndent()
         } else {
@@ -49,7 +50,8 @@ fun webAuthPageHtml(
                 $nameField
                 <label>
                   Email
-                  <input name="email" type="email" autocomplete="email" value="${email.htmlEscaped()}" required>
+                  <input id="email" name="email" type="email" autocomplete="email" value="${email.htmlEscaped()}" required>
+                  ${if (registering) """<span class="field-status" data-field-status="email" aria-live="polite"></span>""" else ""}
                 </label>
                 <label>
                   Password
@@ -60,6 +62,7 @@ fun webAuthPageHtml(
               <p class="switch">$alternateText <a href="$alternateHref">$alternateAction</a></p>
             </section>
           </main>
+          ${if (registering) registrationAvailabilityScript() else ""}
         </body>
         </html>
         """.trimIndent()
@@ -78,3 +81,72 @@ private fun String.htmlEscaped(): String =
             }
         }
     }
+
+private fun registrationAvailabilityScript(): String =
+    """
+    <script>
+    (() => {
+      const form = document.querySelector("form");
+      const name = document.querySelector("input[name='name']");
+      const email = document.querySelector("input[name='email']");
+      const submit = document.querySelector("button[type='submit']");
+      const status = {
+        name: document.querySelector("[data-field-status='name']"),
+        email: document.querySelector("[data-field-status='email']")
+      };
+      let latest = 0;
+      let availability = { name: false, email: false };
+
+      function setStatus(field, available, message) {
+        availability[field] = Boolean(available);
+        const element = status[field];
+        if (!element) return;
+        element.textContent = message ? (available ? "✓ " : "✕ ") + message : "";
+        element.className = "field-status " + (message ? (available ? "ok" : "bad") : "");
+      }
+
+      function syncSubmit() {
+        if (!submit) return;
+        submit.disabled = Boolean(name?.value && email?.value) && !(availability.name && availability.email);
+      }
+
+      async function check() {
+        const id = ++latest;
+        const query = new URLSearchParams({ name: name?.value || "", email: email?.value || "" });
+        if (!query.get("name") && !query.get("email")) {
+          setStatus("name", false, "");
+          setStatus("email", false, "");
+          syncSubmit();
+          return;
+        }
+        try {
+          const response = await fetch("/api/auth/availability?" + query.toString(), { headers: { "Accept": "application/json" } });
+          if (id !== latest || !response.ok) return;
+          const body = await response.json();
+          setStatus("name", body.name?.available, body.name?.message || "");
+          setStatus("email", body.email?.available, body.email?.message || "");
+        } catch (_error) {
+          setStatus("name", false, "");
+          setStatus("email", false, "");
+        }
+        syncSubmit();
+      }
+
+      let timer = 0;
+      function schedule() {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(check, 180);
+      }
+
+      name?.addEventListener("input", schedule);
+      email?.addEventListener("input", schedule);
+      form?.addEventListener("submit", (event) => {
+        if (!(availability.name && availability.email)) {
+          event.preventDefault();
+          check();
+        }
+      });
+      check();
+    })();
+    </script>
+    """.trimIndent()
