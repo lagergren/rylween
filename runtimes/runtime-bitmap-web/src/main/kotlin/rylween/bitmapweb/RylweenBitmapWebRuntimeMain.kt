@@ -537,7 +537,11 @@ private class BitmapWebServer(
             socket,
             "200 OK",
             "text/html; charset=utf-8",
-            webAuthPageHtml(WebAuthPageMode.Login, backgroundImage = "/assets/title/title-rider.png"),
+            webAuthPageHtml(
+                WebAuthPageMode.Login,
+                backgroundImage = "/assets/title/title-rider.png",
+                rememberedLogin = WebAuthCookies.rememberedLogin(request.headers),
+            ),
         )
     }
 
@@ -572,7 +576,14 @@ private class BitmapWebServer(
                 val token = sessions.create(result.account)
                 serverLog.event("bitmap.auth.login id=$clientId user=${result.account.slug} email=${serverLogValue(result.account.email)}")
                 serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
-                redirect(socket, "/play", listOf(WebAuthCookies.login(token, secure = config.secureCookies)))
+                redirect(
+                    socket,
+                    "/play",
+                    listOf(
+                        WebAuthCookies.login(token, secure = config.secureCookies),
+                        WebAuthCookies.rememberLogin(result.account.email, secure = config.secureCookies),
+                    ),
+                )
             }
             is WebAuthResult.Failure -> {
                 serverLog.event(
@@ -599,7 +610,9 @@ private class BitmapWebServer(
         val email = form["email"].orEmpty()
         savedPartyNameConflict(name)?.let { message ->
             serverLog.event(
-                "bitmap.auth.register_failed id=$clientId email=${serverLogValue(email)} name=${serverLogValue(name)} reason=${serverLogValue(message)}",
+                "bitmap.auth.register_failed id=$clientId email=${serverLogValue(
+                    email,
+                )} name=${serverLogValue(name)} reason=${serverLogValue(message)}",
             )
             serverLog.event("bitmap.http.response id=$clientId status=400 path=${request.path}")
             respondText(
@@ -625,7 +638,14 @@ private class BitmapWebServer(
                     )} confirmed=${result.account.emailConfirmed}",
                 )
                 serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
-                redirect(socket, "/play", listOf(WebAuthCookies.login(token, secure = config.secureCookies)))
+                redirect(
+                    socket,
+                    "/play",
+                    listOf(
+                        WebAuthCookies.login(token, secure = config.secureCookies),
+                        WebAuthCookies.rememberLogin(result.account.email, secure = config.secureCookies),
+                    ),
+                )
             }
             is WebAuthResult.Failure -> {
                 serverLog.event(

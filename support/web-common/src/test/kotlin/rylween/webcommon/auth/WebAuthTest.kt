@@ -70,6 +70,14 @@ class WebAuthTest {
     }
 
     @Test
+    fun rememberedLoginCookieRoundTripsWithoutPassword() {
+        val header = WebAuthCookies.rememberLogin("strong+tester@example.test")
+        val value = WebAuthCookies.rememberedLogin(mapOf("cookie" to header.value.substringAfter("Set-Cookie: ")))
+
+        assertEquals("strong+tester@example.test", value)
+    }
+
+    @Test
     fun sessionsResolveAndCanBeRemoved() {
         val sessions = WebSessionStore()
         val account = WebAccount("strong", "Strong", "strong@example.test", emailConfirmed = true)
