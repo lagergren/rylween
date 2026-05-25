@@ -29,7 +29,7 @@ import java.io.File
 import java.time.LocalDate
 
 private const val SAVE_FORMAT = "rylween-save"
-private const val SAVE_VERSION = "1"
+private const val SAVE_VERSION = "2"
 private const val SAVE_MODEL = "shared-world"
 private const val PARTY_MEMBER_RECORD_COUNT = "party.members"
 private const val USERS_COUNT = "users.count"
@@ -462,7 +462,8 @@ internal object SaveFile {
         put("$prefix.wisdom", member.wisdom.toString())
         put("$prefix.magic", member.mana.current.toString())
         put("$prefix.magicMax", member.mana.max.toString())
-        put("$prefix.charisma", member.charisma.toString())
+        put(".charisma", member.charisma.toString())
+        put("$prefix.dexterity", member.dexterity.toString())
         put("$prefix.weapon", content.slug(member.equipment.weapon))
         put("$prefix.armor", content.slug(member.equipment.armor))
         put("$prefix.experience", member.experience.toString())
@@ -719,6 +720,7 @@ internal object SaveFile {
                         intOrDefault("$prefix.magicMax", member.mana.max),
                     ),
                 charisma = intOrDefault("$prefix.charisma", member.charisma),
+                dexterity = requiredInt("$prefix.dexterity"),
                 equipment = readEquipment(prefix, member.equipment, content),
                 experience = intOrDefault("$prefix.experience", member.experience),
                 dead = booleanOrDefault("$prefix.dead", member.dead),
@@ -901,6 +903,8 @@ internal object SaveFile {
         key: String,
         default: Int,
     ): Int = get(key)?.takeIf(String::isNotEmpty)?.toInt() ?: default
+
+    private fun Map<String, String>.requiredInt(key: String): Int = required(key).toInt()
 
     private fun Map<String, String>.optionalInt(key: String): Int? = get(key)?.takeIf(String::isNotEmpty)?.toInt()
 

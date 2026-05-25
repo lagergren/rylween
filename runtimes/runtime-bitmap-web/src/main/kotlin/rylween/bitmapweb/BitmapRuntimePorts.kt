@@ -919,6 +919,7 @@ private fun RuntimePartyPageView.toBitmapPartyPage(pauseLine: String): BitmapPar
                     health = member.health,
                     wisdom = member.wisdom,
                     charisma = member.charisma,
+                    dexterity = member.dexterity,
                     hitPoints = member.hitPoints,
                     hitPointMax = member.hitPointMax,
                     mana = member.mana,

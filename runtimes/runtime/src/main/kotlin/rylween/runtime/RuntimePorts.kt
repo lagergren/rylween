@@ -210,6 +210,7 @@ data class RuntimePartyMemberView(
     val health: Int,
     val wisdom: Int,
     val charisma: Int,
+    val dexterity: Int,
     val hitPoints: Int,
     val hitPointMax: Int,
     val mana: Int,

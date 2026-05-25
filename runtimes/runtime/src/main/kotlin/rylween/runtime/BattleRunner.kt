@@ -822,6 +822,7 @@ internal class BattleRunner(
                     health = nextHealth,
                     wisdom = member.wisdom + (growth?.wisdom ?: 0) * gained,
                     charisma = member.charisma + (growth?.charisma ?: 0) * gained,
+                    dexterity = member.dexterity + (growth?.dexterity ?: 0) * gained,
                     hitPoints = member.hitPoints.current.coerceAtLeast(hpFloor) of nextHealth,
                 )
             }
@@ -1376,6 +1377,7 @@ internal class BattleRunner(
                 "wisdom" -> member.wisdom
                 "charisma" -> member.charisma
                 "weapon_skill" -> member.weaponSkill
+                "dexterity" -> member.dexterity
                 "class" -> member.pcClass.sourceId
                 "experience" -> member.experience
                 "dead" -> if (member.dead) 1 else 0
@@ -1409,6 +1411,7 @@ internal class BattleRunner(
                     "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
                     "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
                     "weapon_skill" -> member.copy(weaponSkill = value.coerceAtLeast(0))
+                    "dexterity" -> member.copy(dexterity = value.coerceAtLeast(0))
                     "experience" -> member.copy(experience = value.coerceAtLeast(0))
                     "dead" -> member.copy(dead = value != 0)
                     else -> error("unknown compiled battle member field $field")
@@ -1758,6 +1761,7 @@ internal class BattleRunner(
                 "mana" -> member.mana.current
                 "mana_max" -> member.mana.max
                 "charisma" -> member.charisma
+                "dexterity" -> member.dexterity
                 "experience" -> member.experience
                 "dead" -> if (member.dead) 1 else 0
                 else -> 0

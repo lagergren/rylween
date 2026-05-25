@@ -272,6 +272,7 @@ class MemberRef(
     val wisdom: IntSlot = intField("wisdom")
     val charisma: IntSlot = intField("charisma")
     val weaponSkill: IntSlot = intField("weapon_skill")
+    val dexterity: IntSlot = intField("dexterity")
     val pcClass: IntSlot = intField("class")
     val dead: BoolSlot =
         BoolSlot(

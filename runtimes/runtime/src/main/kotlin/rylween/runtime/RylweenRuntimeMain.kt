@@ -1115,6 +1115,7 @@ class GameRuntime private constructor(
                 wisdom = draw("wisdom"),
                 health = draw("health"),
                 charisma = draw("charisma"),
+                dexterity = draw("dexterity"),
             )
         return CreationStatsResult(stats, withParty(nextParty))
     }
@@ -1179,6 +1180,7 @@ class GameRuntime private constructor(
             wisdom = stats.wisdom,
             mana = initialCreationMana(pcClass, stats.wisdom),
             charisma = stats.charisma,
+            dexterity = stats.dexterity,
             equipment = CompiledEquipment(blank, blank),
             experience = 0,
             dead = false,
@@ -2190,6 +2192,7 @@ private data class CreationStats(
     val health: Int,
     val wisdom: Int,
     val charisma: Int,
+    val dexterity: Int,
 ) {
     fun value(stat: CharacterCreationStat): Int =
         when (stat) {
@@ -2197,6 +2200,7 @@ private data class CreationStats(
             CharacterCreationStat.Health -> health
             CharacterCreationStat.Wisdom -> wisdom
             CharacterCreationStat.Charisma -> charisma
+            CharacterCreationStat.Dexterity -> dexterity
         }
 }
 
@@ -2388,6 +2392,7 @@ private fun ExternalRuntimeTextBlock.renderCreation(
                 "creationHealth" -> stats?.health?.toString()
                 "creationWisdom" -> stats?.wisdom?.toString()
                 "creationCharisma" -> stats?.charisma?.toString()
+                "creationDexterity" -> stats?.dexterity?.toString()
                 else -> null
             }
         },

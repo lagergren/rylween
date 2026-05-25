@@ -63,6 +63,7 @@ private data class ReplayMemberFixture(
     val armor: ItemId,
     val experience: Int = 0,
     val dead: Boolean = false,
+    val dexterity: Int = 50,
 )
 
 private fun replayMember(
@@ -81,6 +82,7 @@ private fun replayMember(
     armor: ItemId = Items.none,
     experience: Int = 0,
     dead: Boolean = false,
+    dexterity: Int = 50,
 ): ReplayMemberFixture =
     ReplayMemberFixture(
         name = name,
@@ -98,6 +100,7 @@ private fun replayMember(
         armor = armor,
         experience = experience,
         dead = dead,
+        dexterity = dexterity,
     )
 
 private fun overpoweredMember(
@@ -111,6 +114,7 @@ private fun overpoweredMember(
     mana: Mana = 0 of wisdom,
     charisma: Int = 90,
     dead: Boolean = false,
+    dexterity: Int = 90,
 ): ReplayMemberFixture =
     replayMember(
         name = name,
@@ -127,6 +131,7 @@ private fun overpoweredMember(
         weapon = Items.deathBlade,
         armor = Items.admtMail,
         dead = dead,
+        dexterity = dexterity,
     )
 
 private fun PartyMembersBuilder.member(fixture: ReplayMemberFixture): Unit =
@@ -141,6 +146,7 @@ private fun PartyMembersBuilder.member(fixture: ReplayMemberFixture): Unit =
         wisdom = fixture.wisdom
         mana = fixture.mana
         charisma = fixture.charisma
+        dexterity = fixture.dexterity
         equipped {
             weapon = fixture.weapon
             armor = fixture.armor
@@ -177,6 +183,7 @@ private val strongReplayMembers: List<ReplayMemberFixture> =
             78,
             Items.magicSword,
             Items.mithrilMail,
+            dexterity = 82,
         ),
         replayMember(
             "Legolas",
@@ -192,6 +199,7 @@ private val strongReplayMembers: List<ReplayMemberFixture> =
             86,
             Items.crossbow,
             Items.elvinCloak,
+            dexterity = 92,
         ),
         replayMember(
             "Gandalf",
@@ -207,6 +215,7 @@ private val strongReplayMembers: List<ReplayMemberFixture> =
             74,
             Items.magicDagger,
             Items.leather,
+            dexterity = 76,
         ),
         replayMember(
             "Mira",
@@ -222,6 +231,7 @@ private val strongReplayMembers: List<ReplayMemberFixture> =
             80,
             Items.magicAxe,
             Items.chainMail,
+            dexterity = 72,
         ),
     )
 

@@ -114,6 +114,8 @@ class RylweenCompiledGameLedgerTest {
         val externalBundleText = externalBundle.decodeToString()
         val runtimeSystems = externalBundle.readExternalRuntimeSystems()
 
+        check(runtimeSystems.schemaVersion == 9)
+        check("\"dexterity\"" in externalBundleText)
         check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 14)
         check(nextDsl.itemCatalog.size == 63)
@@ -1340,10 +1342,11 @@ class RylweenCompiledGameLedgerTest {
         check(strongParty.members.map { it.pcClass } == listOf(PcClass.Fighter, PcClass.Ranger, PcClass.Mage, PcClass.Priest))
         check(
             strongParty.members.all { member ->
-                listOf(member.health, member.weaponSkill, member.wisdom, member.charisma).all { it >= 70 }
+                listOf(member.health, member.weaponSkill, member.wisdom, member.charisma, member.dexterity).all { it >= 70 }
             },
         )
         check(strongParty.members.first().weaponSkill == 95)
+        check(strongParty.members.map { it.dexterity } == listOf(82, 92, 76, 72))
         check(strongParty.members[1].weaponSkill >= 70 && strongParty.members[1].charisma >= 70)
         check(strongParty.members[2].wisdom >= 70 && strongParty.members[3].wisdom >= 70)
         check(strongParty.members.map { it.level }.all { it == 1 })
@@ -2305,8 +2308,12 @@ class RylweenCompiledGameLedgerTest {
         check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/SaveFile.kt").isFile) {
             "runtime must own its direct save/load adapter"
         }
-        check("internal object SaveCodec" in File("runtimes/runtime/src/main/kotlin/rylween/runtime/SaveFile.kt").readText()) {
+        val saveFileSource = File("runtimes/runtime/src/main/kotlin/rylween/runtime/SaveFile.kt").readText()
+        check("internal object SaveCodec" in saveFileSource) {
             "runtime save escaping must stay in the save adapter, not terminal input/color code"
+        }
+        check("private const val SAVE_VERSION = \"2\"" in saveFileSource && "member.dexterity" in saveFileSource) {
+            "runtime saves must reject pre-Dexterity save files and persist member Dexterity explicitly"
         }
         check(File("runtimes/runtime/src/main/kotlin/rylween/runtime/PartyPages.kt").isFile) {
             "runtime must own direct party and journal pages"

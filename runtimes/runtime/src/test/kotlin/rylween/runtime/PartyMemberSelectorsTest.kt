@@ -87,6 +87,7 @@ class PartyMemberSelectorsTest {
             wisdom = 10,
             mana = 0 of 0,
             charisma = 10,
+            dexterity = 10,
             equipment =
                 CompiledEquipment(
                     weapon = CompiledHandleRef(CompiledHandleKind.Item, 1),

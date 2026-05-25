@@ -897,6 +897,7 @@ enum class CompiledRuntimeTextPart {
     CreationHealth,
     CreationWisdom,
     CreationCharisma,
+    CreationDexterity,
     BattleFoeDisplayName,
     BattleAttackerName,
     BattleTargetName,
@@ -1419,6 +1420,7 @@ data class CompiledPartyMember(
     val wisdom: Int,
     val mana: Mana,
     val charisma: Int,
+    val dexterity: Int,
     val equipment: CompiledEquipment,
     val experience: Int,
     val dead: Boolean,
@@ -2201,6 +2203,7 @@ private class CompiledBundleCompiler(
             TextPart.CreationHealth -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationHealth)
             TextPart.CreationWisdom -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationWisdom)
             TextPart.CreationCharisma -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationCharisma)
+            TextPart.CreationDexterity -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationDexterity)
             TextPart.BattleFoeDisplayName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleFoeDisplayName)
             TextPart.BattleAttackerName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleAttackerName)
             TextPart.BattleTargetName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleTargetName)
@@ -2674,6 +2677,7 @@ private class CompiledBundleCompiler(
             wisdom = member.wisdom,
             mana = member.mana,
             charisma = member.charisma,
+            dexterity = member.dexterity,
             equipment = CompiledEquipment(itemRef(member.equipment.weapon), itemRef(member.equipment.armor)),
             experience = member.experience,
             dead = member.dead,
