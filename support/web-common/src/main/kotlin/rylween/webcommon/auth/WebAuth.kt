@@ -7,6 +7,8 @@ package rylween.webcommon.auth
 
 import rylween.webcommon.WebHttpHeader
 import java.io.File
+import java.net.URLDecoder
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Duration
@@ -21,6 +23,7 @@ import javax.crypto.spec.PBEKeySpec
 import kotlin.concurrent.withLock
 
 private const val SESSION_COOKIE = "rylween_session"
+private const val REMEMBERED_LOGIN_COOKIE = "rylween_login"
 private const val PASSWORD_ALGORITHM = "PBKDF2WithHmacSHA256"
 private const val PASSWORD_ITERATIONS = 120_000
 private const val PASSWORD_BITS = 256
@@ -277,14 +280,7 @@ class WebSessionStore(
 }
 
 object WebAuthCookies {
-    fun token(headers: Map<String, String>): String? =
-        headers["cookie"]
-            ?.split(';')
-            ?.firstNotNullOfOrNull { part ->
-                val separator = part.indexOf('=')
-                val name = part.substring(0, separator.coerceAtLeast(0)).trim()
-                part.substring(separator + 1).trim().takeIf { separator > 0 && name == SESSION_COOKIE }
-            }
+    fun token(headers: Map<String, String>): String? = cookie(headers, SESSION_COOKIE)
 
     fun login(
         token: String,
@@ -295,7 +291,34 @@ object WebAuthCookies {
     fun logout(secure: Boolean = false): WebHttpHeader =
         WebHttpHeader("Set-Cookie", "$SESSION_COOKIE=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureAttribute(secure)}")
 
+    fun rememberedLogin(headers: Map<String, String>): String =
+        cookie(headers, REMEMBERED_LOGIN_COOKIE)?.let { URLDecoder.decode(it, Charsets.UTF_8) }.orEmpty()
+
+    fun rememberLogin(
+        login: String,
+        secure: Boolean = false,
+    ): WebHttpHeader =
+        WebHttpHeader(
+            "Set-Cookie",
+            "$REMEMBERED_LOGIN_COOKIE=${URLEncoder.encode(
+                login,
+                Charsets.UTF_8,
+            )}; Path=/; SameSite=Lax; Max-Age=31536000${secureAttribute(secure)}",
+        )
+
     private fun secureAttribute(secure: Boolean): String = if (secure) "; Secure" else ""
+
+    private fun cookie(
+        headers: Map<String, String>,
+        cookieName: String,
+    ): String? =
+        headers["cookie"]
+            ?.split(';')
+            ?.firstNotNullOfOrNull { part ->
+                val separator = part.indexOf('=')
+                val name = part.substring(0, separator.coerceAtLeast(0)).trim()
+                part.substring(separator + 1).trim().takeIf { separator > 0 && name == cookieName }
+            }
 }
 
 fun slugFrom(value: String): String? {

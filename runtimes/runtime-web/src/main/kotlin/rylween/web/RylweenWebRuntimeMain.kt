@@ -382,7 +382,12 @@ private class RuntimeWebServer(
             return
         }
         serverLog.event("web.http.response id=$clientId status=200 path=${request.path}")
-        respondText(socket, "200 OK", "text/html; charset=utf-8", webAuthPageHtml(WebAuthPageMode.Login))
+        respondText(
+            socket,
+            "200 OK",
+            "text/html; charset=utf-8",
+            webAuthPageHtml(WebAuthPageMode.Login, rememberedLogin = WebAuthCookies.rememberedLogin(request.headers)),
+        )
     }
 
     private fun routeRegisterPage(
@@ -411,7 +416,14 @@ private class RuntimeWebServer(
                 val token = sessions.create(result.account)
                 serverLog.event("web.auth.login id=$clientId user=${result.account.slug} email=${logValue(result.account.email)}")
                 serverLog.event("web.http.response id=$clientId status=303 path=${request.path} location=/play")
-                redirect(socket, "/play", listOf(WebAuthCookies.login(token, secure = config.secureCookies)))
+                redirect(
+                    socket,
+                    "/play",
+                    listOf(
+                        WebAuthCookies.login(token, secure = config.secureCookies),
+                        WebAuthCookies.rememberLogin(result.account.email, secure = config.secureCookies),
+                    ),
+                )
             }
             is WebAuthResult.Failure -> {
                 serverLog.event("web.auth.login_failed id=$clientId email=${logValue(email)} reason=${logValue(result.message)}")
@@ -435,7 +447,9 @@ private class RuntimeWebServer(
         val name = form["name"].orEmpty()
         val email = form["email"].orEmpty()
         savedPartyNameConflict(name)?.let { message ->
-            serverLog.event("web.auth.register_failed id=$clientId email=${logValue(email)} name=${logValue(name)} reason=${logValue(message)}")
+            serverLog.event(
+                "web.auth.register_failed id=$clientId email=${logValue(email)} name=${logValue(name)} reason=${logValue(message)}",
+            )
             serverLog.event("web.http.response id=$clientId status=400 path=${request.path}")
             respondText(
                 socket,
@@ -454,7 +468,14 @@ private class RuntimeWebServer(
                     )} confirmed=${result.account.emailConfirmed}",
                 )
                 serverLog.event("web.http.response id=$clientId status=303 path=${request.path} location=/play")
-                redirect(socket, "/play", listOf(WebAuthCookies.login(token, secure = config.secureCookies)))
+                redirect(
+                    socket,
+                    "/play",
+                    listOf(
+                        WebAuthCookies.login(token, secure = config.secureCookies),
+                        WebAuthCookies.rememberLogin(result.account.email, secure = config.secureCookies),
+                    ),
+                )
             }
             is WebAuthResult.Failure -> {
                 serverLog.event(
