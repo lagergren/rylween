@@ -171,6 +171,7 @@ type BitmapPartyMemberPage = {
     health?: number;
     wisdom?: number;
     charisma?: number;
+    dexterity?: number;
     weapon?: string;
     armor?: string;
     status?: string;
@@ -3574,12 +3575,13 @@ function drawPartyMemberText(member: BitmapPartyMemberPage, x: number, y: number
         ["Weapon Skill", member.weaponSkill],
         ["Body Health", member.health],
         ["Wisdom", member.wisdom],
-        ["Charisma", member.charisma]
+        ["Charisma", member.charisma],
+        ["Dexterity", member.dexterity]
     ], x, y + 70, maxWidth);
-    drawPartySection("Equipment", x, y + 236, maxWidth);
-    drawPartyInfoRow("Weapon", member.weapon, x, y + 270, maxWidth);
-    drawPartyInfoRow("Armor", member.armor, x, y + 302, maxWidth);
-    drawPartyInfoRow("Status", member.status, x, y + 334, maxWidth);
+    drawPartySection("Equipment", x, y + 270, maxWidth);
+    drawPartyInfoRow("Weapon", member.weapon, x, y + 304, maxWidth);
+    drawPartyInfoRow("Armor", member.armor, x, y + 336, maxWidth);
+    drawPartyInfoRow("Status", member.status, x, y + 368, maxWidth);
 }
 
 function drawPartySummaryText(summary: BitmapPartySummaryPage, x: number, y: number, maxWidth: number): void {

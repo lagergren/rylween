@@ -486,6 +486,7 @@ private class NativePathCollector {
             TextPart.CreationHealth,
             TextPart.CreationWisdom,
             TextPart.CreationCharisma,
+            TextPart.CreationDexterity,
             TextPart.BattleFoeDisplayName,
             TextPart.BattleAttackerName,
             TextPart.BattleTargetName,

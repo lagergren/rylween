@@ -196,6 +196,7 @@ private val CharacterCreationStatsTextBindings: Set<TextPart> =
         TextPart.CreationHealth,
         TextPart.CreationWisdom,
         TextPart.CreationCharisma,
+        TextPart.CreationDexterity,
     )
 private val CharacterCreationMemberNumberTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberNumber)
 private val CharacterCreationMemberNameTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberName)
@@ -1297,6 +1298,7 @@ private fun validateTextBlock(
             TextPart.CreationHealth,
             TextPart.CreationWisdom,
             TextPart.CreationCharisma,
+            TextPart.CreationDexterity,
             TextPart.BattleFoeDisplayName,
             TextPart.BattleAttackerName,
             TextPart.BattleTargetName,

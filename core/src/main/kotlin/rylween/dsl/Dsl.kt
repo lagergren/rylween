@@ -2344,6 +2344,7 @@ class CharacterCreationStatsPromptBuilder : TextLineSink {
     val health: TextPart = TextPart.CreationHealth
     val wisdom: TextPart = TextPart.CreationWisdom
     val charisma: TextPart = TextPart.CreationCharisma
+    val dexterity: TextPart = TextPart.CreationDexterity
 
     override fun addTextLine(line: TextLine) {
         text.addTextLine(line)

@@ -245,9 +245,10 @@ data class ClassLevelUpModel(
     val health: Int,
     val wisdom: Int,
     val charisma: Int,
+    val dexterity: Int,
 )
 
-enum class CharacterCreationStat { WeaponSkill, Health, Wisdom, Charisma }
+enum class CharacterCreationStat { WeaponSkill, Health, Wisdom, Charisma, Dexterity }
 
 data class CharacterCreationStatRollModel(
     val min: Int,

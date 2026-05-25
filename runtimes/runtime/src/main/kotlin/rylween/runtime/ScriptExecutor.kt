@@ -1259,6 +1259,7 @@ internal class ScriptExecutor(
             "level" -> member.level
             "wisdom" -> member.wisdom
             "charisma" -> member.charisma
+            "dexterity" -> member.dexterity
             "weapon_skill" -> member.weaponSkill
             "class" -> member.pcClass.sourceId
             "experience" -> member.experience
@@ -1300,6 +1301,7 @@ internal class ScriptExecutor(
                 "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
                 "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
                 "weapon_skill" -> member.copy(weaponSkill = value.coerceAtLeast(0))
+                "dexterity" -> member.copy(dexterity = value.coerceAtLeast(0))
                 "experience" -> member.copy(experience = value.coerceAtLeast(0))
                 "dead" -> member.copy(dead = value != 0)
                 else -> member

@@ -145,7 +145,7 @@ does not use Kotlin reflective `_type` markers; entries use explicit `kind`,
 
 ```json
 {
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "realm": {},
   "pacing": {},
   "prompts": {},
