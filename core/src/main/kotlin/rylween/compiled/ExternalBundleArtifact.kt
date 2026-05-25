@@ -729,6 +729,7 @@ data class ExternalClassLevelUpRules(
     val health: Int,
     val wisdom: Int,
     val charisma: Int,
+    val dexterity: Int,
 )
 
 /** Native service dependency declared by an authored runtime system. */
@@ -1195,7 +1196,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun runtimeSystemsJson(game: GameModel): JsonValue =
         jsonObject(
-            "schemaVersion" to JsonNumber("8"),
+            "schemaVersion" to JsonNumber("9"),
             "realm" to realmJson(game.realm),
             "prompts" to promptsJson(game.prompts),
             "pacing" to pacingJson(game.pacing),
@@ -1473,6 +1474,7 @@ private class ExternalBundleArtifactWriter {
             "health" to JsonNumber(growth.health.toString()),
             "wisdom" to JsonNumber(growth.wisdom.toString()),
             "charisma" to JsonNumber(growth.charisma.toString()),
+            "dexterity" to JsonNumber(growth.dexterity.toString()),
         )
 
     private fun realmJson(realm: RealmContentModel): JsonValue =
@@ -2363,6 +2365,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.CreationHealth -> textTokenJson("creationHealth")
             TextPart.CreationWisdom -> textTokenJson("creationWisdom")
             TextPart.CreationCharisma -> textTokenJson("creationCharisma")
+            TextPart.CreationDexterity -> textTokenJson("creationDexterity")
             TextPart.BattleFoeDisplayName -> textTokenJson("battleFoeDisplayName")
             TextPart.BattleAttackerName -> textTokenJson("battleAttackerName")
             TextPart.BattleTargetName -> textTokenJson("battleTargetName")
@@ -3416,6 +3419,7 @@ private class ExternalRuntimeSystemsReader(
                         health = growth.requiredInt("health"),
                         wisdom = growth.requiredInt("wisdom"),
                         charisma = growth.requiredInt("charisma"),
+                        dexterity = growth.requiredInt("dexterity"),
                     )
                 },
         )

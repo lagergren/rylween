@@ -118,6 +118,8 @@ sealed interface TextPart {
 
     object CreationCharisma : TextPart
 
+    object CreationDexterity : TextPart
+
     object BattleFoeDisplayName : TextPart
 
     object BattleAttackerName : TextPart
@@ -178,6 +180,7 @@ fun TextPart.fallbackText(): String =
         TextPart.CreationHealth -> "{health}"
         TextPart.CreationWisdom -> "{wisdom}"
         TextPart.CreationCharisma -> "{charisma}"
+        TextPart.CreationDexterity -> "{dexterity}"
         TextPart.BattleFoeDisplayName -> "{battle_foe}"
         TextPart.BattleAttackerName -> "{battle_attacker}"
         TextPart.BattleTargetName -> "{battle_target}"

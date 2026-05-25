@@ -511,8 +511,9 @@ class ClassLevelUpBuilder(
     var health: Int = 0
     var wisdom: Int = 0
     var charisma: Int = 0
+    var dexterity: Int = 0
 
-    fun build(): ClassLevelUpModel = ClassLevelUpModel(klass, weaponSkill, health, wisdom, charisma)
+    fun build(): ClassLevelUpModel = ClassLevelUpModel(klass, weaponSkill, health, wisdom, charisma, dexterity)
 }
 
 /** Receiver for the player character creation table. */

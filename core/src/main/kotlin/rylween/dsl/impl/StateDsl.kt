@@ -431,6 +431,7 @@ class PartyMemberBuilder(
     var wisdom: Int = 0
     var mana: Mana = 0 of 0
     var charisma: Int = 0
+    var dexterity: Int = 0
     private var equipmentState: EquipmentState = EquipmentState(DslDefaultItems.none, DslDefaultItems.none)
     var armor: ItemId
         get() = equipmentState.armor
@@ -470,6 +471,7 @@ class PartyMemberBuilder(
             wisdom = wisdom,
             mana = mana,
             charisma = charisma,
+            dexterity = dexterity,
             equipment = equipmentState,
             experience = experience,
             dead = dead,

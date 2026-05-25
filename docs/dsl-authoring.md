@@ -274,6 +274,7 @@ monsters {
         count = 1..3
         hitPoints = 90..150
         weaponSkill = 65
+        dexterity = 50
         tier = EncounterTiers.deep
     }
 }

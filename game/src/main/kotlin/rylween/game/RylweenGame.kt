@@ -738,6 +738,7 @@ val authoredRylween: RylweenModel =
                         line("Health       : ", health)
                         line("Wisdom       : ", wisdom)
                         line("Charisma     : ", charisma)
+                        line("Dexterity    : ", dexterity)
                         line("")
                     }
                     reroll = literalText("Reroll (y/N) ")
@@ -1139,36 +1140,42 @@ val authoredRylween: RylweenModel =
                     health = 8
                     wisdom = 1
                     charisma = 1
+                    dexterity = 1
                 }
                 classLevelUp(PcClass.Thief) {
                     weaponSkill = 1
                     health = 5
                     wisdom = 1
                     charisma = 2
+                    dexterity = 3
                 }
                 classLevelUp(PcClass.Mage) {
                     weaponSkill = 1
                     health = 4
                     wisdom = 7
                     charisma = 2
+                    dexterity = 1
                 }
                 classLevelUp(PcClass.Priest) {
                     weaponSkill = 1
                     health = 5
                     wisdom = 8
                     charisma = 3
+                    dexterity = 1
                 }
                 classLevelUp(PcClass.Bard) {
                     weaponSkill = 2
                     health = 7
                     wisdom = 2
                     charisma = 6
+                    dexterity = 2
                 }
                 classLevelUp(PcClass.Ranger) {
                     weaponSkill = 2
                     health = 8
                     wisdom = 3
                     charisma = 3
+                    dexterity = 4
                 }
             }
 
@@ -1210,13 +1217,25 @@ val authoredRylween: RylweenModel =
                 }
                 playerClass(PcClass.Thief, "Thief")
                 playerClass(PcClass.Mage, "Mage") {
-                    requires(CharacterCreationStat.Wisdom, minimum = 50, failureText = flowText("Wisdom must be at least 50."))
+                    requires(
+                        CharacterCreationStat.Wisdom,
+                        minimum = 50,
+                        failureText = flowText("Wisdom must be at least 50."),
+                    )
                 }
                 playerClass(PcClass.Priest, "Priest") {
-                    requires(CharacterCreationStat.Wisdom, minimum = 50, failureText = flowText("Wisdom must be at least 50."))
+                    requires(
+                        CharacterCreationStat.Wisdom,
+                        minimum = 50,
+                        failureText = flowText("Wisdom must be at least 50."),
+                    )
                 }
                 playerClass(PcClass.Bard, "Bard") {
-                    requires(CharacterCreationStat.Charisma, minimum = 50, failureText = flowText("Charisma must be at least 50."))
+                    requires(
+                        CharacterCreationStat.Charisma,
+                        minimum = 50,
+                        failureText = flowText("Charisma must be at least 50."),
+                    )
                 }
                 playerClass(PcClass.Ranger, "Ranger")
 

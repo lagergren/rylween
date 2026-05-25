@@ -168,6 +168,7 @@ data class PartyMemberState(
     val wisdom: Int,
     val mana: Mana,
     val charisma: Int,
+    val dexterity: Int,
     val equipment: EquipmentState,
     val experience: Int,
     val dead: Boolean,
