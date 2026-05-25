@@ -10,6 +10,7 @@ fun webAuthPageHtml(
     email: String = "",
     displayName: String = "",
     backgroundImage: String? = null,
+    rememberedLogin: String = "",
 ): String {
     val registering = mode == WebAuthPageMode.Register
     val title = if (registering) "Register" else "Log In"
@@ -17,6 +18,10 @@ fun webAuthPageHtml(
     val alternateHref = if (registering) "/login" else "/register"
     val alternateText = if (registering) "Already have an account?" else "Need an account?"
     val alternateAction = if (registering) "Log in" else "Register"
+    val loginLabel = if (registering) "Email" else "Email or adventurer name"
+    val loginType = if (registering) "email" else "text"
+    val loginAutocomplete = if (registering) "email" else "username"
+    val loginValue = if (email.isNotBlank()) email else rememberedLogin
     val nameField =
         if (registering) {
             """
@@ -49,8 +54,8 @@ fun webAuthPageHtml(
               <form method="post" action="$action">
                 $nameField
                 <label>
-                  Email
-                  <input id="email" name="email" type="email" autocomplete="email" value="${email.htmlEscaped()}" required>
+                  $loginLabel
+                  <input id="email" name="email" type="$loginType" autocomplete="$loginAutocomplete" value="${loginValue.htmlEscaped()}" required>
                   ${if (registering) """<span class="field-status" data-field-status="email" aria-live="polite"></span>""" else ""}
                 </label>
                 <label>
