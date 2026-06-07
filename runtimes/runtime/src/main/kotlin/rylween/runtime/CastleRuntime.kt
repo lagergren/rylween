@@ -259,15 +259,17 @@ internal class CastleRuntime(
             }
             command = input.readCommand() ?: return next
         }
-        val freeSlot =
-            next.party.inventory
-                .firstOrNull { slot -> slot.item == null }
-                ?.slot
-        if (freeSlot == null) {
-            screen.writeText(castle.text.treasureFull.renderCastle(screen.textColumns))
-            return next
-        }
-        next = next.withParty(next.party.withInventoryItem(freeSlot, item))
+        val freeSlot = next.party.inventory.firstOrNull { slot -> slot.item == null }?.slot
+        val targetSlot =
+            freeSlot ?: chooseDropSlotForInventoryOverflow(
+                systems = systems,
+                input = input,
+                screen = screen,
+                party = next.party,
+                leadLines = castle.text.treasureFull.renderCastle(screen.textColumns),
+            ) { current -> inventoryLines(current) }
+        if (targetSlot == null) return next
+        next = next.withParty(next.party.withInventoryItem(targetSlot, item))
         screen.writeText(castle.text.treasureTaken.renderCastle(screen.textColumns))
         return next
     }
@@ -460,6 +462,13 @@ internal class CastleRuntime(
 
     private fun sceneProgram(sceneSlug: String): CompiledScriptProgram? =
         content.scripts.roots.firstOrNull { root -> root.root.kind.name == "Scene" && root.root.slug == sceneSlug }
+
+    private fun inventoryLines(party: PartyState): List<String> =
+        inventoryMenuLines(
+            party.inventory.map { slot ->
+                inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
+            },
+        )
 
     private fun itemName(item: CompiledHandleRef): String =
         content.items

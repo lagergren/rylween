@@ -1714,6 +1714,9 @@ class RylweenCompiledGameLedgerTest {
         val bitmapServerSource =
             File("runtimes/runtime-bitmap-web/src/main/kotlin/rylween/bitmapweb/RylweenBitmapWebRuntimeMain.kt").readText()
         val bitmapClientSource = File("runtimes/runtime-bitmap-web/src/main/resources/bitmap-web/client.ts").readText()
+        val bitmapIndexSource = File("runtimes/runtime-bitmap-web/src/main/resources/bitmap-web/index.html").readText()
+        val bitmapPerspectiveToolSource =
+            File("runtimes/runtime-bitmap-web/src/main/resources/bitmap-web/wilderness-perspective.ts").readText()
         val bitmapBuild = File("runtimes/runtime-bitmap-web/build.gradle.kts").readText()
         val compiledBitmapAssets = runtimeSystems.presentation.images.filter { image -> image.kind == "Bitmap" }
         val requiredCompiledImages =
@@ -1744,6 +1747,24 @@ class RylweenCompiledGameLedgerTest {
         }
         check("imageAssets = bitmapImageAssets" in bitmapPortsSource) {
             "bitmap runtime must attach the compiled bitmap image table to outgoing frames"
+        }
+        check("party.memberName(content, index)" in bitmapPortsSource) {
+            "bitmap status members must render saved party names, not fixture nameString labels"
+        }
+        check(
+            "wildernessViewModeSelect" in bitmapIndexSource &&
+                "3D (alpha, experimental)" in bitmapIndexSource &&
+                "wildernessViewModeSelect.addEventListener(\"change\"" in bitmapClientSource,
+        ) {
+            "bitmap wilderness view mode must be controlled by the titlebar dropdown"
+        }
+        check(
+            "Digit2" !in bitmapClientSource &&
+                "Digit3" !in bitmapClientSource &&
+                "Digit2" !in bitmapPerspectiveToolSource &&
+                "Digit3" !in bitmapPerspectiveToolSource,
+        ) {
+            "bitmap wilderness view mode must not use 2/3 keyboard shortcuts"
         }
         check(
             "validateBitmapImageResources()" in bitmapServerSource &&
@@ -2444,6 +2465,13 @@ class RylweenCompiledGameLedgerTest {
                 .readText()
         check("runBattleScript" in battleRunnerSource && "CompiledOpcode.AskMonster" in battleRunnerSource) {
             "battle runner must execute compiled combat item/spell scripts, not just a hard-coded melee loop"
+        }
+        check(
+            "nextRoundDecision" in battleRunnerSource &&
+                "Round $" + "roundNumber" in battleRunnerSource &&
+                "rules.openingKeys.run.matches(choice) -> return attemptRun(this)" in battleRunnerSource,
+        ) {
+            "battle runner must offer Fight/Run decisions with round numbers after completed rounds"
         }
         check(!File("runtimes/runtime/src/main/kotlin/rylween/runtime/BattleHost.kt").exists()) {
             "runtime must not grow a one-off hard-coded battle host"

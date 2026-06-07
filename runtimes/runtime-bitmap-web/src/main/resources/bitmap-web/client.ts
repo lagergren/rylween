@@ -244,7 +244,7 @@ const serverInfoPopover = requireElement("serverInfoPopover", HTMLElement);
 const userAccount = requireElement("userAccount", HTMLElement);
 const textRevealToggle = requireElement("textRevealToggle", HTMLInputElement);
 const bitmapFontToggle = requireElement("bitmapFontToggle", HTMLInputElement);
-const wildernessPerspectiveToggle = requireElement("wildernessPerspectiveToggle", HTMLInputElement);
+const wildernessViewModeSelect = requireElement("wildernessViewModeSelect", HTMLSelectElement);
 const bitmapFontScale = requireElement("bitmapFontScale", HTMLInputElement);
 const bitmapFontScaleValue = requireElement("bitmapFontScaleValue", HTMLElement);
 const bitmapLineSpacing = requireElement("bitmapLineSpacing", HTMLInputElement);
@@ -276,7 +276,7 @@ const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap.v3";
 const bitmapFontScaleKey = "rylween.bitmap.textFont.scale";
 const bitmapLineSpacingKey = "rylween.bitmap.textFont.lineSpacing.v2";
 const pauseDelayScaleKey = "rylween.bitmap.pauseDelay.scale";
-const wildernessPerspectiveKey = "rylween.bitmap.wilderness.perspective";
+const wildernessViewModeStorageKey = "rylween.bitmap.wilderness.viewMode.v1";
 const pauseDelayScaleMessagePrefix = "settings:pauseDelayScale=";
 const defaultBitmapFontScale = 1.75;
 const minBitmapFontScale = 1.45;
@@ -300,7 +300,7 @@ const runtimePreferenceSettings: RuntimePreferenceSettings = {
     pauseDelayScale: storedNumber(pauseDelayScaleKey, defaultPauseDelayScale, minPauseDelayScale, maxPauseDelayScale)
 };
 const wildernessDisplaySettings: WildernessDisplaySettings = {
-    perspective: storedBoolean(wildernessPerspectiveKey, false),
+    perspective: storedWildernessViewMode() === "3d",
     facing: "South"
 };
 const wildernessBackdropThemes: Record<string, WildernessBackdropTheme> = {
@@ -537,6 +537,19 @@ function storedBoolean(key: string, fallback: boolean): boolean {
     return value === "true";
 }
 
+function storedWildernessViewMode(): "2d" | "3d" {
+    return window.localStorage.getItem(wildernessViewModeStorageKey) === "3d" ? "3d" : "2d";
+}
+
+function wildernessViewMode(): "2d" | "3d" {
+    return wildernessDisplaySettings.perspective ? "3d" : "2d";
+}
+
+function syncWildernessViewControls(): void {
+    const mode = wildernessViewMode();
+    wildernessViewModeSelect.value = mode;
+}
+
 function storedNumber(key: string, fallback: number, min: number, max: number): number {
     const value = Number(window.localStorage.getItem(key) || fallback);
     if (!Number.isFinite(value)) return fallback;
@@ -613,11 +626,9 @@ function configureRuntimePreferenceControls(): void {
 }
 
 function configureWildernessDisplayControls(): void {
-    wildernessPerspectiveToggle.checked = wildernessDisplaySettings.perspective;
-    wildernessPerspectiveToggle.addEventListener("change", () => {
-        wildernessDisplaySettings.perspective = wildernessPerspectiveToggle.checked;
-        window.localStorage.setItem(wildernessPerspectiveKey, String(wildernessDisplaySettings.perspective));
-        if (frame) draw(frame);
+    syncWildernessViewControls();
+    wildernessViewModeSelect.addEventListener("change", () => {
+        setWildernessPerspective(wildernessViewModeSelect.value === "3d");
     });
 }
 
@@ -740,10 +751,8 @@ function bitmapSmokeSnapshot(): BitmapSmokeSnapshot {
 
 (window as BitmapSmokeWindow).__rylweenBitmapSmoke = bitmapSmokeSnapshot;
 (window as BitmapSmokeWindow).__rylweenBitmapSetWildernessView = (mode: string, facing?: WildernessFacing): BitmapSmokeSnapshot => {
-    wildernessDisplaySettings.perspective = mode === "3d";
+    setWildernessPerspective(mode === "3d");
     if (facing) wildernessDisplaySettings.facing = facing;
-    window.localStorage.setItem(wildernessPerspectiveKey, String(wildernessDisplaySettings.perspective));
-    wildernessPerspectiveToggle.checked = wildernessDisplaySettings.perspective;
     if (frame) draw(frame);
     return bitmapSmokeSnapshot();
 };
@@ -1165,15 +1174,6 @@ function keyToken(event: KeyboardEvent): string | null {
 
 function handleWildernessDisplayShortcut(event: KeyboardEvent): boolean {
     if (!canUseWildernessPerspective()) return false;
-    const viewMode = wildernessViewModeKey(event);
-    if (viewMode) {
-        const enabled = viewMode === "3d";
-        if (wildernessDisplaySettings.perspective !== enabled) {
-            setWildernessPerspective(enabled);
-            return true;
-        }
-        return viewMode === "3d";
-    }
     if (event.altKey || event.ctrlKey || event.metaKey) return false;
     const control = wildernessCrawlerControlForEvent(event);
     if (!control) return false;
@@ -1197,24 +1197,17 @@ function handleWildernessDisplayShortcut(event: KeyboardEvent): boolean {
     return true;
 }
 
-/** Maps browser-only view-mode keys without stealing numpad movement keys. */
-function wildernessViewModeKey(event: KeyboardEvent): "2d" | "3d" | null {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
-    if (event.code === "Digit2") return "2d";
-    if (event.code === "Digit3") return "3d";
-    return null;
-}
-
 function canUseWildernessPerspective(): boolean {
     return Boolean(frame && frame.mode === "wilderness" && frame.map && frame.map.perspective);
 }
 
-/** Applies the display-mode preference shared by the keyboard shortcut and preferences checkbox. */
+/** Applies the display-mode preference shared by the titlebar selector. */
 function setWildernessPerspective(enabled: boolean): void {
-    if (wildernessDisplaySettings.perspective === enabled) return;
+    const changed = wildernessDisplaySettings.perspective !== enabled;
     wildernessDisplaySettings.perspective = enabled;
-    window.localStorage.setItem(wildernessPerspectiveKey, String(wildernessDisplaySettings.perspective));
-    wildernessPerspectiveToggle.checked = wildernessDisplaySettings.perspective;
+    window.localStorage.setItem(wildernessViewModeStorageKey, wildernessViewMode());
+    syncWildernessViewControls();
+    if (!changed) return;
     wildernessRotationTransition = null;
     if (frame) draw(frame);
 }
