@@ -46,6 +46,7 @@ import java.io.InputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.URLEncoder
 import java.nio.file.Files
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
@@ -445,6 +446,7 @@ private class BitmapWebServer(
             "/" -> routeHome(socket, request, clientId)
             "/play" -> routePlayPage(socket, request, clientId)
             "/tools/wilderness-perspective" -> routeWildernessPerspectiveTool(socket, request, clientId)
+            "/tools/art-gallery" -> routeArtGallery(socket, request, clientId)
             "/login" -> routeLoginPage(socket, request, clientId)
             "/register" -> routeRegisterPage(socket, request, clientId)
             "/api/login" -> routeLogin(socket, request, clientId)
@@ -520,6 +522,34 @@ private class BitmapWebServer(
                 }
         serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
         respondBytes(socket, "text/html; charset=utf-8", bytes)
+    }
+
+    private fun routeArtGallery(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+    ) {
+        if (config.authRequired && authenticatedAccount(request) == null) {
+            serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/login")
+            redirect(socket, "/login")
+            return
+        }
+        val staticItems =
+            BITMAP_ASSETS.entries
+                .sortedBy { entry -> entry.key }
+                .map { entry -> GalleryItem(entry.key, "/assets/${entry.key}", entry.value) }
+        val gameItems =
+            bitmapImageById.values
+                .sortedBy { image -> image.id }
+                .map { image ->
+                    GalleryItem(
+                        image.id,
+                        "/assets/game-image/${URLEncoder.encode(image.id, Charsets.UTF_8)}",
+                        image.resource,
+                    )
+                }
+        serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
+        respondText(socket, "200 OK", "text/html; charset=utf-8", artGalleryHtml(staticItems + gameItems))
     }
 
     private fun routeLoginPage(
@@ -961,9 +991,7 @@ private class BitmapWebServer(
         account: WebAccount,
     ): File? {
         if (saveFile.hasUserSave(account.slug)) return saveFile
-        val initialLoadFile = config.loadFile ?: return saveFile.takeIf(File::isFile)
-        if (initialLoadFile.isFile) return initialLoadFile
-        return saveFile.takeIf(File::isFile)
+        return config.loadFile?.takeIf(File::isFile)
     }
 
     private fun File.hasUserSave(userId: String): Boolean = runtimeFactory.hasUserSave(this, userId)
@@ -1006,6 +1034,65 @@ private fun writeWebSocketHandshake(
     val key = request.header("sec-websocket-key") ?: error("missing websocket key")
     WebSocketProtocol.writeHandshake(output, key)
 }
+
+private data class GalleryItem(
+    val label: String,
+    val href: String,
+    val resource: String,
+)
+
+private fun artGalleryHtml(items: List<GalleryItem>): String {
+    val cards =
+        items.joinToString("\n") { item ->
+            listOf(
+                "<figure class=\"card\">",
+                "  <a href=\"${item.href.htmlEscaped()}\" target=\"_blank\" rel=\"noreferrer\"><img src=\"${item.href.htmlEscaped()}\" alt=\"${item.label.htmlEscaped()}\" loading=\"lazy\"></a>",
+                "  <figcaption><strong>${item.label.htmlEscaped()}</strong><span>${item.resource.htmlEscaped()}</span></figcaption>",
+                "</figure>",
+            ).joinToString("\n")
+        }
+    return listOf(
+        "<!doctype html>",
+        "<html lang=\"en\">",
+        "<head>",
+        "  <meta charset=\"utf-8\">",
+        "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+        "  <title>Rylween Bitmap Art Gallery</title>",
+        "  <style>",
+        "    body { margin: 0; background: #10130d; color: #efe4c6; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; }",
+        "    header { position: sticky; top: 0; z-index: 1; padding: 18px 24px; background: rgba(8, 10, 7, 0.94); border-bottom: 1px solid rgba(218, 189, 107, 0.38); }",
+        "    h1 { margin: 0; font-size: 24px; font-weight: 750; }",
+        "    p { margin: 6px 0 0; color: #bdb496; }",
+        "    main { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; padding: 24px; }",
+        "    .card { margin: 0; padding: 12px; background: #181d14; border: 1px solid rgba(218, 189, 107, 0.28); border-radius: 6px; }",
+        "    .card a { display: grid; min-height: 150px; place-items: center; background: #050704; border-radius: 4px; overflow: hidden; }",
+        "    img { max-width: 100%; max-height: 240px; image-rendering: auto; }",
+        "    figcaption { display: grid; gap: 4px; margin-top: 10px; font-size: 13px; line-height: 1.35; }",
+        "    span { color: #9f977c; overflow-wrap: anywhere; }",
+        "  </style>",
+        "</head>",
+        "<body>",
+        "  <header><h1>Rylween Bitmap Art Gallery</h1><p>${items.size} PNG resources. Hidden tool route, not linked from the game.</p></header>",
+        "  <main>",
+        cards,
+        "  </main>",
+        "</body>",
+        "</html>",
+    ).joinToString("\n")
+}
+
+private fun String.htmlEscaped(): String =
+    buildString(length) {
+        this@htmlEscaped.forEach { char ->
+            when (char) {
+                '&' -> append("&amp;")
+                '<' -> append("&lt;")
+                '>' -> append("&gt;")
+                '"' -> append("&quot;")
+                else -> append(char)
+            }
+        }
+    }
 
 private data class ServedResource(
     val path: String,

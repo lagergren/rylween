@@ -35,6 +35,10 @@ interface RuntimeInputPort {
  */
 object RuntimeInputTokens {
     const val ESCAPE_COMMAND: Char = '\u001B'
+    const val ARROW_UP_COMMAND: Char = '8'
+    const val ARROW_DOWN_COMMAND: Char = '2'
+    const val ARROW_LEFT_COMMAND: Char = '4'
+    const val ARROW_RIGHT_COMMAND: Char = '6'
 
     fun commandChar(token: String): Char? {
         if (token == " ") return ' '
@@ -43,16 +47,16 @@ object RuntimeInputTokens {
         return when (normalized.uppercase()) {
             "ARROW_UP",
             "UP",
-            -> '8'
+            -> ARROW_UP_COMMAND
             "ARROW_DOWN",
             "DOWN",
-            -> '2'
+            -> ARROW_DOWN_COMMAND
             "ARROW_LEFT",
             "LEFT",
-            -> '4'
+            -> ARROW_LEFT_COMMAND
             "ARROW_RIGHT",
             "RIGHT",
-            -> '6'
+            -> ARROW_RIGHT_COMMAND
             "ENTER",
             "RETURN",
             -> '\n'

@@ -777,12 +777,8 @@ internal class ScriptExecutor(
         val subject = subjects.randomElementOrNull("speak.chitchat.subject") ?: return
         val prompt = speak.textTables.chitchatPrompts.firstOrNull { prompt -> prompt.subject == subject }
         val variants = prompt?.variants.orEmpty()
-        val leaderGender =
-            runtime.party.members
-                .firstOrNull()
-                ?.gender
         val promptVariant =
-            variants.firstOrNull { variant -> variant.audience.matches(leaderGender) }
+            variants.firstOrNull { variant -> variant.audience.matches(npc.gender) }
                 ?: variants.firstOrNull()
         val reply =
             speak.textTables.chitchatReplies
