@@ -54,20 +54,38 @@ internal class UtilityActions(
     }
 
     fun readyWeapon(runtime: RuntimeState): RuntimeState =
-        readyEquipment(runtime, acceptedKind = ItemKind.Weapon) { member, item ->
+        readyEquipment(
+            runtime = runtime,
+            acceptedKind = ItemKind.Weapon,
+            equippedItem = { member -> member.equipment.weapon },
+        ) { member, item ->
             member.copy(equipment = member.equipment.copy(weapon = item))
         }
 
     fun readyArmor(runtime: RuntimeState): RuntimeState =
-        readyEquipment(runtime, acceptedKind = ItemKind.Armor) { member, item ->
+        readyEquipment(
+            runtime = runtime,
+            acceptedKind = ItemKind.Armor,
+            equippedItem = { member -> member.equipment.armor },
+        ) { member, item ->
             member.copy(equipment = member.equipment.copy(armor = item))
         }
 
     fun removeWeapon(runtime: RuntimeState): RuntimeState =
-        removeEquipment(runtime) { member -> member.copy(equipment = member.equipment.copy(weapon = content.emptyItem())) }
+        removeEquipment(
+            runtime = runtime,
+            equippedItem = { member -> member.equipment.weapon },
+        ) { member ->
+            member.copy(equipment = member.equipment.copy(weapon = content.emptyItem()))
+        }
 
     fun removeArmor(runtime: RuntimeState): RuntimeState =
-        removeEquipment(runtime) { member -> member.copy(equipment = member.equipment.copy(armor = content.emptyItem())) }
+        removeEquipment(
+            runtime = runtime,
+            equippedItem = { member -> member.equipment.armor },
+        ) { member ->
+            member.copy(equipment = member.equipment.copy(armor = content.emptyItem()))
+        }
 
     fun quaff(runtime: RuntimeState): RuntimeState {
         val choices =
@@ -136,6 +154,7 @@ internal class UtilityActions(
     private fun readyEquipment(
         runtime: RuntimeState,
         acceptedKind: ItemKind,
+        equippedItem: (rylween.compiled.CompiledPartyMember) -> CompiledHandleRef,
         equip: (rylween.compiled.CompiledPartyMember, CompiledHandleRef) -> rylween.compiled.CompiledPartyMember,
     ): RuntimeState {
         val memberIndex = chooseMember(runtime) ?: return runtime
@@ -163,11 +182,14 @@ internal class UtilityActions(
         screen.writeText(lines)
         val slot = chooseInventorySlot(lines, choices) ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
+        val previous = equippedItem(member).takeUnless(::isEmptyItem)
         screen.writeText(
             systems.prompts.equipment.equipped
                 .renderUtility(runtime, selectedItem = item),
         )
-        return runtime.updateMember(memberIndex) { current -> equip(current, item) }
+        return runtime
+            .withParty(runtime.party.withInventoryItem(slot, previous))
+            .updateMember(memberIndex) { current -> equip(current, item) }
     }
 
     private fun ItemKind.equipmentName(): String =
@@ -179,8 +201,15 @@ internal class UtilityActions(
 
     private fun removeEquipment(
         runtime: RuntimeState,
+        equippedItem: (rylween.compiled.CompiledPartyMember) -> CompiledHandleRef,
         update: (rylween.compiled.CompiledPartyMember) -> rylween.compiled.CompiledPartyMember,
-    ): RuntimeState = chooseMember(runtime)?.let { memberIndex -> runtime.updateMember(memberIndex, update) } ?: runtime
+    ): RuntimeState {
+        val memberIndex = chooseMember(runtime) ?: return runtime
+        val member = runtime.party.members.getOrNull(memberIndex) ?: return runtime
+        val item = equippedItem(member).takeUnless(::isEmptyItem) ?: return runtime
+        val party = placeLooseItem(runtime.party, item) ?: return runtime
+        return runtime.withParty(party).updateMember(memberIndex, update)
+    }
 
     private fun chooseInventorySlot(
         lines: List<String>,
@@ -197,6 +226,22 @@ internal class UtilityActions(
         choices.map { slot ->
             "${inventorySlotKey(slot.slot)}. ${slot.item?.let(::itemName).orEmpty()}"
         }
+
+    private fun placeLooseItem(
+        party: PartyState,
+        item: CompiledHandleRef,
+    ): PartyState? {
+        val freeSlot = party.inventory.firstOrNull { slot -> slot.item == null }?.slot
+        if (freeSlot != null) return party.withInventoryItem(freeSlot, item)
+        val replacementSlot =
+            chooseDropSlotForInventoryOverflow(
+                systems = systems,
+                input = input,
+                screen = screen,
+                party = party,
+            ) { current -> inventoryLines(current.inventory) } ?: return null
+        return party.withInventoryItem(replacementSlot, item)
+    }
 
     private fun List<String>.withReturnCancelLine(): List<String> = this + systems.prompts.returnLeavesLine()
 
@@ -299,6 +344,8 @@ internal class UtilityActions(
 
     private fun itemName(item: CompiledHandleRef): String = content.strings.value(itemRecord(item).displayNameString)
 
+    private fun isEmptyItem(item: CompiledHandleRef): Boolean = itemRecord(item).kind == ItemKind.Empty
+
     private fun ExternalRuntimeTextBlock.renderUtility(
         runtime: RuntimeState? = null,
         selectedItem: CompiledHandleRef? = null,
@@ -370,3 +417,30 @@ internal fun inventoryMenuLines(entries: List<Pair<Char, String>>): List<String>
                     "$key. ${itemName.take(INVENTORY_ITEM_WIDTH)}".padEnd(INVENTORY_ENTRY_WIDTH)
                 }.trimEnd()
         }
+
+internal fun chooseDropSlotForInventoryOverflow(
+    systems: ExternalRuntimeSystems,
+    input: RuntimeInputPort,
+    screen: RuntimeScreenPort,
+    party: PartyState,
+    leadLines: List<String> = emptyList(),
+    inventoryLines: (PartyState) -> List<String>,
+): Int? {
+    val confirmPrompt = systems.prompts.party.dropOverflowConfirm.render({ null }, screen.textColumns)
+    val confirmLines = if (leadLines.isEmpty()) confirmPrompt else leadLines + "" + confirmPrompt
+    screen.writeText(confirmLines)
+    val confirm =
+        input
+            .readValidChoice(screen, confirmLines) { choice -> choice.uppercaseChar() == 'Y' || choice == '\n' }
+            ?.uppercaseChar()
+            ?: return null
+    if (confirm != "Y".single()) return null
+    val slotLines = systems.prompts.party.dropOverflowPrompt.render({ null }, screen.textColumns) + inventoryLines(party)
+    screen.writeText(slotLines)
+    return input.readValidInventorySlotChoice(
+        screen = screen,
+        lines = slotLines,
+        validSlots = party.inventory.filter { slot -> slot.item != null }.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
+        cancelKeys = INVENTORY_CANCEL_KEYS,
+    )
+}

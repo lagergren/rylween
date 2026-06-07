@@ -462,7 +462,7 @@ internal object SaveFile {
         put("$prefix.wisdom", member.wisdom.toString())
         put("$prefix.magic", member.mana.current.toString())
         put("$prefix.magicMax", member.mana.max.toString())
-        put(".charisma", member.charisma.toString())
+        put("$prefix.charisma", member.charisma.toString())
         put("$prefix.dexterity", member.dexterity.toString())
         put("$prefix.weapon", content.slug(member.equipment.weapon))
         put("$prefix.armor", content.slug(member.equipment.armor))

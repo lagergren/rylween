@@ -2118,7 +2118,7 @@ data class PartyState(
     }
 }
 
-internal fun PartyState.memberName(
+fun PartyState.memberName(
     content: CompiledContentBundle,
     index: Int,
 ): String =

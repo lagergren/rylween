@@ -977,27 +977,20 @@ internal class ScriptExecutor(
     private fun chooseDropSlot(
         party: PartyState,
         leadLines: List<String>,
-    ): Int? {
-        val confirmLines =
-            leadLines + "" +
-                systems.prompts.party.dropOverflowConfirm
-                    .renderSimplePrompt()
-        screen.writeText(confirmLines)
-        val confirm =
-            input
-                .readValidChoice(screen, confirmLines) { choice -> choice.uppercaseChar() == 'Y' || choice == '\n' }
-                ?.uppercaseChar()
-                ?: return null
-        if (confirm != 'Y') return null
-        val slotLines = inventoryReplaceLines(party)
-        screen.writeText(slotLines)
-        return input.readValidInventorySlotChoice(
+    ): Int? =
+        chooseDropSlotForInventoryOverflow(
+            systems = systems,
+            input = input,
             screen = screen,
-            lines = slotLines,
-            validSlots = party.inventory.filter { slot -> slot.item != null }.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
-            cancelKeys = setOf('\n'),
-        )
-    }
+            party = party,
+            leadLines = leadLines,
+        ) { current ->
+            inventoryMenuLines(
+                current.inventory.map { slot ->
+                    inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
+                },
+            )
+        }
 
     private fun CompiledTextBlock.renderRewardLines(
         item: CompiledHandleRef,

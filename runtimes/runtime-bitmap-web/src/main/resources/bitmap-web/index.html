@@ -15,6 +15,13 @@
       </div>
       <div class="top-actions">
         <span id="userAccount" class="account-pill">Account</span>
+        <label class="view-switcher" for="wildernessViewModeSelect">
+          <span>View</span>
+          <select id="wildernessViewModeSelect" aria-label="Wilderness view">
+            <option value="2d">2D</option>
+            <option value="3d">3D (alpha, experimental)</option>
+          </select>
+        </label>
         <button id="serverInfoToggle" type="button" class="server-pill" aria-expanded="false" aria-controls="serverInfoPopover">Status</button>
         <button id="preferencesToggle" type="button" class="prefs-pill" aria-expanded="false" aria-controls="preferencesPopover">Preferences</button>
         <button id="commandToggle" type="button" aria-expanded="false" aria-controls="commandPopover" hidden>Commands</button>
@@ -36,10 +43,6 @@
         <label class="preference-check">
           <input id="bitmapFontToggle" type="checkbox">
           <span>Fantasy fixed-space font</span>
-        </label>
-        <label class="preference-check">
-          <input id="wildernessPerspectiveToggle" type="checkbox">
-          <span>3D wilderness view</span>
         </label>
         <div class="preference-range">
           <label for="bitmapFontScale">
@@ -74,6 +77,6 @@
       <div id="canvasTooltip" class="canvas-tooltip" hidden></div>
     </section>
   </main>
-  <script src="/static/client.js?v=20260518-town-leave-fade"></script>
+  <script src="/static/client.js?v=20260607-view-select"></script>
 </body>
 </html>
