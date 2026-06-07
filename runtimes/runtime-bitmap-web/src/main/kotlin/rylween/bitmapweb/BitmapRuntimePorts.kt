@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToLong
 
 private const val BITMAP_DOCUMENT_COLUMNS = 116
-private const val BITMAP_DOCUMENT_PAGE_LINES = 25
+private const val BITMAP_DOCUMENT_PAGE_LINES = 16
 private const val PAUSE_DELAY_SCALE_MESSAGE_PREFIX = "settings:pauseDelayScale="
 private const val MIN_PAUSE_DELAY_SCALE = 0.25
 private const val MAX_PAUSE_DELAY_SCALE = 2.0
@@ -228,14 +228,26 @@ internal class BitmapRuntimeScreen(
     ) {
         val screen = staticScreen(screenSlug)
         val pages = bitmapDocumentPages(screen, runtimeStaticScreenText(content, systems, screen, runtime))
-        for ((index, page) in pages.withIndex()) {
-            val lastPage = index == pages.lastIndex
-            val prompt = bitmapDocumentPrompt(if (lastPage) "to return" else "for more")
-            showStaticScreenFrame(screenSlug, runtime, page + "" + prompt, "Page ${index + 1}/${pages.size}")
+        var pageIndex = 0
+        while (pageIndex in pages.indices) {
+            val page = pages[pageIndex]
+            showStaticScreenFrame(
+                screenSlug,
+                runtime,
+                page + "" + bitmapDocumentPrompt(pageIndex, pages.size),
+                "Page ${pageIndex + 1}/${pages.size}",
+            )
             when (readDocumentAdvance(advance)) {
                 null,
                 RuntimeInputTokens.ESCAPE_COMMAND,
                 -> return
+                RuntimeInputTokens.ARROW_LEFT_COMMAND,
+                RuntimeInputTokens.ARROW_UP_COMMAND,
+                -> pageIndex = (pageIndex - 1).coerceAtLeast(0)
+                else -> {
+                    if (pageIndex == pages.lastIndex) return
+                    pageIndex += 1
+                }
             }
         }
     }
@@ -787,7 +799,15 @@ private fun bitmapDocumentPages(
         .ifEmpty { listOf("") }
         .chunked(BITMAP_DOCUMENT_PAGE_LINES)
 
-private fun bitmapDocumentPrompt(action: String): String = "(Press RETURN/ENTER $action) (ESC to exit)"
+private fun bitmapDocumentPrompt(
+    pageIndex: Int,
+    pageCount: Int,
+): String =
+    if (pageIndex == pageCount - 1) {
+        "[← previous | ENTER exit | ESC exit]"
+    } else {
+        "[← previous | ENTER next | ESC exit]"
+    }
 
 private fun readDocumentAdvance(advance: () -> Char?): Char? {
     while (true) {
@@ -795,6 +815,10 @@ private fun readDocumentAdvance(advance: () -> Char?): Char? {
             null,
             '\n',
             RuntimeInputTokens.ESCAPE_COMMAND,
+            RuntimeInputTokens.ARROW_UP_COMMAND,
+            RuntimeInputTokens.ARROW_DOWN_COMMAND,
+            RuntimeInputTokens.ARROW_LEFT_COMMAND,
+            RuntimeInputTokens.ARROW_RIGHT_COMMAND,
             -> return command
         }
     }
@@ -838,12 +862,10 @@ private fun bitmapMarkdownDocumentLines(lines: List<String>): List<String> =
                 line.startsWith("```") -> {
                     flushParagraph()
                     flushQuote()
-                    if (!inCode) addGap()
-                    add(line)
+                    addGap()
                     inCode = !inCode
-                    if (!inCode) addGap()
                 }
-                inCode -> addAll(line.wrap(BITMAP_DOCUMENT_COLUMNS))
+                inCode -> addAll(markdownInlinePlainText(line).wrap(BITMAP_DOCUMENT_COLUMNS))
                 line.isBlank() -> {
                     flushParagraph()
                     flushQuote()
@@ -869,6 +891,11 @@ private fun bitmapMarkdownDocumentLines(lines: List<String>): List<String> =
         flushParagraph()
         flushQuote()
     }.dropLastWhile(String::isBlank)
+
+private fun markdownInlinePlainText(line: String): String =
+    line
+        .replace(Regex("""`([^`]+)`"""), "$1")
+        .replace("&mdash;", "-")
 
 private fun staticScreenTitle(screenSlug: String): String =
     when (runtimeScreenSlug(screenSlug)) {

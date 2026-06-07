@@ -452,18 +452,21 @@ class GameRuntime private constructor(
         sessionDate: LocalDate = LocalDate.now(),
         log: RuntimeLog,
     ): RuntimeSessionResult {
+        val hasLoadUserSave = loadFile?.let { file -> SaveFile.hasUserParty(file, bundleContentHash, userId) } ?: false
         var runtime =
-            loadFile?.let { file ->
-                logSaveFileLines("runtime.restore", file, log)
+            if (loadFile != null && hasLoadUserSave) {
+                logSaveFileLines("runtime.restore", loadFile, log)
                 SaveFile.read(
-                    file = file,
+                    file = loadFile,
                     expectedBundleHash = bundleContentHash,
                     content = content,
                     stateLookup = ::stateBySlug,
                     userId = userId,
                     hallOfHeroesCompletedBy = systems.score.completedBy,
                 )
-            } ?: RuntimeState.from(stateBySlug(stateSlug), content)
+            } else {
+                RuntimeState.from(stateBySlug(stateSlug), content)
+            }
         runtime = runtime.withActiveUser(userId).withSecretRules(systems)
         runtime = seed?.let(runtime::withSeed) ?: runtime
         val world = WorldMap.from(content, runtime.currentMap)
@@ -477,8 +480,7 @@ class GameRuntime private constructor(
             log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
             val saveContext = RuntimeSaveContext(saveFile, bundleContentHash, userId, systems.score.completedBy)
             val loopContext = RuntimeLoopContext(content, systems, input, screen, saveContext, log)
-            val hasUserSave = loadFile?.let { file -> SaveFile.hasUserParty(file, bundleContentHash, userId) } ?: false
-            if (showTitleMenu || loadFile != null && !hasUserSave) {
+            if (showTitleMenu || loadFile != null && !hasLoadUserSave) {
                 runtime =
                     runTitleMenu(runtime, stateSlug, seed, loopContext)
                         ?: return RuntimeSessionResult(RuntimeSessionExitReason.SessionEnded)

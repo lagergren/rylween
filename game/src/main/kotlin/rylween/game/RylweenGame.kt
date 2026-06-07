@@ -4590,13 +4590,13 @@ val authoredRylween: RylweenModel =
                 localInt(0) { rumors ->
                     loop {
                         clearText()
-                        writeText {
-                            line("- Welcome! Have a seat")
-                            line(townNpcName(NpcJobs.tavernkeeper), ", the keeper")
-                            line("of the tavern greets")
-                            line("you...")
-                            line("")
-                        }
+                        writeText(
+                            flowText(
+                                "- Welcome! Have a seat ",
+                                townNpcName(NpcJobs.tavernkeeper),
+                                ", the keeper of the tavern greets you...",
+                            ),
+                        )
 
                         menu(
                             "(O)rder drink",
