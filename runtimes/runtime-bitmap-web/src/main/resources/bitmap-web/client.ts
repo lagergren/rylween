@@ -272,7 +272,7 @@ let wildernessRotationAnimation = 0;
 const assetVersion = "20260518-terrain-transitions";
 const textRevealEnabledKey = "rylween.bitmap.textReveal.enabled";
 const textRevealSpeedKey = "rylween.bitmap.textReveal.speed";
-const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap.v2";
+const bitmapFontEnabledKey = "rylween.bitmap.textFont.bitmap.v3";
 const bitmapFontScaleKey = "rylween.bitmap.textFont.scale";
 const bitmapLineSpacingKey = "rylween.bitmap.textFont.lineSpacing.v2";
 const pauseDelayScaleKey = "rylween.bitmap.pauseDelay.scale";
@@ -347,7 +347,7 @@ const layout: Layout = {
     status: {x: 154, y: 566, w: 972, h: 92}
 };
 const fantasyFontHeight = 7;
-const fantasyFontAdvance = 5.5;
+const fantasyFontAdvance = 6.2;
 const fantasyGlyphs: Record<string, string[]> = {
     " ": ["00000", "00000", "00000", "00000", "00000", "00000", "00000"],
     "!": ["00100", "00100", "00100", "00100", "00100", "00000", "00100"],
@@ -1760,7 +1760,7 @@ function currentFantasyTextScale(): number {
 }
 
 function currentFantasyLineHeight(scale = currentFantasyTextScale()): number {
-    return Math.ceil((fantasyFontHeight * scale + 6) * textDisplaySettings.bitmapLineSpacing);
+    return Math.ceil((fantasyFontHeight * scale + 10) * textDisplaySettings.bitmapLineSpacing);
 }
 
 function fantasyTextWidth(text: string, scale = currentFantasyTextScale()): number {
@@ -1845,7 +1845,7 @@ function drawFantasyRevealText(
     reveal: TextRevealDrawState,
     scale = currentFantasyTextScale()
 ): void {
-    const top = baseline - fantasyFontHeight * scale;
+    const top = baseline - fantasyFontHeight * scale - 1;
     const value = String(text || "");
     if (!reveal.active) {
         drawFantasyText(value, x, top, scale, color);
@@ -1853,7 +1853,6 @@ function drawFantasyRevealText(
     }
     const charCost = Math.max(1, value.length);
     const visible = Math.max(0, Math.min(value.length, reveal.remaining));
-    drawFantasyText(value, x, top, scale, dimColor);
     if (visible > 0) {
         drawFantasyText(value.slice(0, visible), x, top, scale, color);
     }
@@ -1888,8 +1887,24 @@ function drawFantasyTextCells(text: string, x: number, y: number, scale: number,
 
 function drawGothicTitle(cx: number, y: number): void {
     ctx.save();
-    drawFantasyText("ADVENTURERS", cx, y - 38, 7, "#f0d07a", "center", "rgba(23, 8, 4, 0.95)", "rgba(0, 0, 0, 0.85)");
-    drawFantasyText("OF RYLWEEN", cx, y + 28, 5, "#d9b764", "center", "rgba(23, 8, 4, 0.95)", "rgba(0, 0, 0, 0.85)");
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.82)";
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 4;
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "rgba(23, 8, 4, 0.95)";
+    ctx.fillStyle = "#f0d07a";
+    ctx.font = "700 58px Palatino, Georgia, serif";
+    ctx.strokeText("ADVENTURERS", cx, y - 16);
+    ctx.fillText("ADVENTURERS", cx, y - 16);
+    ctx.lineWidth = 4;
+    ctx.fillStyle = "#d9b764";
+    ctx.font = "700 42px Palatino, Georgia, serif";
+    ctx.strokeText("OF RYLWEEN", cx, y + 44);
+    ctx.fillText("OF RYLWEEN", cx, y + 44);
+    ctx.shadowColor = "transparent";
     ctx.strokeStyle = "rgba(196, 117, 41, 0.58)";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -3507,7 +3522,11 @@ function drawTextPanel(frame: BitmapFrame): void {
     for (const line of (frame.textLines || [])) {
         const lineColor = textPanelLineColor(line);
         const dimColor = textPanelLineDimColor(line);
-        if (textDisplaySettings.bitmapFont) {
+        const creationStat = creationStatLine(line);
+        if (creationStat) {
+            drawCreationStatLine(creationStat.label, creationStat.value, x, ty, maxWidth, lineColor, reveal);
+            ty += Math.ceil(24 * textDisplaySettings.bitmapLineSpacing);
+        } else if (textDisplaySettings.bitmapFont) {
             for (const part of wrapFantasyLines(line, maxWidth, bitmapScale)) {
                 if (ty > bottom) break;
                 drawFantasyRevealText(
@@ -3532,6 +3551,44 @@ function drawTextPanel(frame: BitmapFrame): void {
     }
     drawTextRevealCursor(reveal);
     drawTextInput(frame.textInput, x, layout.text.y + layout.text.h - 72, maxWidth);
+}
+
+type CreationStatLine = { label: string; value: string };
+
+function creationStatLine(line: string): CreationStatLine | null {
+    const match = line.match(/^\s*(Weapon Skill|Health|Wisdom|Charisma|Dexterity)\s*:\s*(\d+)\s*$/);
+    return match ? { label: match[1], value: match[2] } : null;
+}
+
+function drawCreationStatLine(
+    label: string,
+    value: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    color: string,
+    reveal: TextRevealDrawState
+): void {
+    const charCost = Math.max(1, label.length + value.length + 1);
+    if (reveal.active) {
+        if (reveal.remaining <= 0) {
+            if (!reveal.cursor) reveal.cursor = {x, y};
+            reveal.remaining -= charCost;
+            return;
+        }
+        reveal.remaining -= charCost;
+    }
+    const labelX = x;
+    const colonX = x + Math.min(178, Math.floor(maxWidth * 0.48));
+    const valueX = Math.min(x + maxWidth - 4, colonX + 54);
+    ctx.font = "17px Georgia, \"Times New Roman\", serif";
+    ctx.fillStyle = color;
+    ctx.textAlign = "left";
+    ctx.fillText(label, labelX, y);
+    ctx.fillText(":", colonX, y);
+    ctx.textAlign = "right";
+    ctx.fillText(value, valueX, y);
+    ctx.textAlign = "left";
 }
 
 /** Chooses the normal or disabled prose color for text-window rows. */
@@ -3714,8 +3771,6 @@ function drawRevealText(text: string, x: number, y: number, color: string, dimCo
     }
     const charCost = Math.max(1, text.length);
     const visible = Math.max(0, Math.min(text.length, reveal.remaining));
-    ctx.fillStyle = dimColor;
-    ctx.fillText(text, x, y);
     if (visible > 0) {
         ctx.fillStyle = color;
         ctx.fillText(text.slice(0, visible), x, y);
@@ -3806,11 +3861,33 @@ function wrapCanvasText(text: string, x: number, y: number, maxWidth: number, li
 }
 
 function wrapCanvasLines(text: string, maxWidth: number): string[] {
-    if (ctx.measureText(text).width <= maxWidth) return [text];
-    const words = String(text || "").split(" ");
+    const value = String(text || "");
+    if (ctx.measureText(value).width <= maxWidth) return [value];
+    const words = value.trim().split(/\s+/).filter(Boolean);
     const lines: string[] = [];
     let line = "";
+    const flushLongWord = (word: string): void => {
+        if (line) {
+            lines.push(line);
+            line = "";
+        }
+        let chunk = "";
+        for (const char of Array.from(word)) {
+            const test = chunk + char;
+            if (chunk && ctx.measureText(test).width > maxWidth) {
+                lines.push(chunk);
+                chunk = char;
+            } else {
+                chunk = test;
+            }
+        }
+        line = chunk;
+    };
     for (const word of words) {
+        if (ctx.measureText(word).width > maxWidth) {
+            flushLongWord(word);
+            continue;
+        }
         const test = line ? line + " " + word : word;
         if (ctx.measureText(test).width > maxWidth && line) {
             lines.push(line);
