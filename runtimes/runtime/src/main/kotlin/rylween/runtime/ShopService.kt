@@ -369,28 +369,13 @@ internal class ShopService(
         party: PartyState,
     ): Int? {
         if (buy.inventoryApplication.overflow != RewardOverflowPolicy.PromptDropThenPlace) return null
-        val confirmLines =
-            buy.cantCarry.renderScreenTextLines() +
-                "" +
-                systems.prompts.party.dropOverflowConfirm
-                    .renderShopPrompt()
-        screen.writeText(confirmLines)
-        val confirm =
-            input
-                .readValidChoice(screen, confirmLines) { choice -> choice.uppercaseChar() == 'Y' || choice == '\n' }
-                ?.uppercaseChar()
-                ?: return null
-        if (confirm != 'Y') return null
-        val slotLines =
-            systems.prompts.party.dropOverflowPrompt
-                .renderShopPrompt() + inventoryLines(party)
-        screen.writeText(slotLines)
-        return input.readValidInventorySlotChoice(
+        return chooseDropSlotForInventoryOverflow(
+            systems = systems,
+            input = input,
             screen = screen,
-            lines = slotLines,
-            validSlots = party.inventory.filter { slot -> slot.item != null }.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
-            cancelKeys = setOf('\n'),
-        )
+            party = party,
+            leadLines = buy.cantCarry.renderScreenTextLines(),
+        ) { current -> inventoryLines(current) }
     }
 
     private fun buyResource(

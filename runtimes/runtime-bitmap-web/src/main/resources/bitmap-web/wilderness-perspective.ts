@@ -886,21 +886,6 @@
     toolFacing.addEventListener("change", toolSetPositionFromInputs);
     toolPerspective.addEventListener("change", toolSetPositionFromInputs);
     window.addEventListener("keydown", (event: KeyboardEvent) => {
-        const viewMode = toolViewModeKey(event);
-        if (viewMode) {
-            const enabled = viewMode === "3d";
-            if (toolState.perspective !== enabled) {
-                event.preventDefault();
-                toolState.perspective = enabled;
-                toolSyncInputs();
-                toolDraw();
-                return;
-            }
-            if (viewMode === "3d") {
-                event.preventDefault();
-                return;
-            }
-        }
         if (event.altKey || event.ctrlKey || event.metaKey) return;
         const control = toolNavigationControlForEvent(event);
         if (!control) return;
@@ -929,14 +914,6 @@
                 break;
         }
     });
-
-    /** Maps browser-only tool view keys while leaving numpad movement intact. */
-    function toolViewModeKey(event: KeyboardEvent): "2d" | "3d" | null {
-        if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
-        if (event.code === "Digit2") return "2d";
-        if (event.code === "Digit3") return "3d";
-        return null;
-    }
 
     /** Converts crawler keys for the isolated perspective tool. */
     function toolNavigationControlForEvent(event: KeyboardEvent): "forward" | "back" | "turnLeft" | "turnRight" | null {

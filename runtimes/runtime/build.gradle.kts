@@ -60,7 +60,13 @@ tasks.jar {
 }
 
 fun runtimeBattleMacro(attacks: Int = 5): String =
-    "F" + buildString { "ABCDEFGH".take(attacks).forEach { slot -> append('A').append(slot) } } + "\n"
+    buildString {
+        "ABCDEFGH".take(attacks).chunked(4).forEach { slots ->
+            append('F')
+            slots.forEach { slot -> append('A').append(slot) }
+        }
+        append('\n')
+    }
 
 fun runtimeCastleStep(command: Char): String = command.toString() + runtimeBattleMacro(attacks = 2)
 

@@ -143,7 +143,7 @@ internal class BattleRunner(
                 runtime,
                 runtimeDiagnosticText("Missing compiled standard-battle contract."),
             )
-        val started = startEncounter(runtime, rules, monster)
+        val started = startEncounter(runtime, rules, monster, mandatory)
         started.openingImage()?.let { image ->
             screen.writeViewCommand(RuntimeViewCommand.ClearMapWindow)
             screen.writeViewCommand(RuntimeViewCommand.ShowImage(image))
@@ -153,18 +153,14 @@ internal class BattleRunner(
             screen.writeText(rules.openingText(started))
             val choice = input.readCommand() ?: return BattleResult(runtime)
             when {
-                rules.openingKeys.run.matches(choice) ->
-                    return if (mandatory) {
-                        finishFight(started, rules.text.runFailAway.renderBattle())
-                    } else if (started.runtime.alwaysRunFromNonMandatoryEncounters) {
-                        log.event("battle.flee_secret_always user=${started.runtime.activeUserId.orEmpty()}")
-                        BattleResult(
-                            started.runtimeAfterBattle(),
-                            rules.text.runEscaped.renderBattle(),
-                        )
+                rules.openingKeys.run.matches(choice) -> {
+                    val outcome = attemptRun(started)
+                    return if (outcome.escaped) {
+                        BattleResult(outcome.encounter.runtimeAfterBattle(), outcome.messages)
                     } else {
-                        attemptRun(started)
+                        finishFight(outcome.encounter, outcome.messages)
                     }
+                }
 
                 rules.openingKeys.fight.matches(choice) -> return finishFight(
                     started,
@@ -176,8 +172,23 @@ internal class BattleRunner(
         }
     }
 
-    private fun attemptRun(encounter: BattleEncounter): BattleResult {
+    private fun attemptRun(encounter: BattleEncounter): BattleRunOutcome {
         val rules = encounter.rules
+        if (encounter.mandatory) {
+            return BattleRunOutcome(
+                encounter = encounter,
+                escaped = false,
+                messages = rules.text.runFailAway.renderBattle(),
+            )
+        }
+        if (encounter.runtime.alwaysRunFromNonMandatoryEncounters) {
+            log.event("battle.flee_secret_always user=${encounter.runtime.activeUserId.orEmpty()}")
+            return BattleRunOutcome(
+                encounter = encounter,
+                escaped = true,
+                messages = rules.text.runEscaped.renderBattle(),
+            )
+        }
         val draw = encounter.runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
         val escaped = draw.value < rules.opening.fleeChancePercent
         log.rngDraw(
@@ -190,14 +201,16 @@ internal class BattleRunner(
         )
         val runtime = encounter.runtime.withParty(draw.party)
         return if (escaped) {
-            BattleResult(
-                encounter.copy(runtime = runtime).runtimeAfterBattle(),
-                rules.text.runEscaped.renderBattle(),
+            BattleRunOutcome(
+                encounter = encounter.copy(runtime = runtime),
+                escaped = true,
+                messages = rules.text.runEscaped.renderBattle(),
             )
         } else {
-            finishFight(
-                encounter.copy(runtime = runtime.withMode(RuntimeMode.Battle)),
-                rules.text.runFailAway.renderBattle(),
+            BattleRunOutcome(
+                encounter = encounter.copy(runtime = runtime.withMode(RuntimeMode.Battle)),
+                escaped = false,
+                messages = rules.text.runFailAway.renderBattle(),
             )
         }
     }
@@ -220,6 +233,20 @@ internal class BattleRunner(
                 encounter = encounter.monsterRound()
             }
             round++
+            if (round < encounter.rules.roundLimit && encounter.partyHasLivingMembers() && encounter.monsterHasLivingMembers()) {
+                val decision = encounter.nextRoundDecision(round + 1) ?: return BattleResult(encounter.runtime)
+                if (decision.escaped) {
+                    if (decision.messages.isNotEmpty()) {
+                        showBattleMessages(decision.messages, delayMs = pacing.openingPauseMs)
+                    }
+                    return BattleResult(decision.encounter.runtimeAfterBattle())
+                }
+                encounter = decision.encounter
+                if (decision.messages.isNotEmpty()) {
+                    showBattleMessages(decision.messages, delayMs = pacing.openingPauseMs)
+                    screen.writeViewCommand(RuntimeViewCommand.ClearText)
+                }
+            }
         }
         val finished = encounter.finish()
         showBattleMessagesUntilReturn(
@@ -277,6 +304,36 @@ internal class BattleRunner(
     private fun ExternalStandardBattle.openingText(encounter: BattleEncounter): List<String> =
         text.encounterBanner.renderBattle() +
             text.youFace.renderBattle() +
+            text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()) +
+            text.fight.renderBattle() +
+            text.run.renderBattle()
+
+    private fun BattleEncounter.nextRoundDecision(roundNumber: Int): BattleRunOutcome? {
+        while (true) {
+            val lines = rules.nextRoundText(this, roundNumber)
+            screen.writeText(lines)
+            val choice = input.readCommand() ?: return null
+            when {
+                rules.openingKeys.fight.matches(choice) ->
+                    return BattleRunOutcome(
+                        encounter = this,
+                        escaped = false,
+                        messages = emptyList(),
+                    )
+
+                rules.openingKeys.run.matches(choice) -> return attemptRun(this)
+
+                else -> screen.writeText(rules.text.notPossible.renderBattle())
+            }
+        }
+    }
+
+    private fun ExternalStandardBattle.nextRoundText(
+        encounter: BattleEncounter,
+        roundNumber: Int,
+    ): List<String> =
+        listOf("Round $roundNumber", "") +
+            text.stillFace.renderBattle() +
             text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()) +
             text.fight.renderBattle() +
             text.run.renderBattle()
@@ -662,6 +719,7 @@ internal class BattleRunner(
         runtime: RuntimeState,
         rules: ExternalStandardBattle,
         monster: CompiledMonster,
+        mandatory: Boolean,
     ): BattleEncounter {
         var party = runtime.party
         val firstLevel = party.members.firstOrNull()?.level ?: 0
@@ -729,6 +787,7 @@ internal class BattleRunner(
             monsterHpMax = hitPoints,
             hitPointMax = hpRange.last,
             monsterWeaponSkill = monster.weaponSkill + firstLevel,
+            mandatory = mandatory,
             bannerIndex = bannerDraw?.value,
         )
     }
@@ -1799,6 +1858,7 @@ private data class BattleEncounter(
     val monsterHpMax: List<Int>,
     val hitPointMax: Int,
     val monsterWeaponSkill: Int,
+    val mandatory: Boolean,
     val defendCount: Int = 0,
     val monsterConfused: Boolean = false,
     val monstersHeld: Boolean = false,
@@ -1815,6 +1875,12 @@ private data class BattleEncounter(
 private data class BattleCastDecision(
     val value: Boolean,
     val encounter: BattleEncounter,
+)
+
+private data class BattleRunOutcome(
+    val encounter: BattleEncounter,
+    val escaped: Boolean,
+    val messages: List<String>,
 )
 
 private data class BattleLootSelection(

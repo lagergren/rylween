@@ -23,6 +23,7 @@ import rylween.runtime.RuntimeCharacterPortraitPreview
 import rylween.runtime.RuntimeInputPort
 import rylween.runtime.RuntimeInputTokens
 import rylween.runtime.RuntimeMapCell
+import rylween.runtime.memberName
 import rylween.runtime.RuntimePartyPageView
 import rylween.runtime.RuntimeScreenPort
 import rylween.runtime.RuntimeState
@@ -571,7 +572,7 @@ internal class BitmapRuntimeScreen(
                 party.members.take(4).mapIndexed { index, member ->
                     BitmapMemberStatus(
                         slot = index + 1,
-                        name = content.strings.value(member.nameString),
+                        name = party.memberName(content, index),
                         hp = member.hitPoints.current.coerceAtLeast(0),
                         hpMax = member.hitPoints.max.coerceAtLeast(1),
                         mana =

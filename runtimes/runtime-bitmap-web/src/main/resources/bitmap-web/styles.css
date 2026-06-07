@@ -99,6 +99,27 @@ body {
     gap: 10px;
 }
 
+.view-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border: 1px solid #60724f;
+    background: #26341f;
+    color: #dce8c2;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.view-switcher select {
+    border: 1px solid #7c9167;
+    background: #172015;
+    color: #f1ead6;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+}
+
 .server-pill,
 .prefs-pill {
     padding: 6px 10px;
