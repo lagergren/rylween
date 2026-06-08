@@ -333,7 +333,12 @@ internal class ScriptExecutor(
                             )
                 }
 
-            CompiledOpcode.GrantReward -> continueAfter { runtime = runtime.withParty(applyReward(instruction.rewardOperand(0))) }
+            CompiledOpcode.GrantReward ->
+                continueAfter {
+                    val before = runtime
+                    runtime = runtime.withParty(applyReward(instruction.rewardOperand(0)))
+                    if (runtime != before) screen.updateStatus(runtime)
+                }
             CompiledOpcode.RandomItemOffer ->
                 continueAfter {
                     runtime =
@@ -1691,10 +1696,7 @@ internal class ScriptExecutor(
         }
 
     private fun memberName(memberNumber: Int): String =
-        runtime.party.members
-            .getOrNull(memberNumber - 1)
-            ?.let { member -> content.strings.value(member.nameString) }
-            .orEmpty()
+        runtime.party.memberName(content, memberNumber - 1)
 
     private fun memberPronoun(
         memberNumber: Int,

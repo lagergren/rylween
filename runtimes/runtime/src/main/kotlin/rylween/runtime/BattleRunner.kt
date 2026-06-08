@@ -364,7 +364,7 @@ internal class BattleRunner(
         messages: MutableList<String>,
     ): BattleEncounter {
         val actions = rules.actions.filter { action -> action.availableTo(member) }
-        val prompt = rules.text.playerActionPrompt(member, actions)
+        val prompt = rules.text.playerActionPrompt(runtime.party.memberName(content, memberIndex), actions)
         screen.writeText(prompt)
         val command = input.readCommand()
         val action = command?.let { key -> actions.firstOrNull { current -> current.binding.matches(key) } }
@@ -373,7 +373,7 @@ internal class BattleRunner(
             return copy(actionRetry = true)
         }
         return when (action.kind) {
-            CombatActionKind.Attack -> attack(member, messages)
+            CombatActionKind.Attack -> attack(memberIndex, member, messages)
             CombatActionKind.Defend -> defend(memberIndex, member, messages)
             CombatActionKind.BattleCry -> battleCry(messages)
             CombatActionKind.UseMagicItem -> useMagicItem(memberIndex, messages)
@@ -382,6 +382,7 @@ internal class BattleRunner(
     }
 
     private fun BattleEncounter.attack(
+        memberIndex: Int,
         member: CompiledPartyMember,
         messages: MutableList<String>,
     ): BattleEncounter {
@@ -394,7 +395,7 @@ internal class BattleRunner(
             }
         val hitChance = (skill + rules.playerRound.attack.hitBonus).coerceIn(0, 100)
         if (hit.value >= hitChance) {
-            messages += rules.text.playerMiss.renderBattle(BATTLE_ATTACKER_NAME to content.strings.value(member.nameString))
+            messages += rules.text.playerMiss.renderBattle(BATTLE_ATTACKER_NAME to runtime.party.memberName(content, memberIndex))
             return copy(runtime = runtime.withParty(hit.party))
         }
         val damageDraw = hit.party.drawRandom(0, rules.playerRound.attack.damageSpreadMax)
@@ -409,7 +410,7 @@ internal class BattleRunner(
         val killed = monsterHp[targetIndex] > 0 && nextHp[targetIndex] == 0
         messages +=
             rules.text.playerHit.renderBattle(
-                BATTLE_ATTACKER_NAME to content.strings.value(member.nameString),
+                BATTLE_ATTACKER_NAME to runtime.party.memberName(content, memberIndex),
                 BATTLE_DAMAGE to damage.toString(),
             )
         if (killed) messages += rules.text.killed.renderBattle()
@@ -556,13 +557,14 @@ internal class BattleRunner(
         val targetDraw = runtime.party.drawRandom(0, alive.lastIndex)
         val targetIndex = alive[targetDraw.value]
         val target = targetDraw.party.members[targetIndex]
+        val targetName = targetDraw.party.memberName(content, targetIndex)
         val hit = targetDraw.party.drawRandom(0, RANDOM_PERCENT_MAX)
         val hitChance = (monsterWeaponSkill + rules.monsterRound.melee.hitBonus).coerceIn(0, 100)
         if (hit.value >= hitChance) {
             messages +=
                 rules.text.monsterMiss.renderBattle(
                     BATTLE_ATTACKER_NAME to monsterName(),
-                    BATTLE_TARGET_NAME to content.strings.value(target.nameString),
+                    BATTLE_TARGET_NAME to targetName,
                 )
             return copy(runtime = runtime.withParty(hit.party))
         }
@@ -575,11 +577,11 @@ internal class BattleRunner(
         messages +=
             rules.text.monsterHit.renderBattle(
                 BATTLE_ATTACKER_NAME to monsterName(),
-                BATTLE_TARGET_NAME to content.strings.value(target.nameString),
+                BATTLE_TARGET_NAME to targetName,
                 BATTLE_DAMAGE to damage.toString(),
             )
         if (nextHp == 0) {
-            messages += rules.text.memberDeath.renderBattle(BATTLE_TARGET_NAME to content.strings.value(target.nameString))
+            messages += rules.text.memberDeath.renderBattle(BATTLE_TARGET_NAME to targetName)
         }
         return copy(runtime = runtime.withParty(damageDraw.party).withMember(targetIndex, nextTarget))
     }
@@ -865,13 +867,13 @@ internal class BattleRunner(
         val growthByClass = leveling.classGrowth.associateBy { growth -> growth.pcClass }
         val gains = mutableListOf<BattleLevelGain>()
         val nextMembers =
-            members.map { member ->
+            members.mapIndexed { index, member ->
                 val gained =
                     ((member.level + 1)..leveling.maxLevel).count { targetLevel ->
                         member.experience >= leveling.xpThresholds.getOrElse(targetLevel) { Int.MAX_VALUE }
                     }
-                if (gained == 0) return@map member
-                gains += BattleLevelGain(content.strings.value(member.nameString), gained)
+                if (gained == 0) return@mapIndexed member
+                gains += BattleLevelGain(memberName(content, index), gained)
                 val growth = growthByClass[member.pcClass]
                 val nextHealth = member.health + (growth?.health ?: 0) * gained
                 val hpFloor = evalFormula(leveling.hitPointFloor, this, mapOf("health" to nextHealth)).value
@@ -983,11 +985,11 @@ internal class BattleRunner(
         )
 
     private fun ExternalBattleText.playerActionPrompt(
-        member: CompiledPartyMember,
+        memberName: String,
         actions: List<ExternalCombatAction>,
     ): List<String> =
         buildList {
-            add(content.strings.value(member.nameString))
+            add(memberName)
             addAll(whatNow.renderBattle())
             actions.forEach { action -> addAll(action.prompt.renderBattle()) }
         }
@@ -1669,10 +1671,7 @@ internal class BattleRunner(
                 is CompiledStringExpr.NativeString ->
                     when (content.strings.value(expr.pathString)) {
                         NativeAllowlist.partyMemberName.path ->
-                            encounter.runtime.party.members
-                                .getOrNull(expr.args.single().stringArgInt())
-                                ?.let { member -> content.strings.value(member.nameString) }
-                                .orEmpty()
+                            encounter.runtime.party.memberName(content, expr.args.single().stringArgInt())
 
                         NativeAllowlist.combatMonsterName.path -> encounter.monsterName()
                         NativeAllowlist.partyPronounSubject.path ->
