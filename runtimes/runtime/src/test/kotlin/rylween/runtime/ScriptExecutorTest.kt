@@ -49,6 +49,36 @@ class ScriptExecutorTest {
             "inn lodging gold spend must be visible in status before the inn scene returns",
         )
     }
+
+    @Test
+    fun garthRewardRefreshesStatusBeforeConversationReturns() {
+        val content = bundle.content
+        val state = bundle.states.single { state -> content.slug(state.state) == "town-services-replay" }
+        val thord = content.ref(CompiledHandleKind.Town, "thord")
+        val runtime =
+            RuntimeState
+                .from(state, content)
+                .copy(currentMode = RuntimeMode.Town, currentTown = thord)
+        val program =
+            content.scripts.roots.single { root ->
+                root.root.kind == ScriptRootKind.DialogueBranch && root.root.slug == "dialogue.garth.garth.bandits.recovered"
+            }
+        val screen = CapturingStatusScreen()
+        val input = ScriptedInput("\n")
+        val log = RuntimeLog.open(testTmp.resolve("garth-reward-status.log"))
+
+        val after =
+            log.use {
+                ScriptExecutor(content, systems, input, screen, runtime, log = it).execute(program)
+            }
+
+        val expectedGold = runtime.party.resources.gold + 2_000
+        assertEquals(expectedGold, after.party.resources.gold)
+        assertTrue(
+            expectedGold in screen.statusGoldUpdates,
+            "Garth mission reward gold must be visible in status before the dialogue returns",
+        )
+    }
 }
 
 private fun requiredRuntimeTestProperty(name: String): String =
