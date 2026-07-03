@@ -36,6 +36,29 @@ For local inspection, start the server with `--debug-secrets` or
 `RYLWEEN_BITMAP_DEBUG_SECRETS=true`; then press `M` in the wilderness to show
 the annotated full world map with towns, huts, and other locations.
 
+## House Test Server
+
+The root `housetest.sh` helper starts the installed bitmap runtime in the
+background with an isolated data directory under `~/.rylween/house-test`. By
+default it binds to the first local SICSAPI VPN IPv4 address matching
+`10.11.*`, so VPN users can reach the server without exposing it on every
+network interface:
+
+```sh
+./housetest.sh
+```
+
+On this machine that should print a URL such as `http://10.11.10.20:8081`.
+Override the bind address when needed:
+
+```sh
+RYLWEEN_HOUSETEST_HOST=127.0.0.1 ./housetest.sh
+RYLWEEN_HOUSETEST_HOST=10.11.x.y ./housetest.sh
+```
+
+Do not use `RYLWEEN_HOUSETEST_HOST=0.0.0.0` for the VPN-only case; that listens
+on all IPv4 interfaces.
+
 The 2D wilderness renderer keeps authored terrain cells unchanged and adds a
 visual-only transition pass with bundled transparent PNG overlays under
 `bitmap-web/wilderness/transitions`. These overlays are drawn from the same
