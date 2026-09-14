@@ -4,7 +4,7 @@ set -euo pipefail
 APP="${RYLWEEN_HOUSETEST_APP:-runtimes/runtime-bitmap-web/build/install/rylween-bitmap-web/bin/rylween-bitmap-web}"
 HOST="${RYLWEEN_HOUSETEST_HOST:-sicsapi-vpn}"
 PORT="${RYLWEEN_HOUSETEST_PORT:-8081}"
-DATA_DIR="${RYLWEEN_HOUSETEST_DATA_DIR:-/home/marcus/.rylween/house-test}"
+DATA_DIR="${RYLWEEN_HOUSETEST_DATA_DIR:-$HOME/.rylween/house-test}"
 LOG_FILE="${RYLWEEN_HOUSETEST_LOG_FILE:-/tmp/rylween-bitmap-web-house-test.log}"
 MAIN_CLASS="${RYLWEEN_HOUSETEST_MAIN_CLASS:-rylween.bitmapweb.RylweenBitmapWebRuntimeMainKt}"
 
@@ -45,13 +45,37 @@ resolve_host() {
   esac
 }
 
+is_house_test_server() {
+  local has_main=false has_port=false has_data=false
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      "$MAIN_CLASS") has_main=true ;;
+      --port) [ "${2-}" != "$PORT" ] || has_port=true ;;
+      --data) [ "${2-}" != "$DATA_DIR" ] || has_data=true ;;
+    esac
+    shift
+  done
+  [ "$has_main" = true ] && [ "$has_port" = true ] && [ "$has_data" = true ]
+}
+
 find_existing_pids() {
-  ps -Ao pid=,args= |
-    awk -v self="$$" -v main="$MAIN_CLASS" -v port="$PORT" -v data="$DATA_DIR" '
-      $1 != self && index($0, main) && index($0, "--port " port) && index($0, "--data " data) {
-        print $1
-      }
-    '
+  local cmdline pid arg
+  local -a args
+  for cmdline in /proc/[0-9]*/cmdline; do
+    [ -r "$cmdline" ] || continue
+    pid="${cmdline#/proc/}"
+    pid="${pid%/cmdline}"
+    [ "$pid" != "$$" ] || continue
+    args=()
+    # Preserve argument boundaries, including spaces in data directory names.
+    while IFS= read -r -d '' arg; do
+      args+=("$arg")
+    done < "$cmdline" 2>/dev/null || continue
+    if is_house_test_server "${args[@]}"; then
+      printf '%s\n' "$pid"
+    fi
+  done
+  return 0
 }
 
 stop_existing_server() {
@@ -60,7 +84,7 @@ stop_existing_server() {
   [ -z "$pids" ] && return 0
 
   echo "Stopping existing house-test bitmap server: $pids"
-  kill $pids
+  xargs kill <<< "$pids"
 
   for _ in {1..30}; do
     pids="$(find_existing_pids)"
@@ -69,8 +93,13 @@ stop_existing_server() {
   done
 
   echo "Existing server did not exit cleanly; forcing: $pids"
-  kill -9 $pids
+  xargs kill -9 <<< "$pids"
 }
+
+if [ ! -d /proc/self ] || ! command -v setsid >/dev/null 2>&1; then
+  echo "The house-test launcher requires Linux with /proc and setsid." >&2
+  exit 2
+fi
 
 HOST="$(resolve_host)" || {
   echo "Could not find a local SICSAPI VPN IPv4 address matching 10.11.*." >&2
