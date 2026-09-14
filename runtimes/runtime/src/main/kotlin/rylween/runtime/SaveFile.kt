@@ -184,9 +184,10 @@ internal object SaveFile {
         content: CompiledContentBundle,
         userId: String,
         hallOfHeroesCompletedBy: String?,
-    ) {
+    ) = SaveFileStorage.update(file) { target ->
         val activeUser = userId.normalizedSaveUser()
-        val existingValues = file.existingSaveValuesOrEmpty()
+        val existingValues = target.existingSaveValuesOrEmpty()
+        if (target.isFile) existingValues.requireCompatibleSave(bundleHash)
         val preservedUsers = existingValues.userRecords().filterNot { record -> record.id == activeUser }
         val userRecords = preservedUsers + UserSaveRecord(activeUser, runtime.userSaveValues(content))
         val scoreParties =
@@ -203,8 +204,7 @@ internal object SaveFile {
                 .toMutableMap()
         values.putHeroEntries(heroes)
         values.putUserRecords(userRecords)
-        file.parentFile?.mkdirs()
-        file.writeText(SaveCodec.encodeValues(values))
+        SaveFileStorage.replace(target, SaveCodec.encodeValues(values))
     }
 
     fun read(
@@ -266,18 +266,19 @@ internal object SaveFile {
         file: File,
         expectedBundleHash: String,
         userId: String,
-    ): Boolean {
-        if (!file.isFile) return true
-        val values = file.readSaveValues()
-        values.requireCompatibleSave(expectedBundleHash)
-        val records = values.userRecords()
-        if (records.isEmpty()) return file.delete()
-        val nextRecords = records.filterNot { record -> record.id == userId.normalizedSaveUser() }
-        val nextValues = values.withoutUserRecords().toMutableMap()
-        nextValues.putUserRecords(nextRecords)
-        file.writeText(SaveCodec.encodeValues(nextValues))
-        return true
-    }
+    ): Boolean =
+        SaveFileStorage.update(file) { target ->
+            if (!target.isFile) return@update true
+            val values = target.readSaveValues()
+            values.requireCompatibleSave(expectedBundleHash)
+            val records = values.userRecords()
+            if (records.isEmpty()) return@update target.delete()
+            val nextRecords = records.filterNot { record -> record.id == userId.normalizedSaveUser() }
+            val nextValues = values.withoutUserRecords().toMutableMap()
+            nextValues.putUserRecords(nextRecords)
+            SaveFileStorage.replace(target, SaveCodec.encodeValues(nextValues))
+            true
+        }
 
     fun lines(file: File): List<String> = file.readLines()
 
@@ -751,7 +752,7 @@ internal object SaveFile {
 
     private fun File.existingSaveValuesOrEmpty(): Map<String, String> {
         if (!isFile) return emptyMap()
-        return runCatching { readSaveValues() }.getOrDefault(emptyMap())
+        return readSaveValues()
     }
 
     private fun Map<String, String>.userValuesFor(userId: String): Map<String, String> {
