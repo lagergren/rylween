@@ -980,6 +980,23 @@ class GameRuntime private constructor(
         val rules = systems.characterCreation ?: error("compiled bundle has no character-creation rules")
         val prompts = systems.prompts.characterCreation
         screen.bootFrame()
+        val prerolled =
+            if (rules.prerolledMembers.isEmpty()) {
+                false
+            } else {
+                readCreationChoice(
+                    screen,
+                    input,
+                    log,
+                    prompts.header.renderCreation(wrapWidth = screen.textColumns) +
+                        prompts.method.renderCreation(wrapWidth = screen.textColumns),
+                    listOf(
+                        CreationChoice('1', prompts.manualLabel, false),
+                        CreationChoice('2', prompts.prerolledLabel, true),
+                    ),
+                    "method",
+                ) ?: return null
+            }
         screen.writeText(
             prompts.header.renderCreation(wrapWidth = screen.textColumns) +
                 prompts.partyName.renderCreation(wrapWidth = screen.textColumns),
@@ -991,6 +1008,18 @@ class GameRuntime private constructor(
         val memberNames = mutableListOf<String>()
         while (members.size < rules.start.partyMemberMax) {
             val memberNumber = members.size + 1
+            if (prerolled) {
+                val member = rules.prerolledMembers[members.size]
+                val pcClass = rules.classes.single { it.pcClass == member.pcClass }
+                val draw = runtime.drawCreationStats(rules.statRoll, memberNumber, log, pcClass)
+                runtime = draw.runtime
+                members += runtime.creationMember(memberNumber, member.gender, member.race, member.pcClass, draw.stats)
+                memberNames += member.name
+                log.event(
+                    "creation.member_accepted member=$memberNumber gender=${member.gender} race=${member.race} class=${member.pcClass}",
+                )
+                continue
+            }
             screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, null, null, null, null))
             val statsResult = readAcceptedCreationStats(runtime, memberNumber, input, screen, log) ?: return null
             runtime = statsResult.runtime
@@ -1101,23 +1130,27 @@ class GameRuntime private constructor(
         roll: ExternalCharacterCreationStatRoll,
         memberNumber: Int,
         log: RuntimeLog,
+        pcClass: ExternalCharacterCreationClassOption? = null,
     ): CreationStatsResult {
         var nextParty = party
 
-        fun draw(stat: String): Int {
-            val result = nextParty.drawRandom(roll.min, roll.max)
+        fun draw(stat: CharacterCreationStat): Int {
+            val minimum =
+                if (pcClass?.requiredStat == stat) maxOf(roll.min, checkNotNull(pcClass.minimum)) else roll.min
+            val result = nextParty.drawRandom(minimum, roll.max)
             nextParty = result.party
-            log.event("rng.creation_stat member=$memberNumber stat=$stat range=${roll.min}..${roll.max} value=${result.value}")
+            val statName = stat.name.replaceFirstChar(Char::lowercaseChar)
+            log.event("rng.creation_stat member=$memberNumber stat=$statName range=$minimum..${roll.max} value=${result.value}")
             return result.value
         }
 
         val stats =
             CreationStats(
-                weaponSkill = draw("weaponSkill"),
-                wisdom = draw("wisdom"),
-                health = draw("health"),
-                charisma = draw("charisma"),
-                dexterity = draw("dexterity"),
+                weaponSkill = draw(CharacterCreationStat.WeaponSkill),
+                wisdom = draw(CharacterCreationStat.Wisdom),
+                health = draw(CharacterCreationStat.Health),
+                charisma = draw(CharacterCreationStat.Charisma),
+                dexterity = draw(CharacterCreationStat.Dexterity),
             )
         return CreationStatsResult(stats, withParty(nextParty))
     }
@@ -1131,7 +1164,7 @@ class GameRuntime private constructor(
         label: String,
     ): T? {
         while (true) {
-            screen.writeText(prompt + choices.menuLines())
+            screen.writeText(prompt + choices.menuLines(screen.textColumns))
             val command = input.readCommand() ?: return null
             val choice = choices.firstOrNull { choice -> choice.key == command }
             if (choice != null) {
@@ -1154,9 +1187,11 @@ class GameRuntime private constructor(
 
     private fun Int.digitChoiceKey(): Char = (this + 1).digitToChar()
 
-    private fun <T> List<CreationChoice<T>>.menuLines(): List<String> =
-        chunked(2).map { row ->
-            row.joinToString("  ") { choice -> "${choice.key}. ${choice.label}".padEnd(12) }.trimEnd()
+    private fun <T> List<CreationChoice<T>>.menuLines(wrapWidth: Int?): List<String> =
+        chunked(2).flatMap { row ->
+            val labels = row.map { choice -> "${choice.key}. ${choice.label}" }
+            val line = labels.joinToString("  ") { it.padEnd(12) }.trimEnd()
+            if (wrapWidth != null && line.length > wrapWidth) labels else listOf(line)
         }
 
     private fun ExternalCharacterCreationClassOption.failureFor(stats: CreationStats): ExternalRuntimeTextBlock? =

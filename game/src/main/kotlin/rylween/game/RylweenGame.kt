@@ -730,6 +730,18 @@ val authoredRylween: RylweenModel =
                 }
                 characterCreation {
                     header = literalText("Party Creation", "")
+                    method =
+                        literalText(
+                            "Choose your party:",
+                            "Pre-rolled members:",
+                            "Ronan: Human Male Fighter",
+                            "Brynja: Dwarf Female Ranger",
+                            "Elowen: Elf Female Mage",
+                            "Walter: Human Male Priest",
+                            "",
+                        )
+                    manualLabel = "Roll your own"
+                    prerolledLabel = "Pre-rolled"
                     partyName = flowText("What is the name of your party?")
                     statsPage {
                         line("Stats for char: ", memberNumber)
@@ -1238,6 +1250,11 @@ val authoredRylween: RylweenModel =
                     )
                 }
                 playerClass(PcClass.Ranger, "Ranger")
+
+                prerolledMember("Ronan", Gender.Male, Race.Human, PcClass.Fighter)
+                prerolledMember("Brynja", Gender.Female, Race.Dwarf, PcClass.Ranger)
+                prerolledMember("Elowen", Gender.Female, Race.Elf, PcClass.Mage)
+                prerolledMember("Walter", Gender.Male, Race.Human, PcClass.Priest)
 
                 portrait(Images.Portrait.default)
                 portrait(Images.Portrait.fighter, klass = PcClass.Fighter)

@@ -2056,6 +2056,9 @@ class CharacterCreationPromptsBuilder(
     initial: CharacterCreationPromptsModel = CharacterCreationPromptsModel(),
 ) {
     var header: TextBlock = initial.header
+    var method: TextBlock = initial.method
+    var manualLabel: String = initial.manualLabel
+    var prerolledLabel: String = initial.prerolledLabel
     var partyName: TextBlock = initial.partyName
     private var statsPageText: TextBlock = initial.statsPage
     var reroll: TextBlock = initial.reroll
@@ -2088,6 +2091,9 @@ class CharacterCreationPromptsBuilder(
     fun build(): CharacterCreationPromptsModel =
         CharacterCreationPromptsModel(
             header = header,
+            method = method,
+            manualLabel = manualLabel,
+            prerolledLabel = prerolledLabel,
             partyName = partyName,
             statsPage = statsPageText,
             reroll = reroll,
