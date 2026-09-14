@@ -2,6 +2,7 @@ package rylween.runtime
 
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
+import rylween.compiled.readExternalRuntimeSystems
 import rylween.dsl.impl.Gender
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.PcClass
@@ -77,6 +78,55 @@ class PrerolledPartyTest {
         }
 
     @Test
+    fun previewAndGeneratedPartyFollowConfiguredMembersAndDisplayLabels() =
+        withSaveFile { file ->
+            val systems = bundleFile.readExternalRuntimeSystems()
+            val rules = checkNotNull(systems.characterCreation)
+            val members = rules.prerolledMembers.reversed().toMutableList()
+            members[0] = members[0].copy(name = "Fenn", gender = Gender.Female, race = Race.Halfling, pcClass = PcClass.Thief)
+            val configuredSystems =
+                systems.copy(
+                    characterCreation =
+                        rules.copy(
+                            prerolledMembers = members,
+                            races = rules.races.map { if (it.race == Race.Halfling) it.copy(label = "Folk") else it },
+                            classes = rules.classes.map { if (it.pcClass == PcClass.Thief) it.copy(label = "Rogue") else it },
+                        ),
+                    prompts =
+                        systems.prompts.copy(
+                            characterCreation =
+                                systems.prompts.characterCreation.copy(
+                                    genderFemaleLabel = "Woman",
+                                    genderMaleLabel = "Man",
+                                ),
+                        ),
+                )
+            val output =
+                runSession(
+                    file,
+                    "configured",
+                    "x N 2 \"Custom party\"",
+                    sessionFactory = RuntimeSessionFactory.load(bundle, configuredSystems, bundleHash),
+                )
+            val expectedLines =
+                listOf(
+                    "Fenn: Folk Woman Rogue",
+                    "Elowen: Elf Woman Mage",
+                    "Brynja: Dwarf Woman Ranger",
+                    "Ronan: Human Man Fighter",
+                )
+            expectedLines.forEach { assertContains(output, it) }
+            assertTrue(expectedLines.map(output::indexOf).zipWithNext().all { (first, second) -> first < second })
+            assertFalse("Walter: Human Male Priest" in output)
+            assertFalse("Ronan: Human Male Fighter" in output)
+            val party = read(file, "configured").party
+            assertEquals(members.map { it.name }, party.memberNames)
+            assertEquals(members.map { it.gender }, party.members.map { it.gender })
+            assertEquals(members.map { it.race }, party.members.map { it.race })
+            assertEquals(members.map { it.pcClass }, party.members.map { it.pcClass })
+        }
+
+    @Test
     fun invalidChoiceRetriesAndAbandoningCreationDoesNotOverwriteSaves() =
         withSaveFile { file ->
             val output = runSession(file, "owner", "x N Z 2")
@@ -110,10 +160,11 @@ class PrerolledPartyTest {
         user: String,
         script: String,
         seed: Long = 42,
+        sessionFactory: RuntimeSessionFactory = factory,
     ): String {
         val terminal = CreationTestTerminal()
         RuntimeLog.open(file.resolveSibling("session.log")).use { log ->
-            factory.start(
+            sessionFactory.start(
                 terminal,
                 RuntimeSessionConfig(
                     userId = user,

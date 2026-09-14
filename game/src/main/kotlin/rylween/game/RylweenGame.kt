@@ -734,11 +734,6 @@ val authoredRylween: RylweenModel =
                         literalText(
                             "Choose your party:",
                             "Pre-rolled members:",
-                            "Ronan: Human Male Fighter",
-                            "Brynja: Dwarf Female Ranger",
-                            "Elowen: Elf Female Mage",
-                            "Walter: Human Male Priest",
-                            "",
                         )
                     manualLabel = "Roll your own"
                     prerolledLabel = "Pre-rolled"

@@ -44,6 +44,7 @@ import rylween.compiled.CompiledWorldPosition
 import rylween.compiled.ExternalCharacterCreationClassOption
 import rylween.compiled.ExternalCharacterCreationPrompts
 import rylween.compiled.ExternalCharacterCreationStatRoll
+import rylween.compiled.ExternalRuntimeCharacterCreation
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeInputBinding
 import rylween.compiled.ExternalRuntimeSystems
@@ -989,7 +990,8 @@ class GameRuntime private constructor(
                     input,
                     log,
                     prompts.header.renderCreation(wrapWidth = screen.textColumns) +
-                        prompts.method.renderCreation(wrapWidth = screen.textColumns),
+                        prompts.method.renderCreation(wrapWidth = screen.textColumns) +
+                        rules.prerolledMemberLines(prompts) + "",
                     listOf(
                         CreationChoice('1', prompts.manualLabel, false),
                         CreationChoice('2', prompts.prerolledLabel, true),
@@ -1176,6 +1178,16 @@ class GameRuntime private constructor(
                     .renderCreation(wrapWidth = screen.textColumns) +
                     runtimeGeneratedDetailText("Key: $command"),
             )
+        }
+    }
+
+    private fun ExternalRuntimeCharacterCreation.prerolledMemberLines(prompts: ExternalCharacterCreationPrompts): List<String> {
+        val genders = creationGenderChoices(prompts).associate { it.value to it.label }
+        return prerolledMembers.map { member ->
+            val race = races.single { it.race == member.race }.label
+            val gender = genders.getValue(member.gender)
+            val pcClass = classes.single { it.pcClass == member.pcClass }.label
+            "${member.name}: $race $gender $pcClass"
         }
     }
 
