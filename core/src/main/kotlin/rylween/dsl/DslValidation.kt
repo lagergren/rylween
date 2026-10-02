@@ -2336,6 +2336,26 @@ private fun validateCharacterCreation(
         check(option.label.isNotBlank()) { "character creation class ${option.klass.name} has blank label" }
         option.failureText?.let { validateTextBlock(it, "character creation ${option.klass.name} failure text") }
     }
+    if (model.prerolledMembers.isNotEmpty()) {
+        check(model.prerolledMembers.size == model.start.partyMemberMax) {
+            "pre-rolled party must contain exactly ${model.start.partyMemberMax} members"
+        }
+        model.prerolledMembers.forEach { member ->
+            check(member.name.isNotBlank() && member.name.length <= 24 && member.name.none(Char::isISOControl)) {
+                "pre-rolled member name must contain 1 to 24 printable characters"
+            }
+            check(model.races.any { it.race == member.race }) {
+                "pre-rolled member ${member.name} uses an unavailable race"
+            }
+            val option =
+                checkNotNull(model.classes.find { it.klass == member.klass }) {
+                    "pre-rolled member ${member.name} uses an unavailable class"
+                }
+            check(option.minimum == null || option.minimum <= model.statRoll.max) {
+                "pre-rolled member ${member.name} cannot meet the class stat requirement within the roll range"
+            }
+        }
+    }
     check(
         model.portraits
             .map { portrait -> Triple(portrait.gender, portrait.race, portrait.klass) }
@@ -2887,6 +2907,10 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.save.done, "save done prompt")
     validateTextBlock(prompts.save.failed, "save failed prompt")
     validateTextBlock(prompts.characterCreation.header, "character creation header prompt")
+    validateTextBlock(prompts.characterCreation.method, "character creation method prompt")
+    check(prompts.characterCreation.manualLabel.isNotBlank() && prompts.characterCreation.prerolledLabel.isNotBlank()) {
+        "character creation method labels must not be blank"
+    }
     validateTextBlock(prompts.characterCreation.partyName, "character creation party-name prompt")
     validateTextBlock(
         prompts.characterCreation.statsPage,

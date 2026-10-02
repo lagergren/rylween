@@ -365,6 +365,9 @@ data class SavePromptsModel(
 
 data class CharacterCreationPromptsModel(
     val header: TextBlock = missingPrompt("character_creation.header"),
+    val method: TextBlock = missingPrompt("character_creation.method"),
+    val manualLabel: String = "Roll your own",
+    val prerolledLabel: String = "Pre-rolled",
     val partyName: TextBlock = missingPrompt("character_creation.party_name"),
     val statsPage: TextBlock = missingPrompt("character_creation.stats_page"),
     val reroll: TextBlock = missingPrompt("character_creation.reroll"),
