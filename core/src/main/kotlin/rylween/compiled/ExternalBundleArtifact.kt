@@ -395,6 +395,16 @@ data class ExternalCharacterCreationPrompts(
     val invalidInput: ExternalRuntimeTextBlock,
     val saving: ExternalRuntimeTextBlock,
     val saveConfirmation: ExternalRuntimeTextBlock,
+    val method: ExternalRuntimeTextBlock = inlineRuntimeText(""),
+    val manualLabel: String = "Roll your own",
+    val prerolledLabel: String = "Pre-rolled",
+)
+
+data class ExternalPrerolledMember(
+    val name: String,
+    val gender: Gender,
+    val race: Race,
+    val pcClass: PcClass,
 )
 
 data class ExternalRuntimeCharacterCreation(
@@ -403,6 +413,7 @@ data class ExternalRuntimeCharacterCreation(
     val races: List<ExternalCharacterCreationRaceOption>,
     val classes: List<ExternalCharacterCreationClassOption>,
     val portraits: List<ExternalCharacterCreationPortrait>,
+    val prerolledMembers: List<ExternalPrerolledMember> = emptyList(),
 )
 
 data class ExternalCharacterCreationStatRoll(
@@ -1249,6 +1260,17 @@ private class ExternalBundleArtifactWriter {
                     },
                 ),
             "classes" to JsonArray(characterCreation.classes.map(::characterCreationClassJson)),
+            "prerolledMembers" to
+                JsonArray(
+                    characterCreation.prerolledMembers.map { member ->
+                        jsonObject(
+                            "name" to JsonString(member.name),
+                            "gender" to JsonString(member.gender.name),
+                            "race" to JsonString(member.race.name),
+                            "pcClass" to JsonString(member.klass.name),
+                        )
+                    },
+                ),
             "portraits" to
                 JsonArray(
                     characterCreation.portraits.map { portrait ->
@@ -1605,6 +1627,9 @@ private class ExternalBundleArtifactWriter {
                         promptGroupJson(
                             "characterCreation",
                             textField("header", prompts.characterCreation.header),
+                            textField("method", prompts.characterCreation.method),
+                            stringField("manualLabel", prompts.characterCreation.manualLabel),
+                            stringField("prerolledLabel", prompts.characterCreation.prerolledLabel),
                             textField("partyName", prompts.characterCreation.partyName),
                             textField("statsPage", prompts.characterCreation.statsPage),
                             textField("reroll", prompts.characterCreation.reroll),
@@ -2826,6 +2851,9 @@ private class ExternalRuntimeSystemsReader(
             characterCreation =
                 ExternalCharacterCreationPrompts(
                     header = characterCreation.requiredTextPrompt("header"),
+                    method = characterCreation.optionalTextPrompt("method", inlineRuntimeText("")),
+                    manualLabel = characterCreation.optionalStringPrompt("manualLabel", "Roll your own"),
+                    prerolledLabel = characterCreation.optionalStringPrompt("prerolledLabel", "Pre-rolled"),
                     partyName = characterCreation.requiredTextPrompt("partyName"),
                     statsPage = characterCreation.requiredTextPrompt("statsPage"),
                     reroll = characterCreation.requiredTextPrompt("reroll"),
@@ -2940,6 +2968,17 @@ private class ExternalRuntimeSystemsReader(
                     )
                 },
             start = requiredObject("start").readCharacterCreationStart(),
+            prerolledMembers =
+                optionalArray("prerolledMembers")?.values.orEmpty().map { value ->
+                    value.asObject("pre-rolled member").let { member ->
+                        ExternalPrerolledMember(
+                            name = member.requiredString("name"),
+                            gender = member.requiredEnum("gender"),
+                            race = member.requiredEnum("race"),
+                            pcClass = member.requiredEnum("pcClass"),
+                        )
+                    }
+                },
             races =
                 requiredArray("races").values.map { value ->
                     value.asObject("character creation race").let { option ->

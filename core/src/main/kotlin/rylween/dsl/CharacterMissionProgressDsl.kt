@@ -30,6 +30,7 @@ import rylween.dsl.impl.MissionModel
 import rylween.dsl.impl.PartyResources
 import rylween.dsl.impl.PartyResourcesBuilder
 import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.PrerolledMemberModel
 import rylween.dsl.impl.Race
 import rylween.dsl.impl.RandomNpcPlacementOptionModel
 import rylween.dsl.impl.RandomNpcPlacementPolicyModel
@@ -524,6 +525,7 @@ class CharacterCreationBuilder {
     private val raceOptions = mutableListOf<CharacterRaceOptionModel>()
     private val classOptions = mutableListOf<CharacterClassOptionModel>()
     private val portraitOptions = mutableListOf<CharacterPortraitModel>()
+    private val prerolledMembers = mutableListOf<PrerolledMemberModel>()
 
     fun statRoll(
         min: Int,
@@ -551,6 +553,16 @@ class CharacterCreationBuilder {
         classOptions += CharacterCreationClassBuilder(klass, label).apply(body).build()
     }
 
+    /** Adds a member to the optional pre-rolled starting party, in party order. */
+    fun prerolledMember(
+        name: String,
+        gender: Gender,
+        race: Race,
+        klass: PcClass,
+    ) {
+        prerolledMembers += PrerolledMemberModel(name, gender, race, klass)
+    }
+
     fun portrait(
         image: ImageId,
         gender: Gender? = null,
@@ -567,6 +579,7 @@ class CharacterCreationBuilder {
             races = raceOptions.toList(),
             classes = classOptions.toList(),
             portraits = portraitOptions.toList(),
+            prerolledMembers = prerolledMembers.toList(),
         )
 }
 

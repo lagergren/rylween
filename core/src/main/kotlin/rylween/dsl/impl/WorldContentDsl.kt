@@ -303,12 +303,21 @@ data class CharacterPortraitModel(
     val image: ImageId,
 )
 
+/** Identity for a starting character whose stats are rolled using the class requirements. */
+data class PrerolledMemberModel(
+    val name: String,
+    val gender: Gender,
+    val race: Race,
+    val klass: PcClass,
+)
+
 data class CharacterCreationModel(
     val statRoll: CharacterCreationStatRollModel,
     val start: CharacterCreationStartModel,
     val races: List<CharacterRaceOptionModel>,
     val classes: List<CharacterClassOptionModel>,
     val portraits: List<CharacterPortraitModel>,
+    val prerolledMembers: List<PrerolledMemberModel> = emptyList(),
 )
 
 enum class EngineService {
