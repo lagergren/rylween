@@ -447,7 +447,7 @@ class RylweenCompiledGameLedgerTest {
                     Monsters.ghoul,
                     Monsters.spider,
                     Monsters.hugeLizard,
-                    Monsters.dryder,
+                    Monsters.drider,
                 ),
         )
         check(
@@ -731,7 +731,7 @@ class RylweenCompiledGameLedgerTest {
                     Items.chainMail,
                     Items.plateMail,
                     Items.ringMail,
-                    Items.elvinCloak,
+                    Items.elvenCloak,
                     Items.mithrilMail,
                 ),
         )
@@ -1363,7 +1363,7 @@ class RylweenCompiledGameLedgerTest {
             strongParty.members.map { it.equipment.armor } ==
                 listOf(
                     Items.mithrilMail,
-                    Items.elvinCloak,
+                    Items.elvenCloak,
                     Items.leather,
                     Items.chainMail,
                 ),
@@ -2108,11 +2108,11 @@ class RylweenCompiledGameLedgerTest {
             "- Sorry. There's nothing new I can tell you.",
             "- Thanks, and the same to you!",
             "Baron Ydarg's castle Zadraz is hidden in a forest to the southwest.",
-            "Arrows speed through the air and hits the party!",
+            "Arrows speed through the air and hit the party!",
             "The rich green plainland of Rylween stretches far in all the directions.",
             "The best healing potions available for money!",
             "The party feels their spirits grow. You are all stronger than before.",
-            "You are served a well tasting dinner. Some of your health returns.",
+            "You are served a tasty dinner. Some of your health returns.",
         ).forEach { text ->
             check(deferredCallContains(text)) {
                 "plain prose should use deferred-wrap text in the game DSL: $text"

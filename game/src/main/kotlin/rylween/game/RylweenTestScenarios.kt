@@ -26,7 +26,7 @@ private val replayRandomNpcIds: List<NpcId> =
         Npcs.oskar,
         Npcs.harry,
         Npcs.marraga,
-        Npcs.broth,
+        Npcs.groth,
         Npcs.ebond,
         Npcs.bolph,
         Npcs.gotharp,
@@ -198,7 +198,7 @@ private val strongReplayMembers: List<ReplayMemberFixture> =
             0 of 74,
             86,
             Items.crossbow,
-            Items.elvinCloak,
+            Items.elvenCloak,
             dexterity = 92,
         ),
         replayMember(
@@ -521,7 +521,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 Npcs.bernak at Towns.wilor.inn
                 Npcs.tybalt at Towns.wilor.inn
                 Npcs.harry at Towns.wilor.inn
-                Npcs.broth at Towns.wilor.inn
+                Npcs.groth at Towns.wilor.inn
                 Npcs.ron at Towns.wilor.inn
                 Npcs.ithienn at Towns.wilor.inn
                 Npcs.gotharp at Towns.ollk.inn
@@ -535,7 +535,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                     Npcs.tybalt,
                     Npcs.harry,
                     Npcs.marraga,
-                    Npcs.broth,
+                    Npcs.groth,
                     Npcs.gotharp,
                     Npcs.ron,
                     Npcs.leander,
@@ -597,7 +597,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                             0 of 74,
                             86,
                             Items.crossbow,
-                            Items.elvinCloak,
+                            Items.elvenCloak,
                         ),
                     )
                 }
@@ -731,14 +731,14 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 Npcs.bernak at Towns.wilor.inn
                 Npcs.tybalt at Towns.wilor.inn
                 Npcs.harry at Towns.wilor.inn
-                Npcs.broth at Towns.wilor.inn
+                Npcs.groth at Towns.wilor.inn
                 Npcs.ron at Towns.wilor.inn
                 Npcs.ithienn at Towns.wilor.inn
                 stageRandomNpcsAwayFromTownServices(
                     Npcs.bernak,
                     Npcs.tybalt,
                     Npcs.harry,
-                    Npcs.broth,
+                    Npcs.groth,
                     Npcs.ron,
                     Npcs.ithienn,
                 )

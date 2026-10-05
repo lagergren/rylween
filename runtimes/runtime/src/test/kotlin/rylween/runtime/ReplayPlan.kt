@@ -133,7 +133,7 @@ internal object ReplayPlans {
                     moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_intro",
-                        commands = enterInnGuestChat() + speakInnNpc(2) + speakInnNpc(5) + "LL",
+                        commands = enterInnGuestChat() + speakInnNpc(3) + speakInnNpc(5) + "LL",
                         checkpoints = listOf("output:suited for this than I am", "state:master_crown.task1_assigned"),
                     ),
                     moveTo("travel.to_kobold_village", location("kobold_village")),
@@ -511,7 +511,7 @@ internal object ReplayPlans {
                                 "output:The other guests giggle.",
                                 "output:Hassan",
                                 "output:Well. My inn is the",
-                                "output:You are served a well",
+                                "output:You are served a tasty",
                                 "output:You go to bed",
                                 "output:You wake up",
                             ),
@@ -757,7 +757,7 @@ internal object ReplayPlans {
         enterInnGuestChat() +
             speakInnNpc(1, "B") +
             speakInnNpc(4, "B") +
-            speakInnNpc(2) +
+            speakInnNpc(3) +
             speakInnNpc(5) +
             speakInnNpc(6) +
             speakInnNpc(7) +

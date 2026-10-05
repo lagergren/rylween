@@ -191,7 +191,7 @@ class RuntimeReplayPlanTest {
                     "exhausting hour",
                     "Are you in need",
                     "of lodging?",
-                    "You are served a well",
+                    "You are served a tasty",
                     "You go to bed",
                     "You wake up",
                     "rng.draw context=speak.chitchat.subject",

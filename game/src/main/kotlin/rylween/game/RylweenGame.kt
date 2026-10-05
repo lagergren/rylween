@@ -410,7 +410,7 @@ val authoredRylween: RylweenModel =
                     fatigueAt(0, literalText("You begin to feel tired"), statusLabel = "TIRED")
                     fatigueAt(-4, literalText("You are exhausted!!!"), drain = true, statusLabel = "EXHAUSTED")
                     fatigueAt(-8, flowText("You begin to feel weak from lack of sleep."), drain = true, statusLabel = "WEAK")
-                    fatigueBelow(-8, flowText("You faint from lack of well needed sleep."), drain = true, statusLabel = "FAINT")
+                    fatigueBelow(-8, flowText("You faint from lack of much-needed sleep."), drain = true, statusLabel = "FAINT")
                 }
                 // Hunt is a reusable ranger action. The fields define chance,
                 // move cost, food range, target prompts, and result text.
@@ -524,7 +524,7 @@ val authoredRylween: RylweenModel =
                         Items.chainMail,
                         Items.plateMail,
                         Items.ringMail,
-                        Items.elvinCloak,
+                        Items.elvenCloak,
                         Items.mithrilMail,
                         Items.admtMail,
                     )
@@ -558,7 +558,7 @@ val authoredRylween: RylweenModel =
                 // chooses and applies traps through the generic room system.
                 pitfall {
                     damageDivisor = 6
-                    trap(flowText("Arrows speed through the air and hits the party!"))
+                    trap(flowText("Arrows speed through the air and hit the party!"))
                     trap(flowText("Poison needles shoot out from the floor!"))
                     trap(flowText("A volley of shurikens is hurled from a hatch in the wall!"))
                 }
@@ -604,7 +604,7 @@ val authoredRylween: RylweenModel =
                     stairsGuardianOffer =
                         flowText(
                             """
-                            A mage imprisoned in a fiery sphere offers to open trapdoor at the top of the stairs if you give him an item of power!
+                            A mage imprisoned in a fiery sphere offers to open the trapdoor at the top of the stairs if you give him an item of power!
 
                             He also offers to teleport you out of the castle, for free.
                             """,
@@ -880,7 +880,7 @@ val authoredRylween: RylweenModel =
                 weapon(Items.longsword, "Longsword", cost = 280, damage = 9)
                 weapon(Items.trident, "Trident", cost = 350, damage = 11)
                 weapon(Items.halberd, "Halberd", cost = 500, damage = 14)
-                weapon(Items.poleArm, "Pole arm", cost = 670, damage = 18)
+                weapon(Items.poleArm, "Pole Arm", cost = 670, damage = 18)
                 weapon(Items.crossbow, "Crossbow", cost = 900, damage = 21)
                 weapon(Items.scythe, "Scythe", cost = 870, damage = 14)
                 weapon(Items.scimitar, "Scimitar", cost = 600, damage = 8)
@@ -895,7 +895,7 @@ val authoredRylween: RylweenModel =
                 armor(Items.chainMail, "Chain Mail", cost = 600, armorClass = 5)
                 armor(Items.plateMail, "Plate Mail", cost = 980, armorClass = 7)
                 armor(Items.ringMail, "Ring Mail", cost = 1_950, armorClass = 9)
-                armor(Items.elvinCloak, "Elvin Cloak", cost = 3_600, armorClass = 12)
+                armor(Items.elvenCloak, "Elven Cloak", cost = 3_600, armorClass = 12)
                 armor(Items.mithrilMail, "Mithril Mail", cost = 5_800, armorClass = 14)
                 armor(Items.admtMail, "Admt. Mail", cost = 9_400, armorClass = 16)
                 armor(Items.protSphere, "Prot. Sphere", cost = 15_000, armorClass = 20)
@@ -1380,7 +1380,7 @@ val authoredRylween: RylweenModel =
                         magicImmune(flowText("The magic item doesn't seem to work on this enemy!!!"))
                         spellFizzle(flowText("The spell fizzles! This creature is immune to ordinary magic!!!"))
                         notEnoughMagic { line("Not enough magic!") }
-                        restGainHits(flowText("You gain some hits pts as you rest this round."))
+                        restGainHits(flowText("You gain some hit pts as you rest this round."))
                         defendStance(flowText("You put up a defensive stance..."))
                         battleCry {
                             line("HI-YAAAH!")
@@ -1526,8 +1526,8 @@ val authoredRylween: RylweenModel =
                         flowText(
                             """
                             You are in the swampy marshlands of Rylween. Bubbles of
-                            gas rise to the surface where they burst and emit a foul
-                            smelling odor.
+                            gas rise to the surface where they burst and emit a
+                            foul-smelling odor.
                             """,
                         ),
                     )
@@ -1919,7 +1919,7 @@ val authoredRylween: RylweenModel =
                     script {
                         showTextAndWait(
                             """
-                            As you enter this level you hear a horrible evil laughter.
+                            As you enter this level you hear horrible, evil laughter.
                             Suddenly! Out of the shadows, something HIDEOUS emerges.
                             """,
                         )
@@ -1948,7 +1948,7 @@ val authoredRylween: RylweenModel =
                         whenever(!achieved(Milestones.braceletsOfThun)) {
                             showTextAndWait(
                                 """
-                                This whole chamber shines of a bright white light!
+                                This whole chamber shines with a bright white light!
                                 On a table before you, lie the fabled Bracelets of
                                 Thun! The glow fades as you put them in your backpack.
                                 """,
@@ -2005,7 +2005,7 @@ val authoredRylween: RylweenModel =
                             )
                             showTextAndWait(
                                 """
-                                You curse the rouge who tricked you and are just
+                                You curse the rogue who tricked you and are just
                                 about to leave...
                                 """,
                             )
@@ -2017,7 +2017,7 @@ val authoredRylween: RylweenModel =
                             )
                             showTextAndWait {
                                 line("'Guild Master: This is")
-                                line("the proof that I, ", character(Roles.masterThief).name)
+                                line("the proof that I, ", character(Roles.masterThief).name, ",")
                                 line("am worthy of the title")
                                 line("Master Thief.'")
                                 line("      - ", character(Roles.masterThief).name)
@@ -2175,7 +2175,7 @@ val authoredRylween: RylweenModel =
                             showTextAndWait(
                                 """
                                 This is the altar chamber of the temple. Hooded shapes
-                                kneel at the blood stained altar at the end of this chamber.
+                                kneel at the blood-stained altar at the end of this chamber.
                                 """,
                             )
                             showTextAndWait("You rush to attack the priests...")
@@ -2188,7 +2188,7 @@ val authoredRylween: RylweenModel =
                             )
                             showTextAndWait(
                                 """
-                                Suddenly there is an ear splitting bang and a ghastly
+                                Suddenly there is an ear-splitting bang and a ghastly
                                 creature emerges from the shadows of this uncanny sanctuary.
                                 """,
                             )
@@ -2458,14 +2458,14 @@ val authoredRylween: RylweenModel =
 
                     chitchatPrompt(ChitchatSubject.Well) {
                         female(flowText("- You look well today, miss..."))
-                        male(flowText("- You look well today, Sir..."))
+                        male(flowText("- You look well today, sir..."))
                     }
                     chitchatPrompt(ChitchatSubject.Weather) {
                         any(flowText("- Nice weather we're having..."))
                     }
                     chitchatPrompt(ChitchatSubject.Health) {
                         female(flowText("- Is all well with you, miss?"))
-                        male(flowText("- Is all well with you, Sir?"))
+                        male(flowText("- Is all well with you, sir?"))
                     }
 
                     chitchatReplies(ChitchatSubject.Well) {
@@ -2488,7 +2488,7 @@ val authoredRylween: RylweenModel =
                     }
                     chitchatReplies(ChitchatSubject.Weather) {
                         job(NpcJobs.merchant, flowText("- I think it will rain."))
-                        job(NpcJobs.ranger, flowText("- Not a fine weather for tracking, mind you!"))
+                        job(NpcJobs.ranger, flowText("- Not fine weather for tracking, mind you!"))
                         job(NpcJobs.fighter, flowText("- Yeah! But my armor gets quite rusty."))
                         job(NpcJobs.wizard, flowText("- Really?"))
                         job(NpcJobs.priest, flowText("- The gods have been kind to us, my son!"))
@@ -2563,7 +2563,7 @@ val authoredRylween: RylweenModel =
                         job(NpcJobs.smith, flowText("- Sorry, can't help ya."))
                         job(NpcJobs.bargirl, flowText("- Well..."))
                         job(NpcJobs.innkeeper, flowText("- Want to meet interesting travelers? Try the inn or the tavern."))
-                        job(NpcJobs.tavernkeeper, flowText("- Don't know about anyone particular."))
+                        job(NpcJobs.tavernkeeper, flowText("- Don't know about anyone in particular."))
                         job(NpcJobs.hermit, flowText("- Many faces shine through the mist."))
                     }
                     questionReplies(QuestionTopic.Magic) {
@@ -2578,14 +2578,14 @@ val authoredRylween: RylweenModel =
                         job(NpcJobs.drifter, flowText("- GO AWAY!"))
                         job(NpcJobs.halfOrc, flowText("- ME HAVE TRUSTY SWORD! ME NOT CARE 'BOUT MAGIK!"))
                         job(NpcJobs.halfElf, flowText("- Yes, my people were created from the magic of Mother Earth."))
-                        job(NpcJobs.smith, flowText("- Rumor has it that some ogres have the foot of Jazzy, a powerful item."))
+                        job(NpcJobs.smith, flowText("- Rumor has it that some ogres have the Foot of Jazzy, a powerful item."))
                         job(NpcJobs.bargirl, flowText("- I know nothing about that."))
                         job(
                             NpcJobs.innkeeper,
                             flowText("- Magic? Well, they say that Baron Ydarg can be defeated only with the Silver Key."),
                         )
                         job(NpcJobs.tavernkeeper, flowText("- Sorry. Can't help you."))
-                        job(NpcJobs.hermit, flowText("- The Crown, the Shield, the Bracelets and the Foot is all you need."))
+                        job(NpcJobs.hermit, flowText("- The Crown, the Shield, the Bracelets and the Foot are all you need."))
                     }
                     questionReplies(QuestionTopic.Lodging) {
                         job(NpcJobs.merchant, flowText("- Well. The city inn is a good try."))
@@ -2608,7 +2608,7 @@ val authoredRylween: RylweenModel =
                     rumorTable(RumorTables.standardTown) {
                         rumor(flowText("Baron Ydarg's castle Zadraz is hidden in a forest to the southwest."))
                         rumor(flowText("The Silver Key unlocks the gate to Ydarg's dimension."))
-                        rumor(flowText("You will need the Fire shield to defeat baron Ydarg."))
+                        rumor(flowText("You will need the Fire Shield to defeat Baron Ydarg."))
                         rumor(flowText("You will need the Master Crown to defeat Baron Ydarg."))
                         rumor(flowText("You will need the Bracelets of Thun to resist the most evil of all spells..."))
                         rumor(flowText("The scythe is a useless weapon."))
@@ -2689,7 +2689,7 @@ val authoredRylween: RylweenModel =
                     localInt(party.leader.level * 50, "bargirl_lodging_price") { price ->
                         choice.yesNo(
                             structuredText {
-                                line("- Would you like to,")
+                                line("- Would you like to")
                                 line("  spend an hour")
                                 line("  upstairs for ", price)
                                 line("  gold coins?")
@@ -2919,7 +2919,7 @@ val authoredRylween: RylweenModel =
                     role(Roles.rangerBrother)
                 }
 
-                character(Npcs.broth, "Broth", NpcJobs.fighter) {
+                character(Npcs.groth, "Groth", NpcJobs.fighter) {
                     randomPlacement()
                     role(Roles.crownSeer)
                 }
@@ -3447,8 +3447,8 @@ val authoredRylween: RylweenModel =
                     encounterImage(Images.Encounter.vermin)
                 }
 
-                monster(Monsters.dryder) {
-                    name = "Dryder"
+                monster(Monsters.drider) {
+                    name = "Drider"
                     count = 1..5
                     hitPoints = 80..130
                     weaponSkill = 75
@@ -3772,7 +3772,7 @@ val authoredRylween: RylweenModel =
                 writeText(
                     flowText(
                         """
-                        The once so mighty castle Zadraz is now nothing but a ruin. You have nothing else to do here.
+                        The once mighty castle Zadraz is now nothing but a ruin. You have nothing else to do here.
                         """,
                     ),
                 )
@@ -4183,7 +4183,7 @@ val authoredRylween: RylweenModel =
                             item('2', Items.chainMail, label = "Chain Mail")
                             item('3', Items.plateMail, label = "Plate Mail")
                             item('4', Items.ringMail, label = "Ring Mail")
-                            item('5', Items.elvinCloak, label = "Elvin Cloak")
+                            item('5', Items.elvenCloak, label = "Elven Cloak")
                             item('6', Items.mithrilMail, label = "Mithril Mail")
                         }
 
@@ -4262,7 +4262,7 @@ val authoredRylween: RylweenModel =
                                         clearText()
                                         writeText(
                                             """
-                                            You are served a well tasting dinner.
+                                            You are served a tasty dinner.
                                             Some of your health returns.
                                             """,
                                         )
@@ -4710,7 +4710,7 @@ val authoredRylween: RylweenModel =
                                                     storyteller.charisma += 1
                                                 }
                                                 whenever((score gt 150) and (score lt 301)) {
-                                                    writeText("Nice story, Sir!")
+                                                    writeText("Nice story, sir!")
                                                     pause2s()
                                                 }
                                                 whenever((score gt 100) and (score lt 151)) {
@@ -5850,7 +5850,7 @@ val authoredRylween: RylweenModel =
                     flowText(
                         "You break off a troll tooth to give the ",
                         character(Roles.hermitTrollTooth).job,
-                        ". After wiping the slime of it, you put it in your backpack.",
+                        ". After wiping the slime off it, you put it in your backpack.",
                     ),
                 )
                 waitInput("after troll tooth")
@@ -5956,7 +5956,7 @@ val authoredRylween: RylweenModel =
                         writeText(
                             """
                             You have annihilated most of the village. You pause to wipe
-                            the blood of your weapons, when suddenly, some ORCS rush out
+                            the blood off your weapons, when suddenly, some ORCS rush out
                             to attack you from nowhere.
                             """,
                         )
@@ -5982,7 +5982,7 @@ val authoredRylween: RylweenModel =
                 writeText(
                     """
                     On the ground before you grows the skullweed plant. You break
-                    off a few plants and put in your backpack.
+                    off a few plants and put them in your backpack.
                     """,
                 )
                 waitInput("after skullweed pickup")
@@ -6016,7 +6016,7 @@ val authoredRylween: RylweenModel =
                 )
                 showTextAndWait(
                     """
-                    - When our king Nolrim died, nine hundred years ago we buried
+                    - When our king Nolrim died, nine hundred years ago, we buried
                     him with his trusty dagger Reebar. If we had this to study we
                     could once again become the greatest smiths that there are...
                     """,
@@ -6030,7 +6030,7 @@ val authoredRylween: RylweenModel =
                     """,
                 )
                 showTextAndWait(
-                    flowText("- Nolrim's crypt is at ", location(Locations.nolrimCrypt).coordinates, ". Be careful, and fare the well."),
+                    flowText("- Nolrim's crypt is at ", location(Locations.nolrimCrypt).coordinates, ". Be careful, and fare thee well."),
                 )
                 journal {
                     line("Nolrim's Crypt is at ", location(Locations.nolrimCrypt).coordinates, ".")
@@ -6067,7 +6067,7 @@ val authoredRylween: RylweenModel =
                 clearText()
                 choice.enterOrLeave(
                     structuredText {
-                        line("You find a the cave the")
+                        line("You find the cave the")
                         line("half-orc told you about.")
                         line("As you get closer, you")
                         line("become aware of a hideous")
@@ -6179,7 +6179,7 @@ val authoredRylween: RylweenModel =
                 clearText()
                 writeText(
                     """
-                    A twenty foot tall being materializes in front of you! You will
+                    A twenty-foot-tall being materializes in front of you! You will
                     have to fight Jazzy, himself!
                     """,
                 )
@@ -6380,7 +6380,7 @@ val authoredRylween: RylweenModel =
                                 "- Greetings. Once upon a time, I was a mighty ",
                                 character(Npcs.areth).job,
                                 ". Before I retired I managed to slay over two hundred orcs.",
-                                " All of this, because of my Dancing Blade. I have no use for this weapon",
+                                " All of this, because of my Dancing Sword. I have no use for this weapon",
                             ),
                         )
                         writeText(
@@ -6536,7 +6536,7 @@ val authoredRylween: RylweenModel =
                         writeText(
                             """
                             - This may be a dangerous mission for such a small reward,
-                            but the Cloak will make it's bearer almost invulnerable.
+                            but the Cloak will make its bearer almost invulnerable.
                             """,
                         )
                         journal("Erethor's temple is situated at 6x20.")
@@ -6571,7 +6571,7 @@ val authoredRylween: RylweenModel =
                             """
                             - We used to travel together, and he found the Cloak in a
                             long dead hero's tomb. Now that we have the Lute, the Cloak
-                            is yours. Just deliver this explaining note!
+                            is yours. Just deliver this explanatory note!
                             """,
                         )
                         writeText("He hands you a piece of paper and bids you farewell.")
@@ -6584,11 +6584,11 @@ val authoredRylween: RylweenModel =
                         writeText(
                             """
                             - I have a map of the road to the temple of Thun! The legend
-                            says it keeps the Bracelets of Thun, which is one of the
+                            says it keeps the Bracelets of Thun, which are one of the
                             objects that can destroy Baron Ydarg!
                             """,
                         )
-                        writeText("- I will sell it to you for 10000 gold pieces!")
+                        writeText("- I will sell it to you for 10,000 gold pieces!")
                         menu("(B)uy it", "(N)o thanks") {
                             option('B') {
                                 pay(
@@ -6596,7 +6596,7 @@ val authoredRylween: RylweenModel =
                                     broke = {
                                         writeText(
                                             """
-                                            - Sorry! 10000! No more no less.
+                                            - Sorry! 10,000! No more no less.
                                             Come back when you have the gold.
                                             """,
                                         )
@@ -6648,7 +6648,7 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
-                npc(Npcs.broth) {
+                npc(Npcs.groth) {
                     whenState(Story.nymph.seeker.none) {
                         writeText(
                             flowText(
@@ -6691,7 +6691,7 @@ val authoredRylween: RylweenModel =
                         )
                         writeText(
                             """
-                            You let go of your grip of his collar, and he falls to
+                            You let go of your grip on his collar, and he falls to
                             the floor.
                             """,
                         )
@@ -6709,7 +6709,7 @@ val authoredRylween: RylweenModel =
                         )
                         writeText(
                             """
-                            About 3000 gold coins, a fine armor, and some strange items
+                            About 3,000 gold coins, a fine armor, and some strange items
                             my father left me, will be yours if you rescue her.
                             """,
                         )
@@ -6789,7 +6789,7 @@ val authoredRylween: RylweenModel =
                         ask.inventorySlot(literalText("Offer what?"), filter = InventorySlotChoiceFilter.NonEmpty) { slot ->
                             whenever(party.inventory.itemCost(slot) lt 35) {
                                 clearText()
-                                writeText("- NAH, THINK NOT!.")
+                                writeText("- NAH, THINK NOT!")
                                 pause1s()
                             } otherwise {
                                 clearText()
@@ -6855,7 +6855,7 @@ val authoredRylween: RylweenModel =
                         writeText(
                             """
                             - Being a magician, I'm always searching for powerful spell
-                            reagents. There is one plant I need but can't find it. It is
+                            reagents. There is one plant I need but can't find. It is
                             called Skullweed, and is purple with small green twigs.
                             Find this plant for me, and be rewarded!
                             """,
@@ -6921,7 +6921,7 @@ val authoredRylween: RylweenModel =
                         writeText(
                             """
                             - I managed to get away, but they followed me! Just to the
-                            south-west of here one of their arrows hit my horse.
+                            southwest of here one of their arrows hit my horse.
                             """,
                         )
                         writeText(
