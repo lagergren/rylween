@@ -54,6 +54,9 @@ internal class RuntimeScreen(
     /** Width of the classic text window in columns, or null if the region declares none. */
     override val textColumns: Int? get() = textWindow.width
 
+    /** Height of the classic text window in rows, or null if the region declares none. */
+    override val textRows: Int? get() = textWindow.height
+
     private val mapWindow = regions.getValue(MAP_WINDOW)
     private val statusTop = regions.getValue(STATUS_LINE_TOP)
     private val statusBottom = regions.getValue(STATUS_LINE_BOTTOM)
@@ -205,12 +208,21 @@ internal class RuntimeScreen(
         ensureClassicFrame()
         log.event("screen.write_text lines=${lines.size} first=${lines.firstOrNull().orEmpty().take(40)}")
         clearRegion(textWindow)
-        currentTextWindowLines = lines.take(textWindow.height ?: lines.size)
-        currentTextWindowLines.forEachIndexed { index, line ->
+        currentTextWindowLines = lines
+        val rows = textWindowRows(lines, textWindow.width)
+        logTextOverflow(rows)
+        rows.take(textWindow.height ?: rows.size).forEachIndexed { index, row ->
             gotoTextRow(index)
-            terminal.writeRaw(line.take(textWindow.width ?: line.length))
+            terminal.writeRaw(row)
         }
         terminal.flush()
+    }
+
+    /** Records text taller than the classic window, so layouts that outgrow it show up in session logs. */
+    private fun logTextOverflow(rows: List<String>) {
+        val limit = textWindow.height ?: return
+        if (rows.size <= limit) return
+        log.event("screen.text_overflow rows=${rows.size} limit=$limit first=\"${rows.first().take(40)}\" last=\"${rows.last().take(40)}\"")
     }
 
     override fun showMessage(lines: List<String>) {
@@ -491,7 +503,7 @@ internal class RuntimeScreen(
         val pages = fullScreenTextPages(lines)
         for ((index, page) in pages.withIndex()) {
             val lastPage = index == pages.lastIndex
-            val prompt = documentPrompt(if (lastPage) "to return" else "for more")
+            val prompt = documentPrompt(lastPage)
             log.event("screen.more page=${index + 1}/${pages.size}")
             writeFullScreenText(page + prompt)
             when (readDocumentAdvance(advance)) {
@@ -614,7 +626,13 @@ internal fun fullScreenTextPages(lines: List<String>): List<List<String>> =
         .ifEmpty { listOf("") }
         .chunked(FULL_SCREEN_PAGE_LINES)
 
-internal fun documentPrompt(action: String): String = "(Press ENTER $action) (ESC to exit)"
+private const val DOCUMENT_PROMPT_PREFIX = "(ENTER: "
+
+/** Paging prompt for runtime-paged documents, short enough for the classic 26-column text window. */
+internal fun documentPrompt(lastPage: Boolean): String = "$DOCUMENT_PROMPT_PREFIX${if (lastPage) "back" else "more"}, ESC: exit)"
+
+/** Recognizes the prompt [documentPrompt] appends to runtime-paged document pages. */
+fun isRuntimeDocumentPrompt(line: String): Boolean = line.startsWith(DOCUMENT_PROMPT_PREFIX)
 
 internal fun readDocumentAdvance(advance: () -> Char?): Char? {
     while (true) {
@@ -635,3 +653,49 @@ internal fun String.readableSlug(): String =
 internal fun String.readableJob(): String = readableSlug().replaceFirstChar(Char::lowercaseChar)
 
 internal fun rylween.compiled.CompiledContentBundle.slug(ref: CompiledHandleRef): String = strings.value(handles.handle(ref).slugString)
+
+/**
+ * Fits text-window lines to [width]: prose wraps at word boundaries instead of
+ * being cut off, and [TEXT_COLUMN_SEPARATOR] rows are aligned into columns
+ * shared by the whole menu, at their natural widths when those fit and
+ * otherwise trimming the widest column first.
+ */
+internal fun textWindowRows(
+    lines: List<String>,
+    width: Int?,
+): List<String> {
+    if (width == null) return lines
+    val columnRows = lines.filter { line -> TEXT_COLUMN_SEPARATOR in line }.map { line -> line.split(TEXT_COLUMN_SEPARATOR) }
+    val columnWidths = textColumnWidths(columnRows, width)
+    return lines.flatMap { line ->
+        if (TEXT_COLUMN_SEPARATOR in line) {
+            listOf(line.split(TEXT_COLUMN_SEPARATOR).alignedCells(columnWidths))
+        } else {
+            wrapTextLine(line, width)
+        }
+    }
+}
+
+private fun textColumnWidths(
+    rows: List<List<String>>,
+    width: Int,
+): List<Int> {
+    val count = rows.maxOfOrNull(List<String>::size) ?: return emptyList()
+    // Every column but the last carries one space of gap after its widest cell.
+    val widths =
+        MutableList(count) { column ->
+            rows.maxOf { row -> row.getOrNull(column)?.length ?: 0 } + if (column < count - 1) 1 else 0
+        }
+    while (widths.sum() > width) {
+        val widest = widths.indices.maxBy(widths::get)
+        if (widths[widest] <= 2) break
+        widths[widest] -= 1
+    }
+    return widths
+}
+
+private fun List<String>.alignedCells(widths: List<Int>): String =
+    mapIndexed { column, cell ->
+        val columnWidth = widths.getOrElse(column) { cell.length }
+        if (column < lastIndex) cell.take(columnWidth - 1).padEnd(columnWidth) else cell.take(columnWidth)
+    }.joinToString("").trimEnd()

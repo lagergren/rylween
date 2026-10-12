@@ -187,7 +187,7 @@ internal object SaveFile {
     ) = SaveFileStorage.update(file) { target ->
         val activeUser = userId.normalizedSaveUser()
         val existingValues = target.existingSaveValuesOrEmpty()
-        if (target.isFile) existingValues.requireCompatibleSave(bundleHash)
+        if (target.isFile) existingValues.requireReadableSave()
         val preservedUsers = existingValues.userRecords().filterNot { record -> record.id == activeUser }
         val userRecords = preservedUsers + UserSaveRecord(activeUser, runtime.userSaveValues(content))
         val scoreParties =
@@ -209,14 +209,13 @@ internal object SaveFile {
 
     fun read(
         file: File,
-        expectedBundleHash: String,
         content: CompiledContentBundle,
         stateLookup: (String) -> CompiledStateImage,
         userId: String,
         hallOfHeroesCompletedBy: String? = null,
     ): RuntimeState {
         val values = file.readSaveValues()
-        values.requireCompatibleSave(expectedBundleHash)
+        values.requireReadableSave()
 
         val saveUser = userId.normalizedSaveUser()
         val baseState = RuntimeState.from(stateLookup(values.required("state")), content)
@@ -252,25 +251,23 @@ internal object SaveFile {
 
     fun hasUserParty(
         file: File,
-        expectedBundleHash: String,
         userId: String,
     ): Boolean =
         file.isFile &&
             runCatching {
                 val values = file.readSaveValues()
-                values.requireCompatibleSave(expectedBundleHash)
+                values.requireReadableSave()
                 values.hasUserParty(userId)
             }.getOrDefault(false)
 
     fun removeUser(
         file: File,
-        expectedBundleHash: String,
         userId: String,
     ): Boolean =
         SaveFileStorage.update(file) { target ->
             if (!target.isFile) return@update true
             val values = target.readSaveValues()
-            values.requireCompatibleSave(expectedBundleHash)
+            values.requireReadableSave()
             val records = values.userRecords()
             if (records.isEmpty()) return@update target.delete()
             val nextRecords = records.filterNot { record -> record.id == userId.normalizedSaveUser() }
@@ -281,6 +278,9 @@ internal object SaveFile {
         }
 
     fun lines(file: File): List<String> = file.readLines()
+
+    /** Content hash of the bundle that last wrote [file], or null when there is no readable save. */
+    fun savedBundleHash(file: File): String? = runCatching { file.readSaveValues()["bundleHash"] }.getOrNull()
 
     private fun RuntimeState.worldSaveValues(
         bundleHash: String,
@@ -886,10 +886,11 @@ internal object SaveFile {
 
     private fun Map<String, String>.required(key: String): String = get(key) ?: error("compiled save missing $key")
 
-    private fun Map<String, String>.requireCompatibleSave(expectedBundleHash: String) {
+    // Saves name content by slug, so a save written by an older bundle still
+    // loads after content changes; only a slug that no longer exists fails.
+    private fun Map<String, String>.requireReadableSave() {
         requireValue("format", SAVE_FORMAT)
         requireValue("version", SAVE_VERSION)
-        requireValue("bundleHash", expectedBundleHash)
     }
 
     private fun Map<String, String>.requireValue(

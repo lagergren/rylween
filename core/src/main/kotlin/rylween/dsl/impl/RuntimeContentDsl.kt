@@ -428,8 +428,8 @@ data class EquipmentPromptsModel(
         structuredText {
             line("Equipped ", TextPart.SelectedItemName, ".")
         },
-    val readyWeapons: TextBlock = flowText("Do you want to ready some weapons before leaving?"),
-    val readyArmors: TextBlock = flowText("Do you want to ready some armors before leaving?"),
+    val readyWeapons: TextBlock = literalText("Do you want to ready some weapons before leaving?", "", "(Y)es", "(N)o"),
+    val readyArmors: TextBlock = literalText("Do you want to ready some armors before leaving?", "", "(Y)es", "(N)o"),
 )
 
 data class TownPromptsModel(

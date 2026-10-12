@@ -3,7 +3,9 @@
 package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle
+import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInputBinding
+import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimePrompts
 
@@ -77,6 +79,59 @@ internal fun ExternalRuntimePrompts.returnKeyLabel(): String =
         .ifBlank { "RETURN" }
 
 internal fun ExternalRuntimePrompts.returnLeavesLine(): String = "${returnKeyLabel()} leaves."
+
+/** How [choiceMenuLines] arranges choices: one per row while the menu fits the text window, or always two per row. */
+internal enum class ChoiceLayout {
+    FitWindow,
+    TwoColumns,
+}
+
+/**
+ * Composes a text-window menu from [prompt], a blank line, the [choices], and
+ * [trailer] lines such as a cancel hint. Choices go one per row when the whole
+ * menu fits in [RuntimeScreenPort.textRows] and two per row otherwise, so
+ * every list stays inside the window. Inventory pickers always use two columns.
+ */
+internal fun RuntimeScreenPort.choiceMenuLines(
+    prompt: List<String>,
+    choices: List<String>,
+    trailer: List<String> = emptyList(),
+    layout: ChoiceLayout = ChoiceLayout.FitWindow,
+): List<String> {
+    val head = prompt.withChoiceGap()
+    val rows = textRows
+    val alreadyColumns = choices.any { choice -> TEXT_COLUMN_SEPARATOR in choice }
+    val fits = rows == null || head.size + choices.size + trailer.size <= rows
+    val oneColumn = alreadyColumns || (layout == ChoiceLayout.FitWindow && fits)
+    val body = if (oneColumn) choices else choices.chunked(2).map { row -> row.joinToString(TEXT_COLUMN_SEPARATOR) }
+    return head + body + trailer
+}
+
+/** The one inventory picker layout: [prompt], the [items] two per row, then [trailer]. */
+internal fun RuntimeScreenPort.inventoryPickerLines(
+    prompt: List<String>,
+    items: List<String>,
+    trailer: List<String> = emptyList(),
+): List<String> = choiceMenuLines(prompt, items, trailer, ChoiceLayout.TwoColumns)
+
+/** Picker rows for the occupied slots, keyed by slot letter. */
+internal fun List<CompiledInventorySlot>.inventoryChoiceLines(itemName: (CompiledHandleRef) -> String): List<String> =
+    sortedBy(CompiledInventorySlot::slot).mapNotNull { slot ->
+        slot.item?.let { item -> "${inventorySlotKey(slot.slot)}. ${itemName(item)}" }
+    }
+
+/** Ends prompt text with one blank line so the key choices that follow never sit directly under it. */
+internal fun List<String>.withChoiceGap(): List<String> = if (lastOrNull().isNullOrBlank()) this else this + ""
+
+/** Applies [withChoiceGap] to the text before the first choice line in an already composed menu. */
+internal fun List<String>.withChoiceGapBefore(isChoiceLine: (String) -> Boolean): List<String> {
+    val firstChoice = indexOfFirst(isChoiceLine)
+    if (firstChoice <= 0) return this
+    return take(firstChoice).withChoiceGap() + drop(firstChoice)
+}
+
+/** Recognizes a menu line offering [key], either as an `(X)` mnemonic or an `X.` list entry. */
+internal fun String.offersChoiceKey(key: String): Boolean = "($key)" in this || trimStart().startsWith("$key.")
 
 internal fun CompiledInputBinding.matchesInput(
     content: CompiledContentBundle,

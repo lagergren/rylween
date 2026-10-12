@@ -358,7 +358,6 @@ class GameRuntime private constructor(
             loadFile?.let { file ->
                 SaveFile.read(
                     file = file,
-                    expectedBundleHash = bundleContentHash,
                     content = content,
                     stateLookup = ::stateBySlug,
                     userId = checkNotNull(userId) { "--user is required when rendering a saved runtime screen" },
@@ -372,7 +371,7 @@ class GameRuntime private constructor(
     fun hasUserSave(
         file: File,
         userId: String,
-    ): Boolean = SaveFile.hasUserParty(file, bundleContentHash, userId)
+    ): Boolean = SaveFile.hasUserParty(file, userId)
 
     /** Runs the runtime wilderness loop from one compiled state image. */
     fun runWilderness(
@@ -453,13 +452,17 @@ class GameRuntime private constructor(
         sessionDate: LocalDate = LocalDate.now(),
         log: RuntimeLog,
     ): RuntimeSessionResult {
-        val hasLoadUserSave = loadFile?.let { file -> SaveFile.hasUserParty(file, bundleContentHash, userId) } ?: false
+        listOfNotNull(loadFile, saveFile).distinct().forEach { file ->
+            SaveFile.savedBundleHash(file)?.takeIf { saved -> saved != bundleContentHash }?.let { saved ->
+                log.event("save.bundle_changed file=${file.path} saved=$saved current=$bundleContentHash")
+            }
+        }
+        val hasLoadUserSave = loadFile?.let { file -> SaveFile.hasUserParty(file, userId) } ?: false
         var runtime =
             if (loadFile != null && hasLoadUserSave) {
                 logSaveFileLines("runtime.restore", loadFile, log)
                 SaveFile.read(
                     file = loadFile,
-                    expectedBundleHash = bundleContentHash,
                     content = content,
                     stateLookup = ::stateBySlug,
                     userId = userId,
@@ -812,7 +815,7 @@ class GameRuntime private constructor(
                     if (input.readCommand() == 'Y') {
                         val deleted =
                             runCatching {
-                                SaveFile.removeUser(save.file, save.bundleContentHash, save.userId)
+                                SaveFile.removeUser(save.file, save.userId)
                             }.getOrDefault(false)
                         log.event("title.terminate save=${save.file.path} deleted=$deleted")
                         screen.writeText(
@@ -896,12 +899,11 @@ class GameRuntime private constructor(
         log: RuntimeLog,
     ): RuntimeState? {
         if (!save.file.exists()) return null
-        if (!SaveFile.hasUserParty(save.file, save.bundleContentHash, save.userId)) return null
+        if (!SaveFile.hasUserParty(save.file, save.userId)) return null
         return runCatching {
             logSaveFileLines("title.restore", save.file, log)
             SaveFile.read(
                 file = save.file,
-                expectedBundleHash = save.bundleContentHash,
                 content = content,
                 stateLookup = ::stateBySlug,
                 userId = save.userId,
@@ -1166,7 +1168,7 @@ class GameRuntime private constructor(
         label: String,
     ): T? {
         while (true) {
-            screen.writeText(prompt + choices.menuLines(screen.textColumns))
+            screen.writeText(screen.choiceMenuLines(prompt, choices.map { choice -> "${choice.key}. ${choice.label}" }))
             val command = input.readCommand() ?: return null
             val choice = choices.firstOrNull { choice -> choice.key == command }
             if (choice != null) {
@@ -1187,7 +1189,7 @@ class GameRuntime private constructor(
             val race = races.single { it.race == member.race }.label
             val gender = genders.getValue(member.gender)
             val pcClass = classes.single { it.pcClass == member.pcClass }.label
-            "${member.name}: $race $gender $pcClass"
+            "${member.name} (${gender.first()}): $race $pcClass"
         }
     }
 
@@ -1198,13 +1200,6 @@ class GameRuntime private constructor(
         )
 
     private fun Int.digitChoiceKey(): Char = (this + 1).digitToChar()
-
-    private fun <T> List<CreationChoice<T>>.menuLines(wrapWidth: Int?): List<String> =
-        chunked(2).flatMap { row ->
-            val labels = row.map { choice -> "${choice.key}. ${choice.label}" }
-            val line = labels.joinToString("  ") { it.padEnd(12) }.trimEnd()
-            if (wrapWidth != null && line.length > wrapWidth) labels else listOf(line)
-        }
 
     private fun ExternalCharacterCreationClassOption.failureFor(stats: CreationStats): ExternalRuntimeTextBlock? =
         requiredStat?.let { stat -> minimum?.let { min -> failureText.takeIf { stats.value(stat) < min } } }
@@ -1387,7 +1382,7 @@ class GameRuntime private constructor(
         val pages = lines.flatMap { line -> wrapTextLine(line, width) }.chunked(pageLines).ifEmpty { listOf(listOf("")) }
         for ((index, page) in pages.withIndex()) {
             val lastPage = index == pages.lastIndex
-            val prompt = documentPrompt(if (lastPage) "to return" else "for more")
+            val prompt = documentPrompt(lastPage)
             screen.showDocumentPage(
                 title = "Adventurer's Journal",
                 subtitle = "Page ${index + 1}/${pages.size}",
@@ -1454,7 +1449,7 @@ class GameRuntime private constructor(
         save: RuntimeSaveContext,
         log: RuntimeLog,
     ) {
-        val hasUserSave = SaveFile.hasUserParty(save.file, save.bundleContentHash, save.userId)
+        val hasUserSave = SaveFile.hasUserParty(save.file, save.userId)
         if (before == after && save.file.isFile && hasUserSave) return
         persistRuntime(after, save, log, "session_start")
     }
@@ -1550,19 +1545,12 @@ class GameRuntime private constructor(
         var menuNotice = taxResult.noticeLines
 
         fun menuLines(noticeLines: List<String>): List<String> =
-            buildList {
-                if (noticeLines.isNotEmpty()) {
-                    addAll(noticeLines)
-                    add("")
-                }
-                addAll(
+            screen.choiceMenuLines(
+                noticeLines.withChoiceGap() +
                     systems.prompts.town.menuTitle
                         .renderTown(town, screen.textColumns),
-                )
-                add("")
-                serviceEntries.forEach { entry -> add(entry.menuLine()) }
-                leaveCommand?.let { command -> add(command.mnemonicLine()) }
-            }
+                serviceEntries.map { entry -> entry.menuLine() } + listOfNotNull(leaveCommand?.mnemonicLine()),
+            )
 
         while (true) {
             val menu = menuLines(menuNotice)
@@ -1580,8 +1568,12 @@ class GameRuntime private constructor(
                 continue
             }
             if (command.action == TOWN_LEAVE_ACTION) {
-                val left = current.leaveTown()
+                val readied =
+                    UtilityActions(content, systems, input, screen, log)
+                        .readyBeforeLeavingTown(current, systems.town?.leavePrompts.orEmpty())
+                val left = readied.runtime.leaveTown()
                 screen.renderWilderness(left, world)
+                if (readied.message.isNotEmpty()) screen.showMessage(readied.message)
                 return left
             }
             val service =
@@ -1611,7 +1603,7 @@ class GameRuntime private constructor(
         val leaderLevel = runtime.party.leaderLevel
         if (leaderLevel < tax.minimumLeaderLevel) return TownEntryTaxResult(runtime)
         val amount = runtime.runtimeTownTaxAmount(content)?.takeIf { gold -> gold > 0 } ?: return TownEntryTaxResult(runtime)
-        val lines = townEntryTaxLines(runtime, tax, screen.textColumns)
+        val lines = townEntryTaxLines(runtime, tax, screen)
         log.event("town.tax.prompt town=${slug(town.id)} level=$leaderLevel amount=$amount gold=${runtime.party.resources.gold}")
         screen.showImage(TOWN_MAIN_STREET_IMAGE)
         screen.writeText(lines)
@@ -1637,14 +1629,16 @@ class GameRuntime private constructor(
     private fun townEntryTaxLines(
         runtime: RuntimeState,
         tax: ExternalTownEntryTax,
-        wrapWidth: Int?,
+        screen: RuntimeScreenPort,
     ): List<String> =
-        systems.prompts.town.entryTax
-            .renderRuntimeText(content, runtime, wrapWidth) +
+        screen.choiceMenuLines(
+            systems.prompts.town.entryTax
+                .renderRuntimeText(content, runtime, screen.textColumns),
             listOf(
                 tax.pay.mnemonicLine(tax.pay.label),
                 tax.leave.mnemonicLine(tax.leave.label),
-            )
+            ),
+        )
 
     private fun runService(
         runtime: RuntimeState,
