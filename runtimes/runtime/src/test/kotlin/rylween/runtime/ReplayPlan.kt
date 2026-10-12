@@ -139,7 +139,7 @@ internal object ReplayPlans {
                     moveTo("travel.to_kobold_village", location("kobold_village")),
                     ReplayComponent(
                         name = "mission.kobold_village",
-                        commands = koboldVillageRoute(),
+                        commands = koboldVillageRoute(state.livingMemberCount()),
                         checkpoints = listOf("output:ugly pendant", "state:master_crown.task1_done"),
                     ),
                     moveToTown("wilor"),
@@ -241,7 +241,7 @@ internal object ReplayPlans {
         bundle: CompiledGameBundle,
         stateSlug: String,
     ): ReplayPlan {
-        bundle.stateBySlug(stateSlug)
+        val attackers = bundle.stateBySlug(stateSlug).livingMemberCount()
         return ReplayPlan(
             name = HOBGOBLIN_CARAVAN_ROUTE,
             stateSlug = stateSlug,
@@ -249,7 +249,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "mission.hobgoblin_caravan_random_step",
-                        commands = "2" + waitForInput(2) + battle(attacks = 4) + waitForInput(2) + "X",
+                        commands = "2" + waitForInput(2) + battle(attacks = 4, attackersPerRound = attackers) + waitForInput(2) + "X",
                         checkpoints =
                             listOf(
                                 "seed:first random-step draw below hobgoblin trigger",
@@ -549,6 +549,7 @@ internal object ReplayPlans {
         val state = bundle.stateBySlug(stateSlug)
         val world = ReplayWorldMap.from(state, content = content)
         var point = state.startPoint()
+        val attackers = state.livingMemberCount()
 
         fun moveTo(
             name: String,
@@ -581,47 +582,47 @@ internal object ReplayPlans {
             components =
                 buildList {
                     add(moveTo("travel.to_ogre_cave", location("beast_cave")))
-                    add(ReplayComponent("mission.ogre_cave", ogreCaveRoute(), listOf("Foot of Jazzy prerequisite")))
+                    add(ReplayComponent("mission.ogre_cave", ogreCaveRoute(attackers), listOf("Foot of Jazzy prerequisite")))
                     add(moveToTerrain("travel.to_foothills", "foothills"))
-                    add(ReplayComponent("mission.jazzy_foot", jazzyRoute(), listOf("Foot of Jazzy")))
+                    add(ReplayComponent("mission.jazzy_foot", jazzyRoute(attackers), listOf("Foot of Jazzy")))
                     add(moveTo("travel.to_fire_shield_cave", location("hermit_dungeon")))
-                    add(ReplayComponent("mission.fire_shield", fireShieldDungeonRoute(), listOf("FIRE SHIELD")))
+                    add(ReplayComponent("mission.fire_shield", fireShieldDungeonRoute(attackers), listOf("FIRE SHIELD")))
                     add(moveTo("travel.to_hobgoblin_stronghold", location("hobgoblin_cave")))
-                    add(ReplayComponent("mission.hobgoblin_stronghold", hobgoblinStrongholdRoute(), listOf("Silver Key")))
+                    add(ReplayComponent("mission.hobgoblin_stronghold", hobgoblinStrongholdRoute(attackers), listOf("Silver Key")))
                     add(moveTo("travel.to_thun_temple", location("thun_temple")))
                     add(ReplayComponent("mission.thun_temple", thunTempleRoute(), listOf("Bracelets of Thun")))
                     add(teleportAfterThun())
                     add(moveTo("travel.to_master_crown", location("master_crown_dungeon")))
-                    add(ReplayComponent("mission.master_crown", masterCrownRoute(), listOf("Master Crown")))
+                    add(ReplayComponent("mission.master_crown", masterCrownRoute(attackers), listOf("Master Crown")))
                     add(moveTo("travel.to_castle", systems.castleRows.single().entry))
-                    add(ReplayComponent("castle.victory", castleVictoryRoute(), listOf("Ydarg banished")))
+                    add(ReplayComponent("castle.victory", castleVictoryRoute(attackers), listOf("Ydarg banished")))
                     add(ReplayComponent("save.winning_state", "S", listOf("Hall of Heroes save")))
                 },
         )
     }
 
-    private fun ogreCaveRoute(): String =
+    private fun ogreCaveRoute(attackers: Int): String =
         "E" +
             waitForInput() +
-            battle(attacks = 4) +
+            battle(attacks = 4, attackersPerRound = attackers) +
             waitForInput() +
-            battle(attacks = 1) +
+            battle(attacks = 1, attackersPerRound = attackers) +
             waitForInput(4)
 
-    private fun jazzyRoute(): String =
+    private fun jazzyRoute(attackers: Int): String =
         waitForInput(2) +
-            battle(attacks = 7) +
+            battle(attacks = 7, attackersPerRound = attackers) +
             waitForInput(2) +
-            battle(attacks = 1) +
+            battle(attacks = 1, attackersPerRound = attackers) +
             waitForInput()
 
-    private fun fireShieldDungeonRoute(): String =
+    private fun fireShieldDungeonRoute(attackers: Int): String =
         "E" +
             dungeonRoute(
                 levels = 20,
                 descendEvents =
                     mapOf(
-                        19 to waitForInput() + battle(attacks = 1),
+                        19 to waitForInput() + battle(attacks = 1, attackersPerRound = attackers),
                         20 to waitForInput(),
                     ),
             )
@@ -633,14 +634,14 @@ internal object ReplayPlans {
                 descendEvents = mapOf(20 to waitForInput(4)),
             )
 
-    private fun koboldVillageRoute(): String =
+    private fun koboldVillageRoute(attackers: Int): String =
         "A" +
             waitForInput() +
-            battle(attacks = 12) +
+            battle(attacks = 12, attackersPerRound = attackers) +
             waitForInput() +
-            battle(attacks = 12) +
+            battle(attacks = 12, attackersPerRound = attackers) +
             waitForInput() +
-            battle(attacks = 12) +
+            battle(attacks = 12, attackersPerRound = attackers) +
             waitForInput()
 
     private fun reebarTombRoute(): String =
@@ -676,70 +677,77 @@ internal object ReplayPlans {
                     ),
             )
 
-    private fun masterCrownRoute(): String =
+    private fun masterCrownRoute(attackers: Int): String =
         "E" +
             dungeonRoute(
                 levels = 10,
-                descendEvents = mapOf(10 to waitForInput(2) + battle(attacks = 1)),
+                descendEvents = mapOf(10 to waitForInput(2) + battle(attacks = 1, attackersPerRound = attackers)),
             )
 
-    private fun hobgoblinStrongholdRoute(): String =
+    private fun hobgoblinStrongholdRoute(attackers: Int): String =
         "E" +
             dungeonRoute(
                 levels = 22,
                 descendEvents =
                     mapOf(
-                        3 to hobgoblinPatrolRoute(),
-                        6 to hobgoblinPatrolRoute(),
-                        9 to hobgoblinPatrolRoute(),
-                        14 to hobgoblinPatrolRoute(),
-                        17 to hobgoblinPatrolRoute(),
-                        19 to hobgoblinPatrolRoute(),
-                        20 to waitForInput() + battle(),
-                        21 to waitForInput() + battle(),
-                        22 to hobgoblinChiefRoute(),
+                        3 to hobgoblinPatrolRoute(attackers),
+                        6 to hobgoblinPatrolRoute(attackers),
+                        9 to hobgoblinPatrolRoute(attackers),
+                        14 to hobgoblinPatrolRoute(attackers),
+                        17 to hobgoblinPatrolRoute(attackers),
+                        19 to hobgoblinPatrolRoute(attackers),
+                        20 to waitForInput() + battle(attackersPerRound = attackers),
+                        21 to waitForInput() + battle(attackersPerRound = attackers),
+                        22 to hobgoblinChiefRoute(attackers),
                     ),
                 ascendRecurringEvents =
                     mapOf(
-                        19 to hobgoblinPatrolRoute(),
-                        17 to hobgoblinPatrolRoute(),
-                        14 to hobgoblinPatrolRoute(),
-                        9 to hobgoblinPatrolRoute(),
-                        6 to hobgoblinPatrolRoute(),
-                        3 to hobgoblinPatrolRoute(),
+                        19 to hobgoblinPatrolRoute(attackers),
+                        17 to hobgoblinPatrolRoute(attackers),
+                        14 to hobgoblinPatrolRoute(attackers),
+                        9 to hobgoblinPatrolRoute(attackers),
+                        6 to hobgoblinPatrolRoute(attackers),
+                        3 to hobgoblinPatrolRoute(attackers),
                     ),
             )
 
-    private fun hobgoblinPatrolRoute(): String = waitForInput() + battle(attacks = 2) + waitForInput()
+    private fun hobgoblinPatrolRoute(attackers: Int): String =
+        waitForInput() + battle(attacks = 2, attackersPerRound = attackers) + waitForInput()
 
-    private fun hobgoblinChiefRoute(): String =
+    private fun hobgoblinChiefRoute(attackers: Int): String =
         waitForInput() +
             "\"RISH EKKIN\" " +
             waitForInput() +
-            battle(attacks = 1) +
+            battle(attacks = 1, attackersPerRound = attackers) +
             waitForInput()
 
-    private fun castleVictoryRoute(): String =
+    private fun castleVictoryRoute(attackers: Int): String =
         buildString {
             append('E')
             append(waitForInput(4))
-            append(battle())
-            append(castleFloor('1'))
-            append(castleFloor('2'))
-            append(castleFloor('3'))
-            append(castleFloor('4'))
-            repeat(5) { append(battle()) }
+            append(battle(attackersPerRound = attackers))
+            append(castleFloor('1', attackers))
+            append(castleFloor('2', attackers))
+            append(castleFloor('3', attackers))
+            append(castleFloor('4', attackers))
+            repeat(5) { append(battle(attackersPerRound = attackers)) }
         }
 
-    private fun castleFloor(itemDigit: Char): String =
+    private fun castleFloor(
+        itemDigit: Char,
+        attackers: Int,
+    ): String =
         buildString {
-            repeat(4) { append(castleStep('6')) }
-            repeat(3) { append(castleStep('2')) }
+            repeat(4) { append(castleStep('6', attackers)) }
+            repeat(3) { append(castleStep('2', attackers)) }
             append("2G")
             append(itemDigit)
         }
 
-    private fun castleStep(command: Char): String = command.toString() + battle()
+    private fun castleStep(
+        command: Char,
+        attackers: Int,
+    ): String = command.toString() + battle(attackersPerRound = attackers)
 
     private fun thordMissionDialogueRoute(): String =
         enterInnGuestChat() +
@@ -791,9 +799,17 @@ internal object ReplayPlans {
 
     private fun waitForInput(count: Int = 1): String = "A".repeat(count)
 
-    private fun battle(attacks: Int = 5): String =
+    /**
+     * Fights a battle with [attacks] attack-and-target choices. Every living
+     * member acts each round and each round starts with the Fight/Run choice,
+     * so the attacks are grouped [attackersPerRound] to a round.
+     */
+    private fun battle(
+        attacks: Int = 5,
+        attackersPerRound: Int,
+    ): String =
         buildString {
-            targetSlots(attacks).chunked(4).forEach { slots ->
+            targetSlots(attacks).chunked(attackersPerRound).forEach { slots ->
                 append('F')
                 slots.forEach { slot -> append('A').append(slot) }
             }
@@ -922,3 +938,5 @@ private fun CompiledContentBundle.townPoint(slug: String): GridPoint =
 private fun CompiledStateImage.activeParty() =
     parties.firstOrNull { party -> party.id == realm.activeParty }
         ?: error("runtime replay state has no active party ${realm.activeParty}")
+
+private fun CompiledStateImage.livingMemberCount(): Int = activeParty().members.count { member -> !member.dead }.coerceAtLeast(1)

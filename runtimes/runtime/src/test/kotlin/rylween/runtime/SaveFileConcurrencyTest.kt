@@ -68,7 +68,7 @@ class SaveFileConcurrencyTest {
                     val deletion =
                         executor.submit {
                             barrier.await(20, TimeUnit.SECONDS)
-                            assertTrue(SaveFile.removeUser(file, bundleHash, "deleted"))
+                            assertTrue(SaveFile.removeUser(file, "deleted"))
                         }
                     val writer =
                         executor.submit {
@@ -77,7 +77,7 @@ class SaveFileConcurrencyTest {
                         }
                     deletion.get(30, TimeUnit.SECONDS)
                     writer.get(30, TimeUnit.SECONDS)
-                    assertFalse(SaveFile.hasUserParty(file, bundleHash, "deleted"))
+                    assertFalse(SaveFile.hasUserParty(file, "deleted"))
                     assertEquals(round, read(file, "survivor").party.resources.gold)
                 }
             } finally {
@@ -103,7 +103,7 @@ class SaveFileConcurrencyTest {
     fun incompatibleExistingSaveIsNotOverwritten() =
         withSaveFile { file ->
             save(file, "existing", 99)
-            val incompatible = SaveCodec.decodeValues(file.readLines()) + ("bundleHash" to "different-bundle")
+            val incompatible = SaveCodec.decodeValues(file.readLines()) + ("version" to "999")
             file.writeText(SaveCodec.encodeValues(incompatible))
             val before = file.readText()
 
@@ -156,6 +156,21 @@ class SaveFileConcurrencyTest {
             }
         }
 
+    @Test
+    fun savesWrittenByAnOlderBundleStillLoadAndAreRewrittenWithTheCurrentHash() =
+        withSaveFile { file ->
+            save(file, "veteran", 1234)
+            file.writeText(file.readText().replace("bundleHash=$bundleHash", "bundleHash=sha256:older-bundle"))
+
+            assertTrue(SaveFile.hasUserParty(file, "veteran"))
+            assertEquals(1234, read(file, "veteran").party.resources.gold)
+            assertEquals("sha256:older-bundle", SaveFile.savedBundleHash(file))
+
+            save(file, "newcomer", 5)
+            assertEquals(bundleHash, SaveFile.savedBundleHash(file))
+            assertEquals(1234, read(file, "veteran").party.resources.gold)
+        }
+
     private fun save(
         file: File,
         user: String,
@@ -175,7 +190,7 @@ class SaveFileConcurrencyTest {
     private fun read(
         file: File,
         user: String,
-    ): RuntimeState = SaveFile.read(file, bundleHash, content, { state }, user)
+    ): RuntimeState = SaveFile.read(file, content, { state }, user)
 
     private fun withSaveFile(action: (File) -> Unit) {
         val directory = Files.createTempDirectory("rylween-concurrent-save-").toFile()

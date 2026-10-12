@@ -32,6 +32,7 @@ import rylween.dsl.impl.CombatSystemModel
 import rylween.dsl.impl.DefendRulesModel
 import rylween.dsl.impl.EncounterOpeningModel
 import rylween.dsl.impl.EngineServiceUse
+import rylween.dsl.impl.EquipmentCommand
 import rylween.dsl.impl.FlagRef
 import rylween.dsl.impl.FlagScope
 import rylween.dsl.impl.FlagState
@@ -349,6 +350,8 @@ data class ExternalTownPrompts(
 /** Town-system runtime rows consumed by direct runtimes. */
 data class ExternalRuntimeTown(
     val entryTax: ExternalTownEntryTax?,
+    /** Equipment questions asked, in order, when the party leaves town. */
+    val leavePrompts: List<EquipmentCommand> = emptyList(),
 )
 
 /** Town-entry tax gate exported from authored town-system content. */
@@ -3033,6 +3036,10 @@ private class ExternalRuntimeSystemsReader(
                     ?.takeUnless { it is JsonNull }
                     ?.asObject("town entry tax")
                     ?.readTownEntryTax(),
+            leavePrompts =
+                optionalArray("leavePrompts")?.values.orEmpty().map { command ->
+                    enumValueOf<EquipmentCommand>(command.asString("town leave prompt"))
+                },
         )
 
     private fun JsonObject.readTownEntryTax(): ExternalTownEntryTax =

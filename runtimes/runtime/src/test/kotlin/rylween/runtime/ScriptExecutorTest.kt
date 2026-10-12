@@ -79,7 +79,54 @@ class ScriptExecutorTest {
             "Garth mission reward gold must be visible in status before the dialogue returns",
         )
     }
+
+    @Test
+    fun churchMenuSeparatesProseFromKeyChoices() {
+        val menu = townSceneTexts("towne.church", "L").first { lines -> "(H)eal person" in lines }
+
+        val firstChoice = menu.indexOf("(H)eal person")
+        assertEquals("", menu[firstChoice - 1], "church menu needs a blank line before its key choices: $menu")
+        assertTrue(menu[firstChoice - 2].isNotBlank(), "church menu should keep exactly one blank line: $menu")
+        assertTrue(menu.size <= CLASSIC_TEXT_WINDOW_ROWS, "church menu must fit the classic text window: $menu")
+    }
+
+    @Test
+    fun shopMenusSeparateProseFromKeyChoicesWithoutRepeatingThem() {
+        // Decline the forced beer interlude, dismiss its pause, open Buy, then decline the catalog choice.
+        val texts = townSceneTexts("towne.smith", "DXBN")
+
+        val home = texts.first { lines -> "(B)uy" in lines }
+        assertEquals("", home[home.indexOf("(B)uy") - 1], "shop home needs a blank line before its key choices: $home")
+        val catalog = texts.first { lines -> "Armor or Weapon?" in lines }
+        assertEquals(1, catalog.count { line -> line.offersChoiceKey("A") }, "catalog choices must be listed once: $catalog")
+    }
+
+    private fun townSceneTexts(
+        sceneSlug: String,
+        commands: String,
+    ): List<List<String>> {
+        val content = bundle.content
+        val state = bundle.states.single { state -> content.slug(state.state) == "town-services-replay" }
+        val thord = content.ref(CompiledHandleKind.Town, "thord")
+        val runtime =
+            RuntimeState
+                .from(state, content)
+                .copy(currentMode = RuntimeMode.Town, currentTown = thord)
+        val program =
+            content.scripts.roots.single { root ->
+                root.root.kind == ScriptRootKind.Scene && root.root.slug == sceneSlug
+            }
+        val screen = TextCapturingScreen()
+        RuntimeLog.open(testTmp.resolve("$sceneSlug-text.log")).use { log ->
+            ScriptExecutor(content, systems, ScriptedInput(commands), screen, runtime, log = log).execute(program)
+        }
+        return screen.texts
+    }
 }
+
+// The classic ANSI text window region; it truncates anything past its last row.
+private const val CLASSIC_TEXT_WINDOW_COLUMNS = 26
+private const val CLASSIC_TEXT_WINDOW_ROWS = 11
 
 private fun requiredRuntimeTestProperty(name: String): String =
     System.getProperty(name)
@@ -144,6 +191,59 @@ private class CapturingStatusScreen : RuntimeScreenPort {
     override fun updateStatus(runtime: RuntimeState) {
         statusGoldUpdates += runtime.party.resources.gold
     }
+
+    override fun writeViewCommand(command: RuntimeViewCommand) = Unit
+
+    override fun showImage(imageSlug: String) = Unit
+
+    override fun redrawCurrentView(lines: List<String>) = Unit
+
+    override fun flashLogLine(line: String) = Unit
+}
+
+private class TextCapturingScreen : RuntimeScreenPort {
+    val texts = mutableListOf<List<String>>()
+
+    override val textColumns: Int = CLASSIC_TEXT_WINDOW_COLUMNS
+
+    override fun bootFrame() = Unit
+
+    override fun showStaticScreen(
+        screenSlug: String,
+        runtime: RuntimeState,
+    ) = Unit
+
+    override fun showPagedStaticScreen(
+        screenSlug: String,
+        runtime: RuntimeState,
+        advance: () -> Char?,
+    ) = Unit
+
+    override fun renderWilderness(
+        runtime: RuntimeState,
+        world: WorldMap,
+    ) = Unit
+
+    override fun showDebugWorldMap(
+        runtime: RuntimeState,
+        world: WorldMap,
+        advance: () -> Char?,
+    ) = Unit
+
+    override fun renderDungeon(runtime: RuntimeState) = Unit
+
+    override fun renderCastle(
+        runtime: RuntimeState,
+        castle: rylween.compiled.ExternalRuntimeCastle,
+    ) = Unit
+
+    override fun writeText(lines: List<String>) {
+        texts += lines
+    }
+
+    override fun showMessage(lines: List<String>) = Unit
+
+    override fun updateStatus(runtime: RuntimeState) = Unit
 
     override fun writeViewCommand(command: RuntimeViewCommand) = Unit
 

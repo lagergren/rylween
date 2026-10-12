@@ -42,7 +42,7 @@ class RuntimeSessionFactoryTest {
     @Test
     fun wildernessSessionStartsThroughInjectedTerminal() {
         val terminal = RecordingAnsiTerminal()
-        val saveFile = testTmp.resolve("session-api.rsave")
+        val saveFile = testTmp.resolve("session-api.rsave").freshSaveFile()
         val logFile = testTmp.resolve("session-api-wilderness.log")
 
         RuntimeLog.open(logFile).use { log ->

@@ -36,30 +36,37 @@ For local inspection, start the server with `--debug-secrets` or
 `RYLWEEN_BITMAP_DEBUG_SECRETS=true`; then press `M` in the wilderness to show
 the annotated full world map with towns, huts, and other locations.
 
-## House Test Server
+## Deploy Script
 
-On Linux, the root `housetest.sh` helper starts the installed bitmap runtime in the
-background with an isolated data directory under `~/.rylween/house-test`. By
-default it binds to the first local SICSAPI VPN IPv4 address matching
-`10.11.*`, so VPN users can reach the server without exposing it on every
-network interface:
+On Linux and macOS, the root `deploy-rylween.sh` helper starts the installed
+bitmap runtime in the background with an isolated data directory under
+`~/.rylween/deploy`. By default it binds to the private LAN IPv4 address of the
+interface carrying the default route, so other machines on the local network
+can reach the server without it listening on every network interface:
 
 ```sh
 ./gradlew :runtime-bitmap-web:installRuntimeBitmapWeb --console=plain
-./housetest.sh
+./deploy-rylween.sh
 ```
 
-The helper requires `/proc` and `setsid`; run it from the repository root.
-It prints the detected server URL, for example `http://10.11.10.20:8081`.
-Override the bind address when needed:
+Run it from the repository root. Rerunning it stops the server it started
+earlier before starting a new one. On Linux it uses `ip`, `/proc`, and
+`setsid`; on macOS it falls back to `route`, `ifconfig`, `ps`, and `nohup`. It
+prints the detected server URL, for example `http://192.168.1.20:8081`. It
+refuses to pick a public address automatically. Override the bind address when
+needed:
 
 ```sh
-RYLWEEN_HOUSETEST_HOST=127.0.0.1 ./housetest.sh
-RYLWEEN_HOUSETEST_HOST=10.11.x.y ./housetest.sh
+RYLWEEN_DEPLOY_HOST=127.0.0.1 ./deploy-rylween.sh
+RYLWEEN_DEPLOY_HOST=192.168.x.y ./deploy-rylween.sh
 ```
 
-Do not use `RYLWEEN_HOUSETEST_HOST=0.0.0.0` for the VPN-only case; that listens
-on all IPv4 interfaces.
+`RYLWEEN_DEPLOY_PORT`, `RYLWEEN_DEPLOY_DATA_DIR`, and `RYLWEEN_DEPLOY_LOG_FILE`
+override the port (default `8081`), data directory, and log file (default
+`/tmp/rylween-bitmap-web-deploy.log`).
+
+Do not use `RYLWEEN_DEPLOY_HOST=0.0.0.0` unless the server should listen on all
+IPv4 interfaces.
 
 The 2D wilderness renderer keeps authored terrain cells unchanged and adds a
 visual-only transition pass with bundled transparent PNG overlays under

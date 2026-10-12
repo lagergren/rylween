@@ -1,0 +1,49 @@
+# Runs the bitmap web game. Saves, accounts, and logs live on a persistent
+# volume mounted at /data, so they survive `down`, rebuilds, and image updates.
+#
+#   docker compose up --build -d      # or: podman compose up --build -d
+#   open http://127.0.0.1:8081/ and register an account
+#
+# Rebuild with --build after pulling new game code. `down -v` deletes the volume
+# and with it every save and account.
+#
+# Settings come from the shell environment or a .env file next to this file:
+#   RYLWEEN_PUBLISH_HOST        Host address to publish on. Default: 127.0.0.1.
+#                               Use this machine's LAN address (e.g. 192.168.x.y)
+#                               so others on the local network can connect, or
+#                               0.0.0.0 for every interface.
+#   RYLWEEN_HOST_PORT           Host port. Default: 8081
+#   RYLWEEN_DATA_VOLUME         Named volume or host directory (./path, ~/path, /path)
+#                               mounted at /data. Default: the `data` named volume.
+#   RYLWEEN_BITMAP_STATE        Initial compiled state slug. Default: fresh-replay
+#   RYLWEEN_BITMAP_MAP_TILES    Wilderness viewport edge length. Default: 6
+#   RYLWEEN_BITMAP_TILE_SIZE    Wilderness tile size in px. Default: 68
+#   RYLWEEN_AUTH_SECURE_COOKIES Set true only when players reach the game over HTTPS.
+#   RYLWEEN_AUTH_ACCOUNT        Optional account to create/verify at startup,
+#   RYLWEEN_AUTH_EMAIL          with its email and password.
+#   RYLWEEN_AUTH_PASSWORD
+
+name: rylween
+
+services:
+    rylween:
+        build:
+            context: .
+            dockerfile: deploy/docker/Dockerfile.bitmap-production
+        restart: unless-stopped
+        ports:
+            - "${RYLWEEN_PUBLISH_HOST:-127.0.0.1}:${RYLWEEN_HOST_PORT:-8081}:8081"
+        environment:
+            RYLWEEN_BITMAP_STATE: ${RYLWEEN_BITMAP_STATE:-fresh-replay}
+            RYLWEEN_BITMAP_MAP_TILES: ${RYLWEEN_BITMAP_MAP_TILES:-6}
+            RYLWEEN_BITMAP_TILE_SIZE: ${RYLWEEN_BITMAP_TILE_SIZE:-68}
+            # The production image defaults to secure cookies, which browsers drop over plain HTTP.
+            RYLWEEN_AUTH_SECURE_COOKIES: ${RYLWEEN_AUTH_SECURE_COOKIES:-false}
+            RYLWEEN_AUTH_ACCOUNT: ${RYLWEEN_AUTH_ACCOUNT:-}
+            RYLWEEN_AUTH_EMAIL: ${RYLWEEN_AUTH_EMAIL:-}
+            RYLWEEN_AUTH_PASSWORD: ${RYLWEEN_AUTH_PASSWORD:-}
+        volumes:
+            - ${RYLWEEN_DATA_VOLUME:-data}:/data
+
+volumes:
+    data:

@@ -302,11 +302,12 @@ internal class BattleRunner(
     }
 
     private fun ExternalStandardBattle.openingText(encounter: BattleEncounter): List<String> =
-        text.encounterBanner.renderBattle() +
-            text.youFace.renderBattle() +
-            text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()) +
-            text.fight.renderBattle() +
-            text.run.renderBattle()
+        screen.choiceMenuLines(
+            text.encounterBanner.renderBattle() +
+                text.youFace.renderBattle() +
+                text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()),
+            text.fight.renderBattle() + text.run.renderBattle(),
+        )
 
     private fun BattleEncounter.nextRoundDecision(roundNumber: Int): BattleRunOutcome? {
         while (true) {
@@ -332,11 +333,12 @@ internal class BattleRunner(
         encounter: BattleEncounter,
         roundNumber: Int,
     ): List<String> =
-        listOf("Round $roundNumber", "") +
-            text.stillFace.renderBattle() +
-            text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()) +
-            text.fight.renderBattle() +
-            text.run.renderBattle()
+        screen.choiceMenuLines(
+            listOf("Round $roundNumber", "") +
+                text.stillFace.renderBattle() +
+                text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()),
+            text.fight.renderBattle() + text.run.renderBattle(),
+        )
 
     private fun BattleEncounter.playerRound(): BattleEncounter {
         var next = this
@@ -418,7 +420,7 @@ internal class BattleRunner(
     }
 
     private fun BattleEncounter.selectMonsterTarget(): Int? {
-        val lines = rules.text.targetPrompt.renderBattle() + monsterTargetLines()
+        val lines = screen.choiceMenuLines(rules.text.targetPrompt.renderBattle(), monsterTargetLines())
         screen.writeText(lines)
         return input
             .readValidChoice(screen, lines) { choice -> selectedMonsterTargetIndex(choice) != null }
@@ -466,7 +468,12 @@ internal class BattleRunner(
         memberIndex: Int,
         messages: MutableList<String>,
     ): BattleEncounter {
-        screen.writeText(rules.text.useWhat.renderBattle() + runtime.party.inventoryChoiceLines())
+        screen.writeText(
+            screen.inventoryPickerLines(
+                rules.text.useWhat.renderBattle(),
+                runtime.party.inventory.inventoryChoiceLines(::itemName),
+            ),
+        )
         val slot = input.readCommand()?.inventorySlot() ?: return copy(actionRetry = true)
         val item = runtime.party.inventoryItem(slot)
         val use = item?.let(::combatItemUse)
@@ -988,11 +995,10 @@ internal class BattleRunner(
         memberName: String,
         actions: List<ExternalCombatAction>,
     ): List<String> =
-        buildList {
-            add(memberName)
-            addAll(whatNow.renderBattle())
-            actions.forEach { action -> addAll(action.prompt.renderBattle()) }
-        }
+        screen.choiceMenuLines(
+            listOf(memberName) + whatNow.renderBattle(),
+            actions.flatMap { action -> action.prompt.renderBattle() },
+        )
 
     private fun ExternalCombatAction.availableTo(member: CompiledPartyMember): Boolean =
         when (requirement) {
@@ -1038,39 +1044,24 @@ internal class BattleRunner(
         add(index, spell)
     }
 
-    private fun PartyState.inventoryChoiceLines(): List<String> =
-        inventory
-            .sortedInventorySlots()
-            .map { slot ->
-                val itemName =
-                    slot.item
-                        ?.let { item ->
-                            content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) }
-                        }
-                        ?: "empty"
-                "${'A' + slot.slot - 1}. $itemName"
-            }
-
-    private fun List<rylween.compiled.CompiledInventorySlot>.sortedInventorySlots(): List<rylween.compiled.CompiledInventorySlot> =
-        buildList {
-            this@sortedInventorySlots.forEach { slot ->
-                var index = 0
-                while (index < size && this[index].slot <= slot.slot) index++
-                add(index, slot)
-            }
-        }
+    private fun itemName(item: CompiledHandleRef): String =
+        content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) } ?: content.slug(item)
 
     private fun spellChoiceLines(
         member: CompiledPartyMember,
         spells: List<CompiledSpell>,
     ): List<String> =
-        spells.map { spell ->
-            "${spell.slot}. ${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})"
-        } + (
-            combat.standardBattle
-                ?.text
-                ?.spellAbort
-                ?.renderBattle() ?: emptyList()
+        screen.choiceMenuLines(
+            prompt = emptyList(),
+            choices =
+                spells.map { spell ->
+                    "${spell.slot}. ${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})"
+                },
+            trailer =
+                combat.standardBattle
+                    ?.text
+                    ?.spellAbort
+                    ?.renderBattle() ?: emptyList(),
         )
 
     private fun Char.inventorySlot(): Int? {
@@ -1236,7 +1227,11 @@ internal class BattleRunner(
 
                 CompiledOpcode.AskMonster ->
                     false.also {
-                        val lines = instruction.textBlockOperand(0).renderScriptLines() + encounter.monsterTargetLines()
+                        val lines =
+                            screen.choiceMenuLines(
+                                instruction.textBlockOperand(0).renderScriptLines(),
+                                encounter.monsterTargetLines(),
+                            )
                         screen.writeText(lines)
                         val target =
                             input
