@@ -16,12 +16,5 @@ build/
 node_modules/
 **/node_modules/
 
-# Native probe artifacts
-*.o
-*.d
-*.dSYM/
-
-tmp-sample-save/
-
 # Local compose settings; may hold account passwords.
 .env

@@ -1,9 +1,9 @@
 /**
  * Command-line entry points for writing, checking, and inspecting compiled
  * bundle artifacts. These tools bridge `game/RylweenCompiledGame` to the
- * compiled artifact readers in `compiled/ExternalBundleArtifact.kt` and the
- * smoke artifact in `compiled/NativeSmokeArtifact.kt`. They live outside the
- * ANSI runtime subproject so bundle emission stays a compiler/tooling concern.
+ * compiled artifact readers in `compiled/ExternalBundleArtifact.kt`. They live
+ * outside the runtime subprojects so bundle emission stays a compiler/tooling
+ * concern.
  */
 package rylween.tools
 
@@ -17,30 +17,12 @@ import rylween.compiled.readExternalRuntimeGame
 import rylween.compiled.readExternalRuntimeSystemsSummary
 import rylween.compiled.toCompiledGameBundle
 import rylween.compiled.writeExternalBundleArtifact
-import rylween.compiled.writeNativeSmokeArtifact
 import rylween.dsl.RylweenValidationException
 import rylween.game.RylweenCompiledGame
 import rylween.runtime.RuntimeLog
 import java.io.File
 import java.io.IOException
 import kotlin.system.exitProcess
-
-object RylweenCompiledBundleArtifactMain {
-    @JvmStatic
-    fun main(args: Array<String>): Unit =
-        runRylweenToolCli(args) { cli ->
-            val output = File(cli.positionals.singleOrNull() ?: "build/compiled/rylween-native-smoke.rsmoke")
-            cli.diagnostics.event("native_smoke.emit.start output=${output.path}")
-            val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
-            cli.diagnostics.event("native_smoke.compile ${bundle.compileSummary()}")
-            bundle.loadCompiledGame()
-            cli.diagnostics.event("native_smoke.validate loaded=true")
-            bundle.writeNativeSmokeArtifact(output)
-            cli.diagnostics.event("native_smoke.emit.done output=${output.path} bytes=${output.length()}")
-            @Suppress("ReplacePrintlnWithLogging")
-            println("Wrote native smoke bundle: ${output.path}")
-        }
-}
 
 object RylweenExternalBundleArtifactMain {
     @JvmStatic
@@ -70,6 +52,17 @@ object RylweenExternalBundleCheckMain {
             val runtimeSystems = input.readExternalRuntimeSystemsSummary()
             val materialized = input.readExternalCompiledGameBundle()
             val runtimeGame = input.readExternalRuntimeGame()
+            // The game needs text, handles, scripts, states, and at least one castle;
+            // an empty table means the emitter dropped content.
+            val emptyTables =
+                mapOf(
+                    "strings" to summary.section(ExternalBundleSectionId.Strings).rowCount,
+                    "handles" to summary.section(ExternalBundleSectionId.Handles).rowCount,
+                    "scripts" to materialized.content.scripts.roots.size,
+                    "states" to materialized.states.size,
+                    "castles" to runtimeSystems.castles.size,
+                ).filterValues { count -> count == 0 }.keys
+            check(emptyTables.isEmpty()) { "compiled bundle check failed: empty ${emptyTables.joinToString()}" }
             val checkSummary =
                 buildString {
                     append("compiled bundle ok:")

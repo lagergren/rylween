@@ -8,6 +8,15 @@ DATA_DIR="${RYLWEEN_DEPLOY_DATA_DIR:-$HOME/.rylween/deploy}"
 LOG_FILE="${RYLWEEN_DEPLOY_LOG_FILE:-/tmp/rylween-bitmap-web-deploy.log}"
 MAIN_CLASS="${RYLWEEN_DEPLOY_MAIN_CLASS:-rylween.bitmapweb.RylweenBitmapWebRuntimeMainKt}"
 
+case "${1-}" in
+    "") MODE=launcher ;;
+    --compose) MODE=compose ;;
+    *)
+        echo "usage: $0 [--compose]" >&2
+        exit 2
+        ;;
+esac
+
 # Address of the interface carrying the default route, i.e. the one other
 # machines on the local network can reach.
 detect_lan_host() {
@@ -131,6 +140,27 @@ stop_existing_server() {
     echo "Existing server did not exit cleanly; forcing: $pids"
     kill -9 $pids
 }
+
+# --compose builds and runs the image with compose instead of the installed
+# launcher. It publishes on the same detected LAN address unless
+# RYLWEEN_PUBLISH_HOST is set in the shell or in .env; every other setting comes
+# from compose.yaml and .env.
+if [ "$MODE" = compose ]; then
+    cd "$(dirname "$0")"
+    if [ -z "${RYLWEEN_PUBLISH_HOST-}" ] && ! grep -qE '^[[:space:]]*RYLWEEN_PUBLISH_HOST=' .env 2>/dev/null; then
+        RYLWEEN_PUBLISH_HOST="$(resolve_host)" || {
+            echo "Could not find a private LAN IPv4 address on the default route." >&2
+            echo "Set RYLWEEN_PUBLISH_HOST=127.0.0.1 or a specific bind address." >&2
+            exit 2
+        }
+        export RYLWEEN_PUBLISH_HOST
+    fi
+    compose=(docker compose)
+    command -v docker >/dev/null 2>&1 || compose=(podman compose)
+    "${compose[@]}" up --build -d
+    echo "Started bitmap compose service on http://$("${compose[@]}" port rylween 8081 2>/dev/null)"
+    exit 0
+fi
 
 HOST="$(resolve_host)" || {
     echo "Could not find a private LAN IPv4 address on the default route." >&2

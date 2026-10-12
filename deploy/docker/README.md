@@ -46,14 +46,21 @@ mkdir -p ~/.rylween/compose-data
 RYLWEEN_DATA_VOLUME=~/.rylween/compose-data docker compose up -d
 ```
 
-The container publishes on `127.0.0.1:8081` by default. Set
-`RYLWEEN_PUBLISH_HOST` to the machine's LAN address, such as `192.168.x.y`, or
-to `0.0.0.0`, so other machines can connect, and `RYLWEEN_HOST_PORT` to change
-the port.
+The container publishes on `127.0.0.1:8081` by default. To let other machines
+on the local network connect, run compose through the deploy script, which
+detects this machine's private LAN address and publishes on it:
+
+```sh
+./deploy-rylween.sh --compose
+```
+
+Or set `RYLWEEN_PUBLISH_HOST` yourself, to a LAN address such as `192.168.x.y`
+or to `0.0.0.0`. `RYLWEEN_HOST_PORT` changes the port.
 Unlike the plain image, compose turns secure cookies off so logins work over
 plain HTTP; set `RYLWEEN_AUTH_SECURE_COOKIES=true` behind an HTTPS proxy. All
 settings are listed at the top of `compose.yaml` and can be kept in an
-uncommitted `.env` file next to it.
+uncommitted `.env` file next to it; copy `.env.example`, which shows each one at
+its default.
 
 The root `.dockerignore` intentionally remains at the repository root because
 Docker reads ignore rules relative to the build context, not relative to the

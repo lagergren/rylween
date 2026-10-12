@@ -85,6 +85,8 @@ import kotlin.reflect.typeOf
 
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
+private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 9
+private const val GRID_CASTLE_KIND = "gridCastle"
 
 /** Serializes this game into the canonical strict JSON J1 artifact bytes. */
 fun RylweenModel.toExternalBundleArtifact(): ByteArray = ExternalBundleArtifactWriter().write(this)
@@ -1210,7 +1212,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun runtimeSystemsJson(game: GameModel): JsonValue =
         jsonObject(
-            "schemaVersion" to JsonNumber("9"),
+            "schemaVersion" to JsonNumber(EXTERNAL_RUNTIME_SYSTEMS_VERSION.toString()),
             "realm" to realmJson(game.realm),
             "prompts" to promptsJson(game.prompts),
             "pacing" to pacingJson(game.pacing),
@@ -2217,7 +2219,7 @@ private class ExternalBundleArtifactWriter {
     private fun castleJson(castle: CastleContentModel): JsonValue =
         jsonObject(
             "id" to JsonString(castle.id.slug),
-            "kind" to JsonString("gridCastle"),
+            "kind" to JsonString(GRID_CASTLE_KIND),
             "entry" to gridPointJson(castle.entry),
             "image" to castle.image?.let { JsonString(it.slug) }.orJsonNull(),
             "entryRequirement" to castle.entryRequirement?.let { JsonString(it.slug) }.orJsonNull(),
@@ -2686,12 +2688,23 @@ private class ExternalRuntimeSystemsReader(
                 .sections
                 .requiredObject(ExternalBundleSectionId.RuntimeSystems.jsonName)
         systems.rejectReflectiveTypeMarkers("runtimeSystems")
+        val schemaVersion = systems.requiredInt("schemaVersion")
+        if (schemaVersion != EXTERNAL_RUNTIME_SYSTEMS_VERSION) {
+            externalBundleFail("unsupported runtime systems schema version $schemaVersion")
+        }
         val commands = systems.requiredObject("commands")
         val commandGroups = commands.entries.associate { (name, value) -> name to value.readCommandGroup(name) }
         val prompts = systems.requiredObject("prompts")
         val castleRows = systems.requiredArray("castles").values.map { castle -> castle.asObject("castle").readCastle() }
+        castleRows.firstOrNull { castle -> castle.kind != GRID_CASTLE_KIND }?.let { castle ->
+            externalBundleFail("castle ${castle.id} has kind ${castle.kind}, expected $GRID_CASTLE_KIND")
+        }
+        val missingCommandGroups = requiredCommandGroups(castleRows).filterNot(commandGroups::containsKey)
+        if (missingCommandGroups.isNotEmpty()) {
+            externalBundleFail("runtime systems commands missing ${missingCommandGroups.joinToString()}")
+        }
         return ExternalRuntimeSystems(
-            schemaVersion = systems.requiredInt("schemaVersion"),
+            schemaVersion = schemaVersion,
             commandGroups = commandGroups.keys.toList(),
             promptGroups =
                 prompts.requiredArray("groups").values.map { group ->
@@ -3090,6 +3103,17 @@ private class ExternalRuntimeSystemsReader(
             eventCount = requiredInt("eventCount"),
             scenarioCount = requiredInt("scenarioCount"),
         )
+
+    /** The command groups a runtime looks up by id: the wilderness, the dungeon, and each castle's three. */
+    private fun requiredCommandGroups(castles: List<ExternalRuntimeCastle>): List<String> =
+        listOf(RuntimeCommandGroupId.Wilderness.id, RuntimeCommandGroupId.Dungeon.id) +
+            castles.flatMap { castle ->
+                listOf(
+                    RuntimeCommandGroupId.castleNavigation(castle.id),
+                    RuntimeCommandGroupId.castleTreasure(castle.id),
+                    RuntimeCommandGroupId.castleStairs(castle.id),
+                )
+            }
 
     private fun JsonObject.readCastle(): ExternalRuntimeCastle =
         ExternalRuntimeCastle(

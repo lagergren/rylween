@@ -1,8 +1,8 @@
 @file:Suppress("SpellCheckingInspection")
 
 /**
- * Custom Gradle task types used by the Rylween build for native smoke checks,
- * installed runtime launcher execution, and generated game catalog sources.
+ * Custom Gradle task types used by the Rylween build for installed runtime
+ * launcher execution and generated game catalog sources.
  */
 
 package rylween.gradle
@@ -11,7 +11,6 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
@@ -24,55 +23,6 @@ import org.gradle.process.ExecOperations
 import java.io.ByteArrayOutputStream
 import java.io.File
 import javax.inject.Inject
-
-/**
- * Compiles the small native C probes that validate the emitted bundle contract.
- *
- * The tools project wires this task to `support/tools/src/main/c/compiled-smoke` and
- * `support/tools/src/main/c/bundle-json`; the task type lives in build logic so
- * project build files stay focused on project wiring.
- */
-abstract class CompileNativeCExecutableTask
-    @Inject
-    constructor(
-        private val execOperations: ExecOperations,
-        objects: ObjectFactory,
-    ) : DefaultTask() {
-        @get:Input
-        abstract val compiler: Property<String>
-
-        @get:Input
-        abstract val flags: ListProperty<String>
-
-        @get:InputFile
-        abstract val sourceFile: RegularFileProperty
-
-        @get:InputFiles
-        val additionalSourceFiles: ConfigurableFileCollection = objects.fileCollection()
-
-        @get:Input
-        val includeDirs: ListProperty<String> = objects.listProperty(String::class.java).convention(emptyList())
-
-        @get:OutputFile
-        abstract val executableFile: RegularFileProperty
-
-        @TaskAction
-        fun compile() {
-            val source = sourceFile.get().asFile
-            val executable = executableFile.get().asFile
-            executable.parentFile.mkdirs()
-            execOperations.exec {
-                val includeArgs = includeDirs.get().flatMap { dir -> listOf("-I", dir) }
-                commandLine(
-                    listOf(compiler.get()) +
-                        flags.get() +
-                        includeArgs +
-                        listOf("-o", executable.path, source.path) +
-                        additionalSourceFiles.files.map { it.path },
-                )
-            }
-        }
-    }
 
 /**
  * Runs an installed launcher against a compiled bundle with a known Java home.
