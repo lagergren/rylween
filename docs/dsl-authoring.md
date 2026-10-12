@@ -503,12 +503,3 @@ The I10 audit found the current high-level separation sound:
 - Current-facing comments and plan/spec text were corrected to point at
   `RylweenGame.kt` and the source-script IR instead of the retired
   `RylweenGame.dsl.kts`/authored `Op` terminology.
-
-Remaining follow-up work stays tracked in `docs/plans/dsl-improvements.md` rather
-than being hidden in this guide:
-
-- I4b: narrow or remove remaining broad DSL receiver suppressions.
-- I4e.3: continue splitting the larger item/realm builder block from `Dsl.kt`.
-- I5: do the readability/brevity pass after the DSL implementation move.
-- I8a/I8b: continue classifying runtime-rendered literals and replacing phrase
-  fragments with structured prompt rows where they are real game prose.
