@@ -23,5 +23,5 @@ tmp-sample-save/
 .gitignore
 scratch/
 
-# Local compose settings; may hold account passwords.
+# Compose settings; the image does not need them.
 .env

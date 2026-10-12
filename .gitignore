@@ -23,5 +23,3 @@ node_modules/
 
 tmp-sample-save/
 
-# Local compose settings; may hold account passwords.
-.env
