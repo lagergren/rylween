@@ -369,6 +369,9 @@ Estimated size: 1-2 weeks.
 
 Do not accidentally drift from probe to product.
 
+Update 2026-10-12: the C readers and the VM probe were removed; their bundle
+checks now run in Kotlin.
+
 Decision for this track: stop at the native probe. The C/native code should keep
 validating the J1 loader boundary and narrow J2 VM portability, but it should
 not become a playable runtime inside J2. A playable non-JVM target would have to
