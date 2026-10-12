@@ -143,20 +143,20 @@ stop_existing_server() {
 
 # --compose builds and runs the image with compose instead of the installed
 # launcher. It publishes on the same detected LAN address unless
-# RYLWEEN_PUBLISH_HOST is already set; every other setting comes from compose.yaml
-# and .env.
+# RYLWEEN_PUBLISH_HOST is set in the shell or in .env; every other setting comes
+# from compose.yaml and .env.
 if [ "$MODE" = compose ]; then
-    if [ -z "${RYLWEEN_PUBLISH_HOST-}" ]; then
+    cd "$(dirname "$0")"
+    if [ -z "${RYLWEEN_PUBLISH_HOST-}" ] && ! grep -qE '^[[:space:]]*RYLWEEN_PUBLISH_HOST=' .env 2>/dev/null; then
         RYLWEEN_PUBLISH_HOST="$(resolve_host)" || {
             echo "Could not find a private LAN IPv4 address on the default route." >&2
             echo "Set RYLWEEN_PUBLISH_HOST=127.0.0.1 or a specific bind address." >&2
             exit 2
         }
+        export RYLWEEN_PUBLISH_HOST
     fi
-    export RYLWEEN_PUBLISH_HOST
     compose=(docker compose)
     command -v docker >/dev/null 2>&1 || compose=(podman compose)
-    cd "$(dirname "$0")"
     "${compose[@]}" up --build -d
     echo "Started bitmap compose service on http://$("${compose[@]}" port rylween 8081 2>/dev/null)"
     exit 0

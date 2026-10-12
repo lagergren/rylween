@@ -7,7 +7,8 @@
 # Rebuild with --build after pulling new game code. `down -v` deletes the volume
 # and with it every save and account.
 #
-# Settings come from the shell environment or a .env file next to this file:
+# Settings come from the shell environment or a .env file next to this file
+# (copy .env.example to start one):
 #   RYLWEEN_PUBLISH_HOST        Host address to publish on. Default: 127.0.0.1.
 #                               `./deploy-rylween.sh --compose` sets it to this
 #                               machine's LAN address so others on the local
