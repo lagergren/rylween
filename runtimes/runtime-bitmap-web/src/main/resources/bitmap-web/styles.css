@@ -379,6 +379,68 @@ canvas {
     box-shadow: 0 10px 24px rgb(0 0 0 / 45%);
 }
 
+.canvas-tooltip.member-tooltip {
+    max-width: none;
+    min-width: 250px;
+    padding: 10px 12px;
+}
+
+.member-card-name {
+    color: #f1df9f;
+    font-family: Palatino, "Palatino Linotype", Georgia, serif;
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.member-card-dead {
+    margin-left: 6px;
+    color: #d0786e;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.member-card-identity {
+    margin-bottom: 8px;
+    color: var(--muted);
+}
+
+.member-card-stats,
+.member-card-gear {
+    display: grid;
+    gap: 3px 10px;
+    margin: 0;
+    padding-top: 7px;
+    border-top: 1px solid rgb(117 138 87 / 45%);
+}
+
+.member-card-stats {
+    grid-template-columns: max-content max-content max-content max-content;
+}
+
+.member-card-gear {
+    grid-template-columns: max-content auto;
+    margin-top: 7px;
+}
+
+.member-card-stats dt,
+.member-card-gear dt {
+    color: var(--muted);
+}
+
+.member-card-stats dd,
+.member-card-gear dd {
+    margin: 0;
+    color: #f1ead6;
+    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+    font-weight: 700;
+}
+
+.member-card-stats dd {
+    text-align: right;
+    padding-right: 6px;
+}
+
 button {
     min-height: 34px;
     padding: 0 12px;

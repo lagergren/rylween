@@ -23,7 +23,10 @@ import rylween.runtime.RuntimeCharacterPortraitPreview
 import rylween.runtime.RuntimeInputPort
 import rylween.runtime.RuntimeInputTokens
 import rylween.runtime.RuntimeMapCell
+import rylween.runtime.isRuntimeDocumentPrompt
 import rylween.runtime.memberName
+import rylween.runtime.partyMemberView
+import rylween.runtime.RuntimePartyMemberView
 import rylween.runtime.RuntimePartyPageView
 import rylween.runtime.RuntimeScreenPort
 import rylween.runtime.RuntimeState
@@ -40,8 +43,9 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToLong
 
-private const val BITMAP_DOCUMENT_COLUMNS = 116
-private const val BITMAP_DOCUMENT_PAGE_LINES = 16
+// Rows the client's text panel holds at its default font and line spacing; the
+// client tightens the spacing to fit anything taller rather than clipping it.
+private const val BITMAP_TEXT_ROWS = 11
 private const val PAUSE_DELAY_SCALE_MESSAGE_PREFIX = "settings:pauseDelayScale="
 private const val MIN_PAUSE_DELAY_SCALE = 0.25
 private const val MAX_PAUSE_DELAY_SCALE = 2.0
@@ -181,6 +185,7 @@ internal class BitmapRuntimeScreen(
     private var status: BitmapStatus? = null
     private var statusLines = emptyList<String>()
     private var textLines = emptyList<String>()
+    private var document: BitmapDocument? = null
     private var textInput: BitmapTextInput? = null
     private var textEffect = BitmapTextEffect.None
     private var portrait: BitmapPortrait? = null
@@ -192,8 +197,9 @@ internal class BitmapRuntimeScreen(
     private var stickyMessageLines = emptyList<String>()
 
     override val textColumns: Int? get() = null
+    override val textRows: Int get() = BITMAP_TEXT_ROWS
     override val documentColumns: Int get() = BITMAP_DOCUMENT_COLUMNS
-    override val documentPageLines: Int get() = BITMAP_DOCUMENT_PAGE_LINES
+    override val documentPageLines: Int get() = BITMAP_DOCUMENT_ROWS
 
     override fun bootFrame() {
         mode = "boot"
@@ -216,10 +222,15 @@ internal class BitmapRuntimeScreen(
         runtime: RuntimeState,
     ) {
         val screen = staticScreen(screenSlug)
-        val lines =
-            bitmapDocumentLines(screen, runtimeStaticScreenText(content, systems, screen, runtime))
-                .take(BITMAP_DOCUMENT_PAGE_LINES + 2)
-        showStaticScreenFrame(screenSlug, runtime, lines, subtitleText = runtime.party.name)
+        val layout = bitmapDocumentLayout(screen, runtimeStaticScreenText(content, systems, screen, runtime))
+        showStaticScreenFrame(
+            screenSlug,
+            runtime,
+            lines = layout.lines.toBitmapDocumentPages().first(),
+            prompt = "",
+            subtitleText = runtime.party.name,
+            titleText = layout.title ?: staticScreenTitle(screenSlug),
+        )
     }
 
     override fun showPagedStaticScreen(
@@ -228,15 +239,17 @@ internal class BitmapRuntimeScreen(
         advance: () -> Char?,
     ) {
         val screen = staticScreen(screenSlug)
-        val pages = bitmapDocumentPages(screen, runtimeStaticScreenText(content, systems, screen, runtime))
+        val layout = bitmapDocumentLayout(screen, runtimeStaticScreenText(content, systems, screen, runtime))
+        val pages = layout.lines.toBitmapDocumentPages()
         var pageIndex = 0
         while (pageIndex in pages.indices) {
-            val page = pages[pageIndex]
             showStaticScreenFrame(
                 screenSlug,
                 runtime,
-                page + "" + bitmapDocumentPrompt(pageIndex, pages.size),
-                "Page ${pageIndex + 1}/${pages.size}",
+                lines = pages[pageIndex],
+                prompt = bitmapDocumentPrompt(pageIndex, pages.size),
+                subtitleText = "Page ${pageIndex + 1}/${pages.size}",
+                titleText = layout.title ?: staticScreenTitle(screenSlug),
             )
             when (readDocumentAdvance(advance)) {
                 null,
@@ -259,10 +272,14 @@ internal class BitmapRuntimeScreen(
         lines: List<String>,
         runtime: RuntimeState,
     ) {
+        // The shared runtime pages these itself and appends its paging prompt.
+        val prompt = lines.lastOrNull()?.takeIf(::isRuntimeDocumentPrompt)
+        val body = (if (prompt == null) lines else lines.dropLast(1)).dropLastWhile(String::isBlank)
         showStaticScreenFrame(
             screenSlug = "journal",
             runtime = runtime,
-            lines = lines,
+            lines = bitmapPlainDocumentLayout(body).lines,
+            prompt = prompt.orEmpty(),
             subtitleText = subtitle,
             titleText = title,
         )
@@ -523,6 +540,7 @@ internal class BitmapRuntimeScreen(
                 commands = commands,
                 map = map,
                 message = message,
+                document = document.takeIf { mode == "static_document" },
             ).toJson(),
         )
         visualTransition = BitmapVisualTransition.None
@@ -534,20 +552,22 @@ internal class BitmapRuntimeScreen(
     private fun showStaticScreenFrame(
         screenSlug: String,
         runtime: RuntimeState,
-        lines: List<String>,
+        lines: List<BitmapDocumentLine>,
+        prompt: String,
         subtitleText: String,
-        titleText: String = staticScreenTitle(screenSlug),
+        titleText: String,
     ) {
-        val document = lines.isNotEmpty()
-        mode = if (document) "static_document" else "static"
+        val isDocument = lines.isNotEmpty()
+        mode = if (isDocument) "static_document" else "static"
         backdrop = runtimeScreenSlug(screenSlug)
         title = titleText
         subtitle = subtitleText
-        status = runtime.bitmapStatus().takeUnless { document }
-        statusLines = runtime.runtimeStatusLines(content, systems).takeUnless { document }.orEmpty()
-        textLines = lines
+        status = runtime.bitmapStatus().takeUnless { isDocument }
+        statusLines = runtime.runtimeStatusLines(content, systems).takeUnless { isDocument }.orEmpty()
+        textLines = lines.map(BitmapDocumentLine::text)
+        document = BitmapDocument(lines, prompt).takeIf { isDocument }
         textInput = null
-        textEffect = if (document) BitmapTextEffect.Reveal else BitmapTextEffect.None
+        textEffect = if (isDocument) BitmapTextEffect.Reveal else BitmapTextEffect.None
         portrait = null
         partyPage = null
         map = null
@@ -583,6 +603,7 @@ internal class BitmapRuntimeScreen(
                                 .takeIf { value -> value > 0 || member.mana.current > 0 },
                         manaRelevant = member.pcClass in manaStatusClasses,
                         dead = member.dead,
+                        details = party.partyMemberView(content, index).toBitmapPartyMember(),
                     )
                 },
         )
@@ -792,23 +813,16 @@ private fun ExternalRuntimeSystems.bitmapCommands(group: RuntimeCommandGroupId):
 private fun ExternalRuntimeSystems.bitmapCommands(group: String): List<BitmapCommandHint> =
     commands[group].orEmpty().map(ExternalRuntimeCommand::toBitmapCommand)
 
-private fun bitmapDocumentPages(
-    screen: ExternalStaticScreen,
-    lines: List<String>,
-): List<List<String>> =
-    bitmapDocumentLines(screen, lines)
-        .ifEmpty { listOf("") }
-        .chunked(BITMAP_DOCUMENT_PAGE_LINES)
-
+/** Offers only the page moves that exist; ENTER still advances and the arrow keys page either way. */
 private fun bitmapDocumentPrompt(
     pageIndex: Int,
     pageCount: Int,
 ): String =
-    if (pageIndex == pageCount - 1) {
-        "[← previous | ENTER exit | ESC exit]"
-    } else {
-        "[← previous | ENTER next | ESC exit]"
-    }
+    listOfNotNull(
+        "← previous".takeIf { pageIndex > 0 },
+        "→ next".takeIf { pageIndex < pageCount - 1 },
+        "ESC exit",
+    ).joinToString(separator = " | ", prefix = "[", postfix = "]")
 
 private fun readDocumentAdvance(advance: () -> Char?): Char? {
     while (true) {
@@ -825,78 +839,15 @@ private fun readDocumentAdvance(advance: () -> Char?): Char? {
     }
 }
 
-private fun bitmapDocumentLines(
+private fun bitmapDocumentLayout(
     screen: ExternalStaticScreen,
     lines: List<String>,
-): List<String> =
+): BitmapDocumentLayout =
     if (screen.resource?.endsWith(".md", ignoreCase = true) == true) {
-        bitmapMarkdownDocumentLines(lines)
+        bitmapMarkdownDocumentLayout(lines)
     } else {
-        lines.flatMap { line -> line.wrap(BITMAP_DOCUMENT_COLUMNS) }
+        bitmapPlainDocumentLayout(lines)
     }
-
-private fun bitmapMarkdownDocumentLines(lines: List<String>): List<String> =
-    buildList<String> {
-        val paragraph = mutableListOf<String>()
-        val quote = mutableListOf<String>()
-        var inCode = false
-
-        fun addGap() {
-            if (lastOrNull()?.isNotBlank() == true) add("")
-        }
-
-        fun flushParagraph() {
-            if (paragraph.isEmpty()) return
-            addAll(paragraph.joinToString(" ").wrap(BITMAP_DOCUMENT_COLUMNS))
-            paragraph.clear()
-        }
-
-        fun flushQuote() {
-            if (quote.isEmpty()) return
-            addAll(quote.joinToString(" ").wrap(BITMAP_DOCUMENT_COLUMNS - 2).map { line -> "> $line" })
-            quote.clear()
-        }
-
-        for (rawLine in lines) {
-            val line = rawLine.trimEnd()
-            when {
-                line.startsWith("```") -> {
-                    flushParagraph()
-                    flushQuote()
-                    addGap()
-                    inCode = !inCode
-                }
-                inCode -> addAll(markdownInlinePlainText(line).wrap(BITMAP_DOCUMENT_COLUMNS))
-                line.isBlank() -> {
-                    flushParagraph()
-                    flushQuote()
-                }
-                line.startsWith("#") -> {
-                    flushParagraph()
-                    flushQuote()
-                    if (line.startsWith("# ") || line.startsWith("## ")) addGap()
-                    add(line)
-                }
-                line.startsWith(">") -> {
-                    flushParagraph()
-                    quote += line.removePrefix(">").trim()
-                }
-                line.startsWith("- ") || line.matches(Regex("""\d+\.\s+.*""")) -> {
-                    flushParagraph()
-                    flushQuote()
-                    addAll(line.wrap(BITMAP_DOCUMENT_COLUMNS))
-                }
-                else -> paragraph += line.trim()
-            }
-        }
-        flushParagraph()
-        flushQuote()
-    }.dropLastWhile(String::isBlank)
-
-private fun markdownInlinePlainText(line: String): String =
-    line
-        .replace(Regex("""`([^`]+)`"""), "$1")
-        .replace("&mdash;", "-")
 
 private fun staticScreenTitle(screenSlug: String): String =
     when (runtimeScreenSlug(screenSlug)) {
@@ -935,31 +886,31 @@ private fun RuntimePartyPageView.toBitmapPartyPage(pauseLine: String): BitmapPar
                     memberCount = summary.memberCount,
                 )
             },
-        member =
-            member?.let { member ->
-                BitmapPartyMember(
-                    index = member.index,
-                    name = member.name,
-                    gender = member.gender,
-                    race = member.race,
-                    pcClass = member.pcClass,
-                    weaponSkill = member.weaponSkill,
-                    health = member.health,
-                    wisdom = member.wisdom,
-                    charisma = member.charisma,
-                    dexterity = member.dexterity,
-                    hitPoints = member.hitPoints,
-                    hitPointMax = member.hitPointMax,
-                    mana = member.mana,
-                    manaMax = member.manaMax,
-                    level = member.level,
-                    experience = member.experience,
-                    weapon = member.weapon,
-                    armor = member.armor,
-                    status = member.status,
-                )
-            },
+        member = member?.toBitmapPartyMember(),
         inventory = inventory?.entries.orEmpty(),
+    )
+
+private fun RuntimePartyMemberView.toBitmapPartyMember(): BitmapPartyMember =
+    BitmapPartyMember(
+        index = index,
+        name = name,
+        gender = gender,
+        race = race,
+        pcClass = pcClass,
+        weaponSkill = weaponSkill,
+        health = health,
+        wisdom = wisdom,
+        charisma = charisma,
+        dexterity = dexterity,
+        hitPoints = hitPoints,
+        hitPointMax = hitPointMax,
+        mana = mana,
+        manaMax = manaMax,
+        level = level,
+        experience = experience,
+        weapon = weapon,
+        armor = armor,
+        status = status,
     )
 
 private fun ExternalRuntimeCommand.toBitmapCommand(): BitmapCommandHint =
@@ -1054,7 +1005,7 @@ private fun String.readableSlug(): String =
         .filter(String::isNotEmpty)
         .joinToString(" ") { part -> part.replaceFirstChar(Char::uppercaseChar) }
 
-private fun String.wrap(width: Int): List<String> {
+internal fun String.wrap(width: Int): List<String> {
     if (isEmpty() || width <= 0 || length <= width) return listOf(this)
     val tokens = split(' ').flatMap { word -> if (word.length > width) word.chunked(width) else listOf(word) }
     return buildList {

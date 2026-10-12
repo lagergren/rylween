@@ -78,6 +78,8 @@ private val SPEAK_COMMAND_GROUP = RuntimeCommandGroupId.Speak
 private val SPEAK_QUESTION_COMMAND_GROUP = RuntimeCommandGroupId.SpeakQuestions
 
 /** Executes one compiled script root against [RuntimeState]. */
+private val spacedMenuColumn = Regex("""(?<=\S) {2,}(?=\S)""")
+
 internal class ScriptExecutor(
     private val content: CompiledContentBundle,
     private val systems: ExternalRuntimeSystems,
@@ -441,7 +443,8 @@ internal class ScriptExecutor(
             when {
                 promptLines.onlyListMenuOptions(options) && currentTextLines.isNotEmpty() -> currentTextLines + promptLines
                 else -> promptLines.withGeneratedMenuOptions(options)
-            }
+            }.withChoiceGapBefore { line -> line.offersMenuOption(options) }
+                .map { line -> if (line.offersMenuOption(options)) line.withSpacedColumn() else line }
         writeText(baseLines)
         var choice = input.readCommand() ?: return ScriptSignal.StopScript
         val defaultBody = instruction.instructionsOperand(2)
@@ -475,7 +478,10 @@ internal class ScriptExecutor(
 
     private fun executeAskKey(instruction: CompiledInstruction): ScriptSignal {
         val bindings = instruction.inputBindingsOperand(2)
-        val lines = instruction.textBlockOperand(0).renderScriptLines()
+        val lines =
+            instruction.textBlockOperand(0).renderScriptLines().withChoiceGapBefore { line ->
+                bindings.any { binding -> line.offersChoiceKey(binding.primaryInputLabel(content)) }
+            }
         writeText(lines)
         var choice = input.readCommand() ?: return ScriptSignal.StopScript
         while (true) {
@@ -511,14 +517,18 @@ internal class ScriptExecutor(
 
     private fun List<String>.onlyListMenuOptions(options: List<CompiledMenuOption>): Boolean {
         val nonBlank = filter(String::isNotBlank)
-        return nonBlank.isNotEmpty() &&
-            nonBlank.all { line ->
-                options.any { option ->
-                    val key = option.binding.primaryInputLabel(content)
-                    "($key)" in line || line.trimStart().startsWith("$key.")
-                }
-            }
+        return nonBlank.isNotEmpty() && nonBlank.all { line -> line.offersMenuOption(options) }
     }
+
+    /**
+     * Authored menus line up prices with runs of spaces ("(A) Ale      2 au"),
+     * which only works in a monospace terminal; the first such run becomes a
+     * column break so every renderer starts the prices on one column.
+     */
+    private fun String.withSpacedColumn(): String = replaceFirst(spacedMenuColumn, TEXT_COLUMN_SEPARATOR)
+
+    private fun String.offersMenuOption(options: List<CompiledMenuOption>): Boolean =
+        options.any { option -> offersChoiceKey(option.binding.primaryInputLabel(content)) }
 
     private fun executeAskMember(instruction: CompiledInstruction): ScriptSignal {
         val accepting = enumValueOf<MemberChoiceFilter>(instruction.enumOperand(3))
@@ -527,7 +537,7 @@ internal class ScriptExecutor(
             locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to 0)
             return ScriptSignal.Continue
         }
-        val lines = instruction.textBlockOperand(0).renderScriptLines().withChoiceGap() + memberChoiceLines(choices)
+        val lines = screen.choiceMenuLines(instruction.textBlockOperand(0).renderScriptLines(), memberChoiceLines(choices))
         screen.writeText(lines)
         val member =
             input.readValidDigitChoice(
@@ -548,7 +558,8 @@ internal class ScriptExecutor(
             locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to 0)
             return ScriptSignal.Continue
         }
-        val lines = instruction.textBlockOperand(0).renderScriptLines() + inventoryChoiceLines(choices).withReturnCancelLine()
+        val prompt = instruction.textBlockOperand(0).renderScriptLines()
+        val lines = screen.inventoryPickerLines(prompt, inventoryChoiceLines(choices), prompt.returnCancelTrailer())
         screen.writeText(lines)
         val choice =
             input.readValidChoice(screen, lines) { candidate ->
@@ -564,14 +575,15 @@ internal class ScriptExecutor(
         return ScriptSignal.Continue
     }
 
-    private fun List<String>.withReturnCancelLine(): List<String> {
+    /** The "RETURN leaves." line, unless the authored prompt already explains the RETURN key. */
+    private fun List<String>.returnCancelTrailer(): List<String> {
         val returnLabel = systems.prompts.returnKeyLabel()
         val hasReturn =
             any { line ->
                 line.contains(returnLabel, ignoreCase = true) ||
                     line.contains(systems.prompts.returnKeyName, ignoreCase = true)
             }
-        return takeIf { hasReturn } ?: (this + systems.prompts.returnLeavesLine())
+        return if (hasReturn) emptyList() else listOf(systems.prompts.returnLeavesLine())
     }
 
     private fun executeAskText(
@@ -649,7 +661,7 @@ internal class ScriptExecutor(
             return ScriptSignal.Continue
         }
 
-        val chooseNpcLines = conversation.prompts.chooseNpc.renderExternal() + npcChoiceLines(npcs)
+        val chooseNpcLines = screen.choiceMenuLines(conversation.prompts.chooseNpc.renderExternal(), npcChoiceLines(npcs))
         screen.writeText(chooseNpcLines)
         val npc =
             input
@@ -665,7 +677,11 @@ internal class ScriptExecutor(
 
         var rumorTold = false
         while (true) {
-            val lines = conversation.prompts.mainMenu.renderExternal(npc) + systems.commands.mnemonicMenuLines(SPEAK_COMMAND_GROUP)
+            val lines =
+                screen.choiceMenuLines(
+                    conversation.prompts.mainMenu.renderExternal(npc),
+                    systems.commands.mnemonicMenuLines(SPEAK_COMMAND_GROUP),
+                )
             screen.writeText(lines)
             val command =
                 input
@@ -989,13 +1005,8 @@ internal class ScriptExecutor(
             screen = screen,
             party = party,
             leadLines = leadLines,
-        ) { current ->
-            inventoryMenuLines(
-                current.inventory.map { slot ->
-                    inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
-                },
-            )
-        }
+            itemName = ::itemName,
+        )
 
     private fun CompiledTextBlock.renderRewardLines(
         item: CompiledHandleRef,
@@ -1039,31 +1050,15 @@ internal class ScriptExecutor(
         }
     }
 
-    private fun inventoryReplaceLines(party: PartyState): List<String> =
-        systems.prompts.party.dropOverflowPrompt
-            .renderSimplePrompt() +
-            inventoryMenuLines(
-                party.inventory.map { slot ->
-                    inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
-                },
-            )
-
-    private fun ExternalRuntimeTextBlock.renderSimplePrompt(): List<String> = render({ null }, screen.textColumns)
-
     private fun memberChoiceLines(choices: List<Int>): List<String> =
         choices.map { member ->
             "$member. ${runtime.party.memberName(content, member - 1)}"
         }
 
     private fun inventoryChoiceLines(choices: List<InventorySlotChoice>): List<String> =
-        inventoryMenuLines(
-            choices.map { choice ->
-                val item = runtime.party.inventoryItem(choice.slot)?.let(::itemName) ?: ""
-                choice.key to item
-            },
-        )
-
-    private fun List<String>.withChoiceGap(): List<String> = if (lastOrNull().isNullOrBlank()) this else this + ""
+        choices.map { choice ->
+            "${choice.key}. ${runtime.party.inventoryItem(choice.slot)?.let(::itemName).orEmpty()}"
+        }
 
     private fun int(expr: CompiledIntExpr): Int =
         when (expr) {

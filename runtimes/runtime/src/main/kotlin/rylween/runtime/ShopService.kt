@@ -92,7 +92,7 @@ internal class ShopService(
     }
 
     private fun shopHomeLines(shop: CompiledShopService): List<String> =
-        shop.intro.renderScreenTextLines() + shop.menu.renderScreenTextLines()
+        screen.choiceMenuLines(shop.intro.renderScreenTextLines(), shop.menu.renderScreenTextLines())
 
     private fun CompiledTextBlock.renderScreenTextLines(): List<String> =
         renderTextLines(
@@ -196,8 +196,11 @@ internal class ShopService(
                 }
                 add(buy.paymentKeys.decline.mnemonicLine(content, "None"))
             }
+        val generatedKeys =
+            (buy.catalogs.map { catalog -> catalog.binding } + buy.paymentKeys.decline)
+                .map { binding -> binding.primaryInputLabel(content) }
         while (true) {
-            screen.writeText(promptLines.withGeneratedChoices(generatedLines))
+            screen.writeText(promptLines.withGeneratedChoices(generatedKeys, generatedLines))
             val choice = input.readCommand() ?: return null
             if (buy.paymentKeys.decline.matchesInput(content, choice)) return null
             buy.catalogs.firstOrNull { catalog -> catalog.binding.matchesInput(content, choice) }?.let { return it }
@@ -234,7 +237,7 @@ internal class ShopService(
     ) {
         val lines =
             buildList {
-                catalog.intro?.let { addAll(it.renderScreenTextLines()) }
+                catalog.intro?.let { addAll(it.renderScreenTextLines().withChoiceGap()) }
                 page.entries.forEach { offer ->
                     val label = offer.labelString?.let(content.strings::value) ?: itemName(offer.item)
                     add(formatOfferLine(offer.binding, label, unitPrice(offer, party)))
@@ -252,13 +255,9 @@ internal class ShopService(
         label: String,
         unitPrice: Int,
     ): String {
-        val prefix = "(${binding.primaryInputLabel(content).uppercase()}) $label"
-        val price = "$unitPrice au"
-        // Reserve one trailing column so the price doesn't butt against the
-        // window's right frame border.
-        val width = screen.textColumns?.let { it - 1 } ?: (prefix.length + 2 + price.length)
-        val padding = (width - prefix.length - price.length).coerceAtLeast(1)
-        return prefix + " ".repeat(padding) + price
+        // The price is its own column, so every renderer starts the prices of
+        // a catalog page on one column.
+        return "(${binding.primaryInputLabel(content).uppercase()}) $label$TEXT_COLUMN_SEPARATOR$unitPrice au"
     }
 
     private fun CompiledShopCatalog.navigationTarget(
@@ -375,7 +374,8 @@ internal class ShopService(
             screen = screen,
             party = party,
             leadLines = buy.cantCarry.renderScreenTextLines(),
-        ) { current -> inventoryLines(current) }
+            itemName = ::itemName,
+        )
     }
 
     private fun buyResource(
@@ -400,7 +400,12 @@ internal class ShopService(
         runtime: RuntimeState,
     ): RuntimeState {
         val party = runtime.party
-        val promptLines = sellPromptLines(sell, party) + "" + sell.saleKeys.decline.mnemonicLine(content, "Nothing")
+        val promptLines =
+            screen.inventoryPickerLines(
+                sell.prompt.renderScreenTextLines(),
+                party.inventory.inventoryChoiceLines(::itemName),
+                listOf(sell.saleKeys.decline.mnemonicLine(content, "Nothing")),
+            )
         screen.writeText(promptLines)
         val choice =
             input.readValidChoice(screen, promptLines) { candidate ->
@@ -469,40 +474,23 @@ internal class ShopService(
         input.readCommand()
     }
 
-    private fun sellPromptLines(
-        sell: CompiledShopSell,
-        party: PartyState,
-    ): List<String> =
-        buildList {
-            addAll(sell.prompt.renderScreenTextLines())
-            addAll(inventoryLines(party))
-        }
-
-    private fun inventoryLines(party: PartyState): List<String> =
-        inventoryMenuLines(
-            party.inventory.map { slot ->
-                inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
-            },
-        )
-
     private fun CompiledShopSell.accepts(item: CompiledHandleRef): Boolean {
         if (item in rejectedItems) return false
         if (item in acceptedItems) return true
         return itemRecord(item).kind in acceptedKinds
     }
 
-    private fun List<String>.withChoiceGap(): List<String> = if (lastOrNull().isNullOrBlank()) this else this + ""
-
     private fun List<String>.withInterludePage(page: List<String>): List<String> {
         if (isEmpty()) return page
         return this + "" + page
     }
 
-    private fun List<String>.withGeneratedChoices(generatedLines: List<String>): List<String> =
-        takeIf { lines -> lines.alreadyListChoices(generatedLines.map { line -> line.substringBefore('.') }) } ?: (this + generatedLines)
+    private fun List<String>.withGeneratedChoices(
+        keys: List<String>,
+        generatedLines: List<String>,
+    ): List<String> = takeIf { lines -> lines.alreadyListChoices(keys) } ?: screen.choiceMenuLines(this, generatedLines)
 
-    private fun List<String>.alreadyListChoices(keys: List<String>): Boolean =
-        keys.all { key -> any { line -> "($key)" in line || line.trimStart().startsWith("$key.") } }
+    private fun List<String>.alreadyListChoices(keys: List<String>): Boolean = keys.all { key -> any { line -> line.offersChoiceKey(key) } }
 
     private fun purchasePriceLines(
         buy: CompiledShopBuy,

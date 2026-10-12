@@ -29,7 +29,7 @@ Rylween is an isolated kingdom whose good and just monarch went by the
 name Zalkin Ammol.
 
 One day, a lone knight rode into the capital of Rylween, Wilor. He
-approached from the south, a purple cloak wrapped around his black.
+approached from the south, a purple cloak wrapped around his black
 armor. He demanded to see Ammol, and when they met in Ammol's palace, 
 the knight materialized a black trident from the air and pierced Ammol
 with it before anyone could react. When the guards tried to attack
@@ -124,7 +124,7 @@ of Rylween are human.
 
 Small, stout, bearded humanoids. They make excellent fighters. Dwarves
 are excellent smiths and have a close connection to the earth, and know
-her secrets. A dwarf can sometimes find gold, that would have been hidden
+her secrets. A dwarf can sometimes find gold that would have been hidden
 to any other race. 
 
 ### Elf
@@ -315,7 +315,7 @@ save.
 Priest magic. See the priest spell list above. You still have to learn when
 to use each prayer, and when not to waste the spell points.
 
-### ! - Redraw the Screen
+### ! = Redraw the Screen
 
 This redraws the screen, should you encounter any glitches in updating
 graphics.
@@ -402,13 +402,13 @@ Some institutions are not open 24 hours. Please respect this, and keep an eye
 on the status bar. Experienced parties may also be asked to pay a small town
 tax. Reputation has its price.
 
-### SMITH
+### Smith
 
 The smith is a nice chap. You can buy or sell armor and weapons here. You can
 also haggle when selling. Sometimes he might even invite you for a beer. It is
 always wise to accept.
 
-### TAVERN
+### Tavern
 
 The tavern is always wise to visit. You can buy refreshments, listen to
 rumors, raise your reputation by telling stories, and most important, talk to
@@ -416,7 +416,7 @@ people. Chitchat sometimes sounds useless. It is not always useless. People
 may grant you missions or give you important information. Talk to everyone
 you meet! This is the way to success.
 
-### INN
+### Inn
 
 Good to stay at if you are tired. You will restore more hit points than if
 you sleep in the wilderness, you won't be murdered in the middle of the
@@ -424,14 +424,14 @@ night, and you can have a nice warm supper here. The inn also houses many
 important characters you should talk to, and now and then there may be
 something interesting for sale.
 
-### MERCHANT
+### Merchant
 
 Convenience store. Here, you can buy things like blankets, food rations,
 torches, and so on. When buying supplies, you may be asked how many you want.
 You can also sell odd items you find, but the merchant won't let you haggle.
 The smith is a much nicer guy.
 
-### CHURCH
+### Church
 
 There are only two churches: in Thord and in Wilor. You can heal wounded
 characters here, or raise dead ones. For a price.
@@ -463,7 +463,7 @@ can also make the enemy's next attack less effective.
 
 ### Use Item
 
-Apply an item, for exqmple drink a healing potion or activate one of your 
+Apply an item, for example drink a healing potion or activate one of your 
 magical items. The feared Kael's Axe is the most powerful
 magic weapon in the realm. Try finding at least ONE Kael's Axe before entering
 castle Zadraz.
@@ -471,7 +471,7 @@ castle Zadraz.
 ### Battle Cry
 
 Try to scare your enemies. It works best on cowardly creatures like kobolds,
-goblins, etc. Battle Cry is more effective when used by a charismaric
+goblins, etc. Battle Cry is more effective when used by a charismatic
 character.
 
 ### Cast Spell
@@ -558,8 +558,8 @@ its defenses...
 
 ## Appendix: Acknowledgements
 
-I want to thank the following people for beta testing/suggestions/ideas
-support/help/beer etc.
+I want to thank the following people for beta
+testing/suggestions/ideas/support/help/beer etc.
 
 ```text
 Zak Ashraf       - For calling my board from the UK just to play AOR!
@@ -603,5 +603,5 @@ Ron Teague       - For great support, encouragement and beta testing.
 Peter Tideström  - For the beer.
 Per Wennerström  - For registering as the first paid user, and for lots
                   - of bug reports and feedback during testing.
-Nicolaus Wirth   - For designing the Pascal language... (JUST KIDDING!!!)
+Niklaus Wirth    - For designing the Pascal language... (JUST KIDDING!!!)
 ```

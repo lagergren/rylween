@@ -6,9 +6,12 @@ import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
+import rylween.dsl.impl.EquipmentCommand
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class UtilityActionsTest {
     private val bundleFile = File(requiredUtilityRuntimeProperty("rylween.runtime.bundle"))
@@ -77,6 +80,53 @@ class UtilityActionsTest {
         assertEquals(sword, after.party.inventoryItem(1))
     }
 
+    @Test
+    fun leavingTownAsksAgainWhileAnEmptyHandedMemberCanUseACarriedItem() {
+        val sword = item("sword")
+        val leather = item("leather")
+        val runtime = runtimeWithInventory(sword, sword, leather)
+        val input = UtilityInput("Y1A" + "Y2B" + "Y1C")
+        val after = runUtility("leave-town-ready.log", input) { actions -> actions.readyBeforeLeavingTown(runtime, leavePrompts()).runtime }
+
+        assertEquals(sword, after.party.members[0].equipment.weapon)
+        assertEquals(sword, after.party.members[1].equipment.weapon)
+        assertEquals(leather, after.party.members[0].equipment.armor)
+        assertTrue(after.party.inventory.all { slot -> slot.item == null })
+        assertTrue(input.exhausted)
+    }
+
+    @Test
+    fun leavingTownMovesOnToArmorWhenTheWeaponQuestionIsDeclined() {
+        val sword = item("sword")
+        val leather = item("leather")
+        val runtime = runtimeWithInventory(sword, leather)
+        val after =
+            runUtility("leave-town-decline.log", UtilityInput("N" + "Y1B")) { actions ->
+                actions.readyBeforeLeavingTown(runtime, leavePrompts()).runtime
+            }
+
+        assertEquals(item("blank"), after.party.members[0].equipment.weapon)
+        assertEquals(leather, after.party.members[0].equipment.armor)
+        assertEquals(sword, after.party.inventoryItem(1))
+    }
+
+    @Test
+    fun leavingTownAsksNothingWhenEveryLivingMemberIsArmed() {
+        val sword = item("sword")
+        val axe = item("axe")
+        val runtime = runtimeWithInventory(sword)
+        val armed = runtime.party.members.indices.fold(runtime) { state, index -> state.withMemberWeapon(index, axe) }
+        val input = UtilityInput("Y1A")
+        runUtility("leave-town-armed.log", input) { actions -> actions.readyBeforeLeavingTown(armed, leavePrompts()).runtime }
+
+        assertFalse(input.exhausted)
+    }
+
+    private fun leavePrompts(): List<EquipmentCommand> =
+        checkNotNull(systems.town).leavePrompts.also { prompts ->
+            assertEquals(listOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor), prompts)
+        }
+
     private fun item(slug: String): CompiledHandleRef = content.ref(CompiledHandleKind.Item, slug)
 
     private fun runtimeWithInventory(vararg items: CompiledHandleRef?): RuntimeState {
@@ -89,8 +139,13 @@ class UtilityActionsTest {
         )
     }
 
-    private fun RuntimeState.withFirstMemberWeapon(item: CompiledHandleRef): RuntimeState =
-        updateMember(0) { member ->
+    private fun RuntimeState.withFirstMemberWeapon(item: CompiledHandleRef): RuntimeState = withMemberWeapon(0, item)
+
+    private fun RuntimeState.withMemberWeapon(
+        index: Int,
+        item: CompiledHandleRef,
+    ): RuntimeState =
+        updateMember(index) { member ->
             member.copy(equipment = member.equipment.copy(weapon = item))
         }
 
@@ -98,9 +153,15 @@ class UtilityActionsTest {
         logName: String,
         commands: String,
         action: (UtilityActions) -> RuntimeState,
+    ): RuntimeState = runUtility(logName, UtilityInput(commands), action)
+
+    private fun runUtility(
+        logName: String,
+        input: UtilityInput,
+        action: (UtilityActions) -> RuntimeState,
     ): RuntimeState =
         RuntimeLog.open(testTmp.resolve(logName)).use { log ->
-            action(UtilityActions(content, systems, UtilityInput(commands), UtilityScreen(), log))
+            action(UtilityActions(content, systems, input, UtilityScreen(), log))
         }
 }
 

@@ -720,8 +720,8 @@ val authoredRylween: RylweenModel =
                 equipment {
                     inventory = literalText("Ready what?")
                     who = literalText("Who? (1-N)")
-                    readyWeapons = flowText("Do you want to ready any weapons before leaving?")
-                    readyArmors = flowText("Do you want to ready any armors before leaving?")
+                    readyWeapons = literalText("Do you want to ready any weapons before leaving?", "", "(Y)es", "(N)o")
+                    readyArmors = literalText("Do you want to ready any armors before leaving?", "", "(Y)es", "(N)o")
                 }
                 save {
                     saving = literalText("Saving position...")

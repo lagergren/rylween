@@ -17,7 +17,11 @@ type WildernessBackdropTheme = {
 };
 type Layout = { map: Bounds; text: Bounds; status: Bounds };
 type BitmapAssets = Record<string, HTMLImageElement>;
-type StatusHotspot = Bounds & { text: string };
+type StatusHotspot = Bounds & { text: string; member?: BitmapPartyMemberPage | null };
+// A clickable region of the canvas and the input token a click sends, the same
+// token the matching key press would send.
+type ChoiceTarget = Bounds & { token: string };
+type ChoiceSegment = { start: number; end: number; token: string };
 type SceneFadeSnapshot = { image: HTMLCanvasElement; bounds: Bounds };
 type TitleFade = { image: HTMLCanvasElement; frame: BitmapFrame; started: number; duration: number };
 type SceneFade = { image: HTMLCanvasElement; bounds: Bounds; started: number; duration: number };
@@ -125,6 +129,7 @@ type BitmapStatusMember = {
     manaMax?: number;
     manaRelevant?: boolean;
     dead?: boolean;
+    details?: BitmapPartyMemberPage | null;
 };
 
 type BitmapStatus = {
@@ -196,6 +201,18 @@ type BitmapPartyPage = {
     inventory?: string[];
 };
 
+type BitmapDocumentLine = {
+    kind?: string;
+    text?: string;
+};
+
+type BitmapDocument = {
+    columns?: number;
+    rows?: number;
+    lines?: BitmapDocumentLine[];
+    prompt?: string;
+};
+
 type BitmapFrame = {
     width?: number;
     height?: number;
@@ -215,6 +232,7 @@ type BitmapFrame = {
     partyPage?: BitmapPartyPage;
     visualTransition?: string;
     imageAssets?: BitmapImageAsset[];
+    document?: BitmapDocument | null;
 };
 
 type ServerStatus = {
@@ -260,6 +278,9 @@ let socket: WebSocket | null = null;
 let frame: BitmapFrame | null = null;
 let currentCommands: BitmapCommand[] = [];
 let statusHotspots: StatusHotspot[] = [];
+let choiceTargets: ChoiceTarget[] = [];
+let pointerPoint: CanvasPoint | null = null;
+let pointerRedraw = 0;
 let titleFade: TitleFade | null = null;
 let sceneFade: SceneFade | null = null;
 let textReveal: TextReveal | null = null;
@@ -285,6 +306,7 @@ const defaultBitmapLineSpacing = 1.3;
 const minBitmapLineSpacing = 0.9;
 const maxBitmapLineSpacing = 1.8;
 const defaultPauseDelayScale = 1.0;
+const documentFontFamily = "Menlo, Monaco, Consolas, 'DejaVu Sans Mono', monospace";
 const minPauseDelayScale = 0.25;
 const maxPauseDelayScale = 2.0;
 const textRevealSettings: TextRevealSettings = {
@@ -1146,17 +1168,62 @@ window.addEventListener("pointerdown", (event: PointerEvent) => {
 
 canvas.addEventListener("mousemove", (event: MouseEvent) => {
     const point = canvasPoint(event);
-    const hit = statusHotspots.find((hotspot) => (
-        point.x >= hotspot.x &&
-        point.x <= hotspot.x + hotspot.w &&
-        point.y >= hotspot.y &&
-        point.y <= hotspot.y + hotspot.h
-    ));
-    if (hit) showCanvasTooltip(hit.text, event);
+    const hit = statusHotspots.find((hotspot) => boundsContain(hotspot, point));
+    if (hit && hit.member) showMemberTooltip(hit.member, event);
+    else if (hit) showCanvasTooltip(hit.text, event);
     else hideCanvasTooltip();
+    updatePointer(point);
 });
 
-canvas.addEventListener("mouseleave", hideCanvasTooltip);
+canvas.addEventListener("mouseleave", () => {
+    hideCanvasTooltip();
+    updatePointer(null);
+});
+
+// Clicking a choice sends its key, so menus, inventory pickers, and paging
+// prompts can be played with the mouse. Where the only thing to do is press
+// RETURN (the title screen, "(Smash RETURN key)" pauses), any click does it.
+canvas.addEventListener("click", (event: MouseEvent) => {
+    const token = choiceTargetAt(canvasPoint(event))?.token ?? anywhereClickToken();
+    if (!token) return;
+    event.preventDefault();
+    if (finishTextReveal()) return;
+    send(token);
+});
+
+function anywhereClickToken(): string | null {
+    if (frame && isTitleFrame(frame)) return "ENTER";
+    if (choiceTargets.length === 0) return null;
+    return choiceTargets.every((target) => target.token === "ENTER") ? "ENTER" : null;
+}
+
+function boundsContain(bounds: Bounds, point: CanvasPoint): boolean {
+    return point.x >= bounds.x && point.x <= bounds.x + bounds.w && point.y >= bounds.y && point.y <= bounds.y + bounds.h;
+}
+
+function choiceTargetAt(point: CanvasPoint): ChoiceTarget | null {
+    return choiceTargets.find((target) => boundsContain(target, point)) || null;
+}
+
+function choiceTargetKey(target: ChoiceTarget | null): string {
+    return target ? target.token + "@" + Math.round(target.x) + "," + Math.round(target.y) : "";
+}
+
+function updatePointer(point: CanvasPoint | null): void {
+    const previous = choiceTargetKey(pointerPoint ? choiceTargetAt(pointerPoint) : null);
+    pointerPoint = point;
+    const next = point ? choiceTargetAt(point) : null;
+    canvas.style.cursor = next || (point && anywhereClickToken()) ? "pointer" : "";
+    if (choiceTargetKey(next) !== previous) requestPointerRedraw();
+}
+
+function requestPointerRedraw(): void {
+    if (pointerRedraw !== 0) return;
+    pointerRedraw = requestAnimationFrame(() => {
+        pointerRedraw = 0;
+        if (frame && !sceneFade && !titleFade) draw(frame);
+    });
+}
 
 function keyToken(event: KeyboardEvent): string | null {
     if (event.key === "ArrowUp") return "ARROW_UP";
@@ -1358,10 +1425,43 @@ function canvasPoint(event: MouseEvent): { x: number; y: number } {
 }
 
 function showCanvasTooltip(text: string, event: MouseEvent): void {
+    canvasTooltip.classList.remove("member-tooltip");
+    canvasTooltip.textContent = text;
+    placeCanvasTooltip(event);
+}
+
+// The character sheet shown when hovering a name in the status bar: the same
+// details as the party page, laid out as a compact card.
+function showMemberTooltip(member: BitmapPartyMemberPage, event: MouseEvent): void {
+    const stat = (label: string, value: string | number | undefined): string =>
+        "<dt>" + escapeHtml(label) + "</dt><dd>" + escapeHtml(String(value ?? "-")) + "</dd>";
+    const dead = (member.status || "").toLowerCase() === "dead";
+    const identity = [member.gender, member.race, member.pcClass].filter(Boolean).join(" ");
+    const stats = [
+        stat("Health", (member.hitPoints ?? 0) + "/" + (member.hitPointMax ?? 0)),
+        (member.manaMax || 0) > 0 ? stat("Mana", (member.mana ?? 0) + "/" + member.manaMax) : stat("Mana", "-"),
+        stat("Level", member.level),
+        stat("XP", (member.experience ?? 0).toLocaleString("en-US")),
+        stat("Weapon skill", member.weaponSkill),
+        stat("Body health", member.health),
+        stat("Wisdom", member.wisdom),
+        stat("Charisma", member.charisma),
+        stat("Dexterity", member.dexterity)
+    ];
+    canvasTooltip.classList.add("member-tooltip");
+    canvasTooltip.innerHTML =
+        "<div class=\"member-card-name\">" + escapeHtml(member.name || "") +
+        (dead ? " <span class=\"member-card-dead\">Dead</span>" : "") + "</div>" +
+        "<div class=\"member-card-identity\">" + escapeHtml(identity) + "</div>" +
+        "<dl class=\"member-card-stats\">" + stats.join("") + "</dl>" +
+        "<dl class=\"member-card-gear\">" + stat("Weapon", member.weapon) + stat("Armor", member.armor) + "</dl>";
+    placeCanvasTooltip(event);
+}
+
+function placeCanvasTooltip(event: MouseEvent): void {
     const stage = canvas.parentElement?.getBoundingClientRect();
     if (!stage) return;
     canvasTooltip.hidden = false;
-    canvasTooltip.textContent = text;
     const x = Math.min(stage.width - canvasTooltip.offsetWidth - 12, event.clientX - stage.left + 14);
     const y = Math.min(stage.height - canvasTooltip.offsetHeight - 12, event.clientY - stage.top + 14);
     canvasTooltip.style.left = Math.max(12, x) + "px";
@@ -1503,6 +1603,7 @@ function isPopoverControlTarget(target: EventTarget | null): boolean {
 }
 
 function draw(frame: BitmapFrame): void {
+    choiceTargets = [];
     canvas.width = frame.width || 1280;
     canvas.height = frame.height || 720;
     ctx.imageSmoothingEnabled = false;
@@ -1589,6 +1690,12 @@ function drawTitleMenu(frame: BitmapFrame): void {
         ctx.font = isHeader ? "700 25px Palatino, 'Palatino Linotype', Georgia, serif" : "17px Menlo, Monaco, Consolas, monospace";
         ctx.fillStyle = isHeader ? "#ead68a" : isDisabled ? "rgba(174, 166, 144, 0.55)" : "#f0ead4";
         const lineHeight = isHeader ? 30 : 22;
+        if (!isHeader) {
+            const segments = choiceSegments(line);
+            if (segments.length === 1) {
+                addChoiceTarget({x: x + 16, y: textY - 17, w: panelW - 32, h: lineHeight * wrapped[index].length, token: segments[0].token});
+            }
+        }
         for (const part of wrapped[index]) {
             ctx.fillText(part, canvas.width / 2, textY);
             textY += lineHeight;
@@ -1605,123 +1712,116 @@ function drawStaticDocument(frame: BitmapFrame): void {
     const y = 40;
     const w = canvas.width - x * 2;
     const h = canvas.height - 78;
+    const textX = x + 38;
+    const textW = w - 76;
     ctx.save();
-    ctx.fillStyle = "rgba(4, 7, 5, 0.82)";
+    ctx.fillStyle = "rgba(4, 7, 5, 0.86)";
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = "rgba(218, 189, 107, 0.56)";
     ctx.lineWidth = 1;
     ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#ead68a";
-    ctx.font = "700 30px Palatino, 'Book Antiqua', Georgia, serif";
-    ctx.fillText(truncateToWidth(frame.title || "", w - 64), x + 34, y + 48);
     ctx.textAlign = "right";
-    ctx.font = "14px Menlo, Monaco, Consolas, monospace";
+    ctx.font = "14px " + documentFontFamily;
     ctx.fillStyle = "rgba(218, 201, 150, 0.78)";
-    ctx.fillText(truncateToWidth(frame.subtitle || "", 260), x + w - 34, y + 45);
+    ctx.fillText(truncateToWidth(frame.subtitle || "", 220), textX + textW, y + 42);
     ctx.textAlign = "left";
-    const lines = frame.textLines || [];
-    const promptLine = documentPromptLine(lines);
-    const bodyLines = documentBodyLines(lines, promptLine);
-    const reveal = textRevealDrawState(frame);
-    let ty = y + 90;
-    let inCode = false;
-    const textX = x + 38;
-    const textW = w - 76;
-    const bottom = y + h - 72;
-    bodyLines.forEach((line) => {
-        if (ty > bottom) return;
-        const drawn = drawDocumentLine(line, textX, ty, textW, inCode, reveal);
-        inCode = drawn.inCode;
-        ty += drawn.height;
-    });
-    drawTextRevealCursor(reveal);
-    if (promptLine) {
-        ctx.textAlign = "center";
-        ctx.font = "700 15px Menlo, Monaco, Consolas, monospace";
-        ctx.fillStyle = "#d7bc6c";
-        ctx.fillText(markdownInlineText(promptLine), x + w / 2, y + h - 30);
-        ctx.textAlign = "left";
+    ctx.font = "700 24px " + documentFontFamily;
+    ctx.fillStyle = "#ead68a";
+    ctx.fillText(truncateToWidth(frame.title || "", textW - 240), textX, y + 44);
+    ctx.fillStyle = "rgba(218, 189, 107, 0.32)";
+    ctx.fillRect(textX, y + 58, textW, 1);
+    const page = frame.document;
+    if (page) {
+        const reveal = textRevealDrawState(frame);
+        drawDocumentPage(page, textX, y + 72, textW, h - 124, reveal);
+        drawTextRevealCursor(reveal);
+        if (page.prompt) {
+            ctx.font = "700 15px " + documentFontFamily;
+            const promptWidth = ctx.measureText(page.prompt).width;
+            const promptX = textX + (textW - promptWidth) / 2;
+            registerChoiceTargets(page.prompt, promptX, y + h - 40, promptWidth, 26, (value) => ctx.measureText(value).width);
+            ctx.font = "700 15px " + documentFontFamily;
+            ctx.fillStyle = "#d7bc6c";
+            ctx.fillText(page.prompt, promptX, y + h - 22);
+        }
     }
     ctx.restore();
 }
 
-function documentPromptLine(lines: string[]): string {
-    const candidate = lines.length > 0 ? lines[lines.length - 1] : "";
-    return /^\(.*ENTER.*\)/i.test(candidate) || candidate.includes("ESC to exit") ? candidate : "";
-}
-
-function documentBodyLines(lines: string[], promptLine: string): string[] {
-    const body = promptLine ? lines.slice(0, -1) : lines.slice();
-    while (body.length > 0 && body[body.length - 1].trim() === "") body.pop();
-    return body;
-}
-
-function drawDocumentLine(
-    line: string,
-    x: number,
-    y: number,
-    maxWidth: number,
-    inCode: boolean,
-    reveal: TextRevealDrawState
-): { height: number; inCode: boolean } {
-    if (line.startsWith("```")) {
-        return { height: inCode ? 16 : 10, inCode: !inCode };
-    }
-    if (line.trim() === "") return { height: 18, inCode };
-    if (inCode) {
-        ctx.font = "14px Menlo, Monaco, Consolas, monospace";
-        const parts = wrapCanvasLines(markdownInlineText(line), maxWidth);
-        const lineHeight = 22;
-        ctx.fillStyle = "rgba(13, 18, 13, 0.7)";
-        ctx.fillRect(x - 10, y - 17, maxWidth + 20, parts.length * lineHeight + 6);
-        parts.forEach((part, index) => {
-            drawRevealText(part, x, y + index * lineHeight, "#d8d1b8", "rgba(216, 209, 184, 0.24)", reveal);
-        });
-        return { height: parts.length * lineHeight + 8, inCode };
-    }
-    const heading = line.match(/^(#{1,3})\s+(.*)$/);
-    if (heading) {
-        const level = heading[1].length;
-        ctx.font =
-            level === 1 ? "700 27px Palatino, 'Book Antiqua', Georgia, serif" :
-            level === 2 ? "700 22px Palatino, 'Book Antiqua', Georgia, serif" :
-            "700 18px Palatino, 'Book Antiqua', Georgia, serif";
-        const color = level === 1 ? "#f1d77b" : level === 2 ? "#e8c96d" : "#d8bd73";
-        const lineHeight = level === 1 ? 34 : level === 2 ? 29 : 25;
-        const parts = wrapCanvasLines(markdownInlineText(heading[2]), maxWidth);
-        parts.forEach((part, index) => {
-            drawRevealText(part, x, y + index * lineHeight, color, "rgba(232, 201, 109, 0.25)", reveal);
-        });
-        return { height: parts.length * lineHeight + 4, inCode };
-    }
-    if (line.startsWith(">")) {
-        const text = markdownInlineText(line.replace(/^>\s?/, ""));
-        ctx.font = "italic 17px Georgia, 'Times New Roman', serif";
-        const quoteX = x + 10;
-        const parts = wrapCanvasLines(text, maxWidth - 20);
-        const lineHeight = 25;
-        parts.forEach((part, index) => {
-            drawRevealText(part, quoteX, y + index * lineHeight, "#d8cba7", "rgba(216, 203, 167, 0.23)", reveal);
-        });
-        return { height: parts.length * lineHeight + 4, inCode };
-    }
-    ctx.font = "17px Georgia, 'Times New Roman', serif";
-    const parts = wrapCanvasLines(markdownInlineText(line), maxWidth);
-    const lineHeight = 24;
-    parts.forEach((part, index) => {
-        drawRevealText(part, x, y + index * lineHeight, "#efe4c6", "rgba(239, 228, 198, 0.25)", reveal);
+// Document pages arrive laid out on a fixed character grid (columns x rows), so
+// the font is sized to fit the grid and every line, including ASCII art and
+// tables, is drawn in one monospace face.
+function drawDocumentPage(page: BitmapDocument, x: number, top: number, width: number, height: number, reveal: TextRevealDrawState): void {
+    const rows = Math.max(1, page.rows || 1);
+    const lineHeight = Math.floor(height / rows);
+    const fontSize = documentFontSize(width, Math.max(1, page.columns || 1), lineHeight);
+    const regular = fontSize + "px " + documentFontFamily;
+    const bold = "700 " + regular;
+    ctx.font = regular;
+    const cellWidth = ctx.measureText("M").width;
+    const baseline = Math.round(lineHeight * 0.72);
+    const lines = (page.lines || []).slice(0, rows);
+    lines.forEach((line, index) => {
+        if (line.kind !== "Code") return;
+        const rowTop = top + index * lineHeight;
+        ctx.fillStyle = "rgba(22, 28, 19, 0.82)";
+        ctx.fillRect(x - 14, rowTop, width + 28, lineHeight);
+        ctx.fillStyle = "rgba(218, 189, 107, 0.34)";
+        ctx.fillRect(x - 14, rowTop, 2, lineHeight);
     });
-    return { height: parts.length * lineHeight, inCode };
+    lines.forEach((line, index) => {
+        const rowTop = top + index * lineHeight;
+        const textY = rowTop + baseline;
+        const text = line.text || "";
+        switch (line.kind) {
+            case "Heading1":
+            case "Heading2": {
+                // Section headings are drawn larger than the grid font; the blank
+                // lines the layout keeps around them leave room for the taller glyphs.
+                const major = line.kind === "Heading1";
+                ctx.font = documentHeadingFont(text, Math.round(fontSize * (major ? 1.35 : 1.2)), width);
+                drawRevealText(text, x, textY, major ? "#f4dc84" : "#e8c96d", "rgba(232, 201, 109, 0.25)", reveal);
+                if (lines[index + 1]?.kind !== line.kind) {
+                    ctx.fillStyle = major ? "rgba(232, 201, 109, 0.62)" : "rgba(232, 201, 109, 0.4)";
+                    ctx.fillRect(x, textY + Math.max(4, Math.round(lineHeight * 0.2)), width, 1);
+                }
+                break;
+            }
+            case "Heading3":
+                ctx.font = bold;
+                drawRevealText(text, x, textY, "#d9be74", "rgba(217, 190, 116, 0.25)", reveal);
+                break;
+            case "Quote":
+                ctx.fillStyle = "rgba(218, 189, 107, 0.5)";
+                ctx.fillRect(x + Math.round(cellWidth * 0.4), rowTop, 2, lineHeight);
+                ctx.font = "italic " + regular;
+                drawRevealText(text, x + cellWidth * 2, textY, "#d8cba7", "rgba(216, 203, 167, 0.23)", reveal);
+                break;
+            case "Code":
+                ctx.font = regular;
+                drawRevealText(text, x, textY, "#d9d3bc", "rgba(217, 211, 188, 0.24)", reveal);
+                break;
+            default:
+                ctx.font = regular;
+                drawRevealText(text, x, textY, "#efe4c6", "rgba(239, 228, 198, 0.25)", reveal);
+        }
+    });
 }
 
-function markdownInlineText(line: string): string {
-    return line
-        .replace(/^#{1,6}\s+/, "")
-        .replace(/&mdash;/g, "-")
-        .replace(/\*\*([^*]+)\*\*/g, "$1")
-        .replace(/\*([^*]+)\*/g, "$1")
-        .replace(/`([^`]+)`/g, "$1");
+function documentHeadingFont(text: string, size: number, width: number): string {
+    let fitted = size;
+    ctx.font = "700 " + fitted + "px " + documentFontFamily;
+    while (fitted > 10 && ctx.measureText(text).width > width) {
+        fitted -= 1;
+        ctx.font = "700 " + fitted + "px " + documentFontFamily;
+    }
+    return ctx.font;
+}
+
+function documentFontSize(width: number, columns: number, lineHeight: number): number {
+    ctx.font = "100px " + documentFontFamily;
+    const advance = ctx.measureText("M").width / 100;
+    return Math.max(10, Math.min(Math.floor(width / (columns * advance)), Math.floor(lineHeight * 0.8)));
 }
 
 function drawTitleGradient(): void {
@@ -3428,7 +3528,13 @@ function drawMemberStatus(member: BitmapStatusMember, x: number, y: number, w: n
     const barW = w - 10;
     ctx.font = "700 13px Menlo, Monaco, Consolas, monospace";
     ctx.fillStyle = member.dead ? "#b86f68" : "#d8d0ae";
-    ctx.fillText(truncateToWidth(label, w - 10), x + 5, y + 11);
+    const shownLabel = truncateToWidth(label, w - 10);
+    ctx.fillText(shownLabel, x + 5, y + 11);
+    if (member.details) {
+        // Non-casters carry a mana pool they cannot use; the card shows no mana for them, like the greyed bar.
+        const details = member.manaRelevant === false ? {...member.details, manaMax: 0} : member.details;
+        statusHotspots.push({x: x + 1, y: y - 3, w: ctx.measureText(shownLabel).width + 8, h: 18, text: member.name, member: details});
+    }
     drawTinyBar(barX, barY, barW, 7, member.hp, member.hpMax, member.dead ? "#7d3533" : "#b85748");
     statusHotspots.push({
         x: barX,
@@ -3511,42 +3617,246 @@ function drawTextPanel(frame: BitmapFrame): void {
     const bottom = frame.textInput ? layout.text.y + layout.text.h - 96 : layout.text.y + layout.text.h - 32;
     const reveal = textRevealDrawState(frame);
     const bitmapScale = currentFantasyTextScale();
-    const bitmapLineHeight = currentFantasyLineHeight(bitmapScale);
-    for (const line of (frame.textLines || [])) {
-        const lineColor = textPanelLineColor(line);
-        const dimColor = textPanelLineDimColor(line);
-        const creationStat = creationStatLine(line);
-        if (creationStat) {
-            drawCreationStatLine(creationStat.label, creationStat.value, x, ty, maxWidth, lineColor, reveal);
-            ty += Math.ceil(24 * textDisplaySettings.bitmapLineSpacing);
-        } else if (textDisplaySettings.bitmapFont) {
-            for (const part of wrapFantasyLines(line, maxWidth, bitmapScale)) {
-                if (ty > bottom) break;
-                drawFantasyRevealText(
-                    part,
-                    x,
-                    ty,
-                    lineColor,
-                    dimColor,
-                    reveal,
-                    bitmapScale
-                );
-                ty += bitmapLineHeight;
-            }
-        } else {
-            ctx.font = "17px Georgia, 'Times New Roman', serif";
-            for (const part of wrapCanvasLines(line, maxWidth)) {
-                if (ty > bottom) break;
-                drawRevealText(part, x, ty, lineColor, dimColor, reveal);
-                ty += Math.ceil(24 * textDisplaySettings.bitmapLineSpacing);
-            }
+    const fantasy = textDisplaySettings.bitmapFont;
+    ctx.font = textPanelFont;
+    const rows = textPanelRows(frame.textLines || [], maxWidth, bitmapScale);
+    const lineHeight = fittedLineHeight(
+        fantasy ? currentFantasyLineHeight(bitmapScale) : Math.ceil(24 * textDisplaySettings.bitmapLineSpacing),
+        fantasy ? Math.ceil(fantasyFontHeight * bitmapScale) + 3 : 19,
+        rows.length,
+        bottom - ty
+    );
+    const measure = textPanelMeasure(bitmapScale);
+    const columnWidths = textPanelColumnWidths(rows, maxWidth, measure);
+    for (const row of rows) {
+        if (ty > bottom) break;
+        const rowTop = ty - Math.round(lineHeight * 0.72);
+        if (row.kind === "text" && row.text === row.line) {
+            registerChoiceTargets(row.text, x, rowTop, maxWidth, lineHeight, measure);
+        } else if (row.kind === "text") {
+            const segments = choiceSegments(row.line);
+            if (segments.length === 1) addChoiceTarget({x: x - 8, y: rowTop, w: maxWidth + 16, h: lineHeight, token: segments[0].token});
         }
+        if (row.kind === "stat") {
+            drawCreationStatLine(row.stat.label, row.stat.value, x, ty, maxWidth, textPanelLineColor(row.line), reveal);
+        } else if (row.kind === "columns") {
+            drawTextPanelColumns(row.cells, x, ty, rowTop, lineHeight, columnWidths.get(row.cells.length) || [maxWidth], reveal, bitmapScale);
+        } else if (fantasy) {
+            drawFantasyRevealText(row.text, x, ty, textPanelLineColor(row.line), textPanelLineDimColor(row.line), reveal, bitmapScale);
+        } else {
+            ctx.font = textPanelFont;
+            drawRevealText(row.text, x, ty, textPanelLineColor(row.line), textPanelLineDimColor(row.line), reveal);
+        }
+        ty += lineHeight;
     }
     drawTextRevealCursor(reveal);
     drawTextInput(frame.textInput, x, layout.text.y + layout.text.h - 72, maxWidth);
 }
 
 type CreationStatLine = { label: string; value: string };
+
+// One drawn row of the text panel: a wrapped piece of a prose line, a row of
+// aligned choice columns (cells separated by a tab), or a creation stat line.
+type TextPanelRow =
+    | { kind: "text"; line: string; text: string }
+    | { kind: "columns"; line: string; cells: string[] }
+    | { kind: "stat"; line: string; stat: CreationStatLine };
+
+const textPanelFont = "17px Georgia, 'Times New Roman', serif";
+const textPanelColumnGap = 20;
+
+function textPanelRows(lines: string[], maxWidth: number, scale: number): TextPanelRow[] {
+    const rows: TextPanelRow[] = [];
+    for (const line of lines) {
+        const stat = creationStatLine(line);
+        if (stat) {
+            rows.push({kind: "stat", line, stat});
+        } else if (line.includes("\t")) {
+            rows.push({kind: "columns", line, cells: line.split("\t")});
+        } else {
+            const parts = textDisplaySettings.bitmapFont ? wrapFantasyLines(line, maxWidth, scale) : wrapCanvasLines(line, maxWidth);
+            for (const text of parts) rows.push({kind: "text", line, text});
+        }
+    }
+    return rows;
+}
+
+// Uses the preferred line height when every row fits above the bottom edge,
+// otherwise tightens it (down to a legible minimum) so menus are never cut off.
+function fittedLineHeight(preferred: number, minimum: number, rowCount: number, available: number): number {
+    if (rowCount <= 1) return preferred;
+    return Math.max(minimum, Math.min(preferred, Math.floor(available / (rowCount - 1))));
+}
+
+const choiceMnemonic = /\(([^()\s]{1,6})\)/g;
+const choiceHintSeparator = /\s*(?:\||,)\s*/g;
+
+// The keys a line of game text offers when clicked: "(H)eal person" style
+// mnemonics (several on one line when the line starts with one), "A. Long
+// sword" list keys, and key hints such as "RETURN leaves." or
+// "[← previous | → next | ESC exit]". Prose yields no segments.
+function choiceSegments(text: string): ChoiceSegment[] {
+    const mnemonics: ChoiceSegment[] = [];
+    for (const match of text.matchAll(choiceMnemonic)) {
+        const start = match.index ?? 0;
+        const token = choiceTokenForLabel(match[1]);
+        if (token && (start === 0 || /[\s\/|,\[]/.test(text[start - 1]))) mnemonics.push({start, end: text.length, token});
+    }
+    if (mnemonics.length > 0 && text.slice(0, mnemonics[0].start).trim() === "") {
+        mnemonics[0].start = 0;
+        mnemonics.forEach((segment, index) => {
+            if (index + 1 < mnemonics.length) segment.end = mnemonics[index + 1].start;
+        });
+        return mnemonics;
+    }
+    const listKey = text.match(/^\s*([A-Za-z0-9])\.\s/);
+    if (listKey) return [{start: 0, end: text.length, token: listKey[1]}];
+    return choiceHintSegments(text);
+}
+
+function choiceTokenForLabel(label: string): string | null {
+    const upper = label.toUpperCase();
+    if (upper === "ESC" || upper === "ESCAPE") return "ESCAPE";
+    if (upper === "RETURN" || upper === "ENTER") return "ENTER";
+    return Array.from(label).length === 1 ? label : null;
+}
+
+// Splits a key-hint line at "|" or "," and maps each part to its key; a line
+// with any part that names no key is prose and stays unclickable.
+function choiceHintSegments(text: string): ChoiceSegment[] {
+    const parts: ChoiceSegment[] = [];
+    let start = 0;
+    const addPart = (end: number): boolean => {
+        const part = text.slice(start, end);
+        if (part.trim() === "") return true;
+        const token = choiceHintToken(part);
+        if (!token) return false;
+        parts.push({start, end, token});
+        return true;
+    };
+    for (const separator of text.matchAll(choiceHintSeparator)) {
+        const index = separator.index ?? 0;
+        if (!addPart(index)) return [];
+        start = index + separator[0].length;
+    }
+    return addPart(text.length) ? parts : [];
+}
+
+function choiceHintToken(part: string): string | null {
+    if (/\bESC\b/.test(part)) return "ESCAPE";
+    if (/\b(RETURN|ENTER)\b/.test(part)) return "ENTER";
+    if (/^\W*(←|previous\b)/i.test(part)) return "ARROW_LEFT";
+    if (/^\W*(→|next\b)/i.test(part)) return "ARROW_RIGHT";
+    if (/^\W*Arrows?\b/.test(part)) return "ARROW_RIGHT";
+    return null;
+}
+
+// Registers the clickable segments of a drawn line. A line offering a single
+// key is clickable across the whole [x, x + width] row; lines with several
+// keys get one target per measured segment.
+function registerChoiceTargets(
+    text: string,
+    x: number,
+    top: number,
+    width: number,
+    height: number,
+    measure: (value: string) => number
+): void {
+    const segments = choiceSegments(text);
+    for (const segment of segments) {
+        if (segments.length === 1) {
+            addChoiceTarget({x: x - 8, y: top, w: width + 16, h: height, token: segment.token});
+        } else {
+            const left = x + measure(text.slice(0, segment.start));
+            const right = x + measure(text.slice(0, segment.end).trimEnd());
+            addChoiceTarget({x: left - 6, y: top, w: right - left + 12, h: height, token: segment.token});
+        }
+    }
+}
+
+// Highlights the target under the mouse pointer as it is registered, before
+// its text is drawn on top.
+function addChoiceTarget(target: ChoiceTarget): void {
+    choiceTargets.push(target);
+    if (!pointerPoint || !boundsContain(target, pointerPoint)) return;
+    ctx.save();
+    ctx.fillStyle = "rgba(232, 201, 109, 0.16)";
+    ctx.fillRect(target.x, target.y, target.w, target.h);
+    ctx.fillStyle = "rgba(232, 201, 109, 0.6)";
+    ctx.fillRect(target.x, target.y, 2, target.h);
+    ctx.restore();
+}
+
+function textPanelMeasure(scale: number): (value: string) => number {
+    if (textDisplaySettings.bitmapFont) return (value) => fantasyTextWidth(value, scale);
+    return (value) => {
+        ctx.font = textPanelFont;
+        return ctx.measureText(value).width;
+    };
+}
+
+// Column widths shared by every row with the same number of cells, so a
+// column (inventory names, catalog prices) starts at one x for the whole menu:
+// each column is as wide as its widest cell when that fits, otherwise the
+// columns split the panel evenly.
+function textPanelColumnWidths(rows: TextPanelRow[], maxWidth: number, measure: (value: string) => number): Map<number, number[]> {
+    const natural = new Map<number, number[]>();
+    for (const row of rows) {
+        if (row.kind !== "columns") continue;
+        const widths = natural.get(row.cells.length) || row.cells.map(() => 0);
+        row.cells.forEach((cell, index) => {
+            widths[index] = Math.max(widths[index], measure(cell));
+        });
+        natural.set(row.cells.length, widths);
+    }
+    const fitted = new Map<number, number[]>();
+    natural.forEach((widths, count) => {
+        const withGaps = widths.map((width, index) => width + (index < count - 1 ? textPanelColumnGap : 0));
+        const total = withGaps.reduce((sum, width) => sum + width, 0);
+        fitted.set(count, total <= maxWidth ? withGaps : widths.map(() => maxWidth / count));
+    });
+    return fitted;
+}
+
+// Draws the tab-separated cells of a row at their column positions; the
+// runtime lays out inventory pickers and price lists this way.
+function drawTextPanelColumns(
+    cells: string[],
+    x: number,
+    y: number,
+    rowTop: number,
+    rowHeight: number,
+    columnWidths: number[],
+    reveal: TextRevealDrawState,
+    scale: number
+): void {
+    const measure = textPanelMeasure(scale);
+    // A row whose only key is in its first cell, like "(1) Sword | 160 au", is
+    // one choice across the whole row; inventory rows offer a key per cell.
+    const firstCellSegments = choiceSegments(cells[0]);
+    const wholeRow = firstCellSegments.length === 1 && cells.slice(1).every((cell) => choiceSegments(cell).length === 0);
+    if (wholeRow) {
+        const rowWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+        addChoiceTarget({x: x - 8, y: rowTop, w: rowWidth + 16, h: rowHeight, token: firstCellSegments[0].token});
+    }
+    let cellX = x;
+    cells.forEach((cell, index) => {
+        const columnWidth = columnWidths[index] ?? columnWidths[columnWidths.length - 1];
+        const cellWidth = index < cells.length - 1 ? columnWidth - textPanelColumnGap : columnWidth;
+        if (!wholeRow) registerChoiceTargets(cell, cellX, rowTop, cellWidth, rowHeight, measure);
+        const color = textPanelLineColor(cell);
+        const dimColor = textPanelLineDimColor(cell);
+        if (textDisplaySettings.bitmapFont) {
+            drawFantasyRevealText(truncateFantasyToWidth(cell, cellWidth, scale), cellX, y, color, dimColor, reveal, scale);
+        } else {
+            ctx.font = textPanelFont;
+            drawRevealText(truncateToWidth(cell, cellWidth), cellX, y, color, dimColor, reveal);
+        }
+        cellX += columnWidth;
+    });
+    // The separators count toward the frame's reveal length.
+    if (reveal.active) reveal.remaining -= cells.length - 1;
+}
 
 function creationStatLine(line: string): CreationStatLine | null {
     const match = line.match(/^\s*(Weapon Skill|Health|Wisdom|Charisma|Dexterity)\s*:\s*(\d+)\s*$/);
@@ -3574,7 +3884,7 @@ function drawCreationStatLine(
     const labelX = x;
     const colonX = x + Math.min(178, Math.floor(maxWidth * 0.48));
     const valueX = Math.min(x + maxWidth - 4, colonX + 54);
-    ctx.font = "17px Georgia, \"Times New Roman\", serif";
+    ctx.font = textPanelFont;
     ctx.fillStyle = color;
     ctx.textAlign = "left";
     ctx.fillText(label, labelX, y);
@@ -3658,28 +3968,30 @@ function drawPartyInventoryText(page: BitmapPartyPage, x: number, y: number, max
     ctx.fillStyle = "#f1df9f";
     ctx.fillText("Inventory", x, y);
     drawPartyDivider(x, y + 24, maxWidth);
-    let ty = y + 58;
+    const top = y + 58;
     const bottom = layout.text.y + layout.text.h - 62;
     const entries = page.inventory && page.inventory.length > 0 ? page.inventory : ["Nothing carried."];
     const bitmapScale = currentFantasyTextScale();
-    const bitmapLineHeight = currentFantasyLineHeight(bitmapScale);
-    for (const entry of entries) {
+    // Same slot letters and two-column layout as the inventory pickers.
+    const columns = entries.length > 1 ? 2 : 1;
+    const rowCount = Math.ceil(entries.length / columns);
+    const lineHeight = textDisplaySettings.bitmapFont
+        ? fittedLineHeight(currentFantasyLineHeight(bitmapScale) + 1, Math.ceil(fantasyFontHeight * bitmapScale) + 3, rowCount, bottom - top)
+        : fittedLineHeight(25, 19, rowCount, bottom - top);
+    const columnWidth = maxWidth / columns;
+    entries.forEach((entry, index) => {
+        const ty = top + Math.floor(index / columns) * lineHeight;
+        const tx = x + (index % columns) * columnWidth;
+        const cellWidth = columnWidth - (columns > 1 ? textPanelColumnGap : 0);
+        if (ty > bottom) return;
         if (textDisplaySettings.bitmapFont) {
-            for (const part of wrapFantasyLines(entry, maxWidth, bitmapScale)) {
-                if (ty > bottom) return;
-                drawFantasyText(part, x, ty - fantasyFontHeight * bitmapScale, bitmapScale, "#efe4c6");
-                ty += bitmapLineHeight + 1;
-            }
+            drawFantasyText(truncateFantasyToWidth(entry, cellWidth, bitmapScale), tx, ty - fantasyFontHeight * bitmapScale, bitmapScale, "#efe4c6");
         } else {
-            ctx.font = "17px Georgia, 'Times New Roman', serif";
+            ctx.font = textPanelFont;
             ctx.fillStyle = "#efe4c6";
-            for (const part of wrapCanvasLines(entry, maxWidth)) {
-                if (ty > bottom) return;
-                ctx.fillText(part, x, ty);
-                ty += 25;
-            }
+            ctx.fillText(truncateToWidth(entry, cellWidth), tx, ty);
         }
-    }
+    });
 }
 
 function drawPartyStatGrid(stats: PartyStat[], x: number, y: number, maxWidth: number): void {
@@ -3717,9 +4029,12 @@ function drawPartyPause(text: string, x: number, y: number, maxWidth: number): v
     if (!text) return;
     if (textDisplaySettings.bitmapFont) {
         const scale = Math.max(1.35, currentFantasyTextScale() - 0.2);
+        registerChoiceTargets(text, x, y - 20, maxWidth, 26, (value) => fantasyTextWidth(value, scale));
         drawFantasyText(truncateFantasyToWidth(text, maxWidth, scale), x, y - fantasyFontHeight * scale, scale, "#bdb496");
         return;
     }
+    ctx.font = "13px Menlo, Monaco, Consolas, monospace";
+    registerChoiceTargets(text, x, y - 18, maxWidth, 26, (value) => ctx.measureText(value).width);
     ctx.font = "13px Menlo, Monaco, Consolas, monospace";
     ctx.fillStyle = "#bdb496";
     ctx.fillText(truncateToWidth(text, maxWidth), x, y);
