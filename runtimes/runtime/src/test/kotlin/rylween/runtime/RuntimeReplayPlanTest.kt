@@ -258,6 +258,9 @@ class RuntimeReplayPlanTest {
     ) {
         val plan = ReplayPlans.build(name, bundle, systems, stateOverride = null)
         assertTrue(plan.summaryLines().any { line -> "runtime replay component" in line })
+        // Each replay starts from its fixture state; a save left over from an
+        // earlier run (possibly from an older bundle) must not leak in.
+        val replaySave = saveFile ?: testTmp.resolve("$name.rsave").also(File::delete)
 
         val args =
             buildList {
@@ -270,10 +273,8 @@ class RuntimeReplayPlanTest {
                     add(value.toString())
                 }
                 if (debugLog) add("--debug-log")
-                saveFile?.let { file ->
-                    add("--save")
-                    add(file.path)
-                }
+                add("--save")
+                add(replaySave.path)
             }
         val output = runLauncher(args, name)
         expected.forEach { token ->

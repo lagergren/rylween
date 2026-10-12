@@ -52,6 +52,7 @@ internal data class BitmapFrame(
     val map: BitmapMap? = null,
     val message: String? = null,
     val artLines: List<String> = emptyList(),
+    val document: BitmapDocument? = null,
 ) {
     fun toJson(): String =
         jsonObject(
@@ -75,6 +76,7 @@ internal data class BitmapFrame(
             "map" to (map?.toJson() ?: "null"),
             "message" to (message?.json() ?: "null"),
             "artLines" to artLines.jsonArray(),
+            "document" to (document?.toJson() ?: "null"),
         )
 }
 
@@ -246,6 +248,7 @@ internal data class BitmapMemberStatus(
     val manaMax: Int?,
     val manaRelevant: Boolean,
     val dead: Boolean,
+    val details: BitmapPartyMember? = null,
 ) {
     fun toJson(): String =
         jsonObject(
@@ -257,6 +260,7 @@ internal data class BitmapMemberStatus(
             "manaMax" to (manaMax?.toString() ?: "null"),
             "manaRelevant" to manaRelevant.toString(),
             "dead" to dead.toString(),
+            "details" to (details?.toJson() ?: "null"),
         )
 }
 

@@ -110,15 +110,15 @@ class PrerolledPartyTest {
                 )
             val expectedLines =
                 listOf(
-                    "Fenn: Folk Woman Rogue",
-                    "Elowen: Elf Woman Mage",
-                    "Brynja: Dwarf Woman Ranger",
-                    "Ronan: Human Man Fighter",
+                    "Fenn (W): Folk Rogue",
+                    "Elowen (W): Elf Mage",
+                    "Brynja (W): Dwarf Ranger",
+                    "Ronan (M): Human Fighter",
                 )
             expectedLines.forEach { assertContains(output, it) }
             assertTrue(expectedLines.map(output::indexOf).zipWithNext().all { (first, second) -> first < second })
-            assertFalse("Walter: Human Male Priest" in output)
-            assertFalse("Ronan: Human Male Fighter" in output)
+            assertFalse("Walter (M): Human Priest" in output)
+            assertFalse("Brynja (F): Dwarf Ranger" in output)
             val party = read(file, "configured").party
             assertEquals(members.map { it.name }, party.memberNames)
             assertEquals(members.map { it.gender }, party.members.map { it.gender })
@@ -187,7 +187,6 @@ class PrerolledPartyTest {
     ): RuntimeState =
         SaveFile.read(
             file,
-            bundleHash,
             bundle.content,
             { slug -> bundle.states.single { bundle.content.slug(it.state) == slug } },
             user,

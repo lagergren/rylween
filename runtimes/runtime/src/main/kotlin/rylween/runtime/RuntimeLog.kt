@@ -30,6 +30,20 @@ class RuntimeLog private constructor(
         sinks.forEach { sink -> runCatching { sink(line) } }
     }
 
+    /** Records [error] with its stack trace, one log line per trace line, under [message]. */
+    fun failure(
+        message: String,
+        error: Throwable,
+    ) {
+        event("$message error=\"$error\"")
+        error
+            .stackTraceToString()
+            .lineSequence()
+            .drop(1)
+            .filter(String::isNotBlank)
+            .forEach { line -> event("    ${line.trim()}") }
+    }
+
     fun rngDraw(
         context: String,
         lo: Int,

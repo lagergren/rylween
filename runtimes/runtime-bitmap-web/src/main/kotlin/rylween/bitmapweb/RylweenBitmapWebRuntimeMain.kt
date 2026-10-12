@@ -937,32 +937,44 @@ private class BitmapWebServer(
         )
         val runtime =
             executor.submit<Any?> {
-                RuntimeLog.open(logFile).use { runtimeLog ->
-                    runtimeInput.logEvent = runtimeLog::event
-                    runtimeLog.event(
-                        "bitmap.session.start user=${account.slug} load=${loadFile?.path.orEmpty()} " +
-                            "save=${saveFile.path} title=$showTitleMenu",
-                    )
-                    runtimeFactory
-                        .start(
-                            input = runtimeInput,
-                            screen = screen,
-                            config =
-                                RuntimeSessionConfig(
-                                    userId = account.slug,
-                                    stateSlug = config.stateSlug,
-                                    loadFile = loadFile,
-                                    saveFile = saveFile,
-                                    showTitleMenu = showTitleMenu,
-                                    debugSecrets = config.debugSecrets,
-                                ),
-                            log = runtimeLog,
-                        ).also { result ->
-                            runtimeLog.event("bitmap.session.end user=${account.slug} reason=${result.reason}")
-                            serverLog.event("bitmap.session.close user=${account.slug} reason=${result.reason} sessionLog=${logFile.path}")
+                try {
+                    RuntimeLog.open(logFile).use { runtimeLog ->
+                        runtimeInput.logEvent = runtimeLog::event
+                        runtimeLog.event(
+                            "bitmap.session.start user=${account.slug} load=${loadFile?.path.orEmpty()} " +
+                                "save=${saveFile.path} title=$showTitleMenu",
+                        )
+                        try {
+                            runtimeFactory
+                                .start(
+                                    input = runtimeInput,
+                                    screen = screen,
+                                    config =
+                                        RuntimeSessionConfig(
+                                            userId = account.slug,
+                                            stateSlug = config.stateSlug,
+                                            loadFile = loadFile,
+                                            saveFile = saveFile,
+                                            showTitleMenu = showTitleMenu,
+                                            debugSecrets = config.debugSecrets,
+                                        ),
+                                    log = runtimeLog,
+                                ).also { result ->
+                                    runtimeLog.event("bitmap.session.end user=${account.slug} reason=${result.reason}")
+                                    serverLog.event(
+                                        "bitmap.session.close user=${account.slug} reason=${result.reason} sessionLog=${logFile.path}",
+                                    )
+                                }
+                        } catch (error: Throwable) {
+                            // Nothing reads this task's result, so record the failure here or it is lost.
+                            runtimeLog.failure("bitmap.session.failed user=${account.slug}", error)
+                            serverLog.failure("bitmap.session.failed user=${account.slug} sessionLog=${logFile.path}", error)
+                            throw error
                         }
+                    }
+                } finally {
+                    connection.close()
                 }
-                connection.close()
                 null
             }
         try {

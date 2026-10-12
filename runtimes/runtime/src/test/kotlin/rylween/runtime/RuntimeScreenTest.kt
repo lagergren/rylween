@@ -42,4 +42,19 @@ class RuntimeScreenTest {
         assertEquals("line 1", pages.first().first())
         assertEquals("line 50", pages.last().last())
     }
+
+    @Test
+    fun textWindowRowsAlignColumnsAcrossTheMenuAndWrapProseInsteadOfCuttingIt() {
+        val sep = TEXT_COLUMN_SEPARATOR
+        assertEquals(
+            listOf("A. Long sword B. Ration", "C. Torch      D. Rope"),
+            textWindowRows(listOf("A. Long sword${sep}B. Ration", "C. Torch${sep}D. Rope"), width = 26),
+        )
+        assertEquals(
+            listOf("A. Staff of T B. Fire Wand", "C. Torch      D. Rope"),
+            textWindowRows(listOf("A. Staff of Thun${sep}B. Fire Wand", "C. Torch${sep}D. Rope"), width = 26),
+        )
+        assertEquals(listOf("There is nothing to enter", "here."), textWindowRows(listOf("There is nothing to enter here."), width = 26))
+        assertEquals(listOf("Short line"), textWindowRows(listOf("Short line"), width = 26))
+    }
 }

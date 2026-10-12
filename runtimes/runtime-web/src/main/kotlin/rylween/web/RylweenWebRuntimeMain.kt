@@ -676,7 +676,14 @@ private class RuntimeWebServer(
                     seed = config.seed,
                     showTitleMenu = true,
                 )
-            val result = factory.start(terminal, runtimeConfig, log)
+            val result =
+                try {
+                    factory.start(terminal, runtimeConfig, log)
+                } catch (error: Throwable) {
+                    log.failure("web.session.failed user=${user.slug}", error)
+                    serverLog.failure("web.session.failed user=${user.slug} sessionLog=${logFile.path}", error)
+                    throw error
+                }
             log.event("web.session.end user=${user.slug} reason=${result.reason}")
             serverLog.event("web.session.close user=${user.slug} reason=${result.reason} sessionLog=${logFile.path}")
         }

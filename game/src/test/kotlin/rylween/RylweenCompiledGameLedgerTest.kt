@@ -1113,7 +1113,10 @@ class RylweenCompiledGameLedgerTest {
                 "external runtime bundle must not ship stale prompt field $staleField"
             }
         }
-        check(nextDsl.prompts.equipment.readyArmors == flowText("Do you want to ready any armors before leaving?"))
+        check(
+            nextDsl.prompts.equipment.readyArmors ==
+                literalText("Do you want to ready any armors before leaving?", "", "(Y)es", "(N)o"),
+        )
         check(nextDsl.realm.upkeep.foodTickEvery == 5)
         check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
         check(

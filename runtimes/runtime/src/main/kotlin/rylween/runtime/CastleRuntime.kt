@@ -246,7 +246,7 @@ internal class CastleRuntime(
         var next = roll.runtime
         val item = roll.item ?: return next
         castle.text.treasureIllustration?.let(screen::showImage)
-        val lines = listOf(itemName(item)) + castle.text.treasureMenu.renderCastle(screen.textColumns)
+        val lines = screen.choiceMenuLines(listOf(itemName(item)), castle.text.treasureMenu.renderCastle(screen.textColumns))
         screen.writeText(lines)
         val treasureCommands = systems.commands.getValue(RuntimeCommandGroupId.castleTreasure(castle.id))
         var command = input.readCommand() ?: return next
@@ -267,7 +267,8 @@ internal class CastleRuntime(
                 screen = screen,
                 party = next.party,
                 leadLines = castle.text.treasureFull.renderCastle(screen.textColumns),
-            ) { current -> inventoryLines(current) }
+                itemName = ::itemName,
+            )
         if (targetSlot == null) return next
         next = next.withParty(next.party.withInventoryItem(targetSlot, item))
         screen.writeText(castle.text.treasureTaken.renderCastle(screen.textColumns))
@@ -462,13 +463,6 @@ internal class CastleRuntime(
 
     private fun sceneProgram(sceneSlug: String): CompiledScriptProgram? =
         content.scripts.roots.firstOrNull { root -> root.root.kind.name == "Scene" && root.root.slug == sceneSlug }
-
-    private fun inventoryLines(party: PartyState): List<String> =
-        inventoryMenuLines(
-            party.inventory.map { slot ->
-                inventorySlotKey(slot.slot) to (slot.item?.let(::itemName) ?: "")
-            },
-        )
 
     private fun itemName(item: CompiledHandleRef): String =
         content.items

@@ -20,7 +20,7 @@ import rylween.compiled.ExternalRuntimeTextBlock
 /** Builds text-window pages for runtime party state. */
 internal object PartyPages {
     private const val TEXT_PAGE_LINES = 9
-    private const val PARTY_PAGE_NAVIGATION_HINT = "Left/Right browse pages, RETURN/ESC back"
+    private const val PARTY_PAGE_NAVIGATION_HINT = "Arrows: page, RETURN: back"
 
     private fun partyPageViews(
         content: CompiledContentBundle,
@@ -144,16 +144,20 @@ internal object PartyPages {
     ): List<String> =
         listOf(
             "${index + 1}. ${party.memberName(content, index)}",
-            "${member.race.readableName()} ${member.pcClass.readableName()}",
-            "Skill ${member.weaponSkill}  HP ${member.hitPoints.current}/${member.hitPoints.max}",
-            "Health ${member.health}  Wisdom ${member.wisdom}",
-            "Charisma ${member.charisma}  Magic ${member.mana.current}/${member.mana.max}",
-            "Dexterity ",
-            "Level ${member.level}  XP ${member.experience}",
+            "${member.race.readableName()} ${member.pcClass.readableName()}, ${member.statusName()}",
+            statColumns("Skill ${member.weaponSkill}", "HP ${member.hitPoints.current}/${member.hitPoints.max}"),
+            statColumns("Health ${member.health}", "MP ${member.mana.current}/${member.mana.max}"),
+            statColumns("Wisdom ${member.wisdom}", "Charisma ${member.charisma}"),
+            statColumns("Dexterity ${member.dexterity}", "Level ${member.level}"),
+            "XP ${member.experience}",
             "Weapon: ${content.itemDisplayName(member.equipment.weapon)}",
             "Armor: ${content.itemDisplayName(member.equipment.armor)}",
-            "Status: ${member.statusName()}",
         )
+
+    private fun statColumns(
+        left: String,
+        right: String,
+    ): String = left + TEXT_COLUMN_SEPARATOR + right
 
     private fun memberPageView(
         content: CompiledContentBundle,
@@ -164,69 +168,62 @@ internal object PartyPages {
         RuntimePartyPageView(
             kind = RuntimePartyPageKind.Member,
             lines = memberPage(content, party, index, member),
-            member =
-                RuntimePartyMemberView(
-                    index = index,
-                    name = party.memberName(content, index),
-                    gender = member.gender.readableName(),
-                    race = member.race.readableName(),
-                    pcClass = member.pcClass.readableName(),
-                    weaponSkill = member.weaponSkill,
-                    health = member.health,
-                    wisdom = member.wisdom,
-                    charisma = member.charisma,
-                    dexterity = member.dexterity,
-                    hitPoints = member.hitPoints.current,
-                    hitPointMax = member.hitPoints.max,
-                    mana = member.mana.current,
-                    manaMax = member.mana.max,
-                    level = member.level,
-                    experience = member.experience,
-                    weapon = content.itemDisplayName(member.equipment.weapon),
-                    armor = content.itemDisplayName(member.equipment.armor),
-                    status = member.statusName(),
-                ),
+            member = memberView(content, party, index, member),
         )
 
-    private fun inventoryPages(
+    fun memberView(
         content: CompiledContentBundle,
-        systems: ExternalRuntimeSystems,
         party: PartyState,
-    ): List<List<String>> {
-        val inventory = inventoryLines(content, party)
-        val header =
-            systems.prompts.party.inventoryHeader
-                .renderPartyText(wrapWidth = null)
-        val bodyLines = (TEXT_PAGE_LINES - header.size).coerceAtLeast(1)
-        return inventory.chunked(bodyLines).map { page -> header + page }
-    }
+        index: Int,
+        member: CompiledPartyMember,
+    ): RuntimePartyMemberView =
+        RuntimePartyMemberView(
+            index = index,
+            name = party.memberName(content, index),
+            gender = member.gender.readableName(),
+            race = member.race.readableName(),
+            pcClass = member.pcClass.readableName(),
+            weaponSkill = member.weaponSkill,
+            health = member.health,
+            wisdom = member.wisdom,
+            charisma = member.charisma,
+            dexterity = member.dexterity,
+            hitPoints = member.hitPoints.current,
+            hitPointMax = member.hitPoints.max,
+            mana = member.mana.current,
+            manaMax = member.mana.max,
+            level = member.level,
+            experience = member.experience,
+            weapon = content.itemDisplayName(member.equipment.weapon),
+            armor = content.itemDisplayName(member.equipment.armor),
+            status = member.statusName(),
+        )
 
+    /**
+     * Inventory pages list items with the same slot letters and two-column
+     * layout as every inventory picker, so the letter seen here is the key to
+     * press when using, readying, or dropping the item.
+     */
     private fun inventoryPageViews(
         content: CompiledContentBundle,
         systems: ExternalRuntimeSystems,
         party: PartyState,
     ): List<RuntimePartyPageView> {
-        val headerLineCount =
+        val header =
             systems.prompts.party.inventoryHeader
                 .renderPartyText(wrapWidth = null)
-                .size
-        return inventoryPages(content, systems, party).map { lines ->
-            RuntimePartyPageView(
-                kind = RuntimePartyPageKind.Inventory,
-                lines = lines,
-                inventory = RuntimePartyInventoryView(lines.drop(headerLineCount)),
-            )
-        }
-    }
-
-    private fun inventoryLines(
-        content: CompiledContentBundle,
-        party: PartyState,
-    ): List<String> =
-        party.inventory
-            .mapNotNull { slot ->
-                slot.item?.let { item -> "${slot.slot}. ${content.itemDisplayName(item)}" }
+        val entriesPerPage = (TEXT_PAGE_LINES - header.size).coerceAtLeast(1) * 2
+        return party.inventory
+            .inventoryChoiceLines { item -> content.itemDisplayName(item) }
+            .chunked(entriesPerPage)
+            .map { entries ->
+                RuntimePartyPageView(
+                    kind = RuntimePartyPageKind.Inventory,
+                    lines = header + entries.chunked(2).map { row -> row.joinToString(TEXT_COLUMN_SEPARATOR) },
+                    inventory = RuntimePartyInventoryView(entries),
+                )
             }
+    }
 
     private fun CompiledContentBundle.itemDisplayName(item: CompiledHandleRef): String =
         items
@@ -240,3 +237,9 @@ internal object PartyPages {
 
     private fun ExternalRuntimeTextBlock.renderPartyText(wrapWidth: Int?): List<String> = render({ null }, wrapWidth)
 }
+
+/** The party-page view of member [index], for renderers that also show character details elsewhere, such as status-bar tooltips. */
+fun PartyState.partyMemberView(
+    content: CompiledContentBundle,
+    index: Int,
+): RuntimePartyMemberView = PartyPages.memberView(content, this, index, members[index])

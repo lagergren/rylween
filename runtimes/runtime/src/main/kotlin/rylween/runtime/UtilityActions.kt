@@ -13,10 +13,12 @@ import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.CompiledItemRecord
+import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.CompiledSpell
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.dsl.impl.EquipmentCommand
 import rylween.dsl.impl.InventorySaveSlotMax
 import rylween.dsl.impl.ItemConsumePolicy
 import rylween.dsl.impl.ItemKind
@@ -25,8 +27,6 @@ import rylween.dsl.impl.ItemUseContext
 import rylween.dsl.impl.PcClass
 
 private const val INVENTORY_FIRST_KEY = 'A'
-private const val INVENTORY_ENTRY_WIDTH = 12
-private const val INVENTORY_ITEM_WIDTH = 9
 
 /** Formats priest spell menu rows with a readable gap between the key mnemonic and spell name. */
 internal fun priestSpellMenuLine(
@@ -46,30 +46,52 @@ internal class UtilityActions(
         val choices = runtime.party.inventory.filter { slot -> slot.item != null }
         if (choices.isEmpty()) return runtime
         val lines =
-            systems.prompts.party.dropPrompt
-                .renderUtility(runtime) + inventoryLines(choices).withReturnCancelLine()
+            screen.inventoryPickerLines(
+                systems.prompts.party.dropPrompt
+                    .renderUtility(runtime),
+                choices.inventoryChoiceLines(::itemName),
+                returnCancelLines(),
+            )
         screen.writeText(lines)
         val slot = chooseInventorySlot(lines, choices) ?: return runtime
         return runtime.withParty(runtime.party.withInventoryItem(slot, null))
     }
 
-    fun readyWeapon(runtime: RuntimeState): RuntimeState =
-        readyEquipment(
-            runtime = runtime,
-            acceptedKind = ItemKind.Weapon,
-            equippedItem = { member -> member.equipment.weapon },
-        ) { member, item ->
-            member.copy(equipment = member.equipment.copy(weapon = item))
-        }
+    fun readyWeapon(runtime: RuntimeState): RuntimeState = readyEquipment(runtime, EquipmentCommand.ReadyWeapon).shown()
 
-    fun readyArmor(runtime: RuntimeState): RuntimeState =
-        readyEquipment(
-            runtime = runtime,
-            acceptedKind = ItemKind.Armor,
-            equippedItem = { member -> member.equipment.armor },
-        ) { member, item ->
-            member.copy(equipment = member.equipment.copy(armor = item))
+    fun readyArmor(runtime: RuntimeState): RuntimeState = readyEquipment(runtime, EquipmentCommand.ReadyArmor).shown()
+
+    /**
+     * Asks the town-leave equipment questions in [commands] order. A question comes
+     * up while the party carries an item of its kind that a living member with
+     * nothing of that kind equipped can use; each yes readies one item and asks
+     * again. The result's message is the outcome of the last ready, not yet shown.
+     */
+    fun readyBeforeLeavingTown(
+        runtime: RuntimeState,
+        commands: List<EquipmentCommand>,
+    ): EquipmentReadyResult {
+        var result = EquipmentReadyResult(runtime, emptyList())
+        for (command in commands) {
+            while (result.runtime.canReadyIntoEmptySlot(command)) {
+                val lines =
+                    result.message.withChoiceGap() +
+                        command
+                            .leavePrompt()
+                            .renderUtility(result.runtime)
+                screen.writeText(lines)
+                val answer =
+                    input.readValidChoice(screen, lines) { key -> key.uppercaseChar() in READY_ANSWER_KEYS }
+                        ?: return result
+                if (answer.uppercaseChar() != READY_YES_KEY) {
+                    result = result.copy(message = emptyList())
+                    break
+                }
+                result = readyEquipment(result.runtime, command)
+            }
         }
+        return result
+    }
 
     fun removeWeapon(runtime: RuntimeState): RuntimeState =
         removeEquipment(
@@ -97,8 +119,12 @@ internal class UtilityActions(
             }
         if (choices.isEmpty()) return runtime
         val lines =
-            systems.prompts.inventoryUse.quaff
-                .renderUtility(runtime) + inventoryLines(choices).withReturnCancelLine()
+            screen.inventoryPickerLines(
+                systems.prompts.inventoryUse.quaff
+                    .renderUtility(runtime),
+                choices.inventoryChoiceLines(::itemName),
+                returnCancelLines(),
+            )
         screen.writeText(lines)
         val slot = chooseInventorySlot(lines, choices) ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
@@ -153,44 +179,67 @@ internal class UtilityActions(
 
     private fun readyEquipment(
         runtime: RuntimeState,
-        acceptedKind: ItemKind,
-        equippedItem: (rylween.compiled.CompiledPartyMember) -> CompiledHandleRef,
-        equip: (rylween.compiled.CompiledPartyMember, CompiledHandleRef) -> rylween.compiled.CompiledPartyMember,
-    ): RuntimeState {
-        val memberIndex = chooseMember(runtime) ?: return runtime
-        val member = runtime.party.members.getOrNull(memberIndex) ?: return runtime
-        val equipmentName = acceptedKind.equipmentName()
+        command: EquipmentCommand,
+    ): EquipmentReadyResult {
+        val unchanged = EquipmentReadyResult(runtime, emptyList())
+        val memberIndex = chooseMember(runtime) ?: return unchanged
+        val member = runtime.party.members.getOrNull(memberIndex) ?: return unchanged
         val choices =
-            runtime.party.inventory.mapNotNull { slot ->
-                val item = slot.item ?: return@mapNotNull null
-                val record = itemRecord(item)
-                slot.takeIf {
-                    record.kind == acceptedKind &&
-                        (record.equippableBy.isEmpty() || member.pcClass in record.equippableBy)
-                }
+            runtime.party.inventory.filter { slot ->
+                slot.item?.let { item -> itemRecord(item).canBeReadiedBy(member, command) } == true
             }
         if (choices.isEmpty()) {
-            screen.writeText(
+            return EquipmentReadyResult(
+                runtime,
                 systems.prompts.equipment.noAvailable
-                    .renderUtility(runtime, equipmentKindName = equipmentName),
+                    .renderUtility(runtime, equipmentKindName = command.itemKind().equipmentName()),
             )
-            return runtime
         }
         val lines =
-            systems.prompts.equipment.inventory
-                .renderUtility(runtime) + inventoryLines(choices).withReturnCancelLine()
+            screen.inventoryPickerLines(
+                systems.prompts.equipment.inventory
+                    .renderUtility(runtime),
+                choices.inventoryChoiceLines(::itemName),
+                returnCancelLines(),
+            )
         screen.writeText(lines)
-        val slot = chooseInventorySlot(lines, choices) ?: return runtime
-        val item = runtime.party.inventoryItem(slot) ?: return runtime
-        val previous = equippedItem(member).takeUnless(::isEmptyItem)
-        screen.writeText(
-            systems.prompts.equipment.equipped
-                .renderUtility(runtime, selectedItem = item),
+        val slot = chooseInventorySlot(lines, choices) ?: return unchanged
+        val item = runtime.party.inventoryItem(slot) ?: return unchanged
+        val previous = member.equipped(command).takeUnless(::isEmptyItem)
+        return EquipmentReadyResult(
+            runtime =
+                runtime
+                    .withParty(runtime.party.withInventoryItem(slot, previous))
+                    .updateMember(memberIndex) { current -> current.withEquipped(command, item) },
+            message =
+                systems.prompts.equipment.equipped
+                    .renderUtility(runtime, selectedItem = item),
         )
-        return runtime
-            .withParty(runtime.party.withInventoryItem(slot, previous))
-            .updateMember(memberIndex) { current -> equip(current, item) }
     }
+
+    private fun EquipmentReadyResult.shown(): RuntimeState {
+        if (message.isNotEmpty()) screen.writeText(message)
+        return runtime
+    }
+
+    private fun RuntimeState.canReadyIntoEmptySlot(command: EquipmentCommand): Boolean {
+        val emptyHanded = party.members.filter { member -> !member.dead && isEmptyItem(member.equipped(command)) }
+        return party.inventory.any { slot ->
+            val record = slot.item?.let(::itemRecord) ?: return@any false
+            emptyHanded.any { member -> record.canBeReadiedBy(member, command) }
+        }
+    }
+
+    private fun CompiledItemRecord.canBeReadiedBy(
+        member: CompiledPartyMember,
+        command: EquipmentCommand,
+    ): Boolean = kind == command.itemKind() && (equippableBy.isEmpty() || member.pcClass in equippableBy)
+
+    private fun EquipmentCommand.leavePrompt(): ExternalRuntimeTextBlock =
+        when (this) {
+            EquipmentCommand.ReadyWeapon -> systems.prompts.equipment.readyWeapons
+            EquipmentCommand.ReadyArmor -> systems.prompts.equipment.readyArmors
+        }
 
     private fun ItemKind.equipmentName(): String =
         when (this) {
@@ -222,11 +271,6 @@ internal class UtilityActions(
             cancelKeys = INVENTORY_CANCEL_KEYS,
         )
 
-    private fun inventoryLines(choices: List<CompiledInventorySlot>): List<String> =
-        choices.map { slot ->
-            "${inventorySlotKey(slot.slot)}. ${slot.item?.let(::itemName).orEmpty()}"
-        }
-
     private fun placeLooseItem(
         party: PartyState,
         item: CompiledHandleRef,
@@ -239,11 +283,12 @@ internal class UtilityActions(
                 input = input,
                 screen = screen,
                 party = party,
-            ) { current -> inventoryLines(current.inventory) } ?: return null
+                itemName = ::itemName,
+            ) ?: return null
         return party.withInventoryItem(replacementSlot, item)
     }
 
-    private fun List<String>.withReturnCancelLine(): List<String> = this + systems.prompts.returnLeavesLine()
+    private fun returnCancelLines(): List<String> = listOf(systems.prompts.returnLeavesLine())
 
     private fun chooseCaster(runtime: RuntimeState): Int? {
         if (runtime.party.members.none { member -> !member.dead && member.pcClass == PcClass.Priest }) {
@@ -254,12 +299,13 @@ internal class UtilityActions(
             return null
         }
         val baseLines =
-            systems.prompts.priest.who
-                .renderUtility(runtime) +
+            screen.choiceMenuLines(
+                systems.prompts.priest.who
+                    .renderUtility(runtime),
+                List(runtime.party.members.size) { index -> "${index + 1}. ${runtime.party.memberName(content, index)}" },
                 systems.prompts.priest.none
-                    .renderUtility() +
-                "" +
-                List(runtime.party.members.size) { index -> "${index + 1}. ${runtime.party.memberName(content, index)}" }
+                    .renderUtility(),
+            )
         var rejection = emptyList<String>()
         while (true) {
             val lines = baseLines + rejection
@@ -288,11 +334,13 @@ internal class UtilityActions(
     }
 
     private fun priestSpellLines(spells: List<MenuChoice<CompiledSpell>>): List<String> =
-        spells.map { choice ->
-            priestSpellMenuLine(choice.key, content.strings.value(choice.value.nameString))
-        } +
-            systems.prompts.priest.none
-                .renderUtility()
+        screen.choiceMenuLines(
+            prompt = emptyList(),
+            choices = spells.map { choice -> priestSpellMenuLine(choice.key, content.strings.value(choice.value.nameString)) },
+            trailer =
+                systems.prompts.priest.none
+                    .renderUtility(),
+        )
 
     private fun priestCancelKey(): Char =
         systems.prompts.priest.noneKey
@@ -389,7 +437,38 @@ internal fun RuntimeState.updateMember(
         ),
     )
 
+/** The party after a ready attempt, and the outcome text to show for it (empty when cancelled). */
+internal data class EquipmentReadyResult(
+    val runtime: RuntimeState,
+    val message: List<String>,
+)
+
+private fun EquipmentCommand.itemKind(): ItemKind =
+    when (this) {
+        EquipmentCommand.ReadyWeapon -> ItemKind.Weapon
+        EquipmentCommand.ReadyArmor -> ItemKind.Armor
+    }
+
+private fun CompiledPartyMember.equipped(command: EquipmentCommand): CompiledHandleRef =
+    when (command) {
+        EquipmentCommand.ReadyWeapon -> equipment.weapon
+        EquipmentCommand.ReadyArmor -> equipment.armor
+    }
+
+private fun CompiledPartyMember.withEquipped(
+    command: EquipmentCommand,
+    item: CompiledHandleRef,
+): CompiledPartyMember =
+    when (command) {
+        EquipmentCommand.ReadyWeapon -> copy(equipment = equipment.copy(weapon = item))
+        EquipmentCommand.ReadyArmor -> copy(equipment = equipment.copy(armor = item))
+    }
+
 private const val PRIEST_SPELL_PREFIX = "priest."
+
+// The town-leave questions offer (Y)es and (N)o, like the game's other yes/no prompts.
+private const val READY_YES_KEY = 'Y'
+private val READY_ANSWER_KEYS = setOf(READY_YES_KEY, 'N')
 private val INVENTORY_CANCEL_KEYS = setOf('\n')
 
 private fun String.singleRuntimeKey(label: String): Char =
@@ -408,23 +487,13 @@ internal fun List<CompiledInventorySlot>.normalizedInventorySlots(): List<Compil
     return (1..InventorySaveSlotMax).map { slot -> bySlot[slot] ?: CompiledInventorySlot(slot, null) }
 }
 
-internal fun inventoryMenuLines(entries: List<Pair<Char, String>>): List<String> =
-    entries
-        .chunked(2)
-        .map { row ->
-            row
-                .joinToString(" ") { (key, itemName) ->
-                    "$key. ${itemName.take(INVENTORY_ITEM_WIDTH)}".padEnd(INVENTORY_ENTRY_WIDTH)
-                }.trimEnd()
-        }
-
 internal fun chooseDropSlotForInventoryOverflow(
     systems: ExternalRuntimeSystems,
     input: RuntimeInputPort,
     screen: RuntimeScreenPort,
     party: PartyState,
     leadLines: List<String> = emptyList(),
-    inventoryLines: (PartyState) -> List<String>,
+    itemName: (CompiledHandleRef) -> String,
 ): Int? {
     val confirmPrompt = systems.prompts.party.dropOverflowConfirm.render({ null }, screen.textColumns)
     val confirmLines = if (leadLines.isEmpty()) confirmPrompt else leadLines + "" + confirmPrompt
@@ -435,7 +504,12 @@ internal fun chooseDropSlotForInventoryOverflow(
             ?.uppercaseChar()
             ?: return null
     if (confirm != "Y".single()) return null
-    val slotLines = systems.prompts.party.dropOverflowPrompt.render({ null }, screen.textColumns) + inventoryLines(party)
+    val slotLines =
+        screen.inventoryPickerLines(
+            systems.prompts.party.dropOverflowPrompt
+                .render({ null }, screen.textColumns),
+            party.inventory.inventoryChoiceLines(itemName),
+        )
     screen.writeText(slotLines)
     return input.readValidInventorySlotChoice(
         screen = screen,

@@ -68,6 +68,14 @@ object RuntimeInputTokens {
 }
 
 /**
+ * Separates the cells of a multi-column text-window row, such as a two-column
+ * choice list. Renderers align the cells into columns: the ANSI screen pads
+ * them to its character grid and the bitmap client draws each cell at its
+ * column, so the layout holds in proportional fonts too.
+ */
+const val TEXT_COLUMN_SEPARATOR = "\t"
+
+/**
  * Renderer-neutral screen consumed by the compiled-bundle runtime loop.
  *
  * Implementations choose how to turn the compiled runtime state into pixels,
@@ -75,6 +83,9 @@ object RuntimeInputTokens {
  */
 interface RuntimeScreenPort {
     val textColumns: Int?
+
+    /** Rows in the text window, used to fit menus on screen; null when the renderer sets no fixed limit. */
+    val textRows: Int? get() = null
     val documentColumns: Int? get() = textColumns
     val documentPageLines: Int? get() = null
 
