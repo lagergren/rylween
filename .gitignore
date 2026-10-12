@@ -22,3 +22,6 @@ node_modules/
 *.dSYM/
 
 tmp-sample-save/
+
+# Local compose settings; may hold account passwords.
+.env

@@ -1,8 +1,10 @@
-# Build artifacts are regenerated inside the image.
-.gradle/
-.kotlin/
-build/
+# Build artifacts are regenerated inside the image. Patterns without a leading
+# **/ only match at the context root, and each module keeps its own .gradle/
+# (including a Gradle-managed host Node.js) and node_modules/.
+**/.gradle/
+**/.kotlin/
 **/build/
+**/node_modules/
 *.o
 *.d
 *.dSYM/
@@ -20,3 +22,6 @@ tmp-sample-save/
 .git/
 .gitignore
 scratch/
+
+# Local compose settings; may hold account passwords.
+.env

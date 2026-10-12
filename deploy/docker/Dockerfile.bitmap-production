@@ -26,7 +26,12 @@ COPY gradle/libs.versions.toml gradle/libs.versions.toml
 COPY settings.gradle.kts build.gradle.kts ./
 COPY build-logic build-logic
 COPY . .
-RUN ./gradlew --no-daemon :runtime-bitmap-web:installRuntimeBitmapWeb --console=plain
+# Every source change invalidates COPY . ., so keep Gradle's dependency and build
+# caches (which include the Gradle-managed Node.js download) and npm's cache in
+# cache mounts that survive between image builds.
+RUN --mount=type=cache,target=/root/.gradle/caches \
+    --mount=type=cache,target=/root/.npm \
+    ./gradlew --no-daemon :runtime-bitmap-web:installRuntimeBitmapWeb --console=plain
 
 FROM eclipse-temurin:25-jre AS runtime
 
