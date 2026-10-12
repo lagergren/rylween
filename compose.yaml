@@ -9,9 +9,10 @@
 #
 # Settings come from the shell environment or a .env file next to this file:
 #   RYLWEEN_PUBLISH_HOST        Host address to publish on. Default: 127.0.0.1.
-#                               Use this machine's LAN address (e.g. 192.168.x.y)
-#                               so others on the local network can connect, or
-#                               0.0.0.0 for every interface.
+#                               `./deploy-rylween.sh --compose` sets it to this
+#                               machine's LAN address so others on the local
+#                               network can connect; 0.0.0.0 publishes on every
+#                               interface.
 #   RYLWEEN_HOST_PORT           Host port. Default: 8081
 #   RYLWEEN_DATA_VOLUME         Named volume or host directory (./path, ~/path, /path)
 #                               mounted at /data. Default: the `data` named volume.
