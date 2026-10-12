@@ -2,7 +2,7 @@
 
 This document defines what a runtime must implement when it consumes the
 compiled JSON bundle directly. It is the implementation contract behind the
-J2/J3 work in [j2-compiled-vm-plan.md](j2-compiled-vm-plan.md) and the runtime
+J2/J3 work in `j2-compiled-vm-plan.md` (completed, kept outside the repository) and the runtime
 tasks tracked in [dsl-improvements.md](dsl-improvements.md).
 
 The compiled bundle is the runtime product. A conforming runtime must not need
