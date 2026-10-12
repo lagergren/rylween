@@ -133,6 +133,13 @@ Build the bitmap production image:
 docker build -f deploy/docker/Dockerfile.bitmap-production -t rylween-bitmap-prod .
 ```
 
+Or build and run it with a persistent data volume through the root
+`compose.yaml` (see [`deploy/docker/README.md`](deploy/docker/README.md#compose)):
+
+```sh
+docker compose up --build -d     # or: podman compose up --build -d
+```
+
 The production image still serves plain HTTP internally. Bind it to loopback or
 a private container network, terminate HTTPS at nginx/Caddy/HAProxy/a load
 balancer, and keep `RYLWEEN_AUTH_SECURE_COOKIES=true`. See
