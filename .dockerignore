@@ -18,5 +18,5 @@
 .gitignore
 scratch/
 
-# Compose settings; the image does not need them.
+# Local compose settings; may hold account passwords.
 .env

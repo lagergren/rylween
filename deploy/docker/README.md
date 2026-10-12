@@ -58,10 +58,8 @@ Or set `RYLWEEN_PUBLISH_HOST` yourself, to a LAN address such as `192.168.x.y`
 or to `0.0.0.0`. `RYLWEEN_HOST_PORT` changes the port.
 Unlike the plain image, compose turns secure cookies off so logins work over
 plain HTTP; set `RYLWEEN_AUTH_SECURE_COOKIES=true` behind an HTTPS proxy. All
-settings are listed at the top of `compose.yaml` and can be kept in the
-committed `.env` file next to it; export passwords such as
-`RYLWEEN_AUTH_PASSWORD` in the shell instead, since shell variables take
-precedence.
+settings are listed at the top of `compose.yaml` and can be kept in an
+uncommitted `.env` file next to it.
 
 The root `.dockerignore` intentionally remains at the repository root because
 Docker reads ignore rules relative to the build context, not relative to the

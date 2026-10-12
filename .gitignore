@@ -15,3 +15,6 @@ build/
 **/build/
 node_modules/
 **/node_modules/
+
+# Local compose settings; may hold account passwords.
+.env
