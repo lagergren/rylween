@@ -20,3 +20,6 @@ tmp-sample-save/
 .git/
 .gitignore
 scratch/
+
+# Local compose settings; may hold account passwords.
+.env
