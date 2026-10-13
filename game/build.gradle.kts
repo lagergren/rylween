@@ -62,15 +62,16 @@ tasks.test {
     workingDir = rootProject.projectDir
 }
 
-val generateGameCatalogHandles: TaskProvider<GenerateGameCatalogHandlesTask> by tasks.registering(GenerateGameCatalogHandlesTask::class) {
-    group = "generation"
-    description = "Generates current-game item and item-pool handles from the authored RylweenCompiledGame.kt source."
+val generateGameCatalogHandles: TaskProvider<GenerateGameCatalogHandlesTask> =
+    tasks.register<GenerateGameCatalogHandlesTask>("generateGameCatalogHandles") {
+        group = "generation"
+        description = "Generates current-game item and item-pool handles from the authored RylweenCompiledGame.kt source."
 
-    gameSource.set(gameDslSourceFile)
-    gameSources.from(gameDslSourceFile, gameDslScenarioFile)
-    sourceLabel.set(gameDslSourceLabel)
-    outputFile.set(generatedGameCatalogFile)
-}
+        gameSource.set(gameDslSourceFile)
+        gameSources.from(gameDslSourceFile, gameDslScenarioFile)
+        sourceLabel.set(gameDslSourceLabel)
+        outputFile.set(generatedGameCatalogFile)
+    }
 
 tasks.jar {
     archiveBaseName = "rylween-game"

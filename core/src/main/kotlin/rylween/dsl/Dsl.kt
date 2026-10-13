@@ -895,6 +895,47 @@ class MenuBuilder(
 }
 
 /**
+ * Party member and inventory slot prompts offered by both `ask` and `choice` inside [ScriptScope].
+ *
+ * [AskScope] records the prompts; [ChoiceScope] delegates to its script's [AskScope].
+ */
+interface PartyPrompts {
+    fun member(
+        prompt: TextId,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+    ): MemberRef
+
+    fun member(
+        prompt: TextBlock,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+    ): MemberRef
+
+    fun member(
+        prompt: TextId,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+        body: ScriptScope.(MemberRef) -> Unit,
+    )
+
+    fun member(
+        prompt: TextBlock,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+        body: ScriptScope.(MemberRef) -> Unit,
+    )
+
+    fun inventorySlot(
+        prompt: TextBlock,
+        firstKey: Char = 'A',
+        slots: IntRange = 1..InventorySaveSlotMax,
+        filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
+        body: ScriptScope.(InventorySlotRef) -> Unit,
+    )
+}
+
+/**
  * Helper exposed as `ask` inside [ScriptScope].
  *
  * It records typed input prompts and returns script references to selected
@@ -904,7 +945,7 @@ class MenuBuilder(
 @Suppress("unused")
 class AskScope(
     private val script: ScriptScope,
-) {
+) : PartyPrompts {
     fun key(
         prompt: TextBlock,
         vararg bindings: InputBindingModel,
@@ -946,35 +987,35 @@ class AskScope(
         script.body(wildernessDirection(prompt))
     }
 
-    fun member(
+    override fun member(
         prompt: TextId,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
+        filter: MemberChoiceFilter,
+        accepting: MemberChoiceFilter,
     ): MemberRef = member(TextBlock.Ref(prompt), filter, accepting)
 
-    fun member(
+    override fun member(
         prompt: TextBlock,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
+        filter: MemberChoiceFilter,
+        accepting: MemberChoiceFilter,
     ): MemberRef {
         val name = script.fresh("member")
         script.record(ScriptStatementNode.AskMember(prompt, name, filter, accepting))
         return script.party.member(v(name))
     }
 
-    fun member(
+    override fun member(
         prompt: TextId,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
+        filter: MemberChoiceFilter,
+        accepting: MemberChoiceFilter,
         body: ScriptScope.(MemberRef) -> Unit,
     ) {
         script.body(member(prompt, filter, accepting))
     }
 
-    fun member(
+    override fun member(
         prompt: TextBlock,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
+        filter: MemberChoiceFilter,
+        accepting: MemberChoiceFilter,
         body: ScriptScope.(MemberRef) -> Unit,
     ) {
         script.body(member(prompt, filter, accepting))
@@ -991,11 +1032,11 @@ class AskScope(
         return InventorySlotRef(v(name))
     }
 
-    fun inventorySlot(
+    override fun inventorySlot(
         prompt: TextBlock,
-        firstKey: Char = 'A',
-        slots: IntRange = 1..InventorySaveSlotMax,
-        filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
+        firstKey: Char,
+        slots: IntRange,
+        filter: InventorySlotChoiceFilter,
         body: ScriptScope.(InventorySlotRef) -> Unit,
     ) {
         script.body(inventorySlot(prompt, firstKey, slots, filter))
@@ -1034,7 +1075,7 @@ class AskScope(
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class ChoiceScope(
     private val script: ScriptScope,
-) {
+) : PartyPrompts by script.ask {
     fun yesNo(
         prompt: TextBlock,
         yes: ScriptScope.() -> Unit,
@@ -1139,46 +1180,6 @@ class ChoiceScope(
         onRejected: ScriptScope.() -> Unit,
     ) {
         textInput(literalText(prompt), acceptedInputs, caseSensitive, trim, maxLength, onAccepted, onRejected)
-    }
-
-    fun member(
-        prompt: TextId,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
-    ): MemberRef = script.ask.member(prompt, filter, accepting)
-
-    fun member(
-        prompt: TextBlock,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
-    ): MemberRef = script.ask.member(prompt, filter, accepting)
-
-    fun member(
-        prompt: TextId,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
-        body: ScriptScope.(MemberRef) -> Unit,
-    ) {
-        script.body(member(prompt, filter, accepting))
-    }
-
-    fun member(
-        prompt: TextBlock,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
-        body: ScriptScope.(MemberRef) -> Unit,
-    ) {
-        script.body(member(prompt, filter, accepting))
-    }
-
-    fun inventorySlot(
-        prompt: TextBlock,
-        firstKey: Char = 'A',
-        slots: IntRange = 1..InventorySaveSlotMax,
-        filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
-        body: ScriptScope.(InventorySlotRef) -> Unit,
-    ) {
-        script.body(script.ask.inventorySlot(prompt, firstKey, slots, filter))
     }
 }
 

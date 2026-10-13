@@ -1,19 +1,53 @@
+# Single source of truth for every third-party version used by the build.
+#
+# The root build, the subprojects, and the build-logic included build (see
+# build-logic/settings.gradle.kts) all read this file. The only version that cannot live
+# here is the foojay toolchain resolver in settings.gradle.kts, because a settings
+# `plugins {}` block runs before any version catalog exists.
+#
+# `./gradlew checkDependencyUpdates` (part of `check`) reports newer versions, and
+# `./gradlew updateDependencyCatalog` rewrites this file. That rewrite sorts entries by key
+# and keeps each comment with the entry below it, so keep the entries sorted here too.
 [versions]
+# ben-manes versions plugin: `dependencyUpdates`, run by `checkDependencyUpdates`.
+gradle-versions = "0.66.0"
+# Java toolchain for every Kotlin/JVM module (`kotlin { jvmToolchain(...) }`). Kept on the
+# current LTS release; foojay downloads it when no local JDK matches.
 jdk = "25"
-kotlin = "2.3.21"
-jline = "4.0.12"
-nodejs = "24.6.0"
+# Terminal I/O for the interactive ANSI runtime (:terminal).
+jline = "4.4.8"
+# Kotlin compiler, standard library, and the Kotlin JVM Gradle plugin for all modules.
+kotlin = "2.4.21"
+# ktlint linter engine that the ktlint Gradle plugin runs (rylween.qa-conventions).
+ktlint = "1.8.0"
+# ktlint Gradle plugin that the rylween.qa-conventions convention plugin applies.
+ktlint-gradle = "14.2.0"
+# Gradle plugin that downloads Node.js and provides the npm tasks (:runtime-bitmap-web).
 node-gradle = "7.1.0"
-playwright = "1.49.0"
-gradle-versions = "0.54.0"
-version-catalog-update = "1.1.0"
+# Node.js release that node-gradle downloads to run npm and compile the bitmap web
+# TypeScript client (:runtime-bitmap-web). Kept on the current Node LTS line.
+nodejs = "24.21.0"
+# Browser automation for the bitmap web browser smoke check (checkBitmapBrowserSmoke).
+playwright = "1.63.0"
+# PMD, used for its CPD duplicate-code detector (`cpdCheck` in rylween.qa-conventions).
+pmd = "7.28.0"
+# littlerobots version catalog update plugin: `versionCatalogUpdate`, run by
+# `updateDependencyCatalog`.
+version-catalog-update = "1.1.1"
 
 [libraries]
+# See the matching [versions] entries above for what each library is used for.
 jline = { module = "org.jline:jline", version.ref = "jline" }
+# Plugin artifact on build-logic's classpath, so the convention plugin can apply ktlint.
+ktlint-gradle = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlint-gradle" }
 playwright = { module = "com.microsoft.playwright:playwright", version.ref = "playwright" }
+# CPD command line plus its Kotlin language module, resolved onto `cpdClasspath`.
+pmd-cli = { module = "net.sourceforge.pmd:pmd-cli", version.ref = "pmd" }
+pmd-kotlin = { module = "net.sourceforge.pmd:pmd-kotlin", version.ref = "pmd" }
 
 [plugins]
+# See the matching [versions] entries above for what each plugin is used for.
+gradle-versions = { id = "io.github.ben-manes.versions", version.ref = "gradle-versions" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 node = { id = "com.github.node-gradle.node", version.ref = "node-gradle" }
-gradle-versions = { id = "com.github.ben-manes.versions", version.ref = "gradle-versions" }
 version-catalog-update = { id = "nl.littlerobots.version-catalog-update", version.ref = "version-catalog-update" }

@@ -4954,27 +4954,7 @@ val authoredRylween: RylweenModel =
 
             spell(Spells.Mage.fire, slot = 2, baseCost = 25, name = "Fire Cloud") {
                 withCurrentCaster { caster ->
-                    forEachMonster(includeDead = true) { foe ->
-                        localInt(caster.level * random(1..4)) { damage ->
-                            whenever(!foe.dead) {
-                                clearText()
-                                writeText {
-                                    line(partyName(caster), " burns ", monsterName(foe))
-                                    line("for ", damage, " pts!")
-                                }
-                                pause1s()
-
-                                foe.hp -= damage
-
-                                whenever(foe.hp lte 0) {
-                                    foe.hp set 0
-                                    writeText("...KILLED!")
-                                    pause600ms()
-                                    foe.dead set true
-                                }
-                            }
-                        }
-                    }
+                    burnEveryLivingMonster(caster, damageRoll = 1..4)
                 }
             }
 
@@ -5523,28 +5503,7 @@ val authoredRylween: RylweenModel =
                 effect {
                     withCurrentCaster { caster ->
                         clearText()
-
-                        forEachMonster(includeDead = true) { foe ->
-                            localInt(caster.level * random(3..8)) { damage ->
-                                whenever(!foe.dead) {
-                                    clearText()
-                                    writeText {
-                                        line(partyName(caster), " burns ", monsterName(foe))
-                                        line("for ", damage, " pts!")
-                                    }
-                                    pause1s()
-
-                                    foe.hp -= damage
-
-                                    whenever(foe.hp lte 0) {
-                                        foe.hp set 0
-                                        writeText("...KILLED!")
-                                        pause600ms()
-                                        foe.dead set true
-                                    }
-                                }
-                            }
-                        }
+                        burnEveryLivingMonster(caster, damageRoll = 3..8)
                     }
                 }
             }
@@ -6970,3 +6929,32 @@ val authoredRylween: RylweenModel =
 // model so routes can boot from known deterministic states.
 // Convenience handle for callers that need only the immutable game content.
 val authoredDsl: GameModel = authoredRylween.content
+
+// Fire damage shared by the Fire Cloud spell and the fire wand: every monster
+// still standing takes caster.level * damageRoll points.
+private fun ScriptScope.burnEveryLivingMonster(
+    caster: MemberRef,
+    damageRoll: IntRange,
+) {
+    forEachMonster(includeDead = true) { foe ->
+        localInt(caster.level * random(damageRoll)) { damage ->
+            whenever(!foe.dead) {
+                clearText()
+                writeText {
+                    line(partyName(caster), " burns ", monsterName(foe))
+                    line("for ", damage, " pts!")
+                }
+                pause1s()
+
+                foe.hp -= damage
+
+                whenever(foe.hp lte 0) {
+                    foe.hp set 0
+                    writeText("...KILLED!")
+                    pause600ms()
+                    foe.dead set true
+                }
+            }
+        }
+    }
+}

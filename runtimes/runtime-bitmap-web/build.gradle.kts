@@ -50,7 +50,7 @@ val browserSmokeBrowser: Provider<String> =
 val browserSmokeWorkDir: Provider<Directory> = layout.buildDirectory.dir("bitmap-browser-smoke")
 val browserSmokeReportDir: Provider<Directory> = layout.buildDirectory.dir("reports/bitmap-browser-smoke")
 val playwrightBrowsersDir: Provider<Directory> = layout.buildDirectory.dir("playwright-browsers")
-val playwrightCli: Configuration by configurations.creating
+val playwrightCli: Configuration = configurations.create("playwrightCli")
 val browserSmokeSourceSet: SourceSet =
     sourceSets.create("browserSmoke") {
         kotlin.srcDir("src/browserSmoke/kotlin")
@@ -65,29 +65,31 @@ dependencies {
     playwrightCli(libs.playwright)
 }
 
-val npmInstallBitmapWeb: TaskProvider<NpmTask> by tasks.registering(NpmTask::class) {
-    group = "generation"
-    description = "Installs the bitmap web TypeScript compiler with Gradle-managed Node/npm."
+val npmInstallBitmapWeb: TaskProvider<NpmTask> =
+    tasks.register<NpmTask>("npmInstallBitmapWeb") {
+        group = "generation"
+        description = "Installs the bitmap web TypeScript compiler with Gradle-managed Node/npm."
 
-    workingDir = layout.projectDirectory.asFile
-    inputs.file(layout.projectDirectory.file("package.json"))
-    inputs.file(layout.projectDirectory.file("package-lock.json"))
-    outputs.dir(layout.projectDirectory.dir("node_modules"))
-    args.set(listOf("ci", "--ignore-scripts"))
-}
-val generateBitmapWebClientJs: TaskProvider<NpmTask> by tasks.registering(NpmTask::class) {
-    group = "generation"
-    description = "Compiles the authored bitmap web TypeScript client to the served JavaScript resource."
+        workingDir = layout.projectDirectory.asFile
+        inputs.file(layout.projectDirectory.file("package.json"))
+        inputs.file(layout.projectDirectory.file("package-lock.json"))
+        outputs.dir(layout.projectDirectory.dir("node_modules"))
+        args.set(listOf("ci", "--ignore-scripts"))
+    }
+val generateBitmapWebClientJs: TaskProvider<NpmTask> =
+    tasks.register<NpmTask>("generateBitmapWebClientJs") {
+        group = "generation"
+        description = "Compiles the authored bitmap web TypeScript client to the served JavaScript resource."
 
-    dependsOn(npmInstallBitmapWeb)
-    workingDir = layout.projectDirectory.asFile
-    inputs.file(layout.projectDirectory.file("src/main/resources/bitmap-web/client.ts"))
-    inputs.file(layout.projectDirectory.file("src/main/resources/bitmap-web/wilderness-perspective.ts"))
-    inputs.file(layout.projectDirectory.file("tsconfig.json"))
-    outputs.file(bitmapWebGeneratedResources.map { directory -> directory.file("bitmap-web/client.js") })
-    outputs.file(bitmapWebGeneratedResources.map { directory -> directory.file("bitmap-web/wilderness-perspective.js") })
-    args.set(listOf("run", "build"))
-}
+        dependsOn(npmInstallBitmapWeb)
+        workingDir = layout.projectDirectory.asFile
+        inputs.file(layout.projectDirectory.file("src/main/resources/bitmap-web/client.ts"))
+        inputs.file(layout.projectDirectory.file("src/main/resources/bitmap-web/wilderness-perspective.ts"))
+        inputs.file(layout.projectDirectory.file("tsconfig.json"))
+        outputs.file(bitmapWebGeneratedResources.map { directory -> directory.file("bitmap-web/client.js") })
+        outputs.file(bitmapWebGeneratedResources.map { directory -> directory.file("bitmap-web/wilderness-perspective.js") })
+        args.set(listOf("run", "build"))
+    }
 
 sourceSets {
     main {
@@ -106,71 +108,75 @@ tasks.jar {
     }
 }
 
-val runtimeBitmapWebStartScripts: TaskProvider<CreateStartScripts> by tasks.registering(CreateStartScripts::class) {
-    group = "application"
-    description = "Generates direct start scripts for the bitmap web runtime."
+val runtimeBitmapWebStartScripts: TaskProvider<CreateStartScripts> =
+    tasks.register<CreateStartScripts>("runtimeBitmapWebStartScripts") {
+        group = "application"
+        description = "Generates direct start scripts for the bitmap web runtime."
 
-    dependsOn(runtimeBitmapWebJar)
-    applicationName = "rylween-bitmap-web"
-    mainClass.set("rylween.bitmapweb.RylweenBitmapWebRuntimeMainKt")
-    outputDir =
-        layout.buildDirectory
-            .dir("scripts/runtimeBitmapWebApp")
-            .get()
-            .asFile
-    classpath = files(runtimeBitmapWebJarFile) + runtimeBitmapWebJars
-}
+        dependsOn(runtimeBitmapWebJar)
+        applicationName = "rylween-bitmap-web"
+        mainClass.set("rylween.bitmapweb.RylweenBitmapWebRuntimeMainKt")
+        outputDir =
+            layout.buildDirectory
+                .dir("scripts/runtimeBitmapWebApp")
+                .get()
+                .asFile
+        classpath = files(runtimeBitmapWebJarFile) + runtimeBitmapWebJars
+    }
 
-val installRuntimeBitmapWeb: TaskProvider<Sync> by tasks.registering(Sync::class) {
-    group = "application"
-    description = "Installs the bitmap web runtime."
+val installRuntimeBitmapWeb: TaskProvider<Sync> =
+    tasks.register<Sync>("installRuntimeBitmapWeb") {
+        group = "application"
+        description = "Installs the bitmap web runtime."
 
-    dependsOn(runtimeBitmapWebStartScripts)
-    into(layout.buildDirectory.dir("install/rylween-bitmap-web"))
-    from(runtimeBitmapWebStartScripts) {
-        into("bin")
-        filePermissions {
-            unix("rwxr-xr-x")
+        dependsOn(runtimeBitmapWebStartScripts)
+        into(layout.buildDirectory.dir("install/rylween-bitmap-web"))
+        from(runtimeBitmapWebStartScripts) {
+            into("bin")
+            filePermissions {
+                unix("rwxr-xr-x")
+            }
+        }
+        from(files(runtimeBitmapWebJarFile) + runtimeBitmapWebJars) {
+            into("lib")
         }
     }
-    from(files(runtimeBitmapWebJarFile) + runtimeBitmapWebJars) {
-        into("lib")
+
+val installBitmapSmokeBrowser: TaskProvider<JavaExec> =
+    tasks.register<JavaExec>("installBitmapSmokeBrowser") {
+        group = "verification"
+        description = "Downloads the Playwright-managed browser used by the bitmap browser smoke."
+
+        classpath = playwrightCli
+        mainClass.set("com.microsoft.playwright.CLI")
+        inputs.property("browser", browserSmokeBrowser)
+        outputs.dir(playwrightBrowsersDir)
+        environment("PLAYWRIGHT_BROWSERS_PATH", playwrightBrowsersDir.get().asFile.absolutePath)
+        args("install", browserSmokeBrowser.get())
     }
-}
 
-val installBitmapSmokeBrowser: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
-    group = "verification"
-    description = "Downloads the Playwright-managed browser used by the bitmap browser smoke."
+val checkBitmapBrowserSmoke: TaskProvider<JavaExec> =
+    tasks.register<JavaExec>("checkBitmapBrowserSmoke") {
+        group = "verification"
+        description = "Runs a browser canvas smoke against the bitmap web runtime using a Gradle-managed Playwright browser."
 
-    classpath = playwrightCli
-    mainClass.set("com.microsoft.playwright.CLI")
-    inputs.property("browser", browserSmokeBrowser)
-    outputs.dir(playwrightBrowsersDir)
-    environment("PLAYWRIGHT_BROWSERS_PATH", playwrightBrowsersDir.get().asFile.absolutePath)
-    args("install", browserSmokeBrowser.get())
-}
-
-val checkBitmapBrowserSmoke: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
-    group = "verification"
-    description = "Runs a browser canvas smoke against the bitmap web runtime using a Gradle-managed Playwright browser."
-
-    dependsOn(installRuntimeBitmapWeb)
-    dependsOn(":runtime:installRuntime")
-    dependsOn(":tools:emitExternalCompiledBundle")
-    dependsOn(installBitmapSmokeBrowser)
-    dependsOn(tasks.named(browserSmokeSourceSet.classesTaskName))
-    classpath = browserSmokeSourceSet.runtimeClasspath
-    mainClass.set("rylween.bitmapweb.smoke.BitmapBrowserSmokeKt")
-    environment("PLAYWRIGHT_BROWSERS_PATH", playwrightBrowsersDir.get().asFile.absolutePath)
-    environment("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")
-    args(
-        "--root",
-        rootProject.layout.projectDirectory.asFile.absolutePath,
-        "--work-dir",
-        browserSmokeWorkDir.get().asFile.absolutePath,
-        "--report-dir",
-        browserSmokeReportDir.get().asFile.absolutePath,
-        "--browser",
-        browserSmokeBrowser.get(),
-    )
-}
+        dependsOn(installRuntimeBitmapWeb)
+        dependsOn(":runtime:installRuntime")
+        dependsOn(":tools:emitExternalCompiledBundle")
+        dependsOn(installBitmapSmokeBrowser)
+        dependsOn(tasks.named(browserSmokeSourceSet.classesTaskName))
+        classpath = browserSmokeSourceSet.runtimeClasspath
+        mainClass.set("rylween.bitmapweb.smoke.BitmapBrowserSmokeKt")
+        environment("PLAYWRIGHT_BROWSERS_PATH", playwrightBrowsersDir.get().asFile.absolutePath)
+        environment("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")
+        args(
+            "--root",
+            rootProject.layout.projectDirectory.asFile.absolutePath,
+            "--work-dir",
+            browserSmokeWorkDir.get().asFile.absolutePath,
+            "--report-dir",
+            browserSmokeReportDir.get().asFile.absolutePath,
+            "--browser",
+            browserSmokeBrowser.get(),
+        )
+    }

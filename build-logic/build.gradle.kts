@@ -9,5 +9,5 @@ repositories {
 }
 
 dependencies {
-    implementation("org.jlleitschuh.gradle:ktlint-gradle:14.2.0")
+    implementation(libs.ktlint.gradle)
 }

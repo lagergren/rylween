@@ -1449,29 +1449,7 @@ internal class BattleRunner(
             val member =
                 encounter.runtime.party.members
                     .getOrNull(index) ?: return
-            val next =
-                when (field) {
-                    "hit_points" -> member.copy(hitPoints = member.hitPoints.copy(current = value.coerceAtLeast(0)))
-                    "health" ->
-                        value.coerceAtLeast(0).let { health ->
-                            member.copy(health = health, hitPoints = member.hitPoints.copy(max = health))
-                        }
-
-                    "magic" -> member.copy(mana = member.mana.copy(current = value.coerceAtLeast(0)))
-                    "magic_max" ->
-                        value
-                            .coerceAtLeast(0)
-                            .let { max -> member.copy(mana = member.mana.current.coerceAtMost(max) of max) }
-
-                    "level" -> member.copy(level = value.coerceAtLeast(1))
-                    "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
-                    "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
-                    "weapon_skill" -> member.copy(weaponSkill = value.coerceAtLeast(0))
-                    "dexterity" -> member.copy(dexterity = value.coerceAtLeast(0))
-                    "experience" -> member.copy(experience = value.coerceAtLeast(0))
-                    "dead" -> member.copy(dead = value != 0)
-                    else -> error("unknown compiled battle member field $field")
-                }
+            val next = member.withCompiledField(field, value) ?: error("unknown compiled battle member field $field")
             val updated = encounter.runtime.withMember(index, next)
             encounter =
                 when (field) {
@@ -1717,29 +1695,6 @@ internal class BattleRunner(
                 CompiledViewCommand.StatusLine -> RuntimeViewCommand.StatusLine
                 is CompiledViewCommand.ShowImage -> RuntimeViewCommand.ShowImage(content.slug(image))
             }
-
-        private fun CompiledInstruction.textBlockOperand(index: Int): CompiledTextBlock =
-            (operands[index] as CompiledOperand.TextBlockValue).value
-
-        private fun CompiledInstruction.intOperand(index: Int): CompiledIntExpr = (operands[index] as CompiledOperand.IntExprValue).value
-
-        private fun CompiledInstruction.boolOperand(index: Int): CompiledBoolExpr = (operands[index] as CompiledOperand.BoolExprValue).value
-
-        private fun CompiledInstruction.lvalueOperand(index: Int): CompiledLValue = (operands[index] as CompiledOperand.LValueValue).value
-
-        private fun CompiledInstruction.viewOperand(index: Int): CompiledViewCommand =
-            (operands[index] as CompiledOperand.ViewCommandValue).value
-
-        private fun CompiledInstruction.handleOperand(index: Int): CompiledHandleRef = (operands[index] as CompiledOperand.Handle).ref
-
-        private fun CompiledInstruction.stringIdOperand(index: Int): Int = (operands[index] as CompiledOperand.StringId).id
-
-        private fun CompiledInstruction.booleanOperand(index: Int): Boolean = (operands[index] as CompiledOperand.BooleanValue).value
-
-        private fun CompiledInstruction.instructionsOperand(index: Int): List<CompiledInstruction> =
-            (operands[index] as CompiledOperand.Instructions).instructions
-
-        private fun CompiledInstruction.enumOperand(index: Int): String = (operands[index] as CompiledOperand.EnumName).name
     }
 
     private inner class FormulaEvaluator(

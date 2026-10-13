@@ -7,6 +7,7 @@ pluginManagement {
 }
 
 plugins {
+    // The one version outside gradle/libs.versions.toml: settings plugins resolve before the catalog exists.
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
