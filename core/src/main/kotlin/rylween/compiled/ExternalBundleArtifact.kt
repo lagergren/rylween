@@ -333,6 +333,7 @@ data class ExternalCharacterCreationPacing(
 
 data class ExternalShopPacing(
     val interludePagePauseMs: Int = 2_000,
+    val noticePauseMs: Int = 1_000,
 )
 
 data class ExternalSpeakPacing(
@@ -1855,6 +1856,7 @@ private class ExternalBundleArtifactWriter {
             "shop" to
                 jsonObject(
                     "interludePagePauseMs" to JsonNumber(pacing.shop.interludePagePauseMs.toString()),
+                    "noticePauseMs" to JsonNumber(pacing.shop.noticePauseMs.toString()),
                 ),
             "speak" to
                 jsonObject(
@@ -3103,6 +3105,7 @@ private class ExternalRuntimeSystemsReader(
             shop =
                 ExternalShopPacing(
                     interludePagePauseMs = shop.optionalInt("interludePagePauseMs", defaults.shop.interludePagePauseMs),
+                    noticePauseMs = shop.optionalInt("noticePauseMs", defaults.shop.noticePauseMs),
                 ),
             speak =
                 ExternalSpeakPacing(

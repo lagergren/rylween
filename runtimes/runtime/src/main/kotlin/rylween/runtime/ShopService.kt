@@ -70,6 +70,8 @@ internal class ShopService(
             val sell = shop.sell
             when {
                 shop.keys.leave.matchesInput(content, choice) -> {
+                    screen.writeText(shop.goodbye.renderScreenTextLines())
+                    input.pause(systems.pacing.shop.noticePauseMs)
                     return current
                 }
 
