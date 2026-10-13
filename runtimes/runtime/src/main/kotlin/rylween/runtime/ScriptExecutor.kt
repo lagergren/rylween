@@ -13,7 +13,6 @@ package rylween.runtime
 
 import rylween.compiled.CompiledBoolExpr
 import rylween.compiled.CompiledCharacter
-import rylween.compiled.CompiledCharacterPlacement
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
@@ -32,9 +31,7 @@ import rylween.compiled.CompiledRandomItemOffer
 import rylween.compiled.CompiledRuntimeTextPart
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.CompiledScriptReward
-import rylween.compiled.CompiledShopService
 import rylween.compiled.CompiledStringExpr
-import rylween.compiled.CompiledSwitchCase
 import rylween.compiled.CompiledTextAnswer
 import rylween.compiled.CompiledTextBlock
 import rylween.compiled.CompiledViewCommand
@@ -64,7 +61,6 @@ import rylween.dsl.impl.QuestionTopic
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RewardOverflowPolicy
 import rylween.dsl.impl.RuntimeMode
-import rylween.dsl.impl.of
 import rylween.dsl.impl.sourceId
 import rylween.dsl.pronoun
 
@@ -95,6 +91,7 @@ internal class ScriptExecutor(
     private var textBindings: Map<String, String> = emptyMap()
     private var currentTextLines: List<String> = emptyList()
     private val pausePrompts = PausePrompts(systems.prompts)
+    private val worldText = RuntimeWorldText(content)
 
     fun execute(program: CompiledScriptProgram): RuntimeState {
         executeBlock(
@@ -847,7 +844,7 @@ internal class ScriptExecutor(
     }
 
     private fun appendRumorJournalHint(entry: ExternalRumorEntry) {
-        if (!entry.text.hasExactJournalLocation()) return
+        if (!worldText.hasExactJournalLocation(entry.text, runtime)) return
         val journalLine =
             entry.text
                 .renderExternalForJournal()
@@ -1276,25 +1273,7 @@ internal class ScriptExecutor(
     ) {
         val index = memberNumber - 1
         val member = runtime.party.members.getOrNull(index) ?: return
-        val next =
-            when (field) {
-                "hit_points" -> member.copy(hitPoints = member.hitPoints.copy(current = value.coerceAtLeast(0)))
-                "health" ->
-                    value.coerceAtLeast(0).let { health ->
-                        member.copy(health = health, hitPoints = member.hitPoints.copy(max = health))
-                    }
-
-                "magic" -> member.copy(mana = member.mana.copy(current = value.coerceAtLeast(0)))
-                "magic_max" -> value.coerceAtLeast(0).let { max -> member.copy(mana = member.mana.current.coerceAtMost(max) of max) }
-                "level" -> member.copy(level = value.coerceAtLeast(1))
-                "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
-                "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
-                "weapon_skill" -> member.copy(weaponSkill = value.coerceAtLeast(0))
-                "dexterity" -> member.copy(dexterity = value.coerceAtLeast(0))
-                "experience" -> member.copy(experience = value.coerceAtLeast(0))
-                "dead" -> member.copy(dead = value != 0)
-                else -> member
-            }
+        val next = member.withCompiledField(field, value) ?: member
         runtime =
             runtime.withParty(
                 runtime.party
@@ -1310,16 +1289,12 @@ internal class ScriptExecutor(
     private fun charactersFor(building: CompiledHandleRef): List<CompiledCharacter> =
         content.characters
             .filter { character ->
-                val position = character.position()
+                val position = character.position(runtime)
                 when (val town = runtime.currentTown) {
                     null -> position is CompiledWorldPosition.Wilderness && content.slug(building) == "none"
                     else -> position == CompiledWorldPosition.Town(town, building)
                 }
             }.sortedBy { character -> content.strings.value(character.nameString) }
-
-    private fun CompiledCharacter.position(): CompiledWorldPosition? =
-        runtime.npcs.firstOrNull { placement -> placement.npc == id }?.position
-            ?: (placement as? CompiledCharacterPlacement.Fixed)?.position
 
     private fun npcChoiceLines(npcs: List<CompiledCharacter>): List<String> =
         npcs.mapIndexed { index, npc ->
@@ -1358,199 +1333,9 @@ internal class ScriptExecutor(
         runtime.runtimeTextValue(content, part.kind)
             ?: when (part.kind) {
                 "conversationNpcName" -> npc?.let { content.strings.value(it.nameString) }
-                "townName" -> part.args["town"]?.let(::townNameBySlug)
-                "fuzzyTownLocation" -> part.args["town"]?.let { town -> townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0) }
-                "roleName" -> part.args["role"]?.let(::roleName)
-                "roleJob" -> part.args["role"]?.let(::roleJob)
-                "roleLocation" -> part.args["role"]?.let { role -> if (journal) roleJournalLocation(role) else roleLocation(role) }
-                "npcName" -> part.args["npc"]?.let(::npcName)
-                "npcJob" -> part.args["npc"]?.let(::npcJob)
-                "npcLocation" -> part.args["npc"]?.let { npc -> if (journal) npcJournalLocation(npc) else npcLocation(npc) }
-                "locationCoordinate" -> part.args["location"]?.let(::locationTextBySlug)
-                else -> null
+                "locationCoordinate" -> part.args["location"]?.let { location -> worldText.locationTextBySlug(location, runtime) }
+                else -> worldText.value(part, runtime, journal)
             }
-
-    private fun ExternalRuntimeTextBlock.hasExactJournalLocation(): Boolean =
-        lines
-            .flatten()
-            .filterIsInstance<ExternalRuntimeTextPart.Runtime>()
-            .any { part ->
-                when (part.kind) {
-                    "roleLocation" ->
-                        part.args["role"]
-                            ?.let(::roleCharacter)
-                            ?.position()
-                            ?.hasExactJournalCoordinate() == true
-
-                    "npcLocation" ->
-                        part.args["npc"]
-                            ?.let(::npcCharacter)
-                            ?.position()
-                            ?.hasExactJournalCoordinate() == true
-
-                    "fuzzyTownLocation" -> part.args["radius"]?.toIntOrNull() == 0
-                    "locationCoordinate" -> true
-                    else -> false
-                }
-            }
-
-    private fun roleName(roleSlug: String): String? =
-        roleCharacter(roleSlug)?.let { character -> content.strings.value(character.nameString) }
-
-    private fun roleName(role: CompiledHandleRef): String =
-        roleCharacter(role)
-            ?.let { character -> content.strings.value(character.nameString) }
-            ?: content.slug(role)
-
-    private fun roleJob(roleSlug: String): String? = roleCharacter(roleSlug)?.let(::characterJob)
-
-    private fun roleJob(role: CompiledHandleRef): String =
-        roleCharacter(role)
-            ?.let(::characterJob)
-            ?: content.slug(role).readableJob()
-
-    private fun roleLocation(roleSlug: String): String? =
-        roleCharacter(roleSlug)
-            ?.position()
-            ?.let(::positionText)
-
-    private fun roleJournalLocation(roleSlug: String): String? =
-        roleCharacter(roleSlug)
-            ?.position()
-            ?.let(::journalPositionText)
-
-    private fun roleLocation(role: CompiledHandleRef): String =
-        roleCharacter(role)
-            ?.position()
-            ?.let(::positionText)
-            ?: content.slug(role)
-
-    private fun roleJournalLocation(role: CompiledHandleRef): String =
-        roleCharacter(role)
-            ?.position()
-            ?.let(::journalPositionText)
-            ?: content.slug(role)
-
-    private fun npcName(npcSlug: String): String? = npcCharacter(npcSlug)?.let { character -> content.strings.value(character.nameString) }
-
-    private fun npcName(npc: CompiledHandleRef): String =
-        npcCharacter(npc)
-            ?.let { character -> content.strings.value(character.nameString) }
-            ?: content.slug(npc)
-
-    private fun npcJob(npcSlug: String): String? = npcCharacter(npcSlug)?.let(::characterJob)
-
-    private fun npcJob(npc: CompiledHandleRef): String =
-        npcCharacter(npc)
-            ?.let(::characterJob)
-            ?: content.slug(npc).readableJob()
-
-    private fun npcLocation(npcSlug: String): String? =
-        npcCharacter(npcSlug)
-            ?.position()
-            ?.let(::positionText)
-
-    private fun npcLocation(npc: CompiledHandleRef): String =
-        npcCharacter(npc)
-            ?.position()
-            ?.let(::positionText)
-            ?: content.slug(npc)
-
-    private fun npcJournalLocation(npcSlug: String): String? =
-        npcCharacter(npcSlug)
-            ?.position()
-            ?.let(::journalPositionText)
-
-    private fun npcJournalLocation(npc: CompiledHandleRef): String =
-        npcCharacter(npc)
-            ?.position()
-            ?.let(::journalPositionText)
-            ?: content.slug(npc)
-
-    private fun roleCharacter(roleSlug: String): CompiledCharacter? {
-        val role = content.refOrNull(CompiledHandleKind.Role, roleSlug) ?: return null
-        return roleCharacter(role)
-    }
-
-    private fun roleCharacter(role: CompiledHandleRef): CompiledCharacter? =
-        content.characters.firstOrNull { character -> role in character.roles }
-
-    private fun npcCharacter(npcSlug: String): CompiledCharacter? {
-        val npc = content.refOrNull(CompiledHandleKind.Npc, npcSlug) ?: return null
-        return npcCharacter(npc)
-    }
-
-    private fun npcCharacter(npc: CompiledHandleRef): CompiledCharacter? =
-        content.characters.firstOrNull { character -> character.id == npc }
-
-    private fun characterJob(character: CompiledCharacter): String = content.slug(character.job).readableJob()
-
-    private fun townNameBySlug(townSlug: String): String =
-        content.refOrNull(CompiledHandleKind.Town, townSlug)?.let { town -> content.townName(town) } ?: townSlug
-
-    private fun townLocation(
-        townSlug: String,
-        radius: Int,
-    ): String? {
-        val town = content.refOrNull(CompiledHandleKind.Town, townSlug) ?: return null
-        val position = content.towns.firstOrNull { current -> current.id == town }?.position ?: return null
-        return pointText(fuzzyPoint(position, townSlug, radius))
-    }
-
-    private fun locationTextBySlug(locationSlug: String): String? =
-        content.refOrNull(CompiledHandleKind.Location, locationSlug)?.let(::locationText)
-
-    private fun positionText(position: CompiledWorldPosition): String =
-        when (position) {
-            is CompiledWorldPosition.Town -> "in ${content.townName(position.town)}"
-            is CompiledWorldPosition.Wilderness -> "at ${pointText(position.point)}"
-        }
-
-    private fun CompiledWorldPosition.hasExactJournalCoordinate(): Boolean =
-        when (this) {
-            is CompiledWorldPosition.Town -> content.towns.any { town -> town.id == this.town }
-            is CompiledWorldPosition.Wilderness -> true
-        }
-
-    private fun journalPositionText(position: CompiledWorldPosition): String =
-        when (position) {
-            is CompiledWorldPosition.Town -> {
-                val townName = content.townName(position.town)
-                val coordinate =
-                    content.towns
-                        .firstOrNull { town -> town.id == position.town }
-                        ?.position
-                        ?.let(::pointText)
-                coordinate?.let { "in $townName at $it" } ?: "in $townName"
-            }
-
-            is CompiledWorldPosition.Wilderness -> "at ${pointText(position.point)}"
-        }
-
-    private fun pointText(point: GridPoint): String = "${point.x}x${point.y}"
-
-    private fun fuzzyPoint(
-        point: GridPoint,
-        slug: String,
-        radius: Int,
-    ): GridPoint =
-        when {
-            radius <= 0 -> point
-            else ->
-                GridPoint(
-                    x = point.x + stableOffset("$slug:x", radius),
-                    y = point.y + stableOffset("$slug:y", radius),
-                )
-        }
-
-    private fun stableOffset(
-        key: String,
-        radius: Int,
-    ): Int {
-        val span = radius * 2 + 1
-        val hash = key.fold(0) { acc, char -> acc * 31 + char.code }
-        return Math.floorMod(hash, span) - radius
-    }
 
     private fun Map<String, List<ExternalRuntimeCommand>>.mnemonicMenuLines(group: RuntimeCommandGroupId): List<String> =
         get(group.id).orEmpty().map { command -> command.mnemonicLine() }
@@ -1628,13 +1413,13 @@ internal class ScriptExecutor(
                 flowColumns = screen.textColumns,
                 intValue = { expr -> int(expr).toString() },
                 stringValue = ::string,
-                roleNameValue = ::roleName,
-                roleJobValue = ::roleJob,
-                roleLocationValue = ::roleLocation,
-                npcNameValue = ::npcName,
-                npcJobValue = ::npcJob,
-                npcLocationValue = ::npcLocation,
-                locationValue = ::locationText,
+                roleNameValue = worldText::roleName,
+                roleJobValue = worldText::roleJob,
+                roleLocationValue = { role -> worldText.roleLocation(role, runtime) },
+                npcNameValue = worldText::npcName,
+                npcJobValue = worldText::npcJob,
+                npcLocationValue = { npc -> worldText.npcLocation(npc, runtime) },
+                locationValue = { location -> worldText.locationText(location, runtime) },
                 runtimeValue = ::runtimeText,
             ),
         )
@@ -1645,23 +1430,16 @@ internal class ScriptExecutor(
                 content,
                 intValue = { expr -> int(expr).toString() },
                 stringValue = ::string,
-                roleNameValue = ::roleName,
-                roleJobValue = ::roleJob,
-                roleLocationValue = ::roleJournalLocation,
-                npcNameValue = ::npcName,
-                npcJobValue = ::npcJob,
-                npcLocationValue = ::npcJournalLocation,
-                locationValue = ::locationText,
+                roleNameValue = worldText::roleName,
+                roleJobValue = worldText::roleJob,
+                roleLocationValue = { role -> worldText.roleJournalLocation(role, runtime) },
+                npcNameValue = worldText::npcName,
+                npcJobValue = worldText::npcJob,
+                npcLocationValue = { npc -> worldText.npcJournalLocation(npc, runtime) },
+                locationValue = { location -> worldText.locationText(location, runtime) },
                 runtimeValue = ::runtimeText,
             ),
         )
-
-    private fun locationText(location: CompiledHandleRef): String =
-        runtime.locations
-            .firstOrNull { placement -> placement.location == location }
-            ?.point
-            ?.let(::pointText)
-            ?: content.slug(location)
 
     private fun string(expr: CompiledStringExpr): String =
         when (expr) {
@@ -1715,7 +1493,7 @@ internal class ScriptExecutor(
             currentTown?.let { town ->
                 content.characters.firstOrNull { character ->
                     character.job == job &&
-                        (character.position() as? CompiledWorldPosition.Town)?.town == town
+                        (character.position(runtime) as? CompiledWorldPosition.Town)?.town == town
                 }
             }
         return (townCharacter ?: content.characters.firstOrNull { character -> character.job == job })
@@ -1934,63 +1712,6 @@ internal class ScriptExecutor(
         }
         return block
     }
-
-    private fun CompiledInstruction.textBlockOperand(index: Int): CompiledTextBlock =
-        (operands[index] as CompiledOperand.TextBlockValue).value
-
-    private fun CompiledInstruction.intOperand(index: Int): CompiledIntExpr = (operands[index] as CompiledOperand.IntExprValue).value
-
-    private fun CompiledInstruction.boolOperand(index: Int): CompiledBoolExpr = (operands[index] as CompiledOperand.BoolExprValue).value
-
-    private fun CompiledInstruction.lvalueOperand(index: Int): CompiledLValue = (operands[index] as CompiledOperand.LValueValue).value
-
-    private fun CompiledInstruction.stringExprOperand(index: Int): CompiledStringExpr =
-        (operands[index] as CompiledOperand.StringExprValue).value
-
-    private fun CompiledInstruction.viewOperand(index: Int): CompiledViewCommand =
-        (operands[index] as CompiledOperand.ViewCommandValue).value
-
-    private fun CompiledInstruction.handleOperand(index: Int): CompiledHandleRef = (operands[index] as CompiledOperand.Handle).ref
-
-    private fun CompiledInstruction.stringIdOperand(index: Int): Int = (operands[index] as CompiledOperand.StringId).id
-
-    private fun CompiledInstruction.booleanOperand(index: Int): Boolean = (operands[index] as CompiledOperand.BooleanValue).value
-
-    private fun CompiledInstruction.characterOperand(index: Int): Char = (operands[index] as CompiledOperand.Character).value
-
-    private fun CompiledInstruction.integerOperand(index: Int): Int = (operands[index] as CompiledOperand.Integer).value
-
-    private fun CompiledInstruction.enumOperand(index: Int): String = (operands[index] as CompiledOperand.EnumName).name
-
-    private fun CompiledInstruction.instructionsOperand(index: Int): List<CompiledInstruction> =
-        (operands[index] as CompiledOperand.Instructions).instructions
-
-    private fun CompiledInstruction.switchCasesOperand(index: Int): List<CompiledSwitchCase> =
-        (operands[index] as CompiledOperand.SwitchCases).cases
-
-    private fun CompiledInstruction.menuOptionsOperand(index: Int) = (operands[index] as CompiledOperand.MenuOptions).options
-
-    private fun CompiledInstruction.inputBindingsOperand(index: Int): List<CompiledInputBinding> =
-        (operands[index] as CompiledOperand.InputBindings).bindings
-
-    private fun CompiledInstruction.textAnswerOperand(index: Int): CompiledTextAnswer =
-        (operands[index] as CompiledOperand.TextAnswer).answer
-
-    private fun CompiledInstruction.rewardOperand(index: Int): CompiledScriptReward = (operands[index] as CompiledOperand.Reward).reward
-
-    private fun CompiledInstruction.randomItemOfferOperand(index: Int): CompiledRandomItemOffer =
-        (operands[index] as CompiledOperand.RandomItemOffer).offer
-
-    private fun CompiledInstruction.shopServiceOperand(index: Int): CompiledShopService =
-        (operands[index] as CompiledOperand.ShopService).service
-
-    private fun CompiledContentBundle.refOrNull(
-        kind: CompiledHandleKind,
-        slug: String,
-    ): CompiledHandleRef? = strings.idOf(slug)?.let { slugString -> handles.refOrNull(kind, slugString) }
-
-    private fun CompiledContentBundle.townName(ref: CompiledHandleRef): String =
-        towns.firstOrNull { town -> town.id == ref }?.let { town -> strings.value(town.nameString) } ?: slug(ref)
 }
 
 private enum class ScriptSignal { Continue, BreakNearestLoop, StopScript }

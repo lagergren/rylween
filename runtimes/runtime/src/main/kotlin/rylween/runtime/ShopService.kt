@@ -14,8 +14,6 @@
 
 package rylween.runtime
 
-import rylween.compiled.CompiledCharacter
-import rylween.compiled.CompiledCharacterPlacement
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
@@ -32,10 +30,8 @@ import rylween.compiled.CompiledShopPurchase
 import rylween.compiled.CompiledShopSell
 import rylween.compiled.CompiledShopService
 import rylween.compiled.CompiledTextBlock
-import rylween.compiled.CompiledWorldPosition
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
-import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RewardOverflowPolicy
 import rylween.dsl.impl.ShopQuantityCap
@@ -53,6 +49,7 @@ internal class ShopService(
     private val realm = systems.realm
     private val itemsById: Map<CompiledHandleRef, CompiledItemRecord> = content.items.associateBy { it.id }
     private val pausePrompts = PausePrompts(systems.prompts)
+    private val worldText = RuntimeWorldText(content)
 
     fun run(
         shop: CompiledShopService,
@@ -585,120 +582,11 @@ internal class ShopService(
 
     private fun ExternalRuntimeTextBlock.renderExternal(runtime: RuntimeState): List<String> =
         renderParts(
-            values = { part ->
-                runtime.runtimeTextValue(content, part.kind)
-                    ?: when (part.kind) {
-                        "townName" -> part.args["town"]?.let(::townNameBySlug)
-                        "fuzzyTownLocation" ->
-                            part.args["town"]?.let { town ->
-                                townLocation(town, part.args["radius"]?.toIntOrNull() ?: 0)
-                            }
-                        "roleName" -> part.args["role"]?.let(::roleName)
-                        "roleJob" -> part.args["role"]?.let(::roleJob)
-                        "roleLocation" -> part.args["role"]?.let { role -> roleLocation(role, runtime) }
-                        "npcName" -> part.args["npc"]?.let(::npcName)
-                        "npcJob" -> part.args["npc"]?.let(::npcJob)
-                        "npcLocation" -> part.args["npc"]?.let { npc -> npcLocation(npc, runtime) }
-                        "locationCoordinate" -> null
-                        else -> null
-                    }
-            },
+            values = { part -> runtime.runtimeTextValue(content, part.kind) ?: worldText.value(part, runtime, journal = false) },
             wrapWidth = screen.textColumns,
         )
 
-    private fun roleName(roleSlug: String): String? =
-        roleCharacter(roleSlug)?.let { character -> content.strings.value(character.nameString) }
-
-    private fun roleJob(roleSlug: String): String? = roleCharacter(roleSlug)?.let(::characterJob)
-
-    private fun roleLocation(
-        roleSlug: String,
-        runtime: RuntimeState,
-    ): String? =
-        roleCharacter(roleSlug)
-            ?.position(runtime)
-            ?.let(::positionText)
-
-    private fun npcName(npcSlug: String): String? = npcCharacter(npcSlug)?.let { character -> content.strings.value(character.nameString) }
-
-    private fun npcJob(npcSlug: String): String? = npcCharacter(npcSlug)?.let(::characterJob)
-
-    private fun npcLocation(
-        npcSlug: String,
-        runtime: RuntimeState,
-    ): String? =
-        npcCharacter(npcSlug)
-            ?.position(runtime)
-            ?.let(::positionText)
-
-    private fun roleCharacter(roleSlug: String): CompiledCharacter? {
-        val role = refOrNull(CompiledHandleKind.Role, roleSlug) ?: return null
-        return content.characters.firstOrNull { character -> role in character.roles }
-    }
-
-    private fun npcCharacter(npcSlug: String): CompiledCharacter? {
-        val npc = refOrNull(CompiledHandleKind.Npc, npcSlug) ?: return null
-        return content.characters.firstOrNull { character -> character.id == npc }
-    }
-
-    private fun characterJob(character: CompiledCharacter): String = content.slug(character.job).readableJob()
-
-    private fun CompiledCharacter.position(runtime: RuntimeState): CompiledWorldPosition? =
-        runtime.npcs.firstOrNull { placement -> placement.npc == id }?.position
-            ?: (placement as? CompiledCharacterPlacement.Fixed)?.position
-
-    private fun townNameBySlug(townSlug: String): String = refOrNull(CompiledHandleKind.Town, townSlug)?.let(::townName) ?: townSlug
-
-    private fun townLocation(
-        townSlug: String,
-        radius: Int,
-    ): String? {
-        val town = refOrNull(CompiledHandleKind.Town, townSlug) ?: return null
-        val position = content.towns.firstOrNull { current -> current.id == town }?.position ?: return null
-        return pointText(fuzzyPoint(position, townSlug, radius))
-    }
-
-    private fun positionText(position: CompiledWorldPosition): String =
-        when (position) {
-            is CompiledWorldPosition.Town -> "in ${townName(position.town)}"
-            is CompiledWorldPosition.Wilderness -> "at ${pointText(position.point)}"
-        }
-
-    private fun townName(town: CompiledHandleRef): String =
-        content.towns.firstOrNull { current -> current.id == town }?.let { current -> content.strings.value(current.nameString) }
-            ?: content.slug(town)
-
-    private fun pointText(point: GridPoint): String = "${point.x}x${point.y}"
-
-    private fun fuzzyPoint(
-        point: GridPoint,
-        slug: String,
-        radius: Int,
-    ): GridPoint =
-        when {
-            radius <= 0 -> point
-            else ->
-                GridPoint(
-                    x = point.x + stableOffset("$slug:x", radius),
-                    y = point.y + stableOffset("$slug:y", radius),
-                )
-        }
-
-    private fun stableOffset(
-        key: String,
-        radius: Int,
-    ): Int {
-        val span = radius * 2 + 1
-        val hash = key.fold(0) { acc, char -> acc * 31 + char.code }
-        return Math.floorMod(hash, span) - radius
-    }
-
-    private fun flagStateRef(slug: String): CompiledHandleRef? = refOrNull(CompiledHandleKind.FlagState, slug)
-
-    private fun refOrNull(
-        kind: CompiledHandleKind,
-        slug: String,
-    ): CompiledHandleRef? = content.strings.idOf(slug)?.let { slugString -> content.handles.refOrNull(kind, slugString) }
+    private fun flagStateRef(slug: String): CompiledHandleRef? = content.refOrNull(CompiledHandleKind.FlagState, slug)
 
     private fun price(
         price: CompiledShopPrice,
