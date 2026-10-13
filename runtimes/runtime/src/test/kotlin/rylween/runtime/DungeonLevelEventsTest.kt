@@ -11,27 +11,44 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** Wandering monsters in dungeons: beaten ones stay beaten, and Banish Evil clears them all. */
-class DungeonEncountersTest {
+/**
+ * What a dungeon level holds on the next visit: beaten monsters and found treasure are gone, an opened chest is gone,
+ * and Banish Evil clears the wandering monsters.
+ */
+class DungeonLevelEventsTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content
     private val hash = bundleFile.readExternalCompiledBundleContentHash()
-    private val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).resolve("dungeon-encounters").also(File::mkdirs)
+    private val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).resolve("dungeon-level-events").also(File::mkdirs)
     private val actions = AutopilotActions(systems)
 
     @Test
     fun monstersBeatenOnALevelAreGoneWhenThePartyComesBack() {
-        val transcript = explore("revisit") { listOf(actions.descend(), actions.ascend(), actions.descend(), actions.ascend(), actions.ascend()) }
+        val transcript = explore("revisit", WEAK_ENCOUNTER) { twoVisits() }
 
         assertEquals(1, transcript.count { line -> line.trim() == "You face" }, transcript.joinToString("\n"))
     }
 
     @Test
+    fun goldFoundOnALevelIsNotThereOnTheNextVisit() {
+        val transcript = explore("gold", "gold") { twoVisits() }
+
+        assertEquals(listOf(true, false), levelTwoVisits(transcript).map { visit -> visit.any { line -> line.trim() == "gold pieces." } })
+    }
+
+    @Test
+    fun anOpenedChestIsNotThereOnTheNextVisit() {
+        val transcript = explore("chest", "gold_chest") { twoVisits() }
+
+        assertEquals(listOf(true, false), levelTwoVisits(transcript).map { visit -> visit.any { line -> "You find a chest!" in line } })
+    }
+
+    @Test
     fun banishEvilClearsTheWanderingMonstersFromTheDungeon() {
         val transcript =
-            explore("banish") { state ->
+            explore("banish", WEAK_ENCOUNTER) { state ->
                 val priest = AutopilotParty(content).firstLiving(state.party, PcClass.Priest)!!
                 listOf(actions.castPriestSpell(priest, "Banish Evil", commands = actions.commandsAt(state)), actions.descend(), actions.ascend(), actions.ascend())
             }
@@ -39,9 +56,19 @@ class DungeonEncountersTest {
         assertEquals(0, transcript.count { line -> line.trim() == "You face" }, transcript.joinToString("\n"))
     }
 
-    /** Plays [steps] in a three-level dungeon whose second level holds wandering monsters, with a strong party. */
+    private fun twoVisits(): List<AutopilotAction> =
+        listOf(actions.descend(), actions.ascend(), actions.descend(), actions.ascend(), actions.ascend())
+
+    /** The transcript of each arrival on level 2, up to the next key pressed after its event. */
+    private fun levelTwoVisits(transcript: List<String>): List<List<String>> =
+        transcript.indices
+            .filter { index -> transcript[index] == "You enter level 2." }
+            .map { start -> transcript.drop(start + 1).takeWhile { line -> line != "> ${actions.ascendKey}" } }
+
+    /** Plays [steps] in a three-level dungeon whose second level holds the dungeon event [levelTwo], with a strong party. */
     private fun explore(
         name: String,
+        levelTwo: String,
         steps: (RuntimeState) -> List<AutopilotAction>,
     ): List<String> {
         val base = RuntimeState.from(bundle.states.single { state -> content.slug(state.state) == "strong-replay" }, content)
@@ -56,8 +83,8 @@ class DungeonEncountersTest {
             RuntimeLog.open(testTmp.resolve("$name-setup.log")).use { log ->
                 strong.enterDungeon(content, content.ref(CompiledHandleKind.Dungeon, "ogre_cave"), levels = 3, log = log)
             }
-        val encounter = content.ref(CompiledHandleKind.DungeonEvent, "weak_encounter")
-        val start = inDungeon.copy(dungeon = inDungeon.dungeon?.copy(levelEvents = mapOf(2 to encounter)))
+        val event = content.ref(CompiledHandleKind.DungeonEvent, levelTwo)
+        val start = inDungeon.copy(dungeon = inDungeon.dungeon?.copy(levelEvents = mapOf(2 to event)))
         val save = testTmp.resolve("$name.rsave").also(File::delete)
         SaveFile.write(save, start, hash, content, "dungeon-test", null)
         val queue = ArrayDeque(steps(start))
@@ -77,6 +104,7 @@ class DungeonEncountersTest {
     }
 
     private companion object {
+        const val WEAK_ENCOUNTER = "weak_encounter"
         const val SEED = 4_242L
         const val MANA = 300
         const val KEYS = 2_000

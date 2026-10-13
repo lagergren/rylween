@@ -64,7 +64,10 @@ internal class AutopilotActions(
 
     fun descend(): AutopilotAction = single("descend", dungeon.key(RuntimeCommandActionId.Descend))
 
-    fun ascend(): AutopilotAction = single("ascend", dungeon.key(RuntimeCommandActionId.Ascend))
+    fun ascend(): AutopilotAction = single("ascend", ascendKey)
+
+    /** The dungeon key that climbs a level. */
+    val ascendKey: Char get() = dungeon.key(RuntimeCommandActionId.Ascend)
 
     /** Camps with [guard] standing watch: an unguarded camp's ambush kills a sleeping member. */
     fun camp(guard: AutopilotMember): AutopilotAction =

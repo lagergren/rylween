@@ -1613,7 +1613,6 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.gold) {
-                    recurring()
                     script {
                         localInt(random(40..339)) { amount ->
                             writeText {
@@ -1628,7 +1627,6 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.torches) {
-                    recurring()
                     script {
                         localInt(random(2..4)) { amount ->
                             writeText {
@@ -1643,7 +1641,6 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.findObject) {
-                    recurring()
                     script {
                         randomDungeonItemFind(
                             commonPools =
@@ -1657,6 +1654,7 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
+                // A chest left closed is still there on the next visit; an opened one is gone, as in the original.
                 event(DungeonEvents.goldChest) {
                     recurring()
                     script {
@@ -1668,6 +1666,7 @@ val authoredRylween: RylweenModel =
                             "(L)eave",
                         ) {
                             option('O') {
+                                realm.levelCleared set true
                                 localInt(4) { trapChance ->
                                     localInt(0) { thiefFound ->
                                         forEachMember {

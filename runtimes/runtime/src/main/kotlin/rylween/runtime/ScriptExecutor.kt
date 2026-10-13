@@ -1198,6 +1198,11 @@ internal class ScriptExecutor(
             when (name) {
                 "hour" -> runtime.copy(hour = value)
                 "banished" -> if (value != 0) runtime.copy(dungeon = runtime.dungeon?.banishEncounters()) else runtime
+                "level_cleared" ->
+                    runtime.dungeon
+                        ?.takeIf { value != 0 }
+                        ?.let { dungeon -> runtime.copy(dungeon = dungeon.copy(levelEvents = dungeon.levelEvents - dungeon.depth)) }
+                        ?: runtime
                 else -> runtime
             }
     }

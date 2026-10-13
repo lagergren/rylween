@@ -357,8 +357,9 @@ internal class Autopilot(
     ) {
         val p = state.party
         val signature =
-            "${started.name}|${state.currentMode}|${p.position}|${p.resources}|${p.members.map { member -> member.hitPoints }}|" +
-                "${p.inventory}|${p.flags.size}|${p.members.map { member -> member.equipment }}"
+            "${started.name}|${state.currentMode}|${p.position}|${state.dungeon?.depth}|${state.castle?.floor}|${state.castle?.point}|" +
+                "${p.resources}|${p.members.map { member -> member.hitPoints }}|${p.inventory}|${p.flags.size}|" +
+                "${p.members.map { member -> member.equipment }}"
         actionRepeats = if (signature == lastActionSignature) actionRepeats + 1 else 0
         lastActionSignature = signature
         if (actionRepeats >= ACTION_REPEAT_LIMIT) stuck("'${started.name}' changed nothing $ACTION_REPEAT_LIMIT times in a row", view)
