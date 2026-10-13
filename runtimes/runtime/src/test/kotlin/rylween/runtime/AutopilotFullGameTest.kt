@@ -68,7 +68,7 @@ class AutopilotFullGameTest {
         val stats = autopilot.stats
         val difficulty = AutopilotDifficulty.of(run, stats)
         val rolled = creation.accepted.map { (member, rolledStats) -> "$member:${rolledStats.values}" }
-        val line = "seed $seed won=${castleVictory in run.milestones} step='${plan.currentStepName}' blockers=${plan.blockers(run.state)} journalReads=${plan.journalReads} $difficulty rolls=${creation.rolls.values} stats=$rolled"
+        val line = "seed $seed won=${castleVictory in run.milestones} step='${plan.currentStepName}' blockers=${plan.blockers(run.state)} journalReads=${plan.journalReads} castleRetreatReasons=${plan.castleRetreatReasons} $difficulty rolls=${creation.rolls.values} stats=$rolled"
         val problems =
             buildList {
                 if (castleVictory !in run.milestones) add("seed $seed did not win\n${run.summary()}")

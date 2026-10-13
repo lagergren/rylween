@@ -21,6 +21,7 @@ import rylween.compiled.ExternalRuntimeSystems
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.ItemKind
 import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.RuntimeMode
 import kotlin.math.abs
 import kotlin.random.Random
 
@@ -69,6 +70,7 @@ internal class AutopilotFullGamePlan(
     seed: Long,
 ) : AutopilotPlan {
     private val party = AutopilotParty(content)
+    private val castleFloors = castle.stairs.floorCount
     private val actions = AutopilotActions(systems)
     private val navigation = AutopilotNavigation(content)
     private val crawl = AutopilotDungeonCrawl(actions, ::weakened)
@@ -79,6 +81,8 @@ internal class AutopilotFullGamePlan(
     private val campFoodPerMember = systems.realm.camp.foodCostPerMember
     private val redPotion = content.items.first { item -> content.slug(item.id) == RED_POTION }
     private val redPotionName = content.strings.value(redPotion.displayNameString)
+    private val amberPotionName =
+        content.items.first { item -> content.slug(item.id) == AMBER_POTION }.let { item -> content.strings.value(item.displayNameString) }
     private val spellCosts = content.spells.associate { spell -> content.strings.value(spell.nameString) to spell.baseCost }
     private val flagStates: Map<String, List<String>> =
         content.flags.associate { flag ->
@@ -126,7 +130,7 @@ internal class AutopilotFullGamePlan(
         return if (step == castleStep) endgame.wilderness(state) else pursue(state, step)
     }
 
-    override fun dungeon(state: RuntimeState): AutopilotAction = upkeep(state) ?: quaff(state) ?: banish(state) ?: crawl.next(state)
+    override fun dungeon(state: RuntimeState): AutopilotAction = upkeep(state) ?: quaff(state) ?: quaffMana(state) ?: banish(state) ?: crawl.next(state)
 
     /** On arriving in a long dungeon the priest banishes its wandering monsters, so only its fixed fights remain. */
     private fun banish(state: RuntimeState): AutopilotAction? {
@@ -146,10 +150,17 @@ internal class AutopilotFullGamePlan(
     override fun climbCastle(
         state: RuntimeState,
         lastFloor: Boolean,
-    ): Boolean = if (lastFloor) blockers(state, castleStep).isEmpty() else !weakened(state)
+    ): Boolean {
+        val reasons = if (lastFloor) blockers(state, castleStep) else listOf("weakened").takeIf { weakened(state) }.orEmpty()
+        reasons.forEach { reason -> castleRetreatReasons.merge(reason, 1, Int::plus) }
+        return reasons.isEmpty()
+    }
+
+    /** Why the party has left the castle to recover, such as "mana", counted per reason. */
+    val castleRetreatReasons: MutableMap<String, Int> = sortedMapOf()
 
     /** Between castle fights the priest heals and revives, and potions top the party up. */
-    override fun castle(state: RuntimeState): AutopilotAction? = upkeep(state) ?: quaff(state)
+    override fun castle(state: RuntimeState): AutopilotAction? = upkeep(state) ?: quaff(state) ?: quaffMana(state)
 
     override fun townErrands(state: RuntimeState): List<AutopilotErrand> {
         val town = content.towns.firstOrNull { town -> town.position == state.party.position } ?: return emptyList()
@@ -170,7 +181,7 @@ internal class AutopilotFullGamePlan(
                         gold -= cost
                     }
                 }
-                party.living(p).filter { member -> member.hitPointShare < healBelow(step) && !priestHeals(p, member) }.forEach { member ->
+                party.living(p).filter { member -> member.hitPointShare < healBelow(step) && priestHealing(state, member) == null }.forEach { member ->
                     val cost = member.hurt * HEAL_COST_PER_POINT
                     if (gold >= cost) {
                         add(AutopilotErrand.Heal(member))
@@ -308,7 +319,7 @@ internal class AutopilotFullGamePlan(
         val p = state.party
         if (party.inventoryCount(p, RED_POTION) == 0) return null
         val hurt = party.living(p).minByOrNull(AutopilotMember::hitPointShare) ?: return null
-        if (priestHeals(p, hurt)) return null
+        if (priestHealing(state, hurt) != null) return null
         return actions.quaff(redPotionName, hurt, actions.commandsAt(state)).takeIf { hurt.hitPointShare < healBelow(currentStep(state)) }
     }
 
@@ -329,10 +340,19 @@ internal class AutopilotFullGamePlan(
         val dead = party.dead(p).firstOrNull()
         if (dead != null && canRebirth(p)) return actions.castPriestSpell(priest, REBIRTH, dead, actions.commandsAt(state))
         val hurt = party.living(p).minByOrNull(AutopilotMember::hitPointShare)
-        if (hurt != null && hurt.hitPointShare < healBelow(currentStep(state)) && priestHeals(p, hurt)) {
-            return actions.castPriestSpell(priest, HEALING, hurt, actions.commandsAt(state))
-        }
-        return null
+        if (hurt == null || hurt.hitPointShare >= healBelow(currentStep(state))) return null
+        return priestHealing(state, hurt)?.let { spell -> actions.castPriestSpell(priest, spell, hurt, actions.commandsAt(state)) }
+    }
+
+    /**
+     * Mana potions go to a mage short of spell points down in a dungeon or in the castle, where spell points do not
+     * come back by walking and a boss waits.
+     */
+    private fun quaffMana(state: RuntimeState): AutopilotAction? {
+        val p = state.party
+        if (state.currentMode == RuntimeMode.Wilderness || party.inventoryCount(p, AMBER_POTION) == 0) return null
+        val mage = party.living(p).firstOrNull { member -> member.member.pcClass in battleCasters && manaShare(member) < READY_MANA }
+        return mage?.let { member -> actions.quaff(amberPotionName, member, actions.commandsAt(state)) }
     }
 
     private fun canRebirth(party: PartyState): Boolean = canCast(party, REBIRTH)
@@ -340,20 +360,27 @@ internal class AutopilotFullGamePlan(
     private fun canHeal(party: PartyState): Boolean = canCast(party, HEALING)
 
     /**
-     * Whether the priest heals [hurt] now. Once the priest can hold enough spell points to cast Rebirth when a member
-     * falls, it keeps them: it heals only while that reserve stays whole, or when [hurt] is badly hurt, and potions and
-     * the church cover the rest. A priest too green to hold the reserve heals freely.
+     * The spell the priest heals [hurt] with now, or `null` when the priest leaves it to potions and the church.
+     * Restoration heals fully, so it is the better buy once [hurt] lacks more than Healing restores.
+     *
+     * Once the priest can hold enough spell points to cast Rebirth when a member falls, it keeps them: it heals only
+     * while that reserve stays whole, or when [hurt] is badly hurt. A priest too green to hold the reserve heals freely,
+     * and so does a priest on the castle's last floor, since nobody can be revived during the final battle.
      */
-    private fun priestHeals(
-        p: PartyState,
+    private fun priestHealing(
+        state: RuntimeState,
         hurt: AutopilotMember,
-    ): Boolean {
-        val priest = party.firstLiving(p, PcClass.Priest)?.member ?: return false
-        if (!canHeal(p)) return false
-        if (hurt.hitPointShare < RETREAT_BELOW) return true
-        val healing = (spellCosts[HEALING] ?: return false) + priest.level
-        val rebirth = (spellCosts[REBIRTH] ?: return true) + priest.level
-        return priest.mana.max < healing + rebirth || priest.mana.current - healing >= rebirth
+    ): String? {
+        val p = state.party
+        val priest = party.firstLiving(p, PcClass.Priest)?.member ?: return null
+        val missing = hurt.member.hitPoints.max - hurt.member.hitPoints.current
+        val spell = if (missing > HEALING_BASE + priest.level * 2 && canCast(p, RESTORATION)) RESTORATION else HEALING
+        if (!canCast(p, spell)) return null
+        val cost = (spellCosts[spell] ?: return null) + priest.level
+        val rebirth = (spellCosts[REBIRTH] ?: return spell) + priest.level
+        val finalFloor = state.castle?.floor == castleFloors
+        val reserveKept = priest.mana.max < cost + rebirth || priest.mana.current - cost >= rebirth
+        return spell.takeIf { finalFloor || hurt.hitPointShare < RETREAT_BELOW || reserveKept }
     }
 
     private fun canCast(
@@ -443,13 +470,14 @@ internal class AutopilotFullGamePlan(
 
     /**
      * Inventory items worth selling, as the smith's and the merchant's share: gear no member would ready, treasure,
-     * magic items beyond the few battle items worth carrying into hard fights, red potions beyond the stock, and altar
-     * gems beyond what the quests still need. Camping and pack gear stay.
+     * magic items beyond the few battle items worth carrying into hard fights, red and amber potions beyond the stock,
+     * and altar gems beyond what the quests still need. Camping and pack gear stay.
      */
     private fun junk(p: PartyState): Pair<List<String>, List<String>> {
         val smith = mutableListOf<String>()
         val merchant = mutableListOf<String>()
         var redPotions = 0
+        var amberPotions = 0
         var gems = 0
         val gemsKept = gemsNeeded(p)
         val battleItemsKept =
@@ -477,6 +505,7 @@ internal class AutopilotFullGamePlan(
                     if (!wanted) smith += name
                 }
                 slug == RED_POTION && redPotions < RED_POTIONS_KEPT -> redPotions++
+                slug == AMBER_POTION && amberPotions < AMBER_POTIONS_KEPT -> amberPotions++
                 item.kind in sellableAtMerchant -> merchant += name
             }
         }
@@ -538,7 +567,7 @@ internal class AutopilotFullGamePlan(
         val gold = p.resources.gold
         return buildList {
             if (party.dead(p).isNotEmpty() && !canRebirth(p) && gold >= party.dead(p).first().member.level * RAISE_COST_PER_LEVEL) add("raise")
-            if (party.living(p).any { member -> member.hitPointShare < healBelow(step) && !priestHeals(p, member) } && gold > HEAL_TRIP_GOLD) {
+            if (party.living(p).any { member -> member.hitPointShare < healBelow(step) && priestHealing(state, member) == null } && gold > HEAL_TRIP_GOLD) {
                 add("heal")
             }
             if (lowCasters(p, step).any { member -> gold >= energizeCost(member) }) add("energize")
@@ -784,6 +813,12 @@ internal class AutopilotFullGamePlan(
 
     private companion object {
         const val HEALING = "Healing"
+        const val RESTORATION = "Restoration"
+
+        /** About what Healing restores before the priest's level is added twice: a roll of 10 to 19. */
+        const val HEALING_BASE = 15
+        const val AMBER_POTION = "amber_potion"
+        const val AMBER_POTIONS_KEPT = 3
         const val REBIRTH = "Rebirth"
         const val TELEPORT = "Teleport"
         const val EARTHQUAKE = "Earthquake"
