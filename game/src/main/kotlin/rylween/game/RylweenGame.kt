@@ -5407,10 +5407,12 @@ val authoredRylween: RylweenModel =
                         filter = MemberChoiceFilter.AliveOnly,
                     ) { target ->
                         consumeActiveItem()
-                        target.hp.addClamped(15, target.maxHp)
-                        writeText {
-                            line(partyName(target), " recovers")
-                            line("15 hit points.")
+                        localInt(potionPoints(target)) { points ->
+                            target.hp.addClamped(points, target.maxHp)
+                            writeText {
+                                line(partyName(target), " recovers")
+                                line(points, " hit points.")
+                            }
                         }
                         pause1s()
                     }
@@ -5429,10 +5431,12 @@ val authoredRylween: RylweenModel =
                         filter = MemberChoiceFilter.AliveOnly,
                     ) { target ->
                         consumeActiveItem()
-                        target.hp -= 15
-                        writeText {
-                            line(partyName(target), " is poisoned")
-                            line("for 15 hit points.")
+                        localInt(potionPoints(target)) { points ->
+                            target.hp -= points
+                            writeText {
+                                line(partyName(target), " is poisoned")
+                                line("for ", points, " hit points.")
+                            }
                         }
                         whenever(target.hp lte 0) {
                             target.hp set 0
@@ -5457,10 +5461,12 @@ val authoredRylween: RylweenModel =
                         accepting = MemberChoiceFilter.AliveOnly,
                     ) { target ->
                         consumeActiveItem()
-                        target.mp.addClamped(15, target.maxMp)
-                        writeText {
-                            line(partyName(target), " recovers")
-                            line("15 spell points.")
+                        localInt(potionPoints(target)) { points ->
+                            target.mp.addClamped(points, target.maxMp)
+                            writeText {
+                                line(partyName(target), " recovers")
+                                line(points, " spell points.")
+                            }
                         }
                         pause1s()
                     }
@@ -6929,6 +6935,11 @@ val authoredRylween: RylweenModel =
 // model so routes can boot from known deterministic states.
 // Convenience handle for callers that need only the immutable game content.
 val authoredDsl: GameModel = authoredRylween.content
+
+// Points a potion restores or, for the poison potion, takes: 15 at level 1 as in
+// the original game, growing with the drinker's level so potions stay worth
+// carrying once hit points and spell points run into the hundreds.
+private fun potionPoints(target: MemberRef): IntExpr = target.level * 3 + 12
 
 // Fire damage shared by the Fire Cloud spell and the fire wand: every monster
 // still standing takes caster.level * damageRoll points.

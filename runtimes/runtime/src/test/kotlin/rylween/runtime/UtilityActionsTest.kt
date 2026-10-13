@@ -6,6 +6,8 @@ import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
 import rylween.dsl.impl.EquipmentCommand
+import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.of
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -119,6 +121,35 @@ class UtilityActionsTest {
         runUtility("leave-town-armed.log", input) { actions -> actions.readyBeforeLeavingTown(armed, leavePrompts()).runtime }
 
         assertFalse(input.exhausted)
+    }
+
+    @Test
+    fun healingPotionRestoresMoreHitPointsAtHigherLevels() {
+        val runtime =
+            runtimeWithInventory(item("red_potion")).updateMember(0) { member -> member.copy(level = 20, health = 300, hitPoints = 10 of 300) }
+        val after = runUtility("quaff-red.log", "A1") { actions -> actions.quaff(runtime) }
+
+        assertEquals(10 + 12 + 3 * 20, after.party.members[0].hitPoints.current)
+        assertEquals(null, after.party.inventoryItem(1))
+    }
+
+    @Test
+    fun poisonPotionTakesMoreHitPointsAtHigherLevels() {
+        val runtime =
+            runtimeWithInventory(item("blue_potion")).updateMember(0) { member -> member.copy(level = 5, health = 300, hitPoints = 100 of 300) }
+        val after = runUtility("quaff-blue.log", "A1") { actions -> actions.quaff(runtime) }
+
+        assertEquals(100 - (12 + 3 * 5), after.party.members[0].hitPoints.current)
+    }
+
+    @Test
+    fun manaPotionRestoresMoreSpellPointsAtHigherLevels() {
+        val base = runtimeWithInventory(item("amber_potion"))
+        val caster = base.party.members.indexOfFirst { member -> member.pcClass in setOf(PcClass.Mage, PcClass.Priest) }
+        val runtime = base.updateMember(caster) { member -> member.copy(level = 10, mana = 0 of 200) }
+        val after = runUtility("quaff-amber.log", "A${caster + 1}") { actions -> actions.quaff(runtime) }
+
+        assertEquals(12 + 3 * 10, after.party.members[caster].mana.current)
     }
 
     private fun leavePrompts(): List<EquipmentCommand> =
