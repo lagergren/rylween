@@ -274,6 +274,12 @@ internal class BattleRunner(
             }
             round++
             if (round < encounter.rules.roundLimit && encounter.partyHasLivingMembers() && encounter.monsterHasLivingMembers()) {
+                if (encounter.partyHeld) {
+                    // A held party can neither fight nor run, so the monsters take the next round.
+                    showBattleMessages(encounter.rules.text.partyHeld.renderBattle())
+                    screen.writeViewCommand(RuntimeViewCommand.ClearText)
+                    continue
+                }
                 val decision = encounter.nextRoundDecision(round + 1) ?: return BattleResult(encounter.runtime)
                 if (decision.escaped) {
                     if (decision.messages.isNotEmpty()) {
