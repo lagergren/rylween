@@ -190,6 +190,8 @@ internal class Autopilot(
             CampStep.None -> Unit
         }
         if (view.request != AutopilotRequest.Key) return null
+        // Choices on screen belong to a wilderness event, such as a cave entrance, not to the command prompt.
+        if (!AutopilotMenu.parse(view.text).isEmpty()) return wildernessEvent(view)
         if (needsCamp(state)) {
             camp = CampStep.PostGuard
             return wildernessKeys.key(RuntimeCommandActionId.Camp)
@@ -200,6 +202,12 @@ internal class Autopilot(
             }
         if (state.party.position == target) return wildernessKeys.key(RuntimeCommandActionId.Enter)
         return wildernessStep(state, target) ?: stuck("no walkable path to ${target.x},${target.y}", view)
+    }
+
+    /** Answers a wilderness event prompt. Random caves are a detour the current goals never need, so the party leaves. */
+    private fun wildernessEvent(view: AutopilotView): Char? {
+        val cave = systems.commands.getValue(RuntimeCommandGroupId.WildernessCave.id)
+        return cave.key(RuntimeCommandActionId.Leave).takeIf { key -> view.text.offers(cave.binding(RuntimeCommandActionId.Leave)) }
     }
 
     /**
