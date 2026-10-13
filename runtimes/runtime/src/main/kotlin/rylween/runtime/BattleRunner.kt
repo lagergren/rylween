@@ -167,7 +167,7 @@ internal class BattleRunner(
             val choice = input.readCommand() ?: return BattleResult(runtime)
             when {
                 rules.openingKeys.run.matches(choice) -> {
-                    val outcome = attemptRun(started).also(::playRunCue)
+                    val outcome = attemptOpeningRun(started).also(::playRunCue)
                     return if (outcome.escaped) {
                         BattleResult(outcome.encounter.runtimeAfterBattle(), outcome.messages)
                     } else {
@@ -189,39 +189,62 @@ internal class BattleRunner(
         audio.cue(if (outcome.escaped) AudioCue.RunAway else AudioCue.RunFail)
     }
 
-    private fun attemptRun(encounter: BattleEncounter): BattleRunOutcome {
+    /** The opening Run: a draw below the flee chance escapes, and the party forfeits the battle's experience. */
+    private fun attemptOpeningRun(encounter: BattleEncounter): BattleRunOutcome {
         val rules = encounter.rules
-        if (encounter.mandatory) {
-            return BattleRunOutcome(
-                encounter = encounter,
-                escaped = false,
-                messages = rules.text.runFailAway.renderBattle(),
-            )
-        }
+        if (encounter.mandatory) return encounter.failedRun(rules.text.runDesperateFail)
+        val chance = rules.opening.fleeChancePercent
+        return rollRun(encounter, "battle.flee", rules.text.runCoward, "threshold_lt" to chance) { draw -> draw < chance }
+    }
+
+    /** Running between rounds is a desperate flee that escapes only on a draw at or above the desperate flee chance. */
+    private fun attemptDesperateRun(encounter: BattleEncounter): BattleRunOutcome {
+        val rules = encounter.rules
+        if (encounter.mandatory) return encounter.failedRun(rules.text.runFailAway)
+        val chance = rules.opening.desperateFleeChancePercent
+        return rollRun(encounter, "battle.flee_desperate", rules.text.runEscaped, "threshold_ge" to chance) { draw -> draw >= chance }
+    }
+
+    private fun BattleEncounter.failedRun(text: ExternalRuntimeTextBlock): BattleRunOutcome =
+        BattleRunOutcome(
+            encounter = this,
+            escaped = false,
+            messages = text.renderBattle(),
+        )
+
+    /** Draws for a flee from a non-mandatory encounter; the always-run secret escapes without a draw. */
+    private fun rollRun(
+        encounter: BattleEncounter,
+        context: String,
+        escapedText: ExternalRuntimeTextBlock,
+        threshold: Pair<String, Int>,
+        escapes: (Int) -> Boolean,
+    ): BattleRunOutcome {
+        val rules = encounter.rules
         if (encounter.runtime.alwaysRunFromNonMandatoryEncounters) {
             log.event("battle.flee_secret_always user=${encounter.runtime.activeUserId.orEmpty()}")
             return BattleRunOutcome(
                 encounter = encounter,
                 escaped = true,
-                messages = rules.text.runEscaped.renderBattle(),
+                messages = escapedText.renderBattle(),
             )
         }
         val draw = encounter.runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
-        val escaped = draw.value < rules.opening.fleeChancePercent
+        val escaped = escapes(draw.value)
         log.rngDraw(
-            context = "battle.flee",
+            context = context,
             lo = 0,
             hi = RANDOM_PERCENT_MAX,
             value = draw.value,
             hit = escaped,
-            details = mapOf("threshold_lt" to rules.opening.fleeChancePercent),
+            details = mapOf(threshold),
         )
         val runtime = encounter.runtime.withParty(draw.party)
         return if (escaped) {
             BattleRunOutcome(
                 encounter = encounter.copy(runtime = runtime),
                 escaped = true,
-                messages = rules.text.runEscaped.renderBattle(),
+                messages = escapedText.renderBattle(),
             )
         } else {
             BattleRunOutcome(
@@ -339,7 +362,7 @@ internal class BattleRunner(
                         messages = emptyList(),
                     )
 
-                rules.openingKeys.run.matches(choice) -> return attemptRun(this).also(::playRunCue)
+                rules.openingKeys.run.matches(choice) -> return attemptDesperateRun(this).also(::playRunCue)
 
                 else -> screen.writeText(rules.text.notPossible.renderBattle())
             }

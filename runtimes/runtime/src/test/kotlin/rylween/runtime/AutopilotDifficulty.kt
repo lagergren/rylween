@@ -56,7 +56,7 @@ internal data class AutopilotDifficulty(
                 churchRaises = shown.count { line -> line.startsWith("The priestess raises") },
                 gemRevivals = shown.count { line -> "opens" in line && "eyes!" in line && "eyelids" !in line },
                 battles = shown.count { line -> line.trim() == "You face" },
-                fled = shown.count { line -> line.startsWith("You escaped") },
+                fled = shown.count { line -> line.startsWith("You escaped") || line.startsWith("Coward.") },
                 castleRetreats = shown.count { line -> line.startsWith("And you are outside") },
                 banishes = shown.count { line -> "deafening clap" in line },
                 townVisits = stats.townVisits,
