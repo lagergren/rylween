@@ -742,10 +742,12 @@ internal object SaveFile {
                     ),
                 weaponSkill = intOrDefault("$prefix.weaponSkill", member.weaponSkill),
                 wisdom = intOrDefault("$prefix.wisdom", member.wisdom),
+                // Spell points refill up to wisdom. Saves from before level-ups raised the maximum with wisdom kept a
+                // caster's starting maximum, so a smaller saved maximum is raised to wisdom.
                 mana =
                     StatPool(
                         intOrDefault("$prefix.magic", member.mana.current),
-                        intOrDefault("$prefix.magicMax", member.mana.max),
+                        maxOf(intOrDefault("$prefix.magicMax", member.mana.max), intOrDefault("$prefix.wisdom", member.wisdom)),
                     ),
                 charisma = intOrDefault("$prefix.charisma", member.charisma),
                 dexterity = requiredInt("$prefix.dexterity"),
