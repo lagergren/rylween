@@ -45,9 +45,19 @@ internal class UtilityActions(
 ) {
     private val audio = RuntimeAudio(systems.audio, screen)
 
+    /**
+     * Drops one carried item, leaving behind the food the party can no longer
+     * carry without it. The outcome stays on screen as a notice.
+     */
     fun drop(runtime: RuntimeState): RuntimeState {
         val choices = runtime.party.inventory.filter { slot -> slot.item != null }
-        if (choices.isEmpty()) return runtime
+        if (choices.isEmpty()) {
+            screen.showMessage(
+                systems.prompts.party.dropEmptySlot
+                    .renderUtility(runtime),
+            )
+            return runtime
+        }
         val lines =
             screen.inventoryPickerLines(
                 systems.prompts.party.dropPrompt
@@ -56,9 +66,22 @@ internal class UtilityActions(
                 returnCancelLines(),
             )
         screen.writeText(lines)
-        val slot = chooseInventorySlot(lines, choices) ?: return runtime
+        val slot = chooseInventorySlot(lines, choices)
+        val item = slot?.let(runtime.party::inventoryItem)
+        if (slot == null || item == null) {
+            screen.showMessage(
+                systems.prompts.party.dropAborted
+                    .renderUtility(runtime),
+            )
+            return runtime
+        }
         audio.cue(AudioCue.Drop)
-        return runtime.withParty(runtime.party.withInventoryItem(slot, null))
+        val carried = runtime.party.withInventoryItem(slot, null).leaveExcessFood()
+        screen.showMessage(
+            systems.prompts.party.dropDropped
+                .renderUtility(runtime, selectedItem = item) + carried.notice,
+        )
+        return runtime.withParty(carried.party)
     }
 
     fun readyWeapon(runtime: RuntimeState): RuntimeState = readyEquipment(runtime, EquipmentCommand.ReadyWeapon).shown()
@@ -267,9 +290,10 @@ internal class UtilityActions(
         val memberIndex = chooseMember(runtime) ?: return runtime
         val member = runtime.party.members.getOrNull(memberIndex) ?: return runtime
         val item = equippedItem(member).takeUnless(::isEmptyItem) ?: return runtime
-        val party = placeLooseItem(runtime.party, item) ?: return runtime
+        val carried = placeLooseItem(runtime.party, item) ?: return runtime
         audio.unready(content.slug(item), fallbackCue)
-        return runtime.withParty(party).updateMember(memberIndex, update)
+        if (carried.notice.isNotEmpty()) screen.showMessage(carried.notice)
+        return runtime.withParty(carried.party).updateMember(memberIndex, update)
     }
 
     private fun chooseInventorySlot(
@@ -284,12 +308,13 @@ internal class UtilityActions(
             audio = audio,
         )
 
+    /** Puts [item] in a free slot, or in place of an item the party drops for it; null when the party drops nothing. */
     private fun placeLooseItem(
         party: PartyState,
         item: CompiledHandleRef,
-    ): PartyState? {
+    ): CarriedFood? {
         val freeSlot = party.inventory.firstOrNull { slot -> slot.item == null }?.slot
-        if (freeSlot != null) return party.withInventoryItem(freeSlot, item)
+        if (freeSlot != null) return CarriedFood(party.withInventoryItem(freeSlot, item), emptyList())
         val replacementSlot =
             chooseDropSlotForInventoryOverflow(
                 systems = systems,
@@ -298,8 +323,10 @@ internal class UtilityActions(
                 party = party,
                 itemName = ::itemName,
             ) ?: return null
-        return party.withInventoryItem(replacementSlot, item)
+        return party.withInventoryItem(replacementSlot, item).leaveExcessFood()
     }
+
+    private fun PartyState.leaveExcessFood(): CarriedFood = leaveExcessFood(content, systems, screen.textColumns)
 
     private fun returnCancelLines(): List<String> = listOf(systems.prompts.returnLeavesLine())
 

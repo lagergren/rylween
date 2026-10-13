@@ -39,6 +39,7 @@ import rylween.dsl.PartyMemberSelection
 import rylween.dsl.PronounCase
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.PcClass
+import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RuntimeMode
 import rylween.dsl.impl.TemperatureBand
 import rylween.dsl.impl.WildernessFatigueMatch
@@ -427,7 +428,9 @@ internal class WildernessActions(
             details = mapOf("member" to memberNumber),
         )
         audio.cue(AudioCue.HuntSuccess)
-        val gained = food.value + party.leaderLevel()
+        // The party keeps only what it can carry, and the text says what it kept.
+        val room = (food.party.resourceCapacity(content, realm, Resource.Food) - food.party.resources.food).coerceAtLeast(0)
+        val gained = (food.value + party.leaderLevel()).coerceAtMost(room)
         party =
             food.party.copy(
                 resources = food.party.resources.copy(food = food.party.resources.food + gained),
