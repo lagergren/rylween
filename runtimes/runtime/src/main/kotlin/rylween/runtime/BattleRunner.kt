@@ -76,6 +76,12 @@ private const val BATTLE_MESSAGE_PAGE_LINES = 4
 private const val BATTLE_VICTORY_PAGE_LINES = 7
 
 /** Result of a battle handoff. */
+/**
+ * A monster weapon skill lowered by [penalty], as defending or a battle cry does. As in the original, a skill no
+ * higher than the penalty stays as it is, so monsters never drop to no skill at all.
+ */
+internal fun Int.loweredBy(penalty: Int): Int = if (this > penalty) this - penalty else this
+
 internal data class BattleResult(
     val runtime: RuntimeState,
     val messages: List<String> = emptyList(),
@@ -442,7 +448,7 @@ internal class BattleRunner(
         return copy(
             runtime = runtime.withMember(memberIndex, nextMember),
             defendCount = (defendCount + 1).coerceAtMost(rules.playerRound.defend.cap),
-            monsterWeaponSkill = (monsterWeaponSkill - rules.playerRound.defend.weaponSkillPenalty).coerceAtLeast(0),
+            monsterWeaponSkill = monsterWeaponSkill.loweredBy(rules.playerRound.defend.weaponSkillPenalty),
         )
     }
 
@@ -456,12 +462,7 @@ internal class BattleRunner(
         } else {
             messages += lines
         }
-        return copy(
-            monsterWeaponSkill =
-                (monsterWeaponSkill - rules.playerRound.battleCry.weaponSkillPenalty).coerceAtLeast(
-                    0,
-                ),
-        )
+        return copy(monsterWeaponSkill = monsterWeaponSkill.loweredBy(rules.playerRound.battleCry.weaponSkillPenalty))
     }
 
     private fun BattleEncounter.useMagicItem(

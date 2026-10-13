@@ -86,6 +86,15 @@ class BattleRunnerTest {
         assertEquals(after.wisdom, after.mana.max)
     }
 
+    @Test
+    fun defendingAndBattleCriesLowerMonsterWeaponSkillOnlyWhileItIsAboveThePenalty() {
+        assertEquals(1, 5.loweredBy(4))
+        assertEquals(4, 4.loweredBy(4))
+        assertEquals(3, 3.loweredBy(4))
+        assertEquals(1, 3.loweredBy(2))
+        assertEquals(2, 2.loweredBy(2))
+    }
+
     private companion object {
         const val ROUNDS = 20
     }
