@@ -7,6 +7,7 @@ import rylween.compiled.CompiledRandomNpcPlacementOption
 import rylween.compiled.CompiledStateImage
 import rylween.compiled.CompiledTrigger
 import rylween.compiled.CompiledWorldPosition
+import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
@@ -15,6 +16,7 @@ import rylween.dsl.impl.GridPoint
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -121,6 +123,47 @@ class WildernessReachabilityTest {
         assertContains(screen.lines, "You enter the hut.")
         assertContains(screen.lines, "1. Marcus, Hermit")
         assertTrue(screen.lines.any { line -> line.startsWith("Marcus") }, screen.lines.takeLast(40).joinToString("\n"))
+    }
+
+    /** Leaving a quest dungeon at its entrance, or climbing out before its last level, keeps the quest open. */
+    @Test
+    fun aQuestDungeonLeftEarlyCanBeEnteredAgain() {
+        val start = RuntimeState.from(newGame, content)
+        val crypt = start.locations.single { placement -> content.slug(placement.location) == "nolrim_crypt" }.point
+        val beside = AutopilotDirection.entries.map { direction -> direction.from(crypt) }.first { point -> world.terrainAt(point)?.passable == true }
+        val flag = content.flags.single { flag -> content.slug(flag.id) == "master_crown" }
+        val borinMet = flag.states.single { state -> content.slug(state.id) == "master_crown.borin_met" }.id
+        // No random state, so no wilderness event interrupts the walk.
+        val party =
+            start.party.copy(
+                position = beside,
+                flags = start.party.flags - flag.states.map { state -> state.id }.toSet() + borinMet,
+                rngState = null,
+            )
+        val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).also(File::mkdirs)
+        val hash = bundleFile.readExternalCompiledBundleContentHash()
+        val load = testTmp.resolve("crypt-reentry-start.rsave").also(File::delete)
+        SaveFile.write(load, start.withParty(party), hash, content, "crypt-test", null)
+        val on = walkKeys(beside, crypt)
+        val off = walkKeys(crypt, beside)
+        val ascend = systems.commands.getValue(RuntimeCommandGroupId.Dungeon.id).key(RuntimeCommandActionId.Ascend)
+        val screen = TextCapturingScreen()
+        RuntimeLog.open(testTmp.resolve("crypt-reentry.log")).use { log ->
+            RuntimeSessionFactory.load(bundle, systems, hash).start(
+                input = ScriptedInput("${on}L$off${on}E\n$ascend$off${on}L"),
+                screen = screen,
+                config =
+                    RuntimeSessionConfig(
+                        userId = "crypt-test",
+                        stateSlug = "fresh-replay",
+                        loadFile = load,
+                        saveFile = testTmp.resolve("crypt-reentry.rsave").also(File::delete),
+                    ),
+                log = log,
+            )
+        }
+
+        assertEquals(3, screen.lines.count { line -> line == "Before you is the crypt" }, screen.lines.joinToString("\n"))
     }
 
     private fun walkKeys(

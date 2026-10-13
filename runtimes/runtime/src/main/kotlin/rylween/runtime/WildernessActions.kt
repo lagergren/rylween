@@ -13,8 +13,11 @@ import rylween.compiled.CompiledBoolExpr
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
+import rylween.compiled.CompiledInstruction
 import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledMission
+import rylween.compiled.CompiledOpcode
+import rylween.compiled.CompiledOperand
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledTerrain
 import rylween.compiled.CompiledTrigger
@@ -272,9 +275,27 @@ internal class WildernessActions(
         val ran =
             ScriptExecutor(content, systems, input, screen, this, log = log)
                 .execute(program)
-        if (ran.currentMode != RuntimeMode.Dungeon) return ran.withCompletedMission(mission.id)
-        return ran.copy(dungeon = ran.dungeon?.copy(pendingMission = mission.id))
+        // A mission that opens a dungeon stays open, as in the original game: leaving at the entrance, or climbing
+        // out before the last level, must not lock its quest. Its requirement closes it once the dungeon's final
+        // event moves the story on.
+        if (program.instructions.entersDungeon()) return ran
+        return ran.withCompletedMission(mission.id)
     }
+
+    /** Whether these instructions, or a block nested in them such as a menu option, enter a dungeon. */
+    private fun List<CompiledInstruction>.entersDungeon(): Boolean =
+        any { instruction ->
+            instruction.opcode == CompiledOpcode.EnterDungeon ||
+                instruction.operands.any { operand ->
+                    when (operand) {
+                        is CompiledOperand.Instructions -> operand.instructions.entersDungeon()
+                        is CompiledOperand.SwitchCases -> operand.cases.any { case -> case.body.entersDungeon() }
+                        is CompiledOperand.MenuOptions -> operand.options.any { option -> option.body.entersDungeon() }
+                        is CompiledOperand.TextAnswer -> operand.answer.matchOps.entersDungeon() || operand.answer.missOps.entersDungeon()
+                        else -> false
+                    }
+                }
+        }
 
     private fun RuntimeInputPort.readCommandFromPrompt(lines: List<String>): Char? {
         screen.writeText(lines)

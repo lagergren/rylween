@@ -33,7 +33,6 @@ data class DungeonState(
     val maxDepth: Int,
     val depth: Int,
     val levelEvents: Map<Int, CompiledHandleRef>,
-    val pendingMission: CompiledHandleRef? = null,
     val postDungeon: ScriptContinuationState? = null,
 )
 
@@ -141,8 +140,7 @@ internal class DungeonRuntime(
                     .renderDungeon(dungeon.depth, screen.textColumns),
             )
             val exited = runtime.copy(currentMode = RuntimeMode.Wilderness, currentTown = null, dungeon = null)
-            val resumed = dungeon.postDungeon?.let { continuation -> resumePostDungeon(exited, continuation) } ?: exited
-            return dungeon.pendingMission?.let(resumed::withCompletedMission) ?: resumed
+            return dungeon.postDungeon?.let { continuation -> resumePostDungeon(exited, continuation) } ?: exited
         }
         val nextDepth = dungeon.depth - 1
         val next = runtime.copy(dungeon = dungeon.copy(depth = nextDepth))
@@ -248,7 +246,6 @@ internal fun RuntimeState.enterDungeon(
     dungeon: CompiledHandleRef,
     levels: Int,
     postDungeon: ScriptContinuationState? = null,
-    pendingMission: CompiledHandleRef? = null,
     log: RuntimeLog,
 ): RuntimeState {
     var plannedParty = party
@@ -281,7 +278,6 @@ internal fun RuntimeState.enterDungeon(
                 maxDepth = maxDepth,
                 depth = 1,
                 levelEvents = randomEvents + fixedEvents,
-                pendingMission = pendingMission,
                 postDungeon = postDungeon,
             ),
         castle = null,

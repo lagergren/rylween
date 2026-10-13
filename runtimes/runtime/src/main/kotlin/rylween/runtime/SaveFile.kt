@@ -368,7 +368,6 @@ internal object SaveFile {
         put("dungeon.id", content.slug(dungeon.dungeon))
         put("dungeon.maxDepth", dungeon.maxDepth.toString())
         put("dungeon.depth", dungeon.depth.toString())
-        put("dungeon.pendingMission", dungeon.pendingMission?.let(content::slug).orEmpty())
         put(
             "dungeon.levelEvents",
             dungeon.levelEvents.entries
@@ -602,7 +601,6 @@ internal object SaveFile {
                         val parts = token.split(':')
                         parts[0].toInt() to content.ref(CompiledHandleKind.DungeonEvent, parts[1])
                     }.orEmpty(),
-            pendingMission = optionalHandle("dungeon.pendingMission", CompiledHandleKind.Mission, content),
             postDungeon = readPostDungeon(content),
         )
     }
