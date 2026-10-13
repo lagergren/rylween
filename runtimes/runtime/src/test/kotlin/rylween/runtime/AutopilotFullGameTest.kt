@@ -100,9 +100,13 @@ class AutopilotFullGameTest {
         val actions = AutopilotActions(systems)
         val quitAfterLoading =
             object : AutopilotPlan {
+                private var playedOn = false
+
                 override fun done(state: RuntimeState): Boolean = false
 
-                override fun wilderness(state: RuntimeState): AutopilotAction = actions.quit()
+                // The first quit is called off at the confirmation, so both answers get used.
+                override fun wilderness(state: RuntimeState): AutopilotAction =
+                    if (playedOn) actions.quit() else actions.quit(confirm = false).also { playedOn = true }
 
                 override fun dungeon(state: RuntimeState): AutopilotAction = actions.ascend()
             }

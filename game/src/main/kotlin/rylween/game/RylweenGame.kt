@@ -817,7 +817,15 @@ val authoredRylween: RylweenModel =
                     notInWilderness = literalText("The active party is not in the wilderness.")
                     nothingToEnter = literalText("There is nothing to enter here.")
                     impassable = literalText("Impassable.")
-                    quitConfirm = flowText("Do you really want to quit?")
+                    quitConfirm =
+                        literalText(
+                            """
+                            Do you really want to quit?
+
+                            (Y)es
+                            (N)o
+                            """,
+                        )
                     dungeonHandoff {
                         line("Entering ", dungeonName, ".")
                         line("Levels: ", levels)

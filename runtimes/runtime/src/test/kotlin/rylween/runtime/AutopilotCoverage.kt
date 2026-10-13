@@ -18,11 +18,8 @@ internal class AutopilotCoverage(
 ) {
     private val used = mutableSetOf<String>()
 
-    /**
-     * Command groups a player never meets: the debugging keys, and the out-of-moves and quit-confirmation prompts the
-     * bundle compiles but no runtime shows.
-     */
-    private val debugGroups = setOf("wilderness.debug", "wilderness.outOfMoves", "wilderness.quitConfirm")
+    /** The debugging keys, which a player never meets. */
+    private val debugGroups = setOf("wilderness.debug")
 
     /** Whether the run has used [name] of [kind]. */
     fun used(

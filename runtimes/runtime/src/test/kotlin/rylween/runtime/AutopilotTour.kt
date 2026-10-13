@@ -49,8 +49,7 @@ internal class AutopilotTour(
             pending(RuntimeCommandActionId.Help) -> single(group, commands, RuntimeCommandActionId.Help)
             pending(RuntimeCommandActionId.ViewParty) -> viewParty(group, commands)
             pending(RuntimeCommandActionId.Pass) -> single(group, commands, RuntimeCommandActionId.Pass)
-            pending(RuntimeCommandActionId.Save) && state.currentMode != RuntimeMode.Wilderness ->
-                single(group, commands, RuntimeCommandActionId.Save)
+            pending(RuntimeCommandActionId.Save) -> single(group, commands, RuntimeCommandActionId.Save)
             pending(RuntimeCommandActionId.Drop) && dispensable != null -> drop(group, commands, dispensable)
             (pending(RuntimeCommandActionId.RemoveWeapon) || pending(RuntimeCommandActionId.ReadyWeapon)) ->
                 swap(state, group, commands, AutopilotGear.Weapon)

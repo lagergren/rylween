@@ -43,6 +43,7 @@ internal class AutopilotActions(
 ) {
     private val wilderness = systems.commands.getValue(RuntimeCommandGroupId.Wilderness.id)
     private val dungeon = systems.commands.getValue(RuntimeCommandGroupId.Dungeon.id)
+    private val quitConfirm = systems.commands.getValue(RuntimeCommandGroupId.WildernessQuitConfirm.id)
 
     /** The commands of the place the party is in: the wilderness, a dungeon, or a castle floor. */
     fun commandsAt(state: RuntimeState): List<ExternalRuntimeCommand> =
@@ -56,9 +57,19 @@ internal class AutopilotActions(
 
     fun enter(): AutopilotAction = single("enter", wilderness.key(RuntimeCommandActionId.Enter))
 
-    fun save(): AutopilotAction = single("save", wilderness.key(RuntimeCommandActionId.Save))
-
-    fun quit(): AutopilotAction = single("quit", wilderness.key(RuntimeCommandActionId.Quit))
+    /** Quits from the wilderness and answers the confirmation: yes, or no to play on when [confirm] is false. */
+    fun quit(confirm: Boolean = true): AutopilotAction =
+        AutopilotAction(
+            if (confirm) "quit" else "start to quit, then play on",
+            listOf(
+                { wilderness.key(RuntimeCommandActionId.Quit) },
+                { view ->
+                    quitConfirm
+                        .key(if (confirm) RuntimeCommandActionId.Yes else RuntimeCommandActionId.No)
+                        .takeIf { view.text.any { line -> QUIT_QUESTION in line } }
+                },
+            ),
+        )
 
     fun readJournal(): AutopilotAction = single("read the journal", wilderness.key(RuntimeCommandActionId.Journal))
 
@@ -187,6 +198,11 @@ internal class AutopilotActions(
         name: String,
         key: Char,
     ): AutopilotAction = AutopilotAction(name, listOf { key })
+
+    companion object {
+        /** What the wilderness asks before quitting. */
+        const val QUIT_QUESTION = "really want to quit"
+    }
 }
 
 internal fun List<ExternalRuntimeCommand>.key(action: RuntimeCommandActionId): Char =

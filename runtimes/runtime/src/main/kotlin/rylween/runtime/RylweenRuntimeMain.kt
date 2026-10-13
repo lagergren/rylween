@@ -550,6 +550,7 @@ class GameRuntime private constructor(
                     }
                     else -> Unit
                 }
+                if (runtime.party.resources.timeLeft <= 0) return endOfMoves(runtime, saveContext, screen, input, log)
                 val command = input.readCommand()
                 log.event("wilderness.command key=${command ?: "null"} position=${runtime.logPosition()}")
                 var moveEvent: MoveEvent? = null
@@ -557,7 +558,13 @@ class GameRuntime private constructor(
                 val advanceTurn =
                     when {
                         command == null -> return input.exitResult()
-                        commands.matches(RuntimeCommandActionId.Quit, command) -> return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
+                        commands.matches(RuntimeCommandActionId.Quit, command) ->
+                            when (confirmQuit(runtime, screen, input, log)) {
+                                null -> return input.exitResult()
+                                true -> return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
+                                false -> false
+                            }
+
                         commands.matches(RuntimeCommandActionId.MoveNorth, command) -> {
                             val move = move(runtime.party, world, 0, -1, screen)
                             runtime =
@@ -1433,6 +1440,54 @@ class GameRuntime private constructor(
             .map(ExternalRuntimeCommand::runtimeMnemonicLine)
             .chunked(TEXT_WINDOW_PAGE_LINES)
             .ifEmpty { listOf(runtimeChromeText("Press ? for commands.")) }
+
+    /**
+     * Ends the session once the party has no moves left, as the original did: the player saves and quits, or quits
+     * without saving, and a new day brings new moves.
+     */
+    private fun endOfMoves(
+        runtime: RuntimeState,
+        save: RuntimeSaveContext,
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
+        log: RuntimeLog,
+    ): RuntimeSessionResult {
+        val choices = WildernessCommands.from(systems, RuntimeCommandGroupId.WildernessOutOfMoves)
+        val lines =
+            systems.prompts.wilderness.outOfMoves
+                .renderRuntimeText(content, runtime, screen.textColumns)
+        screen.writeText(lines)
+        val choice =
+            input.readValidChoice(screen, lines) { command ->
+                choices.matches(RuntimeCommandActionId.Save, command) || choices.matches(RuntimeCommandActionId.Quit, command)
+            } ?: return input.exitResult()
+        val saving = choices.matches(RuntimeCommandActionId.Save, choice)
+        log.event("wilderness.out_of_moves save=$saving position=${runtime.logPosition()}")
+        if (saving) saveRuntime(runtime, save, screen, log)
+        return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
+    }
+
+    /**
+     * Asks whether the player really wants to quit, which leaves without saving. As in the original, any key but yes
+     * keeps playing. `null` when the input ran out.
+     */
+    private fun confirmQuit(
+        runtime: RuntimeState,
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
+        log: RuntimeLog,
+    ): Boolean? {
+        val answers = WildernessCommands.from(systems, RuntimeCommandGroupId.WildernessQuitConfirm)
+        screen.writeText(
+            systems.prompts.wilderness.quitConfirm
+                .renderRuntimeText(content, runtime, screen.textColumns),
+        )
+        val answer = input.readCommand() ?: return null
+        val quitting = answers.matches(RuntimeCommandActionId.Yes, answer)
+        log.event("wilderness.quit_confirm key=$answer quit=$quitting")
+        if (!quitting) screen.writeViewCommand(RuntimeViewCommand.ClearText)
+        return quitting
+    }
 
     private fun saveRuntime(
         runtime: RuntimeState,

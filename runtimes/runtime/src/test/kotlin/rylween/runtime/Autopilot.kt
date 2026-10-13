@@ -111,6 +111,7 @@ internal class Autopilot(
             title?.key(view)
                 ?: creation?.key(view)
                 ?: pausePrompt(view)
+                ?: dayEnd(view)
                 ?: battleKey(view)
                 ?: action?.next(view)
                 ?: townKey(view)
@@ -153,6 +154,18 @@ internal class Autopilot(
                 last == systems.prompts.returnKeyLabel() ||
                 isRuntimeDocumentPrompt(last)
         return '\n'.takeIf { isPause }
+    }
+
+    /**
+     * Ends the day once the party has no moves left: saves and quits. The first time, it quits without saving instead,
+     * so that day starts over from its own beginning.
+     */
+    private fun dayEnd(view: AutopilotView): Char? {
+        if (view.text.none { line -> OUT_OF_MOVES in line }) return null
+        action = null
+        val group = RuntimeCommandGroupId.WildernessOutOfMoves.id
+        val choice = if (coverage.used(group, RuntimeCommandActionId.Quit.id)) RuntimeCommandActionId.Save else RuntimeCommandActionId.Quit
+        return systems.commands.getValue(group).key(choice)
     }
 
     private fun battleKey(view: AutopilotView): Char? {
@@ -410,7 +423,10 @@ internal class Autopilot(
     private var lookedWest = false
     private var lookedNorth = false
 
-    /** Records the menu option [key] chose on [view]'s screen, for menus whose options are command labels. */
+    /**
+     * Records the menu option [key] chose on [view]'s screen, for menus whose options are command labels, and the
+     * answer to the end-of-day and quit questions, whose options are not.
+     */
     private fun recordChoice(
         view: AutopilotView,
         key: Char,
@@ -418,6 +434,10 @@ internal class Autopilot(
         val menu = AutopilotMenu.parse(view.text.ifEmpty { view.prompt })
         menu.options.firstOrNull { option -> option.key.equals(key, ignoreCase = true) }?.let { option ->
             coverage.recordLabel(option.label, menu.options.map { shown -> shown.label })
+        }
+        when {
+            view.text.any { line -> OUT_OF_MOVES in line } -> coverage.recordKey(RuntimeCommandGroupId.WildernessOutOfMoves.id, key)
+            view.text.any { line -> AutopilotActions.QUIT_QUESTION in line } -> coverage.recordKey(RuntimeCommandGroupId.WildernessQuitConfirm.id, key)
         }
     }
 
@@ -484,6 +504,7 @@ internal class Autopilot(
         const val HEALTHY_SHARE = 0.6
         const val TREASURE_FREE_SLOTS = 3
         const val MONSTER_SPELLS = "monster."
+        const val OUT_OF_MOVES = "out of moves for today"
 
         /** Daily moves the tour leaves alone, so trying a command never strands the party at the end of a day. */
         const val TOUR_MOVES = 20

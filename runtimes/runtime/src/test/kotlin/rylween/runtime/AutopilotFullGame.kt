@@ -114,7 +114,6 @@ internal class AutopilotFullGamePlan(
             name to flag.states.map { state -> content.slug(state.id).removePrefix("$name.") }
         }
     private val journal = AutopilotJournal(content)
-    private var endingDay = false
 
     /** The dungeon whose wandering monsters the priest has banished on this visit. */
     private var banishedIn: CompiledHandleRef? = null
@@ -139,7 +138,6 @@ internal class AutopilotFullGamePlan(
         crawl.left()
         banishedIn = null
         hutPartner = null
-        endOfDay(state)?.let { return it }
         readJournal(state)?.let { return it }
         upkeep(state)?.let { return it }
         quaff(state)?.let { return it }
@@ -332,16 +330,6 @@ internal class AutopilotFullGamePlan(
 
     private fun talkAnswers(state: RuntimeState): List<String> =
         (currentStep(state).objective as? AutopilotObjective.TalkTo)?.answers ?: listOf("Yes", "Accept")
-
-    /** Saves and quits once the day's moves are spent: the next session gets a fresh day's allowance. */
-    private fun endOfDay(state: RuntimeState): AutopilotAction? {
-        if (state.party.resources.timeLeft > 0) {
-            endingDay = false
-            return null
-        }
-        endingDay = !endingDay
-        return if (endingDay) actions.save() else actions.quit()
-    }
 
     /**
      * Drinks a healing potion for the most hurt member when the priest cannot heal: the potion heals more the higher
