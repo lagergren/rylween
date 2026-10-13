@@ -44,13 +44,25 @@ internal class Autopilot(
     private val systems: ExternalRuntimeSystems,
     private val plan: AutopilotPlan,
     private val creation: AutopilotCreation? = null,
+    /** What the run has used of everything the game offers; a later session of the same run passes it on. */
+    val coverage: AutopilotCoverage = AutopilotCoverage(content, systems),
+    private val title: AutopilotTitleTour? = null,
 ) {
     val stats = AutopilotStats()
+
+    private val tour = AutopilotTour(content, systems, coverage)
+    // Monsters cast spells of the same names, such as Frost Finger, so only the party's spells are looked up by name.
+    private val spellSlugs =
+        content.spells
+            .filterNot { spell -> content.slug(spell.id).startsWith(MONSTER_SPELLS) }
+            .associate { spell -> content.strings.value(spell.nameString) to content.slug(spell.id) }
     private val party = AutopilotParty(content)
     private val battle = checkNotNull(systems.combat.standardBattle) { "bundle has no standard battle rules" }
     private val attackKey = battle.actionKey(CombatActionKind.Attack)
     private val castKey = battle.actionKey(CombatActionKind.CastMageSpell)
     private val useItemKey = battle.actionKey(CombatActionKind.UseMagicItem)
+    private val defendKey = battle.actionKey(CombatActionKind.Defend)
+    private val battleCryKey = battle.actionKey(CombatActionKind.BattleCry)
     private val tactics = AutopilotBattle(content, systems)
     private val wildernessKeys = systems.commands.getValue(RuntimeCommandGroupId.Wilderness.id)
     private var action: AutopilotAction? = null
@@ -96,7 +108,8 @@ internal class Autopilot(
             return wildernessKeys.key(RuntimeCommandActionId.Save)
         }
         val key =
-            creation?.key(view)
+            title?.key(view)
+                ?: creation?.key(view)
                 ?: pausePrompt(view)
                 ?: battleKey(view)
                 ?: action?.next(view)
@@ -109,6 +122,7 @@ internal class Autopilot(
                 }
                 ?: stuck("no rule for a ${state.currentMode} prompt", view)
         guardAgainstLoops(view, key)
+        recordChoice(view, key)
         return key
     }
 
@@ -195,19 +209,38 @@ internal class Autopilot(
             tactics.battleItem(view.state.party)?.let { use ->
                 pendingItem = use
                 stats.battleItems++
+                coverage.record("battle", CombatActionKind.UseMagicItem.name)
                 return useItemKey
             }
         }
         val name = lines.getOrNull(lines.indexOfFirst { line -> line.trim() == "What now?" } - 1)?.trim()
         val actor = name?.let { party.named(view.state.party, it) }
+        val mage = actor?.takeIf { member -> member.member.pcClass == PcClass.Mage && lines.any { line -> line.offersChoiceKey(castKey.toString()) } }
+        if (!tactics.escapeHopeless && !dangerous(view.state.party)) {
+            val caster = mage?.let { member -> AutopilotCaster(member.member.level, member.member.mana.current) }
+            when (val choice = tour.battleAction(tactics.currentFoes, caster)) {
+                is AutopilotBattleTour.Action -> {
+                    coverage.record("battle", choice.kind.name)
+                    return if (choice.kind == CombatActionKind.Defend) defendKey else battleCryKey
+                }
+                is AutopilotBattleTour.Spell -> return cast(choice.name)
+                null -> Unit
+            }
+        }
         val spell =
-            actor
-                ?.takeIf { member -> member.member.pcClass == PcClass.Mage && lines.any { line -> line.offersChoiceKey(castKey.toString()) } }
+            mage
                 ?.takeIf { !plan.conserveMana(view.state) || tactics.escapeHopeless || dangerous(view.state.party) }
-                ?.let { member -> tactics.mageSpell(member.member) }
-        if (spell == null) return attackKey
+                ?.let { member -> tactics.mageSpell(member.member, view.state.party) }
+        if (spell == null) return attackKey.also { coverage.record("battle", CombatActionKind.Attack.name) }
+        return cast(spell)
+    }
+
+    /** Has the acting mage cast [spell]; the spell menu that follows is answered from [pendingSpell]. */
+    private fun cast(spell: String): Char {
         pendingSpell = spell
         stats.mageSpells++
+        coverage.record("battle", CombatActionKind.CastMageSpell.name)
+        spellSlugs[spell]?.let { slug -> coverage.record("spell", slug) }
         return castKey
     }
 
@@ -233,7 +266,12 @@ internal class Autopilot(
     }
 
     private fun startTownVisit(state: RuntimeState): AutopilotTownVisit =
-        AutopilotTownVisit(plan.townErrands(state)) { gear -> plan.readyOnLeave(latest ?: state, gear) }.also { visit ->
+        AutopilotTownVisit(
+            errands = plan.townErrands(state) + tour.townErrands(state),
+            readyOnLeave = { gear -> plan.readyOnLeave(latest ?: state, gear) },
+            coverage = coverage,
+            party = party,
+        ).also { visit ->
             town = visit
             stats.townVisits++
         }
@@ -248,17 +286,32 @@ internal class Autopilot(
         // last saw is stale until the game redraws it.
         if (refreshNeeded && view.state.currentMode == RuntimeMode.Wilderness) {
             refreshNeeded = false
+            coverage.record(RuntimeCommandGroupId.Wilderness.id, RuntimeCommandActionId.Redraw.id)
             return wildernessKeys.key(RuntimeCommandActionId.Redraw)
         }
-        val started = next()
+        val group = if (view.state.currentMode == RuntimeMode.Dungeon) RuntimeCommandGroupId.Dungeon.id else RuntimeCommandGroupId.Wilderness.id
+        val touring = view.state.currentMode == RuntimeMode.Dungeon || view.state.party.resources.timeLeft > TOUR_MOVES
+        val started = tour.commandStop(view.state, group, plan.dispensable(view.state)).takeIf { touring } ?: next()
         guardAgainstRepeatedActions(started, view.state, view)
         refreshNeeded = !started.name.startsWith("move ")
+        return begin(started, view, group)
+    }
+
+    /** Starts [started] at a command prompt of [group], counting what it uses, and returns its first key. */
+    private fun begin(
+        started: AutopilotAction,
+        view: AutopilotView,
+        group: String,
+    ): Char? {
         action = started
         when {
-            started.name.startsWith("cast ") -> stats.priestSpells++
+            started.name.startsWith("cast ") -> {
+                stats.priestSpells++
+                spellSlugs[started.name.removePrefix("cast ").substringBefore(" with")]?.let { slug -> coverage.record("spell", slug) }
+            }
             started.name.startsWith("hunt ") -> stats.hunts++
         }
-        return started.next(view)
+        return started.next(view)?.also { key -> coverage.recordKey(group, key) }
     }
 
     /**
@@ -273,7 +326,10 @@ internal class Autopilot(
             // A full inventory offers to drop something for a reward; RETURN declines and keeps the inventory.
             "Drop an item?" in text -> '\n'
             menu.isEmpty() -> null
-            "You find a cave!" in text -> plan.sceneChoice(view, menu) ?: menu.find("Leave")?.key
+            "You find a cave!" in text ->
+                (plan.sceneChoice(view, menu) ?: menu.find(if (tour.wantsCave(view.state)) "Enter" else "Leave")?.key)?.also { key ->
+                    coverage.recordKey(RuntimeCommandGroupId.WildernessCave.id, key)
+                }
             menu.find("Take it") != null -> (if (party.freeSlots(view.state.party) > 1) menu.find("Take it") else menu.find("Leave"))?.key
             // Chests can be trapped, so only a healthy party opens one.
             menu.find("Open chest") != null -> (if (healthy(view.state)) menu.find("Open chest") else menu.find("Leave"))?.key
@@ -307,25 +363,62 @@ internal class Autopilot(
         val treasure = systems.commands.getValue(RuntimeCommandGroupId.castleTreasure(castle.id))
         val navigation = systems.commands.getValue(RuntimeCommandGroupId.castleNavigation(castle.id))
         val lines = view.text
+        val stairsGroup = RuntimeCommandGroupId.castleStairs(castle.id)
+        val treasureGroup = RuntimeCommandGroupId.castleTreasure(castle.id)
+        val navigationGroup = RuntimeCommandGroupId.castleNavigation(castle.id)
         when {
-            lines.offers(stairs.binding(RuntimeCommandActionId.GiveItem)) ->
-                return if (plan.climbCastle(state, lastFloor = castleState.floor == castle.stairs.floorCount)) {
-                    stairs.key(RuntimeCommandActionId.GiveItem)
-                } else {
-                    stairs.key(RuntimeCommandActionId.TeleportOut)
-                }
+            lines.offers(stairs.binding(RuntimeCommandActionId.GiveItem)) -> {
+                val climb = plan.climbCastle(state, lastFloor = castleState.floor == castle.stairs.floorCount)
+                val choice = if (climb) tour.stairsChoice() ?: RuntimeCommandActionId.GiveItem else RuntimeCommandActionId.TeleportOut
+                val key = stairs.key(choice)
+                return key.also { coverage.recordKey(stairsGroup, it) }
+            }
             lines.any { line -> line.trimStart().startsWith("1.") } -> return stairsItemDigit(state, castle)
-            lines.offers(treasure.binding(RuntimeCommandActionId.Take)) -> return treasure.key(RuntimeCommandActionId.Leave)
+            lines.offers(treasure.binding(RuntimeCommandActionId.Take)) -> {
+                val take = party.freeSlots(state.party) >= TREASURE_FREE_SLOTS && !tour.leavesTreasure()
+                val key = treasure.key(if (take) RuntimeCommandActionId.Take else RuntimeCommandActionId.Leave)
+                return key.also { coverage.recordKey(treasureGroup, it) }
+            }
         }
         // Between fights the plan may heal or revive first; castle utilities redraw the floor themselves.
         if (view.request == AutopilotRequest.Key) {
-            plan.castle(state)?.let { started ->
-                action = started
-                return started.next(view)
+            (tour.commandStop(state, navigationGroup, plan.dispensable(state)) ?: plan.castle(state))?.let { started ->
+                return begin(started, view, navigationGroup)
             }
         }
-        // Head for the stairs in the far corner: east along the first row, then south.
-        return if (castleState.point.x < castle.mapSize) navigation.key(RuntimeCommandActionId.MoveEast) else navigation.key(RuntimeCommandActionId.MoveSouth)
+        return navigation.key(castleMove(castleState, castle.mapSize)).also { coverage.recordKey(navigationGroup, it) }
+    }
+
+    /**
+     * The next step through a castle floor towards the stairs in the far corner: east along the first row, then south,
+     * the shortest way through the rooms. Once, on its first floor, the party looks back west and north at rooms it
+     * has already cleared before going on.
+     */
+    private fun castleMove(
+        castle: CastleState,
+        size: Int,
+    ): RuntimeCommandActionId {
+        val (x, y) = castle.point
+        return when {
+            !lookedWest && x == 2 && y == 1 -> RuntimeCommandActionId.MoveWest.also { lookedWest = true }
+            !lookedNorth && y == 2 -> RuntimeCommandActionId.MoveNorth.also { lookedNorth = true }
+            x < size -> RuntimeCommandActionId.MoveEast
+            else -> RuntimeCommandActionId.MoveSouth
+        }
+    }
+
+    private var lookedWest = false
+    private var lookedNorth = false
+
+    /** Records the menu option [key] chose on [view]'s screen, for menus whose options are command labels. */
+    private fun recordChoice(
+        view: AutopilotView,
+        key: Char,
+    ) {
+        val menu = AutopilotMenu.parse(view.text.ifEmpty { view.prompt })
+        menu.options.firstOrNull { option -> option.key.equals(key, ignoreCase = true) }?.let { option ->
+            coverage.recordLabel(option.label, menu.options.map { shown -> shown.label })
+        }
     }
 
     /** Offers the guardian the first artifact whose milestone the party still holds. */
@@ -389,6 +482,11 @@ internal class Autopilot(
         const val COLOR_RIDDLE_FIRST_LEVEL = 12
         val antechamberPattern = Regex("""ANTECHAMBER #(\d+)""")
         const val HEALTHY_SHARE = 0.6
+        const val TREASURE_FREE_SLOTS = 3
+        const val MONSTER_SPELLS = "monster."
+
+        /** Daily moves the tour leaves alone, so trying a command never strands the party at the end of a day. */
+        const val TOUR_MOVES = 20
 
         /** A fight is dangerous once it is expected to cost more than this share of the party's hit points. */
         const val DANGEROUS_SHARE = 0.2

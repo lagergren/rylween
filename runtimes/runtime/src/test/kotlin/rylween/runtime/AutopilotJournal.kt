@@ -16,11 +16,14 @@ import rylween.dsl.impl.GridPoint
 internal class AutopilotJournal(
     private val content: CompiledContentBundle,
 ) {
-    /** What is wrong with the journal [lines] in [state]; [target] is the location slug the current step heads for. */
+    /**
+     * What is wrong with the journal [lines] in [state]; [target] names the place the current step heads for and where
+     * it is, or `null` when the step heads for no place.
+     */
     fun problems(
         state: RuntimeState,
         lines: List<String>,
-        target: String?,
+        target: Pair<String, GridPoint?>?,
     ): List<String> {
         val text = lines.joinToString(" ")
         val places = places(state)
@@ -29,8 +32,15 @@ internal class AutopilotJournal(
                 val point = GridPoint(match.groupValues[1].toInt(), match.groupValues[2].toInt())
                 if (point !in places) add("the journal gives ${match.value}, where there is nothing to find")
             }
-            lines.mapNotNull { line -> livesPattern.find(line.trim()) }.forEach { match ->
-                val (name, where) = match.destructured
+            livesPattern.findAll(text).forEach { match ->
+                val (subject, where) = match.destructured
+                // "A fighter named Groth knows of the Crown. He lives in Wilor": a pronoun stands for the last name given.
+                val name =
+                    if (subject in pronouns) {
+                        namedPattern.findAll(text.substring(0, match.range.first)).lastOrNull()?.groupValues?.get(1) ?: return@forEach
+                    } else {
+                        subject
+                    }
                 val character = content.characters.firstOrNull { character -> content.strings.value(character.nameString) == name }
                 when (val position = character?.position(state)) {
                     null -> add("the journal says $name lives $where, but there is no $name")
@@ -44,9 +54,8 @@ internal class AutopilotJournal(
                         }
                 }
             }
-            target?.let { slug ->
-                val point = state.locations.firstOrNull { placement -> content.slug(placement.location) == slug }?.point
-                if (point == null || point.text() !in text) add("the journal does not say where $slug is (${point?.text() ?: "unplaced"})")
+            target?.let { (name, point) ->
+                if (point == null || point.text() !in text) add("the journal does not say where $name is (${point?.text() ?: "unplaced"})")
             }
         }
     }
@@ -69,6 +78,9 @@ internal class AutopilotJournal(
 
     private companion object {
         val coordinatePattern = Regex("""\b(\d{1,2})x(\d{1,2})\b""")
-        val livesPattern = Regex("""^(.+?) lives (.+?)\.?$""")
+        /** "Marraga, the ranger lives at 46x16": the name, without the job the journal adds, and where, wherever it wraps. */
+        val livesPattern = Regex("""([A-Z][\w']+)(?:, the [a-z ]+?)? lives (in [A-Z]\w+(?: at \d+x\d+)?|at \d+x\d+)""")
+        val namedPattern = Regex("""named ([A-Z][\w']+)""")
+        val pronouns = setOf("He", "She")
     }
 }

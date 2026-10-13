@@ -78,11 +78,15 @@ internal class AutopilotBattle(
     }
 
     /**
-     * The battle spell the mage [caster] should cast, or `null` to attack instead: Fire Cloud burns every foe when
-     * several still stand, Frost Finger strikes a lone one. Nothing is cast at foes immune to magic, and nothing the
-     * caster's mana cannot pay for (a spell costs its base cost plus the caster's level).
+     * The battle spell the mage [caster] should cast for [party], or `null` to attack instead: Anti Magic silences foes
+     * whose spells could kill a member outright, Fire Cloud burns every foe when several still stand, and Frost Finger
+     * strikes a lone one. Nothing is cast at foes immune to magic, and nothing the caster's mana cannot pay for (a
+     * spell costs its base cost plus the caster's level).
      */
-    fun mageSpell(caster: CompiledPartyMember): String? {
+    fun mageSpell(
+        caster: CompiledPartyMember,
+        party: PartyState,
+    ): String? {
         val foes = currentFoes
         if (foes?.monster?.immune == true) return null
         val standing = knownHitPoints?.count { hitPoints -> hitPoints > 0 } ?: foes?.count ?: 1
@@ -91,6 +95,7 @@ internal class AutopilotBattle(
             mageSpells[name]?.let { spell -> caster.mana.current >= spell.baseCost + caster.level } == true
 
         return when {
+            lethalCaster(foes, party) && affordable(ANTI_MAGIC) -> ANTI_MAGIC
             standing >= 2 && affordable(FIRE_CLOUD) -> FIRE_CLOUD
             affordable(FROST_FINGER) -> FROST_FINGER
             else -> null
@@ -131,6 +136,23 @@ internal class AutopilotBattle(
         usedItems += slug
         val item = content.items.first { record -> content.slug(record.id) == slug }
         return AutopilotItemUse(content.strings.value(item.displayNameString), target)
+    }
+
+    /**
+     * Whether the foes cast spells that could kill the weakest living member outright. A monster's spells strike for a
+     * fifth of the encounter's top hit points, which grow by three per level of the party's leader, so a boss such as
+     * Erethor kills a member with a single Frost Finger. Anti Magic silences them for a round.
+     */
+    private fun lethalCaster(
+        foes: AutopilotFoes?,
+        party: PartyState,
+    ): Boolean {
+        val monster = foes?.monster ?: return false
+        if (monster.spellPower <= 0) return false
+        val leaderLevel = party.members.firstOrNull()?.level ?: 1
+        val spellDamage = (monster.hitPoints.last + leaderLevel * LEVEL_HIT_POINTS) / SPELL_DAMAGE_DIVISOR
+        val weakest = party.members.filterNot(CompiledPartyMember::dead).minOfOrNull { member -> member.hitPoints.current } ?: return false
+        return spellDamage >= weakest
     }
 
     /**
@@ -252,6 +274,9 @@ internal class AutopilotBattle(
         const val HOPELESS_AFTER_FAILED_ESCAPES = 2
         const val FIRE_CLOUD = "Fire Cloud"
         const val FROST_FINGER = "Frost Finger"
+        const val ANTI_MAGIC = "Anti Magic"
+        const val LEVEL_HIT_POINTS = 3
+        const val SPELL_DAMAGE_DIVISOR = 5
         const val CURE_BELOW = 0.5
         const val ITEM_HEAL_BELOW = 0.3
         const val GROUP = 3

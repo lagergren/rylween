@@ -14,7 +14,9 @@ import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledOperand
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.CompiledShopPrice
+import rylween.compiled.CompiledShopService
 import rylween.compiled.CompiledTown
+import rylween.compiled.CompiledTrigger
 import rylween.compiled.CompiledWorldPosition
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeSystems
@@ -32,11 +34,11 @@ internal data class AutopilotOffer(
     val price: Int,
 )
 
-/** What the smith and the merchant sell, read from the shop catalogs compiled into the town scenes. */
+/** What the smith and the merchant sell and buy, read from the shop services compiled into the town scenes. */
 internal class AutopilotShops(
-    content: CompiledContentBundle,
+    private val content: CompiledContentBundle,
 ) {
-    private val offers: Map<String, List<AutopilotOffer>> =
+    private val services: Map<String, CompiledShopService> =
         content.scripts.roots
             .asSequence()
             .flatMap { root -> root.instructions }
@@ -44,6 +46,10 @@ internal class AutopilotShops(
             .filterIsInstance<CompiledOperand.ShopService>()
             .map { operand -> operand.service }
             .distinctBy { service -> service.building }
+            .associateBy { service -> content.slug(service.building) }
+
+    private val offers: Map<String, List<AutopilotOffer>> =
+        services.values
             .associate { service ->
                 content.slug(service.building) to
                     service.buy
@@ -61,6 +67,24 @@ internal class AutopilotShops(
     val weapons: List<AutopilotOffer> = offers["smith"].orEmpty().filter { offer -> offer.item.kind == ItemKind.Weapon }
 
     val armor: List<AutopilotOffer> = offers["smith"].orEmpty().filter { offer -> offer.item.kind == ItemKind.Armor }
+
+    /** Whether the [shop] building ("smith" or "merchant") buys [item], by its sell rules. */
+    fun buys(
+        shop: String,
+        item: CompiledItemRecord,
+    ): Boolean {
+        val sell = services[shop]?.sell ?: return false
+        return item.id !in sell.rejectedItems && (item.id in sell.acceptedItems || item.kind in sell.acceptedKinds)
+    }
+}
+
+/** Inventory items the party can do without: what the smith and the merchant buy, and what nobody buys. */
+internal data class AutopilotJunk(
+    val smith: List<String>,
+    val merchant: List<String>,
+    val unsellable: List<String>,
+) {
+    val sellable: List<String> get() = smith + merchant
 }
 
 internal class AutopilotFullGamePlan(
@@ -169,7 +193,7 @@ internal class AutopilotFullGamePlan(
         // Survival comes before saving: raising, healing, food, and torches may spend the map money; gear may not.
         var gold = p.resources.gold
         val leaderLevel = leaderLevel(p)
-        val (smithJunk, merchantJunk) = junk(p)
+        val (smithJunk, merchantJunk) = junk(p).let { junk -> junk.smith to junk.merchant }
         return buildList {
             if (smithJunk.isNotEmpty()) add(AutopilotErrand.Sell("Smith", smithJunk))
             if (merchantJunk.isNotEmpty()) add(AutopilotErrand.Sell("Merchant", merchantJunk))
@@ -254,7 +278,8 @@ internal class AutopilotFullGamePlan(
                 menu.options.firstOrNull { option -> option.label.substringBefore(',') == partner }?.key
             }
             menu.find("Bye") != null -> menu.find("Bye")?.key
-            "You find a cave!" in text -> menu.find(if (wantsCave(view.state)) "Enter" else "Leave")?.key
+            // A cave the plan has no use for is left to the autopilot's own rule.
+            "You find a cave!" in text -> menu.find("Enter")?.key?.takeIf { wantsCave(view.state) }
             partner != null -> talkAnswers(view.state).firstNotNullOfOrNull { answer -> menu.find(answer) }?.key
             else -> null
         }
@@ -267,6 +292,8 @@ internal class AutopilotFullGamePlan(
      * Answers the latest known question on screen, so an earlier riddle's words never answer a later prompt. Lines
      * are joined because the screen wraps a question wherever the column runs out.
      */
+    override fun dispensable(state: RuntimeState): String? = junk(state.party).let { junk -> junk.unsellable.firstOrNull() ?: junk.sellable.firstOrNull() }
+
     override fun observe(view: AutopilotView) {
         journalLines?.addAll(view.text)
     }
@@ -279,7 +306,12 @@ internal class AutopilotFullGamePlan(
         val step = currentStep(state)
         journalLines?.let { lines ->
             journalLines = null
-            val target = (step.objective as? AutopilotObjective.Reach)?.location?.takeIf { step != castleStep }
+            val target =
+                when (val objective = step.objective) {
+                    is AutopilotObjective.Reach -> objective.location.takeIf { step != castleStep }?.let { slug -> slug to placedPoint(state, slug) }
+                    is AutopilotObjective.ReachPoint -> step.name to objective.point
+                    else -> null
+                }
             val problems = journal.problems(state, lines, target)
             if (problems.isNotEmpty()) throw AutopilotStuck("journal at '${step.name}': ${problems.joinToString("; ")}")
         }
@@ -409,14 +441,16 @@ internal class AutopilotFullGamePlan(
     }
 
     /**
-     * Drops junk once the inventory runs short of room while the party saves for a map: selling would mean entering
-     * a town, whose entry tax on the gold carried costs far more than the junk is worth.
+     * Drops what no shop buys, and drops sellable junk too once the inventory runs short of room while the party
+     * saves for a map: selling would mean entering a town, whose entry tax on the gold carried costs far more than
+     * the junk is worth.
      */
     private fun dropJunk(state: RuntimeState): AutopilotAction? {
         val p = state.party
         val step = currentStep(state)
-        if (!saving(p, step) || party.freeSlots(p) >= maxOf(step.freeSlots, MIN_FREE_SLOTS)) return null
-        return junkNames(p).firstOrNull()?.let(actions::drop)
+        val junk = junk(p)
+        val short = saving(p, step) && party.freeSlots(p) < maxOf(step.freeSlots, MIN_FREE_SLOTS)
+        return (junk.unsellable.firstOrNull() ?: junk.sellable.firstOrNull()?.takeIf { short })?.let(actions::drop)
     }
 
     /** Whether the party is saving for a map while its leader pays town entry tax. */
@@ -425,7 +459,6 @@ internal class AutopilotFullGamePlan(
         step: AutopilotQuestStep,
     ): Boolean = step.gold > 0 && leaderLevel(p) >= TAX_LEVEL
 
-    private fun junkNames(p: PartyState): List<String> = junk(p).let { (smith, merchant) -> smith + merchant }
 
     /** Readies a weapon or armor from the inventory that beats what a living member uses now. */
     private fun readyUpgrade(state: RuntimeState): AutopilotAction? =
@@ -469,13 +502,15 @@ internal class AutopilotFullGamePlan(
     ): Int = if (gear == AutopilotGear.Weapon) party.weaponDamage(member) else party.armorClass(member)
 
     /**
-     * Inventory items worth selling, as the smith's and the merchant's share: gear no member would ready, treasure,
-     * magic items beyond the few battle items worth carrying into hard fights, red and amber potions beyond the stock,
-     * and altar gems beyond what the quests still need. Camping and pack gear stay.
+     * Inventory items the party can do without: gear no member would ready, treasure, magic items beyond the few
+     * battle items worth carrying into hard fights, red and amber potions beyond the stock, altar gems beyond what the
+     * quests still need, and spare camping gear. Each goes to the shop that buys it, or is dropped when none does.
      */
-    private fun junk(p: PartyState): Pair<List<String>, List<String>> {
+    private fun junk(p: PartyState): AutopilotJunk {
         val smith = mutableListOf<String>()
         val merchant = mutableListOf<String>()
+        val unsellable = mutableListOf<String>()
+        val kept = mutableSetOf<String>()
         var redPotions = 0
         var amberPotions = 0
         var gems = 0
@@ -493,7 +528,7 @@ internal class AutopilotFullGamePlan(
             val name = content.strings.value(item.displayNameString)
             val gear = if (item.kind == ItemKind.Weapon) AutopilotGear.Weapon else AutopilotGear.Armor
             when {
-                slug in keepItems -> Unit
+                slug in keepItems && kept.add(slug) -> Unit
                 slug in AutopilotQuests.altarGems && gems < gemsKept -> gems++
                 battleItemsKept.remove(slug) -> Unit
                 item.kind == ItemKind.Weapon || item.kind == ItemKind.Armor -> {
@@ -502,14 +537,15 @@ internal class AutopilotFullGamePlan(
                             (item.equippableBy.isEmpty() || member.member.pcClass in item.equippableBy) &&
                                 strength(item, gear) > strength(member.member, gear)
                         }
-                    if (!wanted) smith += name
+                    if (!wanted) (if (shops.buys("smith", item)) smith else unsellable) += name
                 }
                 slug == RED_POTION && redPotions < RED_POTIONS_KEPT -> redPotions++
                 slug == AMBER_POTION && amberPotions < AMBER_POTIONS_KEPT -> amberPotions++
-                item.kind in sellableAtMerchant -> merchant += name
+                shops.buys("merchant", item) -> merchant += name
+                else -> unsellable += name
             }
         }
-        return smith to merchant
+        return AutopilotJunk(smith, merchant, unsellable)
     }
 
     /** Smith purchases that beat a member's gear, best affordable first, within [budget] gold. */
@@ -576,7 +612,7 @@ internal class AutopilotFullGamePlan(
             val carried = step.carry?.let { slug -> content.items.first { item -> content.slug(item.id) == slug } }
             if (carried != null && party.inventoryCount(p, step.carry) == 0 && gold >= carried.cost) add("carry")
             if (gearUpgrades(p, gold - reserve(step)).isNotEmpty() && gold > reserve(step) + GEAR_TRIP_GOLD) add("gear")
-            if (!saving(p, step) && party.freeSlots(p) < maxOf(step.freeSlots, MIN_FREE_SLOTS) && junkNames(p).isNotEmpty()) add("sell")
+            if (!saving(p, step) && party.freeSlots(p) < maxOf(step.freeSlots, MIN_FREE_SLOTS) && junk(p).sellable.isNotEmpty()) add("sell")
         }
     }
 
@@ -609,6 +645,8 @@ internal class AutopilotFullGamePlan(
                 // Standing on the location already means its mission did not fire on arrival: step off and back on.
                 walkTo(state, point) ?: wander(state, avoid = emptySet())
             }
+
+            is AutopilotObjective.ReachPoint -> walkTo(state, objective.point) ?: wander(state, avoid = emptySet())
 
             is AutopilotObjective.Wander -> {
                 val terrain = objective.terrain
@@ -708,8 +746,11 @@ internal class AutopilotFullGamePlan(
         return actions.move(step)
     }
 
-    /** Placed quest locations; walking across one fires its mission, so routes go around them. */
-    private fun locationSquares(state: RuntimeState): Set<GridPoint> = state.locations.map { placement -> placement.point }.toSet()
+    /** Placed quest locations and fixed mission squares; walking across one fires its mission, so routes go around them. */
+    private fun locationSquares(state: RuntimeState): Set<GridPoint> = state.locations.map { placement -> placement.point }.toSet() + missionSquares
+
+    private val missionSquares: Set<GridPoint> =
+        content.missions.mapNotNull { mission -> (mission.trigger as? CompiledTrigger.AtPosition)?.point }.toSet()
 
     /** Terrain whose missions the party is not ready for: foothills hold Jazzy once his ogres are gone. */
     private fun dangerousTerrain(state: RuntimeState): Set<String> {
@@ -729,6 +770,11 @@ internal class AutopilotFullGamePlan(
         val order = flagStates[step.flag] ?: throw AutopilotStuck("unknown story flag ${step.flag}")
         return order.indexOf(party.flagState(p, step.flag)) >= order.indexOf(step.state)
     }
+
+    private fun placedPoint(
+        state: RuntimeState,
+        slug: String,
+    ): GridPoint? = state.locations.firstOrNull { placement -> content.slug(placement.location) == slug }?.point
 
     /** Altar gems the remaining quest steps still ask for; the rest are treasure to sell. */
     private fun gemsNeeded(p: PartyState): Int = AutopilotQuests.steps.filterNot { step -> done(p, step) }.maxOfOrNull { step -> step.gems } ?: 0
@@ -858,6 +904,5 @@ internal class AutopilotFullGamePlan(
         val keepItems = setOf("tent", "blanket", "donkey")
         val battleCasters = setOf(PcClass.Mage)
         val churchNeeds = setOf("raise", "heal", "energize")
-        val sellableAtMerchant = setOf(ItemKind.Treasure, ItemKind.Potion, ItemKind.MagicItem, ItemKind.Gear)
     }
 }

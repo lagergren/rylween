@@ -31,6 +31,9 @@ internal class AutopilotCreation(
     private val recruits: List<AutopilotRecruit>,
 ) {
     private val createKey = systems.commands.getValue(RuntimeCommandGroupId.Title.id).key(RuntimeCommandActionId.CreateNewParty)
+
+    /** The title-menu key this creation pressed, for coverage. */
+    val titleKey: Char get() = createKey
     private var started = false
     private var member = 0
 

@@ -7,6 +7,8 @@
 
 package rylween.runtime
 
+import rylween.dsl.impl.GridPoint
+
 /** What a quest step asks the party to do. */
 internal sealed interface AutopilotObjective {
     /** Talk to the character named [npc], answering its questions with [answers] in order of preference. */
@@ -18,6 +20,11 @@ internal sealed interface AutopilotObjective {
     /** Walk onto the placed location [location], where its mission fires. */
     data class Reach(
         val location: String,
+    ) : AutopilotObjective
+
+    /** Walk onto the fixed square [point], where its mission fires. */
+    data class ReachPoint(
+        val point: GridPoint,
     ) : AutopilotObjective
 
     /** Keep walking, on [terrain] when given, until a random or terrain mission fires. */
@@ -80,6 +87,24 @@ internal object AutopilotQuests {
             AutopilotQuestStep("accept Garth's cargo", "garth.bandits", "accepted", AutopilotObjective.TalkTo("Garth"), minimumLevel = 5),
             AutopilotQuestStep("recover Garth's cargo", "garth.bandits", "recovered", AutopilotObjective.Wander(), minimumLevel = 5),
             AutopilotQuestStep("collect Garth's reward", "garth.bandits", "closed", AutopilotObjective.TalkTo("Garth")),
+            // Side quests, taken early for their swords: each step is one conversation in the right order.
+            AutopilotQuestStep("take Nrim'to's letter", "ranger.letter", "accepted", AutopilotObjective.TalkTo("Nrim'to")),
+            AutopilotQuestStep("bring Marraga her brother's letter", "ranger.letter", "delivered", AutopilotObjective.TalkTo("Marraga")),
+            AutopilotQuestStep("hear Areth about his book", "fighter.priest_book", "priest_told", AutopilotObjective.TalkTo("Areth")),
+            AutopilotQuestStep("ask Gorm about Areth's book", "fighter.priest_book", "priest_visited", AutopilotObjective.TalkTo("Gorm")),
+            AutopilotQuestStep("get the book back from Nevaak", "fighter.priest_book", "wizard_robbed", AutopilotObjective.TalkTo("Nevaak")),
+            AutopilotQuestStep("bring Areth his book", "fighter.priest_book", "fighter_grateful", AutopilotObjective.TalkTo("Areth")),
+            // Ron's wife is held in the orc cave at 42,23; Ron pays with armor, battle items, and gold, five items in all.
+            AutopilotQuestStep("hear Ron's plea", "peasant.wife", "accepted", AutopilotObjective.TalkTo("Ron"), minimumLevel = 6),
+            AutopilotQuestStep(
+                "free Tammy from the orc cave",
+                "peasant.wife",
+                "rescued",
+                AutopilotObjective.ReachPoint(GridPoint(42, 23)),
+                minimumLevel = 6,
+                torches = 8,
+            ),
+            AutopilotQuestStep("bring Tammy home to Ron", "peasant.wife", "paid", AutopilotObjective.TalkTo("Ron"), freeSlots = 5),
             AutopilotQuestStep("hear Groth on the nymph", "nymph.seeker", "told", AutopilotObjective.TalkTo("Groth")),
             AutopilotQuestStep("take Ithienn's first task", "master_crown", "task1_assigned", AutopilotObjective.TalkTo("Ithienn")),
             AutopilotQuestStep(
@@ -193,5 +218,18 @@ internal object AutopilotQuests {
                 torches = 19,
                 gems = 5,
             ),
+            // Erethor's temple at 6,20 ends in four fights in a row, two of them with Erethor, whose spells strike for about
+            // 190 points, so the party goes last, at its strongest. Kaal rewards the lute with the Cloak of Gods.
+            AutopilotQuestStep("hear Tybalt on Erethor's lute", "erethor.lute", "rumor_told", AutopilotObjective.TalkTo("Tybalt")),
+            AutopilotQuestStep(
+                "take Erethor's lute",
+                "erethor.lute",
+                "lute_taken",
+                AutopilotObjective.ReachPoint(GridPoint(6, 20)),
+                minimumLevel = 24,
+                torches = 14,
+            ),
+            AutopilotQuestStep("give Tybalt the lute", "erethor.lute", "note_received", AutopilotObjective.TalkTo("Tybalt")),
+            AutopilotQuestStep("bring Kaal Tybalt's note", "erethor.lute", "cloak_received", AutopilotObjective.TalkTo("Kaal")),
         )
 }

@@ -68,6 +68,12 @@ internal sealed interface AutopilotErrand {
         override val service = "Inn"
     }
 
+    /** Tries a town pastime the run has not tried yet, such as a drink at the tavern, at the [service] that offers it. */
+    data class Pastime(
+        val pastime: String,
+        override val service: String,
+    ) : AutopilotErrand
+
     /**
      * Talks to [npc] in the inn or tavern, answering the conversation's questions with [answers]: the first
      * offered option whose label contains one of them, in order of preference.
@@ -89,6 +95,9 @@ internal class AutopilotTownVisit(
     errands: List<AutopilotErrand>,
     /** The member to arm, or armor, at the "ready any weapons/armors before leaving?" prompts; `null` declines. */
     private val readyOnLeave: (AutopilotGear) -> Pair<AutopilotMember, String>?,
+    /** What the run has used, so each pastime is tried once and counted. */
+    private val coverage: AutopilotCoverage,
+    private val party: AutopilotParty,
 ) {
     private val queue = ArrayDeque(errands)
     private var current: AutopilotErrand? = null
@@ -156,9 +165,65 @@ internal class AutopilotTownVisit(
             is AutopilotErrand.BuyItem -> merchantItem(errand, menu)
             is AutopilotErrand.BuyGear -> smith(errand, menu, text)
             is AutopilotErrand.Sell -> sell(errand, menu, text)
-            AutopilotErrand.Lodge -> inn(menu, text, lodge = true, talk = null)
-            is AutopilotErrand.Talk -> if (errand.tavern) tavern(errand, menu, text) else inn(menu, text, lodge = false, talk = errand)
+            AutopilotErrand.Lodge -> inn(view, menu, text, lodge = true, talk = null)
+            is AutopilotErrand.Talk -> if (errand.tavern) tavern(errand, menu, text) else inn(view, menu, text, lodge = false, talk = errand)
+            is AutopilotErrand.Pastime -> pastime(errand, view, menu, text)
         }
+
+    private fun pending(pastime: String): Boolean = !coverage.used(AutopilotCoverage.PASTIME, pastime)
+
+    private fun tried(pastime: String) = coverage.record(AutopilotCoverage.PASTIME, pastime)
+
+    /** The smith's beer: accepted the first time, so the run hears his news once, and declined after that. */
+    private fun beer(menu: AutopilotMenu): Char? =
+        if (pending(SMITH_BEER)) {
+            tried(SMITH_BEER)
+            menu.find("Accept")?.key
+        } else {
+            menu.find("Decline")?.key
+        }
+
+    /**
+     * Pastime screens. The tavern's drink, story, and rumors are one key each from its menu; the barmaid is a guest
+     * to speak with, whose lodging question leads upstairs; the guild only says it is closed; the inn's supper and
+     * drink are answered in [inn].
+     */
+    private fun pastime(
+        errand: AutopilotErrand.Pastime,
+        view: AutopilotView,
+        menu: AutopilotMenu,
+        text: String,
+    ): Char? {
+        val chosen = errand.pastime
+        return when {
+            errand.service == "Inn" -> inn(view, menu, text, lodge = false, talk = null)
+            errand.service == "Guild" -> {
+                tried(chosen)
+                leaveService(menu)
+            }
+            menu.find("Buy it") != null -> menu.find("No thanks")?.key
+            menu.find("Order drink") != null ->
+                if (servicePaid) {
+                    leaveService(menu)
+                } else {
+                    when (chosen) {
+                        TAVERN_DRINK -> menu.find("Order drink")?.key
+                        TAVERN_STORY -> menu.find("Tell story")?.key
+                        TAVERN_RUMORS -> menu.find("Rumors")?.key.also { servicePaid = true }.also { tried(chosen) }
+                        else -> menu.find("Speak")?.key
+                    }
+                }
+            text.contains("Order:") -> menu.find("Ale")?.key.also { servicePaid = true }.also { tried(chosen) }
+            text.contains("tell a story") -> party.living(view.state.party).firstOrNull()?.digit
+            menu.find("True story") != null -> menu.find("True story")?.key.also { servicePaid = true }.also { tried(chosen) }
+            text.contains("Speak with whom?") -> menu.options.firstOrNull { option -> option.label.endsWith(BARGIRL, ignoreCase = true) }?.key
+            text.contains("upstairs for") -> 'Y'.also { servicePaid = true }.also { tried(chosen) }
+            menu.find("Lodging") != null -> menu.find("Lodging")?.key
+            menu.find("Bye") != null -> if (servicePaid) menu.find("Bye")?.key else menu.find("Question")?.key
+            else -> null
+        }
+    }
+
 
     /** Church screens: pick the service, the member, pay, then leave once the service is done or refused. */
     private fun church(
@@ -229,7 +294,7 @@ internal class AutopilotTownVisit(
         text: String,
     ): Char? =
         when {
-            menu.find("Decline") != null -> menu.find("Decline")?.key
+            menu.find("Decline") != null -> beer(menu)
             menu.find("Buy") != null && menu.find("Sell") != null -> if (!servicePaid) menu.find("Buy")?.key else leaveService(menu)
             text.contains("Armor or Weapon?") -> menu.find(if (errand.gear == AutopilotGear.Weapon) "Weapon" else "Armor")?.key
             menu.find("Pay") != null -> {
@@ -259,28 +324,38 @@ internal class AutopilotTownVisit(
         val pending = errand.items.drop(sold)
         val sellOption = menu.find("Sell item") ?: menu.find("Sell")
         return when {
-            menu.find("Decline") != null -> menu.find("Decline")?.key
+            menu.find("Decline") != null -> beer(menu)
             sellOption != null && menu.find("Leave") != null -> if (pending.isNotEmpty()) sellOption.key else leaveService(menu)
             text.contains("Sell what?") -> {
                 sold++
                 pending.firstOrNull()?.let { name -> menu.findInventoryItem(name) }?.key ?: '\n'
             }
+            // Haggling once tries the smith's patience; the offer comes back, higher or the same, or he says no thanks.
+            menu.find("Haggle") != null && pending(SMITH_HAGGLE) -> menu.find("Haggle")?.key.also { tried(SMITH_HAGGLE) }
             menu.find("Yes") != null && menu.find("No") != null -> menu.find("Yes")?.key
             else -> null
         }
     }
 
+    /** Inn screens: supper and a drink once each while the party can pay, a room when [lodge], and [talk]'s guest. */
     private fun inn(
+        view: AutopilotView,
         menu: AutopilotMenu,
         text: String,
         lodge: Boolean,
         talk: AutopilotErrand.Talk?,
-    ): Char? =
-        when {
-            text.contains("supper") || text.contains("Anything to drink?") -> 'N'
+    ): Char? {
+        val level = view.state.party.members.firstOrNull()?.level ?: 1
+        val gold = view.state.party.resources.gold
+        return when {
+            text.contains("supper") ->
+                if (pending(INN_SUPPER) && gold >= level * level * INN_PRICE_PER_LEVEL_SQUARED + PASTIME_GOLD) 'Y'.also { tried(INN_SUPPER) } else 'N'
+            text.contains("Anything to drink?") -> if (pending(INN_DRINK) && gold >= PASTIME_GOLD) 'Y' else 'N'
+            text.contains("What'll it be?") -> menu.find("Ale")?.key.also { tried(INN_DRINK) }
             text.contains("of lodging") -> if (lodge) 'Y' else 'N'
             menu.find("Take it") != null -> {
                 current = null
+                tried(INN_LODGING)
                 menu.find("Take it")?.key
             }
             menu.find("Chitchat with guests") != null ->
@@ -292,6 +367,7 @@ internal class AutopilotTownVisit(
             talk != null -> conversation(talk, menu, text)
             else -> null
         }
+    }
 
     /**
      * Tavern screens: a stranger's offer to sell something is declined until the party has picked [talk]'s character,
@@ -308,6 +384,26 @@ internal class AutopilotTownVisit(
             else -> conversation(talk, menu, text)
         }
 
+    /**
+     * The conversation menu's options the run has not tried yet, once each: chitchat, each question topic, and
+     * rumors, before saying goodbye.
+     */
+    private fun smallTalk(menu: AutopilotMenu): Char? {
+        val speak = "speak"
+        val questions = "speak.questions"
+        val topics = listOf("question_lodging" to "Lodging", "question_magic" to "Magic", "question_people" to "People", "question_nothing" to "Nothing")
+        if (menu.find("Lodging") != null) {
+            return topics.firstOrNull { (action, _) -> !coverage.used(questions, action) }?.let { (_, label) -> menu.find(label)?.key }
+                ?: menu.find("Nothing")?.key
+        }
+        return when {
+            !coverage.used(speak, "speak_chitchat") -> menu.find("Chitchat")?.key
+            topics.any { (action, _) -> !coverage.used(questions, action) } -> menu.find("Question")?.key
+            !coverage.used(speak, "speak_rumor") -> menu.find("Rumors")?.key
+            else -> null
+        }
+    }
+
     /** The speak flow: pick [talk]'s character, answer the dialogue, then say goodbye. */
     private fun conversation(
         talk: AutopilotErrand.Talk,
@@ -319,8 +415,25 @@ internal class AutopilotTownVisit(
                 servicePaid = true
                 menu.options.firstOrNull { option -> option.label.substringBefore(',') == talk.npc }?.key
             }
-            menu.find("Bye") != null -> menu.find("Bye")?.key
+            menu.find("Bye") != null -> smallTalk(menu) ?: menu.find("Bye")?.key
+            menu.find("Nothing") != null && menu.find("Lodging") != null -> smallTalk(menu)
             !menu.isEmpty() -> talk.answers.firstNotNullOfOrNull { answer -> menu.find(answer) }?.key ?: menu.options.first().key
             else -> null
         }
+
+    private companion object {
+        const val TAVERN_DRINK = "tavern drink"
+        const val TAVERN_STORY = "tavern story"
+        const val TAVERN_RUMORS = "tavern rumors"
+        const val INN_SUPPER = "inn supper"
+        const val INN_DRINK = "inn drink"
+        const val INN_LODGING = "inn lodging"
+        const val SMITH_BEER = "smith beer"
+        const val SMITH_HAGGLE = "smith haggle"
+        const val BARGIRL = "Bargirl"
+        const val INN_PRICE_PER_LEVEL_SQUARED = 15
+
+        /** Gold a pastime may not cut into: the party never spends its last coins on pleasure. */
+        const val PASTIME_GOLD = 300
+    }
 }

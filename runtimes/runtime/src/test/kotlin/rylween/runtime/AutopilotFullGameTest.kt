@@ -1,6 +1,7 @@
 package rylween.runtime
 
 import rylween.compiled.CompiledHandleKind
+import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
@@ -69,6 +70,10 @@ class AutopilotFullGameTest {
         val difficulty = AutopilotDifficulty.of(run, stats)
         val rolled = creation.accepted.map { (member, rolledStats) -> "$member:${rolledStats.values}" }
         val line = "seed $seed won=${castleVictory in run.milestones} step='${plan.currentStepName}' blockers=${plan.blockers(run.state)} journalReads=${plan.journalReads} castleRetreatReasons=${plan.castleRetreatReasons} $difficulty rolls=${creation.rolls.values} stats=$rolled"
+        autopilot.coverage.recordKey("title", creation.titleKey)
+        visitTitleScreens(seed, run, autopilot.coverage)
+        val unused = autopilot.coverage.missing(run.state)
+        workDir.resolve("seed$seed-coverage.txt").writeText(unused.joinToString("\n"))
         val problems =
             buildList {
                 if (castleVictory !in run.milestones) add("seed $seed did not win\n${run.summary()}")
@@ -76,9 +81,38 @@ class AutopilotFullGameTest {
                 if (stats.mageSpells == 0) add("seed $seed: the mage never cast a spell")
                 if (stats.hunts == 0) add("seed $seed: the ranger never hunted")
                 if (plan.journalReads == 0) add("seed $seed: the party never read its journal")
-                if (difficulty.score !in SCORE_BOUNDS) add("seed $seed: difficulty out of bounds $SCORE_BOUNDS: $difficulty")
+                if (difficulty.score !in scoreBounds) add("seed $seed: difficulty out of bounds $scoreBounds: $difficulty")
+                val required = unused - notInGame - situational
+                if (required.isNotEmpty()) add("seed $seed left parts of the game unused: $required")
             }
         return FullGameOutcome(line, problems)
+    }
+
+    /**
+     * Returns to the title menu after the run, as a player would: reads the scores, the hall of heroes, and the manual,
+     * loads the saved game and quits, then deletes the party and leaves.
+     */
+    private fun visitTitleScreens(
+        seed: Long,
+        run: AutopilotRunResult,
+        coverage: AutopilotCoverage,
+    ) {
+        val actions = AutopilotActions(systems)
+        val quitAfterLoading =
+            object : AutopilotPlan {
+                override fun done(state: RuntimeState): Boolean = false
+
+                override fun wilderness(state: RuntimeState): AutopilotAction = actions.quit()
+
+                override fun dungeon(state: RuntimeState): AutopilotAction = actions.ascend()
+            }
+        listOf(
+            listOf(RuntimeCommandActionId.Scoreboard, RuntimeCommandActionId.HallOfFame, RuntimeCommandActionId.Documentation, RuntimeCommandActionId.ContinueSavedGame),
+            listOf(RuntimeCommandActionId.TerminateParty, RuntimeCommandActionId.Leave),
+        ).forEachIndexed { index, visits ->
+            val title = AutopilotTitleTour(systems, coverage, visits)
+            sessions.fromTitle("seed$seed-title$index", "fresh-replay", run.saveFile, Autopilot(content, systems, quitAfterLoading, coverage = coverage, title = title))
+        }
     }
 
     private class FullGameOutcome(
@@ -92,7 +126,16 @@ class AutopilotFullGameTest {
         const val MAX_RELOADS = 5
         // Seeds 1 to 5 scored 106 to 179 when these bounds were set: a game that takes a rolled party much less or
         // much longer than that has had its balance shifted.
-        val SCORE_BOUNDS = 80..260
+        val scoreBounds = 80..260
+
+        /** Content the bundle declares that no scene reaches: no church scene ever sets the donation flag. */
+        val notInGame = setOf("quest: church.donation_once.yes")
+
+        /**
+         * Content only a situation calls for, which a run may not meet: Rebirth needs a member to fall while the
+         * priest can afford it, and dropping in the castle needs junk to carry in.
+         */
+        val situational = setOf("spell: priest.rebirth", "castle.ydarg.navigation: drop")
 
         /** A fighter, a ranger, a mage, and a priest, each rolled until fit for the class. */
         val recruits =

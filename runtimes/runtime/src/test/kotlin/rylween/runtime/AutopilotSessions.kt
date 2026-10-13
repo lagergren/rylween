@@ -104,7 +104,28 @@ internal class AutopilotSessions(
         }
     }
 
+    /** Plays one session from [saveFile] that opens at the title menu, as a returning player does. */
+    fun fromTitle(
+        name: String,
+        stateSlug: String,
+        saveFile: File,
+        autopilot: Autopilot,
+        keys: Int = TITLE_KEYS,
+    ): AutopilotPorts {
+        val ports = AutopilotPorts(autopilot, keys)
+        RuntimeLog.open(workDir.resolve("$name.log")).use { log ->
+            factory.start(
+                input = ports,
+                screen = ports,
+                config = RuntimeSessionConfig("autopilot", stateSlug, saveFile, saveFile, showTitleMenu = true),
+                log = log,
+            )
+        }
+        return ports
+    }
+
     private companion object {
         const val RELOAD_SEED_STRIDE = 1_000_003L
+        const val TITLE_KEYS = 2_000
     }
 }

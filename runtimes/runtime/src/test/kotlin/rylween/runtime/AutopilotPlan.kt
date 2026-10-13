@@ -53,6 +53,9 @@ internal interface AutopilotPlan {
     /** The text to type at a text prompt, such as a riddle answer, or `null` when the plan has none. */
     fun answer(view: AutopilotView): String? = null
 
+    /** An inventory item the plan can do without, which the tour may drop to try the drop command, or `null`. */
+    fun dispensable(state: RuntimeState): String? = null
+
     /** Sees every screen before the autopilot answers it, for plans that read what the game shows, such as the journal. */
     fun observe(view: AutopilotView) = Unit
 
