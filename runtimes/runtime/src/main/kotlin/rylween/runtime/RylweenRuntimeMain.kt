@@ -2089,6 +2089,8 @@ data class PartyState(
     val rngState: Long?,
     /** Monsters the party has slain in battles it won, by monster. */
     val monsterKills: Map<CompiledHandleRef, Int> = emptyMap(),
+    /** Per castle id, how many floors' stair guardians the party has won over, so their way up stays open. */
+    val castleFloorsOpened: Map<String, Int> = emptyMap(),
 ) {
     fun passTurn(): PartyState = copy(resources = resources.copy(timeLeft = max(0, resources.timeLeft - 1)))
 

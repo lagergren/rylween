@@ -308,7 +308,12 @@ internal class Autopilot(
         val navigation = systems.commands.getValue(RuntimeCommandGroupId.castleNavigation(castle.id))
         val lines = view.text
         when {
-            lines.offers(stairs.binding(RuntimeCommandActionId.GiveItem)) -> return stairs.key(RuntimeCommandActionId.GiveItem)
+            lines.offers(stairs.binding(RuntimeCommandActionId.GiveItem)) ->
+                return if (plan.climbCastle(state, lastFloor = castleState.floor == castle.stairs.floorCount)) {
+                    stairs.key(RuntimeCommandActionId.GiveItem)
+                } else {
+                    stairs.key(RuntimeCommandActionId.TeleportOut)
+                }
             lines.any { line -> line.trimStart().startsWith("1.") } -> return stairsItemDigit(state, castle)
             lines.offers(treasure.binding(RuntimeCommandActionId.Take)) -> return treasure.key(RuntimeCommandActionId.Leave)
         }

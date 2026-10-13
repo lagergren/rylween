@@ -44,5 +44,39 @@ class AutopilotPlaythroughTest {
         assertTrue(failures.isEmpty(), failures.joinToString("\n\n"))
     }
 
+    /** A party that teleports out at the second floor's stairs comes back to that floor: freed guardians stay freed. */
+    @Test
+    fun aPartyThatLeavesTheCastleResumesAboveTheMagesItFreed() {
+        val endgame = AutopilotEndgamePlan(bundle.content, systems, castle)
+        val floors = mutableListOf<Int>()
+        var teleported = false
+        val plan =
+            object : AutopilotPlan by endgame {
+                override fun climbCastle(
+                    state: RuntimeState,
+                    lastFloor: Boolean,
+                ): Boolean {
+                    if (teleported || state.castle?.floor != 2) return true
+                    teleported = true
+                    return false
+                }
+
+                override fun observe(view: AutopilotView) {
+                    val floor = view.state.castle?.floor ?: OUTSIDE
+                    if (floors.lastOrNull() != floor) floors += floor
+                }
+            }
+        val run = sessions.play("castle-reentry", "near-winning-replay", Autopilot(bundle.content, systems, plan))
+
+        assertTrue(castleVictory in run.state.party.milestones, run.summary())
+        assertTrue(teleported, "the party never reached the second floor's stairs: $floors")
+        val afterLeaving = floors.dropWhile { floor -> floor != 2 }.dropWhile { floor -> floor != OUTSIDE }
+        assertTrue(afterLeaving.none { floor -> floor == 1 }, "the party climbed past a freed guardian again: $floors")
+    }
+
     private fun endgameAutopilot(): Autopilot = Autopilot(bundle.content, systems, AutopilotEndgamePlan(bundle.content, systems, castle))
+
+    private companion object {
+        const val OUTSIDE = 0
+    }
 }

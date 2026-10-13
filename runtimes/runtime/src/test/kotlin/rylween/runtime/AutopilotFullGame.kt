@@ -123,6 +123,15 @@ internal class AutopilotFullGamePlan(
 
     override fun dungeon(state: RuntimeState): AutopilotAction = upkeep(state) ?: quaff(state) ?: crawl.next(state)
 
+    /**
+     * The party climbs to the final battle only when it is as ready as for any boss, and climbs the other stairs unless
+     * it is too weak to go on; otherwise the guardian teleports it out, and it comes back to the same floor once ready.
+     */
+    override fun climbCastle(
+        state: RuntimeState,
+        lastFloor: Boolean,
+    ): Boolean = if (lastFloor) blockers(state, castleStep).isEmpty() else !weakened(state)
+
     /** Between castle fights the priest heals and revives, and potions top the party up. */
     override fun castle(state: RuntimeState): AutopilotAction? = upkeep(state) ?: quaff(state)
 

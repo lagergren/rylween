@@ -26,6 +26,15 @@ internal interface AutopilotPlan {
     /** An action to take at a castle floor's command prompt before walking on, or `null` to walk on. */
     fun castle(state: RuntimeState): AutopilotAction? = null
 
+    /**
+     * Whether to give the stair guardian an item and climb on, or to teleport out of the castle and come back stronger.
+     * [lastFloor] is the climb to the final battle.
+     */
+    fun climbCastle(
+        state: RuntimeState,
+        lastFloor: Boolean,
+    ): Boolean = true
+
     /** The errands to run in the town the party has just entered. */
     fun townErrands(state: RuntimeState): List<AutopilotErrand> = emptyList()
 

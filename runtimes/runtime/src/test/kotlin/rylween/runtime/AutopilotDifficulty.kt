@@ -20,6 +20,8 @@ internal data class AutopilotDifficulty(
     val gemRevivals: Int,
     val battles: Int,
     val fled: Int,
+    /** How often the party left Ydarg's castle at a stair guardian to recover before climbing on. */
+    val castleRetreats: Int,
     val townVisits: Int,
     val battleItems: Int,
     val finalLevel: Int,
@@ -31,7 +33,7 @@ internal data class AutopilotDifficulty(
 
     override fun toString(): String =
         "score=$score days=$days reloads=$reloads deaths=$deaths rebirths=$rebirths churchRaises=$churchRaises " +
-            "gemRevivals=$gemRevivals battles=$battles fled=$fled " +
+            "gemRevivals=$gemRevivals castleRetreats=$castleRetreats battles=$battles fled=$fled " +
             "towns=$townVisits battleItems=$battleItems level=$finalLevel falls=$falls"
 
     companion object {
@@ -52,6 +54,7 @@ internal data class AutopilotDifficulty(
                 gemRevivals = run.transcript.count { line -> "opens" in line && "eyes!" in line && "eyelids" !in line },
                 battles = run.transcript.count { line -> line.trim() == "You face" },
                 fled = run.transcript.count { line -> line.startsWith("You escaped") },
+                castleRetreats = run.transcript.count { line -> line.startsWith("And you are outside") },
                 townVisits = stats.townVisits,
                 battleItems = stats.battleItems,
                 finalLevel = run.state.party.members.maxOf { member -> member.level },

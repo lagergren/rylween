@@ -82,6 +82,9 @@ internal class CastleRuntime(
                 ?: runtime.asWildernessCastle()
         }
 
+        // Guardians the party has won over do not come back: a party that left the castle returns to the first floor
+        // whose guardian still waits for an item of power.
+        val floor = ((runtime.party.castleFloorsOpened[castle.id] ?: 0) + 1).coerceAtMost(castle.stairs.floorCount)
         val seeded = seedRooms(runtime, castle)
         val entered =
             seeded.runtime.copy(
@@ -90,7 +93,7 @@ internal class CastleRuntime(
                 castle =
                     CastleState(
                         castleId = castle.id,
-                        floor = 1,
+                        floor = floor,
                         point = GridPoint(1, 1),
                         rooms = seeded.rooms,
                         visited = setOf(GridPoint(1, 1)),
@@ -336,7 +339,11 @@ internal class CastleRuntime(
         }
         val state = runtime.castle ?: return runtime
         val nextFloor = state.floor + 1
-        val nextParty = runtime.party.copy(milestones = runtime.party.milestones - milestone)
+        val nextParty =
+            runtime.party.copy(
+                milestones = runtime.party.milestones - milestone,
+                castleFloorsOpened = runtime.party.castleFloorsOpened + (castle.id to state.floor),
+            )
         val next =
             runtime
                 .withParty(

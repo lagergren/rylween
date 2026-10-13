@@ -416,6 +416,7 @@ internal object SaveFile {
         put(PARTY_MEMBER_RECORD_COUNT, party.members.size.toString())
         put("party.kills", party.counters.kills.toString())
         put("party.monsterKills", party.monsterKills.entries.joinToString(",") { (monster, count) -> "${content.slug(monster)}:$count" })
+        put("party.castleFloorsOpened", party.castleFloorsOpened.entries.joinToString(",") { (castle, floors) -> "$castle:$floors" })
         put("party.waitingMail", party.counters.waitingMail.toString())
         put("party.attacked", party.counters.attacked.toString())
         put(
@@ -542,6 +543,7 @@ internal object SaveFile {
             memberNames = readMemberNames(base.memberNames),
             rngState = optionalLong("party.rngState") ?: base.rngState,
             monsterKills = readMonsterKills(base.monsterKills, content),
+            castleFloorsOpened = readCastleFloorsOpened(base.castleFloorsOpened),
         )
 
     private fun Map<String, String>.readLocations(
@@ -652,6 +654,17 @@ internal object SaveFile {
                 val parts = token.split(':')
                 GridPoint(parts[0].toInt(), parts[1].toInt())
             }.orEmpty()
+
+    private fun Map<String, String>.readCastleFloorsOpened(base: Map<String, Int>): Map<String, Int> {
+        val raw = get("party.castleFloorsOpened") ?: return base
+        return raw
+            .split(',')
+            .filter(String::isNotEmpty)
+            .associate { token ->
+                val (castle, floors) = token.split(':')
+                castle to floors.toInt()
+            }
+    }
 
     private fun Map<String, String>.readMonsterKills(
         base: Map<CompiledHandleRef, Int>,
