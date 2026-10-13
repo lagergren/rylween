@@ -405,17 +405,55 @@ with separate width, height, capacity, or cell-count declarations.
 ```kotlin
 dungeons {
     event(DungeonEvents.cryptWarning) {
-        recurring = false
-        run {
-            showTextAndWait("A whisper passes through the stone.", "")
+        script {
+            showTextAndWait("A whisper passes through the stone.")
+        }
+    }
+
+    event(DungeonEvents.weakEncounter) {
+        recurringUntilWon()
+        randomEncounter(EncounterTiers.weak)
+    }
+
+    event(DungeonEvents.goldChest) {
+        recurring()
+        script {
+            menu("You find a chest!", "", "(O)pen chest", "(L)eave") {
+                option('O') {
+                    realm.levelCleared set true
+                    gainGold(random(320..419))
+                }
+                option('L') {}
+            }
         }
     }
 
     scenario(Dungeons.nolrimCrypt) {
+        levels(20)
+        randomEvents(
+            DungeonEvents.weakEncounter to 2,
+            DungeonEvents.goldChest to 1,
+        )
         level(2, DungeonEvents.cryptWarning)
     }
 }
 ```
+
+An event's disposition decides whether it is still on its level when the party
+comes back:
+
+- By default an event runs once and is gone, like gold or torches found on a
+  level.
+- `recurring()` runs it on every visit, like a message on the wall.
+- `recurringUntil(flag)` runs it on every visit until the story flag is set.
+- `recurringUntilWon()` runs it on every visit until the party wins the battle
+  it starts. Beaten monsters stay beaten, and monsters the party fled from are
+  still there.
+
+A recurring event's script can take itself off its level with
+`realm.levelCleared set true`, as the chest does once it is opened; a chest left
+closed is still there next time. `realm.banished set true`, which Banish Evil
+uses, clears the random encounters from every level but the last.
 
 Dungeon event planning is authored; the dungeon runtime owns movement, torch
 checks, save/load boundaries, random event selection, and utility commands.
