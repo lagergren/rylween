@@ -3212,9 +3212,12 @@ val authoredRylween: RylweenModel =
                     encounterImage(Images.Encounter.brute)
                 }
 
+                // Jazzy's minions came seven or eight at a time in the original. That many, right before
+                // Jazzy himself, beat a normal party nearly every time at levels 15 to 24; five or six leave
+                // the fight with Jazzy a hard but fair one.
                 monster(Monsters.wingedThing) {
                     name = "Winged Thing"
-                    count = 7..8
+                    count = 5..6
                     hitPoints = 150..200
                     weaponSkill = 95
                     encounterImage(Images.Encounter.flying)
