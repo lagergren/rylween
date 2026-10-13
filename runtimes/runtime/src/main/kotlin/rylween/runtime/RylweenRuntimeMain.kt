@@ -280,6 +280,40 @@ internal fun String.screenSlug(): String = runtimeScreenSlug(this)
 
 private fun RuntimeState.logPosition(): String = "${party.position.x},${party.position.y}"
 
+private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+/** Writes [runtime] to the save and logs it, line by line. Throws when the write fails. */
+internal fun persistRuntime(
+    runtime: RuntimeState,
+    content: CompiledContentBundle,
+    save: RuntimeSaveContext,
+    log: RuntimeLog,
+    reason: String,
+) {
+    save.write(runtime, content)
+    log.event(
+        "runtime.save reason=$reason user=${save.userId} file=${save.file.path} position=${runtime.logPosition()} " +
+            "mode=${runtime.currentMode} lastPlayedDate=${runtime.lastPlayedDate ?: ""}",
+    )
+    logSaveFileLines("runtime.save", save.file, log)
+}
+
+private fun logSaveFileLines(
+    context: String,
+    saveFile: File,
+    log: RuntimeLog,
+) {
+    if (!saveFile.isFile) {
+        log.event("$context.file_missing file=${saveFile.path}")
+        return
+    }
+    val lines = SaveFile.lines(saveFile)
+    log.event("$context.file file=${saveFile.path} lines=${lines.size}")
+    lines.forEachIndexed { index, line ->
+        log.event("$context.line index=${index + 1} value=${logValue(line)}")
+    }
+}
+
 private fun RuntimeConfig.run() {
     val runtime = GameRuntime.load(bundleFile)
     RuntimeLog.open(logFile).use { log ->
@@ -499,7 +533,7 @@ class GameRuntime private constructor(
             val sessionStartRuntime = runtime
             runtime = runtime.materializeMissingNpcPlacements(world, log)
             runtime = runtime.applySessionDate(sessionDate, log)
-            persistSessionStartIfChanged(sessionStartRuntime, runtime, saveContext, log)
+            val sessionStartSaved = persistSessionStartIfChanged(sessionStartRuntime, runtime, saveContext, log)
             logNpcPlacements(runtime, log)
             val commands = WildernessCommands.from(systems)
             val debugCommands = WildernessCommands.from(systems, RuntimeCommandGroupId.WildernessDebug)
@@ -520,6 +554,7 @@ class GameRuntime private constructor(
             var wildernessTrack: String? = null
             screen.bootFrame()
             screen.renderWilderness(runtime, world)
+            if (!sessionStartSaved && !showSaveFailed(screen, input)) return input.exitResult()
             while (true) {
                 when (runtime.currentMode) {
                     RuntimeMode.Dungeon -> {
@@ -637,7 +672,7 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches(RuntimeCommandActionId.Save, command) -> {
-                            saveRuntime(runtime, saveContext, screen, log)
+                            saveRuntimeForPlayer(runtime, content, systems, saveContext, screen, log)
                             false
                         }
 
@@ -848,10 +883,7 @@ class GameRuntime private constructor(
                                 SaveFile.removeUser(save.file, save.userId)
                             }.getOrDefault(false)
                         log.event("title.terminate save=${save.file.path} deleted=$deleted")
-                        screen.writeText(
-                            titleTerminateResultLines(deleted, screen.textColumns) +
-                                runtimeGeneratedDetailText(save.file.path),
-                        )
+                        screen.writeText(titleTerminateResultLines(deleted, screen.textColumns))
                         input.readCommand()
                     }
                 }
@@ -1493,7 +1525,7 @@ class GameRuntime private constructor(
             } ?: return input.exitResult()
         val saving = choices.matches(RuntimeCommandActionId.Save, choice)
         log.event("wilderness.out_of_moves save=$saving position=${runtime.logPosition()}")
-        if (saving) saveRuntime(runtime, save, screen, log)
+        if (saving) saveRuntimeForPlayer(runtime, content, systems, save, screen, log)
         return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
     }
 
@@ -1520,59 +1552,31 @@ class GameRuntime private constructor(
         return quitting
     }
 
-    private fun saveRuntime(
-        runtime: RuntimeState,
-        save: RuntimeSaveContext,
-        screen: RuntimeScreenPort,
-        log: RuntimeLog,
-    ) {
-        persistRuntime(runtime, save, log, "command")
-        RuntimeAudio(systems.audio, screen).cue(AudioCue.GameSaved)
-        screen.writeText(
-            systems.prompts.save.done
-                .render({ null }, screen.textColumns) + runtimeGeneratedDetailText(save.file.path),
-        )
-    }
-
+    /** Saves the session's starting state when it changed. Returns false when that save failed; the log has why. */
     private fun persistSessionStartIfChanged(
         before: RuntimeState,
         after: RuntimeState,
         save: RuntimeSaveContext,
         log: RuntimeLog,
-    ) {
+    ): Boolean {
         val hasUserSave = SaveFile.hasUserParty(save.file, save.userId)
-        if (before == after && save.file.isFile && hasUserSave) return
-        persistRuntime(after, save, log, "session_start")
+        if (before == after && save.file.isFile && hasUserSave) return true
+        return persistRuntimeOrLogFailure(after, content, save, log, "session_start")
     }
 
-    private fun persistRuntime(
-        runtime: RuntimeState,
-        save: RuntimeSaveContext,
-        log: RuntimeLog,
-        reason: String,
-    ) {
-        save.write(runtime, content)
-        log.event(
-            "runtime.save reason=$reason user=${save.userId} file=${save.file.path} position=${runtime.logPosition()} " +
-                "mode=${runtime.currentMode} lastPlayedDate=${runtime.lastPlayedDate ?: ""}",
+    /** Tells the player a save failed and waits for a key, then play goes on. False when the input ran out. */
+    private fun showSaveFailed(
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
+    ): Boolean {
+        screen.writeText(
+            systems.prompts.save.failed
+                .render({ null }, screen.textColumns)
+                .withPausePrompt(PausePrompts(systems.prompts)),
         )
-        logSaveFileLines("runtime.save", save.file, log)
-    }
-
-    private fun logSaveFileLines(
-        context: String,
-        saveFile: File,
-        log: RuntimeLog,
-    ) {
-        if (!saveFile.isFile) {
-            log.event("$context.file_missing file=${saveFile.path}")
-            return
-        }
-        val lines = SaveFile.lines(saveFile)
-        log.event("$context.file file=${saveFile.path} lines=${lines.size}")
-        lines.forEachIndexed { index, line ->
-            log.event("$context.line index=${index + 1} value=${logValue(line)}")
-        }
+        if (input.readCommand() == null) return false
+        screen.writeViewCommand(RuntimeViewCommand.ClearText)
+        return true
     }
 
     private fun enterLocation(
@@ -2016,8 +2020,6 @@ class GameRuntime private constructor(
         val row = content.towns.firstOrNull { townRow -> townRow.id == town } ?: return ""
         return " townName=${logValue(string(row.nameString))} townCoordinate=${row.position.x},${row.position.y}"
     }
-
-    private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
     private fun string(id: Int): String = content.strings.value(id)
 

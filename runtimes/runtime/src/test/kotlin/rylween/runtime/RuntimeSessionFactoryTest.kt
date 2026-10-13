@@ -216,6 +216,78 @@ class RuntimeSessionFactoryTest {
     }
 
     @Test
+    fun savingInTheWildernessShowsProgressButNotTheSaveFile() {
+        val (_, terminal) = sessionWithMovesLeft("session-api-wilderness-save", moves = 100, commands = "S")
+
+        assertContains(terminal.output, "Saving position...")
+        assertContains(terminal.output, "Game saved.")
+        assertFalse(".rsave" in terminal.output)
+    }
+
+    @Test
+    fun aFailedSaveAtSessionStartIsShownAndPlayGoesOn() {
+        val today = LocalDate.of(2026, 5, 11)
+        val loadFile = testTmp.resolve("session-api-start-save-failed.rsave").freshSaveFile()
+        runRuntimeSession(loadFile, testTmp.resolve("session-api-start-save-failed-setup.log"), sessionDate = today)
+        val notADirectory = testTmp.resolve("session-api-start-save-failed-blocker").apply { writeText("") }
+        val logFile = testTmp.resolve("session-api-start-save-failed.log")
+        val terminal = RecordingAnsiTerminal()
+
+        val result =
+            RuntimeLog.open(logFile).use { log ->
+                RuntimeSessionFactory
+                    .load(bundleFile)
+                    .start(
+                        terminal,
+                        RuntimeSessionConfig(
+                            userId = "local",
+                            stateSlug = "fresh-replay",
+                            loadFile = loadFile,
+                            saveFile = notADirectory.resolve("world.rsave"),
+                            // Dismiss the failure, then ask to quit and play on.
+                            scriptedInput = "AXN",
+                            sessionDate = today,
+                        ),
+                        log,
+                    )
+            }
+
+        assertContains(terminal.output, "Save failed.")
+        assertContains(terminal.output, "Do you really want")
+        assertEquals(RuntimeSessionExitReason.ScriptExhausted, result.reason)
+        assertContains(logFile.readText(), "runtime.save.failed reason=session_start")
+    }
+
+    @Test
+    fun deletingAPartyFromTheTitleMenuDoesNotShowTheSaveFile() {
+        val today = LocalDate.of(2026, 5, 11)
+        val saveFile = testTmp.resolve("session-api-title-delete.rsave").freshSaveFile()
+        runRuntimeSession(saveFile, testTmp.resolve("session-api-title-delete-setup.log"), sessionDate = today)
+        val terminal = RecordingAnsiTerminal()
+
+        RuntimeLog.open(testTmp.resolve("session-api-title-delete.log")).use { log ->
+            RuntimeSessionFactory
+                .load(bundleFile)
+                .start(
+                    terminal,
+                    RuntimeSessionConfig(
+                        userId = "local",
+                        stateSlug = "fresh-replay",
+                        loadFile = saveFile,
+                        saveFile = saveFile,
+                        scriptedInput = "DY",
+                        showTitleMenu = true,
+                        sessionDate = today,
+                    ),
+                    log,
+                )
+        }
+
+        assertContains(terminal.output, "Party terminated.")
+        assertFalse(".rsave" in terminal.output)
+    }
+
+    @Test
     fun outOfMovesCanEndTheDayWithoutSaving() {
         val (result, terminal) = sessionWithMovesLeft("session-api-out-of-moves-quit", moves = 0, commands = "Q")
 
