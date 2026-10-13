@@ -78,9 +78,15 @@ fun runtimeCastleFloor(itemDigit: Char): String =
         append(itemDigit)
     }
 
+// Camping without a guard lets the ambush kill a sleeping member, so post member 1 and fight off the ambush.
+fun runtimeGuardedCamp(): String = "CY1" + runtimeBattleMacro(attacks = 2)
+
 fun runtimeWinningRoute(): String =
     buildString {
-        repeat(21) { append('2') }
+        // The near-winning party has 14 rested hours and each move costs one, so it camps when it gets tired.
+        repeat(14) { append('2') }
+        append(runtimeGuardedCamp())
+        repeat(7) { append('2') }
         append("66E")
         append("AAAA")
         append(runtimeBattleMacro())
@@ -129,6 +135,7 @@ val installRuntime: TaskProvider<Sync> =
 
 tasks.withType<RunInstalledLauncherWithJavaTask>().configureEach {
     userId.set("gradle-smoke")
+    launcherFiles.from(installRuntime)
 }
 
 tasks.test {

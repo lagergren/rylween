@@ -38,6 +38,13 @@ abstract class RunInstalledLauncherWithJavaTask
         @get:InputFile
         abstract val executableFile: RegularFileProperty
 
+        /**
+         * The installed distribution behind [executableFile]. The start script alone does not change when the
+         * runtime jars do, so without this the check could stay up to date across runtime code changes.
+         */
+        @get:InputFiles
+        abstract val launcherFiles: ConfigurableFileCollection
+
         @get:InputFile
         abstract val bundleFile: RegularFileProperty
 

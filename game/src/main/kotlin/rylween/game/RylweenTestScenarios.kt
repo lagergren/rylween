@@ -929,8 +929,9 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                     member(
                         overpoweredMember("Aragorn", Gender.Male, Race.Human, PcClass.Fighter, wisdom = 70, mana = 0 of 70, charisma = 49),
                     )
-                    member(overpoweredMember("Legolas", Gender.Female, Race.Elf, PcClass.Ranger, hitPoints = 0 of 50_000, dead = true))
-                    member(overpoweredMember("Gandalf", Gender.Male, Race.Elf, PcClass.Mage, hitPoints = 0 of 50_000, dead = true))
+                    member(overpoweredMember("Legolas", Gender.Female, Race.Elf, PcClass.Ranger))
+                    member(overpoweredMember("Gandalf", Gender.Male, Race.Elf, PcClass.Mage))
+                    // One dead member keeps alive-vs-dead handling in play through the endgame battles.
                     member(overpoweredMember("Mira", Gender.Female, Race.Human, PcClass.Priest, hitPoints = 0 of 50_000, dead = true))
                 }
 

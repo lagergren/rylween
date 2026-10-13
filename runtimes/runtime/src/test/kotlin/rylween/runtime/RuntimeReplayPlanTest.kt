@@ -151,6 +151,7 @@ class RuntimeReplayPlanTest {
             expected =
                 listOf(
                     "You enter the church",
+                    "GET THAT CORPSE OUTTA",
                     "Who? (1-4)",
                     "1. Aragorn",
                     "Mira needs no healing.",
