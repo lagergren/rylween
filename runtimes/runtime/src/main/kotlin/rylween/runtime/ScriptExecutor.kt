@@ -297,12 +297,11 @@ internal class ScriptExecutor(
                 continueAfter {
                     val direction = teleportDelta(int(instruction.intOperand(0)))
                     val steps = int(instruction.intOperand(1)).coerceIn(1, 9) * 2
+                    // The party stops in front of terrain it could not walk onto and at the edge of the map. The
+                    // original stopped only at mountains, and could leave a party standing in water.
                     val destination =
-                        direction?.let { delta ->
-                            (1..steps).fold(runtime.party.position) { point, _ ->
-                                GridPoint(point.x + delta.x, point.y + delta.y)
-                            }
-                        } ?: runtime.party.position
+                        direction?.let { delta -> WorldMap.from(content, runtime.currentMap).lastPassable(runtime.party.position, delta, steps) }
+                            ?: runtime.party.position
                     runtime =
                         runtime.withParty(
                             runtime.party.copy(

@@ -704,7 +704,10 @@ internal class AutopilotFullGamePlan(
         return actions.move(step)
     }
 
-    /** Teleports along a straight line towards [target] when it saves a long walk and lands on safe, open ground. */
+    /**
+     * Teleports along a straight line towards [target] when it saves a long walk and lands on safe, open ground. Water
+     * and mountains in the way stop a teleport short, so the landing must still be well on the way.
+     */
     private fun teleportTowards(
         state: RuntimeState,
         target: GridPoint,
@@ -723,10 +726,11 @@ internal class AutopilotFullGamePlan(
             }
         val span = maxOf(abs(dx), abs(dy))
         val miles = (span / 2).coerceIn(1, 9)
-        val landing = GridPoint(p.position.x + direction.dx * miles * 2, p.position.y + direction.dy * miles * 2)
+        val landing = navigation.teleportLanding(state.currentMap, p.position, direction, miles)
         val terrain = navigation.terrainSlugAt(state.currentMap, landing) ?: return null
         val safe =
-            terrain !in dangerousTerrain(state) &&
+            distance(landing, target) <= distance(p.position, target) - TELEPORT_MIN_GAIN &&
+                terrain !in dangerousTerrain(state) &&
                 landing !in locationSquares(state) &&
                 content.towns.none { town -> town.position == landing } &&
                 navigation.stepTowards(state.currentMap, landing, target, locationSquares(state)) != null
@@ -895,6 +899,7 @@ internal class AutopilotFullGamePlan(
         const val CAVE_TORCHES = 17
         const val CAVE_MOVES = 30
         const val TELEPORT_MIN_DISTANCE = 16
+        const val TELEPORT_MIN_GAIN = 8
         const val MANA_RESERVE = 20
         const val MIN_FREE_SLOTS = 3
         const val TAX_LEVEL = 5

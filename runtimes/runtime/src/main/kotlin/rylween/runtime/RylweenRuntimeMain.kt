@@ -2517,6 +2517,21 @@ class WorldMap(
 
     fun paddedRows(): List<String> = rows.map { row -> row.padEnd(width) }
 
+    /**
+     * The square [steps] squares from [start] along [delta], or, when the way is blocked, the last square before the
+     * first one the party could not walk onto or the edge of the map; [start] itself when the very first square is.
+     */
+    fun lastPassable(
+        start: GridPoint,
+        delta: GridPoint,
+        steps: Int,
+    ): GridPoint =
+        generateSequence(start) { point -> GridPoint(point.x + delta.x, point.y + delta.y) }
+            .drop(1)
+            .take(steps)
+            .takeWhile { point -> terrainAt(point)?.passable == true }
+            .lastOrNull() ?: start
+
     private fun tileAt(point: GridPoint): Char? = rows.getOrNull(point.y - 1)?.getOrNull(point.x)
 
     companion object {

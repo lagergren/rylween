@@ -75,6 +75,14 @@ internal class AutopilotNavigation(
         point: GridPoint,
     ): String? = world(map).terrainAt(point)?.let { terrain -> content.slug(terrain.id) }
 
+    /** Where a teleport of [miles] miles towards [direction] from [start] lands: terrain the party could not walk onto stops it. */
+    fun teleportLanding(
+        map: CompiledHandleRef,
+        start: GridPoint,
+        direction: AutopilotDirection,
+        miles: Int,
+    ): GridPoint = world(map).lastPassable(start, GridPoint(direction.dx, direction.dy), miles * 2)
+
     private fun passable(
         map: CompiledHandleRef,
         point: GridPoint,

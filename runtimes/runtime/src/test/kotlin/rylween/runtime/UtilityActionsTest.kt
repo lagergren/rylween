@@ -3,9 +3,12 @@ package rylween.runtime
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInventorySlot
+import rylween.compiled.CompiledSpell
+import rylween.compiled.CompiledTerrain
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
 import rylween.dsl.impl.EquipmentCommand
+import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.of
 import java.io.File
@@ -150,6 +153,47 @@ class UtilityActionsTest {
         val after = runUtility("quaff-amber.log", "A${caster + 1}") { actions -> actions.quaff(runtime) }
 
         assertEquals(12 + 3 * 10, after.party.members[caster].mana.current)
+    }
+
+    @Test
+    fun teleportTravelsTwoSquaresAMileOverOpenGround() {
+        assertEquals(GridPoint(18, 20), teleport(from = GridPoint(12, 20), direction = '6', miles = 3))
+    }
+
+    @Test
+    fun teleportStopsAtTheWaterside() {
+        assertEquals(GridPoint(22, 11), teleport(from = GridPoint(20, 11), direction = '6', miles = 9))
+    }
+
+    @Test
+    fun teleportStopsAtTheFootOfTheMountains() {
+        assertEquals(GridPoint(6, 10), teleport(from = GridPoint(10, 10), direction = '4', miles = 9))
+    }
+
+    @Test
+    fun teleportStopsAtTheEdgeOfTheMap() {
+        val world = WorldMap(rows = listOf("sss", "sss"), terrainByCode = content.terrain.associateBy(CompiledTerrain::mapCode))
+
+        assertEquals(GridPoint(2, 1), world.lastPassable(GridPoint(0, 1), GridPoint(1, 0), steps = 18))
+        assertEquals(GridPoint(1, 2), world.lastPassable(GridPoint(1, 2), GridPoint(0, 1), steps = 18))
+    }
+
+    /** Where the party lands when its priest teleports it [miles] miles towards [direction] from [from]. */
+    private fun teleport(
+        from: GridPoint,
+        direction: Char,
+        miles: Int,
+    ): GridPoint {
+        val base = runtimeWithInventory()
+        val priest = base.party.members.indexOfFirst { member -> member.pcClass == PcClass.Priest }
+        val runtime = base.updateMember(priest) { member -> member.copy(mana = 200 of 200) }
+        val spells = content.spells.filter { spell -> content.slug(spell.id).startsWith("priest.") }.sortedBy(CompiledSpell::slot)
+        val spellKey = systems.prompts.priest.firstSpellKey.single() + spells.indexOfFirst { spell -> content.slug(spell.id) == "priest.teleport" }
+        val input = ScriptedInput("${priest + 1}$spellKey  $direction$miles")
+        val after = runUtility("teleport.log", input) { actions -> actions.castPriestSpell(runtime.withParty(runtime.party.copy(position = from))) }
+
+        assertTrue(input.exhausted)
+        return after.party.position
     }
 
     private fun leavePrompts(): List<EquipmentCommand> =
