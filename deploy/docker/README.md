@@ -48,10 +48,11 @@ RYLWEEN_DATA_VOLUME=~/.rylween/compose-data docker compose up -d
 
 The container publishes on `127.0.0.1:8081` by default. To let other machines
 on the local network connect, run compose through the deploy script, which
-detects this machine's private LAN address and publishes on it:
+builds the image, detects this machine's private LAN address, and publishes on
+it:
 
 ```sh
-./deploy-rylween.sh --compose
+./rylween-deploy-docker.sh       # same as ./deploy-rylween.sh --compose
 ```
 
 Or set `RYLWEEN_PUBLISH_HOST` yourself, to a LAN address such as `192.168.x.y`
