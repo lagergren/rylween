@@ -141,6 +141,14 @@ class RealmRef(
             LValueAst.RealmScalar("banished"),
             BoolAst.Cmp(IntAst.RealmScalar("banished"), "ne", IntAst.Lit(0)),
         )
+
+    /** Set by a recurring dungeon event's script to take the event off its level for good, such as a chest once opened. */
+    val levelCleared: BoolSlot =
+        BoolSlot(
+            script,
+            LValueAst.RealmScalar("level_cleared"),
+            BoolAst.Cmp(IntAst.RealmScalar("level_cleared"), "ne", IntAst.Lit(0)),
+        )
 }
 
 class RuntimeContextRef {

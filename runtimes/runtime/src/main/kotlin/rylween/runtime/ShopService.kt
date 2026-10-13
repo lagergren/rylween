@@ -397,20 +397,21 @@ internal class ShopService(
         runtime: RuntimeState,
     ): RuntimeState {
         val party = runtime.party
+        // RETURN leaves, as in every inventory picker: a letter key would shadow the inventory slot it names.
         val promptLines =
             screen.inventoryPickerLines(
                 sell.prompt.renderScreenTextLines(),
                 party.inventory.inventoryChoiceLines(::itemName),
-                listOf(sell.saleKeys.decline.mnemonicLine(content, "Nothing")),
+                listOf(systems.prompts.returnLeavesLine()),
             )
         screen.writeText(promptLines)
-        val choice =
-            input.readValidChoice(screen, promptLines) { candidate ->
-                sell.saleKeys.decline.matchesInput(content, candidate) ||
-                    candidate.inventorySlotFromKey()?.let { slot -> party.inventoryItem(slot) != null } == true
-            } ?: return runtime
-        if (sell.saleKeys.decline.matchesInput(content, choice)) return runtime
-        val slot = choice.inventorySlotFromKey() ?: return runtime
+        val slot =
+            input.readValidInventorySlotChoice(
+                screen = screen,
+                lines = promptLines,
+                validSlots = party.inventory.filter { slot -> slot.item != null }.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
+                cancelKeys = setOf('\n'),
+            ) ?: return runtime
         val item = party.inventoryItem(slot)
         check(item != null) { "shop sell selected slot $slot was empty after input validation" }
         if (!sell.accepts(item)) {

@@ -33,7 +33,6 @@ data class DungeonState(
     val maxDepth: Int,
     val depth: Int,
     val levelEvents: Map<Int, CompiledHandleRef>,
-    val pendingMission: CompiledHandleRef? = null,
     val postDungeon: ScriptContinuationState? = null,
 )
 
@@ -141,8 +140,7 @@ internal class DungeonRuntime(
                     .renderDungeon(dungeon.depth, screen.textColumns),
             )
             val exited = runtime.copy(currentMode = RuntimeMode.Wilderness, currentTown = null, dungeon = null)
-            val resumed = dungeon.postDungeon?.let { continuation -> resumePostDungeon(exited, continuation) } ?: exited
-            return dungeon.pendingMission?.let(resumed::withCompletedMission) ?: resumed
+            return dungeon.postDungeon?.let { continuation -> resumePostDungeon(exited, continuation) } ?: exited
         }
         val nextDepth = dungeon.depth - 1
         val next = runtime.copy(dungeon = dungeon.copy(depth = nextDepth))
@@ -178,7 +176,7 @@ internal class DungeonRuntime(
                     log = log,
                 ).execute(program)
             }
-        return next.copy(dungeon = next.dungeon?.clearEventIfNeeded(event, next))
+        return next.copy(dungeon = next.dungeon?.clearEventIfNeeded(event, before = runtime, after = next))
     }
 
     private fun resumePostDungeon(
@@ -190,11 +188,15 @@ internal class DungeonRuntime(
 
     private fun DungeonState.clearEventIfNeeded(
         event: CompiledDungeonEvent,
-        runtime: RuntimeState,
+        before: RuntimeState,
+        after: RuntimeState,
     ): DungeonState {
+        // A won battle adds its foes to the kill count; a fled one adds nothing.
+        val won = after.party.counters.kills > before.party.counters.kills
         val shouldClear =
             event.disposition == DungeonEventDisposition.ClearAfterRun ||
-                event.clearWhenFlag?.let { flag -> flag in runtime.party.flags } == true
+                event.disposition == DungeonEventDisposition.RecurringUntilWon && won ||
+                event.clearWhenFlag?.let { flag -> flag in after.party.flags } == true
         return if (shouldClear) copy(levelEvents = levelEvents - depth) else this
     }
 
@@ -248,7 +250,6 @@ internal fun RuntimeState.enterDungeon(
     dungeon: CompiledHandleRef,
     levels: Int,
     postDungeon: ScriptContinuationState? = null,
-    pendingMission: CompiledHandleRef? = null,
     log: RuntimeLog,
 ): RuntimeState {
     var plannedParty = party
@@ -281,7 +282,6 @@ internal fun RuntimeState.enterDungeon(
                 maxDepth = maxDepth,
                 depth = 1,
                 levelEvents = randomEvents + fixedEvents,
-                pendingMission = pendingMission,
                 postDungeon = postDungeon,
             ),
         castle = null,

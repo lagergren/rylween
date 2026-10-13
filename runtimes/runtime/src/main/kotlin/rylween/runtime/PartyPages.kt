@@ -33,6 +33,7 @@ internal object PartyPages {
                 add(memberPageView(content, party, index, member))
             }
             addAll(inventoryPageViews(content, systems, party))
+            addAll(killsPageViews(content, systems, party))
         }
 
     fun journalLines(
@@ -224,6 +225,41 @@ internal object PartyPages {
                 )
             }
     }
+
+    /**
+     * Monsters-slain pages end the party view: a row per kind of monster the party has beaten, with how many, most
+     * slain first.
+     */
+    private fun killsPageViews(
+        content: CompiledContentBundle,
+        systems: ExternalRuntimeSystems,
+        party: PartyState,
+    ): List<RuntimePartyPageView> {
+        val title =
+            systems.prompts.party.killsHeader
+                .renderPartyText(wrapWidth = null)
+        val empty =
+            systems.prompts.party.killsEmpty
+                .renderPartyText(wrapWidth = null)
+        val kills =
+            party.monsterKills
+                .map { (monster, count) -> RuntimeMonsterKills(content.monsterName(monster), count) }
+                .sortedWith(compareByDescending(RuntimeMonsterKills::count).thenBy(RuntimeMonsterKills::monster))
+        val entriesPerPage = (TEXT_PAGE_LINES - title.size).coerceAtLeast(1)
+        return kills.chunked(entriesPerPage).ifEmpty { listOf(emptyList()) }.map { entries ->
+            RuntimePartyPageView(
+                kind = RuntimePartyPageKind.Kills,
+                lines = title + entries.map { kill -> kill.monster + TEXT_COLUMN_SEPARATOR + kill.count }.ifEmpty { empty },
+                kills = RuntimePartyKillsView(title, entries, empty),
+            )
+        }
+    }
+
+    private fun CompiledContentBundle.monsterName(monster: CompiledHandleRef): String =
+        monsters
+            .firstOrNull { record -> record.id == monster }
+            ?.let { record -> strings.value(record.nameString) }
+            ?: slug(monster).readableSlug()
 
     private fun CompiledContentBundle.itemDisplayName(item: CompiledHandleRef): String =
         items

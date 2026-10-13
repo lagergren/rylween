@@ -499,7 +499,7 @@ internal object ReplayPlans {
         val attackers = state.livingMemberCount()
 
         fun teleportAfterThun(): ReplayComponent =
-            walker.teleport("wilderness.teleport_after_thun", "Z1FAA49") { point -> GridPoint(point.x - 18, point.y) }
+            walker.teleport("wilderness.teleport_after_thun", "Z1FAA49", delta = GridPoint(-1, 0), miles = 9)
 
         return ReplayPlan(
             name = ACCEPTANCE_POWER_ROUTE,
@@ -767,13 +767,17 @@ private class ReplayWalker(
         terrainSlug: String,
     ): ReplayComponent = follow(name, world.routeToTerrain(point, terrainSlug))
 
-    /** Moves the party without walking, as a teleport does, to the point [landing] computes from the current one. */
+    /**
+     * Moves the party without walking, as the Teleport spell does: [miles] miles of two squares each along [delta], or
+     * less when terrain the party could not walk onto is in the way.
+     */
     fun teleport(
         name: String,
         commands: String,
-        landing: (GridPoint) -> GridPoint,
+        delta: GridPoint,
+        miles: Int,
     ): ReplayComponent {
-        point = landing(point)
+        point = world.teleportLanding(point, delta, miles * 2)
         return ReplayComponent(name, commands)
     }
 
@@ -851,6 +855,12 @@ private class ReplayWorldMap(
             ReplayStep('4', GridPoint(x - 1, y)),
             ReplayStep('6', GridPoint(x + 1, y)),
         )
+
+    fun teleportLanding(
+        start: GridPoint,
+        delta: GridPoint,
+        steps: Int,
+    ): GridPoint = WorldMap(rows, terrainByCode).lastPassable(start, delta, steps)
 
     private fun GridPoint.isPassable(): Boolean = terrainAt(this)?.passable == true
 

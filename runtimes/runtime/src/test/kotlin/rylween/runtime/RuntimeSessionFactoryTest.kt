@@ -207,6 +207,33 @@ class RuntimeSessionFactoryTest {
     }
 
     @Test
+    fun outOfMovesEndsTheDayWithASave() {
+        val (result, terminal) = sessionWithMovesLeft("session-api-out-of-moves-save", moves = 0, commands = "8S")
+
+        assertEquals(RuntimeSessionExitReason.Quit, result.reason)
+        assertContains(terminal.output, "You are out of moves for")
+        assertContains(terminal.output, "Game saved.")
+    }
+
+    @Test
+    fun outOfMovesCanEndTheDayWithoutSaving() {
+        val (result, terminal) = sessionWithMovesLeft("session-api-out-of-moves-quit", moves = 0, commands = "Q")
+
+        assertEquals(RuntimeSessionExitReason.Quit, result.reason)
+        assertFalse("Game saved." in terminal.output)
+    }
+
+    @Test
+    fun quitAsksFirstAndAnyAnswerButYesPlaysOn() {
+        val (declined, declinedTerminal) = sessionWithMovesLeft("session-api-quit-declined", moves = 100, commands = "XN")
+        val (confirmed, _) = sessionWithMovesLeft("session-api-quit-confirmed", moves = 100, commands = "XY")
+
+        assertContains(declinedTerminal.output, "Do you really want")
+        assertEquals(RuntimeSessionExitReason.ScriptExhausted, declined.reason)
+        assertEquals(RuntimeSessionExitReason.Quit, confirmed.reason)
+    }
+
+    @Test
     fun savingOneUserPreservesOtherUserParties() {
         val saveFile = testTmp.resolve("session-api-users.rsave").freshSaveFile()
         val firstLog = testTmp.resolve("session-api-users-first.log")
@@ -307,6 +334,38 @@ class RuntimeSessionFactoryTest {
                     log,
                 )
         }
+    }
+
+    /** Runs a session for a new party with [moves] moves left today, typing [commands]. */
+    private fun sessionWithMovesLeft(
+        name: String,
+        moves: Int,
+        commands: String,
+    ): Pair<RuntimeSessionResult, RecordingAnsiTerminal> {
+        val saveFile = testTmp.resolve("$name.rsave").freshSaveFile()
+        val today = LocalDate.of(2026, 5, 11)
+        runRuntimeSession(saveFile, testTmp.resolve("$name-setup.log"), sessionDate = today)
+        val values = saveFile.readSaveValues()
+        saveFile.writeText(SaveCodec.encodeValues(values + ("${values.userPrefix("local")}party.timeLeft" to moves.toString())))
+        val terminal = RecordingAnsiTerminal()
+        val result =
+            RuntimeLog.open(testTmp.resolve("$name.log")).use { log ->
+                RuntimeSessionFactory
+                    .load(bundleFile)
+                    .start(
+                        terminal,
+                        RuntimeSessionConfig(
+                            userId = "local",
+                            stateSlug = "fresh-replay",
+                            loadFile = saveFile,
+                            saveFile = saveFile,
+                            scriptedInput = commands,
+                            sessionDate = today,
+                        ),
+                        log,
+                    )
+            }
+        return result to terminal
     }
 
     private fun File.freshSaveFile(): File {

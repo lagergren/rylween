@@ -76,6 +76,12 @@ private const val BATTLE_MESSAGE_PAGE_LINES = 4
 private const val BATTLE_VICTORY_PAGE_LINES = 7
 
 /** Result of a battle handoff. */
+/**
+ * A monster weapon skill lowered by [penalty], as defending or a battle cry does. As in the original, a skill no
+ * higher than the penalty stays as it is, so monsters never drop to no skill at all.
+ */
+internal fun Int.loweredBy(penalty: Int): Int = if (this > penalty) this - penalty else this
+
 internal data class BattleResult(
     val runtime: RuntimeState,
     val messages: List<String> = emptyList(),
@@ -442,7 +448,7 @@ internal class BattleRunner(
         return copy(
             runtime = runtime.withMember(memberIndex, nextMember),
             defendCount = (defendCount + 1).coerceAtMost(rules.playerRound.defend.cap),
-            monsterWeaponSkill = (monsterWeaponSkill - rules.playerRound.defend.weaponSkillPenalty).coerceAtLeast(0),
+            monsterWeaponSkill = monsterWeaponSkill.loweredBy(rules.playerRound.defend.weaponSkillPenalty),
         )
     }
 
@@ -456,12 +462,7 @@ internal class BattleRunner(
         } else {
             messages += lines
         }
-        return copy(
-            monsterWeaponSkill =
-                (monsterWeaponSkill - rules.playerRound.battleCry.weaponSkillPenalty).coerceAtLeast(
-                    0,
-                ),
-        )
+        return copy(monsterWeaponSkill = monsterWeaponSkill.loweredBy(rules.playerRound.battleCry.weaponSkillPenalty))
     }
 
     private fun BattleEncounter.useMagicItem(
@@ -693,7 +694,7 @@ internal class BattleRunner(
                 party = selection.party
                 selection.item
             }
-        party = party.applyBattleRewards(experience, gold, loot, monsterCount)
+        party = party.applyBattleRewards(experience, gold, loot, monster.id, monsterCount)
         val levelUps = party.applyLevelUps(combat.leveling)
         party = levelUps.party
         val messages =
@@ -856,6 +857,7 @@ internal class BattleRunner(
         experience: Int,
         gold: Int,
         loot: CompiledHandleRef?,
+        defeated: CompiledHandleRef,
         defeatedCount: Int,
     ): PartyState {
         val survivorExperience =
@@ -863,7 +865,11 @@ internal class BattleRunner(
                 member.takeIf { it.dead } ?: member.copy(experience = member.experience + experience)
             }
         val withCounters =
-            copy(counters = counters.copy(kills = counters.kills + defeatedCount), members = survivorExperience)
+            copy(
+                counters = counters.copy(kills = counters.kills + defeatedCount),
+                monsterKills = monsterKills + (defeated to (monsterKills[defeated] ?: 0) + defeatedCount),
+                members = survivorExperience,
+            )
         val withGold = withCounters.withGold(withCounters.resources.gold + gold)
         val freeSlot = withGold.inventory.firstOrNull { slot -> slot.item == null }?.slot
         return loot?.let { item -> freeSlot?.let { slot -> withGold.withInventoryItem(slot, item) } } ?: withGold
@@ -883,12 +889,15 @@ internal class BattleRunner(
                 gains += BattleLevelGain(memberName(content, index), gained)
                 val growth = growthByClass[member.pcClass]
                 val nextHealth = member.health + (growth?.health ?: 0) * gained
+                val nextWisdom = member.wisdom + (growth?.wisdom ?: 0) * gained
                 val hpFloor = evalFormula(leveling.hitPointFloor, this, mapOf("health" to nextHealth)).value
                 member.copy(
                     level = (member.level + gained).coerceAtMost(leveling.maxLevel),
                     weaponSkill = member.weaponSkill + (growth?.weaponSkill ?: 0) * gained,
                     health = nextHealth,
-                    wisdom = member.wisdom + (growth?.wisdom ?: 0) * gained,
+                    wisdom = nextWisdom,
+                    // Spell points refill up to wisdom, as in the original, so a wiser caster holds more of them.
+                    mana = member.mana.current of nextWisdom,
                     charisma = member.charisma + (growth?.charisma ?: 0) * gained,
                     dexterity = member.dexterity + (growth?.dexterity ?: 0) * gained,
                     hitPoints = member.hitPoints.current.coerceAtLeast(hpFloor) of nextHealth,

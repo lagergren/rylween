@@ -70,8 +70,8 @@ private const val SPEAK_NO_RUMOR_SCREEN = "speak.no_rumor"
 private const val SCRIPT_ROOT_KIND_DIALOGUE_BRANCH = "DialogueBranch"
 private const val SCRIPT_ROOT_KIND_QUESTION_ACTION = "QuestionAction"
 
-private val SPEAK_COMMAND_GROUP = RuntimeCommandGroupId.Speak
-private val SPEAK_QUESTION_COMMAND_GROUP = RuntimeCommandGroupId.SpeakQuestions
+private val speakCommandGroup = RuntimeCommandGroupId.Speak
+private val speakQuestionCommandGroup = RuntimeCommandGroupId.SpeakQuestions
 
 /** Executes one compiled script root against [RuntimeState]. */
 private val spacedMenuColumn = Regex("""(?<=\S) {2,}(?=\S)""")
@@ -297,12 +297,11 @@ internal class ScriptExecutor(
                 continueAfter {
                     val direction = teleportDelta(int(instruction.intOperand(0)))
                     val steps = int(instruction.intOperand(1)).coerceIn(1, 9) * 2
+                    // The party stops in front of terrain it could not walk onto and at the edge of the map. The
+                    // original stopped only at mountains, and could leave a party standing in water.
                     val destination =
-                        direction?.let { delta ->
-                            (1..steps).fold(runtime.party.position) { point, _ ->
-                                GridPoint(point.x + delta.x, point.y + delta.y)
-                            }
-                        } ?: runtime.party.position
+                        direction?.let { delta -> WorldMap.from(content, runtime.currentMap).lastPassable(runtime.party.position, delta, steps) }
+                            ?: runtime.party.position
                     runtime =
                         runtime.withParty(
                             runtime.party.copy(
@@ -677,7 +676,7 @@ internal class ScriptExecutor(
             val lines =
                 screen.choiceMenuLines(
                     conversation.prompts.mainMenu.renderExternal(npc),
-                    systems.commands.mnemonicMenuLines(SPEAK_COMMAND_GROUP),
+                    systems.commands.mnemonicMenuLines(speakCommandGroup),
                 )
             screen.writeText(lines)
             val command =
@@ -685,7 +684,7 @@ internal class ScriptExecutor(
                     .readValidCommandChoice(
                         screen = screen,
                         lines = lines,
-                        commands = systems.commands[SPEAK_COMMAND_GROUP.id].orEmpty(),
+                        commands = systems.commands[speakCommandGroup.id].orEmpty(),
                     )
                     ?: return ScriptSignal.StopScript
             val signal =
@@ -720,14 +719,14 @@ internal class ScriptExecutor(
         npc: CompiledCharacter,
         insideLoop: Boolean,
     ): ScriptSignal {
-        val lines = systems.commands.mnemonicMenuLines(SPEAK_QUESTION_COMMAND_GROUP)
+        val lines = systems.commands.mnemonicMenuLines(speakQuestionCommandGroup)
         screen.writeText(lines)
         val command =
             input
                 .readValidCommandChoice(
                     screen = screen,
                     lines = lines,
-                    commands = systems.commands[SPEAK_QUESTION_COMMAND_GROUP.id].orEmpty(),
+                    commands = systems.commands[speakQuestionCommandGroup.id].orEmpty(),
                 )
                 ?: return ScriptSignal.StopScript
         val topic = command.questionTopic() ?: return ScriptSignal.Continue
@@ -1197,9 +1196,27 @@ internal class ScriptExecutor(
         runtime =
             when (name) {
                 "hour" -> runtime.copy(hour = value)
+                "banished" -> if (value != 0) runtime.copy(dungeon = runtime.dungeon?.banishEncounters()) else runtime
+                "level_cleared" ->
+                    runtime.dungeon
+                        ?.takeIf { value != 0 }
+                        ?.let { dungeon -> runtime.copy(dungeon = dungeon.copy(levelEvents = dungeon.levelEvents - dungeon.depth)) }
+                        ?: runtime
                 else -> runtime
             }
     }
+
+    /**
+     * Banish Evil clears the random monster encounters from every level of the dungeon but its last, as in the
+     * original: the party meets no more wandering monsters there, only the dungeon's fixed events.
+     */
+    private fun DungeonState.banishEncounters(): DungeonState =
+        copy(
+            levelEvents =
+                levelEvents.filter { (level, event) ->
+                    level == maxDepth || content.dungeonEvents.firstOrNull { record -> record.id == event }?.randomEncounterTier == null
+                },
+        )
 
     private fun partyScalar(name: String): Int =
         when (name) {
@@ -1291,7 +1308,8 @@ internal class ScriptExecutor(
             .filter { character ->
                 val position = character.position(runtime)
                 when (val town = runtime.currentTown) {
-                    null -> position is CompiledWorldPosition.Wilderness && content.slug(building) == "none"
+                    // Outside towns, a hut holds the characters standing on the party's square.
+                    null -> position == CompiledWorldPosition.Wilderness(runtime.party.position) && content.slug(building) == "none"
                     else -> position == CompiledWorldPosition.Town(town, building)
                 }
             }.sortedBy { character -> content.strings.value(character.nameString) }

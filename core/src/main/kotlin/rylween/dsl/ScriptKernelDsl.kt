@@ -595,7 +595,12 @@ data class ItemUseModel(
     val statementNodes: List<ScriptStatementNode> get() = script.statementNodes
 }
 
-enum class DungeonEventDisposition { ClearAfterRun, Recurring }
+/**
+ * Whether a dungeon level's event stays on its level once it has run: [ClearAfterRun] runs once, [Recurring] runs on
+ * every visit, and [RecurringUntilWon] runs on every visit until the party wins the battle it starts, so monsters
+ * that were fled from are still there and monsters that were beaten are gone.
+ */
+enum class DungeonEventDisposition { ClearAfterRun, Recurring, RecurringUntilWon }
 
 data class DungeonEventModel(
     val id: DungeonEventId,

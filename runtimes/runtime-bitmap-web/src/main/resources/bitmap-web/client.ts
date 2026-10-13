@@ -199,6 +199,13 @@ type BitmapPartyPage = {
     member?: BitmapPartyMemberPage;
     summary?: BitmapPartySummaryPage;
     inventory?: string[];
+    kills?: BitmapPartyKillsPage;
+};
+
+type BitmapPartyKillsPage = {
+    title?: string[];
+    entries?: { monster?: string; count?: number }[];
+    empty?: string[];
 };
 
 type BitmapDocumentLine = {
@@ -2777,7 +2784,7 @@ function drawPartyOverviewPanel(page: BitmapPartyPage): void {
     drawCroppedImage(bitmapAssets.partyOverview, bounds.x, bounds.y, bounds.w, bounds.h);
     drawSceneVignette(bounds);
     const heading = page.summary ? page.summary.partyName || "Party" : (page.kind || "Party").toUpperCase();
-    const caption = page.summary ? "Company Ledger" : "Inventory Ledger";
+    const caption = page.summary ? "Company Ledger" : page.kills ? "Kill Ledger" : "Inventory Ledger";
     softPanel(bounds.x + 34, bounds.y + bounds.h - 126, bounds.w - 68, 78, "rgba(5, 8, 6, 0.70)");
     ctx.textAlign = "center";
     ctx.font = "700 25px Palatino, 'Palatino Linotype', Georgia, serif";
@@ -3915,6 +3922,7 @@ function drawPartyTextPanel(page: BitmapPartyPage): void {
     const maxWidth = layout.text.w - 56;
     if (page.member) drawPartyMemberText(page.member, x, y, maxWidth);
     else if (page.summary) drawPartySummaryText(page.summary, x, y, maxWidth);
+    else if (page.kills) drawPartyKillsText(page.kills, x, y, maxWidth);
     else drawPartyInventoryText(page, x, y, maxWidth);
     drawPartyPause(page.pauseLine || "", x, layout.text.y + layout.text.h - 30, maxWidth);
 }
@@ -3964,34 +3972,71 @@ function drawPartySummaryText(summary: BitmapPartySummaryPage, x: number, y: num
 }
 
 function drawPartyInventoryText(page: BitmapPartyPage, x: number, y: number, maxWidth: number): void {
+    const entries = page.inventory && page.inventory.length > 0 ? page.inventory : ["Nothing carried."];
+    // Same slot letters and two-column layout as the inventory pickers.
+    const columns = entries.length > 1 ? 2 : 1;
+    const columnWidth = maxWidth / columns;
+    const cellWidth = columnWidth - (columns > 1 ? textPanelColumnGap : 0);
+    drawPartyLedger("Inventory", Math.ceil(entries.length / columns), x, y, maxWidth, (row, ty) => {
+        for (let column = 0; column < columns; column++) {
+            const entry = entries[row * columns + column];
+            if (entry !== undefined) drawPartyCell(entry, x + column * columnWidth, ty, cellWidth);
+        }
+    });
+}
+
+/** Monsters slain, most first: the monster's name, and how many fell, in a column of their own. */
+function drawPartyKillsText(kills: BitmapPartyKillsPage, x: number, y: number, maxWidth: number): void {
+    const title = (kills.title || []).filter((line) => line.trim().length > 0).join(" ") || "Monsters slain";
+    const entries = kills.entries || [];
+    if (entries.length === 0) {
+        const empty = kills.empty || [];
+        drawPartyLedger(title, empty.length, x, y, maxWidth, (row, ty) => drawPartyCell(empty[row], x, ty, maxWidth));
+        return;
+    }
+    const countX = x + maxWidth * 0.8;
+    drawPartyLedger(title, entries.length, x, y, maxWidth, (row, ty) => {
+        const entry = entries[row];
+        drawPartyCell(entry.monster || "", x, ty, countX - x - textPanelColumnGap);
+        drawPartyCell(String(entry.count ?? 0), countX, ty, x + maxWidth - countX);
+    });
+}
+
+/** A titled party ledger page: its heading, a divider, and [rowCount] rows that [drawRow] fills at each baseline. */
+function drawPartyLedger(
+    title: string,
+    rowCount: number,
+    x: number,
+    y: number,
+    maxWidth: number,
+    drawRow: (row: number, baseline: number) => void
+): void {
     ctx.font = "700 28px Palatino, 'Palatino Linotype', Georgia, serif";
     ctx.fillStyle = "#f1df9f";
-    ctx.fillText("Inventory", x, y);
+    ctx.fillText(title, x, y);
     drawPartyDivider(x, y + 24, maxWidth);
     const top = y + 58;
     const bottom = layout.text.y + layout.text.h - 62;
-    const entries = page.inventory && page.inventory.length > 0 ? page.inventory : ["Nothing carried."];
     const bitmapScale = currentFantasyTextScale();
-    // Same slot letters and two-column layout as the inventory pickers.
-    const columns = entries.length > 1 ? 2 : 1;
-    const rowCount = Math.ceil(entries.length / columns);
     const lineHeight = textDisplaySettings.bitmapFont
         ? fittedLineHeight(currentFantasyLineHeight(bitmapScale) + 1, Math.ceil(fantasyFontHeight * bitmapScale) + 3, rowCount, bottom - top)
         : fittedLineHeight(25, 19, rowCount, bottom - top);
-    const columnWidth = maxWidth / columns;
-    entries.forEach((entry, index) => {
-        const ty = top + Math.floor(index / columns) * lineHeight;
-        const tx = x + (index % columns) * columnWidth;
-        const cellWidth = columnWidth - (columns > 1 ? textPanelColumnGap : 0);
-        if (ty > bottom) return;
-        if (textDisplaySettings.bitmapFont) {
-            drawFantasyText(truncateFantasyToWidth(entry, cellWidth, bitmapScale), tx, ty - fantasyFontHeight * bitmapScale, bitmapScale, "#efe4c6");
-        } else {
-            ctx.font = textPanelFont;
-            ctx.fillStyle = "#efe4c6";
-            ctx.fillText(truncateToWidth(entry, cellWidth), tx, ty);
-        }
-    });
+    for (let row = 0; row < rowCount; row++) {
+        const baseline = top + row * lineHeight;
+        if (baseline > bottom) return;
+        drawRow(row, baseline);
+    }
+}
+
+function drawPartyCell(text: string, x: number, baseline: number, cellWidth: number): void {
+    if (textDisplaySettings.bitmapFont) {
+        const bitmapScale = currentFantasyTextScale();
+        drawFantasyText(truncateFantasyToWidth(text, cellWidth, bitmapScale), x, baseline - fantasyFontHeight * bitmapScale, bitmapScale, "#efe4c6");
+    } else {
+        ctx.font = textPanelFont;
+        ctx.fillStyle = "#efe4c6";
+        ctx.fillText(truncateToWidth(text, cellWidth), x, baseline);
+    }
 }
 
 function drawPartyStatGrid(stats: PartyStat[], x: number, y: number, maxWidth: number): void {

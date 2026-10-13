@@ -152,6 +152,8 @@ tasks.test {
             .asFile
             .absolutePath,
     )
+    // Full-game autopilot seeds for balance work: ./gradlew :runtime:test -Prylween.autopilot.seeds=1,2,3
+    providers.gradleProperty("rylween.autopilot.seeds").orNull?.let { seeds -> systemProperty("rylween.autopilot.seeds", seeds) }
     systemProperty(
         "rylween.runtime.testTmp",
         layout.buildDirectory

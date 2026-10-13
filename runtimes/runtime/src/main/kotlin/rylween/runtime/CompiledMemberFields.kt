@@ -9,8 +9,9 @@ import rylween.dsl.impl.of
  * Returns this member with the compiled member [field] set to [value], or `null` when [field] is not a writable
  * member field.
  *
- * Counters clamp at zero and `level` at one. Writing `health` also sets the hit-point maximum, and writing
- * `magic_max` caps current magic at the new maximum.
+ * Counters clamp at zero and `level` at one. Writing `health` also sets the hit-point maximum, writing `wisdom` also
+ * sets the spell-point maximum, which is wisdom as in the original game, and writing `magic_max` caps current magic at
+ * the new maximum.
  */
 internal fun CompiledPartyMember.withCompiledField(
     field: String,
@@ -26,7 +27,7 @@ internal fun CompiledPartyMember.withCompiledField(
         "magic" -> copy(mana = mana.copy(current = value.coerceAtLeast(0)))
         "magic_max" -> value.coerceAtLeast(0).let { max -> copy(mana = mana.current.coerceAtMost(max) of max) }
         "level" -> copy(level = value.coerceAtLeast(1))
-        "wisdom" -> copy(wisdom = value.coerceAtLeast(0))
+        "wisdom" -> value.coerceAtLeast(0).let { wisdom -> copy(wisdom = wisdom, mana = mana.current.coerceAtMost(wisdom) of wisdom) }
         "charisma" -> copy(charisma = value.coerceAtLeast(0))
         "weapon_skill" -> copy(weaponSkill = value.coerceAtLeast(0))
         "dexterity" -> copy(dexterity = value.coerceAtLeast(0))

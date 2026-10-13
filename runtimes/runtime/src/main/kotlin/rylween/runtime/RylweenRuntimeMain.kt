@@ -74,14 +74,18 @@ import kotlin.math.max
 import kotlin.system.exitProcess
 
 private const val TITLE_SCREEN = "title"
-private val TITLE_COMMAND_GROUP = RuntimeCommandGroupId.Title.id
+private val titleCommandGroup = RuntimeCommandGroupId.Title.id
 private const val SCORE_SCREEN = "score"
 private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
+
+/** Authored scene that hosts conversations with characters standing in the wilderness. */
+private const val HUT_SCENE = "towne.hut"
+
 private const val TEXT_WINDOW_PAGE_LINES = 9
 private const val TOWN_MAIN_STREET_IMAGE = "blitgfx.towne_mainstreet"
-private val TOWN_COMMAND_GROUP = RuntimeCommandGroupId.Town.id
-private val TOWN_LEAVE_ACTION = RuntimeCommandActionId.LeaveTown.id
+private val townCommandGroup = RuntimeCommandGroupId.Town.id
+private val townLeaveAction = RuntimeCommandActionId.LeaveTown.id
 
 /** CLI entry point for the runtime. */
 object RylweenRuntimeMain {
@@ -546,6 +550,7 @@ class GameRuntime private constructor(
                     }
                     else -> Unit
                 }
+                if (runtime.party.resources.timeLeft <= 0) return endOfMoves(runtime, saveContext, screen, input, log)
                 val command = input.readCommand()
                 log.event("wilderness.command key=${command ?: "null"} position=${runtime.logPosition()}")
                 var moveEvent: MoveEvent? = null
@@ -553,7 +558,13 @@ class GameRuntime private constructor(
                 val advanceTurn =
                     when {
                         command == null -> return input.exitResult()
-                        commands.matches(RuntimeCommandActionId.Quit, command) -> return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
+                        commands.matches(RuntimeCommandActionId.Quit, command) ->
+                            when (confirmQuit(runtime, screen, input, log)) {
+                                null -> return input.exitResult()
+                                true -> return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
+                                false -> false
+                            }
+
                         commands.matches(RuntimeCommandActionId.MoveNorth, command) -> {
                             val move = move(runtime.party, world, 0, -1, screen)
                             runtime =
@@ -744,7 +755,7 @@ class GameRuntime private constructor(
         val log = context.log
         val save = context.save
         val screen = context.screen
-        val titleCommands = systems.commands.getValue(TITLE_COMMAND_GROUP)
+        val titleCommands = systems.commands.getValue(titleCommandGroup)
 
         fun matches(
             action: RuntimeCommandActionId,
@@ -920,7 +931,7 @@ class GameRuntime private constructor(
         hasSavedGame: Boolean,
         wrapWidth: Int?,
     ): List<String> =
-        systems.commands.getValue(TITLE_COMMAND_GROUP).let { commands ->
+        systems.commands.getValue(titleCommandGroup).let { commands ->
             buildList {
                 addAll(
                     systems.prompts.titleMenu.header
@@ -1430,6 +1441,54 @@ class GameRuntime private constructor(
             .chunked(TEXT_WINDOW_PAGE_LINES)
             .ifEmpty { listOf(runtimeChromeText("Press ? for commands.")) }
 
+    /**
+     * Ends the session once the party has no moves left, as the original did: the player saves and quits, or quits
+     * without saving, and a new day brings new moves.
+     */
+    private fun endOfMoves(
+        runtime: RuntimeState,
+        save: RuntimeSaveContext,
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
+        log: RuntimeLog,
+    ): RuntimeSessionResult {
+        val choices = WildernessCommands.from(systems, RuntimeCommandGroupId.WildernessOutOfMoves)
+        val lines =
+            systems.prompts.wilderness.outOfMoves
+                .renderRuntimeText(content, runtime, screen.textColumns)
+        screen.writeText(lines)
+        val choice =
+            input.readValidChoice(screen, lines) { command ->
+                choices.matches(RuntimeCommandActionId.Save, command) || choices.matches(RuntimeCommandActionId.Quit, command)
+            } ?: return input.exitResult()
+        val saving = choices.matches(RuntimeCommandActionId.Save, choice)
+        log.event("wilderness.out_of_moves save=$saving position=${runtime.logPosition()}")
+        if (saving) saveRuntime(runtime, save, screen, log)
+        return RuntimeSessionResult(RuntimeSessionExitReason.Quit)
+    }
+
+    /**
+     * Asks whether the player really wants to quit, which leaves without saving. As in the original, any key but yes
+     * keeps playing. `null` when the input ran out.
+     */
+    private fun confirmQuit(
+        runtime: RuntimeState,
+        screen: RuntimeScreenPort,
+        input: RuntimeInputPort,
+        log: RuntimeLog,
+    ): Boolean? {
+        val answers = WildernessCommands.from(systems, RuntimeCommandGroupId.WildernessQuitConfirm)
+        screen.writeText(
+            systems.prompts.wilderness.quitConfirm
+                .renderRuntimeText(content, runtime, screen.textColumns),
+        )
+        val answer = input.readCommand() ?: return null
+        val quitting = answers.matches(RuntimeCommandActionId.Yes, answer)
+        log.event("wilderness.quit_confirm key=$answer quit=$quitting")
+        if (!quitting) screen.writeViewCommand(RuntimeViewCommand.ClearText)
+        return quitting
+    }
+
     private fun saveRuntime(
         runtime: RuntimeState,
         save: RuntimeSaveContext,
@@ -1501,6 +1560,12 @@ class GameRuntime private constructor(
             return CastleRuntime(context)
                 .startCastle(runtime, castle)
         }
+        val npcs = runtime.wildernessNpcsHere(content)
+        val hut = content.scripts.roots.firstOrNull { root -> root.root.kind.name == "Scene" && root.root.slug == HUT_SCENE }
+        if (npcs.isNotEmpty() && hut != null) {
+            log.event("wilderness.enter_hut npcs=${npcs.joinToString(",") { npc -> slug(npc.id) }}")
+            return ScriptExecutor(content, systems, input, screen, runtime, log = log).execute(hut)
+        }
         log.event("wilderness.enter_none")
         screen.writeText(
             systems.prompts.wilderness.nothingToEnter
@@ -1526,14 +1591,14 @@ class GameRuntime private constructor(
             screen.writeText(runtimeDiagnosticText("${string(town.nameString)} has no compiled services."))
             return runtime
         }
-        val townCommands = systems.commands.getValue(TOWN_COMMAND_GROUP)
+        val townCommands = systems.commands.getValue(townCommandGroup)
         val serviceEntries =
             services.mapNotNull { service ->
                 townCommands
                     .firstOrNull { command -> command.action == slug(service.action) }
                     ?.let { command -> TownMenuEntry(command, service, command.label ?: command.binding.label) }
             }
-        val leaveCommand = townCommands.firstOrNull { command -> command.action == TOWN_LEAVE_ACTION }
+        val leaveCommand = townCommands.firstOrNull { command -> command.action == townLeaveAction }
         if (serviceEntries.isEmpty()) {
             screen.writeText(runtimeDiagnosticText("${string(town.nameString)} has no compiled service commands."))
             return runtime
@@ -1567,7 +1632,7 @@ class GameRuntime private constructor(
                 log.event("town.invalid_choice key=$choice")
                 continue
             }
-            if (command.action == TOWN_LEAVE_ACTION) {
+            if (command.action == townLeaveAction) {
                 val readied =
                     UtilityActions(content, systems, input, screen, log)
                         .readyBeforeLeavingTown(current, systems.town?.leavePrompts.orEmpty())
@@ -1670,7 +1735,7 @@ class GameRuntime private constructor(
         var placementParty = current.party.copy(rngState = current.party.rngState ?: 1L)
         val placements = current.npcs.toMutableList()
         content.characters.forEach { character ->
-            if (character.effectivePosition(current) != null) return@forEach
+            if (character.position(current) != null) return@forEach
             if (character.placement == CompiledCharacterPlacement.Unplaced) {
                 log.event(
                     "npc.placement.unplaced npc=${slug(character.id)} " +
@@ -1678,7 +1743,7 @@ class GameRuntime private constructor(
                 )
                 return@forEach
             }
-            val occupiedPositions = content.characters.mapNotNull { it.effectivePosition(current) }.toSet()
+            val occupiedPositions = content.characters.mapNotNull { it.position(current) }.toSet()
             val draw = placementParty.drawNpcPlacement(character.placement, world, occupiedPositions)
             if (draw == null) {
                 log.event(
@@ -1848,7 +1913,7 @@ class GameRuntime private constructor(
     ) {
         val rows =
             content.characters.mapNotNull { character ->
-                val position = character.effectivePosition(runtime)
+                val position = character.position(runtime)
                 if (position == null) {
                     log.event(
                         "npc.placement.missing npc=${slug(character.id)} " +
@@ -1899,10 +1964,6 @@ class GameRuntime private constructor(
             is CompiledCharacterPlacement.Randomized -> "randomized"
             CompiledCharacterPlacement.Unplaced -> "unplaced"
         }
-
-    private fun CompiledCharacter.effectivePosition(runtime: RuntimeState): CompiledWorldPosition? =
-        runtime.npcs.firstOrNull { placement -> placement.npc == id }?.position
-            ?: (placement as? CompiledCharacterPlacement.Fixed)?.position
 
     private fun CompiledWorldPosition.logLocation(): String =
         when (this) {
@@ -2081,6 +2142,10 @@ data class PartyState(
     val visitedNpcs: List<CompiledNpcVisit>,
     val journal: List<String>,
     val rngState: Long?,
+    /** Monsters the party has slain in battles it won, by monster. */
+    val monsterKills: Map<CompiledHandleRef, Int> = emptyMap(),
+    /** Per castle id, how many floors' stair guardians the party has won over, so their way up stays open. */
+    val castleFloorsOpened: Map<String, Int> = emptyMap(),
 ) {
     fun passTurn(): PartyState = copy(resources = resources.copy(timeLeft = max(0, resources.timeLeft - 1)))
 
@@ -2506,6 +2571,21 @@ class WorldMap(
     fun terrainAt(point: GridPoint): CompiledTerrain? = tileAt(point)?.let(terrainByCode::get)
 
     fun paddedRows(): List<String> = rows.map { row -> row.padEnd(width) }
+
+    /**
+     * The square [steps] squares from [start] along [delta], or, when the way is blocked, the last square before the
+     * first one the party could not walk onto or the edge of the map; [start] itself when the very first square is.
+     */
+    fun lastPassable(
+        start: GridPoint,
+        delta: GridPoint,
+        steps: Int,
+    ): GridPoint =
+        generateSequence(start) { point -> GridPoint(point.x + delta.x, point.y + delta.y) }
+            .drop(1)
+            .take(steps)
+            .takeWhile { point -> terrainAt(point)?.passable == true }
+            .lastOrNull() ?: start
 
     private fun tileAt(point: GridPoint): Char? = rows.getOrNull(point.y - 1)?.getOrNull(point.x)
 

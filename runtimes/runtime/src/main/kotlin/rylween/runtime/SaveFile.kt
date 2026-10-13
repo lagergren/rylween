@@ -35,7 +35,7 @@ private const val PARTY_MEMBER_RECORD_COUNT = "party.members"
 private const val USERS_COUNT = "users.count"
 private const val HEROES_COUNT = "heroes.count"
 
-private val MEMBER_FIELD_KEY = Regex("""^member\.(\d+)\.""")
+private val memberFieldKey = Regex("""^member\.(\d+)\.""")
 
 /**
  * Encodes and decodes the runtime's sorted key/value save file.
@@ -368,7 +368,6 @@ internal object SaveFile {
         put("dungeon.id", content.slug(dungeon.dungeon))
         put("dungeon.maxDepth", dungeon.maxDepth.toString())
         put("dungeon.depth", dungeon.depth.toString())
-        put("dungeon.pendingMission", dungeon.pendingMission?.let(content::slug).orEmpty())
         put(
             "dungeon.levelEvents",
             dungeon.levelEvents.entries
@@ -416,6 +415,8 @@ internal object SaveFile {
         )
         put(PARTY_MEMBER_RECORD_COUNT, party.members.size.toString())
         put("party.kills", party.counters.kills.toString())
+        put("party.monsterKills", party.monsterKills.entries.joinToString(",") { (monster, count) -> "${content.slug(monster)}:$count" })
+        put("party.castleFloorsOpened", party.castleFloorsOpened.entries.joinToString(",") { (castle, floors) -> "$castle:$floors" })
         put("party.waitingMail", party.counters.waitingMail.toString())
         put("party.attacked", party.counters.attacked.toString())
         put(
@@ -541,6 +542,8 @@ internal object SaveFile {
             members = readMembers(base.members, content),
             memberNames = readMemberNames(base.memberNames),
             rngState = optionalLong("party.rngState") ?: base.rngState,
+            monsterKills = readMonsterKills(base.monsterKills, content),
+            castleFloorsOpened = readCastleFloorsOpened(base.castleFloorsOpened),
         )
 
     private fun Map<String, String>.readLocations(
@@ -602,7 +605,6 @@ internal object SaveFile {
                         val parts = token.split(':')
                         parts[0].toInt() to content.ref(CompiledHandleKind.DungeonEvent, parts[1])
                     }.orEmpty(),
-            pendingMission = optionalHandle("dungeon.pendingMission", CompiledHandleKind.Mission, content),
             postDungeon = readPostDungeon(content),
         )
     }
@@ -652,6 +654,31 @@ internal object SaveFile {
                 val parts = token.split(':')
                 GridPoint(parts[0].toInt(), parts[1].toInt())
             }.orEmpty()
+
+    private fun Map<String, String>.readCastleFloorsOpened(base: Map<String, Int>): Map<String, Int> {
+        val raw = get("party.castleFloorsOpened") ?: return base
+        return raw
+            .split(',')
+            .filter(String::isNotEmpty)
+            .associate { token ->
+                val (castle, floors) = token.split(':')
+                castle to floors.toInt()
+            }
+    }
+
+    private fun Map<String, String>.readMonsterKills(
+        base: Map<CompiledHandleRef, Int>,
+        content: CompiledContentBundle,
+    ): Map<CompiledHandleRef, Int> {
+        val raw = get("party.monsterKills") ?: return base
+        return raw
+            .split(',')
+            .filter(String::isNotEmpty)
+            .associate { token ->
+                val (monster, count) = token.split(':')
+                content.ref(CompiledHandleKind.Monster, monster) to count.toInt()
+            }
+    }
 
     private fun Map<String, String>.readAttackedToday(
         base: List<CompiledPartyAttackRecord>,
@@ -715,10 +742,12 @@ internal object SaveFile {
                     ),
                 weaponSkill = intOrDefault("$prefix.weaponSkill", member.weaponSkill),
                 wisdom = intOrDefault("$prefix.wisdom", member.wisdom),
+                // Spell points refill up to wisdom. Saves from before level-ups raised the maximum with wisdom kept a
+                // caster's starting maximum, so a smaller saved maximum is raised to wisdom.
                 mana =
                     StatPool(
                         intOrDefault("$prefix.magic", member.mana.current),
-                        intOrDefault("$prefix.magicMax", member.mana.max),
+                        maxOf(intOrDefault("$prefix.magicMax", member.mana.max), intOrDefault("$prefix.wisdom", member.wisdom)),
                     ),
                 charisma = intOrDefault("$prefix.charisma", member.charisma),
                 dexterity = requiredInt("$prefix.dexterity"),
@@ -872,7 +901,7 @@ internal object SaveFile {
     private fun Map<String, String>.savedMemberSlots(): Set<Int> =
         keys
             .mapNotNull { key ->
-                MEMBER_FIELD_KEY
+                memberFieldKey
                     .find(key)
                     ?.groupValues
                     ?.get(1)

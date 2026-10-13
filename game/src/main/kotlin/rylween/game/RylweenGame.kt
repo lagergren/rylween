@@ -787,7 +787,6 @@ val authoredRylween: RylweenModel =
                     entryTaxThanks = literalText("Thank you!")
                 }
                 party {
-                    viewWho = structuredText { line("Who? (1-", HuntText.partyMemberCount, "/Q/A)") }
                     journalHeader =
                         literalText(
                             "",
@@ -800,6 +799,8 @@ val authoredRylween: RylweenModel =
                     dropAborted = literalText("Aborted.")
                     dropped(flowText("You drop the ", TextPart.SelectedItemName, "."))
                     dropCapacityReduced = flowText("You are forced to leave some of your food behind...")
+                    killsHeader = literalText("MONSTERS SLAIN", "")
+                    killsEmpty = literalText("No monsters slain yet.")
                 }
                 wilderness {
                     pass = literalText("You wait for an hour...")
@@ -816,7 +817,15 @@ val authoredRylween: RylweenModel =
                     notInWilderness = literalText("The active party is not in the wilderness.")
                     nothingToEnter = literalText("There is nothing to enter here.")
                     impassable = literalText("Impassable.")
-                    quitConfirm = flowText("Do you really want to quit?")
+                    quitConfirm =
+                        literalText(
+                            """
+                            Do you really want to quit?
+
+                            (Y)es
+                            (N)o
+                            """,
+                        )
                     dungeonHandoff {
                         line("Entering ", dungeonName, ".")
                         line("Levels: ", levels)
@@ -1611,7 +1620,6 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.gold) {
-                    recurring()
                     script {
                         localInt(random(40..339)) { amount ->
                             writeText {
@@ -1626,7 +1634,6 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.torches) {
-                    recurring()
                     script {
                         localInt(random(2..4)) { amount ->
                             writeText {
@@ -1641,7 +1648,6 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.findObject) {
-                    recurring()
                     script {
                         randomDungeonItemFind(
                             commonPools =
@@ -1655,6 +1661,7 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
+                // A chest left closed is still there on the next visit; an opened one is gone, as in the original.
                 event(DungeonEvents.goldChest) {
                     recurring()
                     script {
@@ -1666,6 +1673,7 @@ val authoredRylween: RylweenModel =
                             "(L)eave",
                         ) {
                             option('O') {
+                                realm.levelCleared set true
                                 localInt(4) { trapChance ->
                                     localInt(0) { thiefFound ->
                                         forEachMember {
@@ -1734,13 +1742,15 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
+                // Beaten monsters stay beaten when the party comes back through their level; monsters it
+                // fled from are still there. The original made every visit fight them again.
                 event(DungeonEvents.weakEncounter) {
-                    recurring()
+                    recurringUntilWon()
                     randomEncounter(EncounterTiers.weak)
                 }
 
                 event(DungeonEvents.deepEncounter) {
-                    recurring()
+                    recurringUntilWon()
                     randomEncounter(EncounterTiers.deep)
                 }
 
@@ -2029,7 +2039,7 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.hobgoblinPatrol) {
-                    recurring()
+                    recurringUntilWon()
                     script {
                         showTextAndWait(
                             """
@@ -2160,7 +2170,7 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.erethorPriests) {
-                    recurring()
+                    recurringUntilWon()
                     script {
                         showTextAndWait(
                             "You are spotted by some priests. They attack you with blind fury.",
@@ -3212,9 +3222,12 @@ val authoredRylween: RylweenModel =
                     encounterImage(Images.Encounter.brute)
                 }
 
+                // Jazzy's minions came seven or eight at a time in the original. That many, right before
+                // Jazzy himself, beat a normal party nearly every time at levels 15 to 24; five or six leave
+                // the fight with Jazzy a hard but fair one.
                 monster(Monsters.wingedThing) {
                     name = "Winged Thing"
-                    count = 7..8
+                    count = 5..6
                     hitPoints = 150..200
                     weaponSkill = 95
                     encounterImage(Images.Encounter.flying)
@@ -3317,9 +3330,12 @@ val authoredRylween: RylweenModel =
                     encounterImage(Images.Encounter.goblinoid)
                 }
 
+                // Erethor's temple ends in four fights in a row. With priests three or four at a time and Erethor at
+                // 600 to 900 hit points, whose spells strike for a fifth of that, a level-24 party at full strength
+                // survived it 2 times in 30; with these numbers it survives about 3 times in 4.
                 monster(Monsters.erethorPriest) {
                     name = "Erethor Priest"
-                    count = 3..4
+                    count = 2..3
                     hitPoints = 80..99
                     weaponSkill = 70
                     spellPower = 50
@@ -3329,7 +3345,7 @@ val authoredRylween: RylweenModel =
                 monster(Monsters.erethor) {
                     name = "Erethor"
                     count = 1..1
-                    hitPoints = 600..900
+                    hitPoints = 400..600
                     weaponSkill = 80
                     spellPower = 10
                     encounterImage(Images.Encounter.boss)
@@ -5407,10 +5423,12 @@ val authoredRylween: RylweenModel =
                         filter = MemberChoiceFilter.AliveOnly,
                     ) { target ->
                         consumeActiveItem()
-                        target.hp.addClamped(15, target.maxHp)
-                        writeText {
-                            line(partyName(target), " recovers")
-                            line("15 hit points.")
+                        localInt(potionPoints(target)) { points ->
+                            target.hp.addClamped(points, target.maxHp)
+                            writeText {
+                                line(partyName(target), " recovers")
+                                line(points, " hit points.")
+                            }
                         }
                         pause1s()
                     }
@@ -5429,10 +5447,12 @@ val authoredRylween: RylweenModel =
                         filter = MemberChoiceFilter.AliveOnly,
                     ) { target ->
                         consumeActiveItem()
-                        target.hp -= 15
-                        writeText {
-                            line(partyName(target), " is poisoned")
-                            line("for 15 hit points.")
+                        localInt(potionPoints(target)) { points ->
+                            target.hp -= points
+                            writeText {
+                                line(partyName(target), " is poisoned")
+                                line("for ", points, " hit points.")
+                            }
                         }
                         whenever(target.hp lte 0) {
                             target.hp set 0
@@ -5457,10 +5477,12 @@ val authoredRylween: RylweenModel =
                         accepting = MemberChoiceFilter.AliveOnly,
                     ) { target ->
                         consumeActiveItem()
-                        target.mp.addClamped(15, target.maxMp)
-                        writeText {
-                            line(partyName(target), " recovers")
-                            line("15 spell points.")
+                        localInt(potionPoints(target)) { points ->
+                            target.mp.addClamped(points, target.maxMp)
+                            writeText {
+                                line(partyName(target), " recovers")
+                                line(points, " spell points.")
+                            }
                         }
                         pause1s()
                     }
@@ -6929,6 +6951,11 @@ val authoredRylween: RylweenModel =
 // model so routes can boot from known deterministic states.
 // Convenience handle for callers that need only the immutable game content.
 val authoredDsl: GameModel = authoredRylween.content
+
+// Points a potion restores or, for the poison potion, takes: 15 at level 1 as in
+// the original game, growing with the drinker's level so potions stay worth
+// carrying once hit points and spell points run into the hundreds.
+private fun potionPoints(target: MemberRef): IntExpr = target.level * 3 + 12
 
 // Fire damage shared by the Fire Cloud spell and the fire wand: every monster
 // still standing takes caster.level * damageRoll points.

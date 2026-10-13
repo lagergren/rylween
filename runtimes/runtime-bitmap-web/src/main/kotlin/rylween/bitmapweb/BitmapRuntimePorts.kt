@@ -888,6 +888,7 @@ private fun RuntimePartyPageView.toBitmapPartyPage(pauseLine: String): BitmapPar
             },
         member = member?.toBitmapPartyMember(),
         inventory = inventory?.entries.orEmpty(),
+        kills = kills?.let { view -> BitmapPartyKills(view.title, view.entries.map { kill -> kill.monster to kill.count }, view.empty) },
     )
 
 private fun RuntimePartyMemberView.toBitmapPartyMember(): BitmapPartyMember =

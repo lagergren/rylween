@@ -929,7 +929,7 @@ interface PartyPrompts {
     fun inventorySlot(
         prompt: TextBlock,
         firstKey: Char = 'A',
-        slots: IntRange = 1..InventorySaveSlotMax,
+        slots: IntRange = 1..INVENTORY_SAVE_SLOT_MAX,
         filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
         body: ScriptScope.(InventorySlotRef) -> Unit,
     )
@@ -1024,7 +1024,7 @@ class AskScope(
     fun inventorySlot(
         prompt: TextBlock,
         firstKey: Char = 'A',
-        slots: IntRange = 1..InventorySaveSlotMax,
+        slots: IntRange = 1..INVENTORY_SAVE_SLOT_MAX,
         filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
     ): InventorySlotRef {
         val name = script.fresh("inventory_slot")
@@ -2148,7 +2148,6 @@ class TownPromptsBuilder(
 class PartyPromptsBuilder(
     initial: PartyPromptsModel = PartyPromptsModel(),
 ) {
-    var viewWho: TextBlock = initial.viewWho
     var journalHeader: TextBlock = initial.journalHeader
 
     // Public prompt overrides consumed from runtimeSystems by PartyPages.
@@ -2158,6 +2157,10 @@ class PartyPromptsBuilder(
     // Public prompt overrides consumed from runtimeSystems by PartyPages.
     @Suppress("MemberVisibilityCanBePrivate")
     var inventoryHeader: TextBlock = initial.inventoryHeader
+
+    // Heading and empty-ledger text of the monsters-slain pages that end the party view.
+    var killsHeader: TextBlock = initial.killsHeader
+    var killsEmpty: TextBlock = initial.killsEmpty
     var dropPrompt: TextBlock = initial.dropPrompt
     var dropEmptySlot: TextBlock = initial.dropEmptySlot
     var dropAborted: TextBlock = initial.dropAborted
@@ -2176,10 +2179,11 @@ class PartyPromptsBuilder(
 
     fun build(): PartyPromptsModel =
         PartyPromptsModel(
-            viewWho = viewWho,
             journalHeader = journalHeader,
             journalEmpty = journalEmpty,
             inventoryHeader = inventoryHeader,
+            killsHeader = killsHeader,
+            killsEmpty = killsEmpty,
             dropPrompt = dropPrompt,
             dropEmptySlot = dropEmptySlot,
             dropAborted = dropAborted,
@@ -2745,6 +2749,12 @@ class DungeonEventBuilder(
     fun recurringUntil(flag: FlagState) {
         disposition = DungeonEventDisposition.Recurring
         clearWhenFlag = flag
+    }
+
+    /** The event runs on every visit to its level until the party wins its battle; fleeing leaves it in place. */
+    fun recurringUntilWon() {
+        disposition = DungeonEventDisposition.RecurringUntilWon
+        clearWhenFlag = null
     }
 
     fun randomEncounter(tier: EncounterTier) {
