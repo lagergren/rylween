@@ -2032,7 +2032,7 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.hobgoblinPatrol) {
-                    recurring()
+                    recurringUntilWon()
                     script {
                         showTextAndWait(
                             """
@@ -2163,7 +2163,7 @@ val authoredRylween: RylweenModel =
                 }
 
                 event(DungeonEvents.erethorPriests) {
-                    recurring()
+                    recurringUntilWon()
                     script {
                         showTextAndWait(
                             "You are spotted by some priests. They attack you with blind fury.",

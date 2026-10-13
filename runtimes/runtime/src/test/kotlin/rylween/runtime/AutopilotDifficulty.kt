@@ -22,6 +22,8 @@ internal data class AutopilotDifficulty(
     val fled: Int,
     /** How often the party left Ydarg's castle at a stair guardian to recover before climbing on. */
     val castleRetreats: Int,
+    /** How often the priest banished a dungeon's wandering monsters. */
+    val banishes: Int,
     val townVisits: Int,
     val battleItems: Int,
     val finalLevel: Int,
@@ -33,7 +35,7 @@ internal data class AutopilotDifficulty(
 
     override fun toString(): String =
         "score=$score days=$days reloads=$reloads deaths=$deaths rebirths=$rebirths churchRaises=$churchRaises " +
-            "gemRevivals=$gemRevivals castleRetreats=$castleRetreats battles=$battles fled=$fled " +
+            "gemRevivals=$gemRevivals castleRetreats=$castleRetreats banishes=$banishes battles=$battles fled=$fled " +
             "towns=$townVisits battleItems=$battleItems level=$finalLevel falls=$falls"
 
     companion object {
@@ -44,22 +46,37 @@ internal data class AutopilotDifficulty(
         fun of(
             run: AutopilotRunResult,
             stats: AutopilotStats,
-        ): AutopilotDifficulty =
-            AutopilotDifficulty(
+        ): AutopilotDifficulty {
+            val shown = shownLines(run.transcript)
+            return AutopilotDifficulty(
                 days = run.days,
                 reloads = run.reloads,
-                deaths = run.transcript.count { line -> "DIES!" in line },
-                rebirths = run.transcript.count { line -> "'s eyelids flicker" in line },
-                churchRaises = run.transcript.count { line -> line.startsWith("The priestess raises") },
-                gemRevivals = run.transcript.count { line -> "opens" in line && "eyes!" in line && "eyelids" !in line },
-                battles = run.transcript.count { line -> line.trim() == "You face" },
-                fled = run.transcript.count { line -> line.startsWith("You escaped") },
-                castleRetreats = run.transcript.count { line -> line.startsWith("And you are outside") },
+                deaths = shown.count { line -> "DIES!" in line },
+                rebirths = shown.count { line -> "'s eyelids flicker" in line },
+                churchRaises = shown.count { line -> line.startsWith("The priestess raises") },
+                gemRevivals = shown.count { line -> "opens" in line && "eyes!" in line && "eyelids" !in line },
+                battles = shown.count { line -> line.trim() == "You face" },
+                fled = shown.count { line -> line.startsWith("You escaped") },
+                castleRetreats = shown.count { line -> line.startsWith("And you are outside") },
+                banishes = shown.count { line -> "deafening clap" in line },
                 townVisits = stats.townVisits,
                 battleItems = stats.battleItems,
                 finalLevel = run.state.party.members.maxOf { member -> member.level },
                 falls = falls(run.transcript),
             )
+        }
+
+        /**
+         * The transcript with each line kept once per screen: a page that waits for RETURN is recorded again with its
+         * prompt, so the same event would otherwise count twice. A screen ends at the key pressed after it.
+         */
+        private fun shownLines(transcript: List<String>): List<String> {
+            val screen = mutableSetOf<String>()
+            return transcript.filter { line ->
+                if (line.startsWith("> ")) screen.clear()
+                screen.add(line)
+            }
+        }
 
         private fun falls(transcript: List<String>): List<String> {
             var day = ""

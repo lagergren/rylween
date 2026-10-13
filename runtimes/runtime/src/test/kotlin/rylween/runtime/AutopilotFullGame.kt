@@ -9,6 +9,7 @@
 package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle
+import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledOperand
 import rylween.compiled.CompiledPartyMember
@@ -87,6 +88,9 @@ internal class AutopilotFullGamePlan(
     private val journal = AutopilotJournal(content)
     private var endingDay = false
 
+    /** The dungeon whose wandering monsters the priest has banished on this visit. */
+    private var banishedIn: CompiledHandleRef? = null
+
     /** The step whose start the journal was last read for, and the journal's lines while a reading is under way. */
     private var journalReadFor: String? = null
     private var journalLines: MutableList<String>? = null
@@ -105,6 +109,7 @@ internal class AutopilotFullGamePlan(
 
     override fun wilderness(state: RuntimeState): AutopilotAction {
         crawl.left()
+        banishedIn = null
         hutPartner = null
         endOfDay(state)?.let { return it }
         readJournal(state)?.let { return it }
@@ -121,7 +126,18 @@ internal class AutopilotFullGamePlan(
         return if (step == castleStep) endgame.wilderness(state) else pursue(state, step)
     }
 
-    override fun dungeon(state: RuntimeState): AutopilotAction = upkeep(state) ?: quaff(state) ?: crawl.next(state)
+    override fun dungeon(state: RuntimeState): AutopilotAction = upkeep(state) ?: quaff(state) ?: banish(state) ?: crawl.next(state)
+
+    /** On arriving in a long dungeon the priest banishes its wandering monsters, so only its fixed fights remain. */
+    private fun banish(state: RuntimeState): AutopilotAction? {
+        val dungeon = state.dungeon ?: return null
+        val priest = party.firstLiving(state.party, PcClass.Priest) ?: return null
+        if (dungeon.maxDepth < LONG_DUNGEON || dungeon.depth != 1 || banishedIn == dungeon.dungeon || !canCast(state.party, BANISH_EVIL)) {
+            return null
+        }
+        banishedIn = dungeon.dungeon
+        return actions.castPriestSpell(priest, BANISH_EVIL, commands = actions.commandsAt(state))
+    }
 
     /**
      * The party climbs to the final battle only when it is as ready as for any boss, and climbs the other stairs unless
@@ -686,18 +702,24 @@ internal class AutopilotFullGamePlan(
             if (party.dead(p).isNotEmpty()) add("dead")
             if (party.living(p).any { member -> member.hitPointShare < maxOf(READY_HEALTH, healBelow(step)) }) add("health")
             if (step.minimumLevel >= BOSS_LEVEL && party.living(p).any { member -> manaShare(member) < READY_MANA }) add("mana")
+            if (banishFirst(step) && !canCast(p, BANISH_EVIL)) add("banish")
         }
     }
 
-    /** Battle casters short of mana while a boss step is next: they fight it with full spell points. */
+    /** Steps that lead down a long dungeon, whose wandering monsters the priest banishes on arrival. */
+    private fun banishFirst(step: AutopilotQuestStep): Boolean = step.torches > LONG_DUNGEON
+
+    /**
+     * Casters the church should energize before [step]: battle casters short of mana for a boss, who fight it with full
+     * spell points, and a priest who cannot yet banish the wandering monsters of the long dungeon ahead.
+     */
     private fun lowCasters(
         p: PartyState,
         step: AutopilotQuestStep,
     ): List<AutopilotMember> =
-        if (step.minimumLevel < BOSS_LEVEL) {
-            emptyList()
-        } else {
-            party.living(p).filter { member -> member.member.pcClass in battleCasters && manaShare(member) < READY_MANA }
+        party.living(p).filter { member ->
+            member.member.pcClass in battleCasters && step.minimumLevel >= BOSS_LEVEL && manaShare(member) < READY_MANA ||
+                member.member.pcClass == PcClass.Priest && banishFirst(step) && !canCast(p, BANISH_EVIL)
         }
 
     /** The church's price to restore [member]'s spell points: level times missing points times two. */
@@ -742,6 +764,8 @@ internal class AutopilotFullGamePlan(
         const val REBIRTH = "Rebirth"
         const val TELEPORT = "Teleport"
         const val EARTHQUAKE = "Earthquake"
+        const val BANISH_EVIL = "Banish Evil"
+        const val LONG_DUNGEON = 10
         const val HEAL_BELOW = 0.6
         const val RETREAT_BELOW = 0.4
         const val BOSS_HEALTH = 0.9
