@@ -41,6 +41,18 @@ class ShopServiceTest {
         assertEquals(runtime.party.resources.gold, after.party.resources.gold)
     }
 
+    @Test
+    fun leavingShowsTheGoodbyeBeforeReturning() {
+        val input = PauseRecordingInput("L")
+        val screen = ShopTextScreen()
+        val runtime = runtimeWithInventory(emptyList())
+        val after = runShop("leave-goodbye.log", input, merchant(), runtime, screen)
+
+        assertEquals(listOf("Well, bye then..."), screen.screens.last())
+        assertEquals(listOf(systems.pacing.shop.noticePauseMs), input.pauses)
+        assertEquals(runtime.party, after.party)
+    }
+
     private fun merchant(): CompiledShopService =
         content.scripts.roots
             .asSequence()
@@ -67,12 +79,40 @@ class ShopServiceTest {
         commands: String,
         shop: CompiledShopService,
         runtime: RuntimeState,
+    ): RuntimeState = runShop(logName, ScriptedInput(commands), shop, runtime, NoOpRuntimeScreen())
+
+    private fun runShop(
+        logName: String,
+        input: RuntimeInputPort,
+        shop: CompiledShopService,
+        runtime: RuntimeState,
+        screen: RuntimeScreenPort,
     ): RuntimeState =
         RuntimeLog.open(testTmp.resolve(logName)).use { log ->
-            ShopService(content, systems, ScriptedInput(commands), NoOpRuntimeScreen(), log).run(shop, runtime)
+            ShopService(content, systems, input, screen, log).run(shop, runtime)
         }
 
     private companion object {
         const val SLOT_N = 14
+    }
+}
+
+/** Scripted input that also records the pauses the shop asks for. */
+private class PauseRecordingInput(
+    commands: String,
+) : RuntimeInputPort by ScriptedInput(commands) {
+    val pauses = mutableListOf<Int>()
+
+    override fun pause(ms: Int) {
+        pauses += ms
+    }
+}
+
+/** Records each text screen the shop writes. */
+private class ShopTextScreen : NoOpRuntimeScreen() {
+    val screens = mutableListOf<List<String>>()
+
+    override fun writeText(lines: List<String>) {
+        screens += lines
     }
 }

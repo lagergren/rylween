@@ -866,6 +866,7 @@ val authoredRylween: RylweenModel =
                 }
                 shop {
                     interludePagePauseMs = 2_000
+                    noticePauseMs = 1_000
                 }
                 speak {
                     promptReplyPauseMs = 650

@@ -1859,15 +1859,18 @@ class CharacterCreationPacingBuilder(
 /**
  * Receiver for shop pacing.
  *
- * The current field controls the interlude pause reused by shop sessions.
+ * [interludePagePauseMs] controls the interlude pause reused by shop sessions;
+ * [noticePauseMs] is how long a shop's closed or goodbye text stays up before
+ * the town menu returns.
  */
 @RylNextDsl
 class ShopPacingBuilder(
     initial: ShopPacingModel = ShopPacingModel(),
 ) {
     var interludePagePauseMs: Int = initial.interludePagePauseMs
+    var noticePauseMs: Int = initial.noticePauseMs
 
-    fun build(): ShopPacingModel = ShopPacingModel(interludePagePauseMs = interludePagePauseMs)
+    fun build(): ShopPacingModel = ShopPacingModel(interludePagePauseMs = interludePagePauseMs, noticePauseMs = noticePauseMs)
 }
 
 /**

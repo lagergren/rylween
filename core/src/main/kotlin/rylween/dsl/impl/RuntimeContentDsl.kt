@@ -326,9 +326,10 @@ data class CharacterCreationPacingModel(
     val saveConfirmationPauseMs: Int = 2_000,
 )
 
-/** Millisecond pauses used by reusable shop interlude pages. */
+/** Millisecond pauses used by reusable shop interlude pages and the shop's closed and goodbye texts. */
 data class ShopPacingModel(
     val interludePagePauseMs: Int = 2_000,
+    val noticePauseMs: Int = 1_000,
 )
 
 /** Millisecond pauses used by reusable NPC conversation beats. */
