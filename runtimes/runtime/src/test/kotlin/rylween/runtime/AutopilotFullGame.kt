@@ -170,7 +170,7 @@ internal class AutopilotFullGamePlan(
                         gold -= cost
                     }
                 }
-                party.living(p).filter { member -> member.hitPointShare < healBelow(step) && !canHeal(p) }.forEach { member ->
+                party.living(p).filter { member -> member.hitPointShare < healBelow(step) && !priestHeals(p, member) }.forEach { member ->
                     val cost = member.hurt * HEAL_COST_PER_POINT
                     if (gold >= cost) {
                         add(AutopilotErrand.Heal(member))
@@ -306,8 +306,9 @@ internal class AutopilotFullGamePlan(
      */
     private fun quaff(state: RuntimeState): AutopilotAction? {
         val p = state.party
-        if (canHeal(p) || party.inventoryCount(p, RED_POTION) == 0) return null
+        if (party.inventoryCount(p, RED_POTION) == 0) return null
         val hurt = party.living(p).minByOrNull(AutopilotMember::hitPointShare) ?: return null
+        if (priestHeals(p, hurt)) return null
         return actions.quaff(redPotionName, hurt, actions.commandsAt(state)).takeIf { hurt.hitPointShare < healBelow(currentStep(state)) }
     }
 
@@ -328,7 +329,7 @@ internal class AutopilotFullGamePlan(
         val dead = party.dead(p).firstOrNull()
         if (dead != null && canRebirth(p)) return actions.castPriestSpell(priest, REBIRTH, dead, actions.commandsAt(state))
         val hurt = party.living(p).minByOrNull(AutopilotMember::hitPointShare)
-        if (hurt != null && hurt.hitPointShare < healBelow(currentStep(state)) && canHeal(p)) {
+        if (hurt != null && hurt.hitPointShare < healBelow(currentStep(state)) && priestHeals(p, hurt)) {
             return actions.castPriestSpell(priest, HEALING, hurt, actions.commandsAt(state))
         }
         return null
@@ -337,6 +338,23 @@ internal class AutopilotFullGamePlan(
     private fun canRebirth(party: PartyState): Boolean = canCast(party, REBIRTH)
 
     private fun canHeal(party: PartyState): Boolean = canCast(party, HEALING)
+
+    /**
+     * Whether the priest heals [hurt] now. Once the priest can hold enough spell points to cast Rebirth when a member
+     * falls, it keeps them: it heals only while that reserve stays whole, or when [hurt] is badly hurt, and potions and
+     * the church cover the rest. A priest too green to hold the reserve heals freely.
+     */
+    private fun priestHeals(
+        p: PartyState,
+        hurt: AutopilotMember,
+    ): Boolean {
+        val priest = party.firstLiving(p, PcClass.Priest)?.member ?: return false
+        if (!canHeal(p)) return false
+        if (hurt.hitPointShare < RETREAT_BELOW) return true
+        val healing = (spellCosts[HEALING] ?: return false) + priest.level
+        val rebirth = (spellCosts[REBIRTH] ?: return true) + priest.level
+        return priest.mana.max < healing + rebirth || priest.mana.current - healing >= rebirth
+    }
 
     private fun canCast(
         p: PartyState,
@@ -507,7 +525,11 @@ internal class AutopilotFullGamePlan(
         return walkTo(state, town.position) ?: actions.enter()
     }
 
-    /** Why the party should head for a town before [step], such as "raise" or "food"; empty when it need not. */
+    /**
+     * Why the party should head for a town before [step], such as "raise" or "food"; empty when it need not. Each need
+     * counts only when the party can pay for it, so a broke party camps and fights for gold instead of walking into
+     * a town that cannot help it.
+     */
     fun townNeeds(
         state: RuntimeState,
         step: AutopilotQuestStep = currentStep(state),
@@ -516,13 +538,14 @@ internal class AutopilotFullGamePlan(
         val gold = p.resources.gold
         return buildList {
             if (party.dead(p).isNotEmpty() && !canRebirth(p) && gold >= party.dead(p).first().member.level * RAISE_COST_PER_LEVEL) add("raise")
-            if (party.living(p).any { member -> member.hitPointShare < healBelow(step) } && !canHeal(p) && gold > HEAL_TRIP_GOLD) {
+            if (party.living(p).any { member -> member.hitPointShare < healBelow(step) && !priestHeals(p, member) } && gold > HEAL_TRIP_GOLD) {
                 add("heal")
             }
             if (lowCasters(p, step).any { member -> gold >= energizeCost(member) }) add("energize")
-            if (p.resources.food < FOOD_LOW) add("food")
+            if (p.resources.food < FOOD_LOW && gold >= FOOD_MIN_PURCHASE * (leaderLevel(p) + 1)) add("food")
             if (p.resources.torches < torchTarget(step) - TORCH_SLACK && gold > torchTarget(step)) add("torches")
-            if (step.carry != null && party.inventoryCount(p, step.carry) == 0) add("carry")
+            val carried = step.carry?.let { slug -> content.items.first { item -> content.slug(item.id) == slug } }
+            if (carried != null && party.inventoryCount(p, step.carry) == 0 && gold >= carried.cost) add("carry")
             if (gearUpgrades(p, gold - reserve(step)).isNotEmpty() && gold > reserve(step) + GEAR_TRIP_GOLD) add("gear")
             if (!saving(p, step) && party.freeSlots(p) < maxOf(step.freeSlots, MIN_FREE_SLOTS) && junkNames(p).isNotEmpty()) add("sell")
         }
