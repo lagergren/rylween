@@ -1,6 +1,7 @@
 package rylween.runtime
 
 import rylween.compiled.CompiledHandleKind
+import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
 import rylween.dsl.impl.RuntimeMode
@@ -17,25 +18,11 @@ class ScriptExecutorTest {
 
     @Test
     fun innLodgingSpendRefreshesStatusBeforeReturningToTown() {
-        val content = bundle.content
-        val state = bundle.states.single { state -> content.slug(state.state) == "town-services-replay" }
-        val thord = content.ref(CompiledHandleKind.Town, "thord")
-        val runtime =
-            RuntimeState
-                .from(state, content)
-                .copy(currentMode = RuntimeMode.Town, currentTown = thord)
-        val program =
-            content.scripts.roots.single { root ->
-                root.root.kind == ScriptRootKind.Scene && root.root.slug == "towne.inn"
-            }
+        val runtime = thordRuntime()
+        val program = scriptRoot(ScriptRootKind.Scene, "towne.inn")
         val screen = CapturingStatusScreen()
-        val input = ScriptedInput("NNYT\n")
-        val log = RuntimeLog.open(testTmp.resolve("inn-lodging-status.log"))
 
-        val after =
-            log.use {
-                ScriptExecutor(content, systems, input, screen, runtime, log = it).execute(program)
-            }
+        val after = runScript(program, runtime, "NNYT\n", screen, "inn-lodging-status.log")
 
         val leaderLevel =
             runtime.party.members
@@ -52,25 +39,11 @@ class ScriptExecutorTest {
 
     @Test
     fun garthRewardRefreshesStatusBeforeConversationReturns() {
-        val content = bundle.content
-        val state = bundle.states.single { state -> content.slug(state.state) == "town-services-replay" }
-        val thord = content.ref(CompiledHandleKind.Town, "thord")
-        val runtime =
-            RuntimeState
-                .from(state, content)
-                .copy(currentMode = RuntimeMode.Town, currentTown = thord)
-        val program =
-            content.scripts.roots.single { root ->
-                root.root.kind == ScriptRootKind.DialogueBranch && root.root.slug == "dialogue.garth.garth.bandits.recovered"
-            }
+        val runtime = thordRuntime()
+        val program = scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.garth.garth.bandits.recovered")
         val screen = CapturingStatusScreen()
-        val input = ScriptedInput("\n")
-        val log = RuntimeLog.open(testTmp.resolve("garth-reward-status.log"))
 
-        val after =
-            log.use {
-                ScriptExecutor(content, systems, input, screen, runtime, log = it).execute(program)
-            }
+        val after = runScript(program, runtime, "\n", screen, "garth-reward-status.log")
 
         val expectedGold = runtime.party.resources.gold + 2_000
         assertEquals(expectedGold, after.party.resources.gold)
@@ -105,151 +78,57 @@ class ScriptExecutorTest {
         sceneSlug: String,
         commands: String,
     ): List<List<String>> {
+        val screen = TextCapturingScreen()
+        runScript(scriptRoot(ScriptRootKind.Scene, sceneSlug), thordRuntime(), commands, screen, "$sceneSlug-text.log")
+        return screen.texts
+    }
+
+    /** The town-services fixture party standing in Thord. */
+    private fun thordRuntime(): RuntimeState {
         val content = bundle.content
         val state = bundle.states.single { state -> content.slug(state.state) == "town-services-replay" }
         val thord = content.ref(CompiledHandleKind.Town, "thord")
-        val runtime =
-            RuntimeState
-                .from(state, content)
-                .copy(currentMode = RuntimeMode.Town, currentTown = thord)
-        val program =
-            content.scripts.roots.single { root ->
-                root.root.kind == ScriptRootKind.Scene && root.root.slug == sceneSlug
-            }
-        val screen = TextCapturingScreen()
-        RuntimeLog.open(testTmp.resolve("$sceneSlug-text.log")).use { log ->
-            ScriptExecutor(content, systems, ScriptedInput(commands), screen, runtime, log = log).execute(program)
-        }
-        return screen.texts
+        return RuntimeState
+            .from(state, content)
+            .copy(currentMode = RuntimeMode.Town, currentTown = thord)
     }
+
+    private fun scriptRoot(
+        kind: ScriptRootKind,
+        slug: String,
+    ): CompiledScriptProgram =
+        bundle.content.scripts.roots.single { root ->
+            root.root.kind == kind && root.root.slug == slug
+        }
+
+    private fun runScript(
+        program: CompiledScriptProgram,
+        runtime: RuntimeState,
+        commands: String,
+        screen: RuntimeScreenPort,
+        logName: String,
+    ): RuntimeState =
+        RuntimeLog.open(testTmp.resolve(logName)).use { log ->
+            ScriptExecutor(bundle.content, systems, ScriptedInput(commands), screen, runtime, log = log).execute(program)
+        }
 }
 
 // The classic ANSI text window region; it truncates anything past its last row.
 private const val CLASSIC_TEXT_WINDOW_COLUMNS = 26
 private const val CLASSIC_TEXT_WINDOW_ROWS = 11
 
-private fun requiredRuntimeTestProperty(name: String): String =
-    System.getProperty(name)
-        ?: error("missing required test system property $name")
-
-private class ScriptedInput(
-    commands: String,
-) : RuntimeInputPort {
-    private val commands = ArrayDeque(commands.toList())
-
-    override val exhausted: Boolean get() = commands.isEmpty()
-
-    override fun pause(ms: Int) = Unit
-
-    override fun readCommand(): Char? = commands.removeFirstOrNull()
-
-    override fun readInt(maxDigits: Int): Int? = readCommand()?.digitToIntOrNull()
-
-    override fun readText(maxLength: Int?): String? = null
-}
-
-private class CapturingStatusScreen : RuntimeScreenPort {
+private class CapturingStatusScreen : NoOpRuntimeScreen() {
     val statusGoldUpdates = mutableListOf<Int>()
-
-    override val textColumns: Int = 36
-
-    override fun bootFrame() = Unit
-
-    override fun showStaticScreen(
-        screenSlug: String,
-        runtime: RuntimeState,
-    ) = Unit
-
-    override fun showPagedStaticScreen(
-        screenSlug: String,
-        runtime: RuntimeState,
-        advance: () -> Char?,
-    ) = Unit
-
-    override fun renderWilderness(
-        runtime: RuntimeState,
-        world: WorldMap,
-    ) = Unit
-
-    override fun showDebugWorldMap(
-        runtime: RuntimeState,
-        world: WorldMap,
-        advance: () -> Char?,
-    ) = Unit
-
-    override fun renderDungeon(runtime: RuntimeState) = Unit
-
-    override fun renderCastle(
-        runtime: RuntimeState,
-        castle: rylween.compiled.ExternalRuntimeCastle,
-    ) = Unit
-
-    override fun writeText(lines: List<String>) = Unit
-
-    override fun showMessage(lines: List<String>) = Unit
 
     override fun updateStatus(runtime: RuntimeState) {
         statusGoldUpdates += runtime.party.resources.gold
     }
-
-    override fun writeViewCommand(command: RuntimeViewCommand) = Unit
-
-    override fun showImage(imageSlug: String) = Unit
-
-    override fun redrawCurrentView(lines: List<String>) = Unit
-
-    override fun flashLogLine(line: String) = Unit
 }
 
-private class TextCapturingScreen : RuntimeScreenPort {
+private class TextCapturingScreen : NoOpRuntimeScreen(textColumns = CLASSIC_TEXT_WINDOW_COLUMNS) {
     val texts = mutableListOf<List<String>>()
-
-    override val textColumns: Int = CLASSIC_TEXT_WINDOW_COLUMNS
-
-    override fun bootFrame() = Unit
-
-    override fun showStaticScreen(
-        screenSlug: String,
-        runtime: RuntimeState,
-    ) = Unit
-
-    override fun showPagedStaticScreen(
-        screenSlug: String,
-        runtime: RuntimeState,
-        advance: () -> Char?,
-    ) = Unit
-
-    override fun renderWilderness(
-        runtime: RuntimeState,
-        world: WorldMap,
-    ) = Unit
-
-    override fun showDebugWorldMap(
-        runtime: RuntimeState,
-        world: WorldMap,
-        advance: () -> Char?,
-    ) = Unit
-
-    override fun renderDungeon(runtime: RuntimeState) = Unit
-
-    override fun renderCastle(
-        runtime: RuntimeState,
-        castle: rylween.compiled.ExternalRuntimeCastle,
-    ) = Unit
 
     override fun writeText(lines: List<String>) {
         texts += lines
     }
-
-    override fun showMessage(lines: List<String>) = Unit
-
-    override fun updateStatus(runtime: RuntimeState) = Unit
-
-    override fun writeViewCommand(command: RuntimeViewCommand) = Unit
-
-    override fun showImage(imageSlug: String) = Unit
-
-    override fun redrawCurrentView(lines: List<String>) = Unit
-
-    override fun flashLogLine(line: String) = Unit
 }
