@@ -3323,9 +3323,12 @@ val authoredRylween: RylweenModel =
                     encounterImage(Images.Encounter.goblinoid)
                 }
 
+                // Erethor's temple ends in four fights in a row. With priests three or four at a time and Erethor at
+                // 600 to 900 hit points, whose spells strike for a fifth of that, a level-24 party at full strength
+                // survived it 2 times in 30; with these numbers it survives about 3 times in 4.
                 monster(Monsters.erethorPriest) {
                     name = "Erethor Priest"
-                    count = 3..4
+                    count = 2..3
                     hitPoints = 80..99
                     weaponSkill = 70
                     spellPower = 50
@@ -3335,7 +3338,7 @@ val authoredRylween: RylweenModel =
                 monster(Monsters.erethor) {
                     name = "Erethor"
                     count = 1..1
-                    hitPoints = 600..900
+                    hitPoints = 400..600
                     weaponSkill = 80
                     spellPower = 10
                     encounterImage(Images.Encounter.boss)
