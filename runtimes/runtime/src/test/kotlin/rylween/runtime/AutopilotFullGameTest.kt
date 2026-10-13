@@ -68,13 +68,14 @@ class AutopilotFullGameTest {
         val stats = autopilot.stats
         val difficulty = AutopilotDifficulty.of(run, stats)
         val rolled = creation.accepted.map { (member, rolledStats) -> "$member:${rolledStats.values}" }
-        val line = "seed $seed won=${castleVictory in run.milestones} step='${plan.currentStepName}' $difficulty rolls=${creation.rolls.values} stats=$rolled"
+        val line = "seed $seed won=${castleVictory in run.milestones} step='${plan.currentStepName}' blockers=${plan.blockers(run.state)} journalReads=${plan.journalReads} $difficulty rolls=${creation.rolls.values} stats=$rolled"
         val problems =
             buildList {
                 if (castleVictory !in run.milestones) add("seed $seed did not win\n${run.summary()}")
                 if (stats.priestSpells == 0) add("seed $seed: the priest never cast a spell")
                 if (stats.mageSpells == 0) add("seed $seed: the mage never cast a spell")
                 if (stats.hunts == 0) add("seed $seed: the ranger never hunted")
+                if (plan.journalReads == 0) add("seed $seed: the party never read its journal")
                 if (difficulty.score !in SCORE_BOUNDS) add("seed $seed: difficulty out of bounds $SCORE_BOUNDS: $difficulty")
             }
         return FullGameOutcome(line, problems)
@@ -89,7 +90,9 @@ class AutopilotFullGameTest {
         const val MAX_DAYS = 300
         const val KEYS_PER_DAY = 6_000
         const val MAX_RELOADS = 5
-        val SCORE_BOUNDS = 40..400
+        // Seeds 1 to 5 scored 106 to 179 when these bounds were set: a game that takes a rolled party much less or
+        // much longer than that has had its balance shifted.
+        val SCORE_BOUNDS = 80..260
 
         /** A fighter, a ranger, a mage, and a priest, each rolled until fit for the class. */
         val recruits =

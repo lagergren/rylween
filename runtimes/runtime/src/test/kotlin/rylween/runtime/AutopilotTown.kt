@@ -293,13 +293,17 @@ internal class AutopilotTownVisit(
             else -> null
         }
 
+    /**
+     * Tavern screens: a stranger's offer to sell something is declined until the party has picked [talk]'s character,
+     * whose own offer, such as a map, the conversation answers.
+     */
     private fun tavern(
         talk: AutopilotErrand.Talk,
         menu: AutopilotMenu,
         text: String,
     ): Char? =
         when {
-            menu.find("Buy it") != null -> menu.find("No thanks")?.key
+            menu.find("Buy it") != null && !servicePaid -> menu.find("No thanks")?.key
             menu.find("Order drink") != null -> if (!servicePaid) menu.find("Speak")?.key else leaveService(menu)
             else -> conversation(talk, menu, text)
         }

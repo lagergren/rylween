@@ -84,7 +84,16 @@ internal class AutopilotFullGamePlan(
             val name = content.slug(flag.id)
             name to flag.states.map { state -> content.slug(state.id).removePrefix("$name.") }
         }
+    private val journal = AutopilotJournal(content)
     private var endingDay = false
+
+    /** The step whose start the journal was last read for, and the journal's lines while a reading is under way. */
+    private var journalReadFor: String? = null
+    private var journalLines: MutableList<String>? = null
+
+    /** How often the party has read its journal. */
+    var journalReads: Int = 0
+        private set
     private var hutPartner: String? = null
     private var hutTalked = false
 
@@ -98,6 +107,7 @@ internal class AutopilotFullGamePlan(
         crawl.left()
         hutPartner = null
         endOfDay(state)?.let { return it }
+        readJournal(state)?.let { return it }
         upkeep(state)?.let { return it }
         quaff(state)?.let { return it }
         camp(state)?.let { return it }
@@ -221,6 +231,29 @@ internal class AutopilotFullGamePlan(
      * Answers the latest known question on screen, so an earlier riddle's words never answer a later prompt. Lines
      * are joined because the screen wraps a question wherever the column runs out.
      */
+    override fun observe(view: AutopilotView) {
+        journalLines?.addAll(view.text)
+    }
+
+    /**
+     * Reads the journal whenever a new quest step begins, as a player looks up where to go next, and checks it once the
+     * reading is over: it must give the place the step heads for and agree with the world.
+     */
+    private fun readJournal(state: RuntimeState): AutopilotAction? {
+        val step = currentStep(state)
+        journalLines?.let { lines ->
+            journalLines = null
+            val target = (step.objective as? AutopilotObjective.Reach)?.location?.takeIf { step != castleStep }
+            val problems = journal.problems(state, lines, target)
+            if (problems.isNotEmpty()) throw AutopilotStuck("journal at '${step.name}': ${problems.joinToString("; ")}")
+        }
+        if (journalReadFor == step.name) return null
+        journalReadFor = step.name
+        journalLines = mutableListOf()
+        journalReads++
+        return actions.readJournal()
+    }
+
     override fun answer(view: AutopilotView): String? {
         val text = view.prompt.joinToString(" ")
         return AutopilotQuests.textAnswers

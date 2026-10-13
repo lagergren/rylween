@@ -88,6 +88,7 @@ internal class Autopilot(
         val state = view.state
         latest = state
         remember(view.text)
+        plan.observe(view)
         view.text.firstNotNullOfOrNull { line -> antechamberPattern.find(line) }?.let { match -> antechamber = match.groupValues[1].toInt() }
         if (state.currentMode == RuntimeMode.GameOver || saved) return null
         if (plan.done(state) && state.currentMode == RuntimeMode.Wilderness && view.request == AutopilotRequest.Key) {
@@ -126,13 +127,17 @@ internal class Autopilot(
         while (recentLines.size > RECENT_LINES) recentLines.removeFirst()
     }
 
-    /** Pages that only continue on RETURN end in a "(<verb> RETURN key)" line or a bare RETURN label. */
+    /**
+     * Pages that only continue on RETURN end in a "(<verb> RETURN key)" line or a bare RETURN label, and paged
+     * documents such as the journal end in their own "(ENTER: more, ESC: exit)" prompt.
+     */
     private fun pausePrompt(view: AutopilotView): Char? {
         val last = view.text.lastOrNull(String::isNotBlank)?.trim() ?: return null
         val returnName = systems.prompts.returnKeyName
         val isPause =
             (last.startsWith("(") && last.endsWith(")") && returnName in last) ||
-                last == systems.prompts.returnKeyLabel()
+                last == systems.prompts.returnKeyLabel() ||
+                isRuntimeDocumentPrompt(last)
         return '\n'.takeIf { isPause }
     }
 

@@ -60,6 +60,8 @@ internal class AutopilotActions(
 
     fun quit(): AutopilotAction = single("quit", wilderness.key(RuntimeCommandActionId.Quit))
 
+    fun readJournal(): AutopilotAction = single("read the journal", wilderness.key(RuntimeCommandActionId.Journal))
+
     fun descend(): AutopilotAction = single("descend", dungeon.key(RuntimeCommandActionId.Descend))
 
     fun ascend(): AutopilotAction = single("ascend", dungeon.key(RuntimeCommandActionId.Ascend))
