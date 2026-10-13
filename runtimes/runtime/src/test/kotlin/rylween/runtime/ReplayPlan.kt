@@ -465,10 +465,12 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_church_heal_raise_energy_matrix",
-                        commands = enterTown() + "CH1PH4R2PE3PE1R1LL",
+                        // Healing the dead Legolas gets the party thrown out, so it re-enters before the paid services.
+                        commands = enterTown() + "CH2" + "CH1PH4R2PE3PE1R1LL",
                         checkpoints =
                             listOf(
                                 "output:You enter the church",
+                                "output:GET THAT CORPSE OUTTA",
                                 "output:Aragorn",
                                 "output:Mira needs no healing.",
                                 "output:The priestess raises",
