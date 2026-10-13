@@ -1736,13 +1736,15 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
+                // Beaten monsters stay beaten when the party comes back through their level; monsters it
+                // fled from are still there. The original made every visit fight them again.
                 event(DungeonEvents.weakEncounter) {
-                    recurring()
+                    recurringUntilWon()
                     randomEncounter(EncounterTiers.weak)
                 }
 
                 event(DungeonEvents.deepEncounter) {
-                    recurring()
+                    recurringUntilWon()
                     randomEncounter(EncounterTiers.deep)
                 }
 

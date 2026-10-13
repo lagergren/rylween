@@ -1197,9 +1197,22 @@ internal class ScriptExecutor(
         runtime =
             when (name) {
                 "hour" -> runtime.copy(hour = value)
+                "banished" -> if (value != 0) runtime.copy(dungeon = runtime.dungeon?.banishEncounters()) else runtime
                 else -> runtime
             }
     }
+
+    /**
+     * Banish Evil clears the random monster encounters from every level of the dungeon but its last, as in the
+     * original: the party meets no more wandering monsters there, only the dungeon's fixed events.
+     */
+    private fun DungeonState.banishEncounters(): DungeonState =
+        copy(
+            levelEvents =
+                levelEvents.filter { (level, event) ->
+                    level == maxDepth || content.dungeonEvents.firstOrNull { record -> record.id == event }?.randomEncounterTier == null
+                },
+        )
 
     private fun partyScalar(name: String): Int =
         when (name) {

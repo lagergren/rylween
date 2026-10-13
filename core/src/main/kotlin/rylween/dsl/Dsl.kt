@@ -2753,6 +2753,12 @@ class DungeonEventBuilder(
         clearWhenFlag = flag
     }
 
+    /** The event runs on every visit to its level until the party wins its battle; fleeing leaves it in place. */
+    fun recurringUntilWon() {
+        disposition = DungeonEventDisposition.RecurringUntilWon
+        clearWhenFlag = null
+    }
+
     fun randomEncounter(tier: EncounterTier) {
         randomEncounterTier = tier
     }

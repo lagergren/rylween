@@ -176,7 +176,7 @@ internal class DungeonRuntime(
                     log = log,
                 ).execute(program)
             }
-        return next.copy(dungeon = next.dungeon?.clearEventIfNeeded(event, next))
+        return next.copy(dungeon = next.dungeon?.clearEventIfNeeded(event, before = runtime, after = next))
     }
 
     private fun resumePostDungeon(
@@ -188,11 +188,15 @@ internal class DungeonRuntime(
 
     private fun DungeonState.clearEventIfNeeded(
         event: CompiledDungeonEvent,
-        runtime: RuntimeState,
+        before: RuntimeState,
+        after: RuntimeState,
     ): DungeonState {
+        // A won battle adds its foes to the kill count; a fled one adds nothing.
+        val won = after.party.counters.kills > before.party.counters.kills
         val shouldClear =
             event.disposition == DungeonEventDisposition.ClearAfterRun ||
-                event.clearWhenFlag?.let { flag -> flag in runtime.party.flags } == true
+                event.disposition == DungeonEventDisposition.RecurringUntilWon && won ||
+                event.clearWhenFlag?.let { flag -> flag in after.party.flags } == true
         return if (shouldClear) copy(levelEvents = levelEvents - depth) else this
     }
 
