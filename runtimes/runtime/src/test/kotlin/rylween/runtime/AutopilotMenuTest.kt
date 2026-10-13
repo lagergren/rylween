@@ -17,6 +17,7 @@ class AutopilotMenuTest {
                     "(Y)es / (N)o",
                     "A. Xvart 159/159 HP",
                     "1. Aragorn",
+                    "B. Bow\tC. Trident",
                     "(8/↑) Move North",
                 ),
             )
@@ -31,6 +32,8 @@ class AutopilotMenuTest {
                 AutopilotOption('N', "No"),
                 AutopilotOption('A', "Xvart 159/159 HP"),
                 AutopilotOption('1', "Aragorn"),
+                AutopilotOption('B', "Bow"),
+                AutopilotOption('C', "Trident"),
             ),
             menu.options,
         )

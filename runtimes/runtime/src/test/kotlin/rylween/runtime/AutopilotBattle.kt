@@ -17,6 +17,12 @@ import rylween.compiled.CompiledPartyMember
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalStandardBattle
 
+/** A magic item to use in battle: its inventory [item] name and, for items that ask, the member to use it on. */
+internal data class AutopilotItemUse(
+    val item: String,
+    val target: AutopilotMember? = null,
+)
+
 /** A group of foes as the battle screen names them, such as "5 Knights". */
 internal data class AutopilotFoes(
     val count: Int,
@@ -37,6 +43,95 @@ internal class AutopilotBattle(
 
     /** Hit points of the living foes from the most recent target list, until the battle ends. */
     private var knownHitPoints: List<Int>? = null
+
+    /** The foes of the battle in progress, as the latest "You face" / "You still face" text named them. */
+    var currentFoes: AutopilotFoes? = null
+        private set
+
+    private val mageSpells =
+        content.spells
+            .filter { spell -> content.slug(spell.id).startsWith("mage.") }
+            .associateBy { spell -> content.strings.value(spell.nameString) }
+
+    private var failedEscapes = 0
+
+    private val members = AutopilotParty(content)
+
+    /** Battle items already used in the battle in progress; each is used at most once per battle. */
+    private val usedItems = mutableSetOf<String>()
+
+    /**
+     * Whether running is hopeless in this battle. Mandatory fights never let the party escape, while an ordinary
+     * escape fails only one time in twenty, so two failures in a row mean the fight cannot be fled.
+     */
+    val escapeHopeless: Boolean get() = failedEscapes >= HOPELESS_AFTER_FAILED_ESCAPES
+
+    /** Updates what the autopilot knows about the battle from a battle screen's [lines]. */
+    fun observe(lines: List<String>) {
+        if (lines.any { line -> line.trim() == "You face" }) {
+            failedEscapes = 0
+            usedItems.clear()
+        }
+        if (lines.any { line -> "fail to get away" in line || "desperately try to get away" in line }) failedEscapes++
+        observeTargets(lines)
+        foes(lines)?.let { foes -> currentFoes = foes }
+    }
+
+    /**
+     * The battle spell the mage [caster] should cast, or `null` to attack instead: Fire Cloud burns every foe when
+     * several still stand, Frost Finger strikes a lone one. Nothing is cast at foes immune to magic, and nothing the
+     * caster's mana cannot pay for (a spell costs its base cost plus the caster's level).
+     */
+    fun mageSpell(caster: CompiledPartyMember): String? {
+        val foes = currentFoes
+        if (foes?.monster?.immune == true) return null
+        val standing = knownHitPoints?.count { hitPoints -> hitPoints > 0 } ?: foes?.count ?: 1
+
+        fun affordable(name: String): Boolean =
+            mageSpells[name]?.let { spell -> caster.mana.current >= spell.baseCost + caster.level } == true
+
+        return when {
+            standing >= 2 && affordable(FIRE_CLOUD) -> FIRE_CLOUD
+            affordable(FROST_FINGER) -> FROST_FINGER
+            else -> null
+        }
+    }
+
+    /**
+     * The magic item to use in a fight the party cannot flee or would not choose, or `null` to fight on without one.
+     * The dead come back first, then a badly hurt party is healed; next the foes are blinded, which leaves their
+     * weapon skill at almost nothing, and then struck all at once while several stand. Foes immune to magic waste
+     * every item, so nothing is used on them.
+     */
+    fun battleItem(party: PartyState): AutopilotItemUse? {
+        val foes = currentFoes ?: return null
+        if (foes.monster?.immune == true) return null
+        val owned = members.inventory(party).map { item -> content.slug(item.id) }.toSet() - usedItems
+        val living = members.living(party)
+        val standing = knownHitPoints?.count { hitPoints -> hitPoints > 0 } ?: foes.count
+        val hitPoints = living.sumOf { member -> member.member.hitPoints.current }
+        val partyShare = hitPoints.toDouble() / living.sumOf { member -> member.member.hitPoints.max }.coerceAtLeast(1)
+        val weakest = living.minByOrNull(AutopilotMember::hitPointShare)
+        val dead = members.dead(party).firstOrNull()
+        val (slug, target) =
+            with(AutopilotBattleItems) {
+                when {
+                    dead != null && GEM_OF_RESURRECTION in owned -> GEM_OF_RESURRECTION to dead
+                    partyShare < CURE_BELOW && STAFF_OF_CURING in owned -> STAFF_OF_CURING to null
+                    weakest != null && weakest.hitPointShare < ITEM_HEAL_BELOW && STAFF_OF_HEALING in owned -> STAFF_OF_HEALING to weakest
+                    GEM_OF_BLINDNESS in owned -> GEM_OF_BLINDNESS to null
+                    standing >= GROUP && KAELS_AXE in owned -> KAELS_AXE to null
+                    standing >= GROUP && HOLY_HAND_GRENADE in owned -> HOLY_HAND_GRENADE to null
+                    standing >= 2 && FIRE_WAND in owned -> FIRE_WAND to null
+                    standing == 1 && DRUMS_OF_DEATH in owned -> DRUMS_OF_DEATH to null
+                    BLESSING_SCROLL in owned -> BLESSING_SCROLL to null
+                    else -> return null
+                }
+            }
+        usedItems += slug
+        val item = content.items.first { record -> content.slug(record.id) == slug }
+        return AutopilotItemUse(content.strings.value(item.displayNameString), target)
+    }
 
     /**
      * Whether the party should fight on: the expected battle costs at most [acceptableShare] of
@@ -154,6 +249,12 @@ internal class AutopilotBattle(
     private fun hitChance(chance: Int): Double = chance.coerceIn(0, 100) / 100.0
 
     private companion object {
+        const val HOPELESS_AFTER_FAILED_ESCAPES = 2
+        const val FIRE_CLOUD = "Fire Cloud"
+        const val FROST_FINGER = "Frost Finger"
+        const val CURE_BELOW = 0.5
+        const val ITEM_HEAL_BELOW = 0.3
+        const val GROUP = 3
         const val MAX_ROUNDS = 40
         const val DEFAULT_WEAPON_SKILL = 60
         const val SPELL_DAMAGE = 25.0
@@ -161,4 +262,31 @@ internal class AutopilotBattle(
         val foeLinePattern = Regex("""^(\d+)\s+(.+)$""")
         val targetHitPointsPattern = Regex("""^\s*[A-Z]\.\s.*?(\d+)/\d+ HP""")
     }
+}
+
+/** The magic items the autopilot knows how to use in battle, as item slugs. */
+internal object AutopilotBattleItems {
+    const val GEM_OF_RESURRECTION = "gem_of_resurrection"
+    const val STAFF_OF_CURING = "staff_of_curing"
+    const val STAFF_OF_HEALING = "staff_of_healing"
+    const val GEM_OF_BLINDNESS = "gem_of_blindness"
+    const val KAELS_AXE = "kaels_axe"
+    const val HOLY_HAND_GRENADE = "holy_hand_grenade"
+    const val FIRE_WAND = "fire_wand"
+    const val DRUMS_OF_DEATH = "drums_of_death"
+    const val BLESSING_SCROLL = "blessing_scroll"
+
+    /** The items worth carrying into hard fights, the most decisive first. */
+    val keepOrder =
+        listOf(
+            GEM_OF_BLINDNESS,
+            STAFF_OF_CURING,
+            GEM_OF_RESURRECTION,
+            KAELS_AXE,
+            HOLY_HAND_GRENADE,
+            DRUMS_OF_DEATH,
+            FIRE_WAND,
+            STAFF_OF_HEALING,
+            BLESSING_SCROLL,
+        )
 }

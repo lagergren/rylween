@@ -44,5 +44,5 @@ class AutopilotPlaythroughTest {
         assertTrue(failures.isEmpty(), failures.joinToString("\n\n"))
     }
 
-    private fun endgameAutopilot(): Autopilot = Autopilot(bundle.content, systems, AutopilotGoal.CompleteCastle(castle.id))
+    private fun endgameAutopilot(): Autopilot = Autopilot(bundle.content, systems, AutopilotEndgamePlan(bundle.content, systems, castle))
 }

@@ -31,14 +31,29 @@ internal data class AutopilotMenu(
     /** The first option whose label contains [text], ignoring case. */
     fun find(text: String): AutopilotOption? = options.firstOrNull { option -> option.says(text) }
 
+    /**
+     * The inventory picker entry for the item called [name]. Pickers cut long names short ("Red Potio" for
+     * "Red Potion"), so an entry matches when [name] starts with it.
+     */
+    fun findInventoryItem(name: String): AutopilotOption? =
+        options.firstOrNull { option -> option.label == name || (option.label.length >= MIN_TRUNCATED && name.startsWith(option.label)) }
+
+    /** The listed item called exactly [name], with or without a trailing price, such as "Sword 160 au" for "Sword". */
+    fun findItem(name: String): AutopilotOption? =
+        options.firstOrNull { option -> option.label == name || option.label.startsWith("$name ") }
+
     companion object {
+        private const val MIN_TRUNCATED = 3
+
         /** A parenthesized key such as "(M)erchant", "(A) Torch  1 au", or "(Y)es / (N)o". */
         private val inlineOptionPattern = Regex("""\(([A-Z0-9])\)""")
 
         /** A listed key such as "A. Xvart 159/159 HP" or "1. Aragorn". */
         private val listedOptionPattern = Regex("""^\s*([A-Z0-9])\.\s+(.+)$""")
 
-        fun parse(lines: List<String>): AutopilotMenu = AutopilotMenu(lines.flatMap(::optionsIn))
+        /** Multi-column rows, such as an inventory picker's "A. Sword<TAB>B. Bow", hold one choice per cell. */
+        fun parse(lines: List<String>): AutopilotMenu =
+            AutopilotMenu(lines.flatMap { line -> line.split(TEXT_COLUMN_SEPARATOR) }.flatMap(::optionsIn))
 
         private fun optionsIn(line: String): List<AutopilotOption> {
             listedOptionPattern.find(line)?.let { match ->

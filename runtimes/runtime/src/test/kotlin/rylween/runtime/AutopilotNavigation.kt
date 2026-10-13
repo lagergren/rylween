@@ -31,28 +31,41 @@ internal class AutopilotNavigation(
 ) {
     private val worlds = mutableMapOf<CompiledHandleRef, WorldMap>()
 
-    /** The first move of a shortest passable path from [start] to [target], or `null` when there is none. */
+    /**
+     * The first move of a shortest passable path from [start] to [target] that steps on no square in [avoid] and no
+     * terrain in [avoidTerrain] on the way, or `null` when there is none.
+     */
     fun stepTowards(
         map: CompiledHandleRef,
         start: GridPoint,
         target: GridPoint,
-    ): AutopilotDirection? = firstStepToward(map, start) { point -> point == target }
+        avoid: Set<GridPoint> = emptySet(),
+        avoidTerrain: Set<String> = emptySet(),
+    ): AutopilotDirection? = firstStepToward(map, start, avoid - target, avoidTerrain) { point -> point == target }
 
-    /** The first move towards the nearest tile whose terrain slug is [terrainSlug]. */
+    /** The first move towards the nearest tile whose terrain slug is [terrainSlug], keeping off [avoid]. */
     fun stepToTerrain(
         map: CompiledHandleRef,
         start: GridPoint,
         terrainSlug: String,
-    ): AutopilotDirection? = firstStepToward(map, start) { point -> point != start && terrainSlugAt(map, point) == terrainSlug }
+        avoid: Set<GridPoint> = emptySet(),
+    ): AutopilotDirection? =
+        firstStepToward(map, start, avoid, emptySet()) { point -> point != start && terrainSlugAt(map, point) == terrainSlug }
 
-    /** A random passable move, used to wander while waiting for a random wilderness event. */
+    /** A random passable move off [avoid], used to wander while waiting for a random wilderness event. */
     fun wander(
         map: CompiledHandleRef,
         start: GridPoint,
         random: Random,
         stayOn: String? = null,
+        avoid: Set<GridPoint> = emptySet(),
+        avoidTerrain: Set<String> = emptySet(),
     ): AutopilotDirection? {
-        val moves = AutopilotDirection.entries.filter { direction -> passable(map, direction.from(start)) }
+        val moves =
+            AutopilotDirection.entries.filter { direction ->
+                val next = direction.from(start)
+                passable(map, next) && next !in avoid && terrainSlugAt(map, next) !in avoidTerrain
+            }
         val preferred = stayOn?.let { slug -> moves.filter { direction -> terrainSlugAt(map, direction.from(start)) == slug } }
         return (preferred?.takeIf(List<AutopilotDirection>::isNotEmpty) ?: moves).randomOrNull(random)
     }
@@ -70,6 +83,8 @@ internal class AutopilotNavigation(
     private fun firstStepToward(
         map: CompiledHandleRef,
         start: GridPoint,
+        avoid: Set<GridPoint>,
+        avoidTerrain: Set<String>,
         isGoal: (GridPoint) -> Boolean,
     ): AutopilotDirection? {
         if (isGoal(start)) return null
@@ -81,7 +96,8 @@ internal class AutopilotNavigation(
             if (isGoal(point)) return firstStep[point]
             AutopilotDirection.entries.forEach { direction ->
                 val next = direction.from(point)
-                if (next !in seen && passable(map, next)) {
+                val blocked = next in avoid || (!isGoal(next) && terrainSlugAt(map, next) in avoidTerrain)
+                if (next !in seen && passable(map, next) && !blocked) {
                     seen += next
                     firstStep[next] = firstStep[point] ?: direction
                     queue.addLast(next)
