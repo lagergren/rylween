@@ -888,12 +888,15 @@ internal class BattleRunner(
                 gains += BattleLevelGain(memberName(content, index), gained)
                 val growth = growthByClass[member.pcClass]
                 val nextHealth = member.health + (growth?.health ?: 0) * gained
+                val nextWisdom = member.wisdom + (growth?.wisdom ?: 0) * gained
                 val hpFloor = evalFormula(leveling.hitPointFloor, this, mapOf("health" to nextHealth)).value
                 member.copy(
                     level = (member.level + gained).coerceAtMost(leveling.maxLevel),
                     weaponSkill = member.weaponSkill + (growth?.weaponSkill ?: 0) * gained,
                     health = nextHealth,
-                    wisdom = member.wisdom + (growth?.wisdom ?: 0) * gained,
+                    wisdom = nextWisdom,
+                    // Spell points refill up to wisdom, as in the original, so a wiser caster holds more of them.
+                    mana = member.mana.current of nextWisdom,
                     charisma = member.charisma + (growth?.charisma ?: 0) * gained,
                     dexterity = member.dexterity + (growth?.dexterity ?: 0) * gained,
                     hitPoints = member.hitPoints.current.coerceAtLeast(hpFloor) of nextHealth,
