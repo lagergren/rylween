@@ -279,6 +279,12 @@ internal fun CompiledCharacter.position(runtime: RuntimeState): CompiledWorldPos
     runtime.npcs.firstOrNull { placement -> placement.npc == id }?.position
         ?: (placement as? CompiledCharacterPlacement.Fixed)?.position
 
+/** The characters standing on the party's wilderness square, in authored order. */
+internal fun RuntimeState.wildernessNpcsHere(content: CompiledContentBundle): List<CompiledCharacter> {
+    val here = CompiledWorldPosition.Wilderness(party.position)
+    return content.characters.filter { character -> character.position(this) == here }
+}
+
 /** Resolves the [kind] handle whose slug is [slug], or `null` when the bundle has no such handle. */
 internal fun CompiledContentBundle.refOrNull(
     kind: CompiledHandleKind,

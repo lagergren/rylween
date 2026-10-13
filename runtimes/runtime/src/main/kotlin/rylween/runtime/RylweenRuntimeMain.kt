@@ -78,6 +78,10 @@ private val TITLE_COMMAND_GROUP = RuntimeCommandGroupId.Title.id
 private const val SCORE_SCREEN = "score"
 private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
+
+/** Authored scene that hosts conversations with characters standing in the wilderness. */
+private const val HUT_SCENE = "towne.hut"
+
 private const val TEXT_WINDOW_PAGE_LINES = 9
 private const val TOWN_MAIN_STREET_IMAGE = "blitgfx.towne_mainstreet"
 private val TOWN_COMMAND_GROUP = RuntimeCommandGroupId.Town.id
@@ -1501,6 +1505,12 @@ class GameRuntime private constructor(
             return CastleRuntime(context)
                 .startCastle(runtime, castle)
         }
+        val npcs = runtime.wildernessNpcsHere(content)
+        val hut = content.scripts.roots.firstOrNull { root -> root.root.kind.name == "Scene" && root.root.slug == HUT_SCENE }
+        if (npcs.isNotEmpty() && hut != null) {
+            log.event("wilderness.enter_hut npcs=${npcs.joinToString(",") { npc -> slug(npc.id) }}")
+            return ScriptExecutor(content, systems, input, screen, runtime, log = log).execute(hut)
+        }
         log.event("wilderness.enter_none")
         screen.writeText(
             systems.prompts.wilderness.nothingToEnter
@@ -1670,7 +1680,7 @@ class GameRuntime private constructor(
         var placementParty = current.party.copy(rngState = current.party.rngState ?: 1L)
         val placements = current.npcs.toMutableList()
         content.characters.forEach { character ->
-            if (character.effectivePosition(current) != null) return@forEach
+            if (character.position(current) != null) return@forEach
             if (character.placement == CompiledCharacterPlacement.Unplaced) {
                 log.event(
                     "npc.placement.unplaced npc=${slug(character.id)} " +
@@ -1678,7 +1688,7 @@ class GameRuntime private constructor(
                 )
                 return@forEach
             }
-            val occupiedPositions = content.characters.mapNotNull { it.effectivePosition(current) }.toSet()
+            val occupiedPositions = content.characters.mapNotNull { it.position(current) }.toSet()
             val draw = placementParty.drawNpcPlacement(character.placement, world, occupiedPositions)
             if (draw == null) {
                 log.event(
@@ -1848,7 +1858,7 @@ class GameRuntime private constructor(
     ) {
         val rows =
             content.characters.mapNotNull { character ->
-                val position = character.effectivePosition(runtime)
+                val position = character.position(runtime)
                 if (position == null) {
                     log.event(
                         "npc.placement.missing npc=${slug(character.id)} " +
@@ -1899,10 +1909,6 @@ class GameRuntime private constructor(
             is CompiledCharacterPlacement.Randomized -> "randomized"
             CompiledCharacterPlacement.Unplaced -> "unplaced"
         }
-
-    private fun CompiledCharacter.effectivePosition(runtime: RuntimeState): CompiledWorldPosition? =
-        runtime.npcs.firstOrNull { placement -> placement.npc == id }?.position
-            ?: (placement as? CompiledCharacterPlacement.Fixed)?.position
 
     private fun CompiledWorldPosition.logLocation(): String =
         when (this) {

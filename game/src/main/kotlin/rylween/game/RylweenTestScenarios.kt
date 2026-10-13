@@ -54,25 +54,22 @@ private fun NpcStateBuilder.placeQuestContactsInInns() {
     Npcs.azaaza at Towns.ollk.inn
 }
 
-// Known wilderness placements for the quest locations the replay fixtures pin.
-// Fixtures that drive every mission leg also pin the remaining mission sites.
-private val replayQuestLocations: Map<LocationId, GridPoint> =
+// Where every quest location stands. Every state places all of them, the new-game
+// state included, because missions only fire on a placed location and nothing places
+// one later. Each sits on its own reachable square, clear of towns, the castle, fixed
+// mission squares, and wilderness characters.
+private val questLocations: Map<LocationId, GridPoint> =
     mapOf(
         Locations.silverKeyPit to xy(45, 13),
         Locations.hobgoblinCave to xy(46, 13),
         Locations.beastCave to xy(11, 23),
+        Locations.hermitDungeon to xy(58, 8),
+        Locations.thunTemple to xy(41, 30),
+        Locations.koboldVillage to xy(53, 10),
+        Locations.borinCamp to xy(47, 28),
+        Locations.nolrimCrypt to xy(8, 27),
+        Locations.masterCrownDungeon to xy(23, 32),
     )
-
-private val allReplayQuestLocations: Map<LocationId, GridPoint> =
-    replayQuestLocations +
-        mapOf(
-            Locations.hermitDungeon to xy(45, 13),
-            Locations.thunTemple to xy(41, 30),
-            Locations.koboldVillage to xy(53, 10),
-            Locations.borinCamp to xy(47, 28),
-            Locations.nolrimCrypt to xy(11, 23),
-            Locations.masterCrownDungeon to xy(23, 32),
-        )
 
 // Story progress of a party holding all five artifacts needed to challenge
 // Baron Ydarg, one milestone per artifact.
@@ -312,7 +309,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                replayQuestLocations.forEach { (location, point) -> location at point }
+                questLocations.forEach { (location, point) -> location at point }
             }
 
             npcs { placeQuestContactsInInns() }
@@ -360,7 +357,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                replayQuestLocations.forEach { (location, point) -> location at point }
+                questLocations.forEach { (location, point) -> location at point }
             }
 
             npcs { placeQuestContactsInInns() }
@@ -412,7 +409,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                replayQuestLocations.forEach { (location, point) -> location at point }
+                questLocations.forEach { (location, point) -> location at point }
             }
 
             npcs {
@@ -471,6 +468,10 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 wilderness(Maps.wilderness)
             }
 
+            locations {
+                questLocations.forEach { (location, point) -> location at point }
+            }
+
             npcs {
                 Npcs.garth at Towns.thord.inn
                 stageRandomNpcsAwayFromTownServices()
@@ -518,7 +519,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                allReplayQuestLocations.forEach { (location, point) -> location at point }
+                questLocations.forEach { (location, point) -> location at point }
             }
 
             npcs {
@@ -625,6 +626,10 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                 wilderness(Maps.wilderness)
             }
 
+            locations {
+                questLocations.forEach { (location, point) -> location at point }
+            }
+
             npcs {
                 Npcs.gotharp at Towns.ollk.inn
                 Npcs.azaaza at Towns.ollk.inn
@@ -688,7 +693,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                Locations.hobgoblinCave at xy(46, 13)
+                questLocations.forEach { (location, point) -> location at point }
             }
 
             party(Parties.playtest) {
@@ -732,10 +737,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                Locations.koboldVillage at xy(53, 10)
-                Locations.borinCamp at xy(47, 28)
-                Locations.nolrimCrypt at xy(11, 23)
-                Locations.masterCrownDungeon at xy(23, 32)
+                questLocations.forEach { (location, point) -> location at point }
             }
 
             npcs {
@@ -799,7 +801,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                allReplayQuestLocations.forEach { (location, point) -> location at point }
+                questLocations.forEach { (location, point) -> location at point }
             }
 
             npcs {
@@ -894,7 +896,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                replayQuestLocations.forEach { (location, point) -> location at point }
+                questLocations.forEach { (location, point) -> location at point }
             }
 
             npcs {
@@ -959,7 +961,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                replayQuestLocations.forEach { (location, point) -> location at point }
+                questLocations.forEach { (location, point) -> location at point }
             }
 
             npcs { placeQuestContactsInInns() }

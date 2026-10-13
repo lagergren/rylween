@@ -2,6 +2,7 @@
 
 package rylween.runtime
 
+import rylween.compiled.CompiledCharacter
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledPartyMember
@@ -30,6 +31,10 @@ fun runtimeWildernessContextLines(
         }
         content.towns.firstOrNull { town -> town.position == runtime.party.position }?.let { town ->
             add("At: ${content.strings.value(town.nameString)}")
+            systems.wildernessEnterCommand()?.enterPromptLine()?.let(::add)
+        }
+        runtime.wildernessNpcsHere(content).takeIf(List<CompiledCharacter>::isNotEmpty)?.let { npcs ->
+            add("At: ${npcs.joinToString { npc -> content.strings.value(npc.nameString) }}")
             systems.wildernessEnterCommand()?.enterPromptLine()?.let(::add)
         }
     }

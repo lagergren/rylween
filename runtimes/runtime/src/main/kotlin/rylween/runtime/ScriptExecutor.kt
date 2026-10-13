@@ -1291,7 +1291,8 @@ internal class ScriptExecutor(
             .filter { character ->
                 val position = character.position(runtime)
                 when (val town = runtime.currentTown) {
-                    null -> position is CompiledWorldPosition.Wilderness && content.slug(building) == "none"
+                    // Outside towns, a hut holds the characters standing on the party's square.
+                    null -> position == CompiledWorldPosition.Wilderness(runtime.party.position) && content.slug(building) == "none"
                     else -> position == CompiledWorldPosition.Town(town, building)
                 }
             }.sortedBy { character -> content.strings.value(character.nameString) }
