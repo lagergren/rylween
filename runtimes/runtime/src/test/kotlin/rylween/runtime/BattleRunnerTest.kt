@@ -87,6 +87,67 @@ class BattleRunnerTest {
     }
 
     @Test
+    fun theOpeningRunEscapesAsACowardOrFailsAway() {
+        val runtime = strongReplay()
+        val commands = "R" + "D".repeat(runtime.party.members.size)
+
+        val escaped = seededFights(runtime, commands).first { fight -> fight.flee("battle.flee")?.escaped == true }
+        assertContains(escaped.shown, "Coward.")
+        assertFalse("You escaped" in escaped.shown)
+        assertEquals(runtime.currentMode, escaped.result.runtime.currentMode)
+        assertEquals(runtime.party.experience(), escaped.result.runtime.party.experience())
+
+        val caught = seededFights(runtime, commands).first { fight -> fight.flee("battle.flee")?.escaped == false }
+        assertContains(caught.shown, "You fail to get away!")
+        assertFalse("Coward." in caught.shown)
+    }
+
+    @Test
+    fun runningBetweenRoundsIsADesperateFlee() {
+        val runtime = strongReplay()
+        val chance = checkNotNull(systems.combat.standardBattle).opening.desperateFleeChancePercent
+        val defend = "D".repeat(runtime.party.members.size)
+
+        val fights = seededFights(runtime, "F${defend}R").take(SEEDS).toList()
+
+        fights.forEach { fight ->
+            val flee = checkNotNull(fight.flee("battle.flee_desperate")) { fight.shown }
+            assertEquals(flee.value >= chance, flee.escaped)
+            assertEquals(flee.escaped, "You escaped..." in fight.shown, fight.shown)
+            assertEquals(!flee.escaped, "You fail to get away!" in fight.shown, fight.shown)
+        }
+        assertTrue(fights.any { fight -> fight.flee("battle.flee_desperate")?.escaped == true })
+        assertTrue(fights.any { fight -> fight.flee("battle.flee_desperate")?.escaped == false })
+    }
+
+    @Test
+    fun nobodyRunsFromAMandatoryEncounter() {
+        val runtime = strongReplay()
+        val defend = "D".repeat(runtime.party.members.size)
+
+        val opening = fight(runtime, "R$defend", mandatory = true)
+        assertContains(opening.shown, "You desperately try to get away")
+        assertContains(opening.shown, "Round 2")
+        assertEquals(null, opening.flee("battle.flee"))
+
+        val betweenRounds = fight(runtime, "F${defend}R$defend", mandatory = true)
+        assertContains(betweenRounds.shown, "You fail to get away!")
+        assertContains(betweenRounds.shown, "Round 3")
+        assertEquals(null, betweenRounds.flee("battle.flee_desperate"))
+    }
+
+    @Test
+    fun theAlwaysRunSecretEscapesWithoutADraw() {
+        val runtime = strongReplay().copy(alwaysRunFromNonMandatoryEncounters = true)
+
+        val fight = fight(runtime, "R")
+
+        assertContains(fight.shown, "Coward.")
+        assertEquals(null, fight.flee("battle.flee"))
+        assertEquals(runtime.currentMode, fight.result.runtime.currentMode)
+    }
+
+    @Test
     fun defendingAndBattleCriesLowerMonsterWeaponSkillOnlyWhileItIsAboveThePenalty() {
         assertEquals(1, 5.loweredBy(4))
         assertEquals(4, 4.loweredBy(4))
@@ -95,10 +156,63 @@ class BattleRunnerTest {
         assertEquals(2, 2.loweredBy(2))
     }
 
+    private fun strongReplay(): RuntimeState =
+        RuntimeState.from(bundle.states.single { state -> bundle.content.slug(state.state) == "strong-replay" }, bundle.content)
+
+    /** Fights the hobgoblin chief, who always fights alone, with [commands]. */
+    private fun fight(
+        runtime: RuntimeState,
+        commands: String,
+        mandatory: Boolean = false,
+    ): BattleFight {
+        val content = bundle.content
+        val screen = CapturingBattleScreen()
+        val logged = mutableListOf<String>()
+        val result =
+            RuntimeLog.open(testTmp.resolve("battle-run.log"), listOf { line -> logged += line }).use { log ->
+                BattleRunner(content, systems.combat, systems.pacing.battle, ScriptedInput(commands), screen, log)
+                    .runMonster(runtime, content.ref(CompiledHandleKind.Monster, "hobgoblin_chief"), mandatory)
+            }
+        return BattleFight(result, (screen.textLines + result.messages).joinToString("\n"), logged)
+    }
+
+    /** The same fight from one seed after another, so a test can find the draw it needs. */
+    private fun seededFights(
+        runtime: RuntimeState,
+        commands: String,
+    ): Sequence<BattleFight> = generateSequence(1L) { seed -> seed + 1 }.map { seed -> fight(runtime.withSeed(seed), commands) }
+
+    private fun PartyState.experience(): Int = members.sumOf { member -> member.experience }
+
     private companion object {
         const val ROUNDS = 20
+        const val SEEDS = 40
     }
 }
+
+private class BattleFight(
+    val result: BattleResult,
+    val shown: String,
+    private val log: List<String>,
+) {
+    /** The flee drawn under [context], or null when the battle drew none. */
+    fun flee(context: String): FleeDraw? =
+        log.firstNotNullOfOrNull { line ->
+            FLEE_DRAW
+                .find(line)
+                ?.takeIf { match -> match.groupValues[1] == context }
+                ?.let { match -> FleeDraw(match.groupValues[2].toInt(), match.groupValues[3].toBooleanStrict()) }
+        }
+
+    private companion object {
+        val FLEE_DRAW = Regex("""rng\.draw context=(\S+) range=\S+ value=(\d+) hit=(true|false)""")
+    }
+}
+
+private data class FleeDraw(
+    val value: Int,
+    val escaped: Boolean,
+)
 
 private class CapturingBattleScreen : NoOpRuntimeScreen() {
     val textLines = mutableListOf<String>()
