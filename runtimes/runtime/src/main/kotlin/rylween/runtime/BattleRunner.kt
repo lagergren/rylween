@@ -39,12 +39,15 @@ import rylween.compiled.ExternalBattlePacing
 import rylween.compiled.ExternalBattleText
 import rylween.compiled.ExternalCombatAction
 import rylween.compiled.ExternalLevelingRules
+import rylween.compiled.ExternalRuntimeAudio
 import rylween.compiled.ExternalRuntimeCombat
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalStandardBattle
 import rylween.compiled.applyCompiledBinary
 import rylween.compiled.compareCompiled
+import rylween.dsl.AudioCue
 import rylween.dsl.MemberChoiceFilter
+import rylween.dsl.MusicArea
 import rylween.dsl.NativeAllowlist
 import rylween.dsl.PartyMemberSelection
 import rylween.dsl.PronounCase
@@ -96,8 +99,10 @@ internal class BattleRunner(
     private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
     private val pausePrompts: PausePrompts? = null,
+    audioData: ExternalRuntimeAudio = ExternalRuntimeAudio(),
 ) {
     private val battle: ExternalStandardBattle? = combat.standardBattle
+    private val audio = RuntimeAudio(audioData, screen)
 
     fun runTier(
         runtime: RuntimeState,
@@ -150,6 +155,8 @@ internal class BattleRunner(
                 runtimeDiagnosticText("Missing compiled standard-battle contract."),
             )
         val started = startEncounter(runtime, rules, monster, mandatory)
+        audio.music(MusicArea.Battle)
+        audio.cue(AudioCue.EncounterStart)
         started.openingImage()?.let { image ->
             screen.writeViewCommand(RuntimeViewCommand.ClearMapWindow)
             screen.writeViewCommand(RuntimeViewCommand.ShowImage(image))
@@ -160,7 +167,7 @@ internal class BattleRunner(
             val choice = input.readCommand() ?: return BattleResult(runtime)
             when {
                 rules.openingKeys.run.matches(choice) -> {
-                    val outcome = attemptRun(started)
+                    val outcome = attemptRun(started).also(::playRunCue)
                     return if (outcome.escaped) {
                         BattleResult(outcome.encounter.runtimeAfterBattle(), outcome.messages)
                     } else {
@@ -168,14 +175,18 @@ internal class BattleRunner(
                     }
                 }
 
-                rules.openingKeys.fight.matches(choice) -> return finishFight(
-                    started,
-                    rules.text.bloodFlow.renderBattle(),
-                )
+                rules.openingKeys.fight.matches(choice) -> {
+                    audio.cue(AudioCue.Fight)
+                    return finishFight(started, rules.text.bloodFlow.renderBattle())
+                }
 
                 else -> screen.writeText(rules.text.notPossible.renderBattle())
             }
         }
+    }
+
+    private fun playRunCue(outcome: BattleRunOutcome) {
+        audio.cue(if (outcome.escaped) AudioCue.RunAway else AudioCue.RunFail)
     }
 
     private fun attemptRun(encounter: BattleEncounter): BattleRunOutcome {
@@ -328,7 +339,7 @@ internal class BattleRunner(
                         messages = emptyList(),
                     )
 
-                rules.openingKeys.run.matches(choice) -> return attemptRun(this)
+                rules.openingKeys.run.matches(choice) -> return attemptRun(this).also(::playRunCue)
 
                 else -> screen.writeText(rules.text.notPossible.renderBattle())
             }
@@ -403,6 +414,7 @@ internal class BattleRunner(
             }
         val hitChance = (skill + rules.playerRound.attack.hitBonus).coerceIn(0, 100)
         if (hit.value >= hitChance) {
+            audio.weaponMiss(content.slug(member.equipment.weapon))
             messages += rules.text.playerMiss.renderBattle(BATTLE_ATTACKER_NAME to runtime.party.memberName(content, memberIndex))
             return copy(runtime = runtime.withParty(hit.party))
         }
@@ -416,6 +428,8 @@ internal class BattleRunner(
                 hp.takeUnless { index == targetIndex } ?: (hp - damage).coerceAtLeast(0)
             }
         val killed = monsterHp[targetIndex] > 0 && nextHp[targetIndex] == 0
+        audio.weaponHit(content.slug(member.equipment.weapon))
+        if (killed) audio.monsterDeath(content.slug(monster.id))
         messages +=
             rules.text.playerHit.renderBattle(
                 BATTLE_ATTACKER_NAME to runtime.party.memberName(content, memberIndex),
@@ -429,7 +443,7 @@ internal class BattleRunner(
         val lines = screen.choiceMenuLines(rules.text.targetPrompt.renderBattle(), monsterTargetLines())
         screen.writeText(lines)
         return input
-            .readValidChoice(screen, lines) { choice -> selectedMonsterTargetIndex(choice) != null }
+            .readValidChoice(screen, lines, audio) { choice -> selectedMonsterTargetIndex(choice) != null }
             ?.let { choice -> selectedMonsterTargetIndex(choice) }
     }
 
@@ -438,6 +452,7 @@ internal class BattleRunner(
         member: CompiledPartyMember,
         messages: MutableList<String>,
     ): BattleEncounter {
+        audio.cue(AudioCue.Defend)
         val healed = (member.hitPoints.current + member.level).coerceAtMost(member.hitPoints.max)
         val nextMember = member.copy(hitPoints = healed of member.hitPoints.max)
         val nextMessages =
@@ -453,6 +468,7 @@ internal class BattleRunner(
     }
 
     private fun BattleEncounter.battleCry(messages: MutableList<String>): BattleEncounter {
+        audio.cue(AudioCue.BattleCry)
         val lines = rules.text.battleCry.renderBattle()
         if (lines.size > 1) {
             screen.writeText(lines.take(1))
@@ -484,6 +500,7 @@ internal class BattleRunner(
             return copy(actionRetry = true)
         }
         if (monster.immune) {
+            audio.cue(AudioCue.SpellFizzle)
             messages += rules.text.magicImmune.renderBattle()
             return copy(runtime = runtime.withParty(runtime.party.withInventoryItem(slot, null)))
         }
@@ -498,6 +515,7 @@ internal class BattleRunner(
                 ItemConsumePolicy.NeverConsumes,
                 -> this
             }
+        audio.itemUse(content.slug(item))
         return active.runBattleScript(
             scriptRoot = use.scriptRoot,
             locals = mapOf("caster_idx" to memberIndex, "inv_slot" to slot),
@@ -521,14 +539,17 @@ internal class BattleRunner(
             return copy(actionRetry = true)
         }
         if (monster.immune) {
+            audio.cue(AudioCue.SpellFizzle)
             messages += rules.text.spellFizzle.renderBattle()
             return this
         }
         val cost = spell.baseCost + member.level
         if (member.mana.current < cost) {
+            audio.cue(AudioCue.SpellFizzle)
             messages += rules.text.notEnoughMagic.renderBattle()
             return this
         }
+        audio.spell(content.slug(spell.id))
         val nextMember = member.copy(mana = (member.mana.current - cost) of member.mana.max)
         return copy(runtime = runtime.withMember(memberIndex, nextMember))
             .runBattleScript(
@@ -569,6 +590,7 @@ internal class BattleRunner(
         val hit = targetDraw.party.drawRandom(0, RANDOM_PERCENT_MAX)
         val hitChance = (monsterWeaponSkill + rules.monsterRound.melee.hitBonus).coerceIn(0, 100)
         if (hit.value >= hitChance) {
+            audio.cue(AudioCue.MonsterMiss)
             messages +=
                 rules.text.monsterMiss.renderBattle(
                     BATTLE_ATTACKER_NAME to monsterName(),
@@ -582,6 +604,8 @@ internal class BattleRunner(
                 .coerceAtLeast(rules.monsterRound.melee.damageMin)
         val nextHp = (target.hitPoints.current - damage).coerceAtLeast(0)
         val nextTarget = target.copy(hitPoints = nextHp of target.hitPoints.max, dead = target.dead || nextHp == 0)
+        audio.monsterHit(content.slug(monster.id), content.slug(target.equipment.armor))
+        if (nextHp == 0) audio.cue(AudioCue.MemberDeath)
         messages +=
             rules.text.monsterHit.renderBattle(
                 BATTLE_ATTACKER_NAME to monsterName(),
@@ -607,6 +631,8 @@ internal class BattleRunner(
         val options = monsterSpells()
         if (options.isEmpty()) return this
         val pick = runtime.party.drawRandom(0, options.lastIndex)
+        audio.cue(AudioCue.MonsterCast)
+        audio.spell(content.slug(options[pick.value].id))
         return copy(runtime = runtime.withParty(pick.party))
             .runBattleScript(
                 scriptRoot = options[pick.value].scriptRoot,
@@ -620,12 +646,20 @@ internal class BattleRunner(
         activeInventorySlot: Int? = null,
     ): BattleEncounter {
         val program = content.scripts.roots.firstOrNull { root -> root.rootHandle == scriptRoot }
-        return program
-            ?.let {
-                CompiledCombatScriptRunner(this, activeInventorySlot).run(it.instructions, locals)
-            }
-            ?: this
+        val after =
+            program
+                ?.let {
+                    CompiledCombatScriptRunner(this, activeInventorySlot).run(it.instructions, locals)
+                }
+                ?: this
+        if (after.livingMonsterCount() < livingMonsterCount()) audio.monsterDeath(content.slug(monster.id))
+        if (after.deadMemberCount() > deadMemberCount()) audio.cue(AudioCue.MemberDeath)
+        return after
     }
+
+    private fun BattleEncounter.livingMonsterCount(): Int = monsterHp.count { hp -> hp > 0 }
+
+    private fun BattleEncounter.deadMemberCount(): Int = runtime.party.members.count { member -> member.dead }
 
     private fun BattleEncounter.afterMonsterRound(): BattleEncounter =
         copy(
@@ -644,6 +678,8 @@ internal class BattleRunner(
         when {
             !partyHasLivingMembers() -> {
                 val defeated = runtime.copy(currentMode = RuntimeMode.GameOver)
+                audio.music(MusicArea.GameOver)
+                audio.cue(AudioCue.Defeat)
                 rules.defeatImage?.let { image ->
                     screen.writeViewCommand(RuntimeViewCommand.ClearMapWindow)
                     screen.writeViewCommand(RuntimeViewCommand.ShowImage(image))
@@ -697,6 +733,9 @@ internal class BattleRunner(
         party = party.applyBattleRewards(experience, gold, loot, monster.id, monsterCount)
         val levelUps = party.applyLevelUps(combat.leveling)
         party = levelUps.party
+        audio.cue(AudioCue.Victory)
+        if (gold > 0) audio.cue(AudioCue.GoldGained)
+        if (levelUps.gains.isNotEmpty()) audio.cue(AudioCue.LevelUp)
         val messages =
             buildList {
                 addAll(rules.text.victoryBested.renderBattle())
@@ -1244,7 +1283,7 @@ internal class BattleRunner(
                         screen.writeText(lines)
                         val target =
                             input
-                                .readValidChoice(screen, lines) { choice -> encounter.selectedMonsterTargetIndex(choice) != null }
+                                .readValidChoice(screen, lines, audio) { choice -> encounter.selectedMonsterTargetIndex(choice) != null }
                                 ?.let { choice -> encounter.selectedMonsterTargetIndex(choice) }
                         locals =
                             locals +

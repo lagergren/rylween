@@ -21,6 +21,7 @@ import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
+import rylween.dsl.AudioCue
 import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.RuntimeMode
@@ -46,12 +47,14 @@ internal class CastleRuntime(
     private val save = context.save
     private val log = context.log
     private val utility = UtilityActions(content, systems, input, screen, log)
+    private val audio = RuntimeAudio(systems.audio, screen)
 
     fun run(initialRuntime: RuntimeState): RuntimeState {
         var runtime = initialRuntime
         while (runtime.currentMode == RuntimeMode.Castle) {
             val castle =
                 runtime.castle?.let { state -> systems.castleRows.firstOrNull { row -> row.id == state.castleId } } ?: return runtime
+            audio.castleMusic(castle.id)
             if (runtime.castle.roomEntryPending) {
                 screen.renderCastle(runtime, castle)
                 runtime = enterRoom(runtime, castle)
@@ -82,6 +85,8 @@ internal class CastleRuntime(
                 ?: runtime.asWildernessCastle()
         }
 
+        audio.cue(AudioCue.EnterCastle)
+        audio.castleMusic(castle.id)
         // Guardians the party has won over do not come back: a party that left the castle returns to the first floor
         // whose guardian still waits for an item of power.
         val floor = ((runtime.party.castleFloorsOpened[castle.id] ?: 0) + 1).coerceAtMost(castle.stairs.floorCount)
@@ -182,7 +187,7 @@ internal class CastleRuntime(
     ): RuntimeState {
         screen.writeText(castle.text.roomMonster.renderCastle(screen.textColumns))
         val battle =
-            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))
+            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts), systems.audio)
                 .runTier(runtime, castle.monsterTier)
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         return battle.runtime.copy(
@@ -226,8 +231,12 @@ internal class CastleRuntime(
                 },
             )
         }
-        if (disarmed) return next
+        if (disarmed) {
+            audio.cue(AudioCue.CastleTrapDisarmed)
+            return next
+        }
 
+        audio.cue(AudioCue.CastleTrap)
         val trapText = next.randomTrapText(castle)
         next = trapText.runtime
         if (trapText.lines.isNotEmpty()) screen.writeText(trapText.lines)
@@ -274,6 +283,7 @@ internal class CastleRuntime(
             )
         if (targetSlot == null) return next
         next = next.withParty(next.party.withInventoryItem(targetSlot, item))
+        audio.cue(AudioCue.CastleTreasure)
         screen.writeText(castle.text.treasureTaken.renderCastle(screen.textColumns))
         return next
     }
@@ -289,7 +299,7 @@ internal class CastleRuntime(
         screen.writeText(lines)
         val stairsCommands = systems.commands.getValue(RuntimeCommandGroupId.castleStairs(castle.id))
         val command =
-            input.readValidChoice(screen, lines) { choice ->
+            input.readValidChoice(screen, lines, audio) { choice ->
                 stairsCommands.matches(RuntimeCommandActionId.TeleportOut, choice) ||
                     stairsCommands.matches(RuntimeCommandActionId.GiveItem, choice) ||
                     stairsCommands.matches(RuntimeCommandActionId.Leave, choice)
@@ -316,6 +326,7 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
+        audio.cue(AudioCue.Teleport)
         screen.writeText(
             castle.text.teleportVortex.renderCastle(screen.textColumns) + castle.text.teleportOutside.renderCastle(screen.textColumns),
         )
@@ -329,7 +340,7 @@ internal class CastleRuntime(
         val lines = castle.text.giveMenu.renderCastle(screen.textColumns)
         screen.writeText(lines)
         val digits = castle.stairs.items.mapTo(mutableSetOf()) { stair -> stair.digit } + 5
-        val digit = input.readValidDigitChoice(screen, lines, digits) ?: return runtime
+        val digit = input.readValidDigitChoice(screen, lines, digits, audio = audio) ?: return runtime
         if (digit == 5) return runtime
         val item = castle.stairs.items.firstOrNull { stair -> stair.digit == digit } ?: return runtime
         val milestone = content.ref(CompiledHandleKind.Milestone, item.milestone)

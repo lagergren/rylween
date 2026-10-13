@@ -1,5 +1,7 @@
 package rylween.runtime
 
+import rylween.compiled.ExternalItemSounds
+import rylween.compiled.ExternalMonsterSounds
 import rylween.compiled.ExternalRuntimeAudio
 import rylween.dsl.AudioCue
 import rylween.dsl.MusicArea
@@ -24,25 +26,25 @@ internal class RuntimeAudio(
 
     /** A party member's weapon connecting; the weapon's own sounds win over the generic cue. */
     fun weaponHit(weapon: String?) {
-        play("hit.$weapon", audio.items[weapon]?.hit.orEmpty().ifEmpty { cueSounds(AudioCue.PlayerHit) })
+        play("hit.$weapon", itemSounds(weapon) { it.hit }, AudioCue.PlayerHit)
     }
 
     fun weaponMiss(weapon: String?) {
-        play("miss.$weapon", audio.items[weapon]?.miss.orEmpty().ifEmpty { cueSounds(AudioCue.PlayerMiss) })
+        play("miss.$weapon", itemSounds(weapon) { it.miss }, AudioCue.PlayerMiss)
     }
 
     fun ready(
         item: String,
         fallback: AudioCue,
     ) {
-        play("ready.$item", audio.items[item]?.ready.orEmpty().ifEmpty { cueSounds(fallback) })
+        play("ready.$item", itemSounds(item) { it.ready }, fallback)
     }
 
     fun unready(
         item: String,
         fallback: AudioCue,
     ) {
-        play("unready.$item", audio.items[item]?.unready.orEmpty().ifEmpty { cueSounds(fallback) })
+        play("unready.$item", itemSounds(item) { it.unready }, fallback)
     }
 
     /** A monster's blow landing, followed by the struck member's armor ringing when it has a sound. */
@@ -50,12 +52,12 @@ internal class RuntimeAudio(
         monster: String,
         armor: String?,
     ) {
-        play("attack.$monster", audio.monsters[monster]?.attack.orEmpty().ifEmpty { cueSounds(AudioCue.MonsterHit) })
-        play("struck.$armor", audio.items[armor]?.struck.orEmpty())
+        play("attack.$monster", monsterSounds(monster) { it.attack }, AudioCue.MonsterHit)
+        play("struck.$armor", itemSounds(armor) { it.struck })
     }
 
     fun monsterDeath(monster: String) {
-        play("death.$monster", audio.monsters[monster]?.death.orEmpty().ifEmpty { cueSounds(AudioCue.MonsterDeath) })
+        play("death.$monster", monsterSounds(monster) { it.death }, AudioCue.MonsterDeath)
     }
 
     fun spell(spell: String) {
@@ -94,11 +96,11 @@ internal class RuntimeAudio(
         screen.playMusic(musicFor(area, hour))
     }
 
-    /** Plays a scene's own music and returns true, or returns false when the scene has none. */
-    fun sceneMusic(scene: String): Boolean {
-        val music = audio.scenes[scene] ?: return false
+    /** Plays a scene's own music and returns it, or returns null when the scene has none. */
+    fun sceneMusic(scene: String): String? {
+        val music = audio.scenes[scene] ?: return null
         screen.playMusic(music)
-        return true
+        return music
     }
 
     fun dungeonMusic(dungeon: String?) {
@@ -111,13 +113,26 @@ internal class RuntimeAudio(
 
     private fun cueSounds(cue: AudioCue): List<String> = audio.cues[cue.name].orEmpty()
 
+    private fun itemSounds(
+        item: String?,
+        pick: (ExternalItemSounds) -> List<String>,
+    ): List<String> = audio.items[item]?.let(pick).orEmpty()
+
+    private fun monsterSounds(
+        monster: String,
+        pick: (ExternalMonsterSounds) -> List<String>,
+    ): List<String> = audio.monsters[monster]?.let(pick).orEmpty()
+
+    /** Plays the next of [sounds] in rotation, or of the [fallback] cue's sounds when there are none. */
     private fun play(
         key: String,
         sounds: List<String>,
+        fallback: AudioCue? = null,
     ) {
-        if (sounds.isEmpty()) return
+        val choices = sounds.ifEmpty { fallback?.let(::cueSounds).orEmpty() }
+        if (choices.isEmpty()) return
         val next = rotation.getOrDefault(key, 0)
         rotation[key] = next + 1
-        screen.playSound(sounds[next % sounds.size])
+        screen.playSound(choices[next % choices.size])
     }
 }

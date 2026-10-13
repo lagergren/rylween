@@ -34,6 +34,7 @@ import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.applyCompiledBinary
 import rylween.compiled.compareCompiled
+import rylween.dsl.AudioCue
 import rylween.dsl.PartyMemberSelection
 import rylween.dsl.PronounCase
 import rylween.dsl.impl.GridPoint
@@ -63,6 +64,8 @@ internal class WildernessActions(
     private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
 ) {
+    private val audio = RuntimeAudio(systems.audio, screen)
+
     fun applyTurnUpkeep(
         runtime: RuntimeState,
         leadingMessages: List<String> = emptyList(),
@@ -81,6 +84,7 @@ internal class WildernessActions(
                 realm.upkeep.starvationDeath,
                 upkeepMessages,
             )
+        if (foodTick && foodAfterTick <= realm.upkeep.starveFoodThreshold && realm.upkeep.starveDamage > 0) audio.cue(AudioCue.Hunger)
 
         val restedHours = party.resources.restedHours - realm.upkeep.restedHoursCostPerTurn
         party = party.applyFatigue(restedHours, realm.upkeep.fatigue, upkeepMessages)
@@ -313,12 +317,13 @@ internal class WildernessActions(
     ): WildernessActionResult {
         log.event("wilderness.cave_discovery source=$source position=${party.position.x},${party.position.y}")
         if (messages.isNotEmpty()) screen.writeText(messages)
+        audio.cue(AudioCue.CaveFound)
         wilderness.events.caveImage?.let(screen::showImage)
         val caveCommands = commands[RuntimeCommandGroupId.WildernessCave.id].orEmpty()
         val lines = wilderness.events.caveFoundPrompt.renderText()
         screen.writeText(lines)
         val command =
-            input.readValidChoice(screen, lines) { choice ->
+            input.readValidChoice(screen, lines, audio) { choice ->
                 caveCommands.matches(RuntimeCommandActionId.Enter, choice) || caveCommands.matches(RuntimeCommandActionId.Leave, choice)
             } ?: return WildernessActionResult(this)
         if (!caveCommands.matches(RuntimeCommandActionId.Enter, command)) return WildernessActionResult(this)
@@ -326,6 +331,7 @@ internal class WildernessActions(
             screen.writeText(wilderness.events.caveNoMoves.renderText())
             return WildernessActionResult(this)
         }
+        audio.cue(AudioCue.EnterDungeon)
         val depth = party.drawRandom(wilderness.events.caveDepthRange.first, wilderness.events.caveDepthRange.last)
         log.rngDraw(
             context = "wilderness.cave_depth",
@@ -405,6 +411,7 @@ internal class WildernessActions(
                 ),
         )
         if (chance.value >= rules.successChancePercent) {
+            audio.cue(AudioCue.HuntFail)
             return WildernessActionResult(
                 withParty(party),
                 rules.text.tries.renderHunt(this, memberNumber, member) +
@@ -419,6 +426,7 @@ internal class WildernessActions(
             value = food.value,
             details = mapOf("member" to memberNumber),
         )
+        audio.cue(AudioCue.HuntSuccess)
         val gained = food.value + party.leaderLevel()
         party =
             food.party.copy(
@@ -458,8 +466,10 @@ internal class WildernessActions(
                     },
             )
         var runtime = copy(hour = (hour + rules.hoursAdvanced).positiveMod(24), party = party)
+        audio.cue(AudioCue.Camp)
         screen.showImage(runtime.campBackdrop())
         if (guardIndex != null) showCampBeat(rules.text.standsGuard.renderCamp(runtime))
+        audio.cue(AudioCue.Rest)
         showCampBeat(rules.text.sleeping.renderCamp(runtime))
 
         val temperature = runtime.applyTemperature(rules)
@@ -524,6 +534,7 @@ internal class WildernessActions(
                                 )
                         },
                 )
+        if (damaged > 0) audio.cue(AudioCue.ColdNight)
         val messages =
             buildList {
                 activeBands.forEach { band ->
@@ -554,6 +565,7 @@ internal class WildernessActions(
         if (chance.value >= rules.ambushChancePercent) return CampMutation(withParty(chance.party))
 
         var party = chance.party
+        audio.cue(AudioCue.Ambush)
         showCampBeat(rules.text.ambush.renderCamp(this))
         val surprise = guardIndex == null && party.members.count { member -> !member.dead } > 1
         if (surprise) {
@@ -672,6 +684,7 @@ internal class WildernessActions(
     ): PartyState {
         val rule = rules.firstOrNull { rule -> rule.matches(restedHours) } ?: return this
         messages += rule.text.renderText()
+        if (rule.startsAt(restedHours)) audio.cue(AudioCue.Fatigue)
         if (!rule.drain) return this
         return copy(
             members =
@@ -686,6 +699,13 @@ internal class WildernessActions(
         when (match) {
             WildernessFatigueMatch.Equal -> restedHours == threshold
             WildernessFatigueMatch.LessThan -> restedHours < threshold
+        }
+
+    /** True on the turn the party first falls under this rule, so its sound plays once rather than every turn. */
+    private fun ExternalWildernessFatigueRule.startsAt(restedHours: Int): Boolean =
+        when (match) {
+            WildernessFatigueMatch.Equal -> restedHours == threshold
+            WildernessFatigueMatch.LessThan -> restedHours == threshold - 1
         }
 
     private fun PartyState.campProtection(): Set<TemperatureBand> {
@@ -711,7 +731,7 @@ internal class WildernessActions(
         )
 
     private fun battleRunner(): BattleRunner =
-        BattleRunner(content, combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))
+        BattleRunner(content, combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts), systems.audio)
 
     private fun PartyState.matches(expr: CompiledBoolExpr): Boolean =
         when (expr) {

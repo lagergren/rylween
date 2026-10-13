@@ -32,6 +32,7 @@ import rylween.compiled.CompiledShopService
 import rylween.compiled.CompiledTextBlock
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.dsl.AudioCue
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RewardOverflowPolicy
 import rylween.dsl.impl.ShopQuantityCap
@@ -50,6 +51,7 @@ internal class ShopService(
     private val itemsById: Map<CompiledHandleRef, CompiledItemRecord> = content.items.associateBy { it.id }
     private val pausePrompts = PausePrompts(systems.prompts)
     private val worldText = RuntimeWorldText(content)
+    private val audio = RuntimeAudio(systems.audio, screen)
 
     fun run(
         shop: CompiledShopService,
@@ -150,7 +152,7 @@ internal class ShopService(
                 )
         screen.writeText(lines)
         val choice =
-            input.readValidChoice(screen, lines) { candidate ->
+            input.readValidChoice(screen, lines, audio) { candidate ->
                 interlude.accept.matchesInput(content, candidate) || interlude.decline.matchesInput(content, candidate)
             } ?: return runtime
         if (!interlude.accept.matchesInput(content, choice)) {
@@ -299,11 +301,13 @@ internal class ShopService(
             if (buy.paymentKeys.decline.matchesInput(content, choice)) return party
         } while (!buy.paymentKeys.pay.matchesInput(content, choice))
         if (party.resources.gold < totalPrice) {
+            audio.cue(AudioCue.NotEnoughGold)
             writeTextAndWait(buy.tooExpensive.renderShopLines(item = offer.item, price = totalPrice))
             return party
         }
 
         val result = applyPurchase(buy, offer, party, quantity, totalPrice)
+        if (result.party.resources.gold < party.resources.gold) audio.cue(AudioCue.GoldSpent)
         screen.updateStatus(runtime.withParty(result.party))
         writeTextAndWait(result.lines)
         return result.party
@@ -455,6 +459,7 @@ internal class ShopService(
                     .withInventoryItem(slot, null)
                     .withGold(current.party.resources.gold + price)
             val soldLines = requireNotNull(sell.sold).renderScreenTextLines()
+            audio.cue(AudioCue.GoldGained)
             screen.updateStatus(current.withParty(updated))
             writeTextAndWait(soldLines)
             return current.withParty(updated)

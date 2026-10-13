@@ -16,6 +16,7 @@ import rylween.compiled.CompiledItemRecord
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.dsl.AudioCue
 
 /** Builds text-window pages for runtime party state. */
 internal object PartyPages {
@@ -66,11 +67,13 @@ internal object PartyPages {
         val pages = partyPageViews(content, systems, runtime.party)
         if (pages.isEmpty()) return true
         val creation = systems.characterCreation
+        val audio = RuntimeAudio(systems.audio, screen)
         var pageIndex = 0
         var renderedPageIndex: Int? = null
         try {
             while (true) {
                 if (renderedPageIndex != pageIndex) {
+                    if (renderedPageIndex != null) audio.cue(AudioCue.PageTurn)
                     val page = pages[pageIndex]
                     val preview = page.memberIndex?.let { index -> creation?.partyPortraitPreview(content, runtime.party, index) }
                     screen.showCharacterPortrait(preview)
