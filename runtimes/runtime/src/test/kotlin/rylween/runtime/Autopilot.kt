@@ -80,6 +80,12 @@ internal class Autopilot(
     /** Whether the goal is reached and saved, so no further session is needed. */
     val finished: Boolean get() = saved
 
+    /** Whether the day from [start] to [end] went so badly that the run should start it over from the last save. */
+    fun setback(
+        start: RuntimeState,
+        end: RuntimeState,
+    ): Boolean = plan.setback(start, end)
+
     /** Forgets what was under way when the party fell, before the run starts over from the last save. */
     fun reload() {
         action = null

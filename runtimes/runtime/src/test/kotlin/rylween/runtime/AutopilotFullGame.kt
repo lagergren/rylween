@@ -353,6 +353,22 @@ internal class AutopilotFullGamePlan(
             party.living(p).any { member -> member.hitPointShare < RETREAT_BELOW } && !canHeal(p)
     }
 
+    /**
+     * Members fell during the day until most of the party is dead, and the priest cannot revive them nor the party pay
+     * the church to raise them. A party crippled that way, such as by a pack of casters that hold it in place, is too
+     * weak to earn the gold back, so a player would start the day over.
+     */
+    override fun setback(
+        start: RuntimeState,
+        end: RuntimeState,
+    ): Boolean {
+        val dead = party.dead(end.party)
+        return dead.size > party.dead(start.party).size &&
+            party.living(end.party).size * 2 < end.party.members.size &&
+            !canRebirth(end.party) &&
+            end.party.resources.gold < dead.sumOf { member -> member.member.level * RAISE_COST_PER_LEVEL }
+    }
+
     /** The priest revives the dead with Rebirth and heals the hurt with Healing, when mana allows. */
     private fun upkeep(state: RuntimeState): AutopilotAction? {
         val p = state.party

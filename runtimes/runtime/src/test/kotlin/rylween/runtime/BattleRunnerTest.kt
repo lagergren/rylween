@@ -148,6 +148,35 @@ class BattleRunnerTest {
     }
 
     @Test
+    fun aHeldPartyLosesItsTurnWithoutBeingAskedToFightOrRun() {
+        val content = bundle.content
+        val runtime = RuntimeState.from(bundle.states.single { state -> content.slug(state.state) == "strong-replay" }, content)
+        val chief = content.ref(CompiledHandleKind.Monster, "hobgoblin_chief")
+        // The chief casts every round, and Hold Creature is the only spell he knows.
+        val holding =
+            content.copy(
+                monsters = content.monsters.map { monster -> if (monster.id == chief) monster.copy(spellPower = 200) else monster },
+                spells =
+                    content.spells.filter { spell ->
+                        val slug = content.slug(spell.id)
+                        !slug.startsWith("monster.") || slug == "monster.hold"
+                    },
+            )
+        val screen = CapturingBattleScreen()
+
+        RuntimeLog.open(testTmp.resolve("battle-party-held.log")).use { log ->
+            BattleRunner(holding, systems.combat, systems.pacing.battle, ScriptedInput("F" + "D".repeat(runtime.party.members.size)), screen, log)
+                .runMonster(runtime, chief, mandatory = true)
+        }
+
+        val shown = screen.textLines
+        val rounds = checkNotNull(systems.combat.standardBattle).roundLimit
+        assertEquals(rounds - 1, shown.count { line -> line == "PARTY IS HELD!" }, "every round after the first is held")
+        assertFalse("You still face" in shown, "a held party is never asked to fight or run")
+        assertEquals(runtime.party.members.size, shown.count { line -> line == "What now?" }, "the party acts only in the first round")
+    }
+
+    @Test
     fun defendingAndBattleCriesLowerMonsterWeaponSkillOnlyWhileItIsAboveThePenalty() {
         assertEquals(1, 5.loweredBy(4))
         assertEquals(4, 4.loweredBy(4))

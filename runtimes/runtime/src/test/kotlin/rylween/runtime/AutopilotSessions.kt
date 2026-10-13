@@ -9,7 +9,9 @@
  * A fallen party ends its session without saving, as in the original game, so
  * a player starts over from the last save. A run may do the same a few times:
  * the reloaded session gets a fresh seed, as a new session would, so the fight
- * that was lost does not simply repeat.
+ * that was lost does not simply repeat. A day the plan calls a setback, such as
+ * one that leaves members dead whom the party cannot afford to raise, is thrown
+ * away and played again the same way.
  */
 
 package rylween.runtime
@@ -49,8 +51,9 @@ internal class AutopilotSessions(
     /**
      * Plays [stateSlug] with [autopilot] until it finishes, the game ends, or [maxDays] days have been played.
      * [seed] seeds the first session only; later sessions continue the saved random state. Up to [maxReloads]
-     * times, a fallen party starts the day over from the last save instead of ending the run. With [showTitleMenu],
-     * the first session opens at the title menu, where the autopilot creates its party.
+     * times, a fallen party, or a day that ends in a setback, starts the day over from the last save instead of
+     * ending the run. With [showTitleMenu], the first session opens at the title menu, where the autopilot creates
+     * its party.
      */
     fun play(
         name: String,
@@ -71,6 +74,7 @@ internal class AutopilotSessions(
         while (true) {
             day++
             val reloadSeed = (seed ?: 0L) * RELOAD_SEED_STRIDE + day * RELOAD_SEED_STRIDE + reloads
+            val lastSave = saveFile.takeIf(File::isFile)?.readBytes()
             val ports = AutopilotPorts(autopilot, keysPerDay)
             val result =
                 RuntimeLog.open(workDir.resolve("$name-day$day.log")).use { log ->
@@ -92,8 +96,19 @@ internal class AutopilotSessions(
                 }
             transcript += "=== day $day ==="
             transcript += ports.transcript
-            reloading = result.reason == RuntimeSessionExitReason.GameOver && reloads < maxReloads
+            val start = ports.firstState
+            val end = ports.state
+            val setback =
+                lastSave != null &&
+                    result.reason == RuntimeSessionExitReason.Quit &&
+                    !autopilot.finished &&
+                    start != null &&
+                    end != null &&
+                    autopilot.setback(start, end)
+            reloading = (result.reason == RuntimeSessionExitReason.GameOver || setback) && reloads < maxReloads
             if (reloading) {
+                // A fallen party saved nothing, but a day that ended in a setback was saved, so its save is thrown away.
+                if (setback) saveFile.writeBytes(checkNotNull(lastSave))
                 reloads++
                 day--
                 autopilot.reload()
