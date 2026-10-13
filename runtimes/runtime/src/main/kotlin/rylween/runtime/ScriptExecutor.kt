@@ -934,12 +934,11 @@ internal class ScriptExecutor(
                     ?.let { prompt ->
                         chooseDropSlot(party, prompt.renderRewardLines(item))
                             ?.let { slot ->
-                                party
-                                    .withInventoryItem(slot, item)
-                                    .also {
-                                        audio.cue(AudioCue.ItemTaken)
-                                        reward.messages.pickedUp?.let { text -> screen.writeText(text.renderRewardLines(item)) }
-                                    }
+                                val carried = party.withInventoryItem(slot, item).leaveExcessFood(content, systems, screen.textColumns)
+                                audio.cue(AudioCue.ItemTaken)
+                                val lines = reward.messages.pickedUp?.renderRewardLines(item).orEmpty() + carried.notice
+                                if (lines.isNotEmpty()) screen.writeText(lines)
+                                carried.party
                             }
                     } ?: party
         }
@@ -1006,19 +1005,20 @@ internal class ScriptExecutor(
                             ?.let { prompt ->
                                 chooseDropSlot(party, prompt.renderRewardLines(item, price))
                                     ?.let { slot ->
-                                        party
-                                            .withInventoryItem(slot, item)
-                                            .withGold(party.resources.gold - price)
-                                            .also {
-                                                log.event(
-                                                    "script.random_item_offer.bought " +
-                                                        "item=${content.slug(item)} price=$price droppedSlot=$slot",
-                                                )
-                                                audio.cue(AudioCue.ItemTaken)
-                                                screen.updateStatus(runtime.withParty(it))
-                                                screen.writeText(offer.deal.renderRewardLines(item, price))
-                                                input.pause(offer.pauseMillis.deal)
-                                            }
+                                        val carried =
+                                            party
+                                                .withInventoryItem(slot, item)
+                                                .withGold(party.resources.gold - price)
+                                                .leaveExcessFood(content, systems, screen.textColumns)
+                                        log.event(
+                                            "script.random_item_offer.bought " +
+                                                "item=${content.slug(item)} price=$price droppedSlot=$slot",
+                                        )
+                                        audio.cue(AudioCue.ItemTaken)
+                                        screen.updateStatus(runtime.withParty(carried.party))
+                                        screen.writeText(offer.deal.renderRewardLines(item, price) + carried.notice)
+                                        input.pause(offer.pauseMillis.deal)
+                                        carried.party
                                     }
                             } ?: party
                 }

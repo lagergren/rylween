@@ -95,3 +95,12 @@ internal class AudioRecordingScreen : NoOpRuntimeScreen() {
         music += musicSlug
     }
 }
+
+/** Screen that records the non-blocking notices the runtime shows, in order. */
+internal class MessageRecordingScreen : NoOpRuntimeScreen() {
+    val messages = mutableListOf<List<String>>()
+
+    override fun showMessage(lines: List<String>) {
+        messages += lines
+    }
+}

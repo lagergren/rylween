@@ -282,9 +282,10 @@ internal class CastleRuntime(
                 itemName = ::itemName,
             )
         if (targetSlot == null) return next
-        next = next.withParty(next.party.withInventoryItem(targetSlot, item))
+        val carried = next.party.withInventoryItem(targetSlot, item).leaveExcessFood(content, systems, screen.textColumns)
+        next = next.withParty(carried.party)
         audio.cue(AudioCue.CastleTreasure)
-        screen.writeText(castle.text.treasureTaken.renderCastle(screen.textColumns))
+        screen.writeText(castle.text.treasureTaken.renderCastle(screen.textColumns) + carried.notice)
         return next
     }
 

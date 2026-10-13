@@ -33,7 +33,6 @@ import rylween.compiled.CompiledTextBlock
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.dsl.AudioCue
-import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RewardOverflowPolicy
 import rylween.dsl.impl.ShopQuantityCap
 import rylween.dsl.impl.ShopZeroQuantityDealPolicy
@@ -352,15 +351,17 @@ internal class ShopService(
         if (targetSlot == null) {
             return ShopResult(party, buy.cantCarry.renderScreenTextLines())
         }
-        val updated =
+        val carried =
             party
                 .withInventoryItem(targetSlot, offer.item)
                 .withGold(party.resources.gold - totalPrice)
+                .leaveExcessFood(content, systems, screen.textColumns)
         return ShopResult(
-            updated,
+            carried.party,
             buy.deal.renderScreenTextLines() +
                 requireNotNull(buy.bought) { "shop inventory purchases require bought text" }
-                    .renderShopLines(item = offer.item),
+                    .renderShopLines(item = offer.item) +
+                carried.notice,
         )
     }
 
@@ -618,22 +619,7 @@ internal class ShopService(
     ): Int =
         when (cap) {
             is ShopQuantityCap.FixedAmount -> cap.amount
-            is ShopQuantityCap.CarryCapacity -> party.resourceCapacity(cap.resource)
-        }
-
-    private fun PartyState.resourceCapacity(resource: Resource): Int {
-        val base = realm.baseResourceCapacity[resource] ?: resourceAmount(resource)
-        val itemBonus =
-            inventory
-                .mapNotNull { slot -> slot.item?.let(::itemRecord) }
-                .sumOf { item -> item.resourceCapacityBonus[resource] ?: 0 }
-        return base + itemBonus
-    }
-
-    private fun PartyState.resourceAmount(resource: Resource): Int =
-        when (resource) {
-            Resource.Food -> resources.food
-            Resource.Torches -> resources.torches
+            is ShopQuantityCap.CarryCapacity -> party.resourceCapacity(content, realm, cap.resource)
         }
 
     private val PartyState.leaderLevel: Int

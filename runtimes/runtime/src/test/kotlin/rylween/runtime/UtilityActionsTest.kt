@@ -85,6 +85,33 @@ class UtilityActionsTest {
     }
 
     @Test
+    fun dropSaysWhichItemWasDropped() {
+        val screen = MessageRecordingScreen()
+        val after = runUtility("drop.log", ScriptedInput("A"), screen) { actions -> actions.drop(runtimeWithInventory(item("sword"))) }
+
+        assertEquals(null, after.party.inventoryItem(1))
+        assertEquals(listOf(listOf("You drop the Sword.")), screen.messages)
+    }
+
+    @Test
+    fun dropWithNothingCarriedSaysSo() {
+        val screen = MessageRecordingScreen()
+        runUtility("drop-empty.log", ScriptedInput(""), screen) { actions -> actions.drop(runtimeWithInventory()) }
+
+        assertEquals(listOf(listOf("Nothing to drop.")), screen.messages)
+    }
+
+    @Test
+    fun cancelledDropSaysAbortedAndKeepsTheItem() {
+        val sword = item("sword")
+        val screen = MessageRecordingScreen()
+        val after = runUtility("drop-abort.log", ScriptedInput("\n"), screen) { actions -> actions.drop(runtimeWithInventory(sword)) }
+
+        assertEquals(sword, after.party.inventoryItem(1))
+        assertEquals(listOf(listOf("Aborted.")), screen.messages)
+    }
+
+    @Test
     fun leavingTownAsksAgainWhileAnEmptyHandedMemberCanUseACarriedItem() {
         val sword = item("sword")
         val leather = item("leather")
@@ -227,14 +254,15 @@ class UtilityActionsTest {
         logName: String,
         commands: String,
         action: (UtilityActions) -> RuntimeState,
-    ): RuntimeState = runUtility(logName, ScriptedInput(commands), action)
+    ): RuntimeState = runUtility(logName, ScriptedInput(commands), action = action)
 
     private fun runUtility(
         logName: String,
         input: ScriptedInput,
+        screen: RuntimeScreenPort = NoOpRuntimeScreen(),
         action: (UtilityActions) -> RuntimeState,
     ): RuntimeState =
         RuntimeLog.open(testTmp.resolve(logName)).use { log ->
-            action(UtilityActions(content, systems, input, NoOpRuntimeScreen(), log))
+            action(UtilityActions(content, systems, input, screen, log))
         }
 }
