@@ -148,9 +148,10 @@ class WildernessReachabilityTest {
         val off = walkKeys(crypt, beside)
         val ascend = systems.commands.getValue(RuntimeCommandGroupId.Dungeon.id).key(RuntimeCommandActionId.Ascend)
         val screen = TextCapturingScreen()
+        // After entering, RETURN dismisses the "Entering" screen and then the first level's find.
         RuntimeLog.open(testTmp.resolve("crypt-reentry.log")).use { log ->
             RuntimeSessionFactory.load(bundle, systems, hash).start(
-                input = ScriptedInput("${on}L$off${on}E\n$ascend$off${on}L"),
+                input = ScriptedInput("${on}L$off${on}E\n\n$ascend$off${on}L"),
                 screen = screen,
                 config =
                     RuntimeSessionConfig(

@@ -711,6 +711,8 @@ internal object ReplayPlans {
         ascendRecurringEvents: Map<Int, String> = emptyMap(),
     ): String =
         buildString {
+            // Dismisses the "Entering <dungeon>" screen.
+            append(waitForInput())
             (2..levels).forEach { level ->
                 append('D')
                 append(descendEvents[level].orEmpty())

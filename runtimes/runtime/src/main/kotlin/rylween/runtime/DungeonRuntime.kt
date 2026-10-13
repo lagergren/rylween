@@ -20,6 +20,7 @@ import rylween.compiled.CompiledDungeonRandomEvent
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.ExternalRuntimeCommand
+import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
@@ -307,6 +308,40 @@ internal fun RuntimeState.enterDungeon(
         castle = null,
     )
 }
+
+/**
+ * Shows the authored "Entering <dungeon>" screen for the dungeon the party has just entered and waits for RETURN. Every
+ * way into a dungeon calls it once, before the first dungeon screen: a cave in the wilderness, a cave a script finds
+ * and a mission dungeon.
+ */
+internal fun RuntimeState.showDungeonHandoff(
+    content: CompiledContentBundle,
+    systems: ExternalRuntimeSystems,
+    input: RuntimeInputPort,
+    screen: RuntimeScreenPort,
+) {
+    val entered = dungeon ?: return
+    val lines =
+        systems.prompts.wilderness.dungeonHandoff.render(
+            values = { kind ->
+                when (kind) {
+                    "wildernessDungeonName" -> content.dungeonDisplayName(entered.dungeon)
+                    "wildernessDungeonLevels" -> entered.maxDepth.toString()
+                    else -> null
+                }
+            },
+            wrapWidth = screen.textColumns,
+        )
+    screen.writeText(lines.withPausePrompt(PausePrompts(systems.prompts)))
+    input.readCommand()
+}
+
+private fun CompiledContentBundle.dungeonDisplayName(dungeon: CompiledHandleRef): String =
+    dungeonScenarios
+        .firstOrNull { scenario -> scenario.dungeon == dungeon }
+        ?.nameString
+        ?.let(strings::value)
+        ?: slug(dungeon).replace('_', ' ')
 
 internal fun RuntimeState.withDungeonMode(): RuntimeState = copy(currentMode = RuntimeMode.Dungeon, currentTown = null)
 
