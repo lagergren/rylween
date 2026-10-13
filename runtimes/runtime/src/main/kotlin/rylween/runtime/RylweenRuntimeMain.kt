@@ -29,6 +29,7 @@ import rylween.compiled.CompiledJournalEntry
 import rylween.compiled.CompiledLocationPlacement
 import rylween.compiled.CompiledNpcPlacement
 import rylween.compiled.CompiledNpcVisit
+import rylween.compiled.CompiledOperand
 import rylween.compiled.CompiledPartyCounters
 import rylween.compiled.CompiledPartyImage
 import rylween.compiled.CompiledPartyMember
@@ -1763,6 +1764,19 @@ class GameRuntime private constructor(
             screen.writeText(runtimeDiagnosticText("No compiled scene program for $sceneSlug."))
             return runtime
         }
+        // A shop outside its building's hours shows its closed text instead of
+        // opening. Other scenes with hours, such as the tavern, check them in
+        // their own script.
+        val shop =
+            program.instructions
+                .flatMap { instruction -> instruction.operands }
+                .firstNotNullOfOrNull { operand -> (operand as? CompiledOperand.ShopService)?.service }
+        if (shop != null && !service.isOpenAt(runtime.hour)) {
+            log.event("town.service.closed building=${slug(service.building)} hour=${runtime.hour}")
+            screen.writeText(shop.closed.renderTextLines(CompiledTextRenderContext(content, screen.textColumns)))
+            input.pause(systems.pacing.shop.noticePauseMs)
+            return runtime
+        }
         return ScriptExecutor(content, systems, input, screen, runtime, log = log).execute(program)
     }
 
@@ -2550,6 +2564,13 @@ private fun ExternalRuntimeTextBlock.renderCreation(
     )
 
 private fun String.normalizedCreationName(): String = trim().replaceFirstChar(Char::uppercaseChar)
+
+/** Whether the building is open at [hour]. Hours are inclusive and wrap past midnight when it opens after it closes. */
+internal fun CompiledBuildingService.isOpenAt(hour: Int): Boolean {
+    val opens = opensAt ?: return true
+    val closes = closesAt ?: return true
+    return if (opens <= closes) hour in opens..closes else hour >= opens || hour <= closes
+}
 
 internal class CompiledTextRenderContext(
     val content: CompiledContentBundle,

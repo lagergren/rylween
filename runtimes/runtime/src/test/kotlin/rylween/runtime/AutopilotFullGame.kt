@@ -591,6 +591,8 @@ internal class AutopilotFullGamePlan(
         val p = state.party
         val towns = content.towns.filter { town -> !needsChurch || town.offers("church") }
         val town = towns.minByOrNull { town -> distance(p.position, town.position) } ?: return null
+        // A visit skips services that are closed, and leaving town takes an hour, so a party that needs a shop at
+        // night comes back in each hour until it opens.
         return walkTo(state, town.position) ?: actions.enter()
     }
 
