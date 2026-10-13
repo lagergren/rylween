@@ -11,7 +11,7 @@ package rylween.runtime
 import rylween.compiled.ExternalRuntimeCastle
 
 /** The kind of input the runtime is waiting for. */
-internal enum class AutopilotRequest { Key, Number }
+internal enum class AutopilotRequest { Key, Number, Text }
 
 /**
  * What the autopilot knows when the runtime asks for input.
@@ -62,7 +62,13 @@ internal class AutopilotPorts(
 
     override fun readInt(maxDigits: Int): Int? = next(AutopilotRequest.Number)?.digitToIntOrNull()
 
-    override fun readText(maxLength: Int?): String? = fail("the autopilot does not type text yet")
+    override fun readText(maxLength: Int?): String? {
+        if (finished) return null
+        val view = view(AutopilotRequest.Text)
+        val answer = ask { autopilot.answer(view) } ?: fail("no answer for a text prompt")
+        transcriptLines += "> \"$answer\""
+        return answer
+    }
 
     override fun writeText(lines: List<String>) = record(lines)
 
@@ -115,18 +121,26 @@ internal class AutopilotPorts(
         pending += lines
     }
 
-    private fun next(request: AutopilotRequest): Char? {
-        if (finished) return null
+    private fun view(request: AutopilotRequest): AutopilotView {
         val current = state ?: fail("the runtime asked for input before drawing any state")
         val text = pending.toList()
         pending.clear()
         if (text.any(String::isNotBlank)) prompt = text
-        val decision =
-            try {
-                autopilot.decide(AutopilotView(request, current, text, prompt))
-            } catch (problem: AutopilotStuck) {
-                fail(problem.message.orEmpty())
-            }
+        return AutopilotView(request, current, text, prompt)
+    }
+
+    /** Runs an autopilot decision, turning its own failure into one that carries the transcript. */
+    private fun <T> ask(decision: () -> T): T =
+        try {
+            decision()
+        } catch (problem: AutopilotStuck) {
+            fail(problem.message.orEmpty())
+        }
+
+    private fun next(request: AutopilotRequest): Char? {
+        if (finished) return null
+        val view = view(request)
+        val decision = ask { autopilot.decide(view) }
         if (decision == null) {
             finished = true
             transcriptLines += "> (autopilot finished)"

@@ -13,6 +13,7 @@ package rylween.runtime
 
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledHandleKind
+import rylween.compiled.CompiledHandleRef
 import rylween.compiled.ExternalRuntimeCastle
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeInputBinding
@@ -44,8 +45,14 @@ internal class Autopilot(
             .binding
             .key()
     private val wildernessKeys = systems.commands.getValue(RuntimeCommandGroupId.Wilderness.id)
+    private val tactics = AutopilotBattle(content, systems)
     private var camp = CampStep.None
     private var saved = false
+    private var descending = true
+    private var dungeonVisit: CompiledHandleRef? = null
+
+    /** Whether the goal is reached and saved, so no further session is needed. */
+    val finished: Boolean get() = saved
     private var lastSignature: String? = null
     private var repeats = 0
 
@@ -65,6 +72,7 @@ internal class Autopilot(
                 ?: when (state.currentMode) {
                     RuntimeMode.Battle -> battle(view)
                     RuntimeMode.Castle -> castle(view)
+                    RuntimeMode.Dungeon -> dungeon(view)
                     RuntimeMode.Wilderness -> wilderness(view)
                     else -> null
                 }
@@ -72,6 +80,9 @@ internal class Autopilot(
         guardAgainstLoops(view, key)
         return key
     }
+
+    /** Returns the text to type for a text prompt, such as a riddle answer, or `null` when the autopilot has none. */
+    fun answer(view: AutopilotView): String? = null
 
     private fun goalReached(state: RuntimeState): Boolean =
         when (goal) {
@@ -94,14 +105,19 @@ internal class Autopilot(
     private fun battle(view: AutopilotView): Char? {
         val lines = view.text
         return when {
-            lines.offers(battle.openingKeys.fight) && lines.offers(battle.openingKeys.run) -> battle.openingKeys.fight.key()
+            lines.offers(battle.openingKeys.fight) && lines.offers(battle.openingKeys.run) -> {
+                val foes = tactics.foes(lines)
+                val fight = foes == null || tactics.shouldFight(view.state.party, foes)
+                (if (fight) battle.openingKeys.fight else battle.openingKeys.run).key()
+            }
+
             lines.any { line -> line.offersChoiceKey(attackKey.toString()) } -> attackKey
-            else -> lines.firstNotNullOfOrNull(::targetKey)
+            else -> {
+                tactics.observeTargets(lines)
+                tactics.weakestTarget(lines)
+            }
         }
     }
-
-    /** The letter of a battle target line such as "A. Xvart 159/159 HP"; dead monsters are listed without one. */
-    private fun targetKey(line: String): Char? = TARGET_LINE.find(line)?.let { match -> match.groupValues[1].single() }
 
     private fun castle(view: AutopilotView): Char? {
         val state = view.state
@@ -116,6 +132,22 @@ internal class Autopilot(
             lines.offers(treasure.binding(RuntimeCommandActionId.Take)) -> treasure.key(RuntimeCommandActionId.Leave)
             else -> castleStep(castleState, castle)
         }
+    }
+
+    /**
+     * Descends to the bottom of the dungeon, where its quest events wait, then climbs back out.
+     * Every level down burns a torch, so the party turns back early when it runs out.
+     */
+    private fun dungeon(view: AutopilotView): Char? {
+        if (AutopilotMenu.parse(view.text).options.isNotEmpty()) return null
+        val dungeon = view.state.dungeon ?: return null
+        val keys = systems.commands.getValue(RuntimeCommandGroupId.Dungeon.id)
+        if (dungeonVisit != dungeon.dungeon) {
+            dungeonVisit = dungeon.dungeon
+            descending = true
+        }
+        if (dungeon.depth >= dungeon.maxDepth || view.state.party.resources.torches <= 0) descending = false
+        return keys.key(if (descending) RuntimeCommandActionId.Descend else RuntimeCommandActionId.Ascend)
     }
 
     /** Offers the guardian the first artifact whose milestone the party still holds. */
@@ -143,6 +175,7 @@ internal class Autopilot(
 
     private fun wilderness(view: AutopilotView): Char? {
         val state = view.state
+        dungeonVisit = null
         when (camp) {
             CampStep.PostGuard -> {
                 camp = CampStep.ChooseGuard
@@ -229,8 +262,6 @@ internal class Autopilot(
 
     private companion object {
         const val LOOP_LIMIT = 20
-
-        val TARGET_LINE = Regex("""^\s*([A-Z])\.\s.*\d+/\d+ HP""")
 
         val WILDERNESS_MOVES =
             listOf(

@@ -1,0 +1,60 @@
+/**
+ * Reads the choices a runtime screen offers, so the autopilot can pick an
+ * option by what it says instead of by a remembered key.
+ */
+
+package rylween.runtime
+
+/** One selectable choice: the [key] to press and the [label] shown with it, such as `M` and "Merchant". */
+internal data class AutopilotOption(
+    val key: Char,
+    val label: String,
+) {
+    /** The price in gold when the label ends in one, such as "Sword 160 au". */
+    val price: Int? get() = PRICE.find(label)?.let { match -> match.groupValues[1].toInt() }
+
+    fun says(text: String): Boolean = label.contains(text, ignoreCase = true)
+
+    private companion object {
+        val PRICE = Regex("""(\d+)\s*au$""")
+    }
+}
+
+/** The choices offered by a block of screen lines, in screen order. */
+internal data class AutopilotMenu(
+    val options: List<AutopilotOption>,
+) {
+    fun isEmpty(): Boolean = options.isEmpty()
+
+    fun offers(key: Char): Boolean = options.any { option -> option.key == key }
+
+    /** The first option whose label contains [text], ignoring case. */
+    fun find(text: String): AutopilotOption? = options.firstOrNull { option -> option.says(text) }
+
+    companion object {
+        /** A parenthesized key such as "(M)erchant", "(A) Torch  1 au", or "(Y)es / (N)o". */
+        private val INLINE = Regex("""\(([A-Z0-9])\)""")
+
+        /** A listed key such as "A. Xvart 159/159 HP" or "1. Aragorn". */
+        private val LISTED = Regex("""^\s*([A-Z0-9])\.\s+(.+)$""")
+
+        fun parse(lines: List<String>): AutopilotMenu = AutopilotMenu(lines.flatMap(::optionsIn))
+
+        private fun optionsIn(line: String): List<AutopilotOption> {
+            LISTED.find(line)?.let { match ->
+                return listOf(AutopilotOption(match.groupValues[1].single(), match.groupValues[2].normalized()))
+            }
+            val matches = INLINE.findAll(line).toList()
+            return matches.mapIndexed { index, match ->
+                val end = matches.getOrNull(index + 1)?.range?.first ?: line.length
+                val tail = line.substring(match.range.last + 1, end).substringBefore(" / ")
+                val key = match.groupValues[1].single()
+                // "(M)erchant" continues the word after the key; "(A) Torch" starts a new one.
+                val label = if (tail.firstOrNull()?.isLowerCase() == true) key + tail else tail
+                AutopilotOption(key, label.normalized())
+            }
+        }
+
+        private fun String.normalized(): String = trim().replace(Regex("""\s+"""), " ")
+    }
+}
