@@ -49,6 +49,13 @@ internal class AutopilotPorts(
 
     /** The most recent state the runtime drew. */
     var state: RuntimeState? = null
+        private set(value) {
+            if (field == null) firstState = value
+            field = value
+        }
+
+    /** The first state the runtime drew: the party as the session began. */
+    var firstState: RuntimeState? = null
         private set
 
     /** Everything the runtime wrote, with each key the autopilot sent marked by a `> ` line. */

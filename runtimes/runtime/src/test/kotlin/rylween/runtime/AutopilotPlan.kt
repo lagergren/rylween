@@ -61,6 +61,15 @@ internal interface AutopilotPlan {
 
     /** Whether the mage saves spell points for a coming fight, casting only when a battle turns dangerous. */
     fun conserveMana(state: RuntimeState): Boolean = false
+
+    /**
+     * Whether a day that began at [start] and ended at [end] left the party worse off than it can mend, so a player
+     * would start that day over from the last save rather than keep it.
+     */
+    fun setback(
+        start: RuntimeState,
+        end: RuntimeState,
+    ): Boolean = false
 }
 
 /**
