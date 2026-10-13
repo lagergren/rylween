@@ -42,34 +42,36 @@ tasks.jar {
     }
 }
 
-val runtimeWebStartScripts: TaskProvider<CreateStartScripts> by tasks.registering(CreateStartScripts::class) {
-    group = "application"
-    description = "Generates direct start scripts for the web runtime."
+val runtimeWebStartScripts: TaskProvider<CreateStartScripts> =
+    tasks.register<CreateStartScripts>("runtimeWebStartScripts") {
+        group = "application"
+        description = "Generates direct start scripts for the web runtime."
 
-    dependsOn(runtimeWebJar)
-    applicationName = "rylween-web"
-    mainClass.set("rylween.web.RylweenWebRuntimeMainKt")
-    outputDir =
-        layout.buildDirectory
-            .dir("scripts/runtimeWebApp")
-            .get()
-            .asFile
-    classpath = files(runtimeWebJarFile) + runtimeWebJars
-}
+        dependsOn(runtimeWebJar)
+        applicationName = "rylween-web"
+        mainClass.set("rylween.web.RylweenWebRuntimeMainKt")
+        outputDir =
+            layout.buildDirectory
+                .dir("scripts/runtimeWebApp")
+                .get()
+                .asFile
+        classpath = files(runtimeWebJarFile) + runtimeWebJars
+    }
 
-val installRuntimeWeb: TaskProvider<Sync> by tasks.registering(Sync::class) {
-    group = "application"
-    description = "Installs the web runtime."
+val installRuntimeWeb: TaskProvider<Sync> =
+    tasks.register<Sync>("installRuntimeWeb") {
+        group = "application"
+        description = "Installs the web runtime."
 
-    dependsOn(runtimeWebStartScripts)
-    into(layout.buildDirectory.dir("install/rylween-web"))
-    from(runtimeWebStartScripts) {
-        into("bin")
-        filePermissions {
-            unix("rwxr-xr-x")
+        dependsOn(runtimeWebStartScripts)
+        into(layout.buildDirectory.dir("install/rylween-web"))
+        from(runtimeWebStartScripts) {
+            into("bin")
+            filePermissions {
+                unix("rwxr-xr-x")
+            }
+        }
+        from(files(runtimeWebJarFile) + runtimeWebJars) {
+            into("lib")
         }
     }
-    from(files(runtimeWebJarFile) + runtimeWebJars) {
-        into("lib")
-    }
-}

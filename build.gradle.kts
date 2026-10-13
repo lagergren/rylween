@@ -12,6 +12,14 @@ version =
         .gradleProperty("rylween.version")
         .get()
 
+versionCatalogUpdate {
+    // jdk, nodejs and ktlint are read as plain versions rather than through a library or
+    // plugin, so without this the catalog update deletes them as unused.
+    keep {
+        keepUnusedVersions.set(true)
+    }
+}
+
 tasks.check {
     dependsOn("checkDependencyUpdates")
     dependsOn(":core:check")

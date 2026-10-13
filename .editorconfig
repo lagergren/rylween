@@ -12,6 +12,12 @@ indent_style = space
 max_line_length = 140
 ij_kotlin_allow_trailing_comma = true
 ij_kotlin_allow_trailing_comma_on_call_site = true
+# ktlint 1.8.0 promoted these rules from experimental to standard. The codebase was written
+# before them, so they stay off until it is reformatted to follow them (`./gradlew ktlintFormat`).
+ktlint_standard_blank-line-between-when-conditions = disabled
+ktlint_standard_kdoc = disabled
+ktlint_standard_mixed-condition-operators = disabled
+ktlint_standard_when-entry-bracing = disabled
 
 # noinspection EditorConfigKeyCorrectness
 [*.{ts,css,json}]

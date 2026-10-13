@@ -37,40 +37,43 @@ val externalBundleInspection: Provider<RegularFile> = rootProject.layout.buildDi
 val externalBundleArtifactPath: String = externalBundleArtifact.get().asFile.path
 val externalBundleInspectionPath: String = externalBundleInspection.get().asFile.path
 
-val emitExternalCompiledBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
-    group = "verification"
-    description = "Emits the deterministic JSON compiled bundle artifact."
+val emitExternalCompiledBundle: TaskProvider<JavaExec> =
+    tasks.register<JavaExec>("emitExternalCompiledBundle") {
+        group = "verification"
+        description = "Emits the deterministic JSON compiled bundle artifact."
 
-    dependsOn(tasks.named(mainSourceSet.classesTaskName))
-    classpath = mainSourceSet.runtimeClasspath
-    mainClass.set("rylween.tools.RylweenExternalBundleArtifactMain")
-    args(externalBundleArtifactPath)
-    inputs.files(mainSourceSet.runtimeClasspath)
-    outputs.file(externalBundleArtifact)
-}
+        dependsOn(tasks.named(mainSourceSet.classesTaskName))
+        classpath = mainSourceSet.runtimeClasspath
+        mainClass.set("rylween.tools.RylweenExternalBundleArtifactMain")
+        args(externalBundleArtifactPath)
+        inputs.files(mainSourceSet.runtimeClasspath)
+        outputs.file(externalBundleArtifact)
+    }
 
-val checkExternalCompiledBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
-    group = "verification"
-    description = "Validates the deterministic JSON compiled bundle artifact."
+val checkExternalCompiledBundle: TaskProvider<JavaExec> =
+    tasks.register<JavaExec>("checkExternalCompiledBundle") {
+        group = "verification"
+        description = "Validates the deterministic JSON compiled bundle artifact."
 
-    dependsOn(emitExternalCompiledBundle)
-    classpath = mainSourceSet.runtimeClasspath
-    mainClass.set("rylween.tools.RylweenExternalBundleCheckMain")
-    args(externalBundleArtifactPath)
-    inputs.file(externalBundleArtifact)
-}
+        dependsOn(emitExternalCompiledBundle)
+        classpath = mainSourceSet.runtimeClasspath
+        mainClass.set("rylween.tools.RylweenExternalBundleCheckMain")
+        args(externalBundleArtifactPath)
+        inputs.file(externalBundleArtifact)
+    }
 
-val inspectExternalCompiledBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
-    group = "verification"
-    description = "Writes a readable inspection summary for the deterministic JSON compiled bundle artifact."
+val inspectExternalCompiledBundle: TaskProvider<JavaExec> =
+    tasks.register<JavaExec>("inspectExternalCompiledBundle") {
+        group = "verification"
+        description = "Writes a readable inspection summary for the deterministic JSON compiled bundle artifact."
 
-    dependsOn(emitExternalCompiledBundle)
-    classpath = mainSourceSet.runtimeClasspath
-    mainClass.set("rylween.tools.RylweenExternalBundleInspectMain")
-    args(externalBundleArtifactPath, externalBundleInspectionPath)
-    inputs.file(externalBundleArtifact)
-    outputs.file(externalBundleInspection)
-}
+        dependsOn(emitExternalCompiledBundle)
+        classpath = mainSourceSet.runtimeClasspath
+        mainClass.set("rylween.tools.RylweenExternalBundleInspectMain")
+        args(externalBundleArtifactPath, externalBundleInspectionPath)
+        inputs.file(externalBundleArtifact)
+        outputs.file(externalBundleInspection)
+    }
 
 tasks.check {
     dependsOn(checkExternalCompiledBundle)
