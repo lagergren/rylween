@@ -150,11 +150,19 @@ data class WildernessSystemModel(
     val terrainTransitions: TerrainTransitionModel = TerrainTransitionModel(),
 )
 
+/** Keypad and arrow-key movement bindings shared by wilderness and castle navigation. */
+object MovementKeys {
+    val north: InputBindingModel = inputKey("8", InputAliases.ARROW_UP, "UP", "ARROW_UP", label = "8/↑")
+    val south: InputBindingModel = inputKey("2", InputAliases.ARROW_DOWN, "DOWN", "ARROW_DOWN", label = "2/↓")
+    val west: InputBindingModel = inputKey("4", InputAliases.ARROW_LEFT, "LEFT", "ARROW_LEFT", label = "4/←")
+    val east: InputBindingModel = inputKey("6", InputAliases.ARROW_RIGHT, "RIGHT", "ARROW_RIGHT", label = "6/→")
+}
+
 data class WildernessKeysModel(
-    val moveNorth: InputBindingModel = inputKey("8", InputAliases.ARROW_UP, "UP", "ARROW_UP", label = "8/↑"),
-    val moveSouth: InputBindingModel = inputKey("2", InputAliases.ARROW_DOWN, "DOWN", "ARROW_DOWN", label = "2/↓"),
-    val moveWest: InputBindingModel = inputKey("4", InputAliases.ARROW_LEFT, "LEFT", "ARROW_LEFT", label = "4/←"),
-    val moveEast: InputBindingModel = inputKey("6", InputAliases.ARROW_RIGHT, "RIGHT", "ARROW_RIGHT", label = "6/→"),
+    val moveNorth: InputBindingModel = MovementKeys.north,
+    val moveSouth: InputBindingModel = MovementKeys.south,
+    val moveWest: InputBindingModel = MovementKeys.west,
+    val moveEast: InputBindingModel = MovementKeys.east,
     val pass: InputBindingModel = inputKey(" ", "SPACE", label = "Space"),
     val save: InputBindingModel = inputKey("S"),
     val readyWeapon: InputBindingModel = inputKey("W"),

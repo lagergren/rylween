@@ -47,6 +47,54 @@ private fun NpcStateBuilder.stageRandomNpcsAwayFromTownServices(vararg keepPlace
         }
 }
 
+// Pins the bandits quest giver and the Silver Key vendor and smith to their inns.
+private fun NpcStateBuilder.placeQuestContactsInInns() {
+    Npcs.garth at Towns.thord.inn
+    Npcs.bernak at Towns.wilor.inn
+    Npcs.azaaza at Towns.ollk.inn
+}
+
+// Known wilderness placements for the quest locations the replay fixtures pin.
+// Fixtures that drive every mission leg also pin the remaining mission sites.
+private val replayQuestLocations: Map<LocationId, GridPoint> =
+    mapOf(
+        Locations.silverKeyPit to xy(45, 13),
+        Locations.hobgoblinCave to xy(46, 13),
+        Locations.beastCave to xy(11, 23),
+    )
+
+private val allReplayQuestLocations: Map<LocationId, GridPoint> =
+    replayQuestLocations +
+        mapOf(
+            Locations.hermitDungeon to xy(45, 13),
+            Locations.thunTemple to xy(41, 30),
+            Locations.koboldVillage to xy(53, 10),
+            Locations.borinCamp to xy(47, 28),
+            Locations.nolrimCrypt to xy(11, 23),
+            Locations.masterCrownDungeon to xy(23, 32),
+        )
+
+// Story progress of a party holding all five artifacts needed to challenge
+// Baron Ydarg, one milestone per artifact.
+private val allArtifactsStoryFlags: List<FlagState> =
+    listOf(
+        Story.garth.bandits.recovered,
+        Story.silverKey.keyTaken,
+        Story.bracelets.thun.braceletsTaken,
+        Story.masterCrown.crownTaken,
+        Story.jazzy.ogre.jazzyDefeated,
+        Story.hermit.trollTooth.fireShieldAcquired,
+    )
+
+private val allArtifactsMilestones: List<GameMilestoneId> =
+    listOf(
+        Milestones.fireShield,
+        Milestones.braceletsOfThun,
+        Milestones.masterCrown,
+        Milestones.footOfJazzy,
+        Milestones.silverKey,
+    )
+
 private data class ReplayMemberFixture(
     val name: String,
     val gender: Gender,
@@ -264,16 +312,10 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                Locations.silverKeyPit at xy(45, 13)
-                Locations.hobgoblinCave at xy(46, 13)
-                Locations.beastCave at xy(11, 23)
+                replayQuestLocations.forEach { (location, point) -> location at point }
             }
 
-            npcs {
-                Npcs.garth at Towns.thord.inn
-                Npcs.bernak at Towns.wilor.inn
-                Npcs.azaaza at Towns.ollk.inn
-            }
+            npcs { placeQuestContactsInInns() }
 
             party(Parties.replay) {
                 player = "Replay"
@@ -318,16 +360,10 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                Locations.silverKeyPit at xy(45, 13)
-                Locations.hobgoblinCave at xy(46, 13)
-                Locations.beastCave at xy(11, 23)
+                replayQuestLocations.forEach { (location, point) -> location at point }
             }
 
-            npcs {
-                Npcs.garth at Towns.thord.inn
-                Npcs.bernak at Towns.wilor.inn
-                Npcs.azaaza at Towns.ollk.inn
-            }
+            npcs { placeQuestContactsInInns() }
 
             party(Parties.playtest) {
                 player = "Strong"
@@ -376,15 +412,11 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                Locations.silverKeyPit at xy(45, 13)
-                Locations.hobgoblinCave at xy(46, 13)
-                Locations.beastCave at xy(11, 23)
+                replayQuestLocations.forEach { (location, point) -> location at point }
             }
 
             npcs {
-                Npcs.garth at Towns.thord.inn
-                Npcs.bernak at Towns.wilor.inn
-                Npcs.azaaza at Towns.ollk.inn
+                placeQuestContactsInInns()
                 stageRandomNpcsAwayFromTownServices(Npcs.garth, Npcs.bernak, Npcs.azaaza)
             }
 
@@ -402,22 +434,9 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                     restedHours = 500
                 }
 
-                flags {
-                    mark(Story.garth.bandits.recovered)
-                    mark(Story.silverKey.keyTaken)
-                    mark(Story.bracelets.thun.braceletsTaken)
-                    mark(Story.masterCrown.crownTaken)
-                    mark(Story.jazzy.ogre.jazzyDefeated)
-                    mark(Story.hermit.trollTooth.fireShieldAcquired)
-                }
+                flags { allArtifactsStoryFlags.forEach(::mark) }
 
-                milestones {
-                    achieved(Milestones.fireShield)
-                    achieved(Milestones.braceletsOfThun)
-                    achieved(Milestones.masterCrown)
-                    achieved(Milestones.footOfJazzy)
-                    achieved(Milestones.silverKey)
-                }
+                milestones { allArtifactsMilestones.forEach(::achieved) }
 
                 inventory {
                     slot(1).item(Items.fireWand)
@@ -499,15 +518,7 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                Locations.silverKeyPit at xy(45, 13)
-                Locations.hobgoblinCave at xy(46, 13)
-                Locations.beastCave at xy(11, 23)
-                Locations.hermitDungeon at xy(45, 13)
-                Locations.thunTemple at xy(41, 30)
-                Locations.koboldVillage at xy(53, 10)
-                Locations.borinCamp at xy(47, 28)
-                Locations.nolrimCrypt at xy(11, 23)
-                Locations.masterCrownDungeon at xy(23, 32)
+                allReplayQuestLocations.forEach { (location, point) -> location at point }
             }
 
             npcs {
@@ -788,21 +799,11 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                Locations.silverKeyPit at xy(45, 13)
-                Locations.hobgoblinCave at xy(46, 13)
-                Locations.beastCave at xy(11, 23)
-                Locations.hermitDungeon at xy(45, 13)
-                Locations.thunTemple at xy(41, 30)
-                Locations.koboldVillage at xy(53, 10)
-                Locations.borinCamp at xy(47, 28)
-                Locations.nolrimCrypt at xy(11, 23)
-                Locations.masterCrownDungeon at xy(23, 32)
+                allReplayQuestLocations.forEach { (location, point) -> location at point }
             }
 
             npcs {
-                Npcs.garth at Towns.thord.inn
-                Npcs.bernak at Towns.wilor.inn
-                Npcs.azaaza at Towns.ollk.inn
+                placeQuestContactsInInns()
                 stageRandomNpcsAwayFromTownServices(Npcs.bernak, Npcs.azaaza)
             }
 
@@ -893,15 +894,11 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                Locations.silverKeyPit at xy(45, 13)
-                Locations.hobgoblinCave at xy(46, 13)
-                Locations.beastCave at xy(11, 23)
+                replayQuestLocations.forEach { (location, point) -> location at point }
             }
 
             npcs {
-                Npcs.garth at Towns.thord.inn
-                Npcs.bernak at Towns.wilor.inn
-                Npcs.azaaza at Towns.ollk.inn
+                placeQuestContactsInInns()
                 stageRandomNpcsAwayFromTownServices(Npcs.bernak, Npcs.azaaza)
             }
 
@@ -919,22 +916,9 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                     restedHours = 14
                 }
 
-                flags {
-                    mark(Story.garth.bandits.recovered)
-                    mark(Story.silverKey.keyTaken)
-                    mark(Story.bracelets.thun.braceletsTaken)
-                    mark(Story.masterCrown.crownTaken)
-                    mark(Story.jazzy.ogre.jazzyDefeated)
-                    mark(Story.hermit.trollTooth.fireShieldAcquired)
-                }
+                flags { allArtifactsStoryFlags.forEach(::mark) }
 
-                milestones {
-                    achieved(Milestones.fireShield)
-                    achieved(Milestones.braceletsOfThun)
-                    achieved(Milestones.masterCrown)
-                    achieved(Milestones.footOfJazzy)
-                    achieved(Milestones.silverKey)
-                }
+                milestones { allArtifactsMilestones.forEach(::achieved) }
 
                 inventory {
                     slot(1).empty()
@@ -974,16 +958,10 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
             }
 
             locations {
-                Locations.silverKeyPit at xy(45, 13)
-                Locations.hobgoblinCave at xy(46, 13)
-                Locations.beastCave at xy(11, 23)
+                replayQuestLocations.forEach { (location, point) -> location at point }
             }
 
-            npcs {
-                Npcs.garth at Towns.thord.inn
-                Npcs.bernak at Towns.wilor.inn
-                Npcs.azaaza at Towns.ollk.inn
-            }
+            npcs { placeQuestContactsInInns() }
 
             party(Parties.replay) {
                 player = "Replay"
@@ -1009,21 +987,10 @@ fun RylweenModel.withReplayScenarios(): RylweenModel =
                     }
                 }
 
-                flags {
-                    mark(Story.garth.bandits.recovered)
-                    mark(Story.silverKey.keyTaken)
-                    mark(Story.bracelets.thun.braceletsTaken)
-                    mark(Story.masterCrown.crownTaken)
-                    mark(Story.jazzy.ogre.jazzyDefeated)
-                    mark(Story.hermit.trollTooth.fireShieldAcquired)
-                }
+                flags { allArtifactsStoryFlags.forEach(::mark) }
 
                 milestones {
-                    achieved(Milestones.fireShield)
-                    achieved(Milestones.braceletsOfThun)
-                    achieved(Milestones.masterCrown)
-                    achieved(Milestones.footOfJazzy)
-                    achieved(Milestones.silverKey)
+                    allArtifactsMilestones.forEach(::achieved)
                     achieved(Milestones.ydargVictory)
                 }
 

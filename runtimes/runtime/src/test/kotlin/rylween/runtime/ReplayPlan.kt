@@ -98,87 +98,62 @@ internal object ReplayPlans {
         bundle: CompiledGameBundle,
         stateSlug: String,
     ): ReplayPlan {
-        val content = bundle.content
         val state = bundle.stateBySlug(stateSlug)
-        val world = ReplayWorldMap.from(state, content = content)
-        var point = state.startPoint()
-
-        fun moveTo(
-            name: String,
-            target: GridPoint,
-        ): ReplayComponent {
-            val route = world.routeTo(point, target)
-            point = route.end
-            return ReplayComponent(name, route.commands)
-        }
-
-        fun moveToTown(slug: String): ReplayComponent = moveTo("travel.to_$slug", content.townPoint(slug))
-
-        fun moveToTerrain(
-            name: String,
-            terrainSlug: String,
-        ): ReplayComponent {
-            val route = world.routeToTerrain(point, terrainSlug)
-            point = route.end
-            return ReplayComponent(name, route.commands)
-        }
-
-        fun location(slug: String): GridPoint = state.locationPoint(content, slug)
-
+        val walker = ReplayWalker(bundle.content, state)
         return ReplayPlan(
             name = MASTER_CROWN_DISCOVERY_ROUTE,
             stateSlug = stateSlug,
             components =
                 listOf(
-                    moveToTown("wilor"),
+                    walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_intro",
                         commands = enterInnGuestChat() + speakInnNpc(3) + speakInnNpc(5) + "LL",
                         checkpoints = listOf("output:suited for this than I am", "state:master_crown.task1_assigned"),
                     ),
-                    moveTo("travel.to_kobold_village", location("kobold_village")),
+                    walker.moveTo("travel.to_kobold_village", walker.location("kobold_village")),
                     ReplayComponent(
                         name = "mission.kobold_village",
                         commands = koboldVillageRoute(state.livingMemberCount()),
                         checkpoints = listOf("output:ugly pendant", "state:master_crown.task1_done"),
                     ),
-                    moveToTown("wilor"),
+                    walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_second_task",
                         commands = enterInnGuestChat() + speakInnNpc(5) + "LL",
                         checkpoints = listOf("output:second quest", "state:master_crown.task2_assigned"),
                     ),
-                    moveToTerrain("travel.to_skullweed_swamp", "swamp"),
+                    walker.moveToTerrain("travel.to_skullweed_swamp", "swamp"),
                     ReplayComponent(
                         name = "mission.skullweed",
                         commands = waitForInput(),
                         checkpoints = listOf("output:skullweed plant", "state:master_crown.task2_done"),
                     ),
-                    moveToTown("wilor"),
+                    walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_third_task",
                         commands = enterInnGuestChat() + speakInnNpc(5) + "LL",
                         checkpoints = listOf("output:DWARF STONE", "state:master_crown.task3_assigned"),
                     ),
-                    moveTo("travel.to_borin_camp", location("borin_camp")),
+                    walker.moveTo("travel.to_borin_camp", walker.location("borin_camp")),
                     ReplayComponent(
                         name = "mission.borin_meet",
                         commands = waitForInput(6),
                         checkpoints = listOf("output:Nolrim's crypt", "state:master_crown.borin_met"),
                     ),
-                    moveTo("travel.to_nolrim_crypt", location("nolrim_crypt")),
+                    walker.moveTo("travel.to_nolrim_crypt", walker.location("nolrim_crypt")),
                     ReplayComponent(
                         name = "mission.nolrim_crypt",
                         commands = reebarTombRoute(),
                         checkpoints = listOf("output:dagger you seek", "state:master_crown.dagger_taken"),
                     ),
-                    moveTo("travel.to_borin_gift", location("borin_camp")),
+                    walker.moveTo("travel.to_borin_gift", walker.location("borin_camp")),
                     ReplayComponent(
                         name = "mission.borin_gift",
                         commands = waitForInput(2),
                         checkpoints = listOf("output:purple dwarf stone", "state:master_crown.borin_paid"),
                     ),
-                    moveToTown("wilor"),
+                    walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_location",
                         commands = enterInnGuestChat() + speakInnNpc(5) + "LLX",
@@ -192,42 +167,25 @@ internal object ReplayPlans {
         bundle: CompiledGameBundle,
         stateSlug: String,
     ): ReplayPlan {
-        val content = bundle.content
-        val state = bundle.stateBySlug(stateSlug)
-        val world = ReplayWorldMap.from(state, content = content)
-        var point = state.startPoint()
-
-        fun moveTo(
-            name: String,
-            target: GridPoint,
-        ): ReplayComponent {
-            val route = world.routeTo(point, target)
-            point = route.end
-            return ReplayComponent(name, route.commands)
-        }
-
-        fun moveToTown(slug: String): ReplayComponent = moveTo("travel.to_$slug", content.townPoint(slug))
-
-        fun location(slug: String): GridPoint = state.locationPoint(content, slug)
-
+        val walker = ReplayWalker(bundle.content, bundle.stateBySlug(stateSlug))
         return ReplayPlan(
             name = SILVER_KEY_DISCOVERY_ROUTE,
             stateSlug = stateSlug,
             components =
                 listOf(
-                    moveToTown("wilor"),
+                    walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_buy_silver_key_map",
                         commands = enterInnGuestChat() + speakInnNpc(1, "B") + "LL",
                         checkpoints = listOf("output:precious map", "state:silver_key.map_bought"),
                     ),
-                    moveTo("travel.to_silver_sanctum", location("silver_key_pit")),
+                    walker.moveTo("travel.to_silver_sanctum", walker.location("silver_key_pit")),
                     ReplayComponent(
                         name = "mission.silver_sanctum_note",
                         commands = silverSanctumRoute(),
                         checkpoints = listOf("output:This room shines like", "state:silver_key.note_found"),
                     ),
-                    moveToTown("ollk"),
+                    walker.moveToTown("ollk"),
                     ReplayComponent(
                         name = "town.ollk_smith_confession",
                         commands = enterInnGuestChat() + speakInnNpc(2) + speakInnNpc(1) + "LLX",
@@ -299,20 +257,9 @@ internal object ReplayPlans {
         bundle: CompiledGameBundle,
         stateSlug: String,
     ): ReplayPlan {
-        val content = bundle.content
-        val state = bundle.stateBySlug(stateSlug)
-        val world = ReplayWorldMap.from(state, content = content)
-        var point = state.startPoint()
+        val walker = ReplayWalker(bundle.content, bundle.stateBySlug(stateSlug))
 
-        fun moveToTown(slug: String): ReplayComponent {
-            val route = world.routeTo(point, content.townPoint(slug))
-            point = route.end
-            return ReplayComponent(
-                name = "travel.to_$slug",
-                commands = route.commands,
-                checkpoints = listOf("position:$slug"),
-            )
-        }
+        fun moveToTown(slug: String): ReplayComponent = walker.moveToTown(slug).copy(checkpoints = listOf("position:$slug"))
 
         return ReplayPlan(
             name = TOWN_MISSION_INTRO_ROUTE,
@@ -545,56 +492,32 @@ internal object ReplayPlans {
         systems: ExternalRuntimeSystems,
         stateSlug: String,
     ): ReplayPlan {
-        val content = bundle.content
         val state = bundle.stateBySlug(stateSlug)
-        val world = ReplayWorldMap.from(state, content = content)
-        var point = state.startPoint()
+        val walker = ReplayWalker(bundle.content, state)
         val attackers = state.livingMemberCount()
 
-        fun moveTo(
-            name: String,
-            target: GridPoint,
-        ): ReplayComponent {
-            val route = world.routeTo(point, target)
-            point = route.end
-            return ReplayComponent(name, route.commands)
-        }
-
-        fun moveToTerrain(
-            name: String,
-            terrainSlug: String,
-        ): ReplayComponent {
-            val route = world.routeToTerrain(point, terrainSlug)
-            point = route.end
-            return ReplayComponent(name, route.commands)
-        }
-
-        fun location(slug: String): GridPoint = state.locationPoint(content, slug)
-
-        fun teleportAfterThun(): ReplayComponent {
-            point = GridPoint(point.x - 18, point.y)
-            return ReplayComponent("wilderness.teleport_after_thun", "Z1FAA49")
-        }
+        fun teleportAfterThun(): ReplayComponent =
+            walker.teleport("wilderness.teleport_after_thun", "Z1FAA49") { point -> GridPoint(point.x - 18, point.y) }
 
         return ReplayPlan(
             name = ACCEPTANCE_POWER_ROUTE,
             stateSlug = stateSlug,
             components =
                 buildList {
-                    add(moveTo("travel.to_ogre_cave", location("beast_cave")))
+                    add(walker.moveTo("travel.to_ogre_cave", walker.location("beast_cave")))
                     add(ReplayComponent("mission.ogre_cave", ogreCaveRoute(attackers), listOf("Foot of Jazzy prerequisite")))
-                    add(moveToTerrain("travel.to_foothills", "foothills"))
+                    add(walker.moveToTerrain("travel.to_foothills", "foothills"))
                     add(ReplayComponent("mission.jazzy_foot", jazzyRoute(attackers), listOf("Foot of Jazzy")))
-                    add(moveTo("travel.to_fire_shield_cave", location("hermit_dungeon")))
+                    add(walker.moveTo("travel.to_fire_shield_cave", walker.location("hermit_dungeon")))
                     add(ReplayComponent("mission.fire_shield", fireShieldDungeonRoute(attackers), listOf("FIRE SHIELD")))
-                    add(moveTo("travel.to_hobgoblin_stronghold", location("hobgoblin_cave")))
+                    add(walker.moveTo("travel.to_hobgoblin_stronghold", walker.location("hobgoblin_cave")))
                     add(ReplayComponent("mission.hobgoblin_stronghold", hobgoblinStrongholdRoute(attackers), listOf("Silver Key")))
-                    add(moveTo("travel.to_thun_temple", location("thun_temple")))
+                    add(walker.moveTo("travel.to_thun_temple", walker.location("thun_temple")))
                     add(ReplayComponent("mission.thun_temple", thunTempleRoute(), listOf("Bracelets of Thun")))
                     add(teleportAfterThun())
-                    add(moveTo("travel.to_master_crown", location("master_crown_dungeon")))
+                    add(walker.moveTo("travel.to_master_crown", walker.location("master_crown_dungeon")))
                     add(ReplayComponent("mission.master_crown", masterCrownRoute(attackers), listOf("Master Crown")))
-                    add(moveTo("travel.to_castle", systems.castleRows.single().entry))
+                    add(walker.moveTo("travel.to_castle", systems.castleRows.single().entry))
                     add(ReplayComponent("castle.victory", castleVictoryRoute(attackers), listOf("Ydarg banished")))
                     add(ReplayComponent("save.winning_state", "S", listOf("Hall of Heroes save")))
                 },
@@ -817,6 +740,50 @@ internal object ReplayPlans {
         }
 
     private fun targetSlots(attacks: Int): String = "ABCDEFGH".take(attacks).ifEmpty { "A".repeat(attacks) }
+}
+
+/**
+ * Walks the active party of [state] across its world map from the state's start
+ * point; each travel component starts where the previous one ended.
+ */
+private class ReplayWalker(
+    private val content: CompiledContentBundle,
+    private val state: CompiledStateImage,
+) {
+    private val world = ReplayWorldMap.from(state, content = content)
+    private var point = state.startPoint()
+
+    fun moveTo(
+        name: String,
+        target: GridPoint,
+    ): ReplayComponent = follow(name, world.routeTo(point, target))
+
+    fun moveToTown(slug: String): ReplayComponent = moveTo("travel.to_$slug", content.townPoint(slug))
+
+    fun moveToTerrain(
+        name: String,
+        terrainSlug: String,
+    ): ReplayComponent = follow(name, world.routeToTerrain(point, terrainSlug))
+
+    /** Moves the party without walking, as a teleport does, to the point [landing] computes from the current one. */
+    fun teleport(
+        name: String,
+        commands: String,
+        landing: (GridPoint) -> GridPoint,
+    ): ReplayComponent {
+        point = landing(point)
+        return ReplayComponent(name, commands)
+    }
+
+    fun location(slug: String): GridPoint = state.locationPoint(content, slug)
+
+    private fun follow(
+        name: String,
+        route: ReplayRoute,
+    ): ReplayComponent {
+        point = route.end
+        return ReplayComponent(name, route.commands)
+    }
 }
 
 private data class ReplayRoute(

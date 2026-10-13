@@ -8,8 +8,8 @@ import kotlin.test.assertContains
 import kotlin.test.assertFalse
 
 class BattleRunnerTest {
-    private val bundleFile = File(requiredRuntimeBattleProperty("rylween.runtime.bundle"))
-    private val testTmp = File(requiredRuntimeBattleProperty("rylween.runtime.testTmp")).also(File::mkdirs)
+    private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
+    private val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).also(File::mkdirs)
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
 
@@ -28,7 +28,7 @@ class BattleRunnerTest {
             )
         val runtime = base.copy(party = renamedParty)
         val screen = CapturingBattleScreen()
-        val input = BattleInput("FAA")
+        val input = ScriptedInput("FAA")
 
         RuntimeLog.open(testTmp.resolve("battle-saved-names.log")).use { log ->
             BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log)
@@ -41,61 +41,8 @@ class BattleRunnerTest {
     }
 }
 
-private fun requiredRuntimeBattleProperty(name: String): String =
-    System.getProperty(name)
-        ?: error("missing required test system property $name")
-
-private class BattleInput(
-    commands: String,
-) : RuntimeInputPort {
-    private val commands = ArrayDeque(commands.toList())
-
-    override val exhausted: Boolean get() = commands.isEmpty()
-
-    override fun pause(ms: Int) = Unit
-
-    override fun readCommand(): Char? = commands.removeFirstOrNull()
-
-    override fun readInt(maxDigits: Int): Int? = readCommand()?.digitToIntOrNull()
-
-    override fun readText(maxLength: Int?): String? = null
-}
-
-private class CapturingBattleScreen : RuntimeScreenPort {
+private class CapturingBattleScreen : NoOpRuntimeScreen() {
     val textLines = mutableListOf<String>()
-
-    override val textColumns: Int = 36
-
-    override fun bootFrame() = Unit
-
-    override fun showStaticScreen(
-        screenSlug: String,
-        runtime: RuntimeState,
-    ) = Unit
-
-    override fun showPagedStaticScreen(
-        screenSlug: String,
-        runtime: RuntimeState,
-        advance: () -> Char?,
-    ) = Unit
-
-    override fun renderWilderness(
-        runtime: RuntimeState,
-        world: WorldMap,
-    ) = Unit
-
-    override fun showDebugWorldMap(
-        runtime: RuntimeState,
-        world: WorldMap,
-        advance: () -> Char?,
-    ) = Unit
-
-    override fun renderDungeon(runtime: RuntimeState) = Unit
-
-    override fun renderCastle(
-        runtime: RuntimeState,
-        castle: rylween.compiled.ExternalRuntimeCastle,
-    ) = Unit
 
     override fun writeText(lines: List<String>) {
         textLines += lines
@@ -105,15 +52,7 @@ private class CapturingBattleScreen : RuntimeScreenPort {
         textLines += lines
     }
 
-    override fun updateStatus(runtime: RuntimeState) = Unit
-
-    override fun writeViewCommand(command: RuntimeViewCommand) = Unit
-
-    override fun showImage(imageSlug: String) = Unit
-
     override fun redrawCurrentView(lines: List<String>) {
         textLines += lines
     }
-
-    override fun flashLogLine(line: String) = Unit
 }

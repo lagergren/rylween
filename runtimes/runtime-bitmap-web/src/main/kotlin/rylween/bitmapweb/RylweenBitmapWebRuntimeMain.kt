@@ -557,22 +557,13 @@ private class BitmapWebServer(
         request: WebHttpRequest,
         clientId: Long,
     ) {
-        if (!config.authRequired || authenticatedAccount(request) != null) {
-            serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
-            redirect(socket, "/play")
-            return
-        }
-        serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
-        respondText(
-            socket,
-            "200 OK",
-            "text/html; charset=utf-8",
+        routeAuthPage(socket, request, clientId) {
             webAuthPageHtml(
                 WebAuthPageMode.Login,
                 backgroundImage = "/assets/title/title-rider.png",
                 rememberedLogin = WebAuthCookies.rememberedLogin(request.headers),
-            ),
-        )
+            )
+        }
     }
 
     private fun routeRegisterPage(
@@ -580,18 +571,25 @@ private class BitmapWebServer(
         request: WebHttpRequest,
         clientId: Long,
     ) {
+        routeAuthPage(socket, request, clientId) {
+            webAuthPageHtml(WebAuthPageMode.Register, backgroundImage = "/assets/title/title-rider.png")
+        }
+    }
+
+    /** Serves an account page, or sends visitors who are already signed in (or need no account) to `/play`. */
+    private fun routeAuthPage(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+        page: () -> String,
+    ) {
         if (!config.authRequired || authenticatedAccount(request) != null) {
             serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
             redirect(socket, "/play")
             return
         }
         serverLog.event("bitmap.http.response id=$clientId status=200 path=${request.path}")
-        respondText(
-            socket,
-            "200 OK",
-            "text/html; charset=utf-8",
-            webAuthPageHtml(WebAuthPageMode.Register, backgroundImage = "/assets/title/title-rider.png"),
-        )
+        respondText(socket, "200 OK", "text/html; charset=utf-8", page())
     }
 
     private fun routeLogin(

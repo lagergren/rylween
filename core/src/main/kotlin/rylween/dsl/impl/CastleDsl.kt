@@ -14,7 +14,6 @@ import rylween.dsl.CastleId
 import rylween.dsl.EncounterTier
 import rylween.dsl.GameMilestoneId
 import rylween.dsl.ImageId
-import rylween.dsl.InputAliases
 import rylween.dsl.InputBindingModel
 import rylween.dsl.ItemId
 import rylween.dsl.RylNextDsl
@@ -30,10 +29,10 @@ enum class CastleRoomEvent { Empty, Monster, Pitfall, Treasure }
 
 /** Authored key bindings used by castle navigation and prompts. */
 data class CastleKeysModel(
-    val moveNorth: InputBindingModel = inputKey("8", InputAliases.ARROW_UP, "UP", "ARROW_UP", label = "8/↑"),
-    val moveSouth: InputBindingModel = inputKey("2", InputAliases.ARROW_DOWN, "DOWN", "ARROW_DOWN", label = "2/↓"),
-    val moveWest: InputBindingModel = inputKey("4", InputAliases.ARROW_LEFT, "LEFT", "ARROW_LEFT", label = "4/←"),
-    val moveEast: InputBindingModel = inputKey("6", InputAliases.ARROW_RIGHT, "RIGHT", "ARROW_RIGHT", label = "6/→"),
+    val moveNorth: InputBindingModel = MovementKeys.north,
+    val moveSouth: InputBindingModel = MovementKeys.south,
+    val moveWest: InputBindingModel = MovementKeys.west,
+    val moveEast: InputBindingModel = MovementKeys.east,
     val save: InputBindingModel = inputKey("S"),
     val help: InputBindingModel = inputKey("?"),
     val viewParty: InputBindingModel = inputKey("V"),
