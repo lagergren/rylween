@@ -23,6 +23,7 @@ import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
+import rylween.dsl.AudioCue
 import rylween.dsl.DungeonEventDisposition
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RuntimeMode
@@ -47,13 +48,16 @@ internal class DungeonRuntime(
     private val save = context.save
     private val log = context.log
     private val utility = UtilityActions(content, systems, input, screen, log)
+    private val audio = RuntimeAudio(systems.audio, screen)
     private val commands = systems.commands.getValue(RuntimeCommandGroupId.Dungeon.id)
 
     fun run(initialRuntime: RuntimeState): RuntimeState {
         var runtime = initialRuntime.withDungeonMode()
+        playDungeonMusic(runtime)
         screen.renderDungeon(runtime)
         runtime = runDepthEvent(runtime)
         while (runtime.currentMode == RuntimeMode.Dungeon) {
+            playDungeonMusic(runtime)
             screen.renderDungeon(runtime)
             val command = input.readCommand() ?: return runtime
             runtime =
@@ -100,6 +104,10 @@ internal class DungeonRuntime(
         return runtime
     }
 
+    private fun playDungeonMusic(runtime: RuntimeState) {
+        audio.dungeonMusic(runtime.dungeon?.dungeon?.let(content::slug))
+    }
+
     private fun descend(runtime: RuntimeState): RuntimeState {
         val dungeon = runtime.dungeon ?: return runtime
         return when {
@@ -118,6 +126,8 @@ internal class DungeonRuntime(
                     )
                 }
             else -> {
+                audio.cue(AudioCue.TorchLit)
+                audio.cue(AudioCue.StairsDown)
                 val nextDepth = dungeon.depth + 1
                 val next =
                     runtime
@@ -135,6 +145,7 @@ internal class DungeonRuntime(
     private fun ascend(runtime: RuntimeState): RuntimeState {
         val dungeon = runtime.dungeon ?: return runtime
         if (dungeon.depth <= 1) {
+            audio.cue(AudioCue.LeaveDungeon)
             screen.showMessage(
                 systems.dungeon.prompts.leaveCavern
                     .renderDungeon(dungeon.depth, screen.textColumns),
@@ -142,6 +153,7 @@ internal class DungeonRuntime(
             val exited = runtime.copy(currentMode = RuntimeMode.Wilderness, currentTown = null, dungeon = null)
             return dungeon.postDungeon?.let { continuation -> resumePostDungeon(exited, continuation) } ?: exited
         }
+        audio.cue(AudioCue.StairsUp)
         val nextDepth = dungeon.depth - 1
         val next = runtime.copy(dungeon = dungeon.copy(depth = nextDepth))
         screen.writeText(
@@ -159,8 +171,16 @@ internal class DungeonRuntime(
         val randomEncounterTier = event.randomEncounterTier
         next =
             if (randomEncounterTier != null && program.instructions.isEmpty()) {
-                BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts))
-                    .runTier(next, content.slug(randomEncounterTier))
+                BattleRunner(
+                    content,
+                    systems.combat,
+                    systems.pacing.battle,
+                    input,
+                    screen,
+                    log,
+                    PausePrompts(systems.prompts),
+                    systems.audio,
+                ).runTier(next, content.slug(randomEncounterTier))
                     .let { battle ->
                         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
                         battle.runtime

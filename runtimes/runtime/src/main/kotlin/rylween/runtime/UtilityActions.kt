@@ -18,6 +18,7 @@ import rylween.compiled.CompiledScriptProgram
 import rylween.compiled.CompiledSpell
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
+import rylween.dsl.AudioCue
 import rylween.dsl.impl.EquipmentCommand
 import rylween.dsl.impl.INVENTORY_SAVE_SLOT_MAX
 import rylween.dsl.impl.ItemConsumePolicy
@@ -42,6 +43,8 @@ internal class UtilityActions(
     private val screen: RuntimeScreenPort,
     private val log: RuntimeLog,
 ) {
+    private val audio = RuntimeAudio(systems.audio, screen)
+
     fun drop(runtime: RuntimeState): RuntimeState {
         val choices = runtime.party.inventory.filter { slot -> slot.item != null }
         if (choices.isEmpty()) return runtime
@@ -54,6 +57,7 @@ internal class UtilityActions(
             )
         screen.writeText(lines)
         val slot = chooseInventorySlot(lines, choices) ?: return runtime
+        audio.cue(AudioCue.Drop)
         return runtime.withParty(runtime.party.withInventoryItem(slot, null))
     }
 
@@ -81,7 +85,7 @@ internal class UtilityActions(
                             .renderUtility(result.runtime)
                 screen.writeText(lines)
                 val answer =
-                    input.readValidChoice(screen, lines) { key -> key.uppercaseChar() in readyAnswerKeys }
+                    input.readValidChoice(screen, lines, audio) { key -> key.uppercaseChar() in readyAnswerKeys }
                         ?: return result
                 if (answer.uppercaseChar() != READY_YES_KEY) {
                     result = result.copy(message = emptyList())
@@ -97,6 +101,7 @@ internal class UtilityActions(
         removeEquipment(
             runtime = runtime,
             equippedItem = { member -> member.equipment.weapon },
+            fallbackCue = AudioCue.UnreadyWeapon,
         ) { member ->
             member.copy(equipment = member.equipment.copy(weapon = content.emptyItem()))
         }
@@ -105,6 +110,7 @@ internal class UtilityActions(
         removeEquipment(
             runtime = runtime,
             equippedItem = { member -> member.equipment.armor },
+            fallbackCue = AudioCue.UnreadyArmor,
         ) { member ->
             member.copy(equipment = member.equipment.copy(armor = content.emptyItem()))
         }
@@ -128,6 +134,8 @@ internal class UtilityActions(
         screen.writeText(lines)
         val slot = chooseInventorySlot(lines, choices) ?: return runtime
         val item = runtime.party.inventoryItem(slot) ?: return runtime
+        audio.cue(AudioCue.Quaff)
+        audio.itemUse(content.slug(item))
         val use =
             content.itemUses.firstOrNull { candidate -> candidate.item == item && ItemUseContext.Inventory in candidate.contexts }
         val prepared =
@@ -159,12 +167,13 @@ internal class UtilityActions(
         val cancelKey = priestCancelKey()
         val command =
             input
-                .readValidChoice(screen, lines) { candidate ->
+                .readValidChoice(screen, lines, audio) { candidate ->
                     val key = candidate.uppercaseChar()
                     key == cancelKey || choices.any { choice -> choice.key == key }
                 }?.uppercaseChar() ?: return runtime
         if (command == cancelKey) return runtime
         val spell = choices.firstOrNull { choice -> choice.key == command }?.value ?: return runtime
+        audio.spell(content.slug(spell.id))
         val program = programByRef(spell.scriptRoot)
         return ScriptExecutor(
             content = content,
@@ -206,6 +215,7 @@ internal class UtilityActions(
         val slot = chooseInventorySlot(lines, choices) ?: return unchanged
         val item = runtime.party.inventoryItem(slot) ?: return unchanged
         val previous = member.equipped(command).takeUnless(::isEmptyItem)
+        audio.ready(content.slug(item), if (command == EquipmentCommand.ReadyWeapon) AudioCue.ReadyWeapon else AudioCue.ReadyArmor)
         return EquipmentReadyResult(
             runtime =
                 runtime
@@ -251,12 +261,14 @@ internal class UtilityActions(
     private fun removeEquipment(
         runtime: RuntimeState,
         equippedItem: (rylween.compiled.CompiledPartyMember) -> CompiledHandleRef,
+        fallbackCue: AudioCue,
         update: (rylween.compiled.CompiledPartyMember) -> rylween.compiled.CompiledPartyMember,
     ): RuntimeState {
         val memberIndex = chooseMember(runtime) ?: return runtime
         val member = runtime.party.members.getOrNull(memberIndex) ?: return runtime
         val item = equippedItem(member).takeUnless(::isEmptyItem) ?: return runtime
         val party = placeLooseItem(runtime.party, item) ?: return runtime
+        audio.unready(content.slug(item), fallbackCue)
         return runtime.withParty(party).updateMember(memberIndex, update)
     }
 
@@ -269,6 +281,7 @@ internal class UtilityActions(
             lines = lines,
             validSlots = choices.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
             cancelKeys = inventoryCancelKeys,
+            audio = audio,
         )
 
     private fun placeLooseItem(
@@ -377,6 +390,7 @@ internal class UtilityActions(
                 lines = lines,
                 validDigits = indexes.mapTo(mutableSetOf()) { index -> index + 1 },
                 cancelKeys = inventoryCancelKeys,
+                audio = audio,
             )?.minus(1)
     }
 

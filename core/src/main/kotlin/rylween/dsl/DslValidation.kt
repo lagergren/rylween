@@ -2587,6 +2587,133 @@ private fun validateImageReferences(content: GameModel) {
     }
 }
 
+private val audioResourceExtensions = setOf("mp3", "ogg", "wav", "m4a")
+
+private fun validateAudio(content: GameModel) {
+    val audio = content.audio
+
+    fun <T> checkUnique(
+        values: List<T>,
+        label: String,
+    ) {
+        val duplicates =
+            values
+                .groupingBy { it }
+                .eachCount()
+                .filterValues { it > 1 }
+                .keys
+        check(duplicates.isEmpty()) { "duplicate $label: ${duplicates.joinToString()}" }
+    }
+    checkUnique(audio.sounds.map { it.id.slug }, "sound")
+    checkUnique(audio.music.map { it.id.slug }, "music track")
+    audio.sounds.forEach { sound -> validateAudioResource(sound.resource, "sound ${sound.id.slug}") }
+    audio.music.forEach { track -> validateAudioResource(track.resource, "music track ${track.id.slug}") }
+
+    val sounds = audio.sounds.map { it.id }.toSet()
+    val music = audio.music.map { it.id }.toSet()
+
+    fun checkSounds(
+        ids: List<SoundId>,
+        label: String,
+    ) {
+        ids.forEach { id -> check(id in sounds) { "$label references undeclared sound ${id.slug}" } }
+    }
+
+    fun checkMusic(
+        id: MusicId,
+        label: String,
+    ) {
+        check(id in music) { "$label references undeclared music track ${id.slug}" }
+    }
+
+    checkUnique(audio.cues.map { it.cue }, "audio cue")
+    audio.cues.forEach { cue ->
+        check(cue.sounds.isNotEmpty()) { "audio cue ${cue.cue} has no sounds" }
+        checkSounds(cue.sounds, "audio cue ${cue.cue}")
+    }
+    val items = content.itemCatalog.map { it.id }.toSet()
+    checkUnique(audio.items.map { it.item.slug }, "item sounds")
+    audio.items.forEach { item ->
+        check(item.item in items) { "item sounds reference unknown item ${item.item.slug}" }
+        checkSounds(item.hit + item.miss + item.ready + item.unready + item.struck, "item ${item.item.slug} sounds")
+    }
+    val monsters = content.monsters.map { it.id }.toSet()
+    checkUnique(audio.monsters.map { it.monster.slug }, "monster sounds")
+    audio.monsters.forEach { monster ->
+        check(monster.monster in monsters) { "monster sounds reference unknown monster ${monster.monster.slug}" }
+        checkSounds(monster.attack + monster.death, "monster ${monster.monster.slug} sounds")
+    }
+    val spells = content.spells.map { it.id }.toSet()
+    checkUnique(audio.spells.map { it.spell.slug }, "spell sound")
+    audio.spells.forEach { spell ->
+        check(spell.spell in spells) { "spell sound references unknown spell ${spell.spell.slug}" }
+        checkSounds(spell.sounds, "spell ${spell.spell.slug} sound")
+    }
+    checkUnique(audio.itemUses.map { it.item.slug }, "item use sound")
+    audio.itemUses.forEach { use ->
+        check(use.item in items) { "item use sound references unknown item ${use.item.slug}" }
+        checkSounds(use.sounds, "item use ${use.item.slug} sound")
+    }
+    val terrain =
+        content.terrain.terrain
+            .map { it.id.slug }
+            .toSet()
+    checkUnique(audio.steps.map { it.terrain.slug }, "step sound")
+    audio.steps.forEach { step ->
+        check(step.terrain.slug in terrain) { "step sound references unknown terrain ${step.terrain.slug}" }
+        checkSounds(step.sounds, "terrain ${step.terrain.slug} step sound")
+    }
+    checkUnique(audio.areas.filter { it.fromHour == null }.map { it.area }, "untimed area music")
+    audio.areas.forEach { area ->
+        checkMusic(area.music, "area ${area.area} music")
+        check((area.fromHour == null) == (area.toHour == null)) { "area ${area.area} music needs both hours or none" }
+        listOfNotNull(area.fromHour, area.toHour).forEach { hour ->
+            check(hour in 0..23) { "area ${area.area} music hour $hour is outside 0..23" }
+        }
+    }
+    val scenes = content.scenes.map { it.id }.toSet()
+    checkUnique(audio.scenes.map { it.scene.slug }, "scene music")
+    audio.scenes.forEach { scene ->
+        check(scene.scene in scenes) { "scene music references unknown scene ${scene.scene.slug}" }
+        checkMusic(scene.music, "scene ${scene.scene.slug} music")
+    }
+    val dungeons =
+        content.dungeons.scenarios
+            .map { it.dungeon }
+            .toSet()
+    checkUnique(audio.dungeons.map { it.dungeon.slug }, "dungeon music")
+    audio.dungeons.forEach { dungeon ->
+        check(dungeon.dungeon in dungeons) { "dungeon music references unknown dungeon ${dungeon.dungeon.slug}" }
+        checkMusic(dungeon.music, "dungeon ${dungeon.dungeon.slug} music")
+    }
+    val castles = content.castles.map { it.id }.toSet()
+    checkUnique(audio.castles.map { it.castle.slug }, "castle music")
+    audio.castles.forEach { castle ->
+        check(castle.castle in castles) { "castle music references unknown castle ${castle.castle.slug}" }
+        checkMusic(castle.music, "castle ${castle.castle.slug} music")
+    }
+    content.scriptSourceRoots().forEach { root ->
+        root.visitScriptStatements { sourceStatement ->
+            val command = (sourceStatement.statement as? ScriptStatementNode.View)?.command
+            when (command) {
+                is ViewCommand.PlaySound -> checkSounds(listOf(command.sound), sourceStatement.label)
+                is ViewCommand.PlayMusic -> checkMusic(command.music, sourceStatement.label)
+                else -> Unit
+            }
+        }
+    }
+}
+
+private fun validateAudioResource(
+    resource: String,
+    label: String,
+) {
+    validateRelativeResource(resource, label)
+    check(resource.substringAfterLast('.', "").lowercase() in audioResourceExtensions) {
+        "$label resource must be one of ${audioResourceExtensions.joinToString()}"
+    }
+}
+
 private fun ScriptSourceRoot.imageReferences(): List<Pair<ImageId, String>> =
     buildList {
         visitScriptStatements { sourceStatement ->
@@ -2806,6 +2933,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("realm") { validateRealmContent(content.realm) }
         captureValidation("visuals") { validateVisuals(content.visuals) }
         captureValidation("visuals.references") { validateImageReferences(content) }
+        captureValidation("audio") { validateAudio(content) }
         captureValidation("terrain") { validateTerrainCatalog(content.terrain) }
         captureValidation("terminal") { validateTerminalPresentation(content.terminal, content.terrain) }
         captureValidation("layouts") { validateLayouts(content.layouts) }

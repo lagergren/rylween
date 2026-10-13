@@ -240,6 +240,7 @@ type BitmapFrame = {
     visualTransition?: string;
     imageAssets?: BitmapImageAsset[];
     document?: BitmapDocument | null;
+    music?: string | null;
 };
 
 type ServerStatus = {
@@ -278,6 +279,9 @@ const textRevealSpeed = requireElement("textRevealSpeed", HTMLInputElement);
 const textRevealSpeedValue = requireElement("textRevealSpeedValue", HTMLElement);
 const pauseDelayScale = requireElement("pauseDelayScale", HTMLInputElement);
 const pauseDelayScaleValue = requireElement("pauseDelayScaleValue", HTMLElement);
+const soundToggle = requireElement("soundToggle", HTMLInputElement);
+const soundVolume = requireElement("soundVolume", HTMLInputElement);
+const soundVolumeValue = requireElement("soundVolumeValue", HTMLElement);
 const canvasTooltip = requireElement("canvasTooltip", HTMLElement);
 const connectionDot = requireElement("connectionDot", HTMLElement);
 const connectionText = requireElement("connectionText", HTMLElement);
@@ -328,6 +332,216 @@ const textDisplaySettings: TextDisplaySettings = {
 const runtimePreferenceSettings: RuntimePreferenceSettings = {
     pauseDelayScale: storedNumber(pauseDelayScaleKey, defaultPauseDelayScale, minPauseDelayScale, maxPauseDelayScale)
 };
+const soundEnabledKey = "rylween.bitmap.sound.enabled";
+const soundVolumeKey = "rylween.bitmap.sound.volume";
+const defaultSoundVolume = 70;
+const musicFadeSeconds = 1.2;
+const musicLevel = 0.8;
+const maxDecodedMusicTracks = 3;
+
+type AudioCatalogMessage = {
+    type: "audio";
+    sounds: Record<string, string>;
+    music: Record<string, string>;
+    cues: Record<string, string[]>;
+};
+
+type SoundMessage = {
+    type: "sound";
+    id: string;
+};
+
+type PlayingMusic = {
+    id: string;
+    source: AudioBufferSourceNode;
+    gain: GainNode;
+};
+
+/**
+ * Plays the game's sound effects and looping music with Web Audio.
+ *
+ * Browsers only allow audio after the player interacts with the page, so the
+ * audio context starts on the first key press or click; music asked for before
+ * then starts with it. Sound effects are decoded once and kept. Only the few
+ * most recent music tracks stay decoded, since one takes tens of megabytes.
+ */
+class GameAudio {
+    private context: AudioContext | null = null;
+    private output: GainNode | null = null;
+    private soundUrls = new Map<string, string>();
+    private musicUrls = new Map<string, string>();
+    private cues = new Map<string, string[]>();
+    private cueRotation = new Map<string, number>();
+    private soundBuffers = new Map<string, Promise<AudioBuffer | null>>();
+    private musicBuffers = new Map<string, Promise<AudioBuffer | null>>();
+    private wantedMusic: string | null = null;
+    private playing: PlayingMusic | null = null;
+
+    constructor(private enabled: boolean, private volume: number) {}
+
+    setCatalog(catalog: AudioCatalogMessage): void {
+        this.soundUrls = new Map(Object.entries(catalog.sounds || {}));
+        this.musicUrls = new Map(Object.entries(catalog.music || {}));
+        this.cues = new Map(Object.entries(catalog.cues || {}));
+        this.soundBuffers.clear();
+        this.musicBuffers.clear();
+        this.prefetchSounds();
+        this.syncMusic();
+    }
+
+    /** Starts audio on the first user gesture; later calls only resume a suspended context. */
+    unlock(): void {
+        if (!this.context) {
+            if (typeof AudioContext === "undefined") return;
+            this.context = new AudioContext();
+            this.output = this.context.createGain();
+            this.output.connect(this.context.destination);
+            this.applyVolume();
+            this.prefetchSounds();
+        }
+        if (this.enabled && this.context.state === "suspended") this.context.resume().catch(() => undefined);
+        this.syncMusic();
+    }
+
+    soundUrlList(): string[] {
+        return Array.from(this.soundUrls.values());
+    }
+
+    musicUrlList(): string[] {
+        return Array.from(this.musicUrls.values());
+    }
+
+    setEnabled(enabled: boolean): void {
+        this.enabled = enabled;
+        if (!this.context) return;
+        if (enabled) {
+            this.context.resume().catch(() => undefined);
+            this.syncMusic();
+        } else {
+            this.context.suspend().catch(() => undefined);
+        }
+    }
+
+    setVolume(volume: number): void {
+        this.volume = volume;
+        this.applyVolume();
+    }
+
+    playSound(id: string): void {
+        const context = this.context;
+        const output = this.output;
+        if (!this.enabled || !context || !output) return;
+        this.soundBuffer(id).then((buffer) => {
+            if (!buffer || !this.enabled) return;
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(output);
+            source.start();
+        });
+    }
+
+    /** Plays one of the sounds the game maps to a client-side cue, in rotation. */
+    playCue(cue: string): void {
+        const sounds = this.cues.get(cue);
+        if (!sounds || sounds.length === 0) return;
+        const next = this.cueRotation.get(cue) || 0;
+        this.cueRotation.set(cue, next + 1);
+        this.playSound(sounds[next % sounds.length]);
+    }
+
+    /** Crossfades to a looping track, or fades out when null. Asking for the current track changes nothing. */
+    setMusic(id: string | null | undefined): void {
+        this.wantedMusic = id || null;
+        this.syncMusic();
+    }
+
+    private syncMusic(): void {
+        const context = this.context;
+        const output = this.output;
+        const wanted = this.wantedMusic;
+        if (!context || !output) return;
+        if ((this.playing ? this.playing.id : null) === wanted) return;
+        this.fadeOutPlaying(context);
+        if (!wanted) return;
+        this.musicBuffer(wanted).then((buffer) => {
+            if (!buffer || this.wantedMusic !== wanted) return;
+            if (this.playing && this.playing.id === wanted) return;
+            this.fadeOutPlaying(context);
+            const gain = context.createGain();
+            gain.gain.setValueAtTime(0, context.currentTime);
+            gain.gain.linearRampToValueAtTime(musicLevel, context.currentTime + musicFadeSeconds);
+            gain.connect(output);
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true;
+            source.connect(gain);
+            source.start();
+            this.playing = {id: wanted, source, gain};
+        });
+    }
+
+    private fadeOutPlaying(context: AudioContext): void {
+        const playing = this.playing;
+        if (!playing) return;
+        this.playing = null;
+        const now = context.currentTime;
+        playing.gain.gain.cancelScheduledValues(now);
+        playing.gain.gain.setValueAtTime(playing.gain.gain.value, now);
+        playing.gain.gain.linearRampToValueAtTime(0, now + musicFadeSeconds);
+        playing.source.stop(now + musicFadeSeconds + 0.05);
+    }
+
+    private applyVolume(): void {
+        if (!this.context || !this.output) return;
+        const level = this.volume / 100;
+        this.output.gain.setTargetAtTime(level * level, this.context.currentTime, 0.02);
+    }
+
+    private prefetchSounds(): void {
+        if (!this.context) return;
+        this.soundUrls.forEach((_url, id) => {
+            this.soundBuffer(id);
+        });
+    }
+
+    private soundBuffer(id: string): Promise<AudioBuffer | null> {
+        let buffer = this.soundBuffers.get(id);
+        if (!buffer) {
+            buffer = this.decode(this.soundUrls.get(id));
+            this.soundBuffers.set(id, buffer);
+        }
+        return buffer;
+    }
+
+    private musicBuffer(id: string): Promise<AudioBuffer | null> {
+        let buffer = this.musicBuffers.get(id);
+        if (buffer) {
+            this.musicBuffers.delete(id);
+        } else {
+            buffer = this.decode(this.musicUrls.get(id));
+        }
+        this.musicBuffers.set(id, buffer);
+        while (this.musicBuffers.size > maxDecodedMusicTracks) {
+            const oldest = this.musicBuffers.keys().next().value as string;
+            this.musicBuffers.delete(oldest);
+        }
+        return buffer;
+    }
+
+    private decode(url: string | undefined): Promise<AudioBuffer | null> {
+        const context = this.context;
+        if (!context || !url) return Promise.resolve(null);
+        return fetch(url)
+            .then((response) => (response.ok ? response.arrayBuffer() : Promise.reject(new Error("audio " + response.status))))
+            .then((data) => context.decodeAudioData(data))
+            .catch(() => null);
+    }
+}
+
+const gameAudio = new GameAudio(
+    storedBoolean(soundEnabledKey, true),
+    storedNumber(soundVolumeKey, defaultSoundVolume, 0, 100)
+);
 const wildernessDisplaySettings: WildernessDisplaySettings = {
     perspective: storedWildernessViewMode() === "3d",
     facing: "South"
@@ -654,6 +868,29 @@ function configureRuntimePreferenceControls(): void {
     });
 }
 
+function configureSoundControls(): void {
+    soundToggle.checked = storedBoolean(soundEnabledKey, true);
+    soundVolume.value = String(storedNumber(soundVolumeKey, defaultSoundVolume, 0, 100));
+    soundVolume.disabled = !soundToggle.checked;
+    updateSoundVolumeValue();
+    soundToggle.addEventListener("change", () => {
+        window.localStorage.setItem(soundEnabledKey, String(soundToggle.checked));
+        soundVolume.disabled = !soundToggle.checked;
+        gameAudio.unlock();
+        gameAudio.setEnabled(soundToggle.checked);
+    });
+    soundVolume.addEventListener("input", () => {
+        const volume = storedNumberFromInput(soundVolume, defaultSoundVolume, 0, 100);
+        window.localStorage.setItem(soundVolumeKey, String(volume));
+        updateSoundVolumeValue();
+        gameAudio.setVolume(volume);
+    });
+}
+
+function updateSoundVolumeValue(): void {
+    soundVolumeValue.textContent = soundVolume.value + "%";
+}
+
 function configureWildernessDisplayControls(): void {
     syncWildernessViewControls();
     wildernessViewModeSelect.addEventListener("change", () => {
@@ -745,6 +982,8 @@ type BitmapSmokeSnapshot = {
     perspectiveCells: number;
     terrainTransitionAssetsReady: boolean;
     compiledImageAssets: BitmapSmokeAsset[];
+    audioSoundUrls: string[];
+    audioMusicUrls: string[];
 };
 
 type BitmapSmokeWindow = Window & {
@@ -774,7 +1013,9 @@ function bitmapSmokeSnapshot(): BitmapSmokeSnapshot {
             resource: asset.resource || "",
             placement: asset.placement || "",
             transition: asset.transition || ""
-        }))
+        })),
+        audioSoundUrls: gameAudio.soundUrlList(),
+        audioMusicUrls: gameAudio.musicUrlList()
     };
 }
 
@@ -797,7 +1038,17 @@ function connect(): void {
         canvas.focus();
     });
     socket.addEventListener("message", (event) => {
-        const nextFrame = JSON.parse(event.data) as BitmapFrame;
+        const message = JSON.parse(event.data) as {type?: string};
+        if (message.type === "audio") {
+            gameAudio.setCatalog(message as unknown as AudioCatalogMessage);
+            return;
+        }
+        if (message.type === "sound") {
+            gameAudio.playSound((message as unknown as SoundMessage).id);
+            return;
+        }
+        const nextFrame = message as unknown as BitmapFrame;
+        gameAudio.setMusic(nextFrame.music);
         recordCompiledImageAssets(nextFrame.imageAssets || []);
         const previousFrame = frame;
         applyServerWildernessFacing(nextFrame);
@@ -1140,8 +1391,12 @@ function finishTextReveal(redraw = true): boolean {
     return true;
 }
 
+window.addEventListener("pointerdown", () => gameAudio.unlock());
+
 window.addEventListener("keydown", (event: KeyboardEvent) => {
+    gameAudio.unlock();
     if (event.key === "Escape" && closeOpenPopover()) {
+        gameAudio.playCue("MenuBack");
         event.preventDefault();
         canvas.focus();
         return;
@@ -1191,10 +1446,12 @@ canvas.addEventListener("mouseleave", () => {
 // prompts can be played with the mouse. Where the only thing to do is press
 // RETURN (the title screen, "(Smash RETURN key)" pauses), any click does it.
 canvas.addEventListener("click", (event: MouseEvent) => {
-    const token = choiceTargetAt(canvasPoint(event))?.token ?? anywhereClickToken();
+    const target = choiceTargetAt(canvasPoint(event));
+    const token = target?.token ?? anywhereClickToken();
     if (!token) return;
     event.preventDefault();
     if (finishTextReveal()) return;
+    if (target) gameAudio.playCue("MenuSelect");
     send(token);
 });
 
@@ -1221,7 +1478,10 @@ function updatePointer(point: CanvasPoint | null): void {
     pointerPoint = point;
     const next = point ? choiceTargetAt(point) : null;
     canvas.style.cursor = next || (point && anywhereClickToken()) ? "pointer" : "";
-    if (choiceTargetKey(next) !== previous) requestPointerRedraw();
+    if (choiceTargetKey(next) !== previous) {
+        if (next) gameAudio.playCue("MenuMove");
+        requestPointerRedraw();
+    }
 }
 
 function requestPointerRedraw(): void {
@@ -4256,6 +4516,7 @@ function wrapCanvasLines(text: string, maxWidth: number): string[] {
 configureTextRevealControls();
 configureTextDisplayControls();
 configureRuntimePreferenceControls();
+configureSoundControls();
 configureWildernessDisplayControls();
 refreshServerInfo().catch(() => undefined);
 connect();

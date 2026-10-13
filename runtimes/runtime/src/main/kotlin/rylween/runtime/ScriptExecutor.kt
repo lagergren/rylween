@@ -46,6 +46,7 @@ import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.applyCompiledBinary
 import rylween.compiled.compareCompiled
+import rylween.dsl.AudioCue
 import rylween.dsl.InventorySlotChoiceFilter
 import rylween.dsl.MemberChoiceFilter
 import rylween.dsl.NativeAllowlist
@@ -92,8 +93,13 @@ internal class ScriptExecutor(
     private var currentTextLines: List<String> = emptyList()
     private val pausePrompts = PausePrompts(systems.prompts)
     private val worldText = RuntimeWorldText(content)
+    private val audio = RuntimeAudio(systems.audio, screen)
+
+    /** Music this script set, through its scene or a playMusic statement, restored after a battle. */
+    private var music: String? = null
 
     fun execute(program: CompiledScriptProgram): RuntimeState {
+        playSceneMusic(program)
         executeBlock(
             instructions = program.instructions,
             context =
@@ -177,7 +183,12 @@ internal class ScriptExecutor(
                     waitForCurrentText()
                 }
             CompiledOpcode.Pause -> continueAfter { input.pause(instruction.integerOperand(0)) }
-            CompiledOpcode.View -> continueAfter { writeViewCommand(instruction.viewOperand(0).toRuntimeViewCommand()) }
+            CompiledOpcode.View ->
+                continueAfter {
+                    val command = instruction.viewOperand(0).toRuntimeViewCommand()
+                    if (command is RuntimeViewCommand.PlayMusic) music = command.musicSlug
+                    writeViewCommand(command)
+                }
             CompiledOpcode.LetInt ->
                 continueAfter {
                     locals = locals + (content.strings.value(instruction.stringIdOperand(0)) to int(instruction.intOperand(1)))
@@ -216,6 +227,7 @@ internal class ScriptExecutor(
 
             CompiledOpcode.AppendJournal ->
                 continueAfter {
+                    audio.cue(AudioCue.JournalEntry)
                     runtime =
                         runtime.withParty(
                             runtime.party.copy(
@@ -262,6 +274,7 @@ internal class ScriptExecutor(
             CompiledOpcode.Encounter -> executeEncounter(instruction.handleOperand(0), instruction.booleanOperand(1))
             CompiledOpcode.EnterDungeon ->
                 stopAfter {
+                    audio.cue(AudioCue.EnterDungeon)
                     runtime =
                         runtime.enterDungeon(
                             content = content,
@@ -302,6 +315,7 @@ internal class ScriptExecutor(
                     val destination =
                         direction?.let { delta -> WorldMap.from(content, runtime.currentMap).lastPassable(runtime.party.position, delta, steps) }
                             ?: runtime.party.position
+                    audio.cue(AudioCue.Teleport)
                     runtime =
                         runtime.withParty(
                             runtime.party.copy(
@@ -312,6 +326,8 @@ internal class ScriptExecutor(
 
             CompiledOpcode.DiscoverCave ->
                 stopAfter {
+                    audio.cue(AudioCue.CaveFound)
+                    audio.cue(AudioCue.EnterDungeon)
                     val moveCost = int(instruction.intOperand(2))
                     runtime =
                         runtime
@@ -353,6 +369,7 @@ internal class ScriptExecutor(
             CompiledOpcode.AchieveMilestone ->
                 continueAfter {
                     val milestone = instruction.handleOperand(0)
+                    if (milestone !in runtime.party.milestones) audio.cue(AudioCue.QuestItem)
                     runtime = runtime.withParty(runtime.party.copy(milestones = (runtime.party.milestones + milestone).distinct()))
                 }
         }
@@ -466,6 +483,7 @@ internal class ScriptExecutor(
                         ),
                 )
             }
+            audio.cue(AudioCue.InvalidChoice)
             screen.redrawCurrentView(baseLines)
             currentTextLines = baseLines
             choice = input.readCommand() ?: return ScriptSignal.StopScript
@@ -493,6 +511,7 @@ internal class ScriptExecutor(
                 locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to binding.promptValue())
                 return ScriptSignal.Continue
             }
+            audio.cue(AudioCue.InvalidChoice)
             screen.redrawCurrentView(lines)
             currentTextLines = lines
             choice = input.readCommand() ?: return ScriptSignal.StopScript
@@ -540,6 +559,7 @@ internal class ScriptExecutor(
                 screen = screen,
                 lines = lines,
                 validDigits = choices.toSet(),
+                audio = audio,
             )
         locals = locals + (content.strings.value(instruction.stringIdOperand(1)) to (member ?: 0))
         return ScriptSignal.Continue
@@ -558,7 +578,7 @@ internal class ScriptExecutor(
         val lines = screen.inventoryPickerLines(prompt, inventoryChoiceLines(choices), prompt.returnCancelTrailer())
         screen.writeText(lines)
         val choice =
-            input.readValidChoice(screen, lines) { candidate ->
+            input.readValidChoice(screen, lines, audio) { candidate ->
                 candidate == '\n' ||
                     choices.any { current -> candidate.uppercaseChar() == current.key.uppercaseChar() }
             }
@@ -642,7 +662,12 @@ internal class ScriptExecutor(
             content.scripts.roots.firstOrNull { root ->
                 root.root.kind.name == "Scene" && root.root.slug == content.slug(scene)
             } ?: return ScriptSignal.Continue
+        playSceneMusic(program)
         return executeProgram(program, insideLoop)
+    }
+
+    private fun playSceneMusic(program: CompiledScriptProgram) {
+        if (program.root.kind.name == "Scene") audio.sceneMusic(program.root.slug)?.let { track -> music = track }
     }
 
     private fun executeSpeak(
@@ -665,6 +690,7 @@ internal class ScriptExecutor(
                     screen = screen,
                     lines = chooseNpcLines,
                     validDigits = (1..npcs.size).toSet(),
+                    audio = audio,
                 )?.let { index -> npcs.getOrNull(index - 1) }
                 ?: return ScriptSignal.StopScript
         runtime = runtime.withParty(runtime.party.withNpcVisit(npc.id, visited = true))
@@ -685,6 +711,7 @@ internal class ScriptExecutor(
                         screen = screen,
                         lines = lines,
                         commands = systems.commands[speakCommandGroup.id].orEmpty(),
+                        audio = audio,
                     )
                     ?: return ScriptSignal.StopScript
             val signal =
@@ -727,6 +754,7 @@ internal class ScriptExecutor(
                     screen = screen,
                     lines = lines,
                     commands = systems.commands[speakQuestionCommandGroup.id].orEmpty(),
+                    audio = audio,
                 )
                 ?: return ScriptSignal.StopScript
         val topic = command.questionTopic() ?: return ScriptSignal.Continue
@@ -860,10 +888,11 @@ internal class ScriptExecutor(
         mandatory: Boolean,
     ) {
         val battle =
-            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, pausePrompts)
+            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, pausePrompts, systems.audio)
                 .runMonster(runtime, monster, mandatory = mandatory)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
+        if (runtime.currentMode != RuntimeMode.GameOver) music?.let(screen::playMusic)
     }
 
     private fun executeEncounter(
@@ -876,6 +905,7 @@ internal class ScriptExecutor(
 
     private fun applyReward(reward: CompiledScriptReward): PartyState {
         var party = reward.gold?.let { runtime.party.withGold(runtime.party.resources.gold + int(it)) } ?: runtime.party
+        if (party.resources.gold > runtime.party.resources.gold) audio.cue(AudioCue.GoldGained)
         reward.items.forEach { item ->
             party = applyItemReward(party, item, reward)
         }
@@ -890,6 +920,7 @@ internal class ScriptExecutor(
         when (val placed = party.placeItem(item, reward.application.overflow)) {
             is ItemPlacement.Placed ->
                 placed.party.also {
+                    audio.cue(AudioCue.ItemTaken)
                     reward.messages.pickedUp?.let { text -> screen.writeText(text.renderRewardLines(item)) }
                 }
 
@@ -906,6 +937,7 @@ internal class ScriptExecutor(
                                 party
                                     .withInventoryItem(slot, item)
                                     .also {
+                                        audio.cue(AudioCue.ItemTaken)
                                         reward.messages.pickedUp?.let { text -> screen.writeText(text.renderRewardLines(item)) }
                                     }
                             }
@@ -930,7 +962,7 @@ internal class ScriptExecutor(
         val lines = offer.offer.renderRewardLines(item, price) + offer.choicePrompt.renderRewardLines(item, price)
         screen.writeText(lines)
         val choice =
-            input.readValidChoice(screen, lines) { candidate ->
+            input.readValidChoice(screen, lines, audio) { candidate ->
                 offer.decline.matchesInput(content, candidate) || offer.buy.matchesInput(content, candidate)
             } ?: return party
         return when {
@@ -944,6 +976,7 @@ internal class ScriptExecutor(
             party.resources.gold < price ->
                 party.also {
                     log.event("script.random_item_offer.broke item=${content.slug(item)} price=$price gold=${party.resources.gold}")
+                    audio.cue(AudioCue.NotEnoughGold)
                     screen.writeText(offer.broke.renderRewardLines(item, price))
                     input.pause(offer.pauseMillis.broke)
                 }
@@ -955,6 +988,7 @@ internal class ScriptExecutor(
                             .withGold(party.resources.gold - price)
                             .also {
                                 log.event("script.random_item_offer.bought item=${content.slug(item)} price=$price")
+                                audio.cue(AudioCue.ItemTaken)
                                 screen.updateStatus(runtime.withParty(it))
                                 screen.writeText(offer.deal.renderRewardLines(item, price))
                                 input.pause(offer.pauseMillis.deal)
@@ -980,6 +1014,7 @@ internal class ScriptExecutor(
                                                     "script.random_item_offer.bought " +
                                                         "item=${content.slug(item)} price=$price droppedSlot=$slot",
                                                 )
+                                                audio.cue(AudioCue.ItemTaken)
                                                 screen.updateStatus(runtime.withParty(it))
                                                 screen.writeText(offer.deal.renderRewardLines(item, price))
                                                 input.pause(offer.pauseMillis.deal)
@@ -1622,6 +1657,8 @@ internal class ScriptExecutor(
             CompiledViewCommand.RenderMap -> RuntimeViewCommand.RenderMap
             CompiledViewCommand.StatusLine -> RuntimeViewCommand.StatusLine
             is CompiledViewCommand.ShowImage -> RuntimeViewCommand.ShowImage(content.slug(image))
+            is CompiledViewCommand.PlaySound -> RuntimeViewCommand.PlaySound(content.slug(sound))
+            is CompiledViewCommand.PlayMusic -> RuntimeViewCommand.PlayMusic(content.slug(music))
         }
 
     private fun teleportDelta(directionKey: Int): GridPoint? =

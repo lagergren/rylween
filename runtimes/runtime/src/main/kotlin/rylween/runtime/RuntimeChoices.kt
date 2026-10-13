@@ -8,6 +8,7 @@ import rylween.compiled.CompiledInputBinding
 import rylween.compiled.CompiledInventorySlot
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimePrompts
+import rylween.dsl.AudioCue
 
 internal data class MenuChoice<T>(
     val key: Char,
@@ -17,9 +18,11 @@ internal data class MenuChoice<T>(
 internal fun <T> List<T>.withMenuKeys(firstKey: Char = 'A'): List<MenuChoice<T>> =
     mapIndexed { index, value -> MenuChoice((firstKey.code + index).toChar(), value) }
 
+/** Reads keys until one is accepted. A rejected key plays the invalid-choice sound when [audio] is given. */
 internal fun RuntimeInputPort.readValidChoice(
     screen: RuntimeScreenPort,
     lines: List<String>,
+    audio: RuntimeAudio? = null,
     accepts: (Char) -> Boolean,
 ): Char? {
     var choice = readCommand() ?: return null
@@ -28,6 +31,8 @@ internal fun RuntimeInputPort.readValidChoice(
             screen.redrawCurrentView(lines)
         } else if (accepts(choice)) {
             return choice
+        } else {
+            audio?.cue(AudioCue.InvalidChoice)
         }
         choice = readCommand() ?: return null
     }
@@ -38,9 +43,10 @@ internal fun RuntimeInputPort.readValidDigitChoice(
     lines: List<String>,
     validDigits: Set<Int>,
     cancelKeys: Set<Char> = emptySet(),
+    audio: RuntimeAudio? = null,
 ): Int? {
     val choice =
-        readValidChoice(screen, lines) { candidate ->
+        readValidChoice(screen, lines, audio) { candidate ->
             val key = candidate.uppercaseChar()
             key in cancelKeys || candidate.digitToIntOrNull() in validDigits
         } ?: return null
@@ -53,9 +59,10 @@ internal fun RuntimeInputPort.readValidInventorySlotChoice(
     lines: List<String>,
     validSlots: Set<Int>,
     cancelKeys: Set<Char> = emptySet(),
+    audio: RuntimeAudio? = null,
 ): Int? {
     val choice =
-        readValidChoice(screen, lines) { candidate ->
+        readValidChoice(screen, lines, audio) { candidate ->
             val key = candidate.uppercaseChar()
             key in cancelKeys || candidate.inventorySlotFromKey() in validSlots
         } ?: return null
@@ -67,8 +74,11 @@ internal fun RuntimeInputPort.readValidCommandChoice(
     screen: RuntimeScreenPort,
     lines: List<String>,
     commands: List<ExternalRuntimeCommand>,
+    audio: RuntimeAudio? = null,
 ): ExternalRuntimeCommand? {
-    val choice = readValidChoice(screen, lines) { candidate -> commands.any { command -> command.matches(candidate) } } ?: return null
+    val choice =
+        readValidChoice(screen, lines, audio) { candidate -> commands.any { command -> command.matches(candidate) } }
+            ?: return null
     return commands.firstOrNull { command -> command.matches(choice) }
 }
 

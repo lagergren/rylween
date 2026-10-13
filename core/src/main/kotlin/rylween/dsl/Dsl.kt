@@ -169,6 +169,10 @@ class ScriptScope(
 
     fun showBackdrop(image: ImageId): Unit = view.showBackdrop(image)
 
+    fun playSound(sound: SoundId): Unit = view.playSound(sound)
+
+    fun playMusic(music: MusicId): Unit = view.playMusic(music)
+
     fun statusLine(): Unit = view.statusLine()
 
     fun let(
@@ -1214,6 +1218,12 @@ class ViewScope(
     private fun showImage(image: ImageId): Unit = script.record(ScriptStatementNode.View(ViewCommand.ShowImage(image)))
 
     fun statusLine(): Unit = script.record(ScriptStatementNode.View(ViewCommand.StatusLine))
+
+    /** Plays a one-shot sound effect; renderers without audio ignore it. */
+    fun playSound(sound: SoundId): Unit = script.record(ScriptStatementNode.View(ViewCommand.PlaySound(sound)))
+
+    /** Switches the background music until the player moves to another place. */
+    fun playMusic(music: MusicId): Unit = script.record(ScriptStatementNode.View(ViewCommand.PlayMusic(music)))
 }
 
 internal fun recordStatementNodes(body: ScriptScope.() -> Unit): List<ScriptStatementNode> = recordStatementNodes(ScriptContext(), body)
@@ -1242,6 +1252,17 @@ internal fun recordScriptBlock(
 }
 
 /**
+ * A slice of game content declared in its own source file, such as all audio,
+ * and added to the game with [GameBuilder.include].
+ */
+class GameSection internal constructor(
+    internal val body: GameBuilder.() -> Unit,
+)
+
+/** Declares a [GameSection]; its body uses the same blocks as `content { ... }`. */
+fun gameSection(body: GameBuilder.() -> Unit): GameSection = GameSection(body)
+
+/**
  * Root receiver for a complete authored game.
  *
  * The game designer enters through `game { ... }` and fills this receiver with
@@ -1258,6 +1279,7 @@ class GameBuilder {
     private var promptsModel = GamePromptsModel()
     private var pacingModel = GamePacingModel()
     private var visualsModel = VisualsModel()
+    private var audioModel = AudioModel()
     private val worldMaps = mutableListOf<WorldMapModel>()
     private var terrainModel = TerrainCatalogModel()
     private var terminalPresentationModel = TerminalPresentationModel()
@@ -1316,6 +1338,19 @@ class GameBuilder {
 
     fun visuals(body: VisualsBuilder.() -> Unit) {
         visualsModel = VisualsBuilder(visualsModel).apply(body).build()
+    }
+
+    fun audio(body: AudioBuilder.() -> Unit) {
+        audioModel = AudioBuilder(audioModel).apply(body).build()
+    }
+
+    /**
+     * Adds content declared in other source files, exactly as if it were
+     * written here. Sections apply in order, so a later section can extend
+     * blocks such as `visuals` or `audio` that an earlier one started.
+     */
+    fun include(vararg sections: GameSection) {
+        sections.forEach { section -> section.body(this) }
     }
 
     fun worldMap(
@@ -1447,6 +1482,7 @@ class GameBuilder {
             prompts = promptsModel,
             pacing = pacingModel,
             visuals = visualsModel,
+            audio = audioModel,
             worldMaps = worldMaps.toList(),
             terrain = terrainModel,
             terminal = terminalPresentationModel,

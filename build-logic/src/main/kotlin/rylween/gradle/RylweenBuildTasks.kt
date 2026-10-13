@@ -273,6 +273,15 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
                     names = paletteColorNames(source),
                 ),
                 generateImageHandles(imageHandles(source)),
+                generateSoundHandles(soundHandles(source)),
+                generateRefsClass(
+                    className = "MusicRefs",
+                    objectName = "Music",
+                    typeName = "MusicId",
+                    factoryName = "musicId",
+                    names = handleNames(source, "Music"),
+                    allowEmpty = true,
+                ),
                 generateRefsClass(
                     className = "StaticScreenRefs",
                     objectName = "StaticScreens",
@@ -905,6 +914,44 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
             |}
             |
             |val Images: ImageRefs = ImageRefs()
+            """.trimMargin()
+    }
+
+    /** Sound handles grouped as `Sounds.<Group>.<name>`, for example `Sounds.Combat.miss1`. */
+    private fun soundHandles(source: String): Map<String, List<String>> {
+        val handles =
+            Regex("""\bSounds\.([A-Z][A-Za-z0-9_]*)\.([A-Za-z][A-Za-z0-9_]*)""")
+                .findAll(source)
+                .map { match -> match.groupValues[1] to SourceHandle(name = match.groupValues[2], offset = match.groupOffset(2)) }
+                .toList()
+        return handles
+            .groupBy({ it.first }, { it.second })
+            .toSortedMap()
+            .mapValues { (group, groupHandles) ->
+                validateNoCatalogIdCollisions(source, "$group sound", groupHandles)
+                groupHandles.distinctNamesInOrder()
+            }
+    }
+
+    private fun generateSoundHandles(groups: Map<String, List<String>>): String {
+        val groupFields =
+            groups.keys.joinToString(separator = "\n") { group -> """    val $group: ${group}SoundRefs = ${group}SoundRefs()""" }
+        val groupClasses =
+            groups.entries.joinToString(separator = "\n\n") { (group, names) ->
+                val lines =
+                    names.joinToString(separator = "\n") { name ->
+                        """    val $name: SoundId = soundId("${group.toSlug()}.${name.toSlug()}")"""
+                    }
+                "class ${group}SoundRefs {\n$lines\n}"
+            }
+        return """
+            |class SoundRefs {
+            |$groupFields
+            |}
+            |
+            |$groupClasses
+            |
+            |val Sounds: SoundRefs = SoundRefs()
             """.trimMargin()
     }
 

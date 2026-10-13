@@ -369,6 +369,7 @@ private class BitmapWebServer(
             .filter { image ->
                 image.kind == "Bitmap"
             }.associateBy { image -> image.id }
+    private val audioCatalog = BitmapAudioCatalog.load(game.systems.audio, javaClass.classLoader)
     private val executor: ExecutorService = Executors.newCachedThreadPool()
     private val serverSocket = ServerSocket()
     private val clientIds = AtomicLong(0)
@@ -466,6 +467,20 @@ private class BitmapWebServer(
                     serveStaticResource(socket, request.path.removePrefix("/static/"), clientId)
                 } else if (request.path.startsWith("/assets/game-image/")) {
                     serveBundleBitmapImage(socket, urlDecode(request.path.removePrefix("/assets/game-image/")), clientId)
+                } else if (request.path.startsWith(BitmapAudioCatalog.SOUND_ROUTE)) {
+                    serveAudio(
+                        socket,
+                        audioCatalog.sound(urlDecode(request.path.removePrefix(BitmapAudioCatalog.SOUND_ROUTE))),
+                        request.path,
+                        clientId,
+                    )
+                } else if (request.path.startsWith(BitmapAudioCatalog.MUSIC_ROUTE)) {
+                    serveAudio(
+                        socket,
+                        audioCatalog.music(urlDecode(request.path.removePrefix(BitmapAudioCatalog.MUSIC_ROUTE))),
+                        request.path,
+                        clientId,
+                    )
                 } else if (request.path.startsWith("/assets/")) {
                     serveAsset(socket, request.path.removePrefix("/assets/"), clientId)
                 } else {
@@ -815,6 +830,23 @@ private class BitmapWebServer(
         respondBytes(socket, "image/png", bytes)
     }
 
+    /** Serves a sound or music file; its URL is versioned by content, so browsers may cache it for good. */
+    private fun serveAudio(
+        socket: Socket,
+        file: BitmapAudioFile?,
+        path: String,
+        clientId: Long,
+    ) {
+        val bytes = file?.let { javaClass.classLoader.getResourceAsStream(it.resource)?.use(InputStream::readBytes) }
+        if (file == null || bytes == null) {
+            serverLog.event("bitmap.http.response id=$clientId status=404 path=${serverLogValue(path)}")
+            respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "audio not found\n")
+            return
+        }
+        serverLog.event("bitmap.http.response id=$clientId status=200 audio=${serverLogValue(file.id)}")
+        respondBytes(socket, file.contentType, bytes, cacheControl = "public, max-age=31536000, immutable")
+    }
+
     private fun validateBitmapImageResources() {
         bitmapImageById.values.forEach { image ->
             require(image.resource.startsWith("bitmap/assets/")) {
@@ -914,6 +946,7 @@ private class BitmapWebServer(
         val output = socket.getOutputStream()
         writeWebSocketHandshake(output, request)
         val connection = WebSocketConnection(input, output)
+        connection.sendText(audioCatalog.catalogJson())
         val runtimeInput = BitmapRuntimeInput()
         val screen =
             BitmapRuntimeScreen(

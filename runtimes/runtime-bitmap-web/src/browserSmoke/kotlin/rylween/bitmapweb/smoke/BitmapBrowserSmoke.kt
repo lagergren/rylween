@@ -220,6 +220,10 @@ private class BitmapBrowserSmoke(
             "bitmap wilderness should initialize from saved party facing south: $frame"
         }
         val images = page.evaluate(compiledImageProbe()).asList()
+        val audio = page.evaluate(audioProbe()).asMap()
+        check(audio["soundSeconds"].asDouble() > 0.05 && audio["musicSeconds"].asDouble() > 10.0) {
+            "bitmap client could not decode the game's sound and music files: $audio"
+        }
         page.screenshot(
             Page
                 .ScreenshotOptions()
@@ -406,6 +410,29 @@ private class BitmapBrowserSmoke(
         }
         """.trimIndent()
 
+    /** Decodes one sound effect and one music track from the catalog the server sent, without an audio device. */
+    private fun audioProbe(): String =
+        """
+        async () => {
+          const smoke = window.__rylweenBitmapSmoke && window.__rylweenBitmapSmoke();
+          if (!smoke || smoke.audioSoundUrls.length === 0 || smoke.audioMusicUrls.length === 0) {
+            throw new Error("no audio catalog reached the browser");
+          }
+          async function decode(url) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("failed to load " + url + ": " + response.status);
+            const context = new OfflineAudioContext(2, 44100, 44100);
+            const buffer = await context.decodeAudioData(await response.arrayBuffer());
+            return buffer.duration;
+          }
+          return {
+            sounds: smoke.audioSoundUrls.length,
+            soundSeconds: await decode(smoke.audioSoundUrls[0]),
+            musicSeconds: await decode(smoke.audioMusicUrls[0])
+          };
+        }
+        """.trimIndent()
+
     private fun compiledImageProbe(): String =
         """
         async () => {
@@ -538,3 +565,5 @@ private fun Any?.asMap(): Map<String, Any?> = this as? Map<String, Any?> ?: erro
 private fun Any?.asList(): List<Any?> = this as? List<Any?> ?: error("expected list, got ${this?.javaClass?.name ?: "null"}")
 
 private fun Any?.asInt(): Int = (this as? Number)?.toInt() ?: error("expected number, got ${this?.javaClass?.name ?: "null"}")
+
+private fun Any?.asDouble(): Double = (this as? Number)?.toDouble() ?: error("expected number, got ${this?.javaClass?.name ?: "null"}")

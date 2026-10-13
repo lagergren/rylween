@@ -1,0 +1,13 @@
+[project]
+name = "rylween-audio"
+version = "0.1.0"
+description = "Synthesizes the Adventurers of Rylween sound effects, music and ambient loops."
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.2",
+    "scipy>=1.15",
+    "pyloudnorm>=0.1.1",
+]
+
+[tool.uv]
+package = false

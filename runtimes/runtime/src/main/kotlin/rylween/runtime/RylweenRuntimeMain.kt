@@ -55,6 +55,8 @@ import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
+import rylween.dsl.AudioCue
+import rylween.dsl.MusicArea
 import rylween.dsl.impl.CharacterCreationStat
 import rylween.dsl.impl.Facing
 import rylween.dsl.impl.Gender
@@ -514,11 +516,14 @@ class GameRuntime private constructor(
                     log = log,
                 )
             val utility = UtilityActions(content, systems, input, screen, log)
+            val audio = RuntimeAudio(systems.audio, screen)
+            var wildernessTrack: String? = null
             screen.bootFrame()
             screen.renderWilderness(runtime, world)
             while (true) {
                 when (runtime.currentMode) {
                     RuntimeMode.Dungeon -> {
+                        wildernessTrack = null
                         runtime =
                             DungeonRuntime(loopContext)
                                 .run(runtime)
@@ -532,6 +537,7 @@ class GameRuntime private constructor(
                     }
 
                     RuntimeMode.Castle -> {
+                        wildernessTrack = null
                         runtime =
                             CastleRuntime(loopContext)
                                 .run(runtime)
@@ -550,6 +556,12 @@ class GameRuntime private constructor(
                     }
                     else -> Unit
                 }
+                val track = audio.musicFor(MusicArea.Wilderness, runtime.hour)
+                if (wildernessTrack != null && track != wildernessTrack) {
+                    audio.cue(if (track == audio.musicFor(MusicArea.Wilderness)) AudioCue.Dawn else AudioCue.Nightfall)
+                }
+                wildernessTrack = track
+                screen.playMusic(track)
                 if (runtime.party.resources.timeLeft <= 0) return endOfMoves(runtime, saveContext, screen, input, log)
                 val command = input.readCommand()
                 log.event("wilderness.command key=${command ?: "null"} position=${runtime.logPosition()}")
@@ -606,6 +618,7 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches(RuntimeCommandActionId.Pass, command) -> {
+                            audio.cue(AudioCue.Wait)
                             turnMessages =
                                 systems.prompts.wilderness.pass
                                     .renderRuntimeText(content, runtime, screen.textColumns)
@@ -655,6 +668,7 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches(RuntimeCommandActionId.Enter, command) -> {
+                            wildernessTrack = null
                             val entered = enterLocation(runtime, world, loopContext)
                             runtime = entered
                             entered.currentMode == RuntimeMode.Wilderness
@@ -728,6 +742,7 @@ class GameRuntime private constructor(
 
                         command == '\n' -> false
                         else -> {
+                            audio.cue(AudioCue.InvalidChoice)
                             screen.writeText(runtimeChromeText("Unknown command '$command'.", "Press ? for commands."))
                             false
                         }
@@ -777,6 +792,8 @@ class GameRuntime private constructor(
                 else -> false
             }
 
+        val audio = RuntimeAudio(systems.audio, screen)
+        audio.music(MusicArea.Title)
         screen.showStaticScreen(TITLE_SCREEN, runtime)
         log.event("title.splash")
         var pendingTitleCommand: Char? = input.readCommand() ?: return null
@@ -795,6 +812,7 @@ class GameRuntime private constructor(
                         log.event("title.new.cancelled save=${save.file.path}")
                     } else {
                         log.event("title.new state=$stateSlug overwrites=${savedRuntime != null}")
+                        audio.cue(AudioCue.NewParty)
                         return runCharacterCreation(
                             newPartyRuntime(stateSlug, seed, save.userId, savedRuntime),
                             input,
@@ -806,6 +824,7 @@ class GameRuntime private constructor(
 
                 savedRuntime != null && matches(RuntimeCommandActionId.ContinueSavedGame, command) -> {
                     log.event("title.continue save=${save.file.path}")
+                    audio.cue(AudioCue.GameLoaded)
                     return seed?.let(savedRuntime::withSeed) ?: savedRuntime
                 }
 
@@ -993,7 +1012,9 @@ class GameRuntime private constructor(
     ): RuntimeState? {
         val rules = systems.characterCreation ?: error("compiled bundle has no character-creation rules")
         val prompts = systems.prompts.characterCreation
+        val audio = RuntimeAudio(systems.audio, screen)
         screen.bootFrame()
+        screen.playMusic(audio.musicFor(MusicArea.CharacterCreation) ?: audio.musicFor(MusicArea.Title))
         val prerolled =
             if (rules.prerolledMembers.isEmpty()) {
                 false
@@ -1092,10 +1113,12 @@ class GameRuntime private constructor(
                 log.event(
                     "creation.class_rejected member=$memberNumber class=${pcClass.pcClass} required=${pcClass.requiredStat} minimum=${pcClass.minimum}",
                 )
+                audio.cue(AudioCue.InvalidChoice)
                 screen.writeText(failure.renderCreation(wrapWidth = screen.textColumns))
                 input.pause(systems.pacing.characterCreation.classRejectionPauseMs)
             } else {
                 log.event("creation.member_accepted member=$memberNumber gender=$gender race=$race class=${pcClass.pcClass}")
+                audio.cue(AudioCue.CharacterCreated)
                 members += runtime.creationMember(memberNumber, gender, race, pcClass.pcClass, statsResult.stats)
                 memberNames += memberName
             }
@@ -1130,6 +1153,7 @@ class GameRuntime private constructor(
         while (true) {
             val draw = current.drawCreationStats(roll, memberNumber, log)
             current = draw.runtime
+            RuntimeAudio(systems.audio, screen).cue(AudioCue.StatRoll)
             screen.writeText(
                 prompts.statsPage.renderCreation(memberNumber = memberNumber, stats = draw.stats, wrapWidth = screen.textColumns) +
                     prompts.reroll.renderCreation(wrapWidth = screen.textColumns),
@@ -1186,6 +1210,7 @@ class GameRuntime private constructor(
                 log.event("creation.choice kind=$label key=$command label=${choice.label}")
                 return choice.value
             }
+            RuntimeAudio(systems.audio, screen).cue(AudioCue.InvalidChoice)
             screen.writeText(
                 systems.prompts.characterCreation.invalidInput
                     .renderCreation(wrapWidth = screen.textColumns) +
@@ -1315,6 +1340,7 @@ class GameRuntime private constructor(
     }
 
     private fun RuntimeScreenPort.renderGameOver(runtime: RuntimeState) {
+        RuntimeAudio(systems.audio, this).music(MusicArea.GameOver)
         updateStatus(runtime)
         systems.combat.standardBattle?.defeatImage?.let { image ->
             writeViewCommand(RuntimeViewCommand.ClearMapWindow)
@@ -1334,12 +1360,14 @@ class GameRuntime private constructor(
         val sourceTerrain = world.terrainAt(source)
         val targetTerrain = world.terrainAt(target)
         if (targetTerrain == null || !targetTerrain.passable) {
+            RuntimeAudio(systems.audio, screen).cue(AudioCue.Impassable)
             screen.showMessage(
                 systems.prompts.wilderness.impassable
                     .render({ null }, screen.textColumns),
             )
             return MoveResult(party, moved = false)
         }
+        RuntimeAudio(systems.audio, screen).step(slug(targetTerrain.id))
         return MoveResult(
             party =
                 party.copy(
@@ -1453,12 +1481,14 @@ class GameRuntime private constructor(
         log: RuntimeLog,
     ): RuntimeSessionResult {
         val choices = WildernessCommands.from(systems, RuntimeCommandGroupId.WildernessOutOfMoves)
+        val audio = RuntimeAudio(systems.audio, screen)
+        audio.cue(AudioCue.EndOfMoves)
         val lines =
             systems.prompts.wilderness.outOfMoves
                 .renderRuntimeText(content, runtime, screen.textColumns)
         screen.writeText(lines)
         val choice =
-            input.readValidChoice(screen, lines) { command ->
+            input.readValidChoice(screen, lines, audio) { command ->
                 choices.matches(RuntimeCommandActionId.Save, command) || choices.matches(RuntimeCommandActionId.Quit, command)
             } ?: return input.exitResult()
         val saving = choices.matches(RuntimeCommandActionId.Save, choice)
@@ -1485,6 +1515,7 @@ class GameRuntime private constructor(
         val answer = input.readCommand() ?: return null
         val quitting = answers.matches(RuntimeCommandActionId.Yes, answer)
         log.event("wilderness.quit_confirm key=$answer quit=$quitting")
+        if (quitting) RuntimeAudio(systems.audio, screen).cue(AudioCue.Quit)
         if (!quitting) screen.writeViewCommand(RuntimeViewCommand.ClearText)
         return quitting
     }
@@ -1496,6 +1527,7 @@ class GameRuntime private constructor(
         log: RuntimeLog,
     ) {
         persistRuntime(runtime, save, log, "command")
+        RuntimeAudio(systems.audio, screen).cue(AudioCue.GameSaved)
         screen.writeText(
             systems.prompts.save.done
                 .render({ null }, screen.textColumns) + runtimeGeneratedDetailText(save.file.path),
@@ -1605,6 +1637,8 @@ class GameRuntime private constructor(
         }
 
         var current = runtime.copy(currentMode = RuntimeMode.Town, currentTown = town.id)
+        val audio = RuntimeAudio(systems.audio, screen)
+        audio.cue(AudioCue.EnterTown)
         val taxResult = collectTownEntryTaxIfNeeded(current, world, input, screen, town, log) ?: return runtime
         current = taxResult.runtime
         var menuNotice = taxResult.noticeLines
@@ -1620,6 +1654,7 @@ class GameRuntime private constructor(
         while (true) {
             val menu = menuLines(menuNotice)
             menuNotice = emptyList()
+            audio.music(MusicArea.Town)
             screen.showImage(TOWN_MAIN_STREET_IMAGE)
             screen.writeText(menu)
             var choice = input.readCommand() ?: return current
@@ -1630,9 +1665,11 @@ class GameRuntime private constructor(
             val command = townCommands.firstOrNull { candidate -> candidate.binding.matches(choice) }
             if (command == null) {
                 log.event("town.invalid_choice key=$choice")
+                audio.cue(AudioCue.InvalidChoice)
                 continue
             }
             if (command.action == townLeaveAction) {
+                audio.cue(AudioCue.LeaveTown)
                 val readied =
                     UtilityActions(content, systems, input, screen, log)
                         .readyBeforeLeavingTown(current, systems.town?.leavePrompts.orEmpty())
@@ -1672,15 +1709,18 @@ class GameRuntime private constructor(
         log.event("town.tax.prompt town=${slug(town.id)} level=$leaderLevel amount=$amount gold=${runtime.party.resources.gold}")
         screen.showImage(TOWN_MAIN_STREET_IMAGE)
         screen.writeText(lines)
+        val audio = RuntimeAudio(systems.audio, screen)
         val choice =
-            input.readValidChoice(screen, lines) { candidate ->
+            input.readValidChoice(screen, lines, audio) { candidate ->
                 tax.pay.matches(candidate) || tax.leave.matches(candidate)
             } ?: return null
         if (tax.leave.matches(choice)) {
             log.event("town.tax.leave town=${slug(town.id)} key=$choice")
+            audio.cue(AudioCue.LeaveTown)
             screen.renderWilderness(runtime.leaveTown(), world)
             return null
         }
+        audio.cue(AudioCue.GoldSpent)
         val paid = runtime.withParty(runtime.party.withGold(runtime.party.resources.gold - amount))
         log.event("town.tax.pay town=${slug(town.id)} key=$choice amount=$amount gold=${paid.party.resources.gold}")
         return TownEntryTaxResult(

@@ -44,8 +44,7 @@ val generatedGameCatalogFile: Provider<RegularFile> =
     )
 val gameDslSourceFile: RegularFile =
     layout.projectDirectory.file("src/main/kotlin/rylween/game/RylweenGame.kt")
-val gameDslScenarioFile: RegularFile =
-    layout.projectDirectory.file("src/main/kotlin/rylween/game/RylweenTestScenarios.kt")
+val gameDslSourceDir: Directory = layout.projectDirectory.dir("src/main/kotlin/rylween/game")
 val gameDslSourceLabel: String = gameDslSourceFile.asFile.relativeTo(projectDir).invariantSeparatorsPath
 
 sourceSets {
@@ -65,10 +64,11 @@ tasks.test {
 val generateGameCatalogHandles: TaskProvider<GenerateGameCatalogHandlesTask> =
     tasks.register<GenerateGameCatalogHandlesTask>("generateGameCatalogHandles") {
         group = "generation"
-        description = "Generates current-game item and item-pool handles from the authored RylweenCompiledGame.kt source."
+        description = "Generates current-game catalog handles from the authored game sources."
 
         gameSource.set(gameDslSourceFile)
-        gameSources.from(gameDslSourceFile, gameDslScenarioFile)
+        // Every game source file, so sections pulled in with include(...) contribute handles too.
+        gameSources.from(fileTree(gameDslSourceDir) { include("**/*.kt") })
         sourceLabel.set(gameDslSourceLabel)
         outputFile.set(generatedGameCatalogFile)
     }

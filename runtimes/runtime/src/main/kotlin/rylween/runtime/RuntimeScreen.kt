@@ -244,6 +244,8 @@ internal class RuntimeScreen(
             RuntimeViewCommand.RenderMap -> Unit
             RuntimeViewCommand.StatusLine -> Unit
             is RuntimeViewCommand.ShowImage -> showImage(command.imageSlug)
+            is RuntimeViewCommand.PlaySound -> playSound(command.soundSlug)
+            is RuntimeViewCommand.PlayMusic -> playMusic(command.musicSlug)
         }
     }
 
@@ -578,6 +580,14 @@ sealed interface RuntimeViewCommand {
 
     data class ShowImage(
         val imageSlug: String,
+    ) : RuntimeViewCommand
+
+    data class PlaySound(
+        val soundSlug: String,
+    ) : RuntimeViewCommand
+
+    data class PlayMusic(
+        val musicSlug: String,
     ) : RuntimeViewCommand
 }
 

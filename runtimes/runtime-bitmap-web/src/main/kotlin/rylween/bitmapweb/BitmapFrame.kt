@@ -53,6 +53,7 @@ internal data class BitmapFrame(
     val message: String? = null,
     val artLines: List<String> = emptyList(),
     val document: BitmapDocument? = null,
+    val music: String? = null,
 ) {
     fun toJson(): String =
         jsonObject(
@@ -77,6 +78,7 @@ internal data class BitmapFrame(
             "message" to (message?.json() ?: "null"),
             "artLines" to artLines.jsonArray(),
             "document" to (document?.toJson() ?: "null"),
+            "music" to (music?.json() ?: "null"),
         )
 }
 

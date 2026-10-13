@@ -81,3 +81,17 @@ internal open class NoOpRuntimeScreen(
 
     override fun flashLogLine(line: String) = Unit
 }
+
+/** Screen that records the sound effects and music tracks the runtime plays, in order. */
+internal class AudioRecordingScreen : NoOpRuntimeScreen() {
+    val sounds = mutableListOf<String>()
+    val music = mutableListOf<String?>()
+
+    override fun playSound(soundSlug: String) {
+        sounds += soundSlug
+    }
+
+    override fun playMusic(musicSlug: String?) {
+        music += musicSlug
+    }
+}

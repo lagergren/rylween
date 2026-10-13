@@ -259,6 +259,7 @@ enum class CompiledHandleKind {
     Milestone,
     Mission,
     Monster,
+    Music,
     NativeOp,
     Npc,
     NpcJob,
@@ -271,6 +272,7 @@ enum class CompiledHandleKind {
     Scene,
     ScreenRegion,
     ScriptRoot,
+    Sound,
     Spell,
     State,
     StaticScreen,
@@ -921,6 +923,14 @@ sealed interface CompiledViewCommand {
 
     data class ShowImage(
         val image: CompiledHandleRef,
+    ) : CompiledViewCommand
+
+    data class PlaySound(
+        val sound: CompiledHandleRef,
+    ) : CompiledViewCommand
+
+    data class PlayMusic(
+        val music: CompiledHandleRef,
     ) : CompiledViewCommand
 }
 
@@ -2222,6 +2232,8 @@ private class CompiledBundleCompiler(
             ViewCommand.RenderMap -> CompiledViewCommand.RenderMap
             ViewCommand.StatusLine -> CompiledViewCommand.StatusLine
             is ViewCommand.ShowImage -> CompiledViewCommand.ShowImage(imageRef(command.image))
+            is ViewCommand.PlaySound -> CompiledViewCommand.PlaySound(handles.ref(CompiledHandleKind.Sound, command.sound.slug))
+            is ViewCommand.PlayMusic -> CompiledViewCommand.PlayMusic(handles.ref(CompiledHandleKind.Music, command.music.slug))
         }
 
     private fun binding(binding: InputBindingModel): CompiledInputBinding =
