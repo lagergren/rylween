@@ -2971,6 +2971,8 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.party.journalHeader, "party journal-header prompt")
     validateTextBlock(prompts.party.journalEmpty, "party journal-empty prompt")
     validateTextBlock(prompts.party.inventoryHeader, "party inventory-header prompt")
+    validateTextBlock(prompts.party.killsHeader, "party kills-header prompt")
+    validateTextBlock(prompts.party.killsEmpty, "party kills-empty prompt")
     validateTextBlock(prompts.party.dropPrompt, "party drop prompt")
     validateTextBlock(prompts.party.dropEmptySlot, "party drop-empty-slot prompt")
     validateTextBlock(prompts.party.dropAborted, "party drop-aborted prompt")

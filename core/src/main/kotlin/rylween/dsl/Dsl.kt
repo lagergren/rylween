@@ -2158,6 +2158,10 @@ class PartyPromptsBuilder(
     // Public prompt overrides consumed from runtimeSystems by PartyPages.
     @Suppress("MemberVisibilityCanBePrivate")
     var inventoryHeader: TextBlock = initial.inventoryHeader
+
+    // Heading and empty-ledger text of the monsters-slain pages that end the party view.
+    var killsHeader: TextBlock = initial.killsHeader
+    var killsEmpty: TextBlock = initial.killsEmpty
     var dropPrompt: TextBlock = initial.dropPrompt
     var dropEmptySlot: TextBlock = initial.dropEmptySlot
     var dropAborted: TextBlock = initial.dropAborted
@@ -2180,6 +2184,8 @@ class PartyPromptsBuilder(
             journalHeader = journalHeader,
             journalEmpty = journalEmpty,
             inventoryHeader = inventoryHeader,
+            killsHeader = killsHeader,
+            killsEmpty = killsEmpty,
             dropPrompt = dropPrompt,
             dropEmptySlot = dropEmptySlot,
             dropAborted = dropAborted,

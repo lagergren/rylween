@@ -800,6 +800,8 @@ val authoredRylween: RylweenModel =
                     dropAborted = literalText("Aborted.")
                     dropped(flowText("You drop the ", TextPart.SelectedItemName, "."))
                     dropCapacityReduced = flowText("You are forced to leave some of your food behind...")
+                    killsHeader = literalText("MONSTERS SLAIN", "")
+                    killsEmpty = literalText("No monsters slain yet.")
                 }
                 wilderness {
                     pass = literalText("You wait for an hour...")

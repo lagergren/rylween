@@ -693,7 +693,7 @@ internal class BattleRunner(
                 party = selection.party
                 selection.item
             }
-        party = party.applyBattleRewards(experience, gold, loot, monsterCount)
+        party = party.applyBattleRewards(experience, gold, loot, monster.id, monsterCount)
         val levelUps = party.applyLevelUps(combat.leveling)
         party = levelUps.party
         val messages =
@@ -856,6 +856,7 @@ internal class BattleRunner(
         experience: Int,
         gold: Int,
         loot: CompiledHandleRef?,
+        defeated: CompiledHandleRef,
         defeatedCount: Int,
     ): PartyState {
         val survivorExperience =
@@ -863,7 +864,11 @@ internal class BattleRunner(
                 member.takeIf { it.dead } ?: member.copy(experience = member.experience + experience)
             }
         val withCounters =
-            copy(counters = counters.copy(kills = counters.kills + defeatedCount), members = survivorExperience)
+            copy(
+                counters = counters.copy(kills = counters.kills + defeatedCount),
+                monsterKills = monsterKills + (defeated to (monsterKills[defeated] ?: 0) + defeatedCount),
+                members = survivorExperience,
+            )
         val withGold = withCounters.withGold(withCounters.resources.gold + gold)
         val freeSlot = withGold.inventory.firstOrNull { slot -> slot.item == null }?.slot
         return loot?.let { item -> freeSlot?.let { slot -> withGold.withInventoryItem(slot, item) } } ?: withGold

@@ -1,5 +1,7 @@
 package rylween.runtime
 
+import rylween.compiled.CompiledHandleKind
+import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
 import rylween.dsl.impl.RuntimeMode
@@ -48,15 +50,48 @@ class PartyPagesTest {
 
         assertEquals(2, screen.partyPageShows)
     }
+
+    @Test
+    fun theLastPartyPageListsTheMonstersSlainMostFirstAndSurvivesASave() {
+        val content = bundle.content
+        val base = RuntimeState.from(bundle.states.single { state -> content.slug(state.state) == "fresh-replay" }, content)
+        val kobold = content.ref(CompiledHandleKind.Monster, "kobold")
+        val orc = content.ref(CompiledHandleKind.Monster, "orc")
+        val runtime = base.withParty(base.party.copy(monsterKills = mapOf(kobold to 3, orc to 12)))
+        val save = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).also(File::mkdirs).resolve("kill-ledger.rsave").also(File::delete)
+        SaveFile.write(save, runtime, bundleFile.readExternalCompiledBundleContentHash(), content, "ledger", null)
+        val loaded = SaveFile.read(save, content, { slug -> bundle.states.single { state -> content.slug(state.state) == slug } }, "ledger")
+        val screen = CountingPartyPageScreen()
+
+        // Paging back from the first page wraps around to the last one.
+        PartyPages.showPartyPageViews(content, systems, ScriptedInput("4\n"), screen, loaded.copy(currentMode = RuntimeMode.Wilderness))
+
+        val ledger = screen.pages.last()
+        assertEquals(RuntimePartyPageKind.Kills, ledger.kind)
+        assertEquals(listOf("Orc" to 12, "Kobold" to 3), ledger.kills?.entries?.map { kill -> kill.monster to kill.count })
+    }
+
+    @Test
+    fun aPartyThatHasSlainNothingSeesTheEmptyLedger() {
+        val runtime = RuntimeState.from(bundle.states.first(), bundle.content).copy(currentMode = RuntimeMode.Wilderness)
+        val screen = CountingPartyPageScreen()
+
+        PartyPages.showPartyPageViews(bundle.content, systems, ScriptedInput("4\n"), screen, runtime)
+
+        val ledger = screen.pages.last()
+        assertEquals(RuntimePartyPageKind.Kills, ledger.kind)
+        assertTrue(ledger.lines.contains("No monsters slain yet."), ledger.lines.joinToString("\n"))
+    }
 }
 
 private class CountingPartyPageScreen : NoOpRuntimeScreen() {
-    var partyPageShows = 0
+    val pages = mutableListOf<RuntimePartyPageView>()
+    val partyPageShows: Int get() = pages.size
 
     override fun showPartyPage(
         page: RuntimePartyPageView,
         pauseLine: String,
     ) {
-        partyPageShows += 1
+        pages += page
     }
 }

@@ -415,6 +415,7 @@ internal object SaveFile {
         )
         put(PARTY_MEMBER_RECORD_COUNT, party.members.size.toString())
         put("party.kills", party.counters.kills.toString())
+        put("party.monsterKills", party.monsterKills.entries.joinToString(",") { (monster, count) -> "${content.slug(monster)}:$count" })
         put("party.waitingMail", party.counters.waitingMail.toString())
         put("party.attacked", party.counters.attacked.toString())
         put(
@@ -540,6 +541,7 @@ internal object SaveFile {
             members = readMembers(base.members, content),
             memberNames = readMemberNames(base.memberNames),
             rngState = optionalLong("party.rngState") ?: base.rngState,
+            monsterKills = readMonsterKills(base.monsterKills, content),
         )
 
     private fun Map<String, String>.readLocations(
@@ -650,6 +652,20 @@ internal object SaveFile {
                 val parts = token.split(':')
                 GridPoint(parts[0].toInt(), parts[1].toInt())
             }.orEmpty()
+
+    private fun Map<String, String>.readMonsterKills(
+        base: Map<CompiledHandleRef, Int>,
+        content: CompiledContentBundle,
+    ): Map<CompiledHandleRef, Int> {
+        val raw = get("party.monsterKills") ?: return base
+        return raw
+            .split(',')
+            .filter(String::isNotEmpty)
+            .associate { token ->
+                val (monster, count) = token.split(':')
+                content.ref(CompiledHandleKind.Monster, monster) to count.toInt()
+            }
+    }
 
     private fun Map<String, String>.readAttackedToday(
         base: List<CompiledPartyAttackRecord>,

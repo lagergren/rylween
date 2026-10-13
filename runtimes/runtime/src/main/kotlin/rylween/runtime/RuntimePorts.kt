@@ -192,7 +192,7 @@ data class RuntimeCharacterPortraitPreview(
     val imageSlug: String,
 )
 
-enum class RuntimePartyPageKind { Summary, Member, Inventory }
+enum class RuntimePartyPageKind { Summary, Member, Inventory, Kills }
 
 data class RuntimePartyPageView(
     val kind: RuntimePartyPageKind,
@@ -200,6 +200,7 @@ data class RuntimePartyPageView(
     val summary: RuntimePartySummaryView? = null,
     val member: RuntimePartyMemberView? = null,
     val inventory: RuntimePartyInventoryView? = null,
+    val kills: RuntimePartyKillsView? = null,
 ) {
     val memberIndex: Int? get() = member?.index
 }
@@ -239,4 +240,16 @@ data class RuntimePartyMemberView(
 
 data class RuntimePartyInventoryView(
     val entries: List<String>,
+)
+
+/** One page of the monsters-slain ledger: its [title] lines and the monsters on it, most slain first. */
+data class RuntimePartyKillsView(
+    val title: List<String>,
+    val entries: List<RuntimeMonsterKills>,
+    val empty: List<String>,
+)
+
+data class RuntimeMonsterKills(
+    val monster: String,
+    val count: Int,
 )

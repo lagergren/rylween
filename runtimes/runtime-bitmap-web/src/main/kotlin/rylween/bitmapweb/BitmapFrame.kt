@@ -102,6 +102,7 @@ internal data class BitmapPartyPage(
     val summary: BitmapPartySummary? = null,
     val member: BitmapPartyMember? = null,
     val inventory: List<String> = emptyList(),
+    val kills: BitmapPartyKills? = null,
 ) {
     fun toJson(): String =
         jsonObject(
@@ -111,6 +112,24 @@ internal data class BitmapPartyPage(
             "summary" to (summary?.toJson() ?: "null"),
             "member" to (member?.toJson() ?: "null"),
             "inventory" to inventory.jsonArray(),
+            "kills" to (kills?.toJson() ?: "null"),
+        )
+}
+
+/** A page of the monsters-slain ledger: its title, the monsters with how many were slain, and the empty-ledger text. */
+internal data class BitmapPartyKills(
+    val title: List<String>,
+    val entries: List<Pair<String, Int>>,
+    val empty: List<String>,
+) {
+    fun toJson(): String =
+        jsonObject(
+            "title" to title.jsonArray(),
+            "entries" to
+                entries.joinToString(prefix = "[", postfix = "]") { (monster, count) ->
+                    jsonObject("monster" to monster.json(), "count" to count.toString())
+                },
+            "empty" to empty.jsonArray(),
         )
 }
 

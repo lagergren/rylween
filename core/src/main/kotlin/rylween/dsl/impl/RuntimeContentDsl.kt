@@ -452,6 +452,8 @@ data class PartyPromptsModel(
     val journalHeader: TextBlock = missingPrompt("party.journal_header"),
     val journalEmpty: TextBlock = literalText("No journal entries."),
     val inventoryHeader: TextBlock = literalText("Inventory:"),
+    val killsHeader: TextBlock = literalText("Monsters slain:"),
+    val killsEmpty: TextBlock = literalText("No monsters slain yet."),
     val dropPrompt: TextBlock = literalText("Drop what?"),
     val dropEmptySlot: TextBlock = literalText("Nothing to drop."),
     val dropAborted: TextBlock = literalText("Aborted."),

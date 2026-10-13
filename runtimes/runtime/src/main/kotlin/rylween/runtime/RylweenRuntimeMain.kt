@@ -2087,6 +2087,8 @@ data class PartyState(
     val visitedNpcs: List<CompiledNpcVisit>,
     val journal: List<String>,
     val rngState: Long?,
+    /** Monsters the party has slain in battles it won, by monster. */
+    val monsterKills: Map<CompiledHandleRef, Int> = emptyMap(),
 ) {
     fun passTurn(): PartyState = copy(resources = resources.copy(timeLeft = max(0, resources.timeLeft - 1)))
 
