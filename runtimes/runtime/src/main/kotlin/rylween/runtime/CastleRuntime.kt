@@ -419,7 +419,7 @@ internal class CastleRuntime(
     }
 
     private fun saveRuntime(runtime: RuntimeState) {
-        saveRuntimeAndShowPath(runtime, content, save, screen, log)
+        saveRuntimeForPlayer(runtime, content, systems, save, screen, log)
     }
 
     private fun seedRooms(

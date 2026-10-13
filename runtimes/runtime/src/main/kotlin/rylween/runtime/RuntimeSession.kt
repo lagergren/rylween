@@ -5,6 +5,7 @@ package rylween.runtime
 import rylween.compiled.CompiledContentBundle
 import rylween.compiled.CompiledGameBundle
 import rylween.compiled.ExternalRuntimeSystems
+import rylween.dsl.AudioCue
 import rylween.terminal.AnsiTerminal
 import java.io.File
 import java.time.LocalDate
@@ -32,20 +33,41 @@ internal data class RuntimeLoopContext(
     val log: RuntimeLog,
 )
 
-internal fun saveRuntimeAndShowPath(
+/**
+ * Saves the game when the player asks to, in any mode: shows the authored saving text, writes the save, then shows
+ * the done text, or the failed text when the write fails. A failed save is logged and play goes on. Players never
+ * see where the save is stored; the log records it.
+ */
+internal fun saveRuntimeForPlayer(
     runtime: RuntimeState,
     content: CompiledContentBundle,
+    systems: ExternalRuntimeSystems,
     save: RuntimeSaveContext,
     screen: RuntimeScreenPort,
     log: RuntimeLog,
 ) {
-    save.write(runtime, content)
-    log.event(
-        "runtime.save user=${save.userId} file=${save.file.path} " +
-            "position=${runtime.party.position.x},${runtime.party.position.y} mode=${runtime.currentMode}",
-    )
-    screen.writeText(runtimeGeneratedDetailText(save.file.path))
+    val prompts = systems.prompts.save
+    screen.writeText(prompts.saving.render({ null }, screen.textColumns))
+    val saved = persistRuntimeOrLogFailure(runtime, content, save, log, "command")
+    if (saved) RuntimeAudio(systems.audio, screen).cue(AudioCue.GameSaved)
+    screen.appendText((if (saved) prompts.done else prompts.failed).render({ null }, screen.textColumns))
 }
+
+/** Writes the save like [persistRuntime], but logs a failed write instead of throwing. Returns whether it worked. */
+internal fun persistRuntimeOrLogFailure(
+    runtime: RuntimeState,
+    content: CompiledContentBundle,
+    save: RuntimeSaveContext,
+    log: RuntimeLog,
+    reason: String,
+): Boolean =
+    try {
+        persistRuntime(runtime, content, save, log, reason)
+        true
+    } catch (error: Exception) {
+        log.failure("runtime.save.failed reason=$reason user=${save.userId} file=${save.file.path} mode=${runtime.currentMode}", error)
+        false
+    }
 
 /** Programmatic configuration for one interactive runtime session. */
 data class RuntimeSessionConfig(

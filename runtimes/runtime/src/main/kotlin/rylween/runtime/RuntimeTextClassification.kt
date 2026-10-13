@@ -14,5 +14,5 @@ internal fun runtimeDiagnosticText(vararg lines: String): List<String> = lines.t
 /** Runtime shell/chrome text that belongs to the host rather than the game world. */
 internal fun runtimeChromeText(vararg lines: String): List<String> = lines.toList()
 
-/** Generated operational detail such as the save-file path. */
+/** Generated operational detail such as the key a player pressed. */
 internal fun runtimeGeneratedDetailText(vararg lines: String): List<String> = lines.toList()
