@@ -283,6 +283,7 @@ internal class ScriptExecutor(
                             postDungeon = context.continuationAfter(instructionIndex, instructionCount),
                             log = log,
                         )
+                    runtime.showDungeonHandoff(content, systems, input, screen)
                 }
 
             CompiledOpcode.ConsumeActiveItem ->
@@ -345,6 +346,7 @@ internal class ScriptExecutor(
                                 postDungeon = context.continuationAfter(instructionIndex, instructionCount),
                                 log = log,
                             )
+                    runtime.showDungeonHandoff(content, systems, input, screen)
                 }
 
             CompiledOpcode.GrantReward ->

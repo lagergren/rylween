@@ -358,6 +358,7 @@ internal class WildernessActions(
                 levels = depth.value,
                 log = log,
             )
+        next.showDungeonHandoff(content, systems, input, screen)
         return WildernessActionResult(next)
     }
 
