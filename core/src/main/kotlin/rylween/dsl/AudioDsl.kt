@@ -87,6 +87,15 @@ enum class AudioCue {
     GameSaved,
     Quit,
     PageTurn,
+
+    /** Played by the browser client itself when the pointer moves to another menu choice. */
+    MenuMove,
+
+    /** Played by the browser client itself when a menu choice is clicked. */
+    MenuSelect,
+
+    /** Played by the browser client itself when a popover or menu is closed. */
+    MenuBack,
 }
 
 /** Places whose background music the runtime picks. Scenes, dungeons and castles can override it. */

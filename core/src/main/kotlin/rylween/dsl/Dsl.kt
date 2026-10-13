@@ -169,6 +169,10 @@ class ScriptScope(
 
     fun showBackdrop(image: ImageId): Unit = view.showBackdrop(image)
 
+    fun playSound(sound: SoundId): Unit = view.playSound(sound)
+
+    fun playMusic(music: MusicId): Unit = view.playMusic(music)
+
     fun statusLine(): Unit = view.statusLine()
 
     fun let(

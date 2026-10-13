@@ -1302,22 +1302,26 @@ private class ExternalBundleArtifactWriter {
             "cues" to idLists(audio.cues.map { it.cue.name to it.sounds }),
             "items" to
                 jsonObject(
-                    *audio.items.sortedBy { it.item.slug }.map { item ->
-                        item.item.slug to
-                            jsonObject(
-                                "hit" to ids(item.hit),
-                                "miss" to ids(item.miss),
-                                "ready" to ids(item.ready),
-                                "unready" to ids(item.unready),
-                                "struck" to ids(item.struck),
-                            )
-                    }.toTypedArray(),
+                    *audio.items
+                        .sortedBy { it.item.slug }
+                        .map { item ->
+                            item.item.slug to
+                                jsonObject(
+                                    "hit" to ids(item.hit),
+                                    "miss" to ids(item.miss),
+                                    "ready" to ids(item.ready),
+                                    "unready" to ids(item.unready),
+                                    "struck" to ids(item.struck),
+                                )
+                        }.toTypedArray(),
                 ),
             "monsters" to
                 jsonObject(
-                    *audio.monsters.sortedBy { it.monster.slug }.map { monster ->
-                        monster.monster.slug to jsonObject("attack" to ids(monster.attack), "death" to ids(monster.death))
-                    }.toTypedArray(),
+                    *audio.monsters
+                        .sortedBy { it.monster.slug }
+                        .map { monster ->
+                            monster.monster.slug to jsonObject("attack" to ids(monster.attack), "death" to ids(monster.death))
+                        }.toTypedArray(),
                 ),
             "spells" to idLists(audio.spells.map { it.spell.slug to it.sounds }),
             "itemUses" to idLists(audio.itemUses.map { it.item.slug to it.sounds }),
@@ -2868,11 +2872,20 @@ private class ExternalRuntimeSystemsReader(
     }
 
     private fun JsonObject.readAudio(): ExternalRuntimeAudio {
-        fun JsonValue.ids(label: String): List<String> = (this as? JsonArray)?.values?.map { it.asString(label) } ?: error("expected array for $label")
+        fun JsonValue.ids(label: String): List<String> =
+            (this as? JsonArray)?.values?.map { it.asString(label) } ?: error("expected array for $label")
 
-        fun JsonObject.idLists(label: String): Map<String, List<String>> = entries.associate { (key, value) -> key to value.ids("$label $key") }
+        fun JsonObject.idLists(label: String): Map<String, List<String>> =
+            entries.associate { (key, value) ->
+                key to
+                    value.ids("$label $key")
+            }
 
-        fun JsonObject.musicMap(label: String): Map<String, String> = entries.associate { (key, value) -> key to value.asString("$label $key") }
+        fun JsonObject.musicMap(label: String): Map<String, String> =
+            entries.associate { (key, value) ->
+                key to
+                    value.asString("$label $key")
+            }
 
         fun JsonArray.assets(label: String): List<ExternalAudioAsset> =
             values.map { value ->
@@ -2899,7 +2912,11 @@ private class ExternalRuntimeSystemsReader(
             monsters =
                 requiredObject("monsters").entries.associate { (monster, value) ->
                     val row = value.asObject("monster sounds $monster")
-                    monster to ExternalMonsterSounds(attack = row.required("attack").ids("monster attack"), death = row.required("death").ids("monster death"))
+                    monster to
+                        ExternalMonsterSounds(
+                            attack = row.required("attack").ids("monster attack"),
+                            death = row.required("death").ids("monster death"),
+                        )
                 },
             spells = requiredObject("spells").idLists("spell sound"),
             itemUses = requiredObject("itemUses").idLists("item use sound"),

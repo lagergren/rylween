@@ -41,6 +41,9 @@ val authoredRylween: RylweenModel =
         // Static content is the compiled game definition: catalogs, maps,
         // reusable system rules, scripts, and all player-visible prose.
         content {
+            // Sound effects, music and ambient loops live in RylweenAudio.kt.
+            include(rylweenAudio)
+
             // Metadata names the universe/version used in bundle compatibility
             // checks and save-file identity.
             metadata {
@@ -1673,6 +1676,7 @@ val authoredRylween: RylweenModel =
                             "(L)eave",
                         ) {
                             option('O') {
+                                playSound(Sounds.Explore.chestOpen)
                                 realm.levelCleared set true
                                 localInt(4) { trapChance ->
                                     localInt(0) { thiefFound ->
@@ -1696,6 +1700,7 @@ val authoredRylween: RylweenModel =
                                             pause600ms()
                                             choose(random(0..2)) {
                                                 case(0) {
+                                                    playSound(Sounds.Explore.trapGas)
                                                     writeText("Poisonous gas hisses out through hidden holes.")
                                                     pause1500ms()
                                                     writeText("The party coughs and retches.")
@@ -1703,11 +1708,13 @@ val authoredRylween: RylweenModel =
                                                     writeText("Finally. The gas clears.")
                                                 }
                                                 case(1) {
+                                                    playSound(Sounds.Explore.trapPit)
                                                     writeText("A spiked pitfall opens in the floor beneath you.")
                                                     pause1500ms()
                                                     writeText("You climb out of it, badly wounded.")
                                                 }
                                                 case(2) {
+                                                    playSound(Sounds.Explore.trapBoulder)
                                                     writeText("A large boulder drops from above!!!")
                                                     pause1500ms()
                                                     writeText("Badly bruised, you try to stand up again.")
@@ -1779,9 +1786,11 @@ val authoredRylween: RylweenModel =
                             acceptedInputs = acceptedText("water"),
                             maxLength = 15,
                             onAccepted = {
+                                playSound(Sounds.Explore.riddleRight)
                                 showTextAndWait("- Well done. Pass.")
                             },
                             onRejected = {
+                                playSound(Sounds.Explore.riddleWrong)
                                 showTextAndWait(
                                     """
                                     - FOOLS! Meet thy doom! At a gesture from him,
@@ -1820,9 +1829,11 @@ val authoredRylween: RylweenModel =
                             acceptedInputs = acceptedText("night", "darkness"),
                             maxLength = 15,
                             onAccepted = {
+                                playSound(Sounds.Explore.riddleRight)
                                 showTextAndWait("- Well done. Pass.")
                             },
                             onRejected = {
+                                playSound(Sounds.Explore.riddleWrong)
                                 showTextAndWait(
                                     """
                                     - FOOLS! Meet thy doom! At a gesture from him,
@@ -1861,9 +1872,11 @@ val authoredRylween: RylweenModel =
                             acceptedInputs = acceptedText("well", "a well"),
                             maxLength = 15,
                             onAccepted = {
+                                playSound(Sounds.Explore.riddleRight)
                                 showTextAndWait("- Well done. Pass.")
                             },
                             onRejected = {
+                                playSound(Sounds.Explore.riddleWrong)
                                 showTextAndWait(
                                     """
                                     - FOOLS! Meet thy doom! At a gesture from him,
@@ -2196,6 +2209,7 @@ val authoredRylween: RylweenModel =
                                 while the others form a circle around him to protect him.
                                 """,
                             )
+                            playSound(Sounds.Explore.explosion)
                             showTextAndWait(
                                 """
                                 Suddenly there is an ear-splitting bang and a ghastly
@@ -3917,6 +3931,7 @@ val authoredRylween: RylweenModel =
                     nothing but...
                     """,
                 )
+                playSound(Sounds.Combat.monsterDissolve)
                 writeText("dust...")
                 writeText(
                     """
@@ -3982,6 +3997,7 @@ val authoredRylween: RylweenModel =
                                 accepting = MemberChoiceFilter.Any,
                             ) { m ->
                                 whenever(m.dead) {
+                                    playSound(Sounds.Town.thrownOut)
                                     writeText("- GET THAT CORPSE OUTTA HERE! (You are thrown out).")
                                     pause1500ms()
                                     breakLoop("corpse exits the church service")
@@ -4009,6 +4025,7 @@ val authoredRylween: RylweenModel =
                                                 paid = {
                                                     clearText()
                                                     m.hp set m.maxHp
+                                                    playSound(Sounds.Spell.heal)
                                                     writeText {
                                                         line("The priestess heals")
                                                         line(pronoun(m, PronounCase.Object), " fully.")
@@ -4057,6 +4074,7 @@ val authoredRylween: RylweenModel =
                                                 paid = {
                                                     m.mp set m.wisdom
                                                     clearText()
+                                                    playSound(Sounds.Spell.mana)
                                                     writeText {
                                                         line("The priestess restores")
                                                         line(pronoun(m, PronounCase.Possessive), " energy.")
@@ -4105,6 +4123,7 @@ val authoredRylween: RylweenModel =
                                                 m.dead set false
                                                 party.memberCount += 1
                                                 clearText()
+                                                playSound(Sounds.Spell.rebirth)
                                                 writeText {
                                                     line("The priestess raises")
                                                     line(pronoun(m, PronounCase.Object), ".")
@@ -4276,6 +4295,7 @@ val authoredRylween: RylweenModel =
                                     },
                                     ok = {
                                         clearText()
+                                        playSound(Sounds.Town.meal)
                                         writeText(
                                             """
                                             You are served a tasty dinner.
@@ -4317,6 +4337,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
+                                                playSound(Sounds.Town.drink)
                                                 writeText("Ahh...!")
                                                 pause1s()
                                                 healLivingMembers((lit(2) / 2) + 1)
@@ -4333,6 +4354,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
+                                                playSound(Sounds.Town.drink)
                                                 writeText("Ahh...!")
                                                 pause1s()
                                                 healLivingMembers((lit(3) / 2) + 1)
@@ -4349,6 +4371,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
+                                                playSound(Sounds.Town.drink)
                                                 writeText("Ahh...!")
                                                 pause1s()
                                                 healLivingMembers((lit(5) / 2) + 1)
@@ -4365,6 +4388,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
+                                                playSound(Sounds.Town.drink)
                                                 writeText("Ahh...!")
                                                 pause1s()
                                                 healLivingMembers((lit(7) / 2) + 1)
@@ -4413,6 +4437,7 @@ val authoredRylween: RylweenModel =
                                             cost,
                                             broke = {
                                                 clearText()
+                                                playSound(Sounds.Town.thrownOut)
                                                 writeText("- AHA! No gold! You are thrown out.")
                                                 pause2s()
                                                 clearMapWindow()
@@ -4422,6 +4447,7 @@ val authoredRylween: RylweenModel =
                                                 clearText()
                                                 writeText("You go to bed...")
                                                 pause1s()
+                                                playSound(Sounds.Explore.rest)
                                                 writeText("Zzzz...")
                                                 party.restedHours set 14
                                                 pause1500ms()
@@ -4668,6 +4694,7 @@ val authoredRylween: RylweenModel =
                                         }
                                         pause2s()
 
+                                        playSound(Sounds.Town.crowdCheer)
                                         writeText("- YEAAH! Roars the crowd!")
                                         pause2s()
 
@@ -4699,6 +4726,7 @@ val authoredRylween: RylweenModel =
                                                         clearText()
                                                         writeText("- Out with the liar!")
                                                         pause2s()
+                                                        playSound(Sounds.Town.thrownOut)
                                                         writeText("You are thrown out.")
                                                         whenever(storyteller.charisma gte 10) {
                                                             storyteller.charisma -= 10
@@ -4816,6 +4844,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
+                                                playSound(Sounds.Town.drink)
                                                 writeText("AAH! (your health returns).")
                                                 pause1s()
                                                 forEachMember(includeDead = true) {
@@ -4834,6 +4863,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
+                                                playSound(Sounds.Town.drink)
                                                 writeText("AAH! (your health returns).")
                                                 pause1s()
                                                 forEachMember(includeDead = true) {
@@ -4852,6 +4882,7 @@ val authoredRylween: RylweenModel =
                                             },
                                             ok = {
                                                 clearText()
+                                                playSound(Sounds.Town.drink)
                                                 writeText("AAH! (your health returns).")
                                                 pause1s()
                                                 forEachMember(includeDead = true) {
@@ -4896,6 +4927,7 @@ val authoredRylween: RylweenModel =
                     // Flow-mode demo: designer writes natural prose, the wrap
                     // helper splits to fit the text-window width. Paragraphs are
                     // separated by blank lines.
+                    playSound(Sounds.Explore.locked)
                     writeText(
                         """
                         Sorry. The Adventurers' Guild is permanently closed for renovation.
@@ -4921,6 +4953,7 @@ val authoredRylween: RylweenModel =
                 clearMapWindow()
                 showBackdrop(Images.Scene.hut)
                 clearText()
+                playSound(Sounds.Explore.doorOpen)
                 writeText("You enter the hut.")
                 pause600ms()
 

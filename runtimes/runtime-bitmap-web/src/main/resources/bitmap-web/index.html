@@ -37,6 +37,17 @@
       <aside id="preferencesPopover" class="preferences-popover" hidden aria-label="Preferences">
         <h2>Preferences</h2>
         <label class="preference-check">
+          <input id="soundToggle" type="checkbox" checked>
+          <span>Sound</span>
+        </label>
+        <div class="preference-range">
+          <label for="soundVolume">
+            <span>Volume</span>
+            <output id="soundVolumeValue">70%</output>
+          </label>
+          <input id="soundVolume" type="range" min="0" max="100" step="5" value="70">
+        </div>
+        <label class="preference-check">
           <input id="textRevealToggle" type="checkbox">
           <span>Text reveal</span>
         </label>
@@ -77,6 +88,6 @@
       <div id="canvasTooltip" class="canvas-tooltip" hidden></div>
     </section>
   </main>
-  <script src="/static/client.js?v=20260607-view-select"></script>
+  <script src="/static/client.js?v=20261013-audio"></script>
 </body>
 </html>

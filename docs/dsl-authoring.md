@@ -7,7 +7,10 @@ server runtime.
 The current authoring source is regular Kotlin:
 
 - `game/src/main/kotlin/rylween/game/RylweenGame.kt` contains the game content,
-  scripts, runtime-system text, fixtures, and asset declarations.
+  scripts, runtime-system text, fixtures, and image declarations.
+- `game/src/main/kotlin/rylween/game/RylweenAudio.kt` declares the sound
+  effects, music, and ambient loops, and is pulled into the game with
+  `include(...)`.
 - `core/src/main/kotlin/rylween/dsl` contains the reusable DSL, validation, and
   source-script IR.
 - `core/src/main/kotlin/rylween/compiled` lowers the authored model into the
@@ -48,6 +51,7 @@ The top-level opening tags are nested like this in the current game source:
 ```text
 rylween
   content
+    include(section)
     metadata
     limits
     flags
@@ -55,6 +59,9 @@ rylween
     visuals
       images
       staticScreens
+    audio
+      sounds / music / cue / item / monster / spell / itemUse / step
+      area / scene / dungeon / castle
     layouts
     terrain
     terminal
@@ -399,6 +406,85 @@ worldMap(Maps.wilderness) {
 
 Map dimensions and cell counts are derived from the rows. Do not duplicate them
 with separate width, height, capacity, or cell-count declarations.
+
+### Content In Its Own File
+
+Any part of `content { ... }` can live in its own source file under
+`game/src/main/kotlin/rylween/game` as a `gameSection`, and be pulled in with
+`include(...)`. A section uses the same blocks as `content`, and applies exactly
+where it is included. Blocks that add up, such as `visuals` and `audio`, can be
+continued from several sections.
+
+```kotlin
+// RylweenAudio.kt
+val rylweenAudio: GameSection =
+    gameSection {
+        audio { ... }
+    }
+
+// RylweenGame.kt
+content {
+    include(rylweenAudio)
+    ...
+}
+```
+
+The handle generator reads every file in that directory, so handles such as
+`Sounds.Combat.miss1` used only in a section are generated too.
+
+### Sound And Music
+
+Sounds are one-shot effects; music tracks are seamless loops, which covers
+background music and ambient loops alike. Files live under
+`game/src/main/resources/audio` and may be MP3, Ogg, WAV, or M4A; the game ships
+MP3 because every browser can decode it. `support/audio` synthesizes the
+shipped files: run `uv run --project support/audio support/audio/render_all.py`
+from the repository root.
+
+```kotlin
+audio {
+    sounds("audio/sfx/combat") {
+        sound(Sounds.Combat.miss1, "miss-1.mp3")
+        sound(Sounds.Combat.hitSlash1, "hit-slash-1.mp3")
+    }
+    music("audio/music") {
+        track(Music.wildernessDay, "wilderness-day.mp3")
+        track(Music.wildernessNight, "wilderness-night.mp3")
+    }
+
+    // Engine events; several sounds play in rotation.
+    cue(AudioCue.PlayerMiss, Sounds.Combat.miss1, Sounds.Combat.miss2)
+
+    // Per-item, per-monster, per-spell and per-terrain sounds replace the
+    // generic cue for that event.
+    item(Items.sword) {
+        hit(Sounds.Combat.hitSlash1)
+        ready(Sounds.Item.readyBlade)
+    }
+    monster(Monsters.worg) { attack(Sounds.Combat.monsterBite) }
+    spell(Spells.Mage.frost, Sounds.Spell.frost)
+    itemUse(Items.redPotion, Sounds.Spell.heal)
+    step(Terrain.forest, Sounds.Explore.stepForest)
+
+    // Music by place; a track with hours wins during those hours.
+    area(MusicArea.Wilderness, Music.wildernessDay)
+    area(MusicArea.Wilderness, Music.wildernessNight, fromHour = 18, toHour = 5)
+    scene(Scenes.Towne.tavern, Music.tavernCrowd)
+    dungeon(Dungeons.thunTemple, Music.temple)
+}
+```
+
+Scripts can play sounds and change the music themselves:
+
+```kotlin
+playSound(Sounds.Explore.chestOpen)
+playMusic(Music.ending)
+```
+
+Validation rejects undeclared sound or music ids, unknown items, monsters,
+spells, terrain, scenes, dungeons and castles, duplicate declarations, and hours
+outside 0..23. Runtimes that cannot play audio ignore it; the bitmap web runtime
+plays it in the browser, with a Sound switch and a volume slider in Preferences.
 
 ### Dungeon Event
 

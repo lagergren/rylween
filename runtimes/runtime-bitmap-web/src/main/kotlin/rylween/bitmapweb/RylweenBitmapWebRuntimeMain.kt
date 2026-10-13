@@ -468,9 +468,19 @@ private class BitmapWebServer(
                 } else if (request.path.startsWith("/assets/game-image/")) {
                     serveBundleBitmapImage(socket, urlDecode(request.path.removePrefix("/assets/game-image/")), clientId)
                 } else if (request.path.startsWith(BitmapAudioCatalog.SOUND_ROUTE)) {
-                    serveAudio(socket, audioCatalog.sound(urlDecode(request.path.removePrefix(BitmapAudioCatalog.SOUND_ROUTE))), request.path, clientId)
+                    serveAudio(
+                        socket,
+                        audioCatalog.sound(urlDecode(request.path.removePrefix(BitmapAudioCatalog.SOUND_ROUTE))),
+                        request.path,
+                        clientId,
+                    )
                 } else if (request.path.startsWith(BitmapAudioCatalog.MUSIC_ROUTE)) {
-                    serveAudio(socket, audioCatalog.music(urlDecode(request.path.removePrefix(BitmapAudioCatalog.MUSIC_ROUTE))), request.path, clientId)
+                    serveAudio(
+                        socket,
+                        audioCatalog.music(urlDecode(request.path.removePrefix(BitmapAudioCatalog.MUSIC_ROUTE))),
+                        request.path,
+                        clientId,
+                    )
                 } else if (request.path.startsWith("/assets/")) {
                     serveAsset(socket, request.path.removePrefix("/assets/"), clientId)
                 } else {

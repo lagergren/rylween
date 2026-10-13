@@ -5,6 +5,8 @@
 **/.kotlin/
 **/build/
 **/node_modules/
+**/.venv/
+**/__pycache__/
 
 # Editor / local tool state.
 .DS_Store

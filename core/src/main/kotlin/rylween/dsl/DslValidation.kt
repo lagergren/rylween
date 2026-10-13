@@ -2591,11 +2591,17 @@ private val audioResourceExtensions = setOf("mp3", "ogg", "wav", "m4a")
 
 private fun validateAudio(content: GameModel) {
     val audio = content.audio
+
     fun <T> checkUnique(
         values: List<T>,
         label: String,
     ) {
-        val duplicates = values.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+        val duplicates =
+            values
+                .groupingBy { it }
+                .eachCount()
+                .filterValues { it > 1 }
+                .keys
         check(duplicates.isEmpty()) { "duplicate $label: ${duplicates.joinToString()}" }
     }
     checkUnique(audio.sounds.map { it.id.slug }, "sound")
@@ -2605,6 +2611,7 @@ private fun validateAudio(content: GameModel) {
 
     val sounds = audio.sounds.map { it.id }.toSet()
     val music = audio.music.map { it.id }.toSet()
+
     fun checkSounds(
         ids: List<SoundId>,
         label: String,
@@ -2647,7 +2654,10 @@ private fun validateAudio(content: GameModel) {
         check(use.item in items) { "item use sound references unknown item ${use.item.slug}" }
         checkSounds(use.sounds, "item use ${use.item.slug} sound")
     }
-    val terrain = content.terrain.terrain.map { it.id.slug }.toSet()
+    val terrain =
+        content.terrain.terrain
+            .map { it.id.slug }
+            .toSet()
     checkUnique(audio.steps.map { it.terrain.slug }, "step sound")
     audio.steps.forEach { step ->
         check(step.terrain.slug in terrain) { "step sound references unknown terrain ${step.terrain.slug}" }
@@ -2667,7 +2677,10 @@ private fun validateAudio(content: GameModel) {
         check(scene.scene in scenes) { "scene music references unknown scene ${scene.scene.slug}" }
         checkMusic(scene.music, "scene ${scene.scene.slug} music")
     }
-    val dungeons = content.dungeons.scenarios.map { it.dungeon }.toSet()
+    val dungeons =
+        content.dungeons.scenarios
+            .map { it.dungeon }
+            .toSet()
     checkUnique(audio.dungeons.map { it.dungeon.slug }, "dungeon music")
     audio.dungeons.forEach { dungeon ->
         check(dungeon.dungeon in dungeons) { "dungeon music references unknown dungeon ${dungeon.dungeon.slug}" }

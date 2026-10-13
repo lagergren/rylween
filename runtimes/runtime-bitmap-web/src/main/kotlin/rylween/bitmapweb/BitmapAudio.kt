@@ -26,17 +26,26 @@ internal data class BitmapAudioFile(
 internal class BitmapAudioCatalog private constructor(
     private val sounds: Map<String, BitmapAudioFile>,
     private val music: Map<String, BitmapAudioFile>,
+    private val menuCues: Map<String, List<String>>,
 ) {
     fun sound(id: String): BitmapAudioFile? = sounds[id]
 
     fun music(id: String): BitmapAudioFile? = music[id]
 
-    /** The `audio` message that tells a client where each sound and track can be fetched. */
+    /**
+     * The `audio` message that tells a client where each sound and track can be
+     * fetched, and which sounds it plays itself for menu pointer moves, clicks
+     * and closing popovers.
+     */
     fun catalogJson(): String =
         jsonObject(
             "type" to "audio".json(),
             "sounds" to urlsJson(sounds.values, SOUND_ROUTE),
             "music" to urlsJson(music.values, MUSIC_ROUTE),
+            "cues" to
+                menuCues.entries.sortedBy { it.key }.joinToString(prefix = "{", postfix = "}", separator = ",") { (cue, ids) ->
+                    "${cue.json()}:${ids.jsonArray()}"
+                },
         )
 
     private fun urlsJson(
@@ -50,6 +59,7 @@ internal class BitmapAudioCatalog private constructor(
     companion object {
         const val SOUND_ROUTE = "/assets/game-sound/"
         const val MUSIC_ROUTE = "/assets/game-music/"
+        private const val MENU_CUE_PREFIX = "Menu"
 
         /** Loads the catalog and fails fast when a declared file is missing or has an unsupported type. */
         fun load(
@@ -64,7 +74,8 @@ internal class BitmapAudioCatalog private constructor(
                         }
                     asset.id to BitmapAudioFile(asset.id, asset.resource, audioContentType(asset), bytes.shortHash())
                 }
-            return BitmapAudioCatalog(files(audio.sounds), files(audio.music))
+            val menuCues = audio.cues.filterKeys { cue -> cue.startsWith(MENU_CUE_PREFIX) }
+            return BitmapAudioCatalog(files(audio.sounds), files(audio.music), menuCues)
         }
 
         private fun audioContentType(asset: ExternalAudioAsset): String =

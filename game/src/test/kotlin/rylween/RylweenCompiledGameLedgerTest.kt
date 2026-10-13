@@ -4,6 +4,7 @@ import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
 import rylween.compiled.readExternalRuntimeSystems
 import rylween.compiled.toExternalBundleArtifact
+import rylween.dsl.AudioCue
 import rylween.dsl.BoolAst
 import rylween.dsl.BuildingId
 import rylween.dsl.DungeonEventDisposition
@@ -12,6 +13,7 @@ import rylween.dsl.InputAliases
 import rylween.dsl.IntAst
 import rylween.dsl.ItemPoolId
 import rylween.dsl.MonsterId
+import rylween.dsl.MusicArea
 import rylween.dsl.NativeAllowlist
 import rylween.dsl.ScriptStatementNode
 import rylween.dsl.SpellId
@@ -80,6 +82,7 @@ import rylween.game.Maps
 import rylween.game.Milestones
 import rylween.game.Missions
 import rylween.game.Monsters
+import rylween.game.Music
 import rylween.game.NpcJobs
 import rylween.game.NpcRoles
 import rylween.game.Npcs
@@ -114,7 +117,7 @@ class RylweenCompiledGameLedgerTest {
         val externalBundleText = externalBundle.decodeToString()
         val runtimeSystems = externalBundle.readExternalRuntimeSystems()
 
-        check(runtimeSystems.schemaVersion == 9)
+        check(runtimeSystems.schemaVersion == 10)
         check("\"dexterity\"" in externalBundleText)
         check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 14)
@@ -974,8 +977,12 @@ class RylweenCompiledGameLedgerTest {
         )
         check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.ogreCave }.fixedLevelEvents[7] == DungeonEvents.tammysPrison)
         check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.erethorTemple }.fixedLevelEvents[12] == DungeonEvents.luteChamber)
-        check(dungeonSystem.events.single { it.id == DungeonEvents.hobgoblinPatrol }.disposition == DungeonEventDisposition.RecurringUntilWon)
-        check(dungeonSystem.events.single { it.id == DungeonEvents.erethorPriests }.disposition == DungeonEventDisposition.RecurringUntilWon)
+        check(
+            dungeonSystem.events.single { it.id == DungeonEvents.hobgoblinPatrol }.disposition == DungeonEventDisposition.RecurringUntilWon,
+        )
+        check(
+            dungeonSystem.events.single { it.id == DungeonEvents.erethorPriests }.disposition == DungeonEventDisposition.RecurringUntilWon,
+        )
         check(
             dungeonSystem.events
                 .single { it.id == DungeonEvents.luteChamber }
@@ -3060,6 +3067,37 @@ class RylweenCompiledGameLedgerTest {
         check("../docs/dsl-authoring.md" in gameReadme && "../docs/dsl-authoring.md" in coreReadme) {
             "module READMEs must link the DSL authoring guide"
         }
+    }
+
+    @Test
+    fun audioIsPackagedAndMapped() {
+        val audio =
+            RylweenCompiledGame.nextRylween
+                .toExternalBundleArtifact()
+                .readExternalRuntimeSystems()
+                .audio
+
+        (audio.sounds + audio.music).forEach { asset ->
+            check(File("game/src/main/resources/${asset.resource}").isFile) { "audio ${asset.id} must be packaged at ${asset.resource}" }
+        }
+        check(audio.sounds.size == 151) { "expected 151 sounds, was ${audio.sounds.size}" }
+        check(audio.music.size == 18) { "expected 18 music and ambience tracks, was ${audio.music.size}" }
+        val unmappedCues = AudioCue.entries.map { it.name }.filterNot(audio.cues::containsKey)
+        check(unmappedCues.isEmpty()) { "every engine cue needs a sound: $unmappedCues" }
+        check(
+            audio.items
+                .getValue(Items.sword.slug)
+                .hit.size == 3,
+        )
+        check(
+            audio.items
+                .getValue(Items.plateMail.slug)
+                .struck
+                .isNotEmpty(),
+        )
+        check(audio.spells.keys.containsAll(RylweenCompiledGame.nextDsl.spells.map { it.id.slug })) { "every spell needs a sound" }
+        check(audio.scenes.getValue(Scenes.Towne.church.slug) == Music.churchChant.slug)
+        check(audio.areas.any { it.area == MusicArea.Wilderness.name && it.fromHour == 18 && it.toHour == 5 })
     }
 }
 

@@ -18,3 +18,7 @@ node_modules/
 
 # Local compose settings; may hold account passwords.
 .env
+
+# Python tooling (support/audio)
+__pycache__/
+.venv/
