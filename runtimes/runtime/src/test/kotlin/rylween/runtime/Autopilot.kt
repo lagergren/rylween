@@ -280,7 +280,7 @@ internal class Autopilot(
 
     private fun startTownVisit(state: RuntimeState): AutopilotTownVisit =
         AutopilotTownVisit(
-            errands = plan.townErrands(state) + tour.townErrands(state),
+            errands = (plan.townErrands(state) + tour.townErrands(state)).filter { errand -> content.serviceOpenAt(errand.service, state.hour) },
             readyOnLeave = { gear -> plan.readyOnLeave(latest ?: state, gear) },
             coverage = coverage,
             party = party,

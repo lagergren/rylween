@@ -3128,6 +3128,7 @@ private fun validateGamePacing(pacing: GamePacingModel) {
         "character creation save-confirmation pause must not be negative"
     }
     check(pacing.shop.interludePagePauseMs >= 0) { "shop interlude-page pause must not be negative" }
+    check(pacing.shop.noticePauseMs >= 0) { "shop notice pause must not be negative" }
     check(pacing.speak.promptReplyPauseMs >= 0) { "speak prompt-reply pause must not be negative" }
     check(pacing.speak.responsePauseMs >= 0) { "speak response pause must not be negative" }
     check(pacing.wilderness.campMessagePauseMs >= 0) { "wilderness camp-message pause must not be negative" }

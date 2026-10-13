@@ -9,6 +9,17 @@
 
 package rylween.runtime
 
+import rylween.compiled.CompiledContentBundle
+
+/**
+ * Whether the town service [service], named as its menu entry such as "Smith", is open at [hour], by its building's
+ * authored hours. Services without hours are always open.
+ */
+internal fun CompiledContentBundle.serviceOpenAt(
+    service: String,
+    hour: Int,
+): Boolean = buildingServices.firstOrNull { building -> slug(building.building) == service.lowercase() }?.isOpenAt(hour) ?: true
+
 /** Something to get done inside a town. */
 internal sealed interface AutopilotErrand {
     /** The town menu entry that leads to this errand, such as "Church". */

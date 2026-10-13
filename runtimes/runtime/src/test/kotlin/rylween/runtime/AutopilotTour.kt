@@ -91,7 +91,7 @@ internal class AutopilotTour(
         fun pending(pastime: String): Boolean = !coverage.used(AutopilotCoverage.PASTIME, pastime)
 
         return buildList {
-            if ("tavern" in services && state.hour !in tavernClosedHours) {
+            if ("tavern" in services) {
                 listOf("tavern drink", "tavern story", "tavern rumors").filter(::pending).forEach { pastime -> add(AutopilotErrand.Pastime(pastime, "Tavern")) }
                 val bargirl =
                     content.characters.any { character ->
@@ -251,7 +251,6 @@ internal class AutopilotTour(
         const val BARGIRL = "bargirl"
         const val UPSTAIRS_PRICE_PER_LEVEL = 50
         const val PASTIME_GOLD = 300
-        val tavernClosedHours = 2..5
     }
 }
 
