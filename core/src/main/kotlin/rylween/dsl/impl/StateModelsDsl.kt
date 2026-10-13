@@ -35,7 +35,7 @@ enum class Facing { North, East, South, West }
 
 enum class StateKind { AuthoredFixture, RuntimeSnapshot }
 
-const val InventorySaveSlotMax: Int = 16
+const val INVENTORY_SAVE_SLOT_MAX: Int = 16
 
 data class StatPool(
     val current: Int,

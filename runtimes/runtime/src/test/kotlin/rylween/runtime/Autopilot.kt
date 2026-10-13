@@ -232,7 +232,7 @@ internal class Autopilot(
         while (queue.isNotEmpty()) {
             val point = queue.removeFirst()
             if (point == target) return firstStep[point]
-            WILDERNESS_MOVES.forEach { (action, dx, dy) ->
+            wildernessMoves.forEach { (action, dx, dy) ->
                 val next = GridPoint(point.x + dx, point.y + dy)
                 if (next !in seen && world.terrainAt(next)?.passable == true) {
                     seen += next
@@ -271,7 +271,7 @@ internal class Autopilot(
     private companion object {
         const val LOOP_LIMIT = 20
 
-        val WILDERNESS_MOVES =
+        val wildernessMoves =
             listOf(
                 Triple(RuntimeCommandActionId.MoveNorth, 0, -1),
                 Triple(RuntimeCommandActionId.MoveSouth, 0, 1),

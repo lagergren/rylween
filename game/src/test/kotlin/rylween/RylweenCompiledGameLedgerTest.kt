@@ -1580,7 +1580,7 @@ class RylweenCompiledGameLedgerTest {
             "runtime must support an explicit --no-title title-screen skip"
         }
         check(
-            "TITLE_COMMAND_GROUP" in runtimeMain &&
+            "titleCommandGroup" in runtimeMain &&
                 "systems.prompts.titleMenu.header" in runtimeMain &&
                 "systems.prompts.titleMenu.continueUnavailableReasonLabel" in runtimeMain &&
                 "commands.menuLine(RuntimeCommandActionId.CreateNewParty)" in runtimeMain,

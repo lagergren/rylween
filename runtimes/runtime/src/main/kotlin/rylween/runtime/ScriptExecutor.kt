@@ -70,8 +70,8 @@ private const val SPEAK_NO_RUMOR_SCREEN = "speak.no_rumor"
 private const val SCRIPT_ROOT_KIND_DIALOGUE_BRANCH = "DialogueBranch"
 private const val SCRIPT_ROOT_KIND_QUESTION_ACTION = "QuestionAction"
 
-private val SPEAK_COMMAND_GROUP = RuntimeCommandGroupId.Speak
-private val SPEAK_QUESTION_COMMAND_GROUP = RuntimeCommandGroupId.SpeakQuestions
+private val speakCommandGroup = RuntimeCommandGroupId.Speak
+private val speakQuestionCommandGroup = RuntimeCommandGroupId.SpeakQuestions
 
 /** Executes one compiled script root against [RuntimeState]. */
 private val spacedMenuColumn = Regex("""(?<=\S) {2,}(?=\S)""")
@@ -677,7 +677,7 @@ internal class ScriptExecutor(
             val lines =
                 screen.choiceMenuLines(
                     conversation.prompts.mainMenu.renderExternal(npc),
-                    systems.commands.mnemonicMenuLines(SPEAK_COMMAND_GROUP),
+                    systems.commands.mnemonicMenuLines(speakCommandGroup),
                 )
             screen.writeText(lines)
             val command =
@@ -685,7 +685,7 @@ internal class ScriptExecutor(
                     .readValidCommandChoice(
                         screen = screen,
                         lines = lines,
-                        commands = systems.commands[SPEAK_COMMAND_GROUP.id].orEmpty(),
+                        commands = systems.commands[speakCommandGroup.id].orEmpty(),
                     )
                     ?: return ScriptSignal.StopScript
             val signal =
@@ -720,14 +720,14 @@ internal class ScriptExecutor(
         npc: CompiledCharacter,
         insideLoop: Boolean,
     ): ScriptSignal {
-        val lines = systems.commands.mnemonicMenuLines(SPEAK_QUESTION_COMMAND_GROUP)
+        val lines = systems.commands.mnemonicMenuLines(speakQuestionCommandGroup)
         screen.writeText(lines)
         val command =
             input
                 .readValidCommandChoice(
                     screen = screen,
                     lines = lines,
-                    commands = systems.commands[SPEAK_QUESTION_COMMAND_GROUP.id].orEmpty(),
+                    commands = systems.commands[speakQuestionCommandGroup.id].orEmpty(),
                 )
                 ?: return ScriptSignal.StopScript
         val topic = command.questionTopic() ?: return ScriptSignal.Continue

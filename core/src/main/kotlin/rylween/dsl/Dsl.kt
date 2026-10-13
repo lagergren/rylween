@@ -929,7 +929,7 @@ interface PartyPrompts {
     fun inventorySlot(
         prompt: TextBlock,
         firstKey: Char = 'A',
-        slots: IntRange = 1..InventorySaveSlotMax,
+        slots: IntRange = 1..INVENTORY_SAVE_SLOT_MAX,
         filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
         body: ScriptScope.(InventorySlotRef) -> Unit,
     )
@@ -1024,7 +1024,7 @@ class AskScope(
     fun inventorySlot(
         prompt: TextBlock,
         firstKey: Char = 'A',
-        slots: IntRange = 1..InventorySaveSlotMax,
+        slots: IntRange = 1..INVENTORY_SAVE_SLOT_MAX,
         filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
     ): InventorySlotRef {
         val name = script.fresh("inventory_slot")

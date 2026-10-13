@@ -74,7 +74,7 @@ import kotlin.math.max
 import kotlin.system.exitProcess
 
 private const val TITLE_SCREEN = "title"
-private val TITLE_COMMAND_GROUP = RuntimeCommandGroupId.Title.id
+private val titleCommandGroup = RuntimeCommandGroupId.Title.id
 private const val SCORE_SCREEN = "score"
 private const val HEROES_SCREEN = "heroes"
 private const val MANUAL_SCREEN = "manual"
@@ -84,8 +84,8 @@ private const val HUT_SCENE = "towne.hut"
 
 private const val TEXT_WINDOW_PAGE_LINES = 9
 private const val TOWN_MAIN_STREET_IMAGE = "blitgfx.towne_mainstreet"
-private val TOWN_COMMAND_GROUP = RuntimeCommandGroupId.Town.id
-private val TOWN_LEAVE_ACTION = RuntimeCommandActionId.LeaveTown.id
+private val townCommandGroup = RuntimeCommandGroupId.Town.id
+private val townLeaveAction = RuntimeCommandActionId.LeaveTown.id
 
 /** CLI entry point for the runtime. */
 object RylweenRuntimeMain {
@@ -748,7 +748,7 @@ class GameRuntime private constructor(
         val log = context.log
         val save = context.save
         val screen = context.screen
-        val titleCommands = systems.commands.getValue(TITLE_COMMAND_GROUP)
+        val titleCommands = systems.commands.getValue(titleCommandGroup)
 
         fun matches(
             action: RuntimeCommandActionId,
@@ -924,7 +924,7 @@ class GameRuntime private constructor(
         hasSavedGame: Boolean,
         wrapWidth: Int?,
     ): List<String> =
-        systems.commands.getValue(TITLE_COMMAND_GROUP).let { commands ->
+        systems.commands.getValue(titleCommandGroup).let { commands ->
             buildList {
                 addAll(
                     systems.prompts.titleMenu.header
@@ -1536,14 +1536,14 @@ class GameRuntime private constructor(
             screen.writeText(runtimeDiagnosticText("${string(town.nameString)} has no compiled services."))
             return runtime
         }
-        val townCommands = systems.commands.getValue(TOWN_COMMAND_GROUP)
+        val townCommands = systems.commands.getValue(townCommandGroup)
         val serviceEntries =
             services.mapNotNull { service ->
                 townCommands
                     .firstOrNull { command -> command.action == slug(service.action) }
                     ?.let { command -> TownMenuEntry(command, service, command.label ?: command.binding.label) }
             }
-        val leaveCommand = townCommands.firstOrNull { command -> command.action == TOWN_LEAVE_ACTION }
+        val leaveCommand = townCommands.firstOrNull { command -> command.action == townLeaveAction }
         if (serviceEntries.isEmpty()) {
             screen.writeText(runtimeDiagnosticText("${string(town.nameString)} has no compiled service commands."))
             return runtime
@@ -1577,7 +1577,7 @@ class GameRuntime private constructor(
                 log.event("town.invalid_choice key=$choice")
                 continue
             }
-            if (command.action == TOWN_LEAVE_ACTION) {
+            if (command.action == townLeaveAction) {
                 val readied =
                     UtilityActions(content, systems, input, screen, log)
                         .readyBeforeLeavingTown(current, systems.town?.leavePrompts.orEmpty())

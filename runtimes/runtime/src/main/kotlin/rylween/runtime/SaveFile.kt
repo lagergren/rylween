@@ -35,7 +35,7 @@ private const val PARTY_MEMBER_RECORD_COUNT = "party.members"
 private const val USERS_COUNT = "users.count"
 private const val HEROES_COUNT = "heroes.count"
 
-private val MEMBER_FIELD_KEY = Regex("""^member\.(\d+)\.""")
+private val memberFieldKey = Regex("""^member\.(\d+)\.""")
 
 /**
  * Encodes and decodes the runtime's sorted key/value save file.
@@ -872,7 +872,7 @@ internal object SaveFile {
     private fun Map<String, String>.savedMemberSlots(): Set<Int> =
         keys
             .mapNotNull { key ->
-                MEMBER_FIELD_KEY
+                memberFieldKey
                     .find(key)
                     ?.groupValues
                     ?.get(1)

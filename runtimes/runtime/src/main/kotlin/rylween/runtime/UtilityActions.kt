@@ -19,7 +19,7 @@ import rylween.compiled.CompiledSpell
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.dsl.impl.EquipmentCommand
-import rylween.dsl.impl.InventorySaveSlotMax
+import rylween.dsl.impl.INVENTORY_SAVE_SLOT_MAX
 import rylween.dsl.impl.ItemConsumePolicy
 import rylween.dsl.impl.ItemKind
 import rylween.dsl.impl.ItemStorageKind
@@ -81,7 +81,7 @@ internal class UtilityActions(
                             .renderUtility(result.runtime)
                 screen.writeText(lines)
                 val answer =
-                    input.readValidChoice(screen, lines) { key -> key.uppercaseChar() in READY_ANSWER_KEYS }
+                    input.readValidChoice(screen, lines) { key -> key.uppercaseChar() in readyAnswerKeys }
                         ?: return result
                 if (answer.uppercaseChar() != READY_YES_KEY) {
                     result = result.copy(message = emptyList())
@@ -268,7 +268,7 @@ internal class UtilityActions(
             screen = screen,
             lines = lines,
             validSlots = choices.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
-            cancelKeys = INVENTORY_CANCEL_KEYS,
+            cancelKeys = inventoryCancelKeys,
         )
 
     private fun placeLooseItem(
@@ -376,7 +376,7 @@ internal class UtilityActions(
                 screen = screen,
                 lines = lines,
                 validDigits = indexes.mapTo(mutableSetOf()) { index -> index + 1 },
-                cancelKeys = INVENTORY_CANCEL_KEYS,
+                cancelKeys = inventoryCancelKeys,
             )?.minus(1)
     }
 
@@ -468,8 +468,8 @@ private const val PRIEST_SPELL_PREFIX = "priest."
 
 // The town-leave questions offer (Y)es and (N)o, like the game's other yes/no prompts.
 private const val READY_YES_KEY = 'Y'
-private val READY_ANSWER_KEYS = setOf(READY_YES_KEY, 'N')
-private val INVENTORY_CANCEL_KEYS = setOf('\n')
+private val readyAnswerKeys = setOf(READY_YES_KEY, 'N')
+private val inventoryCancelKeys = setOf('\n')
 
 private fun String.singleRuntimeKey(label: String): Char =
     singleOrNull()?.uppercaseChar()
@@ -479,12 +479,12 @@ internal fun inventorySlotKey(slot: Int): Char = (INVENTORY_FIRST_KEY.code + slo
 
 internal fun Char.inventorySlotFromKey(): Int? {
     val slot = uppercaseChar().code - INVENTORY_FIRST_KEY.code + 1
-    return slot.takeIf { it in 1..InventorySaveSlotMax }
+    return slot.takeIf { it in 1..INVENTORY_SAVE_SLOT_MAX }
 }
 
 internal fun List<CompiledInventorySlot>.normalizedInventorySlots(): List<CompiledInventorySlot> {
-    val bySlot = filter { it.slot in 1..InventorySaveSlotMax }.associateBy(CompiledInventorySlot::slot)
-    return (1..InventorySaveSlotMax).map { slot -> bySlot[slot] ?: CompiledInventorySlot(slot, null) }
+    val bySlot = filter { it.slot in 1..INVENTORY_SAVE_SLOT_MAX }.associateBy(CompiledInventorySlot::slot)
+    return (1..INVENTORY_SAVE_SLOT_MAX).map { slot -> bySlot[slot] ?: CompiledInventorySlot(slot, null) }
 }
 
 internal fun chooseDropSlotForInventoryOverflow(
@@ -515,6 +515,6 @@ internal fun chooseDropSlotForInventoryOverflow(
         screen = screen,
         lines = slotLines,
         validSlots = party.inventory.filter { slot -> slot.item != null }.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
-        cancelKeys = INVENTORY_CANCEL_KEYS,
+        cancelKeys = inventoryCancelKeys,
     )
 }

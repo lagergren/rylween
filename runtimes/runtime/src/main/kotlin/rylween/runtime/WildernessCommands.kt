@@ -15,7 +15,7 @@ import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
 
-private val WILDERNESS_COMMAND_GROUP = RuntimeCommandGroupId.Wilderness
+private val wildernessCommandGroup = RuntimeCommandGroupId.Wilderness
 
 /** Matches runtime wilderness input against runtime-system bindings. */
 internal class WildernessCommands private constructor(
@@ -29,11 +29,11 @@ internal class WildernessCommands private constructor(
     companion object {
         fun from(
             systems: ExternalRuntimeSystems,
-            group: RuntimeCommandGroupId = WILDERNESS_COMMAND_GROUP,
+            group: RuntimeCommandGroupId = wildernessCommandGroup,
         ): WildernessCommands =
             WildernessCommands(
                 (
-                    if (group == WILDERNESS_COMMAND_GROUP) {
+                    if (group == wildernessCommandGroup) {
                         systems.commands.getValue(group.id)
                     } else {
                         systems.commands[group.id].orEmpty()

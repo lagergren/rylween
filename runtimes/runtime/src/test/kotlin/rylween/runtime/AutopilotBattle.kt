@@ -65,7 +65,7 @@ internal class AutopilotBattle(
     /** The key of the living target with the fewest hit points. */
     fun weakestTarget(lines: List<String>): Char? =
         lines
-            .mapNotNull { line -> TARGET_HP.find(line)?.let { match -> line.trimStart().first() to match.groupValues[1].toInt() } }
+            .mapNotNull { line -> targetHitPointsPattern.find(line)?.let { match -> line.trimStart().first() to match.groupValues[1].toInt() } }
             .minByOrNull { (_, hitPoints) -> hitPoints }
             ?.first
 
@@ -75,7 +75,7 @@ internal class AutopilotBattle(
         if (header < 0) return null
         // "You face" opens a new battle, so hit points remembered from the previous one no longer apply.
         if (lines[header].trim() == "You face") knownHitPoints = null
-        val match = FOE_LINE.find(lines.getOrNull(header + 1)?.trim().orEmpty()) ?: return null
+        val match = foeLinePattern.find(lines.getOrNull(header + 1)?.trim().orEmpty()) ?: return null
         val count = match.groupValues[1].toInt()
         val name = match.groupValues[2]
         val monster = monstersByName.firstOrNull { (monsterName, _) -> name.startsWith(monsterName) }?.second
@@ -135,7 +135,7 @@ internal class AutopilotBattle(
         party: PartyState,
         foes: AutopilotFoes,
     ): List<Int> {
-        val range = foes.monster?.hitPoints ?: DEFAULT_HIT_POINTS
+        val range = foes.monster?.hitPoints ?: defaultHitPoints
         val leaderLevel = party.members.firstOrNull()?.level ?: 1
         val averageLevel = party.members.map(CompiledPartyMember::level).average()
         val low = range.first + (averageLevel * 2).toInt() + if (leaderLevel > 2) leaderLevel * 2 else 0
@@ -143,7 +143,7 @@ internal class AutopilotBattle(
         return List(foes.count) { (low + high) / 2 }
     }
 
-    private fun targetHitPoints(line: String): Int? = TARGET_HP.find(line)?.let { match -> match.groupValues[1].toInt() }
+    private fun targetHitPoints(line: String): Int? = targetHitPointsPattern.find(line)?.let { match -> match.groupValues[1].toInt() }
 
     private fun weaponDamage(member: CompiledPartyMember): Int =
         content.items.firstOrNull { item -> item.id == member.equipment.weapon }?.weaponDamage ?: 1
@@ -157,8 +157,8 @@ internal class AutopilotBattle(
         const val MAX_ROUNDS = 40
         const val DEFAULT_WEAPON_SKILL = 60
         const val SPELL_DAMAGE = 25.0
-        val DEFAULT_HIT_POINTS = 50..100
-        val FOE_LINE = Regex("""^(\d+)\s+(.+)$""")
-        val TARGET_HP = Regex("""^\s*[A-Z]\.\s.*?(\d+)/\d+ HP""")
+        val defaultHitPoints = 50..100
+        val foeLinePattern = Regex("""^(\d+)\s+(.+)$""")
+        val targetHitPointsPattern = Regex("""^\s*[A-Z]\.\s.*?(\d+)/\d+ HP""")
     }
 }

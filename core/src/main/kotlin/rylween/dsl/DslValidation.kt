@@ -131,14 +131,14 @@ private class TerrainBindingIndex(
     }
 }
 
-private val EmptyTextBindings: Set<TextPart> = emptySet()
-private val SpeakNoRumorScreen = text("speak.no_rumor")
-private val MemberChoiceTextBindings: Set<TextPart> =
+private val emptyTextBindings: Set<TextPart> = emptySet()
+private val speakNoRumorScreen = text("speak.no_rumor")
+private val memberChoiceTextBindings: Set<TextPart> =
     setOf(
         TextPart.PartyMemberCount,
         TextPart.PartyMemberMax,
     )
-private val HuntTextBindings: Set<TextPart> =
+private val huntTextBindings: Set<TextPart> =
     setOf(
         TextPart.HuntMemberName,
         TextPart.HuntMemberSubjectPronoun,
@@ -146,38 +146,38 @@ private val HuntTextBindings: Set<TextPart> =
         TextPart.PartyMemberCount,
         TextPart.PartyMemberMax,
     )
-private val UpkeepTextBindings: Set<TextPart> =
+private val upkeepTextBindings: Set<TextPart> =
     setOf(
         TextPart.UpkeepMemberName,
     )
-private val RandomItemOfferTextBindings: Set<TextPart> =
+private val randomItemOfferTextBindings: Set<TextPart> =
     setOf(
         TextPart.OfferedItemName,
         TextPart.OfferedItemPrice,
     )
-private val InventoryUseTextBindings: Set<TextPart> =
+private val inventoryUseTextBindings: Set<TextPart> =
     setOf(
         TextPart.InventorySlotName,
         TextPart.SelectedItemName,
     )
-private val SelectedItemTextBindings: Set<TextPart> = setOf(TextPart.SelectedItemName)
-private val EquipmentTextBindings: Set<TextPart> = setOf(TextPart.EquipmentKindName)
-private val ShopPriceTextBindings: Set<TextPart> = setOf(TextPart.ShopPrice)
-private val ShopCapacityTextBindings: Set<TextPart> = setOf(TextPart.ShopCarryCap)
-private val WildernessDungeonEntryTextBindings: Set<TextPart> =
+private val selectedItemTextBindings: Set<TextPart> = setOf(TextPart.SelectedItemName)
+private val equipmentTextBindings: Set<TextPart> = setOf(TextPart.EquipmentKindName)
+private val shopPriceTextBindings: Set<TextPart> = setOf(TextPart.ShopPrice)
+private val shopCapacityTextBindings: Set<TextPart> = setOf(TextPart.ShopCarryCap)
+private val wildernessDungeonEntryTextBindings: Set<TextPart> =
     setOf(
         TextPart.WildernessDungeonName,
         TextPart.WildernessDungeonLevels,
     )
-private val DungeonDepthTextBindings: Set<TextPart> = setOf(TextPart.DungeonDepth)
-private val ConversationTextBindings: Set<TextPart> = setOf(TextPart.ConversationNpcName)
-private val TownEntryTaxTextBindings: Set<TextPart> =
+private val dungeonDepthTextBindings: Set<TextPart> = setOf(TextPart.DungeonDepth)
+private val conversationTextBindings: Set<TextPart> = setOf(TextPart.ConversationNpcName)
+private val townEntryTaxTextBindings: Set<TextPart> =
     setOf(
         TextPart.CurrentTownName,
         TextPart.TownTaxPercent,
         TextPart.TownTaxAmount,
     )
-private val BattleTextBindings: Set<TextPart> =
+private val battleTextBindings: Set<TextPart> =
     setOf(
         TextPart.BattleFoeDisplayName,
         TextPart.BattleAttackerName,
@@ -189,7 +189,7 @@ private val BattleTextBindings: Set<TextPart> =
         TextPart.BattleLevelMemberName,
         TextPart.BattleLevelsGained,
     )
-private val CharacterCreationStatsTextBindings: Set<TextPart> =
+private val characterCreationStatsTextBindings: Set<TextPart> =
     setOf(
         TextPart.CreationMemberNumber,
         TextPart.CreationWeaponSkill,
@@ -198,8 +198,8 @@ private val CharacterCreationStatsTextBindings: Set<TextPart> =
         TextPart.CreationCharisma,
         TextPart.CreationDexterity,
     )
-private val CharacterCreationMemberNumberTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberNumber)
-private val CharacterCreationMemberNameTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberName)
+private val characterCreationMemberNumberTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberNumber)
+private val characterCreationMemberNameTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberName)
 
 private fun FlagStateIndex.requireKnown(
     state: FlagState,
@@ -505,7 +505,7 @@ private fun validateBattleText(text: BattleTextModel) {
         "victory loot" to text.victoryLoot,
         "level gain" to text.levelGain,
     ).forEach { (label, block) ->
-        validateTextBlock(block, "standard battle text $label", allowedRuntimeBindings = BattleTextBindings)
+        validateTextBlock(block, "standard battle text $label", allowedRuntimeBindings = battleTextBindings)
     }
 }
 
@@ -776,8 +776,8 @@ private fun validateSecretAction(
         is SecretActionModel.AddGold -> check(action.amount >= 0) { "$label adds negative gold" }
         is SecretActionModel.AddTimeLeft -> check(action.amount >= 0) { "$label adds negative time left" }
         is SecretActionModel.SetInventory -> {
-            check(action.slot in 1..InventorySaveSlotMax) {
-                "$label inventory slot must be in 1..$InventorySaveSlotMax"
+            check(action.slot in 1..INVENTORY_SAVE_SLOT_MAX) {
+                "$label inventory slot must be in 1..$INVENTORY_SAVE_SLOT_MAX"
             }
             check(action.item in itemIds) { "$label references missing item ${action.item.slug}" }
         }
@@ -1212,7 +1212,7 @@ private fun validateTextBlock(
     knownRoles: Set<NpcRole>? = null,
     knownNpcs: Set<NpcId>? = null,
     knownTowns: Set<TownId>? = null,
-    allowedRuntimeBindings: Set<TextPart> = EmptyTextBindings,
+    allowedRuntimeBindings: Set<TextPart> = emptyTextBindings,
 ) {
     fun validatePart(part: TextPart) {
         when (part) {
@@ -1437,7 +1437,7 @@ fun validateSpeakSystem(
         validateTextBlock(
             conversation.prompts.mainMenu,
             "speak main-menu prompt",
-            allowedRuntimeBindings = ConversationTextBindings,
+            allowedRuntimeBindings = conversationTextBindings,
         )
 
         val services = conversation.nativeServices.map { it.service }
@@ -1849,7 +1849,7 @@ fun validateScriptRewards(
         validateTextBlock(
             offer.offer,
             "random item offer ${offer.pool.slug} offer",
-            allowedRuntimeBindings = RandomItemOfferTextBindings,
+            allowedRuntimeBindings = randomItemOfferTextBindings,
         )
         validateTextBlock(offer.choicePrompt, "random item offer ${offer.pool.slug} choice prompt")
         validateTextBlock(offer.broke, "random item offer ${offer.pool.slug} broke")
@@ -1947,7 +1947,7 @@ fun validateScriptRewards(
                 }
                 check(
                     content.speak.textTables.screens
-                        .any { screen -> screen.id == SpeakNoRumorScreen },
+                        .any { screen -> screen.id == speakNoRumorScreen },
                 ) {
                     "shop ${shop.building.slug} interlude runs rumor but no-rumor screen is not authored"
                 }
@@ -1966,21 +1966,21 @@ fun validateScriptRewards(
                 validateTextBlock(
                     it,
                     "shop ${shop.building.slug} bought",
-                    allowedRuntimeBindings = SelectedItemTextBindings,
+                    allowedRuntimeBindings = selectedItemTextBindings,
                 )
             }
             buy.unitPrice?.let {
                 validateTextBlock(
                     it,
                     "shop ${shop.building.slug} unit-price",
-                    allowedRuntimeBindings = ShopPriceTextBindings,
+                    allowedRuntimeBindings = shopPriceTextBindings,
                 )
             }
             buy.singlePrice?.let {
                 validateTextBlock(
                     it,
                     "shop ${shop.building.slug} single-price",
-                    allowedRuntimeBindings = ShopPriceTextBindings,
+                    allowedRuntimeBindings = shopPriceTextBindings,
                 )
             }
             validateTextBlock(buy.payPrompt, "shop ${shop.building.slug} pay prompt")
@@ -2074,7 +2074,7 @@ fun validateScriptRewards(
                                 validateTextBlock(
                                     purchase.tooMany,
                                     "shop ${shop.building.slug} ${entry.item.slug} too-many",
-                                    allowedRuntimeBindings = ShopCapacityTextBindings,
+                                    allowedRuntimeBindings = shopCapacityTextBindings,
                                 )
                             }
                         }
@@ -2089,7 +2089,7 @@ fun validateScriptRewards(
             validateTextBlock(
                 sell.offer,
                 "shop ${shop.building.slug} sell offer",
-                allowedRuntimeBindings = ShopPriceTextBindings,
+                allowedRuntimeBindings = shopPriceTextBindings,
             )
             sell.declined?.let { validateTextBlock(it, "shop ${shop.building.slug} sell declined") }
             sell.sold?.let { validateTextBlock(it, "shop ${shop.building.slug} sold") }
@@ -2187,14 +2187,14 @@ fun validateScriptRewards(
                     validateTextBlock(
                         statement.prompt,
                         "member choice prompt",
-                        allowedRuntimeBindings = MemberChoiceTextBindings,
+                        allowedRuntimeBindings = memberChoiceTextBindings,
                     )
                 is ScriptStatementNode.AskInventorySlot -> {
                     validateTextBlock(statement.prompt, "inventory-slot choice prompt")
                     check(statement.firstKey.isLetter()) { "inventory-slot choice first key must be a letter" }
                     check(statement.slots.first >= 0) { "inventory-slot choice starts before slot 0" }
-                    check(statement.slots.last <= InventorySaveSlotMax) {
-                        "inventory-slot choice ends after slot $InventorySaveSlotMax"
+                    check(statement.slots.last <= INVENTORY_SAVE_SLOT_MAX) {
+                        "inventory-slot choice ends after slot $INVENTORY_SAVE_SLOT_MAX"
                     }
                 }
                 is ScriptStatementNode.AskText -> {
@@ -2287,7 +2287,7 @@ private fun validateRealmContent(realm: RealmContentModel) {
         check(amount >= 0) { "base ${resource.name.lowercase()} capacity must be non-negative" }
     }
     checkPercent(realm.upkeep.manaRegenChance, "wilderness mana regenerate chance")
-    validateTextBlock(realm.upkeep.starvationDeath, "wilderness starvation death", allowedRuntimeBindings = UpkeepTextBindings)
+    validateTextBlock(realm.upkeep.starvationDeath, "wilderness starvation death", allowedRuntimeBindings = upkeepTextBindings)
     realm.upkeep.fatigue.forEachIndexed { index, rule ->
         validateTextBlock(rule.text, "wilderness fatigue rule $index")
     }
@@ -2397,7 +2397,7 @@ private fun validateCampRules(camp: CampRulesModel) {
     validateTextBlock(
         camp.guardMemberPrompt,
         "camp guard member prompt",
-        allowedRuntimeBindings = MemberChoiceTextBindings,
+        allowedRuntimeBindings = memberChoiceTextBindings,
     )
     camp.temperatureMessage.forEach { (band, block) ->
         validateTextBlock(block, "camp ${band.name.lowercase()} temperature message")
@@ -2408,13 +2408,13 @@ private fun validateCampRules(camp: CampRulesModel) {
 }
 
 private fun validateHuntRules(hunt: HuntRulesModel) {
-    validateTextBlock(hunt.whoPrompt, "hunt who prompt", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(hunt.whoPrompt, "hunt who prompt", allowedRuntimeBindings = huntTextBindings)
     validateTextBlock(hunt.dead, "hunt dead")
-    validateTextBlock(hunt.notRanger, "hunt not-ranger", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(hunt.notRanger, "hunt not-ranger", allowedRuntimeBindings = huntTextBindings)
     validateTextBlock(hunt.tooFewMoves, "hunt too-few-moves")
-    validateTextBlock(hunt.tries, "hunt tries", allowedRuntimeBindings = HuntTextBindings)
-    validateTextBlock(hunt.succeeds, "hunt succeeds", allowedRuntimeBindings = HuntTextBindings)
-    validateTextBlock(hunt.fails, "hunt fails", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(hunt.tries, "hunt tries", allowedRuntimeBindings = huntTextBindings)
+    validateTextBlock(hunt.succeeds, "hunt succeeds", allowedRuntimeBindings = huntTextBindings)
+    validateTextBlock(hunt.fails, "hunt fails", allowedRuntimeBindings = huntTextBindings)
 }
 
 private fun validateTerminalPresentation(
@@ -2878,7 +2878,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.titleMenu.terminated, "title menu terminated prompt")
     validateTextBlock(prompts.titleMenu.terminateFailed, "title menu terminate-failed prompt")
     validateTextBlock(prompts.titleMenu.invalidInput, "title menu invalid-input prompt")
-    validateTextBlock(prompts.priest.who, "priest who prompt", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(prompts.priest.who, "priest who prompt", allowedRuntimeBindings = huntTextBindings)
     validateTextBlock(prompts.priest.none, "priest none prompt")
     check(prompts.priest.noneKey.isLetterOrDigit()) { "priest none key must be a visible letter or digit" }
     check(prompts.priest.firstSpellKey.isLetterOrDigit()) { "priest first-spell key must be a visible letter or digit" }
@@ -2895,12 +2895,12 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.inventoryUse.quaff, "inventory quaff prompt")
     validateTextBlock(prompts.inventoryUse.noItems, "inventory no-items prompt")
     validateTextBlock(prompts.inventoryUse.noItem, "inventory no-item prompt")
-    validateTextBlock(prompts.inventoryUse.invalidSlot, "inventory invalid-slot prompt", allowedRuntimeBindings = InventoryUseTextBindings)
-    validateTextBlock(prompts.inventoryUse.notUsable, "inventory not-usable prompt", allowedRuntimeBindings = InventoryUseTextBindings)
+    validateTextBlock(prompts.inventoryUse.invalidSlot, "inventory invalid-slot prompt", allowedRuntimeBindings = inventoryUseTextBindings)
+    validateTextBlock(prompts.inventoryUse.notUsable, "inventory not-usable prompt", allowedRuntimeBindings = inventoryUseTextBindings)
     validateTextBlock(prompts.equipment.inventory, "equipment inventory prompt")
     validateTextBlock(prompts.equipment.who, "equipment who prompt")
-    validateTextBlock(prompts.equipment.noAvailable, "equipment no-available prompt", allowedRuntimeBindings = EquipmentTextBindings)
-    validateTextBlock(prompts.equipment.equipped, "equipment equipped prompt", allowedRuntimeBindings = SelectedItemTextBindings)
+    validateTextBlock(prompts.equipment.noAvailable, "equipment no-available prompt", allowedRuntimeBindings = equipmentTextBindings)
+    validateTextBlock(prompts.equipment.equipped, "equipment equipped prompt", allowedRuntimeBindings = selectedItemTextBindings)
     validateTextBlock(prompts.equipment.readyWeapons, "equipment ready-weapons prompt")
     validateTextBlock(prompts.equipment.readyArmors, "equipment ready-armors prompt")
     validateTextBlock(prompts.save.saving, "save saving prompt")
@@ -2915,18 +2915,18 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(
         prompts.characterCreation.statsPage,
         "character creation stats-page prompt",
-        allowedRuntimeBindings = CharacterCreationStatsTextBindings,
+        allowedRuntimeBindings = characterCreationStatsTextBindings,
     )
     validateTextBlock(prompts.characterCreation.reroll, "character creation reroll prompt")
     validateTextBlock(
         prompts.characterCreation.memberName,
         "character creation member-name prompt",
-        allowedRuntimeBindings = CharacterCreationMemberNumberTextBindings,
+        allowedRuntimeBindings = characterCreationMemberNumberTextBindings,
     )
     validateTextBlock(
         prompts.characterCreation.gender,
         "character creation gender prompt",
-        allowedRuntimeBindings = CharacterCreationMemberNameTextBindings,
+        allowedRuntimeBindings = characterCreationMemberNameTextBindings,
     )
     check(prompts.characterCreation.genderMaleLabel.isNotBlank()) {
         "character creation male label must not be blank"
@@ -2937,7 +2937,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(
         prompts.characterCreation.race,
         "character creation race prompt",
-        allowedRuntimeBindings = CharacterCreationMemberNameTextBindings,
+        allowedRuntimeBindings = characterCreationMemberNameTextBindings,
     )
     validateTextBlock(prompts.characterCreation.classMenu, "character creation class-menu prompt")
     validateTextBlock(prompts.characterCreation.invalidInput, "character creation invalid-input prompt")
@@ -2946,9 +2946,9 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     check(prompts.characterCreation.saveConfirmation.isSingleLinePrompt()) {
         "character creation save-confirmation prompt must be one line because it is appended to the saving prompt"
     }
-    validateTextBlock(prompts.town.menuTitle, "town menu-title prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
-    validateTextBlock(prompts.town.entryWelcome, "town entry welcome prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
-    validateTextBlock(prompts.town.entryTax, "town entry tax prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
+    validateTextBlock(prompts.town.menuTitle, "town menu-title prompt", allowedRuntimeBindings = townEntryTaxTextBindings)
+    validateTextBlock(prompts.town.entryWelcome, "town entry welcome prompt", allowedRuntimeBindings = townEntryTaxTextBindings)
+    validateTextBlock(prompts.town.entryTax, "town entry tax prompt", allowedRuntimeBindings = townEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTaxThanks, "town entry tax thanks prompt")
     validateTextBlock(prompts.wilderness.pass, "wilderness pass prompt")
     validateTextBlock(prompts.wilderness.noMoves, "wilderness no-moves prompt")
@@ -2960,21 +2960,21 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(
         prompts.wilderness.dungeonHandoff,
         "wilderness dungeon-handoff prompt",
-        allowedRuntimeBindings = WildernessDungeonEntryTextBindings,
+        allowedRuntimeBindings = wildernessDungeonEntryTextBindings,
     )
-    validateTextBlock(prompts.dungeon.levelMenu, "dungeon level-menu prompt", allowedRuntimeBindings = DungeonDepthTextBindings)
-    validateTextBlock(prompts.dungeon.enterLevel, "dungeon enter-level prompt", allowedRuntimeBindings = DungeonDepthTextBindings)
+    validateTextBlock(prompts.dungeon.levelMenu, "dungeon level-menu prompt", allowedRuntimeBindings = dungeonDepthTextBindings)
+    validateTextBlock(prompts.dungeon.enterLevel, "dungeon enter-level prompt", allowedRuntimeBindings = dungeonDepthTextBindings)
     validateTextBlock(prompts.dungeon.atMaxDepth, "dungeon at-max-depth prompt")
     validateTextBlock(prompts.dungeon.noTorches, "dungeon no-torches prompt")
     validateTextBlock(prompts.dungeon.leaveCavern, "dungeon leave-cavern prompt")
-    validateTextBlock(prompts.party.viewWho, "party view-who prompt", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(prompts.party.viewWho, "party view-who prompt", allowedRuntimeBindings = huntTextBindings)
     validateTextBlock(prompts.party.journalHeader, "party journal-header prompt")
     validateTextBlock(prompts.party.journalEmpty, "party journal-empty prompt")
     validateTextBlock(prompts.party.inventoryHeader, "party inventory-header prompt")
     validateTextBlock(prompts.party.dropPrompt, "party drop prompt")
     validateTextBlock(prompts.party.dropEmptySlot, "party drop-empty-slot prompt")
     validateTextBlock(prompts.party.dropAborted, "party drop-aborted prompt")
-    validateTextBlock(prompts.party.dropDropped, "party drop-dropped prompt", allowedRuntimeBindings = SelectedItemTextBindings)
+    validateTextBlock(prompts.party.dropDropped, "party drop-dropped prompt", allowedRuntimeBindings = selectedItemTextBindings)
     validateTextBlock(prompts.party.dropCapacityReduced, "party drop-capacity-reduced prompt")
     validateTextBlock(prompts.party.dropOverflowConfirm, "party drop-overflow-confirm prompt")
     validateTextBlock(prompts.party.dropOverflowPrompt, "party drop-overflow-prompt prompt")
@@ -3197,8 +3197,8 @@ fun validateStates(
 
         state.parties.forEach { party ->
             val slots = party.inventory.map { it.slot }
-            check(slots.all { it in 0..InventorySaveSlotMax }) {
-                "party ${party.id.slug}: inventory slot outside 0..$InventorySaveSlotMax"
+            check(slots.all { it in 0..INVENTORY_SAVE_SLOT_MAX }) {
+                "party ${party.id.slug}: inventory slot outside 0..$INVENTORY_SAVE_SLOT_MAX"
             }
             check(slots.toSet().size == slots.size) { "party ${party.id.slug}: duplicate inventory slot" }
             party.counters.memberCount?.let { count ->
@@ -3271,8 +3271,8 @@ fun validateStates(
                 check(party.counters.memberCount != null) {
                     "runtime state ${state.id.slug}: party ${party.id.slug} requires counters.memberCount"
                 }
-                check(slots == (0..InventorySaveSlotMax).toList()) {
-                    "runtime state ${state.id.slug}: party ${party.id.slug} must list inventory slots 0..$InventorySaveSlotMax"
+                check(slots == (0..INVENTORY_SAVE_SLOT_MAX).toList()) {
+                    "runtime state ${state.id.slug}: party ${party.id.slug} must list inventory slots 0..$INVENTORY_SAVE_SLOT_MAX"
                 }
                 check(
                     party.counters.attackedToday

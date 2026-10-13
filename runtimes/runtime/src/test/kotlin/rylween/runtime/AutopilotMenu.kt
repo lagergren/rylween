@@ -11,12 +11,12 @@ internal data class AutopilotOption(
     val label: String,
 ) {
     /** The price in gold when the label ends in one, such as "Sword 160 au". */
-    val price: Int? get() = PRICE.find(label)?.let { match -> match.groupValues[1].toInt() }
+    val price: Int? get() = pricePattern.find(label)?.let { match -> match.groupValues[1].toInt() }
 
     fun says(text: String): Boolean = label.contains(text, ignoreCase = true)
 
     private companion object {
-        val PRICE = Regex("""(\d+)\s*au$""")
+        val pricePattern = Regex("""(\d+)\s*au$""")
     }
 }
 
@@ -33,18 +33,18 @@ internal data class AutopilotMenu(
 
     companion object {
         /** A parenthesized key such as "(M)erchant", "(A) Torch  1 au", or "(Y)es / (N)o". */
-        private val INLINE = Regex("""\(([A-Z0-9])\)""")
+        private val inlineOptionPattern = Regex("""\(([A-Z0-9])\)""")
 
         /** A listed key such as "A. Xvart 159/159 HP" or "1. Aragorn". */
-        private val LISTED = Regex("""^\s*([A-Z0-9])\.\s+(.+)$""")
+        private val listedOptionPattern = Regex("""^\s*([A-Z0-9])\.\s+(.+)$""")
 
         fun parse(lines: List<String>): AutopilotMenu = AutopilotMenu(lines.flatMap(::optionsIn))
 
         private fun optionsIn(line: String): List<AutopilotOption> {
-            LISTED.find(line)?.let { match ->
+            listedOptionPattern.find(line)?.let { match ->
                 return listOf(AutopilotOption(match.groupValues[1].single(), match.groupValues[2].normalized()))
             }
-            val matches = INLINE.findAll(line).toList()
+            val matches = inlineOptionPattern.findAll(line).toList()
             return matches.mapIndexed { index, match ->
                 val end = matches.getOrNull(index + 1)?.range?.first ?: line.length
                 val tail = line.substring(match.range.last + 1, end).substringBefore(" / ")

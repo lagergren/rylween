@@ -59,13 +59,13 @@ private const val DEFAULT_HOST = "127.0.0.1"
 private const val DEFAULT_PORT = 8081
 private const val DEFAULT_DATA_DIR = "build/rylween-data"
 private const val DEFAULT_STATE = "fresh-replay"
-private val BITMAP_WEB_STATIC =
+private val bitmapWebStatic =
     mapOf(
         "styles.css" to ServedResource("bitmap-web/styles.css", "text/css; charset=utf-8"),
         "client.js" to ServedResource("bitmap-web/client.js", "application/javascript; charset=utf-8"),
         "wilderness-perspective.js" to ServedResource("bitmap-web/wilderness-perspective.js", "application/javascript; charset=utf-8"),
     )
-private val BITMAP_ASSETS =
+private val bitmapAssets =
     mapOf(
         "title/title-rider.png" to "bitmap/assets/title/title-rider.png",
         "title/title-logo.png" to "bitmap/assets/title/title-logo.png",
@@ -535,7 +535,7 @@ private class BitmapWebServer(
             return
         }
         val staticItems =
-            BITMAP_ASSETS.entries
+            bitmapAssets.entries
                 .sortedBy { entry -> entry.key }
                 .map { entry -> GalleryItem(entry.key, "/assets/${entry.key}", entry.value) }
         val gameItems =
@@ -833,7 +833,7 @@ private class BitmapWebServer(
         assetName: String,
         clientId: Long,
     ) {
-        val resource = BITMAP_WEB_STATIC[assetName]
+        val resource = bitmapWebStatic[assetName]
         if (resource == null) {
             serverLog.event("bitmap.http.response id=$clientId status=404 static=${serverLogValue(assetName)}")
             respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "asset not found\n")
@@ -855,7 +855,7 @@ private class BitmapWebServer(
         assetName: String,
         clientId: Long,
     ) {
-        val resourcePath = BITMAP_ASSETS[assetName]
+        val resourcePath = bitmapAssets[assetName]
         if (resourcePath == null) {
             serverLog.event("bitmap.http.response id=$clientId status=404 asset=${serverLogValue(assetName)}")
             respondText(socket, "404 Not Found", "text/plain; charset=utf-8", "asset not found\n")
