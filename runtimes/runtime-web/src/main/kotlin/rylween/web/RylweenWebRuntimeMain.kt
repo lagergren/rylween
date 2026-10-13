@@ -376,18 +376,9 @@ private class RuntimeWebServer(
         request: WebHttpRequest,
         clientId: Long,
     ) {
-        if (!config.authRequired || authenticatedAccount(request) != null) {
-            serverLog.event("web.http.response id=$clientId status=303 path=${request.path} location=/play")
-            redirect(socket, "/play")
-            return
+        routeAuthPage(socket, request, clientId) {
+            webAuthPageHtml(WebAuthPageMode.Login, rememberedLogin = WebAuthCookies.rememberedLogin(request.headers))
         }
-        serverLog.event("web.http.response id=$clientId status=200 path=${request.path}")
-        respondText(
-            socket,
-            "200 OK",
-            "text/html; charset=utf-8",
-            webAuthPageHtml(WebAuthPageMode.Login, rememberedLogin = WebAuthCookies.rememberedLogin(request.headers)),
-        )
     }
 
     private fun routeRegisterPage(
@@ -395,13 +386,25 @@ private class RuntimeWebServer(
         request: WebHttpRequest,
         clientId: Long,
     ) {
+        routeAuthPage(socket, request, clientId) {
+            webAuthPageHtml(WebAuthPageMode.Register)
+        }
+    }
+
+    /** Serves an account page, or sends visitors who are already signed in (or need no account) to `/play`. */
+    private fun routeAuthPage(
+        socket: Socket,
+        request: WebHttpRequest,
+        clientId: Long,
+        page: () -> String,
+    ) {
         if (!config.authRequired || authenticatedAccount(request) != null) {
             serverLog.event("web.http.response id=$clientId status=303 path=${request.path} location=/play")
             redirect(socket, "/play")
             return
         }
         serverLog.event("web.http.response id=$clientId status=200 path=${request.path}")
-        respondText(socket, "200 OK", "text/html; charset=utf-8", webAuthPageHtml(WebAuthPageMode.Register))
+        respondText(socket, "200 OK", "text/html; charset=utf-8", page())
     }
 
     private fun routeLogin(

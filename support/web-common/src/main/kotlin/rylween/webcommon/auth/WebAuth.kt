@@ -127,24 +127,7 @@ class WebUserStore(
             if (emailIndex.getProperty(normalizedEmail) != null) return WebAuthResult.Failure("That email is already registered.")
             val userFile = userFile(slug)
             if (userFile.isFile) return WebAuthResult.Failure("That adventurer name is already registered.")
-            val passwordHash = PasswordHasher.hash(password)
-            val now = Instant.now().toString()
-            val properties =
-                Properties().apply {
-                    setProperty("slug", slug)
-                    setProperty("displayName", cleanName)
-                    setProperty("email", normalizedEmail)
-                    setProperty("emailConfirmed", "true")
-                    setProperty("password.algorithm", PASSWORD_ALGORITHM)
-                    setProperty("password.iterations", passwordHash.iterations.toString())
-                    setProperty("password.salt", passwordHash.salt)
-                    setProperty("password.hash", passwordHash.hash)
-                    setProperty("createdAt", now)
-                    setProperty("updatedAt", now)
-                }
-            storeProperties(userFile, properties)
-            emailIndex.setProperty(normalizedEmail, slug)
-            storeProperties(emailIndexFile, emailIndex)
+            val properties = createAccount(slug, cleanName, normalizedEmail, password, emailIndex)
             WebAuthResult.Success(properties.account())
         }
 
@@ -173,24 +156,7 @@ class WebUserStore(
                 }
                 return WebAuthBootstrapResult.Existing(existingProperties.account())
             }
-            val now = Instant.now().toString()
-            val passwordHash = PasswordHasher.hash(account.password)
-            val properties =
-                Properties().apply {
-                    setProperty("slug", slug)
-                    setProperty("displayName", cleanName)
-                    setProperty("email", normalizedEmail)
-                    setProperty("emailConfirmed", "true")
-                    setProperty("password.algorithm", PASSWORD_ALGORITHM)
-                    setProperty("password.iterations", passwordHash.iterations.toString())
-                    setProperty("password.salt", passwordHash.salt)
-                    setProperty("password.hash", passwordHash.hash)
-                    setProperty("createdAt", now)
-                    setProperty("updatedAt", now)
-                }
-            storeProperties(userFile(slug), properties)
-            emailIndex.setProperty(normalizedEmail, slug)
-            storeProperties(emailIndexFile, emailIndex)
+            val properties = createAccount(slug, cleanName, normalizedEmail, account.password, emailIndex)
             WebAuthBootstrapResult.Created(properties.account())
         }
 
@@ -211,6 +177,35 @@ class WebUserStore(
             if (!PasswordHasher.verify(password, stored)) return WebAuthResult.Failure("Wrong password.")
             WebAuthResult.Success(account.account())
         }
+
+    /** Stores a new user record and its email index entry; callers hold [lock] and have checked availability. */
+    private fun createAccount(
+        slug: String,
+        cleanName: String,
+        normalizedEmail: String,
+        password: String,
+        emailIndex: Properties,
+    ): Properties {
+        val passwordHash = PasswordHasher.hash(password)
+        val now = Instant.now().toString()
+        val properties =
+            Properties().apply {
+                setProperty("slug", slug)
+                setProperty("displayName", cleanName)
+                setProperty("email", normalizedEmail)
+                setProperty("emailConfirmed", "true")
+                setProperty("password.algorithm", PASSWORD_ALGORITHM)
+                setProperty("password.iterations", passwordHash.iterations.toString())
+                setProperty("password.salt", passwordHash.salt)
+                setProperty("password.hash", passwordHash.hash)
+                setProperty("createdAt", now)
+                setProperty("updatedAt", now)
+            }
+        storeProperties(userFile(slug), properties)
+        emailIndex.setProperty(normalizedEmail, slug)
+        storeProperties(emailIndexFile, emailIndex)
+        return properties
+    }
 
     private fun findProperties(login: String): Properties? {
         val raw = login.trim()
