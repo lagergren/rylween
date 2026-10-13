@@ -448,7 +448,6 @@ data class TownPromptsModel(
 )
 
 data class PartyPromptsModel(
-    val viewWho: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberCount, "/Q/A)") },
     val journalHeader: TextBlock = missingPrompt("party.journal_header"),
     val journalEmpty: TextBlock = literalText("No journal entries."),
     val inventoryHeader: TextBlock = literalText("Inventory:"),

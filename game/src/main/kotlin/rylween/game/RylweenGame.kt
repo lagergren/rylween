@@ -787,7 +787,6 @@ val authoredRylween: RylweenModel =
                     entryTaxThanks = literalText("Thank you!")
                 }
                 party {
-                    viewWho = structuredText { line("Who? (1-", HuntText.partyMemberCount, "/Q/A)") }
                     journalHeader =
                         literalText(
                             "",

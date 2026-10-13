@@ -2148,7 +2148,6 @@ class TownPromptsBuilder(
 class PartyPromptsBuilder(
     initial: PartyPromptsModel = PartyPromptsModel(),
 ) {
-    var viewWho: TextBlock = initial.viewWho
     var journalHeader: TextBlock = initial.journalHeader
 
     // Public prompt overrides consumed from runtimeSystems by PartyPages.
@@ -2180,7 +2179,6 @@ class PartyPromptsBuilder(
 
     fun build(): PartyPromptsModel =
         PartyPromptsModel(
-            viewWho = viewWho,
             journalHeader = journalHeader,
             journalEmpty = journalEmpty,
             inventoryHeader = inventoryHeader,

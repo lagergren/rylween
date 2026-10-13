@@ -362,7 +362,6 @@ data class ExternalTownEntryTax(
 )
 
 data class ExternalPartyPrompts(
-    val viewWho: ExternalRuntimeTextBlock,
     val journalHeader: ExternalRuntimeTextBlock,
     val journalEmpty: ExternalRuntimeTextBlock,
     val inventoryHeader: ExternalRuntimeTextBlock,
@@ -1690,7 +1689,6 @@ private class ExternalBundleArtifactWriter {
                         ),
                         promptGroupJson(
                             "party",
-                            textField("viewWho", prompts.party.viewWho),
                             textField("journalHeader", prompts.party.journalHeader),
                             textField("journalEmpty", prompts.party.journalEmpty),
                             textField("inventoryHeader", prompts.party.inventoryHeader),
@@ -2845,7 +2843,6 @@ private class ExternalRuntimeSystemsReader(
                 ),
             party =
                 ExternalPartyPrompts(
-                    viewWho = party.requiredTextPrompt("viewWho"),
                     journalHeader = party.requiredTextPrompt("journalHeader"),
                     journalEmpty = party.requiredTextPrompt("journalEmpty"),
                     inventoryHeader = party.requiredTextPrompt("inventoryHeader"),

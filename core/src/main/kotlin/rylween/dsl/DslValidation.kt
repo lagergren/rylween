@@ -2967,7 +2967,6 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.dungeon.atMaxDepth, "dungeon at-max-depth prompt")
     validateTextBlock(prompts.dungeon.noTorches, "dungeon no-torches prompt")
     validateTextBlock(prompts.dungeon.leaveCavern, "dungeon leave-cavern prompt")
-    validateTextBlock(prompts.party.viewWho, "party view-who prompt", allowedRuntimeBindings = huntTextBindings)
     validateTextBlock(prompts.party.journalHeader, "party journal-header prompt")
     validateTextBlock(prompts.party.journalEmpty, "party journal-empty prompt")
     validateTextBlock(prompts.party.inventoryHeader, "party inventory-header prompt")
