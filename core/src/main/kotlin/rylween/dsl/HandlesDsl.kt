@@ -78,6 +78,14 @@ data class StaticScreenId(
     val slug: String,
 )
 
+data class SoundId(
+    val slug: String,
+)
+
+data class MusicId(
+    val slug: String,
+)
+
 data class PaletteId(
     val slug: String,
 )
@@ -207,6 +215,10 @@ fun terrain(
 fun image(slug: String): ImageId = ImageId(slug)
 
 fun staticScreen(slug: String): StaticScreenId = StaticScreenId(slug)
+
+fun soundId(slug: String): SoundId = SoundId(slug)
+
+fun musicId(slug: String): MusicId = MusicId(slug)
 
 fun paletteColor(slug: String): PaletteColorId = PaletteColorId(slug)
 

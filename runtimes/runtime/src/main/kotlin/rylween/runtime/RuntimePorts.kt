@@ -175,6 +175,15 @@ interface RuntimeScreenPort {
 
     fun showImage(imageSlug: String)
 
+    /** Plays a one-shot sound effect. Renderers without audio ignore it. */
+    fun playSound(soundSlug: String): Unit = Unit
+
+    /**
+     * Sets the looping background track, or silence when null. Asking for the
+     * track that is already playing keeps it playing without a restart.
+     */
+    fun playMusic(musicSlug: String?): Unit = Unit
+
     fun redrawCurrentView(lines: List<String>)
 
     fun flashLogLine(line: String)

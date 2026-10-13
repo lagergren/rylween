@@ -15,6 +15,7 @@ import rylween.dsl.NativeStringArg
 import rylween.dsl.StrAst
 import rylween.dsl.TextBlock
 import rylween.dsl.TextPart
+import rylween.dsl.impl.AudioModel
 import rylween.dsl.impl.BattleTextModel
 import rylween.dsl.impl.CampRulesModel
 import rylween.dsl.impl.CastleContentModel
@@ -85,7 +86,7 @@ import kotlin.reflect.typeOf
 
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
-private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 9
+private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 10
 private const val GRID_CASTLE_KIND = "gridCastle"
 
 /** Serializes this game into the canonical strict JSON J1 artifact bytes. */
@@ -233,6 +234,51 @@ data class ExternalRuntimeSystems(
     val wilderness: ExternalWildernessRuntime,
     val secrets: ExternalRuntimeSecrets,
     val presentation: ExternalRuntimePresentation,
+    val audio: ExternalRuntimeAudio = ExternalRuntimeAudio(),
+)
+
+/**
+ * Audio assets and the events, items, monsters, spells, terrain and places
+ * they belong to. Lists of sound ids are variants that runtimes rotate through.
+ */
+data class ExternalRuntimeAudio(
+    val sounds: List<ExternalAudioAsset> = emptyList(),
+    val music: List<ExternalAudioAsset> = emptyList(),
+    val cues: Map<String, List<String>> = emptyMap(),
+    val items: Map<String, ExternalItemSounds> = emptyMap(),
+    val monsters: Map<String, ExternalMonsterSounds> = emptyMap(),
+    val spells: Map<String, List<String>> = emptyMap(),
+    val itemUses: Map<String, List<String>> = emptyMap(),
+    val steps: Map<String, List<String>> = emptyMap(),
+    val areas: List<ExternalAreaMusic> = emptyList(),
+    val scenes: Map<String, String> = emptyMap(),
+    val dungeons: Map<String, String> = emptyMap(),
+    val castles: Map<String, String> = emptyMap(),
+)
+
+data class ExternalAudioAsset(
+    val id: String,
+    val resource: String,
+)
+
+data class ExternalItemSounds(
+    val hit: List<String> = emptyList(),
+    val miss: List<String> = emptyList(),
+    val ready: List<String> = emptyList(),
+    val unready: List<String> = emptyList(),
+    val struck: List<String> = emptyList(),
+)
+
+data class ExternalMonsterSounds(
+    val attack: List<String> = emptyList(),
+    val death: List<String> = emptyList(),
+)
+
+data class ExternalAreaMusic(
+    val area: String,
+    val music: String,
+    val fromHour: Int? = null,
+    val toHour: Int? = null,
 )
 
 data class ExternalRuntimeSecrets(
@@ -1228,7 +1274,70 @@ private class ExternalBundleArtifactWriter {
             "speak" to speakRuntimeJson(game.speak),
             "castles" to JsonArray(game.castles.map(::castleJson)),
             "secrets" to secretsJson(game.secrets),
+            "audio" to audioJson(game.audio),
         )
+
+    private fun audioJson(audio: AudioModel): JsonValue {
+        fun ids(sounds: List<rylween.dsl.SoundId>): JsonValue = JsonArray(sounds.map { JsonString(it.slug) })
+
+        fun idLists(rows: List<Pair<String, List<rylween.dsl.SoundId>>>): JsonValue =
+            jsonObject(*rows.sortedBy { it.first }.map { (key, sounds) -> key to ids(sounds) }.toTypedArray())
+
+        fun musicMap(rows: List<Pair<String, rylween.dsl.MusicId>>): JsonValue =
+            jsonObject(*rows.sortedBy { it.first }.map { (key, music) -> key to JsonString(music.slug) }.toTypedArray())
+
+        return jsonObject(
+            "sounds" to
+                JsonArray(
+                    audio.sounds.sortedBy { it.id.slug }.map { sound ->
+                        jsonObject("id" to JsonString(sound.id.slug), "resource" to JsonString(sound.resource))
+                    },
+                ),
+            "music" to
+                JsonArray(
+                    audio.music.sortedBy { it.id.slug }.map { track ->
+                        jsonObject("id" to JsonString(track.id.slug), "resource" to JsonString(track.resource))
+                    },
+                ),
+            "cues" to idLists(audio.cues.map { it.cue.name to it.sounds }),
+            "items" to
+                jsonObject(
+                    *audio.items.sortedBy { it.item.slug }.map { item ->
+                        item.item.slug to
+                            jsonObject(
+                                "hit" to ids(item.hit),
+                                "miss" to ids(item.miss),
+                                "ready" to ids(item.ready),
+                                "unready" to ids(item.unready),
+                                "struck" to ids(item.struck),
+                            )
+                    }.toTypedArray(),
+                ),
+            "monsters" to
+                jsonObject(
+                    *audio.monsters.sortedBy { it.monster.slug }.map { monster ->
+                        monster.monster.slug to jsonObject("attack" to ids(monster.attack), "death" to ids(monster.death))
+                    }.toTypedArray(),
+                ),
+            "spells" to idLists(audio.spells.map { it.spell.slug to it.sounds }),
+            "itemUses" to idLists(audio.itemUses.map { it.item.slug to it.sounds }),
+            "steps" to idLists(audio.steps.map { it.terrain.slug to it.sounds }),
+            "areas" to
+                JsonArray(
+                    audio.areas.map { area ->
+                        jsonObject(
+                            "area" to JsonString(area.area.name),
+                            "music" to JsonString(area.music.slug),
+                            "fromHour" to area.fromHour?.let { JsonNumber(it.toString()) }.orJsonNull(),
+                            "toHour" to area.toHour?.let { JsonNumber(it.toString()) }.orJsonNull(),
+                        )
+                    },
+                ),
+            "scenes" to musicMap(audio.scenes.map { it.scene.slug to it.music }),
+            "dungeons" to musicMap(audio.dungeons.map { it.dungeon.slug to it.music }),
+            "castles" to musicMap(audio.castles.map { it.castle.slug to it.music }),
+        )
+    }
 
     private fun secretsJson(secrets: SecretSystemModel): JsonValue =
         jsonObject(
@@ -2754,6 +2863,60 @@ private class ExternalRuntimeSystemsReader(
                     ?.readSecrets()
                     ?: ExternalRuntimeSecrets(),
             presentation = systems.requiredObject("presentation").readPresentation(),
+            audio = systems.requiredObject("audio").readAudio(),
+        )
+    }
+
+    private fun JsonObject.readAudio(): ExternalRuntimeAudio {
+        fun JsonValue.ids(label: String): List<String> = (this as? JsonArray)?.values?.map { it.asString(label) } ?: error("expected array for $label")
+
+        fun JsonObject.idLists(label: String): Map<String, List<String>> = entries.associate { (key, value) -> key to value.ids("$label $key") }
+
+        fun JsonObject.musicMap(label: String): Map<String, String> = entries.associate { (key, value) -> key to value.asString("$label $key") }
+
+        fun JsonArray.assets(label: String): List<ExternalAudioAsset> =
+            values.map { value ->
+                val row = value.asObject(label)
+                ExternalAudioAsset(id = row.requiredString("id"), resource = row.requiredString("resource"))
+            }
+
+        return ExternalRuntimeAudio(
+            sounds = requiredArray("sounds").assets("sound"),
+            music = requiredArray("music").assets("music track"),
+            cues = requiredObject("cues").idLists("audio cue"),
+            items =
+                requiredObject("items").entries.associate { (item, value) ->
+                    val row = value.asObject("item sounds $item")
+                    item to
+                        ExternalItemSounds(
+                            hit = row.required("hit").ids("item hit"),
+                            miss = row.required("miss").ids("item miss"),
+                            ready = row.required("ready").ids("item ready"),
+                            unready = row.required("unready").ids("item unready"),
+                            struck = row.required("struck").ids("item struck"),
+                        )
+                },
+            monsters =
+                requiredObject("monsters").entries.associate { (monster, value) ->
+                    val row = value.asObject("monster sounds $monster")
+                    monster to ExternalMonsterSounds(attack = row.required("attack").ids("monster attack"), death = row.required("death").ids("monster death"))
+                },
+            spells = requiredObject("spells").idLists("spell sound"),
+            itemUses = requiredObject("itemUses").idLists("item use sound"),
+            steps = requiredObject("steps").idLists("step sound"),
+            areas =
+                requiredArray("areas").values.map { value ->
+                    val row = value.asObject("area music")
+                    ExternalAreaMusic(
+                        area = row.requiredString("area"),
+                        music = row.requiredString("music"),
+                        fromHour = row.optionalNullableInt("fromHour"),
+                        toHour = row.optionalNullableInt("toHour"),
+                    )
+                },
+            scenes = requiredObject("scenes").musicMap("scene music"),
+            dungeons = requiredObject("dungeons").musicMap("dungeon music"),
+            castles = requiredObject("castles").musicMap("castle music"),
         )
     }
 

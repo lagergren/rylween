@@ -195,6 +195,7 @@ internal class BitmapRuntimeScreen(
     private var map: BitmapMap? = null
     private var message: String? = null
     private var stickyMessageLines = emptyList<String>()
+    private var music: String? = null
 
     override val textColumns: Int? get() = null
     override val textRows: Int get() = BITMAP_TEXT_ROWS
@@ -436,6 +437,8 @@ internal class BitmapRuntimeScreen(
             RuntimeViewCommand.RenderMap -> Unit
             RuntimeViewCommand.StatusLine -> Unit
             is RuntimeViewCommand.ShowImage -> showImage(command.imageSlug)
+            is RuntimeViewCommand.PlaySound -> playSound(command.soundSlug)
+            is RuntimeViewCommand.PlayMusic -> playMusic(command.musicSlug)
         }
         if (command !is RuntimeViewCommand.ShowImage) send()
     }
@@ -521,6 +524,16 @@ internal class BitmapRuntimeScreen(
         )
     }
 
+    /** Sent at once as its own message, so the sound lines up with the frame that follows it. */
+    override fun playSound(soundSlug: String) {
+        connection.sendText(jsonObject("type" to "sound".json(), "id" to soundSlug.json()))
+    }
+
+    /** Takes effect with the next frame; frames always carry the current track so reconnects resume it. */
+    override fun playMusic(musicSlug: String?) {
+        music = musicSlug
+    }
+
     private fun send() {
         connection.sendText(
             BitmapFrame(
@@ -541,6 +554,7 @@ internal class BitmapRuntimeScreen(
                 map = map,
                 message = message,
                 document = document.takeIf { mode == "static_document" },
+                music = music,
             ).toJson(),
         )
         visualTransition = BitmapVisualTransition.None

@@ -650,7 +650,12 @@ private class CompiledBundleValidator(
     }
 
     private fun view(command: CompiledViewCommand) {
-        if (command is CompiledViewCommand.ShowImage) handle(command.image, "view image")
+        when (command) {
+            is CompiledViewCommand.ShowImage -> handle(command.image, "view image")
+            is CompiledViewCommand.PlaySound -> handle(command.sound, "view sound")
+            is CompiledViewCommand.PlayMusic -> handle(command.music, "view music")
+            else -> Unit
+        }
     }
 
     private fun indexedName(

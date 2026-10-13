@@ -1622,6 +1622,8 @@ internal class ScriptExecutor(
             CompiledViewCommand.RenderMap -> RuntimeViewCommand.RenderMap
             CompiledViewCommand.StatusLine -> RuntimeViewCommand.StatusLine
             is CompiledViewCommand.ShowImage -> RuntimeViewCommand.ShowImage(content.slug(image))
+            is CompiledViewCommand.PlaySound -> RuntimeViewCommand.PlaySound(content.slug(sound))
+            is CompiledViewCommand.PlayMusic -> RuntimeViewCommand.PlayMusic(content.slug(music))
         }
 
     private fun teleportDelta(directionKey: Int): GridPoint? =

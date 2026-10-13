@@ -64,6 +64,7 @@ data class GameModel(
     val prompts: GamePromptsModel,
     val pacing: GamePacingModel = GamePacingModel(),
     val visuals: VisualsModel,
+    val audio: AudioModel = AudioModel(),
     val worldMaps: List<WorldMapModel>,
     val terrain: TerrainCatalogModel,
     val terminal: TerminalPresentationModel,

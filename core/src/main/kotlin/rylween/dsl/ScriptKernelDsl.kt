@@ -187,6 +187,14 @@ sealed interface ViewCommand {
     data class ShowImage(
         val image: ImageId,
     ) : ViewCommand
+
+    data class PlaySound(
+        val sound: SoundId,
+    ) : ViewCommand
+
+    data class PlayMusic(
+        val music: MusicId,
+    ) : ViewCommand
 }
 
 /**
