@@ -11,6 +11,8 @@ The current authoring source is regular Kotlin:
 - `game/src/main/kotlin/rylween/game/RylweenAudio.kt` declares the sound
   effects, music, and ambient loops, and is pulled into the game with
   `include(...)`.
+- `game/src/main/kotlin/rylween/game/RylweenTestScenarios.kt` declares the
+  new-game start state and the replay fixtures.
 - `core/src/main/kotlin/rylween/dsl` contains the reusable DSL, validation, and
   source-script IR.
 - `core/src/main/kotlin/rylween/compiled` lowers the authored model into the
@@ -32,9 +34,10 @@ The DSL has three layers:
 1. `content { ... }` declares the static world: items, monsters, terrain,
    maps, towns, services, images, text, scripts, missions, dungeons, castles,
    combat rules, and reusable runtime-system prompts.
-2. `state { ... }` declares a bootable mutable state. Start states and replay
-   fixtures live here. Runtime saves serialize the same kind of state, but with
-   every persisted field written explicitly.
+2. `stateFixture(...) { ... }` declares a bootable mutable state. The new-game
+   start and the replay fixtures live in `RylweenTestScenarios.kt`. Runtime
+   saves serialize the same kind of state, but with every persisted field
+   written explicitly.
 3. Script bodies such as `scene { ... }`, `dialogue { ... }`, `spell { ... }`,
    and `itemUse { ... }` record source-script statements. They do not execute
    when Kotlin evaluates the file. Validation and bundle compilation lower them
@@ -46,64 +49,75 @@ content without importing the game source.
 
 ## Current Hierarchy
 
-The top-level opening tags are nested like this in the current game source:
+The top-level opening tags are nested like this in the current game source, in
+the order `RylweenGame.kt` uses them:
 
 ```text
 rylween
   content
-    include(section)
+    include(section)                 // RylweenAudio.kt's audio { ... }
     metadata
     limits
     flags
       story / encounter
+    secrets
+      admin / victim
     visuals
-      images
-      staticScreens
-    audio
-      sounds / music / cue / item / monster / spell / itemUse / step
-      area / scene / dungeon / castle
+      images / staticScreens
     layouts
-    terrain
     terminal
+    terrain
     worldMap
       layer
     realm
-      upkeep / camp / hunt / timeOfDay
+      upkeep / hunt / camp
+    castle
+      treasure / pitfall / stairs / scripts / text
+    prompts
+      titleMenu / priest / inventoryUse / equipment / save / characterCreation
+      town / party / wilderness / dungeon
+    pacing
+      battle / characterCreation / shop / speak / wilderness
     items
-    itemPools
-    castles
-      castle
-        rooms / text / hooks
-    runtimeSystems
-      titleMenu / magic / inventoryUse / equipment / save / characterCreation
-      town / partyViews / wilderness / dungeons / commandHelp
+      pool
     gameProgress
-    winningConfiguration
+      milestone / winningConfiguration
     leveling
+      classLevelUp
     characterCreation
+      start / playerClass
+    formulas
     rewards
-    monsters
     combat
+      standardBattle
+    wilderness
+      keys / events / terrainTransitions
     dungeons
-      event
-        script
-      scenario
+      keys / event / scenario
+    speak
+      standardConversation / textTables / questionAction
     towns
     townSystem
+      entryTax / menu / buildingServices
+    characters
+      randomPlacementPolicy / character
+    monsters
     missions
       mission
-    scenes
-      scene
+    scene                            // towns, castle, and missions alike
+    spell
+    itemUse
     dialogue
       npc
-        whenState
-  state / runtimeState / stateFixture
+        whenState / default
+
+withStateModule                      // RylweenTestScenarios.kt
+  stateFixture / runtimeState
     realm
     locations
     npcs
-    parties
-      party
-        resources / counters / flags / milestones / inventory / members / journal
+    party
+      resources / counters / flags / milestones / inventory / members / journal
 ```
 
 Script bodies appear under `scene`, `dialogue` branches, spell and item-use
@@ -126,8 +140,9 @@ notes:
 - Use block helpers such as `localInt { ... }`, `ask.member { ... }`,
   `ask.monsterAlive { ... }`, and `withCurrentCasterCost { ... }` instead of
   raw Kotlin temporaries in script bodies.
-- Use DSL control flow such as `ifThen`, `choice`, `switch`, `loop`,
-  `breakLoop`, `forEachMember`, and `forEachMonster` inside scripts.
+- Use DSL control flow such as `whenever(cond) { } otherwise { }`, `choice`,
+  `choose(expr) { case(n) { }; default { } }`, `loop`, `breakLoop`,
+  `forEachMember`, and `forEachMonster` inside scripts.
 - Keep normal runtime mode loops out of scripts. Wilderness, dungeon, castle,
   shop, and battle loops are host systems that consume authored tables and
   compiled script hooks.
@@ -136,18 +151,21 @@ Preferred script text vocabulary:
 
 ```kotlin
 scene(Scenes.Missions.bandits) {
-    showBackdrop(Images.Backdrop.encounterBestiary)
+    showBackdrop(Images.Backdrop.encounterBanner1)
     writeText("Bandits rush from the trees.", "")
 
-    choice.yesNo(literalText("Stand and fight?")) {
-        yes {
-            encounter(EncounterTiers.weak, Monsters.bandit)
-            achieve(Milestones.banditsDefeated)
-        }
-        no {
+    choice.yesNo(
+        "Stand and fight?",
+        "(Y)es",
+        "(N)o",
+        yes = {
+            encounter(Monsters.bandit)
+            mark(Story.garth.bandits.recovered)
+        },
+        no = {
             writeText("You slip away into the wilderness.", "")
-        }
-    }
+        },
+    )
 }
 ```
 
@@ -179,6 +197,12 @@ input contract, validation rule, UI affordance, and resume payload.
 | `ask.digit(...)` | Small numeric prompts where each accepted value is a digit key. | An integer expression for the chosen digit. |
 | `ask.wildernessDirection(...)` | Direction prompts that should follow the wilderness movement key model. | An integer expression for the chosen direction command. |
 | `choice.textInput(...)` | Free-form string entry such as passwords, riddles, or future name-like prompts. Use `acceptedText(...)`, trimming, case, and max-length policy instead of key-menu branches. | The accepted or rejected branch after comparing the submitted string. |
+
+Menu rows are written `(K) Label`, as in `"(A) Ale         2 au"`, and the
+runtime keys its own lists the same way (`(A) Wild Dog`, `(1) Aragorn`). Do not
+add a lettered `(N)one` or `(N)othing` row to back out: end the menu with a
+`"RETURN leaves."` line instead. A script `menu(...)` that shows that line and
+has no `default { }` branch is left when the player presses RETURN.
 
 `writeText(...)` and `showTextAndWait(...)` only display text; they are not
 input prompts by themselves. Runtime and domain prompts for shops, battles,
@@ -223,17 +247,25 @@ Generated handle catalogs are updated by Gradle from the authored source.
 
 ```kotlin
 items {
-    magicItem(Items.moonCharm, "Moon Charm", 1200)
+    magicItem(Items.moonCharm, "Moon Charm", cost = 1_200)
 }
 
-itemUse(Items.moonCharm, consume = ItemConsumePolicy.Keep) {
-    showTextAndWait("The charm glows softly.", "")
-    gainFood(10)
+itemUse(Items.moonCharm) {
+    inventory()
+    consume = ItemConsumePolicy.NeverConsumes
+
+    effect {
+        showTextAndWait("The charm glows softly.", "")
+        gainFood(10)
+    }
 }
 ```
 
 An item record supplies inventory/shop/save metadata. An `itemUse` script
-supplies behavior when the player activates it.
+supplies behavior when the player activates it. Every item use works in combat;
+`inventory()` also makes it usable from the inventory. `consume` is `BeforeUse` by default, which uses the
+item up before the effect runs; `ScriptControlled` leaves it to the effect to
+call `consumeActiveItem()`, and `NeverConsumes` keeps it.
 
 ### Rewards And Resources
 
@@ -285,12 +317,13 @@ monsters {
         count = 1..3
         hitPoints = 90..150
         weaponSkill = 65
-        dexterity = 50
         tier = EncounterTiers.deep
+        encounterImage(Images.Encounter.undead)
     }
 }
 ```
 
+A monster can also set `spellPower`, `immune`, and `countMaxLevelDivisor`.
 Monsters become available to missions, dungeon events, random event pools, and
 battle encounter hooks through their typed handles.
 
@@ -301,12 +334,12 @@ The mission chains the game has today are listed in
 
 ```kotlin
 scene(Scenes.Missions.cryptDoor) {
-    showBackdrop(Images.Backdrop.caveEntrance)
+    showBackdrop(Images.Backdrop.cave)
     showTextAndWait("A cold door blocks the path.", "")
 
     whenever(achieved(Milestones.silverKey)) {
         writeText("The Silver Key turns by itself.", "")
-        enterDungeon(Dungeons.nolrimCrypt)
+        enterDungeon(Dungeons.reebarTomb, levels = 20)
     } otherwise {
         writeText("The lock does not yield.", "")
     }
@@ -314,14 +347,18 @@ scene(Scenes.Missions.cryptDoor) {
 
 missions {
     mission(Missions.cryptDoor) {
-        at(Wilderness.xy(32, 15))
+        at(xy(32, 15))
+        requires(Story.garth.bandits.closed)
         runs(Scenes.Missions.cryptDoor)
     }
 }
 ```
 
 The mission owns when a scene starts. The scene owns what the player sees and
-what game state changes.
+what game state changes. A mission triggers `at(...)` a square or a
+`Locations.*` placement, on `randomStep(percent = ...)` in the wilderness, or
+`onTerrain(...)`, and `requires(...)` a story flag state or a condition before
+it runs.
 
 ### Dialogue Branch
 
@@ -348,29 +385,35 @@ only authors the response and state mutation.
 ### Shop
 
 ```kotlin
-shopService(Buildings.smith) {
-    image = Images.Scene.smith
-    intro("- What do you want?", "")
-    menu("(B)uy", "(S)ell", "(L)eave")
+scene(Scenes.Towne.smith) {
+    shopService(Buildings.smith) {
+        image = Images.Scene.smith
+        intro("- What do you want?", "")
+        menu("(B)uy", "(S)ell", "(L)eave")
 
-    buy {
-        prompt("Buy what?")
-        catalog {
-            page {
-                item(Items.longSword)
-                item(Items.chainMail)
+        buy {
+            prompt("Armor or Weapon?", "", "(A)rmor", "(W)eapon", "RETURN leaves.")
+            catalog('A', "Armor") {
+                item('1', Items.chainMail, label = "Chain Mail")
+            }
+            catalog('W', "Weapons") {
+                item('1', Items.sword, label = "Sword")
+                item('2', Items.longsword, label = "Longsword")
             }
         }
-    }
 
-    sell {
-        prompt("Sell what?")
-        acceptsKinds(ItemKind.Weapon, ItemKind.Armor)
+        sell {
+            prompt("Sell what?", "")
+            acceptsKinds(ItemKind.Weapon, ItemKind.Armor)
+            offer { line("Ok! Give ya ", price, "!") }
+        }
     }
 }
 ```
 
-Shop catalogs, sell policy, haggle text, paging, and purchase keys are authored.
+`shopService` is a script verb, so a shop lives in its building's scene. A
+catalog too long for one screen splits into `page { ... }` blocks. Shop
+catalogs, sell policy, haggle text, paging, and purchase keys are authored.
 The runtime service loop owns live input, inventory mutation, and paging state.
 
 ### Runtime-System Prompt
@@ -382,22 +425,24 @@ wording or labels.
 prompts {
     inventoryUse {
         invalidSlot {
-            line("There is no item in ", InventoryText.slotName, ".")
+            line("Inventory slot ", InventoryText.slotName)
+            line("does not exist.")
         }
     }
 }
 ```
 
 Use this pattern when a runtime loop owns the input cadence but the text is
-player-facing game prose.
+player-facing game prose. Values only the runtime knows come in through
+placeholder objects: `InventoryText` (`slotName`, `itemName`), `CampText`
+(`guardName`), `HuntText`, `UpkeepText`, `TownText`, and `BattleText`.
 
 ### Map Or Terrain
 
 ```kotlin
 terrain {
-    terrain(Terrain.ashWastes, mapCode = 'a') {
-        movementCost = 2
-    }
+    terrain(Terrain.ashWastes, mapCode = 'a')
+    terrain(Terrain.lavaField, mapCode = 'l') { blocksMovement() }
 }
 
 worldMap(Maps.wilderness) {
@@ -411,8 +456,11 @@ worldMap(Maps.wilderness) {
 }
 ```
 
-Map dimensions and cell counts are derived from the rows. Do not duplicate them
-with separate width, height, capacity, or cell-count declarations.
+A terrain is passable unless it calls `blocksMovement()`, and
+`settlement(TerrainSettlement.Town)` (or `Hut`, `Castle`) marks squares the
+party can enter. Terrain has no movement cost to author. Map dimensions and cell counts are derived from the rows. Do not
+duplicate them with separate width, height, capacity, or cell-count
+declarations.
 
 ### Content In Its Own File
 
@@ -521,7 +569,8 @@ dungeons {
         }
     }
 
-    scenario(Dungeons.nolrimCrypt) {
+    scenario(Dungeons.reebarTomb) {
+        name("Reebar Tomb")
         levels(20)
         randomEvents(
             DungeonEvents.weakEncounter to 2,
@@ -553,17 +602,24 @@ checks, save/load boundaries, random event selection, and utility commands.
 
 ## State And Fixtures
 
-Use `state { ... }` for test fixtures, named starts, and replay setup. Keep
-runtime saves exact and expanded; helper shortcuts are fine for authored test
-fixtures but not for save output.
+States live in `game/src/main/kotlin/rylween/game/RylweenTestScenarios.kt`,
+inside `withStateModule { ... }`. Use `stateFixture(...)` for the new-game
+start (`fresh-replay`), named starts, and replay setup; the `States.*` handles
+are generated from `stateFixture` and `runtimeState` declarations. Keep runtime
+saves exact and expanded; helper shortcuts are fine for authored test fixtures
+but not for save output.
 
 ```kotlin
-state(States.strong) {
+stateFixture(States.strongReplay) {
     realm {
-        activeParty = Parties.strong
-        wilderness(map = Maps.wilderness)
+        activeParty = Parties.playtest
+        wilderness(Maps.wilderness)
     }
-    party(Parties.strong) {
+    locations {
+        questLocations.forEach { (location, point) -> location at point }
+    }
+    npcs { placeQuestContactsInInns() }
+    party(Parties.playtest) {
         position = Wilderness.xy(12, 9)
         resources {
             gold = 10_000
@@ -581,19 +637,33 @@ state(States.strong) {
 }
 ```
 
+Every fixture places the quest locations from the shared `questLocations` table,
+so they stand on the same squares in every game.
+
 ## Where A Change Belongs
 
 Use this placement rule during design review:
 
 - `RylweenGame.kt`: current-game facts, prose, scenes, item effects, dialogue,
   shop rows, mission triggers, maps, assets, and runtime-system wording.
+- `RylweenAudio.kt`: sound, music, and ambient declarations.
+- `RylweenTestScenarios.kt`: the new-game start state, replay fixtures, and
+  quest location placements.
 - `core/src/main/kotlin/rylween/dsl`: reusable authoring vocabulary, source
-  script IR, typed models, validation, and compiled-bundle lowering.
-- `runtimes/runtime/src/main/kotlin`: host behavior over compiled rows: input loops,
-  rendering, RNG cadence, persistence, save/load, and live subsystem state.
-- `runtime-bitmap-web` or `runtime-web`: frontend presentation, browser
-  transport, preferences, and canvas/ANSI rendering.
-- `tools`: artifact emission, readers, and non-playable probes.
+  script IR, typed models, and validation.
+- `core/src/main/kotlin/rylween/compiled`: compiled-bundle lowering and the
+  bundle readers.
+- `runtimes/runtime/src/main/kotlin`: host behavior over compiled rows: input
+  loops, rendering, RNG cadence, persistence, save/load, and live subsystem
+  state.
+- `runtimes/runtime-bitmap-web` or `runtimes/runtime-web`: frontend
+  presentation, browser transport, preferences, and canvas/ANSI rendering.
+- `support/tools`: artifact emission, readers, and non-playable probes.
+
+A change to the shape of the `runtimeSystems` rows also bumps
+`EXTERNAL_RUNTIME_SYSTEMS_VERSION` in
+`core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt` (12 today), so
+a runtime refuses a bundle written for another shape.
 
 If a rule mentions Rylween story content, item names, NPCs, mission prose,
 prices, spell costs, battle phrases, or map facts, it usually belongs in the
@@ -629,8 +699,8 @@ The I10 audit found the current high-level separation sound:
   instead of nested raw Kotlin `val` declarations.
 - Script-control loops and runtime service loops now have separate documented
   ownership.
-- Current-game text display uses `writeText` and `showTextAndWait`; legacy
-  aliases remain compatibility surface, not preferred authoring vocabulary.
+- Current-game text display uses `writeText` and `showTextAndWait`; the legacy
+  aliases have since been removed.
 - Current-facing comments and plan/spec text were corrected to point at
   `RylweenGame.kt` and the source-script IR instead of the retired
   `RylweenGame.dsl.kts`/authored `Op` terminology.
@@ -640,8 +710,9 @@ The I10 audit found the current high-level separation sound:
 This appendix describes the current authored mission chains in `RylweenGame.kt`.
 Coordinates use the game map's `x,y` convention. Location handles such as
 `Locations.borinCamp` are runtime state placements. Every state, including the
-new-game state `fresh-replay`, places all of them at the fixed squares listed
-here, and authored prose renders their coordinates through
+new-game state `fresh-replay`, places all of them from the `questLocations`
+table in `RylweenTestScenarios.kt`, at the fixed squares listed here, and
+authored prose renders their coordinates through
 `location(...).coordinates`. Characters placed in the wilderness, such as Marcus
 the hermit, are met by pressing Enter on their square, which opens the hut scene.
 
@@ -665,23 +736,13 @@ Castle Ydarg entry is also gated by the Silver Key, and completion marks
 
 | Chain | Start | Trigger or target | Main flags | Rewards and unlocks |
 |-------|-------|-------------------|------------|---------------------|
-| Ranger letter | Nrim-To dialogue | Deliver to Marraga through normal NPC dialogue | `ranger.letter`: `none -> accepted -> delivered` | Marraga grants a Magic Sword. The recipient location is resolved through NPC role placement, so it may be authored/random rather than a fixed coordinate. |
+| Ranger letter | Nrim'to dialogue | Deliver to Marraga through normal NPC dialogue | `ranger.letter`: `none -> accepted -> delivered` | Marraga grants a Magic Sword. The recipient location is resolved through NPC role placement, so it may be authored/random rather than a fixed coordinate. |
 | Areth's book | Areth, Gorm, Nevaak, then Areth again | Normal NPC dialogue branches | `fighter.priestBook`: `none -> priestTold -> priestVisited -> wizardRobbed -> fighterGrateful` | Nevaak gives up the book; returning to Areth grants the Dancing Sword. |
 | Erethor's Lute | Tybalt dialogue | Fixed coordinate `6,20`; then return to Tybalt and Kaal | `erethor.lute`: `none -> rumorTold -> luteTaken -> noteReceived -> cloakReceived` | Erethor temple dungeon grants the Lute. Tybalt gives a note, and Kaal grants the Cloak of Gods. |
 | Peasant's wife | Ron dialogue | Fixed coordinate `42,23`; then return to Ron | `peasant.wife`: `none -> accepted -> rescued -> paid` | The cave/dungeon rescue marks Tammy rescued. Ron grants 3,000 gold, Adamantium Mail, Holy Hand Grenade, amber potion, fire wand, and crystal bowl. |
 
 ### Support Flags
 
-`church.donationOnce` prevents repeating the same donation branch. `smith.beerOffer`
-records the smith's first beer-offer branch. `encounter.immune` is scoped to an
-encounter and is used by combat scripts rather than long-lived story progress.
-
-### Known Cleanup Notes
-
-Two current dungeon-event narration sites still use hardcoded member numbers
-inside authored scripts: Erethor's Lute chamber names member 3 for the surprise
-line and member 4 for finding the Lute. They should move to a reusable
-filtered party-member selector such as `party.randomMember(AliveOnly)` or
-`party.firstMember(AliveOnly)`, then render the selected member name through the
-same text renderer. Until that helper exists, changing only the number would not
-fix dead-member or small-party cases.
+`smith.beerOffer.offered` makes the smith's beer offer come first until the
+party has heard it once. `church.donationOnce` and the encounter-scoped
+`encounter.immune` are declared, but no script uses them yet.
