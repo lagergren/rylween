@@ -726,7 +726,6 @@ private class CompiledBundleValidator(
         buy.singlePrice?.let { text(it, context) }
         text(buy.payPrompt, context)
         binding(buy.paymentKeys.pay)
-        binding(buy.paymentKeys.decline)
     }
 
     private fun shopCatalog(

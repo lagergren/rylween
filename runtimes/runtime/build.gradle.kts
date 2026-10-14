@@ -245,8 +245,8 @@ val checkRuntimeNewPartyCreation: TaskProvider<RunInstalledLauncherWithJavaTask>
                 "Give Character 4 a name:",
                 "Wisdom must be at least",
                 "50.",
-                "1. Human",
-                "6. Ranger",
+                "(1) Human",
+                "(6) Ranger",
                 "Game saved.",
                 "Party: Debuggers",
                 "1. Ada",
@@ -307,7 +307,7 @@ val checkRuntimeTownPromptScript: TaskProvider<RunInstalledLauncherWithJavaTask>
                 "(Y)es / (N)o",
                 "No thanks.",
                 "Who? (1-4)",
-                "2. Legolas",
+                "(2) Legolas",
                 "Legolas needs no healing.",
             ),
         )
@@ -332,9 +332,9 @@ val checkRuntimeWildernessEquipmentScript: TaskProvider<RunInstalledLauncherWith
             listOf(
                 "Who?",
                 "Ready what?",
-                "H. Magic Sword",
+                "(H) Magic Swo",
                 "Equipped Magic Sword.",
-                "I. Mithril Mail",
+                "(I) Mithril Mail",
                 "Equipped Mithril Mail.",
             ),
         )

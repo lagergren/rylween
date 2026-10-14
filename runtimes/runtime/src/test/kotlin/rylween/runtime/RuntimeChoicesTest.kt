@@ -50,9 +50,9 @@ class RuntimeChoicesTest {
 
         val items = slots.inventoryChoiceLines(names::getValue)
 
-        assertEquals(listOf("A. Long sword", "C. Torch"), items)
+        assertEquals(listOf("(A) Long sword", "(C) Torch"), items)
         assertEquals(
-            listOf("Drop what?", "", "A. Long sword\tC. Torch", "RETURN leaves."),
+            listOf("Drop what?", "", "(A) Long sword\t(C) Torch", "RETURN leaves."),
             WindowScreen(textRows = null).inventoryPickerLines(listOf("Drop what?"), items, listOf("RETURN leaves.")),
         )
     }

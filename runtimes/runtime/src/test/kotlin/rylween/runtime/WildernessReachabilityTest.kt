@@ -123,7 +123,7 @@ class WildernessReachabilityTest {
         }
 
         assertContains(screen.lines, "You enter the hut.")
-        assertContains(screen.lines, "1. Marcus, Hermit")
+        assertContains(screen.lines, "(1) Marcus, Hermit")
         assertTrue(screen.lines.any { line -> line.startsWith("Marcus") }, screen.lines.takeLast(40).joinToString("\n"))
     }
 

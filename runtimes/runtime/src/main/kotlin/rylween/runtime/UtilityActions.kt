@@ -30,11 +30,6 @@ import rylween.dsl.impl.PcClass
 private const val INVENTORY_FIRST_KEY = 'A'
 
 /** Formats priest spell menu rows with a readable gap between the key mnemonic and spell name. */
-internal fun priestSpellMenuLine(
-    key: Char,
-    spellName: String,
-): String = "($key) $spellName"
-
 /** Direct compiled implementations for reusable party utility commands. */
 internal class UtilityActions(
     private val content: CompiledContentBundle,
@@ -187,14 +182,13 @@ internal class UtilityActions(
         val choices = spells.withMenuKeys(priestSpellFirstKey())
         val lines = priestSpellLines(choices)
         screen.writeText(lines)
-        val cancelKey = priestCancelKey()
         val command =
             input
                 .readValidChoice(screen, lines, audio) { candidate ->
                     val key = candidate.uppercaseChar()
-                    key == cancelKey || choices.any { choice -> choice.key == key }
+                    key == '\n' || choices.any { choice -> choice.key == key }
                 }?.uppercaseChar() ?: return runtime
-        if (command == cancelKey) return runtime
+        if (command == '\n') return runtime
         val spell = choices.firstOrNull { choice -> choice.key == command }?.value ?: return runtime
         audio.spell(content.slug(spell.id))
         val program = programByRef(spell.scriptRoot)
@@ -342,16 +336,15 @@ internal class UtilityActions(
             screen.choiceMenuLines(
                 systems.prompts.priest.who
                     .renderUtility(runtime),
-                List(runtime.party.members.size) { index -> "${index + 1}. ${runtime.party.memberName(content, index)}" },
-                systems.prompts.priest.none
-                    .renderUtility(),
+                List(runtime.party.members.size) { index -> choiceLine(index + 1, runtime.party.memberName(content, index)) },
+                returnCancelLines(),
             )
         var rejection = emptyList<String>()
         while (true) {
             val lines = baseLines + rejection
             screen.writeText(lines)
             val command = input.readCommand()?.uppercaseChar() ?: return null
-            if (command == priestCancelKey()) return null
+            if (command == '\n') return null
             val index = command.digitToIntOrNull()?.minus(1)
             val member = index?.let(runtime.party.members::getOrNull)
             rejection =
@@ -376,15 +369,9 @@ internal class UtilityActions(
     private fun priestSpellLines(spells: List<MenuChoice<CompiledSpell>>): List<String> =
         screen.choiceMenuLines(
             prompt = emptyList(),
-            choices = spells.map { choice -> priestSpellMenuLine(choice.key, content.strings.value(choice.value.nameString)) },
-            trailer =
-                systems.prompts.priest.none
-                    .renderUtility(),
+            choices = spells.map { choice -> choiceLine(choice.key, content.strings.value(choice.value.nameString)) },
+            trailer = returnCancelLines(),
         )
-
-    private fun priestCancelKey(): Char =
-        systems.prompts.priest.noneKey
-            .singleRuntimeKey("priest none key")
 
     private fun priestSpellFirstKey(): Char =
         systems.prompts.priest.firstSpellKey
@@ -407,7 +394,7 @@ internal class UtilityActions(
                 .renderUtility(runtime) +
                 "" +
                 indexes.map { index ->
-                    "${index + 1}. ${runtime.party.memberName(content, index)}"
+                    choiceLine(index + 1, runtime.party.memberName(content, index))
                 } +
                 systems.prompts.returnLeavesLine()
         screen.writeText(lines)

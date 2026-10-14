@@ -117,7 +117,7 @@ class RylweenCompiledGameLedgerTest {
         val externalBundleText = externalBundle.decodeToString()
         val runtimeSystems = externalBundle.readExternalRuntimeSystems()
 
-        check(runtimeSystems.schemaVersion == 11)
+        check(runtimeSystems.schemaVersion == 12)
         check("\"dexterity\"" in externalBundleText)
         check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 14)
@@ -199,7 +199,7 @@ class RylweenCompiledGameLedgerTest {
         check(standardBattle.actions.map { it.key } == listOf('A', 'D', 'U', 'B', 'C'))
         check(standardBattle.actions.map { it.prompt }.first() == structuredText { line("(A)ttack") })
         check(standardBattle.text.useWhat == structuredText { lines("Use what?", "") })
-        check(standardBattle.text.spellAbort.fallbackText() == "(N)one")
+        check(standardBattle.text.spellAbort.fallbackText() == "RETURN leaves.")
         check(standardBattle.playerRound.attack.confusionDivisor == 3)
         check(standardBattle.playerRound.attack.hpDefenseDivisor == 12)
         check(standardBattle.playerRound.defend.cap == 250)
@@ -702,7 +702,7 @@ class RylweenCompiledGameLedgerTest {
         val smithSell = checkNotNull(smithShop.sell)
         check(smithShop.building == Buildings.smith)
         check(smithBuy.inventoryApplication.overflow == RewardOverflowPolicy.PromptDropThenPlace)
-        check(smithBuy.paymentKeys.decline.primaryChar == 'N')
+        check(smithBuy.paymentKeys.pay.primaryChar == 'P')
         check(smithBuy.singlePrice != null)
         check(smithBuy.bought != null)
         check(smithSell.declined != null)
@@ -1033,11 +1033,6 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.prompts.pauseVerbs.size == 30)
         check(nextDsl.prompts.pauseVerbs.first() == "Smash")
         check(nextDsl.prompts.pauseVerbs.last() == "Decapitate")
-        check(
-            nextDsl.prompts.priest.none
-                .fallbackText() == "(N)one",
-        )
-        check(nextDsl.prompts.priest.noneKey == 'N')
         check(nextDsl.prompts.priest.firstSpellKey == 'A')
         check(
             nextDsl.prompts.priest.wrongClass

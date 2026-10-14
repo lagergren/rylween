@@ -15,6 +15,18 @@ internal data class MenuChoice<T>(
     val value: T,
 )
 
+/** The one way a keyed menu entry reads, such as `(A) Healing`. */
+internal fun choiceLine(
+    key: Char,
+    label: String,
+): String = "($key) $label"
+
+/** A numbered menu entry, such as `(1) Aragorn`. */
+internal fun choiceLine(
+    number: Int,
+    label: String,
+): String = "($number) $label"
+
 internal fun <T> List<T>.withMenuKeys(firstKey: Char = 'A'): List<MenuChoice<T>> =
     mapIndexed { index, value -> MenuChoice((firstKey.code + index).toChar(), value) }
 
@@ -127,7 +139,7 @@ internal fun RuntimeScreenPort.inventoryPickerLines(
 /** Picker rows for the occupied slots, keyed by slot letter. */
 internal fun List<CompiledInventorySlot>.inventoryChoiceLines(itemName: (CompiledHandleRef) -> String): List<String> =
     sortedBy(CompiledInventorySlot::slot).mapNotNull { slot ->
-        slot.item?.let { item -> "${inventorySlotKey(slot.slot)}. ${itemName(item)}" }
+        slot.item?.let { item -> choiceLine(inventorySlotKey(slot.slot), itemName(item)) }
     }
 
 /** Ends prompt text with one blank line so the key choices that follow never sit directly under it. */

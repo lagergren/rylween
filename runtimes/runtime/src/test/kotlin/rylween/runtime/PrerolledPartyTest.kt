@@ -32,8 +32,8 @@ class PrerolledPartyTest {
             repeat(16) { seed ->
                 val user = "player-$seed"
                 val output = runSession(file, user, "x N 2 \"Dawnward $seed\"", seed.toLong())
-                assertContains(output, "1. Roll your own")
-                assertContains(output, "2. Pre-rolled")
+                assertContains(output, "(1) Roll your own")
+                assertContains(output, "(2) Pre-rolled")
                 assertFalse("Reroll (y/N)" in output)
 
                 val runtime = read(file, user)

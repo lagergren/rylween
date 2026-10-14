@@ -89,7 +89,7 @@ import kotlin.reflect.typeOf
 
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
-private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 11
+private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 12
 private const val GRID_CASTLE_KIND = "gridCastle"
 
 /** Serializes this game into the canonical strict JSON J1 artifact bytes. */
@@ -398,8 +398,6 @@ data class ExternalTitleMenuPrompts(
 
 data class ExternalPriestSpellPrompts(
     val who: ExternalRuntimeTextBlock,
-    val none: ExternalRuntimeTextBlock,
-    val noneKey: String,
     val firstSpellKey: String,
     val mageCombatOnly: ExternalRuntimeTextBlock,
     val wrongClass: ExternalRuntimeTextBlock,
@@ -1851,8 +1849,6 @@ private class ExternalBundleArtifactWriter {
                         promptGroupJson(
                             "priest",
                             textField("who", prompts.priest.who),
-                            textField("none", prompts.priest.none),
-                            stringField("noneKey", prompts.priest.noneKey.toString()),
                             stringField("firstSpellKey", prompts.priest.firstSpellKey.toString()),
                             textField("mageCombatOnly", prompts.priest.mageCombatOnly),
                             textField("wrongClass", prompts.priest.wrongClass),
@@ -3100,8 +3096,6 @@ private class ExternalRuntimeSystemsReader(
             priest =
                 ExternalPriestSpellPrompts(
                     who = priest.requiredTextPrompt("who"),
-                    none = priest.requiredTextPrompt("none"),
-                    noneKey = priest.optionalStringPrompt("noneKey", "N"),
                     firstSpellKey = priest.optionalStringPrompt("firstSpellKey", "A"),
                     mageCombatOnly = priest.requiredTextPrompt("mageCombatOnly"),
                     wrongClass = priest.requiredTextPrompt("wrongClass"),

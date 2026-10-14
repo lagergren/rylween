@@ -700,7 +700,6 @@ val authoredRylween: RylweenModel =
                 }
                 priest {
                     who = structuredText { line("Who? (1-", HuntText.partyMemberCount, ")") }
-                    none = literalText("(N)one")
                     mageCombatOnly = flowText("Sorry. Mage spells are combat-only.")
                     wrongClass = literalText("Not a spellcaster!")
                     dead = literalText("Dead.")
@@ -1383,7 +1382,7 @@ val authoredRylween: RylweenModel =
                         whatNow { lines("What now?", "") }
                         targetPrompt { lines("Who?", "") }
                         useWhat { lines("Use what?", "") }
-                        spellAbort { line("(N)one") }
+                        spellAbort { line("RETURN leaves.") }
                         runCoward(flowText("Coward. You won't get any EXP for this battle."))
                         runDesperateFail(flowText("You desperately try to get away, but fail!"))
                         runFailAway { line("You fail to get away!") }
@@ -4200,7 +4199,7 @@ val authoredRylween: RylweenModel =
                             "",
                             "(A)rmor",
                             "(W)eapon",
-                            "(N)othing",
+                            "RETURN leaves.",
                         )
                         tooExpensive("Too expensive...")
                         cantCarry("You cannot carry more.")
@@ -4326,7 +4325,7 @@ val authoredRylween: RylweenModel =
                                     "(C) Wine        5 au",
                                     "(D) Whiskey     7 au",
                                     "(E) Fanta       1 au",
-                                    "(N)othing",
+                                    "RETURN leaves.",
                                 ) {
                                     option('A') {
                                         pay(
@@ -4412,7 +4411,6 @@ val authoredRylween: RylweenModel =
                                             },
                                         )
                                     }
-                                    option('N') {}
                                 }
                             },
                         )
@@ -4528,7 +4526,7 @@ val authoredRylween: RylweenModel =
                             line("Price: ", price)
                             line("")
                         }
-                        payPrompt("(P)ay", "(N)one")
+                        payPrompt("(P)ay")
 
                         catalog('B', "General goods") {
                             resource(
@@ -4833,7 +4831,7 @@ val authoredRylween: RylweenModel =
                                     "(B) Mead      3 au",
                                     "(C) Wine      4 au",
                                     "(D) Fanta     1 au",
-                                    "(N)othing",
+                                    "RETURN leaves.",
                                 ) {
                                     option('A') {
                                         pay(
@@ -4910,7 +4908,6 @@ val authoredRylween: RylweenModel =
                                             },
                                         )
                                     }
-                                    option('N') {}
                                 }
                             }
                         }

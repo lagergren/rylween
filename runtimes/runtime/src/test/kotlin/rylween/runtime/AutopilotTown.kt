@@ -280,7 +280,7 @@ internal class AutopilotTownVisit(
                 units.digitToChar()
             }
             menu.find("Buy item") != null -> if (bulkLeft > 0) menu.find("Buy item")?.key else leaveService(menu)
-            menu.find("None") != null && menu.findItem(errand.label) != null -> menu.findItem(errand.label)?.key
+            menu.find("Leave") != null && menu.findItem(errand.label) != null -> menu.findItem(errand.label)?.key
             menu.find("Pay") != null -> menu.find("Pay")?.key
             else -> null
         }
@@ -291,7 +291,7 @@ internal class AutopilotTownVisit(
     ): Char? =
         when {
             menu.find("Buy item") != null -> if (!servicePaid) menu.find("Buy item")?.key else leaveService(menu)
-            menu.find("None") != null && menu.findItem(errand.label) != null -> menu.findItem(errand.label)?.key
+            menu.find("Leave") != null && menu.findItem(errand.label) != null -> menu.findItem(errand.label)?.key
             menu.find("Pay") != null -> {
                 servicePaid = true
                 menu.find("Pay")?.key
@@ -317,9 +317,9 @@ internal class AutopilotTownVisit(
                 gearMoreTried = true
                 menu.find("More")?.key
             }
-            menu.find("None") != null -> {
+            menu.find("Leave") != null -> {
                 servicePaid = true
-                menu.find("None")?.key
+                menu.find("Leave")?.key
             }
             else -> null
         }

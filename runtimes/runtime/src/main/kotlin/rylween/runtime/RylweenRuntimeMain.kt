@@ -1248,7 +1248,7 @@ class GameRuntime private constructor(
         label: String,
     ): T? {
         while (true) {
-            screen.writeText(screen.choiceMenuLines(prompt, choices.map { choice -> "${choice.key}. ${choice.label}" }))
+            screen.writeText(screen.choiceMenuLines(prompt, choices.map { choice -> choiceLine(choice.key, choice.label) }))
             val command = input.readCommand() ?: return null
             val choice = choices.firstOrNull { choice -> choice.key == command }
             if (choice != null) {

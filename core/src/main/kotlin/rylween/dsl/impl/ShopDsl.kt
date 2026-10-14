@@ -206,9 +206,9 @@ data class ShopMenuKeysModel(
     val leave: InputBindingModel = inputKey('L'),
 )
 
+/** The key that confirms a purchase; RETURN declines it. */
 data class ShopPurchaseKeysModel(
     val pay: InputBindingModel = inputKey('P'),
-    val decline: InputBindingModel = inputKey('N'),
 )
 
 data class ShopSaleKeysModel(
@@ -444,7 +444,7 @@ class ShopBuyBuilder {
     private var boughtText: TextBlock? = null
     private var unitPriceText: TextBlock? = null
     private var singlePriceText: TextBlock? = null
-    private var payPromptText: TextBlock = literalText("(P)ay", "(N)one")
+    private var payPromptText: TextBlock = literalText("(P)ay")
     private var paymentKeysModel: ShopPurchaseKeysModel = ShopPurchaseKeysModel()
     private var applicationModel =
         RewardApplicationBuilder()
@@ -537,9 +537,8 @@ class ShopPurchaseKeysBuilder(
     initial: ShopPurchaseKeysModel = ShopPurchaseKeysModel(),
 ) {
     var pay: InputBindingModel = initial.pay
-    var decline: InputBindingModel = initial.decline
 
-    fun build(): ShopPurchaseKeysModel = ShopPurchaseKeysModel(pay, decline)
+    fun build(): ShopPurchaseKeysModel = ShopPurchaseKeysModel(pay)
 }
 
 @RylNextDsl

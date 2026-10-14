@@ -1203,10 +1203,9 @@ data class CompiledShopBuy(
     val inventoryApplication: RewardApplicationModel,
 )
 
-/** Bindings used when confirming or declining a purchase. */
+/** The binding that confirms a purchase; RETURN declines it. */
 data class CompiledShopPurchaseKeys(
     val pay: CompiledInputBinding,
-    val decline: CompiledInputBinding,
 )
 
 /** One selectable buy catalog, such as weapons, armor, or general goods. */
@@ -2311,7 +2310,7 @@ private class CompiledBundleCompiler(
             unitPrice = buy.unitPrice?.let(::text),
             singlePrice = buy.singlePrice?.let(::text),
             payPrompt = text(buy.payPrompt),
-            paymentKeys = CompiledShopPurchaseKeys(binding(buy.paymentKeys.pay), binding(buy.paymentKeys.decline)),
+            paymentKeys = CompiledShopPurchaseKeys(binding(buy.paymentKeys.pay)),
             inventoryApplication = buy.inventoryApplication,
         )
 

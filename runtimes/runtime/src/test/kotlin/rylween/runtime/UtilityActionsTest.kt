@@ -27,8 +27,9 @@ class UtilityActionsTest {
     private val content = bundle.content
 
     @Test
-    fun priestSpellMenuLineSeparatesKeyAndSpellName() {
-        assertEquals("(A) Healing", priestSpellMenuLine("A".single(), "Healing"))
+    fun choiceLineSeparatesKeyAndLabel() {
+        assertEquals("(A) Healing", choiceLine('A', "Healing"))
+        assertEquals("(1) Aragorn", choiceLine(1, "Aragorn"))
     }
 
     @Test

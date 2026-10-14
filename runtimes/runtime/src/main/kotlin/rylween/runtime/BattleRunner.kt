@@ -64,7 +64,7 @@ import rylween.dsl.impl.sourceId
 import rylween.dsl.pronoun
 
 private const val RANDOM_PERCENT_MAX = 99
-private const val BATTLE_SPELL_CANCEL_KEY = 'N'
+private const val BATTLE_SPELL_CANCEL_KEY = '\n'
 
 private const val BATTLE_FOE_DISPLAY_NAME = "battleFoeDisplayName"
 private const val BATTLE_ATTACKER_NAME = "battleAttackerName"
@@ -1141,7 +1141,7 @@ internal class BattleRunner(
             prompt = emptyList(),
             choices =
                 spells.map { spell ->
-                    "${spell.slot}. ${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})"
+                    choiceLine(spell.slot, "${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})")
                 },
             trailer =
                 combat.standardBattle
@@ -1163,9 +1163,10 @@ internal class BattleRunner(
                 val key = ('A'.code + index).toChar()
                 val maxHp = monsterHpMax.getOrElse(index) { hitPointMax }
                 if (hp > 0) {
-                    add("$key. ${monsterName()} $hp/$maxHp HP")
+                    add(choiceLine(key, "${monsterName()} $hp/$maxHp HP"))
                 } else {
-                    add("   ${monsterName()} (dead)")
+                    // Indented under the names of the living, past their "(A) " keys.
+                    add("    ${monsterName()} (dead)")
                 }
             }
         }

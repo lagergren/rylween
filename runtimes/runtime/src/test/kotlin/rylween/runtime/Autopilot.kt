@@ -181,7 +181,7 @@ internal class Autopilot(
         pendingSpell?.let { spell ->
             pendingSpell = null
             val menu = AutopilotMenu.parse(lines)
-            return menu.find(spell)?.key ?: menu.find("None")?.key
+            return menu.find(spell)?.key ?: menu.find("Leave")?.key
         }
         itemKey(lines)?.let { key -> return key }
         return when {
