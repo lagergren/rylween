@@ -28,7 +28,13 @@ class OldSaveCompatibilityTest {
         save.writeText(old.replace(maxKey) { match -> "${match.groupValues[1]}$OLD_MAXIMUM" })
         assertTrue(save.readText() != old, "the save has no spell-point maximum for member ${priest + 1}")
 
-        val loaded = SaveFile.read(save, content, { slug -> bundle.states.single { state -> content.slug(state.state) == slug } }, "veteran")
+        val loaded =
+            SaveFile.read(
+                save,
+                content,
+                { slug -> bundle.states.single { state -> content.slug(state.state) == slug } },
+                "veteran",
+            )
 
         val member = loaded.party.members[priest]
         assertEquals(member.wisdom, member.mana.max)

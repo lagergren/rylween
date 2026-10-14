@@ -29,7 +29,6 @@ import rylween.dsl.impl.PcClass
 
 private const val INVENTORY_FIRST_KEY = 'A'
 
-/** Formats priest spell menu rows with a readable gap between the key mnemonic and spell name. */
 /** Direct compiled implementations for reusable party utility commands. */
 internal class UtilityActions(
     private val content: CompiledContentBundle,
@@ -523,7 +522,9 @@ internal fun chooseDropSlotForInventoryOverflow(
     leadLines: List<String> = emptyList(),
     itemName: (CompiledHandleRef) -> String,
 ): Int? {
-    val confirmPrompt = systems.prompts.party.dropOverflowConfirm.render({ null }, screen.textColumns)
+    val confirmPrompt =
+        systems.prompts.party.dropOverflowConfirm
+            .render({ null }, screen.textColumns)
     val confirmLines = if (leadLines.isEmpty()) confirmPrompt else leadLines + "" + confirmPrompt
     screen.writeText(confirmLines)
     val confirm =

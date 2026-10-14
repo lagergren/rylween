@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 /**
  * Runtime-facing content aggregate and prompt/key contracts.
  *
@@ -8,6 +10,7 @@
  * authoring builders and runtime/bundle readers, not a place for one-off game
  * scripts or Rylween-specific prose.
  */
+
 package rylween.dsl.impl
 
 import rylween.dsl.*

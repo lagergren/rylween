@@ -51,6 +51,7 @@ internal class Autopilot(
     val stats = AutopilotStats()
 
     private val tour = AutopilotTour(content, systems, coverage)
+
     // Monsters cast spells of the same names, such as Frost Finger, so only the party's spells are looked up by name.
     private val spellSlugs =
         content.spells
@@ -107,7 +108,10 @@ internal class Autopilot(
         latest = state
         remember(view.text)
         plan.observe(view)
-        view.text.firstNotNullOfOrNull { line -> antechamberPattern.find(line) }?.let { match -> antechamber = match.groupValues[1].toInt() }
+        view.text
+            .firstNotNullOfOrNull { line ->
+                antechamberPattern.find(line)
+            }?.let { match -> antechamber = match.groupValues[1].toInt() }
         if (state.currentMode == RuntimeMode.GameOver || saved) return null
         if (plan.done(state) && state.currentMode == RuntimeMode.Wilderness && view.request == AutopilotRequest.Key) {
             saved = true
@@ -234,7 +238,11 @@ internal class Autopilot(
         }
         val name = lines.getOrNull(lines.indexOfFirst { line -> line.trim() == "What now?" } - 1)?.trim()
         val actor = name?.let { party.named(view.state.party, it) }
-        val mage = actor?.takeIf { member -> member.member.pcClass == PcClass.Mage && lines.any { line -> line.offersChoiceKey(castKey.toString()) } }
+        val mage =
+            actor?.takeIf { member ->
+                member.member.pcClass == PcClass.Mage &&
+                    lines.any { line -> line.offersChoiceKey(castKey.toString()) }
+            }
         if (!tactics.escapeHopeless && !dangerous(view.state.party)) {
             val caster = mage?.let { member -> AutopilotCaster(member.member.level, member.member.mana.current) }
             when (val choice = tour.battleAction(tactics.currentFoes, caster)) {
@@ -286,7 +294,10 @@ internal class Autopilot(
 
     private fun startTownVisit(state: RuntimeState): AutopilotTownVisit =
         AutopilotTownVisit(
-            errands = (plan.townErrands(state) + tour.townErrands(state)).filter { errand -> content.serviceOpenAt(errand.service, state.hour) },
+            errands =
+                (plan.townErrands(state) + tour.townErrands(state)).filter { errand ->
+                    content.serviceOpenAt(errand.service, state.hour)
+                },
             readyOnLeave = { gear -> plan.readyOnLeave(latest ?: state, gear) },
             coverage = coverage,
             party = party,
@@ -308,7 +319,14 @@ internal class Autopilot(
             coverage.record(RuntimeCommandGroupId.Wilderness.id, RuntimeCommandActionId.Redraw.id)
             return wildernessKeys.key(RuntimeCommandActionId.Redraw)
         }
-        val group = if (view.state.currentMode == RuntimeMode.Dungeon) RuntimeCommandGroupId.Dungeon.id else RuntimeCommandGroupId.Wilderness.id
+        val group =
+            if (view.state.currentMode ==
+                RuntimeMode.Dungeon
+            ) {
+                RuntimeCommandGroupId.Dungeon.id
+            } else {
+                RuntimeCommandGroupId.Wilderness.id
+            }
         val touring = view.state.currentMode == RuntimeMode.Dungeon || view.state.party.resources.timeLeft > TOUR_MOVES
         val started = tour.commandStop(view.state, group, plan.dispensable(view.state)).takeIf { touring } ?: next()
         guardAgainstRepeatedActions(started, view.state, view)
@@ -443,7 +461,9 @@ internal class Autopilot(
         }
         when {
             view.text.any { line -> OUT_OF_MOVES in line } -> coverage.recordKey(RuntimeCommandGroupId.WildernessOutOfMoves.id, key)
-            view.text.any { line -> AutopilotActions.QUIT_QUESTION in line } -> coverage.recordKey(RuntimeCommandGroupId.WildernessQuitConfirm.id, key)
+            view.text.any { line ->
+                AutopilotActions.QUIT_QUESTION in line
+            } -> coverage.recordKey(RuntimeCommandGroupId.WildernessQuitConfirm.id, key)
         }
     }
 

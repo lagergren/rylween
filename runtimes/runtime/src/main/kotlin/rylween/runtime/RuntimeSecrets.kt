@@ -105,7 +105,11 @@ internal class SecretActions(
                 runtime.withParty(runtime.party.withGold(runtime.party.resources.gold + action.amount)).refreshed(action.refreshStatus)
             }
 
-            is ExternalSecretAction.GrantItems -> grantItems(runtime, action.items.map { slug -> content.ref(CompiledHandleKind.Item, slug) })
+            is ExternalSecretAction.GrantItems ->
+                grantItems(
+                    runtime,
+                    action.items.map { slug -> content.ref(CompiledHandleKind.Item, slug) },
+                )
 
             is ExternalSecretAction.SpawnEncounter -> {
                 log.event("secret.spawn_encounter monster=${action.monster} time_left=${runtime.party.resources.timeLeft}")

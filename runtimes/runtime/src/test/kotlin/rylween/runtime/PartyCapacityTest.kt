@@ -15,12 +15,15 @@ import kotlin.test.assertTrue
 
 class PartyCapacityTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
+
     @TempDir
     private lateinit var testTmp: File
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content
-    private val leftBehind = systems.prompts.party.dropCapacityReduced.render({ null }, NoOpRuntimeScreen().textColumns)
+    private val leftBehind =
+        systems.prompts.party.dropCapacityReduced
+            .render({ null }, NoOpRuntimeScreen().textColumns)
 
     @Test
     fun aDonkeyCarriesAsMuchFoodAgainAsThePartyItself() {

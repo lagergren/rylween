@@ -11,7 +11,20 @@
  */
 package rylween.dsl.impl
 
-import rylween.dsl.*
+import rylween.dsl.DslDefaultItems
+import rylween.dsl.DslDefaultMaps
+import rylween.dsl.GameBuilder
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.ItemId
+import rylween.dsl.LocationId
+import rylween.dsl.NpcId
+import rylween.dsl.PartyId
+import rylween.dsl.RylNextDsl
+import rylween.dsl.StateId
+import rylween.dsl.TerrainId
+import rylween.dsl.TextId
+import rylween.dsl.TownId
+import rylween.dsl.WorldMapId
 
 @RylNextDsl
 class RylweenBuilder {

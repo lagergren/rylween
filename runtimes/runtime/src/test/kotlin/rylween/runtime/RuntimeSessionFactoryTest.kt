@@ -13,6 +13,7 @@ import kotlin.test.assertTrue
 
 class RuntimeSessionFactoryTest {
     private val bundleFile = File(requiredRuntimeProperty("rylween.runtime.bundle"))
+
     @TempDir
     private lateinit var testTmp: File
 
@@ -87,7 +88,7 @@ class RuntimeSessionFactoryTest {
         assertTrue(firstValues.containsKey("${localPrefix}member.1.health"), "member stats should be fully persisted")
         assertTrue(firstValues.containsKey("${localPrefix}member.1.weapon"), "member equipment should be persisted")
         assertTrue(firstValues.containsKey("${localPrefix}member.1.charisma"), "member charisma should be fully persisted")
-        assertEquals(null, firstValues["${localPrefix}.charisma"], "member charisma must not be written as a stray user field")
+        assertEquals(null, firstValues["$localPrefix.charisma"], "member charisma must not be written as a stray user field")
         val npcCount = firstValues.getValue("npcs.count").toInt()
         val npcPositions = (1..npcCount).mapNotNull { index -> firstValues["npc.$index.position"] }.toSet()
         assertTrue(npcCount > 3, "generated NPC placements should be persisted into the world save")

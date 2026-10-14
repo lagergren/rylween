@@ -15,7 +15,13 @@ class AutopilotJournalTest {
 
     @Test
     fun aJournalThatMatchesTheWorldHasNoProblems() {
-        val lines = listOf("Nolrim's Crypt is at ${crypt.x}x${crypt.y}.", "Marcus, the hermit lives at 48x7", "A hermit named Marcus knows", "the way. He lives at 48x7!")
+        val lines =
+            listOf(
+                "Nolrim's Crypt is at ${crypt.x}x${crypt.y}.",
+                "Marcus, the hermit lives at 48x7",
+                "A hermit named Marcus knows",
+                "the way. He lives at 48x7!",
+            )
 
         assertEquals(emptyList(), journal.problems(state, lines, target = "nolrim_crypt" to crypt))
     }

@@ -87,13 +87,13 @@ internal fun livingFoeDisplayName(
     return "$living $monsterName${"s".takeIf { living > 1 }.orEmpty()}"
 }
 
-/** Result of a battle handoff. */
 /**
  * A monster weapon skill lowered by [penalty], as defending or a battle cry does. As in the original, a skill no
  * higher than the penalty stays as it is, so monsters never drop to no skill at all.
  */
 internal fun Int.loweredBy(penalty: Int): Int = if (this > penalty) this - penalty else this
 
+/** Result of a battle handoff. */
 internal data class BattleResult(
     val runtime: RuntimeState,
     val messages: List<String> = emptyList(),
@@ -285,7 +285,10 @@ internal class BattleRunner(
             if (round < encounter.rules.roundLimit && encounter.partyHasLivingMembers() && encounter.monsterHasLivingMembers()) {
                 if (encounter.partyHeld) {
                     // A held party can neither fight nor run, so the monsters take the next round.
-                    showBattleMessages(encounter.rules.text.partyHeld.renderBattle())
+                    showBattleMessages(
+                        encounter.rules.text.partyHeld
+                            .renderBattle(),
+                    )
                     screen.writeViewCommand(RuntimeViewCommand.ClearText)
                     continue
                 }
@@ -1141,7 +1144,10 @@ internal class BattleRunner(
             prompt = emptyList(),
             choices =
                 spells.map { spell ->
-                    choiceLine(spell.slot, "${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})")
+                    choiceLine(
+                        spell.slot,
+                        "${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})",
+                    )
                 },
             trailer =
                 combat.standardBattle

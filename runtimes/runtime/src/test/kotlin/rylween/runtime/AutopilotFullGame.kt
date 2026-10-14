@@ -152,7 +152,8 @@ internal class AutopilotFullGamePlan(
         return if (step == castleStep) endgame.wilderness(state) else pursue(state, step)
     }
 
-    override fun dungeon(state: RuntimeState): AutopilotAction = upkeep(state) ?: quaff(state) ?: quaffMana(state) ?: banish(state) ?: crawl.next(state)
+    override fun dungeon(state: RuntimeState): AutopilotAction =
+        upkeep(state) ?: quaff(state) ?: quaffMana(state) ?: banish(state) ?: crawl.next(state)
 
     /** On arriving in a long dungeon the priest banishes its wandering monsters, so only its fixed fights remain. */
     private fun banish(state: RuntimeState): AutopilotAction? {
@@ -203,13 +204,17 @@ internal class AutopilotFullGamePlan(
                         gold -= cost
                     }
                 }
-                party.living(p).filter { member -> member.hitPointShare < healBelow(step) && priestHealing(state, member) == null }.forEach { member ->
-                    val cost = member.hurt * HEAL_COST_PER_POINT
-                    if (gold >= cost) {
-                        add(AutopilotErrand.Heal(member))
-                        gold -= cost
+                party
+                    .living(p)
+                    .filter { member ->
+                        member.hitPointShare < healBelow(step) && priestHealing(state, member) == null
+                    }.forEach { member ->
+                        val cost = member.hurt * HEAL_COST_PER_POINT
+                        if (gold >= cost) {
+                            add(AutopilotErrand.Heal(member))
+                            gold -= cost
+                        }
                     }
-                }
                 lowCasters(p, step).forEach { member ->
                     val cost = energizeCost(member)
                     if (gold >= cost) {
@@ -283,7 +288,11 @@ internal class AutopilotFullGamePlan(
      * Answers the latest known question on screen, so an earlier riddle's words never answer a later prompt. Lines
      * are joined because the screen wraps a question wherever the column runs out.
      */
-    override fun dispensable(state: RuntimeState): String? = junk(state.party).let { junk -> junk.unsellable.firstOrNull() ?: junk.sellable.firstOrNull() }
+    override fun dispensable(state: RuntimeState): String? =
+        junk(state.party).let { junk ->
+            junk.unsellable.firstOrNull()
+                ?: junk.sellable.firstOrNull()
+        }
 
     override fun observe(view: AutopilotView) {
         journalLines?.addAll(view.text)
@@ -299,7 +308,11 @@ internal class AutopilotFullGamePlan(
             journalLines = null
             val target =
                 when (val objective = step.objective) {
-                    is AutopilotObjective.Reach -> objective.location.takeIf { step != castleStep }?.let { slug -> slug to placedPoint(state, slug) }
+                    is AutopilotObjective.Reach ->
+                        objective.location.takeIf { step != castleStep }?.let { slug ->
+                            slug to
+                                placedPoint(state, slug)
+                        }
                     is AutopilotObjective.ReachPoint -> step.name to objective.point
                     else -> null
                 }
@@ -456,7 +469,6 @@ internal class AutopilotFullGamePlan(
         step: AutopilotQuestStep,
     ): Boolean = step.gold > 0 && leaderLevel(p) >= TAX_LEVEL
 
-
     /** Readies a weapon or armor from the inventory that beats what a living member uses now. */
     private fun readyUpgrade(state: RuntimeState): AutopilotAction? =
         AutopilotGear.entries.firstNotNullOfOrNull { gear ->
@@ -602,8 +614,17 @@ internal class AutopilotFullGamePlan(
         val p = state.party
         val gold = p.resources.gold
         return buildList {
-            if (party.dead(p).isNotEmpty() && !canRebirth(p) && gold >= party.dead(p).first().member.level * RAISE_COST_PER_LEVEL) add("raise")
-            if (party.living(p).any { member -> member.hitPointShare < healBelow(step) && priestHealing(state, member) == null } && gold > HEAL_TRIP_GOLD) {
+            if (party.dead(p).isNotEmpty() && !canRebirth(p) &&
+                gold >= party
+                    .dead(p)
+                    .first()
+                    .member.level * RAISE_COST_PER_LEVEL
+            ) {
+                add("raise")
+            }
+            if (party.living(p).any { member -> member.hitPointShare < healBelow(step) && priestHealing(state, member) == null } &&
+                gold > HEAL_TRIP_GOLD
+            ) {
                 add("heal")
             }
             if (lowCasters(p, step).any { member -> gold >= energizeCost(member) }) add("energize")
@@ -679,7 +700,8 @@ internal class AutopilotFullGamePlan(
                 val terrain = objective.terrain
                 val here = navigation.terrainSlugAt(state.currentMap, state.party.position)
                 if (terrain != null && here != terrain) {
-                    navigation.stepToTerrain(state.currentMap, state.party.position, terrain, avoid = locationSquares(state))
+                    navigation
+                        .stepToTerrain(state.currentMap, state.party.position, terrain, avoid = locationSquares(state))
                         ?.let(actions::move)
                         ?: throw AutopilotStuck("no walkable $terrain")
                 } else {
@@ -778,7 +800,8 @@ internal class AutopilotFullGamePlan(
     }
 
     /** Placed quest locations and fixed mission squares; walking across one fires its mission, so routes go around them. */
-    private fun locationSquares(state: RuntimeState): Set<GridPoint> = state.locations.map { placement -> placement.point }.toSet() + missionSquares
+    private fun locationSquares(state: RuntimeState): Set<GridPoint> =
+        state.locations.map { placement -> placement.point }.toSet() + missionSquares
 
     private val missionSquares: Set<GridPoint> =
         content.missions.mapNotNull { mission -> (mission.trigger as? CompiledTrigger.AtPosition)?.point }.toSet()
@@ -808,7 +831,8 @@ internal class AutopilotFullGamePlan(
     ): GridPoint? = state.locations.firstOrNull { placement -> content.slug(placement.location) == slug }?.point
 
     /** Altar gems the remaining quest steps still ask for; the rest are treasure to sell. */
-    private fun gemsNeeded(p: PartyState): Int = AutopilotQuests.steps.filterNot { step -> done(p, step) }.maxOfOrNull { step -> step.gems } ?: 0
+    private fun gemsNeeded(p: PartyState): Int =
+        AutopilotQuests.steps.filterNot { step -> done(p, step) }.maxOfOrNull { step -> step.gems } ?: 0
 
     private fun ready(
         state: RuntimeState,
@@ -860,13 +884,15 @@ internal class AutopilotFullGamePlan(
      * How full a battle caster's mana is; everyone else counts as full. Only mages cast in battle: a priest's spell
      * points heal and revive between fights, so a boss step does not wait for them.
      */
-    private fun manaShare(member: AutopilotMember): Double =
-        if (member.member.pcClass !in battleCasters) 1.0 else rawManaShare(member)
+    private fun manaShare(member: AutopilotMember): Double = if (member.member.pcClass !in battleCasters) 1.0 else rawManaShare(member)
 
     private fun rawManaShare(member: AutopilotMember): Double =
         member.member.mana.max
             .takeIf { max -> max > 0 }
-            ?.let { max -> member.member.mana.current.toDouble() / max } ?: 1.0
+            ?.let { max ->
+                member.member.mana.current
+                    .toDouble() / max
+            } ?: 1.0
 
     /** Gold to keep unspent for the next map purchase. */
     private fun reserve(step: AutopilotQuestStep): Int = step.gold
@@ -880,7 +906,11 @@ internal class AutopilotFullGamePlan(
     private fun npcPosition(
         state: RuntimeState,
         name: String,
-    ): CompiledWorldPosition? = content.characters.firstOrNull { character -> content.strings.value(character.nameString) == name }?.position(state)
+    ): CompiledWorldPosition? =
+        content.characters
+            .firstOrNull { character ->
+                content.strings.value(character.nameString) == name
+            }?.position(state)
 
     private fun CompiledTown.offers(service: String): Boolean = services.any { building -> content.slug(building) == service }
 

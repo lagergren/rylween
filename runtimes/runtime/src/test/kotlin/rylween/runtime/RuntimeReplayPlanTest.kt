@@ -13,6 +13,7 @@ import kotlin.test.assertTrue
 class RuntimeReplayPlanTest {
     private val executable = File(requiredProperty("rylween.runtime.executable"))
     private val bundleFile = File(requiredProperty("rylween.runtime.bundle"))
+
     @TempDir
     private lateinit var testTmp: File
     private val bundle = bundleFile.readExternalCompiledGameBundle()

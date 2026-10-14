@@ -11,7 +11,6 @@ private val kotlinSourceDirs = listOf("src/main/kotlin", "src/app/kotlin", "src/
 
 ktlint {
     version.set(libs.findVersion("ktlint").get().requiredVersion)
-    ignoreFailures.set(true)
     reporters {
         reporter(ReporterType.PLAIN)
         reporter(ReporterType.CHECKSTYLE)

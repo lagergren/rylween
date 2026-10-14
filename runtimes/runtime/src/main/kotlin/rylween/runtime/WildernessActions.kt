@@ -829,7 +829,10 @@ internal class WildernessActions(
     ): List<String> =
         renderRuntimeText(content, runtime, screen.textColumns) { kind ->
             when (kind) {
-                "campGuardName" -> runtime.party.members.getOrNull(guardIndex)?.let { guard -> content.strings.value(guard.nameString) }
+                "campGuardName" ->
+                    runtime.party.members
+                        .getOrNull(guardIndex)
+                        ?.let { guard -> content.strings.value(guard.nameString) }
                 else -> null
             }
         }

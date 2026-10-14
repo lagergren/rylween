@@ -49,6 +49,8 @@ internal fun PartyState.leaveExcessFood(
     if (resources.food <= capacity) return CarriedFood(this, emptyList())
     return CarriedFood(
         party = withResource(Resource.Food, capacity),
-        notice = systems.prompts.party.dropCapacityReduced.render({ null }, textColumns),
+        notice =
+            systems.prompts.party.dropCapacityReduced
+                .render({ null }, textColumns),
     )
 }

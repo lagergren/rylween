@@ -92,7 +92,12 @@ internal object AutopilotQuests {
             AutopilotQuestStep("bring Marraga her brother's letter", "ranger.letter", "delivered", AutopilotObjective.TalkTo("Marraga")),
             AutopilotQuestStep("hear Areth about his book", "fighter.priest_book", "priest_told", AutopilotObjective.TalkTo("Areth")),
             AutopilotQuestStep("ask Gorm about Areth's book", "fighter.priest_book", "priest_visited", AutopilotObjective.TalkTo("Gorm")),
-            AutopilotQuestStep("get the book back from Nevaak", "fighter.priest_book", "wizard_robbed", AutopilotObjective.TalkTo("Nevaak")),
+            AutopilotQuestStep(
+                "get the book back from Nevaak",
+                "fighter.priest_book",
+                "wizard_robbed",
+                AutopilotObjective.TalkTo("Nevaak"),
+            ),
             AutopilotQuestStep("bring Areth his book", "fighter.priest_book", "fighter_grateful", AutopilotObjective.TalkTo("Areth")),
             // Ron's wife is held in the orc cave at 42,23; Ron pays with armor, battle items, and gold, five items in all.
             AutopilotQuestStep("hear Ron's plea", "peasant.wife", "accepted", AutopilotObjective.TalkTo("Ron"), minimumLevel = 6),
@@ -126,7 +131,13 @@ internal object AutopilotQuests {
                 minimumLevel = 9,
                 torches = 21,
             ),
-            AutopilotQuestStep("bring Borin the dagger", "master_crown", "borin_paid", AutopilotObjective.Reach("borin_camp"), freeSlots = 3),
+            AutopilotQuestStep(
+                "bring Borin the dagger",
+                "master_crown",
+                "borin_paid",
+                AutopilotObjective.Reach("borin_camp"),
+                freeSlots = 3,
+            ),
             AutopilotQuestStep("learn where the Master Crown is", "master_crown", "crown_told", AutopilotObjective.TalkTo("Ithienn")),
             AutopilotQuestStep(
                 "take the Master Crown",

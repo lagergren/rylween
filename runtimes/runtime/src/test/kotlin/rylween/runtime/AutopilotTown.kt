@@ -177,7 +177,16 @@ internal class AutopilotTownVisit(
             is AutopilotErrand.BuyGear -> smith(errand, menu, text)
             is AutopilotErrand.Sell -> sell(errand, menu, text)
             AutopilotErrand.Lodge -> inn(view, menu, text, lodge = true, talk = null)
-            is AutopilotErrand.Talk -> if (errand.tavern) tavern(errand, menu, text) else inn(view, menu, text, lodge = false, talk = errand)
+            is AutopilotErrand.Talk ->
+                if (errand.tavern) {
+                    tavern(
+                        errand,
+                        menu,
+                        text,
+                    )
+                } else {
+                    inn(view, menu, text, lodge = false, talk = errand)
+                }
             is AutopilotErrand.Pastime -> pastime(errand, view, menu, text)
         }
 
@@ -220,21 +229,39 @@ internal class AutopilotTownVisit(
                     when (chosen) {
                         TAVERN_DRINK -> menu.find("Order drink")?.key
                         TAVERN_STORY -> menu.find("Tell story")?.key
-                        TAVERN_RUMORS -> menu.find("Rumors")?.key.also { servicePaid = true }.also { tried(chosen) }
+                        TAVERN_RUMORS ->
+                            menu
+                                .find("Rumors")
+                                ?.key
+                                .also { servicePaid = true }
+                                .also { tried(chosen) }
                         else -> menu.find("Speak")?.key
                     }
                 }
-            text.contains("Order:") -> menu.find("Ale")?.key.also { servicePaid = true }.also { tried(chosen) }
+            text.contains("Order:") ->
+                menu
+                    .find("Ale")
+                    ?.key
+                    .also { servicePaid = true }
+                    .also { tried(chosen) }
             text.contains("tell a story") -> party.living(view.state.party).firstOrNull()?.digit
-            menu.find("True story") != null -> menu.find("True story")?.key.also { servicePaid = true }.also { tried(chosen) }
-            text.contains("Speak with whom?") -> menu.options.firstOrNull { option -> option.label.endsWith(BARGIRL, ignoreCase = true) }?.key
+            menu.find("True story") != null ->
+                menu
+                    .find("True story")
+                    ?.key
+                    .also { servicePaid = true }
+                    .also { tried(chosen) }
+            text.contains("Speak with whom?") ->
+                menu.options
+                    .firstOrNull { option ->
+                        option.label.endsWith(BARGIRL, ignoreCase = true)
+                    }?.key
             text.contains("upstairs for") -> 'Y'.also { servicePaid = true }.also { tried(chosen) }
             menu.find("Lodging") != null -> menu.find("Lodging")?.key
             menu.find("Bye") != null -> if (servicePaid) menu.find("Bye")?.key else menu.find("Question")?.key
             else -> null
         }
     }
-
 
     /** Church screens: pick the service, the member, pay, then leave once the service is done or refused. */
     private fun church(
@@ -356,11 +383,20 @@ internal class AutopilotTownVisit(
         lodge: Boolean,
         talk: AutopilotErrand.Talk?,
     ): Char? {
-        val level = view.state.party.members.firstOrNull()?.level ?: 1
+        val level =
+            view.state.party.members
+                .firstOrNull()
+                ?.level ?: 1
         val gold = view.state.party.resources.gold
         return when {
             text.contains("supper") ->
-                if (pending(INN_SUPPER) && gold >= level * level * INN_PRICE_PER_LEVEL_SQUARED + PASTIME_GOLD) 'Y'.also { tried(INN_SUPPER) } else 'N'
+                if (pending(INN_SUPPER) &&
+                    gold >= level * level * INN_PRICE_PER_LEVEL_SQUARED + PASTIME_GOLD
+                ) {
+                    'Y'.also { tried(INN_SUPPER) }
+                } else {
+                    'N'
+                }
             text.contains("Anything to drink?") -> if (pending(INN_DRINK) && gold >= PASTIME_GOLD) 'Y' else 'N'
             text.contains("What'll it be?") -> menu.find("Ale")?.key.also { tried(INN_DRINK) }
             text.contains("of lodging") -> if (lodge) 'Y' else 'N'
@@ -402,7 +438,13 @@ internal class AutopilotTownVisit(
     private fun smallTalk(menu: AutopilotMenu): Char? {
         val speak = "speak"
         val questions = "speak.questions"
-        val topics = listOf("question_lodging" to "Lodging", "question_magic" to "Magic", "question_people" to "People", "question_nothing" to "Nothing")
+        val topics =
+            listOf(
+                "question_lodging" to "Lodging",
+                "question_magic" to "Magic",
+                "question_people" to "People",
+                "question_nothing" to "Nothing",
+            )
         if (menu.find("Lodging") != null) {
             return topics.firstOrNull { (action, _) -> !coverage.used(questions, action) }?.let { (_, label) -> menu.find(label)?.key }
                 ?: menu.find("Nothing")?.key

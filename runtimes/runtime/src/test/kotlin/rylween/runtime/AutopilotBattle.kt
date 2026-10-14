@@ -182,8 +182,12 @@ internal class AutopilotBattle(
     /** The key of the living target with the fewest hit points. */
     fun weakestTarget(lines: List<String>): Char? =
         lines
-            .mapNotNull { line -> targetHitPointsPattern.find(line)?.let { match -> match.groupValues[1].single() to match.groupValues[2].toInt() } }
-            .minByOrNull { (_, hitPoints) -> hitPoints }
+            .mapNotNull { line ->
+                targetHitPointsPattern.find(line)?.let { match ->
+                    match.groupValues[1].single() to
+                        match.groupValues[2].toInt()
+                }
+            }.minByOrNull { (_, hitPoints) -> hitPoints }
             ?.first
 
     /** Reads "You face" / "You still face" followed by "<count> <name>" from the battle text. */

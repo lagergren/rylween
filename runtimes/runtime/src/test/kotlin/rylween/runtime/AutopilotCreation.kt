@@ -74,12 +74,22 @@ internal class AutopilotCreation(
 
     /** Rerolls ('Y') until the stats page meets the member's limits, then keeps the roll ('N'). */
     private fun reroll(lines: List<String>): Char {
-        member = lines.firstNotNullOf { line -> memberPattern.find(line)?.groupValues?.get(1)?.toInt() }
+        member =
+            lines.firstNotNullOf { line ->
+                memberPattern
+                    .find(line)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toInt()
+            }
         rolls.merge(member, 1, Int::plus)
         val stats =
             lines
                 .mapNotNull { line -> statPattern.find(line.trim()) }
-                .associate { match -> enumValueOf<CharacterCreationStat>(match.groupValues[1].replace(" ", "")) to match.groupValues[2].toInt() }
+                .associate { match ->
+                    enumValueOf<CharacterCreationStat>(match.groupValues[1].replace(" ", "")) to
+                        match.groupValues[2].toInt()
+                }
         val good = recruit().minimums.all { (stat, minimum) -> (stats[stat] ?: 0) >= minimum }
         if (good) accepted[member] = stats
         return if (good) 'N' else 'Y'

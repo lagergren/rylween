@@ -20,6 +20,7 @@ import kotlin.test.assertTrue
 
 class UtilityActionsTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
+
     @TempDir
     private lateinit var testTmp: File
     private val bundle = bundleFile.readExternalCompiledGameBundle()
@@ -38,7 +39,11 @@ class UtilityActionsTest {
         val runtime = runtimeWithInventory(sword)
         val after = runUtility("ready-weapon.log", "1A") { actions -> actions.readyWeapon(runtime) }
 
-        assertEquals(sword, after.party.members[0].equipment.weapon)
+        assertEquals(
+            sword,
+            after.party.members[0]
+                .equipment.weapon,
+        )
         assertEquals(null, after.party.inventoryItem(1))
     }
 
@@ -49,7 +54,11 @@ class UtilityActionsTest {
         val runtime = runtimeWithInventory(sword).withFirstMemberWeapon(axe)
         val after = runUtility("swap-weapon.log", "1A") { actions -> actions.readyWeapon(runtime) }
 
-        assertEquals(sword, after.party.members[0].equipment.weapon)
+        assertEquals(
+            sword,
+            after.party.members[0]
+                .equipment.weapon,
+        )
         assertEquals(axe, after.party.inventoryItem(1))
     }
 
@@ -60,7 +69,11 @@ class UtilityActionsTest {
         val runtime = runtimeWithInventory(null).withFirstMemberWeapon(sword)
         val after = runUtility("remove-weapon-free.log", "1") { actions -> actions.removeWeapon(runtime) }
 
-        assertEquals(blank, after.party.members[0].equipment.weapon)
+        assertEquals(
+            blank,
+            after.party.members[0]
+                .equipment.weapon,
+        )
         assertEquals(sword, after.party.inventoryItem(1))
     }
 
@@ -71,7 +84,11 @@ class UtilityActionsTest {
         val runtime = runtimeWithInventory(*Array(16) { axe }).withFirstMemberWeapon(sword)
         val after = runUtility("remove-weapon-cancel.log", "1\n") { actions -> actions.removeWeapon(runtime) }
 
-        assertEquals(sword, after.party.members[0].equipment.weapon)
+        assertEquals(
+            sword,
+            after.party.members[0]
+                .equipment.weapon,
+        )
         assertEquals(axe, after.party.inventoryItem(1))
     }
 
@@ -83,7 +100,11 @@ class UtilityActionsTest {
         val runtime = runtimeWithInventory(*Array(16) { axe }).withFirstMemberWeapon(sword)
         val after = runUtility("remove-weapon-replace.log", "1YA") { actions -> actions.removeWeapon(runtime) }
 
-        assertEquals(blank, after.party.members[0].equipment.weapon)
+        assertEquals(
+            blank,
+            after.party.members[0]
+                .equipment.weapon,
+        )
         assertEquals(sword, after.party.inventoryItem(1))
     }
 
@@ -122,9 +143,21 @@ class UtilityActionsTest {
         val input = ScriptedInput("Y1A" + "Y2B" + "Y1C")
         val after = runUtility("leave-town-ready.log", input) { actions -> actions.readyBeforeLeavingTown(runtime, leavePrompts()).runtime }
 
-        assertEquals(sword, after.party.members[0].equipment.weapon)
-        assertEquals(sword, after.party.members[1].equipment.weapon)
-        assertEquals(leather, after.party.members[0].equipment.armor)
+        assertEquals(
+            sword,
+            after.party.members[0]
+                .equipment.weapon,
+        )
+        assertEquals(
+            sword,
+            after.party.members[1]
+                .equipment.weapon,
+        )
+        assertEquals(
+            leather,
+            after.party.members[0]
+                .equipment.armor,
+        )
         assertTrue(after.party.inventory.all { slot -> slot.item == null })
         assertTrue(input.exhausted)
     }
@@ -139,8 +172,16 @@ class UtilityActionsTest {
                 actions.readyBeforeLeavingTown(runtime, leavePrompts()).runtime
             }
 
-        assertEquals(item("blank"), after.party.members[0].equipment.weapon)
-        assertEquals(leather, after.party.members[0].equipment.armor)
+        assertEquals(
+            item("blank"),
+            after.party.members[0]
+                .equipment.weapon,
+        )
+        assertEquals(
+            leather,
+            after.party.members[0]
+                .equipment.armor,
+        )
         assertEquals(sword, after.party.inventoryItem(1))
     }
 
@@ -149,7 +190,9 @@ class UtilityActionsTest {
         val sword = item("sword")
         val axe = item("axe")
         val runtime = runtimeWithInventory(sword)
-        val armed = runtime.party.members.indices.fold(runtime) { state, index -> state.withMemberWeapon(index, axe) }
+        val armed =
+            runtime.party.members.indices
+                .fold(runtime) { state, index -> state.withMemberWeapon(index, axe) }
         val input = ScriptedInput("Y1A")
         runUtility("leave-town-armed.log", input) { actions -> actions.readyBeforeLeavingTown(armed, leavePrompts()).runtime }
 
@@ -159,20 +202,37 @@ class UtilityActionsTest {
     @Test
     fun healingPotionRestoresMoreHitPointsAtHigherLevels() {
         val runtime =
-            runtimeWithInventory(item("red_potion")).updateMember(0) { member -> member.copy(level = 20, health = 300, hitPoints = 10 of 300) }
+            runtimeWithInventory(
+                item("red_potion"),
+            ).updateMember(0) { member -> member.copy(level = 20, health = 300, hitPoints = 10 of 300) }
         val after = runUtility("quaff-red.log", "A1") { actions -> actions.quaff(runtime) }
 
-        assertEquals(10 + 12 + 3 * 20, after.party.members[0].hitPoints.current)
+        assertEquals(
+            10 + 12 + 3 * 20,
+            after.party.members[0]
+                .hitPoints.current,
+        )
         assertEquals(null, after.party.inventoryItem(1))
     }
 
     @Test
     fun poisonPotionTakesMoreHitPointsAtHigherLevels() {
         val runtime =
-            runtimeWithInventory(item("blue_potion")).updateMember(0) { member -> member.copy(level = 5, health = 300, hitPoints = 100 of 300) }
+            runtimeWithInventory(item("blue_potion")).updateMember(0) { member ->
+                member.copy(
+                    level = 5,
+                    health = 300,
+                    hitPoints =
+                        100 of 300,
+                )
+            }
         val after = runUtility("quaff-blue.log", "A1") { actions -> actions.quaff(runtime) }
 
-        assertEquals(100 - (12 + 3 * 5), after.party.members[0].hitPoints.current)
+        assertEquals(
+            100 - (12 + 3 * 5),
+            after.party.members[0]
+                .hitPoints.current,
+        )
     }
 
     @Test
@@ -182,7 +242,11 @@ class UtilityActionsTest {
         val runtime = base.updateMember(caster) { member -> member.copy(level = 10, mana = 0 of 200) }
         val after = runUtility("quaff-amber.log", "A${caster + 1}") { actions -> actions.quaff(runtime) }
 
-        assertEquals(12 + 3 * 10, after.party.members[caster].mana.current)
+        assertEquals(
+            12 + 3 * 10,
+            after.party.members[caster]
+                .mana.current,
+        )
     }
 
     @Test
@@ -218,9 +282,12 @@ class UtilityActionsTest {
         val priest = base.party.members.indexOfFirst { member -> member.pcClass == PcClass.Priest }
         val runtime = base.updateMember(priest) { member -> member.copy(mana = 200 of 200) }
         val spells = content.spells.filter { spell -> content.slug(spell.id).startsWith("priest.") }.sortedBy(CompiledSpell::slot)
-        val spellKey = systems.prompts.priest.firstSpellKey.single() + spells.indexOfFirst { spell -> content.slug(spell.id) == "priest.teleport" }
+        val spellKey =
+            systems.prompts.priest.firstSpellKey
+                .single() + spells.indexOfFirst { spell -> content.slug(spell.id) == "priest.teleport" }
         val input = ScriptedInput("${priest + 1}$spellKey  $direction$miles")
-        val after = runUtility("teleport.log", input) { actions -> actions.castPriestSpell(runtime.withParty(runtime.party.copy(position = from))) }
+        val after =
+            runUtility("teleport.log", input) { actions -> actions.castPriestSpell(runtime.withParty(runtime.party.copy(position = from))) }
 
         assertTrue(input.exhausted)
         return after.party.position
