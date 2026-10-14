@@ -349,7 +349,13 @@ private class BitmapBrowserSmoke(
             null,
             Page.WaitForFunctionOptions().setTimeout(5_000.0),
         )
-        page.keyboard().press("2")
+        // The view switches with the 3D view checkbox; digit keys belong to the game, not the tool.
+        page.uncheck("#toolPerspective")
+        page.waitForFunction(
+            "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().mode === '2d'",
+            null,
+            Page.WaitForFunctionOptions().setTimeout(5_000.0),
+        )
         val afterInput =
             page
                 .evaluate(
@@ -360,7 +366,7 @@ private class BitmapBrowserSmoke(
         ) {
             "wilderness perspective tool controls failed: $afterInput"
         }
-        page.keyboard().press("3")
+        page.check("#toolPerspective")
         page.waitForFunction(
             "() => window.__rylweenWildernessPerspectiveTool && window.__rylweenWildernessPerspectiveTool().mode === '3d'",
             null,
