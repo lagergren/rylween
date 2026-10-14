@@ -22,6 +22,7 @@ import rylween.webcommon.auth.WebAuthFieldAvailability
 import rylween.webcommon.auth.WebAuthPageMode
 import rylween.webcommon.auth.WebAuthResult
 import rylween.webcommon.auth.WebSessionStore
+import rylween.webcommon.auth.WebSysopAccountResult
 import rylween.webcommon.auth.WebUserStore
 import rylween.webcommon.auth.slugFrom
 import rylween.webcommon.auth.webAuthPageHtml
@@ -49,6 +50,8 @@ private const val DEFAULT_PORT = 8080
 private const val DEFAULT_BUNDLE = "/app/rylween-bundle.json"
 private const val DEFAULT_DATA_DIR = "/data"
 private const val DEFAULT_STATE = "fresh-replay"
+private const val ADMIN_PASSWORD_ENV = "RYLWEEN_ADMIN_PASSWORD"
+private const val ADMIN_PASSWORD_FILE = "admin-password.txt"
 
 fun main(args: Array<String>) {
     val config = WebRuntimeConfig.parse(args)
@@ -239,7 +242,8 @@ private data class WebRuntimeConfig(
                   RYLWEEN_AUTH_EMAIL Optional email for RYLWEEN_AUTH_ACCOUNT.
                   RYLWEEN_AUTH_PASSWORD Required when RYLWEEN_AUTH_ACCOUNT is set.
                   RYLWEEN_AUTH_SECURE_COOKIES Set true when served through HTTPS.
-                  RYLWEEN_ADMIN_ACCOUNT Sysop account with the secret keys. Default: admin
+                  RYLWEEN_ADMIN_ACCOUNT Sysop account with the secret keys, created at startup. Default: admin
+                  RYLWEEN_ADMIN_PASSWORD Its password; generated into <data>/auth/admin-password.txt when unset.
                   RYLWEEN_VICTIM_ACCOUNT Account the sysop gods hunt down. Default: none
                   RYLWEEN_SEED      Optional runtime RNG seed.
                 """.trimIndent(),
@@ -253,8 +257,10 @@ private class RuntimeWebServer(
     private val factory: RuntimeSessionFactory,
     private val serverLog: RuntimeLog,
 ) : Closeable {
-    // Players cannot register the sysop account; only a bootstrap account can claim it.
-    private val userStore = WebUserStore(config.authDir, reservedNames = setOf(RuntimeSecretAccounts.fromEnvironment().admin))
+    private val secretAccounts = RuntimeSecretAccounts.fromEnvironment()
+
+    // Players cannot register the sysop account; the server creates it at startup.
+    private val userStore = WebUserStore(config.authDir, reservedNames = setOf(secretAccounts.admin))
     private val sessions = WebSessionStore()
     private val activeUsers = ConcurrentHashMap.newKeySet<String>()
     private val worldSessionLock = ReentrantLock(true)
@@ -264,6 +270,7 @@ private class RuntimeWebServer(
 
     fun serveForever() {
         ensureBootstrapAccount()
+        ensureSysopAccount()
         serverSocket.reuseAddress = true
         serverSocket.bind(InetSocketAddress(config.host, config.port))
         serverLog.event(
@@ -292,6 +299,26 @@ private class RuntimeWebServer(
                 serverLog.event("web.auth.bootstrap_existing user=${result.account.slug} email=${logValue(result.account.email)}")
             is WebAuthBootstrapResult.Failure ->
                 error("Could not bootstrap account: ${result.message}")
+        }
+    }
+
+    /**
+     * Creates the sysop account on first start, with RYLWEEN_ADMIN_PASSWORD or
+     * else a generated password saved in the auth directory for the operator.
+     */
+    private fun ensureSysopAccount() {
+        val passwordFile = config.authDir.resolve(ADMIN_PASSWORD_FILE)
+        val password = System.getenv(ADMIN_PASSWORD_ENV)?.takeIf(String::isNotBlank)
+        when (val result = userStore.ensureSysopAccount(secretAccounts.admin, password, passwordFile)) {
+            is WebSysopAccountResult.Created ->
+                serverLog.event(
+                    "web.auth.sysop_created user=${result.account.slug}" +
+                        result.passwordFile?.let { file -> " password_file=${logValue(file.path)}" }.orEmpty(),
+                )
+            is WebSysopAccountResult.Existing ->
+                serverLog.event("web.auth.sysop_existing user=${result.account.slug}")
+            is WebSysopAccountResult.Failure ->
+                error("Could not create the sysop account: ${result.message}")
         }
     }
 

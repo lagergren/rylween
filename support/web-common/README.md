@@ -43,7 +43,10 @@ RYLWEEN_AUTH_PASSWORD
 ```
 
 Players cannot register the sysop account (`RYLWEEN_ADMIN_ACCOUNT`, default
-`admin`), so create it this way.
+`admin`). The server creates it at startup when it is missing, with
+`RYLWEEN_ADMIN_PASSWORD`, or else with a generated password saved in
+`auth/admin-password.txt` under the data directory, readable only by the
+server's user.
 
 Bootstrap is idempotent:
 

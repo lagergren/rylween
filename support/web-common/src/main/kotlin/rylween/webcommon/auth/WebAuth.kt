@@ -9,6 +9,8 @@ import rylween.webcommon.WebHttpHeader
 import java.io.File
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Duration
@@ -76,6 +78,22 @@ sealed class WebAuthBootstrapResult {
     data class Failure(
         val message: String,
     ) : WebAuthBootstrapResult()
+}
+
+sealed class WebSysopAccountResult {
+    /** The account was created; [passwordFile] holds its generated password, or is null when the server set one. */
+    data class Created(
+        val account: WebAccount,
+        val passwordFile: File?,
+    ) : WebSysopAccountResult()
+
+    data class Existing(
+        val account: WebAccount,
+    ) : WebSysopAccountResult()
+
+    data class Failure(
+        val message: String,
+    ) : WebSysopAccountResult()
 }
 
 /**
@@ -167,6 +185,31 @@ class WebUserStore(
             }
             val properties = createAccount(slug, cleanName, normalizedEmail, account.password, emailIndex)
             WebAuthBootstrapResult.Created(properties.account())
+        }
+
+    /**
+     * Creates the sysop account [displayName] when it does not exist yet, and
+     * leaves an existing one alone. The account gets [password] when the server
+     * sets one; otherwise a generated password, written to [passwordFile] where
+     * only the server's user can read it.
+     */
+    fun ensureSysopAccount(
+        displayName: String,
+        password: String?,
+        passwordFile: File,
+    ): WebSysopAccountResult =
+        lock.withLock {
+            val slug = slugFrom(displayName) ?: return WebSysopAccountResult.Failure("Enter an adventurer name.")
+            loadUserProperties(slug)?.let { existing -> return WebSysopAccountResult.Existing(existing.account()) }
+            val chosen = password ?: randomToken().also(passwordFile::writeOwnerOnly)
+            when (val created = ensureAccount(WebAuthBootstrapAccount(displayName, null, chosen))) {
+                is WebAuthBootstrapResult.Created -> WebSysopAccountResult.Created(created.account, passwordFile.takeIf { password == null })
+                is WebAuthBootstrapResult.Existing -> WebSysopAccountResult.Existing(created.account)
+                is WebAuthBootstrapResult.Failure -> {
+                    if (password == null) passwordFile.delete()
+                    WebSysopAccountResult.Failure(created.message)
+                }
+            }
         }
 
     fun authenticate(
@@ -393,6 +436,19 @@ private fun randomToken(): String {
     val bytes = ByteArray(TOKEN_BYTES)
     SecureRandom().nextBytes(bytes)
     return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+}
+
+/** Writes [text] to this file, readable and writable only by its owner where the file system supports that. */
+private fun File.writeOwnerOnly(text: String) {
+    parentFile?.mkdirs()
+    delete()
+    createNewFile()
+    try {
+        Files.setPosixFilePermissions(toPath(), PosixFilePermissions.fromString("rw-------"))
+    } catch (unsupported: UnsupportedOperationException) {
+        // Not a POSIX file system; the file keeps its directory's permissions.
+    }
+    writeText(text + "\n")
 }
 
 private fun loadProperties(file: File): Properties =

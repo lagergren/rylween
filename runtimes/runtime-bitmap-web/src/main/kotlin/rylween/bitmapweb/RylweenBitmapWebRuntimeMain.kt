@@ -33,6 +33,7 @@ import rylween.webcommon.auth.WebAuthFieldAvailability
 import rylween.webcommon.auth.WebAuthPageMode
 import rylween.webcommon.auth.WebAuthResult
 import rylween.webcommon.auth.WebSessionStore
+import rylween.webcommon.auth.WebSysopAccountResult
 import rylween.webcommon.auth.WebUserStore
 import rylween.webcommon.auth.slugFrom
 import rylween.webcommon.auth.webAuthPageHtml
@@ -60,6 +61,8 @@ private const val DEFAULT_HOST = "127.0.0.1"
 private const val DEFAULT_PORT = 8081
 private const val DEFAULT_DATA_DIR = "build/rylween-data"
 private const val DEFAULT_STATE = "fresh-replay"
+private const val ADMIN_PASSWORD_ENV = "RYLWEEN_ADMIN_PASSWORD"
+private const val ADMIN_PASSWORD_FILE = "admin-password.txt"
 private val bitmapWebStatic =
     mapOf(
         "styles.css" to ServedResource("bitmap-web/styles.css", "text/css; charset=utf-8"),
@@ -362,8 +365,10 @@ private class BitmapWebServer(
     private val serverLog: RuntimeLog,
 ) : Closeable {
     private val runtimeFactory = RuntimeSessionFactory.load(game.bundle, game.systems, game.contentHash)
-    // Players cannot register the sysop account; only a bootstrap account can claim it.
-    private val userStore = WebUserStore(config.authDir, reservedNames = setOf(RuntimeSecretAccounts.fromEnvironment().admin))
+    private val secretAccounts = RuntimeSecretAccounts.fromEnvironment()
+
+    // Players cannot register the sysop account; the server creates it at startup.
+    private val userStore = WebUserStore(config.authDir, reservedNames = setOf(secretAccounts.admin))
     private val sessions = WebSessionStore()
     private val activeUsers = ConcurrentHashMap.newKeySet<String>()
     private val bitmapImageById =
@@ -382,6 +387,7 @@ private class BitmapWebServer(
 
     fun serveForever() {
         ensureBootstrapAccount()
+        ensureSysopAccount()
         serverSocket.reuseAddress = true
         serverSocket.bind(InetSocketAddress(config.host, config.port))
         serverLog.event(
@@ -412,6 +418,26 @@ private class BitmapWebServer(
                 serverLog.event("bitmap.auth.bootstrap_existing user=${result.account.slug} email=${serverLogValue(result.account.email)}")
             is WebAuthBootstrapResult.Failure ->
                 error("Could not bootstrap account: ${result.message}")
+        }
+    }
+
+    /**
+     * Creates the sysop account on first start, with RYLWEEN_ADMIN_PASSWORD or
+     * else a generated password saved in the auth directory for the operator.
+     */
+    private fun ensureSysopAccount() {
+        val passwordFile = config.authDir.resolve(ADMIN_PASSWORD_FILE)
+        val password = System.getenv(ADMIN_PASSWORD_ENV)?.takeIf(String::isNotBlank)
+        when (val result = userStore.ensureSysopAccount(secretAccounts.admin, password, passwordFile)) {
+            is WebSysopAccountResult.Created ->
+                serverLog.event(
+                    "bitmap.auth.sysop_created user=${result.account.slug}" +
+                        result.passwordFile?.let { file -> " password_file=${serverLogValue(file.path)}" }.orEmpty(),
+                )
+            is WebSysopAccountResult.Existing ->
+                serverLog.event("bitmap.auth.sysop_existing user=${result.account.slug}")
+            is WebSysopAccountResult.Failure ->
+                error("Could not create the sysop account: ${result.message}")
         }
     }
 

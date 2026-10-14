@@ -1,8 +1,11 @@
 package rylween.webcommon.auth
 
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermissions
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 
@@ -44,6 +47,35 @@ class WebAuthTest {
         assertEquals(false, store.availability("ADMIN", "someone@example.test").name.available)
         assertIs<WebAuthBootstrapResult.Created>(store.ensureAccount(WebAuthBootstrapAccount("admin", null, "password123")))
         assertIs<WebAuthResult.Success>(store.authenticate("admin", "password123"))
+    }
+
+    @Test
+    fun theSysopAccountIsCreatedOnceWithAGeneratedPasswordOnlyItsOwnerCanRead() {
+        val dir = createTempDirectory("rylween-auth").toFile()
+        val store = WebUserStore(dir, reservedNames = setOf("admin"))
+        val passwordFile = dir.resolve("admin-password.txt")
+
+        val created = assertIs<WebSysopAccountResult.Created>(store.ensureSysopAccount("admin", null, passwordFile))
+        val password = passwordFile.readText().trim()
+
+        assertEquals(passwordFile, created.passwordFile)
+        assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(passwordFile.toPath())))
+        assertIs<WebAuthResult.Success>(store.authenticate("admin", password))
+        assertIs<WebSysopAccountResult.Existing>(store.ensureSysopAccount("admin", null, passwordFile))
+        assertEquals(password, passwordFile.readText().trim(), "an existing account keeps its password")
+    }
+
+    @Test
+    fun theSysopAccountUsesTheServersPasswordWhenOneIsSet() {
+        val dir = createTempDirectory("rylween-auth").toFile()
+        val store = WebUserStore(dir)
+        val passwordFile = dir.resolve("admin-password.txt")
+
+        val created = assertIs<WebSysopAccountResult.Created>(store.ensureSysopAccount("Head Sysop", "sysop-secret", passwordFile))
+
+        assertNull(created.passwordFile)
+        assertFalse(passwordFile.exists())
+        assertIs<WebAuthResult.Success>(store.authenticate("head-sysop", "sysop-secret"))
     }
 
     @Test

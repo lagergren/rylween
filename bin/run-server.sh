@@ -166,6 +166,7 @@ forward_env RYLWEEN_SEED
 forward_env RYLWEEN_BUNDLE
 forward_env RYLWEEN_AUTH_DEV_USER
 forward_env RYLWEEN_ADMIN_ACCOUNT
+forward_env RYLWEEN_ADMIN_PASSWORD
 forward_env RYLWEEN_VICTIM_ACCOUNT
 
 if [[ -n "$AUTH_ACCOUNT" || -n "$AUTH_EMAIL" || -n "$AUTH_PASSWORD" ]]; then
