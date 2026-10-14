@@ -269,8 +269,12 @@ pay(
 )
 ```
 
-Secret debug/sysop grants live under `secrets { ... }` with methods such as
-`addGold(...)`; they are not normal game rewards.
+Secret debug/sysop grants live under `secrets { ... }`, in an `admin { ... }`
+block for the sysop and a `victim { ... }` block for an account the sysop gods
+punish, with methods such as `addGold(...)` and `grantItems(...)`. They are not
+normal game rewards. The game never names the accounts: each server sets them
+with `RYLWEEN_ADMIN_ACCOUNT` (default `admin`) and `RYLWEEN_VICTIM_ACCOUNT`
+(default nobody).
 
 ### Monster
 

@@ -1516,46 +1516,38 @@ class GameBuilder {
 /**
  * Receiver for optional debug and secret systems.
  *
- * Designers use it to declare hidden player-name matches and debug command
- * allowlists without wiring those checks directly into runtime sessions.
+ * Designers declare what the sysop and a sysop-marked victim can do; each
+ * server decides which accounts play those roles, so the game never names a
+ * player and nobody gets the powers by picking a name.
  */
 @RylNextDsl
-@Suppress("unused")
 class SecretSystemBuilder(
     initial: SecretSystemModel = SecretSystemModel(),
 ) {
     private val players = initial.players.toMutableList()
 
-    fun playerNamed(
-        name: String,
-        body: SecretPlayerBuilder.() -> Unit,
-    ) {
-        players += SecretPlayerBuilder(SecretPlayerMatcherModel.Named(listOf(name))).apply(body).build()
+    /** Hooks for the sysop account, `admin` unless the server sets `RYLWEEN_ADMIN_ACCOUNT`. */
+    fun admin(body: SecretPlayerBuilder.() -> Unit) {
+        players += SecretPlayerBuilder(SecretRole.Admin).apply(body).build()
     }
 
-    fun playersNamed(
-        vararg names: String,
-        body: SecretPlayerBuilder.() -> Unit,
-    ) {
-        players += SecretPlayerBuilder(SecretPlayerMatcherModel.Named(names.toList())).apply(body).build()
-    }
-
-    fun playerAny(body: SecretPlayerBuilder.() -> Unit) {
-        players += SecretPlayerBuilder(SecretPlayerMatcherModel.Any).apply(body).build()
+    /** Hooks for the account the server names in `RYLWEEN_VICTIM_ACCOUNT`; nobody when it names none. */
+    fun victim(body: SecretPlayerBuilder.() -> Unit) {
+        players += SecretPlayerBuilder(SecretRole.Victim).apply(body).build()
     }
 
     fun build(): SecretSystemModel = SecretSystemModel(players = players.toList())
 }
 
 /**
- * Receiver for one player-name based secret trigger.
+ * Receiver for the secret hooks of one [SecretRole].
  *
- * It captures the name-matching policy and the debug commands or step trigger
- * unlocked when a party matches that policy.
+ * It captures the hidden wilderness keys and the step trigger unlocked for the
+ * account that plays the role.
  */
 @RylNextDsl
 class SecretPlayerBuilder(
-    private val matcher: SecretPlayerMatcherModel,
+    private val role: SecretRole,
 ) {
     private val keyActions = mutableListOf<SecretKeyActionModel>()
     private var stepTrigger: SecretStepTriggerModel? = null
@@ -1584,12 +1576,16 @@ class SecretPlayerBuilder(
         onKey(key, SecretActionModel.AddGold(amount, refreshStatus))
     }
 
-    fun setInventory(
+    /**
+     * Offers every item of [pool] in one go. Items go to free slots; for each
+     * one that does not fit, the player is asked to drop something for it or
+     * to pass it up.
+     */
+    fun grantItems(
         key: Char,
-        slot: Int,
-        item: ItemId,
+        pool: ItemPoolId,
     ) {
-        onKey(key, SecretActionModel.SetInventory(slot, item))
+        onKey(key, SecretActionModel.GrantItems(pool))
     }
 
     fun spawnEncounterEvery(
@@ -1612,7 +1608,7 @@ class SecretPlayerBuilder(
 
     fun build(): SecretPlayerModel =
         SecretPlayerModel(
-            matcher = matcher,
+            role = role,
             keyActions = keyActions.toList(),
             stepTrigger = stepTrigger,
             alwaysRunFromNonMandatoryEncounters = alwaysRunFromNonMandatoryEncounters,

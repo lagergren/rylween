@@ -722,64 +722,52 @@ private fun validateCastleEntryTile(
     }
 }
 
-/** Validates per-player secret actions and their referenced content. */
+/** Validates per-role secret actions and their referenced content. */
 fun validateSecretSystem(
     secrets: SecretSystemModel,
     itemCatalog: List<ItemRecordModel>,
+    itemPools: List<ItemPoolId>,
     monsters: List<MonsterModel>,
 ) {
-    val playerNames = secrets.players.flatMap(SecretPlayerModel::playerNames)
-    check(playerNames.toSet().size == playerNames.size) { "duplicate secret player name" }
-    check(secrets.players.count { player -> player.matcher == SecretPlayerMatcherModel.Any } <= 1) {
-        "duplicate playerAny secret block"
-    }
+    val roles = secrets.players.map(SecretPlayerModel::role)
+    check(roles.toSet().size == roles.size) { "duplicate secret role block" }
 
     val itemIds = itemCatalog.map { it.id }.toSet()
     val monsterIds = monsters.map { it.id }.toSet()
     secrets.players.forEach { player ->
-        val playerLabel = player.secretLabel()
-        player.playerNames.forEach { name -> check(name.isNotBlank()) { "secret player name is blank" } }
-        when (val matcher = player.matcher) {
-            SecretPlayerMatcherModel.Any -> Unit
-            is SecretPlayerMatcherModel.Named -> check(matcher.names.isNotEmpty()) { "secret playersNamed block has no names" }
-        }
+        val roleLabel = player.role.name.lowercase()
         player.stepTrigger?.let { trigger ->
             check(trigger.everySteps > 0) {
-                "secret $playerLabel step trigger must be positive"
+                "secret $roleLabel step trigger must be positive"
             }
-            validateSecretAction(trigger.action, "secret $playerLabel step trigger", itemIds, monsterIds)
+            validateSecretAction(trigger.action, "secret $roleLabel step trigger", itemIds, itemPools, monsterIds)
         }
         player.keyActions.forEach { keyAction ->
-            validateInputChoiceBinding(keyAction.binding, "secret $playerLabel key")
-            validateSecretAction(keyAction.action, "secret $playerLabel key", itemIds, monsterIds)
+            validateInputChoiceBinding(keyAction.binding, "secret $roleLabel key")
+            validateSecretAction(keyAction.action, "secret $roleLabel key", itemIds, itemPools, monsterIds)
         }
         checkUniqueBindings(
             player.keyActions.map { it.binding },
-            "secret $playerLabel",
+            "secret $roleLabel",
         )
     }
 }
-
-private fun SecretPlayerModel.secretLabel(): String =
-    when (val matcher = matcher) {
-        SecretPlayerMatcherModel.Any -> "playerAny"
-        is SecretPlayerMatcherModel.Named -> "players ${matcher.names.joinToString()}"
-    }
 
 private fun validateSecretAction(
     action: SecretActionModel,
     label: String,
     itemIds: Set<ItemId>,
+    itemPools: List<ItemPoolId>,
     monsterIds: Set<MonsterId>,
 ) {
     when (action) {
         is SecretActionModel.AddGold -> check(action.amount >= 0) { "$label adds negative gold" }
         is SecretActionModel.AddTimeLeft -> check(action.amount >= 0) { "$label adds negative time left" }
-        is SecretActionModel.SetInventory -> {
-            check(action.slot in 1..INVENTORY_SAVE_SLOT_MAX) {
-                "$label inventory slot must be in 1..$INVENTORY_SAVE_SLOT_MAX"
-            }
-            check(action.item in itemIds) { "$label references missing item ${action.item.slug}" }
+        is SecretActionModel.GrantItems -> {
+            val pool = itemPools.firstOrNull { pool -> pool == action.pool }
+            checkNotNull(pool) { "$label references missing item pool ${action.pool.slug}" }
+            check(pool.items.isNotEmpty()) { "$label item pool ${action.pool.slug} is empty" }
+            pool.items.forEach { item -> check(item in itemIds) { "$label references missing item ${item.slug}" } }
         }
         is SecretActionModel.SpawnEncounter ->
             check(action.monster in monsterIds) { "$label references missing monster ${action.monster.slug}" }
@@ -2957,7 +2945,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
                 validateCastleSystem(castle, content.itemCatalog, content.progress, content.monsters, content.scenes, content.worldMaps)
             }
         }
-        captureValidation("secrets") { validateSecretSystem(content.secrets, content.itemCatalog, content.monsters) }
+        captureValidation("secrets") { validateSecretSystem(content.secrets, content.itemCatalog, content.itemPools, content.monsters) }
         captureValidation("towns") { validateTowns(content.towns) }
         captureValidation("townSystem") { validateTownSystem(content.townSystem, content.towns, content.scenes) }
         captureValidation("characters") { validateCharacters(content.characters, content.towns, content.terrain, content.worldMaps) }

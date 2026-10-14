@@ -48,6 +48,7 @@ import rylween.compiled.ExternalCharacterCreationStatRoll
 import rylween.compiled.ExternalRuntimeCharacterCreation
 import rylween.compiled.ExternalRuntimeCommand
 import rylween.compiled.ExternalRuntimeInputBinding
+import rylween.compiled.ExternalRuntimeSecretPlayer
 import rylween.compiled.ExternalRuntimeSystems
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalTownEntryTax
@@ -363,6 +364,7 @@ class GameRuntime private constructor(
     private val bundle: CompiledGameBundle,
     private val systems: ExternalRuntimeSystems,
     private val bundleContentHash: String,
+    private val secretAccounts: RuntimeSecretAccounts,
 ) {
     private val content: CompiledContentBundle = bundle.content
 
@@ -512,7 +514,7 @@ class GameRuntime private constructor(
             } else {
                 RuntimeState.from(stateBySlug(stateSlug), content)
             }
-        runtime = runtime.withActiveUser(userId).withSecretRules(systems)
+        runtime = runtime.withActiveUser(userId).withSecretRules(systems, secretAccounts)
         runtime = seed?.let(runtime::withSeed) ?: runtime
         val world = WorldMap.from(content, runtime.currentMap)
         val flashLogSink =
@@ -551,6 +553,7 @@ class GameRuntime private constructor(
                     log = log,
                 )
             val utility = UtilityActions(content, systems, input, screen, log)
+            val secrets = SecretActions(content, systems, input, screen, log)
             val audio = RuntimeAudio(systems.audio, screen)
             var wildernessTrack: String? = null
             screen.bootFrame()
@@ -778,8 +781,14 @@ class GameRuntime private constructor(
 
                         command == '\n' -> false
                         else -> {
-                            audio.cue(AudioCue.InvalidChoice)
-                            screen.writeText(runtimeChromeText("Unknown command '$command'.", "Press ? for commands."))
+                            val secret = secrets.keyAction(runtime, command)
+                            if (secret != null) {
+                                runtime = applyAction(secrets.apply(runtime, secret), screen, world)
+                                if (runtime.currentMode == RuntimeMode.GameOver) return gameOverResult()
+                            } else {
+                                audio.cue(AudioCue.InvalidChoice)
+                                screen.writeText(runtimeChromeText("Unknown command '$command'.", "Press ? for commands."))
+                            }
                             false
                         }
                     }
@@ -953,7 +962,7 @@ class GameRuntime private constructor(
                     scoreParties = savedRuntime?.scoreParties.orEmpty(),
                     hallOfHeroes = savedRuntime?.hallOfHeroes.orEmpty(),
                 ).withActiveUser(userId)
-                .withSecretRules(systems)
+                .withSecretRules(systems, secretAccounts)
         return seed?.let(fresh::withSeed) ?: fresh
     }
 
@@ -973,7 +982,7 @@ class GameRuntime private constructor(
                 hallOfHeroesCompletedBy = save.hallOfHeroesCompletedBy,
             )
         }.map { runtime ->
-            runtime.withSecretRules(systems)
+            runtime.withSecretRules(systems, secretAccounts)
         }.onFailure { error ->
             log.event("title.save_load_failed save=${save.file.path} error=${error.message.orEmpty()}")
         }.getOrNull()
@@ -2041,11 +2050,15 @@ class GameRuntime private constructor(
 
     companion object {
         /** Loads and validates the direct compiled bundle/runtime-system sections. */
-        fun load(bundleFile: File): GameRuntime =
+        fun load(
+            bundleFile: File,
+            secretAccounts: RuntimeSecretAccounts = RuntimeSecretAccounts.fromEnvironment(),
+        ): GameRuntime =
             GameRuntime(
                 bundle = bundleFile.readExternalCompiledGameBundle(),
                 systems = bundleFile.readExternalRuntimeSystems(),
                 bundleContentHash = bundleFile.readExternalCompiledBundleContentHash(),
+                secretAccounts = secretAccounts,
             )
 
         /** Creates a runtime facade from already-loaded bundle/runtime-system sections. */
@@ -2053,11 +2066,13 @@ class GameRuntime private constructor(
             bundle: CompiledGameBundle,
             systems: ExternalRuntimeSystems,
             bundleContentHash: String,
+            secretAccounts: RuntimeSecretAccounts = RuntimeSecretAccounts.fromEnvironment(),
         ): GameRuntime =
             GameRuntime(
                 bundle = bundle,
                 systems = systems,
                 bundleContentHash = bundleContentHash,
+                secretAccounts = secretAccounts,
             )
     }
 }
@@ -2098,19 +2113,25 @@ data class RuntimeState(
     val scoreParties: List<RuntimeScoreParty> = emptyList(),
     val hallOfHeroes: List<RuntimeHeroEntry> = emptyList(),
     val alwaysRunFromNonMandatoryEncounters: Boolean = false,
+    /** The secret hooks of the roles the active account plays on this server, see [withSecretRules]. */
+    val secretPlayers: List<ExternalRuntimeSecretPlayer> = emptyList(),
 ) {
     fun withParty(party: PartyState): RuntimeState = copy(party = party).withCurrentScoreParty()
 
     fun withActiveUser(userId: String): RuntimeState = copy(activeUserId = userId.normalizedSaveUser())
 
-    fun withSecretRules(systems: ExternalRuntimeSystems): RuntimeState {
+    /** Gives the active account the secret hooks of the roles [accounts] assign it. */
+    fun withSecretRules(
+        systems: ExternalRuntimeSystems,
+        accounts: RuntimeSecretAccounts,
+    ): RuntimeState {
         val user = activeUserId ?: return this
-        val alwaysRun =
-            systems.secrets.players.any { player ->
-                player.alwaysRunFromNonMandatoryEncounters &&
-                    (player.anyPlayer || player.names.any { name -> user in name.normalizedSecretPlayerNameAliases() })
-            }
-        return copy(alwaysRunFromNonMandatoryEncounters = alwaysRun)
+        val roles = accounts.rolesOf(user)
+        val players = systems.secrets.players.filter { player -> player.role in roles }
+        return copy(
+            alwaysRunFromNonMandatoryEncounters = players.any(ExternalRuntimeSecretPlayer::alwaysRunFromNonMandatoryEncounters),
+            secretPlayers = players,
+        )
     }
 
     fun withCompletedMission(mission: CompiledHandleRef): RuntimeState = copy(completedMissions = (completedMissions + mission).distinct())
@@ -2300,14 +2321,6 @@ internal fun PartyState.toRuntimeScoreParty(userId: String): RuntimeScoreParty =
         averageLevel = members.averageOf(CompiledPartyMember::level),
         milestones = milestones,
     )
-
-private fun String.normalizedSecretPlayerNameAliases(): Set<String> {
-    val lowered = trim().lowercase()
-    return listOf(
-        lowered.map { char -> char.takeIf { it.isLetterOrDigit() || it == '-' || it == '_' } ?: '_' }.joinToString(""),
-        lowered.map { char -> char.takeIf { it.isLetterOrDigit() || it == '-' || it == '_' } ?: '-' }.joinToString(""),
-    ).mapTo(mutableSetOf()) { value -> value.trim('-', '_') }
-}
 
 private fun List<CompiledPartyMember>.averageOf(value: (CompiledPartyMember) -> Int): Int {
     val divisor = size.coerceAtLeast(1)

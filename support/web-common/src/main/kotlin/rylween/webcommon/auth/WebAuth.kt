@@ -29,6 +29,7 @@ private const val PASSWORD_ITERATIONS = 120_000
 private const val PASSWORD_BITS = 256
 private const val SALT_BYTES = 16
 private const val TOKEN_BYTES = 32
+private const val RESERVED_NAME = "That adventurer name is reserved."
 
 data class WebAccount(
     val slug: String,
@@ -77,9 +78,15 @@ sealed class WebAuthBootstrapResult {
     ) : WebAuthBootstrapResult()
 }
 
+/**
+ * Accounts on disk. Players cannot register [reservedNames], such as the sysop
+ * account; the server creates those itself as bootstrap accounts.
+ */
 class WebUserStore(
     private val dataDir: File,
+    reservedNames: Set<String> = emptySet(),
 ) {
+    private val reservedSlugs = reservedNames.mapNotNullTo(mutableSetOf(), ::slugFrom)
     private val lock = ReentrantLock(true)
     private val usersDir = dataDir.resolve("users/by-slug")
     private val emailIndexFile = dataDir.resolve("users/email-index.properties")
@@ -97,6 +104,7 @@ class WebUserStore(
                 name =
                     when {
                         cleanName.isBlank() || slug == null -> WebAuthFieldAvailability(false, "Enter an adventurer name.")
+                        slug in reservedSlugs -> WebAuthFieldAvailability(false, RESERVED_NAME)
                         userFile(slug).isFile -> WebAuthFieldAvailability(false, "That adventurer name is already registered.")
                         else -> WebAuthFieldAvailability(true, "Adventurer name is available.")
                     },
@@ -120,6 +128,7 @@ class WebUserStore(
             val normalizedEmail = normalizeEmail(email) ?: return WebAuthResult.Failure("Enter a valid email address.")
             val cleanName = displayName.trim().take(40).ifBlank { normalizedEmail.substringBefore('@') }
             val slug = slugFrom(cleanName) ?: return WebAuthResult.Failure("Enter an adventurer name.")
+            if (slug in reservedSlugs) return WebAuthResult.Failure(RESERVED_NAME)
             if (password.length < 8) return WebAuthResult.Failure("Password must be at least 8 characters.")
             usersDir.mkdirs()
             emailIndexFile.parentFile?.mkdirs()

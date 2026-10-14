@@ -176,18 +176,18 @@ val authoredRylween: RylweenModel =
 
             // Secrets are explicit sysop/debug hooks from the original game.
             // Keeping them authored prevents hidden runtime-only special cases.
+            // The server picks the accounts: RYLWEEN_ADMIN_ACCOUNT (default
+            // admin) is the sysop, RYLWEEN_VICTIM_ACCOUNT (default nobody) the
+            // victim.
             secrets {
-                playersNamed("Marcus Lagergren", "Marcus") {
+                admin {
                     alwaysRunFromNonMandatoryEncounters()
                     addTimeLeft('/', amount = 50, refreshStatus = true)
-                    setInventory('(', slot = 12, item = Items.drumsOfDeath)
-                    setInventory(')', slot = 11, item = Items.gemOfResurrection)
-                    setInventory('&', slot = 10, item = Items.kaelsAxe)
-                    setInventory('*', slot = 9, item = Items.holyHandGrenade)
+                    grantItems('*', ItemPools.magicItems)
                     addGold('+', amount = 1_000, refreshStatus = true)
                 }
-                playerNamed("Karl Skagerberg") {
-                    spawnEncounterEvery(everySteps = 101, monster = Monsters.skagerbergKiller)
+                victim {
+                    spawnEncounterEvery(everySteps = 101, monster = Monsters.sysopSmiter)
                 }
             }
 
@@ -3679,8 +3679,9 @@ val authoredRylween: RylweenModel =
                     encounterImage(Images.Encounter.vermin)
                 }
 
-                monster(Monsters.skagerbergKiller) {
-                    name = "Skagerberg Killer"
+                // Sent by the sysop gods after the victim account; nothing else meets it.
+                monster(Monsters.sysopSmiter) {
+                    name = "Smiter of the Sysop Gods"
                     count = 1..1
                     hitPoints = 2_000..3_500
                     weaponSkill = 100

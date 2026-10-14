@@ -36,6 +36,17 @@ class WebAuthTest {
     }
 
     @Test
+    fun reservedNamesCannotBeRegisteredButCanBeBootstrapped() {
+        val store = WebUserStore(createTempDirectory("rylween-auth").toFile(), reservedNames = setOf("Admin"))
+
+        val refused = assertIs<WebAuthResult.Failure>(store.register("admin", "someone@example.test", "password123"))
+        assertEquals("That adventurer name is reserved.", refused.message)
+        assertEquals(false, store.availability("ADMIN", "someone@example.test").name.available)
+        assertIs<WebAuthBootstrapResult.Created>(store.ensureAccount(WebAuthBootstrapAccount("admin", null, "password123")))
+        assertIs<WebAuthResult.Success>(store.authenticate("admin", "password123"))
+    }
+
+    @Test
     fun bootstrapAccountIsCreatedOrVerified() {
         val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
         val bootstrap = WebAuthBootstrapAccount("Strong Party", "strong@example.test", "password123")

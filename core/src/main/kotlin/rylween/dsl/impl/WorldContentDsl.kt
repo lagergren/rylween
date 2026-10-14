@@ -590,34 +590,26 @@ data class SecretSystemModel(
 )
 
 /**
- * Matcher for hidden player-specific authoring hooks.
+ * Who a block of secret hooks applies to.
  *
- * `Any` applies to every player on a runtime. `Named` applies only when the
- * runtime player identity matches one of the authored names; the DSL exposes
- * this as `playerNamed("...")` or `playersNamed("...", "...")`.
+ * The game names roles, never accounts: each server decides which account
+ * plays which role, so a player cannot claim a role by picking a name.
  */
-sealed interface SecretPlayerMatcherModel {
-    data object Any : SecretPlayerMatcherModel
+enum class SecretRole {
+    /** The sysop account, `admin` unless the server configures another. */
+    Admin,
 
-    data class Named(
-        val names: List<String>,
-    ) : SecretPlayerMatcherModel
+    /** An account the sysop has marked for punishment; nobody unless the server names one. */
+    Victim,
 }
 
-/** Hidden key and step-trigger actions gated by one [SecretPlayerMatcherModel]. */
+/** Hidden key and step-trigger actions for the account playing one [SecretRole]. */
 data class SecretPlayerModel(
-    val matcher: SecretPlayerMatcherModel,
+    val role: SecretRole,
     val keyActions: List<SecretKeyActionModel> = emptyList(),
     val stepTrigger: SecretStepTriggerModel? = null,
     val alwaysRunFromNonMandatoryEncounters: Boolean = false,
-) {
-    val playerNames: List<String>
-        get() =
-            when (matcher) {
-                SecretPlayerMatcherModel.Any -> emptyList()
-                is SecretPlayerMatcherModel.Named -> matcher.names
-            }
-}
+)
 
 data class SecretKeyActionModel(
     val binding: InputBindingModel,
@@ -640,9 +632,9 @@ sealed interface SecretActionModel {
         val refreshStatus: Boolean = false,
     ) : SecretActionModel
 
-    data class SetInventory(
-        val slot: Int,
-        val item: ItemId,
+    /** Offers every item of [pool], asking the player to drop something for each one that does not fit. */
+    data class GrantItems(
+        val pool: ItemPoolId,
     ) : SecretActionModel
 
     data class SpawnEncounter(

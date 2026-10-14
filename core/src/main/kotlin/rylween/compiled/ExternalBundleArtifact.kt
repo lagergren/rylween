@@ -11,6 +11,7 @@ import rylween.dsl.BoolAst
 import rylween.dsl.DungeonSystemModel
 import rylween.dsl.InputBindingModel
 import rylween.dsl.IntAst
+import rylween.dsl.ItemId
 import rylween.dsl.NativeStringArg
 import rylween.dsl.StrAst
 import rylween.dsl.TextBlock
@@ -58,8 +59,9 @@ import rylween.dsl.impl.Race
 import rylween.dsl.impl.RealmContentModel
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RylweenModel
-import rylween.dsl.impl.SecretPlayerMatcherModel
+import rylween.dsl.impl.SecretActionModel
 import rylween.dsl.impl.SecretPlayerModel
+import rylween.dsl.impl.SecretRole
 import rylween.dsl.impl.SecretSystemModel
 import rylween.dsl.impl.SourceSpecialField
 import rylween.dsl.impl.SpeakSystemModel
@@ -72,6 +74,7 @@ import rylween.dsl.impl.WildernessFatigueMatch
 import rylween.dsl.impl.WildernessSystemModel
 import rylween.dsl.impl.WildernessUpkeepRules
 import rylween.dsl.impl.WorldPosition
+import rylween.dsl.impl.itemPool
 import java.io.File
 import java.lang.reflect.Array
 import java.lang.reflect.Modifier
@@ -86,7 +89,7 @@ import kotlin.reflect.typeOf
 
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
-private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 10
+private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 11
 private const val GRID_CASTLE_KIND = "gridCastle"
 
 /** Serializes this game into the canonical strict JSON J1 artifact bytes. */
@@ -285,11 +288,48 @@ data class ExternalRuntimeSecrets(
     val players: List<ExternalRuntimeSecretPlayer> = emptyList(),
 )
 
+/** Secret hooks for the account that plays [role] on this server. */
 data class ExternalRuntimeSecretPlayer(
-    val anyPlayer: Boolean,
-    val names: List<String>,
-    val alwaysRunFromNonMandatoryEncounters: Boolean,
+    val role: SecretRole,
+    val keyActions: List<ExternalSecretKeyAction> = emptyList(),
+    val stepTrigger: ExternalSecretStepTrigger? = null,
+    val alwaysRunFromNonMandatoryEncounters: Boolean = false,
 )
+
+/** A hidden wilderness key and what it does. */
+data class ExternalSecretKeyAction(
+    val binding: ExternalRuntimeInputBinding,
+    val action: ExternalSecretAction,
+)
+
+/** An action that fires on every move that leaves the day's moves at a multiple of [everySteps]. */
+data class ExternalSecretStepTrigger(
+    val everySteps: Int,
+    val action: ExternalSecretAction,
+)
+
+/** Secret actions, with items and monsters named by slug. */
+sealed interface ExternalSecretAction {
+    data class AddTimeLeft(
+        val amount: Int,
+        val refreshStatus: Boolean,
+    ) : ExternalSecretAction
+
+    data class AddGold(
+        val amount: Int,
+        val refreshStatus: Boolean,
+    ) : ExternalSecretAction
+
+    /** Offers every item in [items], in order. */
+    data class GrantItems(
+        val items: List<String>,
+    ) : ExternalSecretAction
+
+    /** Starts a battle against [monster] that the party cannot run from. */
+    data class SpawnEncounter(
+        val monster: String,
+    ) : ExternalSecretAction
+}
 
 data class ExternalRuntimePrompts(
     val pauseVerbs: List<String>,
@@ -1274,7 +1314,7 @@ private class ExternalBundleArtifactWriter {
             "town" to townRuntimeJson(game.townSystem),
             "speak" to speakRuntimeJson(game.speak),
             "castles" to JsonArray(game.castles.map(::castleJson)),
-            "secrets" to secretsJson(game.secrets),
+            "secrets" to secretsJson(game),
             "audio" to audioJson(game.audio),
         )
 
@@ -1344,23 +1384,68 @@ private class ExternalBundleArtifactWriter {
         )
     }
 
-    private fun secretsJson(secrets: SecretSystemModel): JsonValue =
+    private fun secretsJson(game: GameModel): JsonValue =
         jsonObject(
-            "players" to JsonArray(secrets.players.map(::secretPlayerJson)),
+            "players" to JsonArray(game.secrets.players.map { player -> secretPlayerJson(game, player) }),
         )
 
-    private fun secretPlayerJson(player: SecretPlayerModel): JsonValue {
-        val names =
-            when (val matcher = player.matcher) {
-                SecretPlayerMatcherModel.Any -> emptyList()
-                is SecretPlayerMatcherModel.Named -> matcher.names
-            }
-        return jsonObject(
-            "anyPlayer" to JsonBoolean(player.matcher == SecretPlayerMatcherModel.Any),
-            "names" to JsonArray(names.map(::JsonString)),
+    private fun secretPlayerJson(
+        game: GameModel,
+        player: SecretPlayerModel,
+    ): JsonValue =
+        jsonObject(
+            "role" to JsonString(player.role.name),
+            "keyActions" to
+                JsonArray(
+                    player.keyActions.map { keyAction ->
+                        jsonObject(
+                            "binding" to bindingJson(keyAction.binding),
+                            "action" to secretActionJson(game, keyAction.action),
+                        )
+                    },
+                ),
+            "stepTrigger" to
+                player.stepTrigger
+                    ?.let { trigger ->
+                        jsonObject(
+                            "everySteps" to JsonNumber(trigger.everySteps.toString()),
+                            "action" to secretActionJson(game, trigger.action),
+                        )
+                    }.orJsonNull(),
             "alwaysRunFromNonMandatoryEncounters" to JsonBoolean(player.alwaysRunFromNonMandatoryEncounters),
         )
-    }
+
+    private fun secretActionJson(
+        game: GameModel,
+        action: SecretActionModel,
+    ): JsonValue =
+        when (action) {
+            is SecretActionModel.AddTimeLeft ->
+                jsonObject(
+                    "type" to JsonString("AddTimeLeft"),
+                    "amount" to JsonNumber(action.amount.toString()),
+                    "refreshStatus" to JsonBoolean(action.refreshStatus),
+                )
+
+            is SecretActionModel.AddGold ->
+                jsonObject(
+                    "type" to JsonString("AddGold"),
+                    "amount" to JsonNumber(action.amount.toString()),
+                    "refreshStatus" to JsonBoolean(action.refreshStatus),
+                )
+
+            is SecretActionModel.GrantItems ->
+                jsonObject(
+                    "type" to JsonString("GrantItems"),
+                    "items" to stringArray(game.itemPool(action.pool).items.map(ItemId::slug)),
+                )
+
+            is SecretActionModel.SpawnEncounter ->
+                jsonObject(
+                    "type" to JsonString("SpawnEncounter"),
+                    "monster" to JsonString(action.monster.slug),
+                )
+        }
 
     private fun characterCreationJson(characterCreation: CharacterCreationModel): JsonValue =
         jsonObject(
@@ -2950,10 +3035,36 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readSecretPlayer(): ExternalRuntimeSecretPlayer =
         ExternalRuntimeSecretPlayer(
-            anyPlayer = optionalBoolean("anyPlayer") ?: false,
-            names = optionalArray("names")?.values?.map { name -> name.asString("secret player name") }.orEmpty(),
+            role = SecretRole.valueOf(requiredString("role")),
+            keyActions =
+                requiredArray("keyActions").values.map { value ->
+                    val keyAction = value.asObject("secret key action")
+                    ExternalSecretKeyAction(
+                        binding = keyAction.requiredObject("binding").readBinding(),
+                        action = keyAction.requiredObject("action").readSecretAction(),
+                    )
+                },
+            stepTrigger =
+                optional("stepTrigger")
+                    ?.takeUnless { it is JsonNull }
+                    ?.asObject("secret step trigger")
+                    ?.let { trigger ->
+                        ExternalSecretStepTrigger(
+                            everySteps = trigger.requiredInt("everySteps"),
+                            action = trigger.requiredObject("action").readSecretAction(),
+                        )
+                    },
             alwaysRunFromNonMandatoryEncounters = optionalBoolean("alwaysRunFromNonMandatoryEncounters") ?: false,
         )
+
+    private fun JsonObject.readSecretAction(): ExternalSecretAction =
+        when (val type = requiredString("type")) {
+            "AddTimeLeft" -> ExternalSecretAction.AddTimeLeft(requiredInt("amount"), optionalBoolean("refreshStatus") ?: false)
+            "AddGold" -> ExternalSecretAction.AddGold(requiredInt("amount"), optionalBoolean("refreshStatus") ?: false)
+            "GrantItems" -> ExternalSecretAction.GrantItems(requiredArray("items").values.map { value -> value.asString("secret item") })
+            "SpawnEncounter" -> ExternalSecretAction.SpawnEncounter(requiredString("monster"))
+            else -> error("unknown secret action type $type")
+        }
 
     private fun JsonObject.readPrompts(): ExternalRuntimePrompts {
         val save = promptGroupFields("save")

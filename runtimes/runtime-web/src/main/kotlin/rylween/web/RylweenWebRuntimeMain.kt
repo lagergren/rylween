@@ -6,6 +6,7 @@
 package rylween.web
 
 import rylween.runtime.RuntimeLog
+import rylween.runtime.RuntimeSecretAccounts
 import rylween.runtime.RuntimeSessionConfig
 import rylween.runtime.RuntimeSessionFactory
 import rylween.webcommon.WebHttpRequest
@@ -238,6 +239,8 @@ private data class WebRuntimeConfig(
                   RYLWEEN_AUTH_EMAIL Optional email for RYLWEEN_AUTH_ACCOUNT.
                   RYLWEEN_AUTH_PASSWORD Required when RYLWEEN_AUTH_ACCOUNT is set.
                   RYLWEEN_AUTH_SECURE_COOKIES Set true when served through HTTPS.
+                  RYLWEEN_ADMIN_ACCOUNT Sysop account with the secret keys. Default: admin
+                  RYLWEEN_VICTIM_ACCOUNT Account the sysop gods hunt down. Default: none
                   RYLWEEN_SEED      Optional runtime RNG seed.
                 """.trimIndent(),
             )
@@ -250,7 +253,8 @@ private class RuntimeWebServer(
     private val factory: RuntimeSessionFactory,
     private val serverLog: RuntimeLog,
 ) : Closeable {
-    private val userStore = WebUserStore(config.authDir)
+    // Players cannot register the sysop account; only a bootstrap account can claim it.
+    private val userStore = WebUserStore(config.authDir, reservedNames = setOf(RuntimeSecretAccounts.fromEnvironment().admin))
     private val sessions = WebSessionStore()
     private val activeUsers = ConcurrentHashMap.newKeySet<String>()
     private val worldSessionLock = ReentrantLock(true)

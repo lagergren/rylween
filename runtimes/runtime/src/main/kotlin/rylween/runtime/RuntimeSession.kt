@@ -177,13 +177,17 @@ class RuntimeSessionFactory private constructor(
 
     companion object {
         /** Loads and validates the compiled bundle once for future sessions. */
-        fun load(bundleFile: File): RuntimeSessionFactory = RuntimeSessionFactory(GameRuntime.load(bundleFile))
+        fun load(
+            bundleFile: File,
+            secretAccounts: RuntimeSecretAccounts = RuntimeSecretAccounts.fromEnvironment(),
+        ): RuntimeSessionFactory = RuntimeSessionFactory(GameRuntime.load(bundleFile, secretAccounts))
 
         /** Creates a runtime factory from already-loaded bundle/runtime-system tables. */
         fun load(
             bundle: CompiledGameBundle,
             systems: ExternalRuntimeSystems,
             bundleContentHash: String,
-        ): RuntimeSessionFactory = RuntimeSessionFactory(GameRuntime.load(bundle, systems, bundleContentHash))
+            secretAccounts: RuntimeSecretAccounts = RuntimeSecretAccounts.fromEnvironment(),
+        ): RuntimeSessionFactory = RuntimeSessionFactory(GameRuntime.load(bundle, systems, bundleContentHash, secretAccounts))
     }
 }

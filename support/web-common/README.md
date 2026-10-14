@@ -42,6 +42,9 @@ RYLWEEN_AUTH_EMAIL
 RYLWEEN_AUTH_PASSWORD
 ```
 
+Players cannot register the sysop account (`RYLWEEN_ADMIN_ACCOUNT`, default
+`admin`), so create it this way.
+
 Bootstrap is idempotent:
 
 - if the account does not exist, it is created;

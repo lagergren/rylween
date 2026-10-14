@@ -16,6 +16,7 @@ import rylween.compiled.toExternalBundleArtifact
 import rylween.dsl.impl.GridPoint
 import rylween.game.RylweenCompiledGame
 import rylween.runtime.RuntimeLog
+import rylween.runtime.RuntimeSecretAccounts
 import rylween.runtime.RuntimeSessionConfig
 import rylween.runtime.RuntimeSessionFactory
 import rylween.runtime.WorldMap
@@ -361,7 +362,8 @@ private class BitmapWebServer(
     private val serverLog: RuntimeLog,
 ) : Closeable {
     private val runtimeFactory = RuntimeSessionFactory.load(game.bundle, game.systems, game.contentHash)
-    private val userStore = WebUserStore(config.authDir)
+    // Players cannot register the sysop account; only a bootstrap account can claim it.
+    private val userStore = WebUserStore(config.authDir, reservedNames = setOf(RuntimeSecretAccounts.fromEnvironment().admin))
     private val sessions = WebSessionStore()
     private val activeUsers = ConcurrentHashMap.newKeySet<String>()
     private val bitmapImageById =

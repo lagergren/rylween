@@ -41,7 +41,7 @@ import rylween.dsl.impl.QuestionTopic
 import rylween.dsl.impl.Race
 import rylween.dsl.impl.RewardOverflowPolicy
 import rylween.dsl.impl.RumorUsagePolicy
-import rylween.dsl.impl.SecretPlayerMatcherModel
+import rylween.dsl.impl.SecretRole
 import rylween.dsl.impl.ShopHaggleBonusModel
 import rylween.dsl.impl.ShopSellHaggleModel
 import rylween.dsl.impl.StateKind
@@ -117,20 +117,14 @@ class RylweenCompiledGameLedgerTest {
         val externalBundleText = externalBundle.decodeToString()
         val runtimeSystems = externalBundle.readExternalRuntimeSystems()
 
-        check(runtimeSystems.schemaVersion == 10)
+        check(runtimeSystems.schemaVersion == 11)
         check("\"dexterity\"" in externalBundleText)
         check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 14)
         check(nextDsl.itemCatalog.size == 63)
         check(nextDsl.itemCatalog.single { it.id == Items.redPotion }.kind == ItemKind.Potion)
         check(nextDsl.itemPools.size == 7)
-        check(
-            nextDsl.secrets.players.map { it.matcher } ==
-                listOf(
-                    SecretPlayerMatcherModel.Named(listOf("Marcus Lagergren", "Marcus")),
-                    SecretPlayerMatcherModel.Named(listOf("Karl Skagerberg")),
-                ),
-        )
+        check(nextDsl.secrets.players.map { it.role } == listOf(SecretRole.Admin, SecretRole.Victim))
         check(
             nextDsl.secrets.players
                 .first()
@@ -480,7 +474,7 @@ class RylweenCompiledGameLedgerTest {
         )
         check(nextDsl.monsters.single { it.id == Monsters.jazzy }.immune)
         check(nextDsl.monsters.single { it.id == Monsters.baronYdarg }.immune)
-        check(nextDsl.monsters.single { it.id == Monsters.skagerbergKiller }.immune)
+        check(nextDsl.monsters.single { it.id == Monsters.sysopSmiter }.immune)
         check(nextDsl.castles.size == 1)
         check(castleContent.entry == xy(14, 30))
         check(castleContent.entryRequirement == Milestones.silverKey)
