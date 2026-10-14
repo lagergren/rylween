@@ -23,10 +23,13 @@ HAProxy, a platform load balancer, or another reverse proxy, and set
 
 ## Compose
 
-The root `compose.yaml` builds `Dockerfile.bitmap-production` and runs the
-bitmap game with its data directory on a persistent volume:
+`deploy/compose.yaml` builds `Dockerfile.bitmap-production` from the
+repository root and runs the bitmap game with its data directory on a
+persistent volume. Run compose from `deploy/`, or pass
+`-f deploy/compose.yaml` from the repository root:
 
 ```sh
+cd deploy
 docker compose up --build -d     # or: podman compose up --build -d
 docker compose logs -f rylween
 docker compose down              # keeps the volume
@@ -52,7 +55,8 @@ builds the image, detects this machine's private LAN address, and publishes on
 it:
 
 ```sh
-./deploy-rylween-docker.sh       # same as ./deploy-rylween.sh --compose
+./deploy.sh                      # root symlink to deploy/deploy-rylween-docker.sh
+deploy/deploy-rylween-docker.sh  # same as deploy/deploy-rylween.sh --compose
 ```
 
 Or set `RYLWEEN_PUBLISH_HOST` yourself, to a LAN address such as `192.168.x.y`
@@ -60,8 +64,9 @@ or to `0.0.0.0`. `RYLWEEN_HOST_PORT` changes the port.
 Unlike the plain image, compose turns secure cookies off so logins work over
 plain HTTP; set `RYLWEEN_AUTH_SECURE_COOKIES=true` behind an HTTPS proxy. All
 settings are listed at the top of `compose.yaml` and can be kept in an
-uncommitted `.env` file next to it; copy `.env.example`, which shows each one at
-its default.
+uncommitted `deploy/.env` file next to it; copy `deploy/.env.example`, which
+shows each one at its default. A relative `RYLWEEN_DATA_VOLUME` such as
+`./data` is relative to `deploy/`.
 
 The root `.dockerignore` intentionally remains at the repository root because
 Docker reads ignore rules relative to the build context, not relative to the

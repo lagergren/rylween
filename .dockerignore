@@ -20,5 +20,5 @@
 .gitignore
 scratch/
 
-# Local compose settings; may hold account passwords.
-.env
+# Local compose settings (deploy/.env); may hold account passwords.
+**/.env

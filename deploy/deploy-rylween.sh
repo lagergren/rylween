@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP="${RYLWEEN_DEPLOY_APP:-runtimes/runtime-bitmap-web/build/install/rylween-bitmap-web/bin/rylween-bitmap-web}"
+DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(dirname "$DEPLOY_DIR")"
+
+APP="${RYLWEEN_DEPLOY_APP:-$ROOT_DIR/runtimes/runtime-bitmap-web/build/install/rylween-bitmap-web/bin/rylween-bitmap-web}"
 HOST="${RYLWEEN_DEPLOY_HOST:-lan}"
 PORT="${RYLWEEN_DEPLOY_PORT:-8081}"
 DATA_DIR="${RYLWEEN_DEPLOY_DATA_DIR:-$HOME/.rylween/deploy}"
@@ -144,9 +147,9 @@ stop_existing_server() {
 # --compose builds and runs the image with compose instead of the installed
 # launcher. It publishes on the same detected LAN address unless
 # RYLWEEN_PUBLISH_HOST is set in the shell or in .env; every other setting comes
-# from compose.yaml and .env.
+# from compose.yaml and .env, both in this directory.
 if [ "$MODE" = compose ]; then
-    cd "$(dirname "$0")"
+    cd "$DEPLOY_DIR"
     if [ -z "${RYLWEEN_PUBLISH_HOST-}" ] && ! grep -qE '^[[:space:]]*RYLWEEN_PUBLISH_HOST=' .env 2>/dev/null; then
         RYLWEEN_PUBLISH_HOST="$(resolve_host)" || {
             echo "Could not find a private LAN IPv4 address on the default route." >&2
