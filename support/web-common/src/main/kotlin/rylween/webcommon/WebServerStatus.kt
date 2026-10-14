@@ -4,7 +4,7 @@ package rylween.webcommon
 
 data class WebServerStatus(
     val serverType: String,
-    /** The release version, such as `0.9.1`, which the pages show next to the game's name. */
+    /** The release version, such as `0.9.1`, which the bitmap page shows next to the game's name. */
     val version: String,
     val authRequired: Boolean,
     val currentUser: String?,

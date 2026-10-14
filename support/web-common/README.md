@@ -17,8 +17,19 @@ Both web servers expose the same account flow:
 - `POST /api/register` creates an account and starts a session.
 - `POST /api/login` verifies an existing account and starts a session.
 - `POST /api/logout` clears the session cookie.
+- `GET /api/auth/availability?name=&email=` reports whether an adventurer name
+  and email are still free; the register form checks as the player types.
 - `GET /api/status` returns `WebServerStatus` JSON for the top-bar status
-  popover in each web UI.
+  popover in each web UI, or 401 without a session.
+- `GET /healthz` returns `ok` and needs no session.
+- `/ws/play` is the game WebSocket; it needs a session, and a second connection
+  for an account that is already playing is turned away.
+- `GET /auth.css` serves the shared auth page stylesheet.
+
+`/login` and `/register` redirect to `/play` when the request already has a
+session or the server runs with a development bypass user. Registration rejects
+the sysop's name, names that already have a party in `world.rsave`, and
+passwords shorter than 8 characters.
 
 The auth page is renderer-neutral. The bitmap server passes the title-rider
 image as its background; the ANSI web server can use the same form without
@@ -42,17 +53,22 @@ RYLWEEN_AUTH_EMAIL
 RYLWEEN_AUTH_PASSWORD
 ```
 
-Players cannot register the sysop account (`RYLWEEN_ADMIN_ACCOUNT`, default
-`admin`). The server creates it at startup when it is missing, with
-`RYLWEEN_ADMIN_PASSWORD`, or else with a generated password saved in
-`auth/admin-password.txt` under the data directory, readable only by the
-server's user.
-
 Bootstrap is idempotent:
 
 - if the account does not exist, it is created;
 - if it already exists, the supplied password must verify;
 - if the account exists with another password, startup fails.
+
+Players cannot register the sysop account (`RYLWEEN_ADMIN_ACCOUNT`, default
+`admin`), which gets the game's secret wilderness keys. The server creates it at
+startup, after any bootstrap account, when it is missing: with
+`RYLWEEN_ADMIN_PASSWORD`, or else with a generated password saved in
+`auth/admin-password.txt` under the data directory, readable only by the
+server's user. The bootstrap rules above do not apply to it: an existing sysop
+account is left alone, and `RYLWEEN_ADMIN_PASSWORD` only applies when the
+account is created. A bootstrap account with the sysop's name becomes the sysop
+account. `RYLWEEN_VICTIM_ACCOUNT` names an account the sysop gods hunt down every
+101 moves; unset means nobody.
 
 The bootstrap path does not create a logged-in browser session. Users still log
 in through the normal form unless the runtime is explicitly using a local
@@ -60,26 +76,30 @@ development bypass.
 
 Do not use command-line passwords in production. Shell history, process tables,
 container metadata, and deployment logs can expose them. Use a hosting secret or
-secret manager to set `RYLWEEN_AUTH_PASSWORD`.
+secret manager to set `RYLWEEN_AUTH_PASSWORD` and `RYLWEEN_ADMIN_PASSWORD`.
 
 ## Data Directory Layout
 
-All web runtimes are configured around one data directory. Local scripts default
-to `~/.rylween/data`; containers default to `/data`.
+All web runtimes are configured around one data directory. The `bin/` scripts
+default to `~/.rylween/data`, `deploy/deploy-rylween.sh` to `~/.rylween/deploy`,
+and containers (including `deploy/compose.yaml`) to `/data`. Run bare, the
+`rylween-bitmap-web` launcher uses `build/rylween-data`.
 
 ```text
 <data-dir>/
   saves/
     world.rsave
   auth/
+    admin-password.txt        (only when the server generated the sysop password)
     users/
       by-slug/<slug>.properties
       email-index.properties
   logs/
-    web-server.log
-    runtimes/runtime-bitmap-web/
+    web-server.log            (ANSI web server)
+    <slug>-<timestamp>.log    (ANSI web sessions)
+    runtime-bitmap-web/
       server.log
-      <user>-<timestamp>.log
+      <slug>-<timestamp>.log
 ```
 
 `saves/world.rsave` is game state. It is owned by `:runtime`.
@@ -100,7 +120,9 @@ The shared save file is a text key/value file encoded by `SaveFile` in
 Top-level rows include:
 
 - `format`, `version`, and `saveModel`
-- `bundleHash`, which prevents loading a save against the wrong compiled game
+- `bundleHash`, which records the compiled game that wrote the save; a mismatch
+  is logged as `save.bundle_changed`, and the save still loads as long as the
+  content it names still exists
 - shared realm clock fields such as day/hour/minute
 - shared world placements such as NPC and location positions
 - shared completed mission ids
@@ -159,14 +181,19 @@ saved games intact.
 
 ## Log State
 
-Logs are append-only text files written through the runtime log framework.
+Logs are text files written through the runtime log framework, one timestamped
+event per line, each file opening with a `log.open ... version=<release>` line.
+Each server start rewrites its server log, so copy it first if you need the
+previous run; each session writes a new timestamped file. Both servers also echo
+server-log lines to standard output.
 
 Server logs record:
 
 - HTTP route requests/responses
 - login/register/logout attempts and results
 - bootstrap account creation or verification
-- websocket open/close/reject events
+- sysop account creation, with the password file's path when one was generated
+- websocket open/close/reject events and every input message
 - connected user/session information
 
 Per-session runtime logs record:
@@ -199,20 +226,30 @@ backup helper from the repo root when you want one portable artifact:
 ```
 
 The default archive includes `saves/` and `auth/users/`. Logs are optional
-because they can grow and may contain operational or gameplay activity.
+because they can grow and may contain operational or gameplay activity. The
+generated `auth/admin-password.txt` is not archived; the sysop account itself
+survives a restore.
 
 ## Passwords And Cookies
 
-Passwords are never stored directly. `WebUserStore` hashes them with
+Account passwords are never stored directly. `WebUserStore` hashes them with
 `PBKDF2WithHmacSHA256`, a random salt, and constant-time verification through
-`MessageDigest.isEqual`.
+`MessageDigest.isEqual`. The one exception is the generated sysop password in
+`auth/admin-password.txt`, readable only by the server's user, which exists only
+when `RYLWEEN_ADMIN_PASSWORD` was unset. The server never reads it back, so you
+can delete it once you have recorded the password.
 
 Cookies are:
 
-- `HttpOnly`
-- `SameSite=Lax`
-- `Path=/`
-- 12-hour max age
+- `rylween_session`: the session token; `HttpOnly`, `SameSite=Lax`, `Path=/`,
+  12-hour max age.
+- `rylween_login`: the account email from the last login or registration, used
+  to prefill the login form; `SameSite=Lax`, `Path=/`, one-year max age, not
+  `HttpOnly`. Logging out leaves it in place.
+
+Both get `Secure` when secure cookies are enabled. Both production images
+default `RYLWEEN_AUTH_SECURE_COOKIES` to `true`; `deploy/compose.yaml` sets it to
+`false` unless told otherwise, because it serves plain HTTP by default.
 
 For HTTPS deployments, start the server with secure cookies enabled:
 
@@ -237,6 +274,11 @@ authenticated account to its own runtime policy:
     forward the selected name as `RYLWEEN_AUTH_DEV_USER`
 - The web runtime then decides whether to show the title screen or resume a
   saved user party.
+- On quit, the bitmap server returns the player to the title screen and keeps
+  the WebSocket open while the title screen is enabled (the default;
+  `--no-title` or `RYLWEEN_BITMAP_NO_TITLE=true` turns it off, and then quitting
+  ends the session). The ANSI web server closes the connection when the player
+  quits.
 
 This keeps account/session handling common while preserving separate renderer
 and save-loading behavior in each server.
@@ -262,10 +304,13 @@ headers.
 `WebServerStatus` is the shared response model for the clickable server badge in
 the browser UI. It currently reports:
 
-- server type, such as `bitmap` or `ansi`
-- whether authentication is required
-- number of connected users
-- active user slugs
+- server type, `ansi` or `bitmap` (`serverType`)
+- release version (`version`), which the bitmap UI shows in its title bar and
+  popover
+- whether authentication is required (`authRequired`)
+- the requesting account's display name (`currentUser`)
+- number of connected users (`connectedUsers`)
+- active user slugs (`activeUsers`)
 
 The popover is UI-specific, but the response shape belongs here so both web
 runtimes report the same operational information.
@@ -296,14 +341,16 @@ following before exposing it publicly.
 4. Start Rylween with `RYLWEEN_AUTH_SECURE_COOKIES=true` or `--secure-cookies`
    so the session cookie includes the `Secure` attribute.
 
-5. Move bootstrap credentials to deployment secrets. Do not pass production
+5. Move bootstrap credentials, including `RYLWEEN_ADMIN_PASSWORD`, to deployment
+   secrets. Do not pass production
    passwords on shell command lines. Prefer an orchestrator secret, systemd
    environment file with locked permissions, Docker/Kubernetes secret, or cloud
    secret manager.
 
 6. Add CSRF protection for `POST /api/login`, `POST /api/register`, and
    `POST /api/logout`. `SameSite=Lax` is useful, but commercial deployments
-   should use explicit CSRF tokens for state-changing forms.
+   should use explicit CSRF tokens for state-changing forms. The routes do not
+   check the HTTP method today, so `GET /api/logout` also logs out.
 
 7. Add login throttling and abuse controls: per-IP and per-account rate limits,
    temporary lockout/backoff, and alerting for repeated failures. OWASP's

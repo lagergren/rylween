@@ -19,6 +19,31 @@ For production behind a reverse proxy, build
 private network, terminate HTTPS at the proxy, and keep
 `RYLWEEN_AUTH_SECURE_COOKIES=true`.
 
+## Running It Locally
+
+Build the bundle and the launcher, then run the launcher against the bundle:
+
+```sh
+./gradlew :tools:emitExternalCompiledBundle :runtime-web:installRuntimeWeb --console=plain
+runtimes/runtime-web/build/install/rylween-web/bin/rylween-web \
+  --bundle build/compiled/rylween-bundle.json --data ~/.rylween/data --host 127.0.0.1
+```
+
+The launcher's defaults are the container's: bundle `/app/rylween-bundle.json`,
+data directory `/data`, host `0.0.0.0`, port `8080`, and state `fresh-replay`.
+`rylween-web --help` lists every flag and environment variable, including
+`RYLWEEN_BUNDLE`, `RYLWEEN_DATA_DIR`, `RYLWEEN_HOST`, `RYLWEEN_PORT`, the
+`RYLWEEN_AUTH_*` settings, and the sysop settings described below.
+`bin/run-server.sh` runs the same server in Docker.
+
+## Sessions
+
+Only one ANSI web session plays the shared world at a time; other players see a
+waiting message until it ends. A second connection for an account that is
+already playing is turned away. Quitting ends the session and closes the
+connection, so the player reloads the page to play again. (The bitmap server
+returns to its title screen instead.)
+
 ## Exposing A Production Docker Deployment
 
 The safe production shape is:
@@ -55,14 +80,24 @@ docker run -d \
   rylween-web-prod
 ```
 
-Minimum `/etc/rylween/rylween.env`:
+Example `/etc/rylween/rylween.env`:
 
 ```sh
-RYLWEEN_AUTH_ACCOUNT=admin
-RYLWEEN_AUTH_EMAIL=admin@example.net
-RYLWEEN_AUTH_PASSWORD=replace-with-a-long-unique-secret
+RYLWEEN_ADMIN_PASSWORD=replace-with-a-long-unique-secret
 RYLWEEN_AUTH_SECURE_COOKIES=true
 ```
+
+On first start the server creates the sysop account (`RYLWEEN_ADMIN_ACCOUNT`,
+default `admin`), which gets the game's secret wilderness keys and which
+players cannot register. `RYLWEEN_ADMIN_PASSWORD` only applies when that account
+is created; without it the server generates a password into
+`/data/auth/admin-password.txt`, readable with
+`docker exec rylween-web cat /data/auth/admin-password.txt`.
+`RYLWEEN_VICTIM_ACCOUNT` names an account the sysop gods hunt down every 101
+moves; unset means nobody. `RYLWEEN_AUTH_ACCOUNT`, `RYLWEEN_AUTH_EMAIL`, and
+`RYLWEEN_AUTH_PASSWORD` optionally create or verify one more account at startup;
+giving it the sysop's name makes it the sysop account. The production image
+already defaults `RYLWEEN_AUTH_SECURE_COOKIES` to `true`.
 
 Do not pass production passwords on the command line. They can end up in shell
 history, process listings, or operational logs. Prefer a locked-down environment
@@ -83,7 +118,13 @@ rylween.example.net {
 ```
 
 Caddy handles WebSocket upgrades for `reverse_proxy`. If you use nginx, HAProxy,
-Traefik, or another proxy, make sure WebSocket upgrade headers are forwarded.
+Traefik, or another proxy, make sure WebSocket upgrade headers are forwarded;
+the game socket is `/ws/play`. `GET /healthz` returns `ok` without a login, for
+health checks.
+
+The server log is `/data/logs/web-server.log`, and each session writes
+`/data/logs/<account>-<epoch-millis>.log`. Server log lines and session events
+are also echoed to standard output, so `docker logs rylween-web` shows them.
 
 ### RouterOS Port Forwarding Example
 
@@ -165,4 +206,10 @@ are in place:
 
 The bitmap production image follows the same exposure pattern. Its internal app
 port defaults to `8081`, so keep it behind the reverse proxy just like the ANSI
-web image and publish only public HTTPS at the router.
+web image and publish only public HTTPS at the router. `deploy/compose.yaml`
+runs that image (`docker compose -f deploy/compose.yaml up --build -d`) and
+publishes it on `127.0.0.1:8081` by default. Compose defaults
+`RYLWEEN_AUTH_SECURE_COOKIES` to `false`, so set it to `true` in `deploy/.env`
+behind an HTTPS proxy. `./deploy.sh` publishes on this machine's LAN address for
+local-network play; for a reverse-proxy deployment set
+`RYLWEEN_PUBLISH_HOST=127.0.0.1` or run compose directly.
