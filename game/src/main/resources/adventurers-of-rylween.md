@@ -594,7 +594,6 @@ Stephen Price    - For supporting me by registering early, from the
 Lazze Sidén      - Thanks for everything.
 Michael Sinz     - The creator of Enforcer.
 Mike Soucy       - Testing and bug reports.
-Karl Skagerberg  - Annoying beta tester.
 Stefan Stark     - Another Rylween enthusiast.
 Oskar Sundberg   - For staying out of the way.
 Oskar Sodergren  - For hints and transportation.

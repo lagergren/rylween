@@ -24,6 +24,14 @@
 #   RYLWEEN_AUTH_ACCOUNT        Optional account to create/verify at startup,
 #   RYLWEEN_AUTH_EMAIL          with its email and password.
 #   RYLWEEN_AUTH_PASSWORD
+#   RYLWEEN_ADMIN_ACCOUNT       The sysop account, which gets the secret wilderness
+#                               keys. Players cannot register it; the server
+#                               creates it at startup. Default: admin
+#   RYLWEEN_ADMIN_PASSWORD      Password for a newly created sysop account. When
+#                               unset, the server generates one and saves it in
+#                               /data/auth/admin-password.txt.
+#   RYLWEEN_VICTIM_ACCOUNT      An account the sysop gods hunt down every 101 moves.
+#                               Default: none
 
 name: rylween
 
@@ -44,6 +52,9 @@ services:
             RYLWEEN_AUTH_ACCOUNT: ${RYLWEEN_AUTH_ACCOUNT:-}
             RYLWEEN_AUTH_EMAIL: ${RYLWEEN_AUTH_EMAIL:-}
             RYLWEEN_AUTH_PASSWORD: ${RYLWEEN_AUTH_PASSWORD:-}
+            RYLWEEN_ADMIN_ACCOUNT: ${RYLWEEN_ADMIN_ACCOUNT:-admin}
+            RYLWEEN_ADMIN_PASSWORD: ${RYLWEEN_ADMIN_PASSWORD:-}
+            RYLWEEN_VICTIM_ACCOUNT: ${RYLWEEN_VICTIM_ACCOUNT:-}
         volumes:
             - ${RYLWEEN_DATA_VOLUME:-data}:/data
 

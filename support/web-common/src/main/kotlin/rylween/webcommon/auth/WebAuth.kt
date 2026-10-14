@@ -9,6 +9,8 @@ import rylween.webcommon.WebHttpHeader
 import java.io.File
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Duration
@@ -29,6 +31,7 @@ private const val PASSWORD_ITERATIONS = 120_000
 private const val PASSWORD_BITS = 256
 private const val SALT_BYTES = 16
 private const val TOKEN_BYTES = 32
+private const val RESERVED_NAME = "That adventurer name is reserved."
 
 data class WebAccount(
     val slug: String,
@@ -77,9 +80,31 @@ sealed class WebAuthBootstrapResult {
     ) : WebAuthBootstrapResult()
 }
 
+sealed class WebSysopAccountResult {
+    /** The account was created; [passwordFile] holds its generated password, or is null when the server set one. */
+    data class Created(
+        val account: WebAccount,
+        val passwordFile: File?,
+    ) : WebSysopAccountResult()
+
+    data class Existing(
+        val account: WebAccount,
+    ) : WebSysopAccountResult()
+
+    data class Failure(
+        val message: String,
+    ) : WebSysopAccountResult()
+}
+
+/**
+ * Accounts on disk. Players cannot register [reservedNames], such as the sysop
+ * account; the server creates those itself as bootstrap accounts.
+ */
 class WebUserStore(
     private val dataDir: File,
+    reservedNames: Set<String> = emptySet(),
 ) {
+    private val reservedSlugs = reservedNames.mapNotNullTo(mutableSetOf(), ::slugFrom)
     private val lock = ReentrantLock(true)
     private val usersDir = dataDir.resolve("users/by-slug")
     private val emailIndexFile = dataDir.resolve("users/email-index.properties")
@@ -97,6 +122,7 @@ class WebUserStore(
                 name =
                     when {
                         cleanName.isBlank() || slug == null -> WebAuthFieldAvailability(false, "Enter an adventurer name.")
+                        slug in reservedSlugs -> WebAuthFieldAvailability(false, RESERVED_NAME)
                         userFile(slug).isFile -> WebAuthFieldAvailability(false, "That adventurer name is already registered.")
                         else -> WebAuthFieldAvailability(true, "Adventurer name is available.")
                     },
@@ -120,6 +146,7 @@ class WebUserStore(
             val normalizedEmail = normalizeEmail(email) ?: return WebAuthResult.Failure("Enter a valid email address.")
             val cleanName = displayName.trim().take(40).ifBlank { normalizedEmail.substringBefore('@') }
             val slug = slugFrom(cleanName) ?: return WebAuthResult.Failure("Enter an adventurer name.")
+            if (slug in reservedSlugs) return WebAuthResult.Failure(RESERVED_NAME)
             if (password.length < 8) return WebAuthResult.Failure("Password must be at least 8 characters.")
             usersDir.mkdirs()
             emailIndexFile.parentFile?.mkdirs()
@@ -158,6 +185,31 @@ class WebUserStore(
             }
             val properties = createAccount(slug, cleanName, normalizedEmail, account.password, emailIndex)
             WebAuthBootstrapResult.Created(properties.account())
+        }
+
+    /**
+     * Creates the sysop account [displayName] when it does not exist yet, and
+     * leaves an existing one alone. The account gets [password] when the server
+     * sets one; otherwise a generated password, written to [passwordFile] where
+     * only the server's user can read it.
+     */
+    fun ensureSysopAccount(
+        displayName: String,
+        password: String?,
+        passwordFile: File,
+    ): WebSysopAccountResult =
+        lock.withLock {
+            val slug = slugFrom(displayName) ?: return WebSysopAccountResult.Failure("Enter an adventurer name.")
+            loadUserProperties(slug)?.let { existing -> return WebSysopAccountResult.Existing(existing.account()) }
+            val chosen = password ?: randomToken().also(passwordFile::writeOwnerOnly)
+            when (val created = ensureAccount(WebAuthBootstrapAccount(displayName, null, chosen))) {
+                is WebAuthBootstrapResult.Created -> WebSysopAccountResult.Created(created.account, passwordFile.takeIf { password == null })
+                is WebAuthBootstrapResult.Existing -> WebSysopAccountResult.Existing(created.account)
+                is WebAuthBootstrapResult.Failure -> {
+                    if (password == null) passwordFile.delete()
+                    WebSysopAccountResult.Failure(created.message)
+                }
+            }
         }
 
     fun authenticate(
@@ -384,6 +436,19 @@ private fun randomToken(): String {
     val bytes = ByteArray(TOKEN_BYTES)
     SecureRandom().nextBytes(bytes)
     return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+}
+
+/** Writes [text] to this file, readable and writable only by its owner where the file system supports that. */
+private fun File.writeOwnerOnly(text: String) {
+    parentFile?.mkdirs()
+    delete()
+    createNewFile()
+    try {
+        Files.setPosixFilePermissions(toPath(), PosixFilePermissions.fromString("rw-------"))
+    } catch (unsupported: UnsupportedOperationException) {
+        // Not a POSIX file system; the file keeps its directory's permissions.
+    }
+    writeText(text + "\n")
 }
 
 private fun loadProperties(file: File): Properties =

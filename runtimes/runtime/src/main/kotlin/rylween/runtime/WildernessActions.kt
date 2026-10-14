@@ -66,6 +66,7 @@ internal class WildernessActions(
     private val log: RuntimeLog,
 ) {
     private val audio = RuntimeAudio(systems.audio, screen)
+    private val secrets = SecretActions(content, systems, input, screen, log)
 
     fun applyTurnUpkeep(
         runtime: RuntimeState,
@@ -188,6 +189,12 @@ internal class WildernessActions(
         if (mission.mission != null) {
             if (messages.isNotEmpty()) screen.writeText(messages)
             return WildernessActionResult(mission.runtime.runMission(mission.mission))
+        }
+
+        // A victim of the sysop gods meets their punishment before any random event.
+        secrets.stepAction(current)?.let { action ->
+            val punished = secrets.apply(current, action)
+            return WildernessActionResult(punished.runtime, messages + punished.messages)
         }
 
         if (current.party.rngState == null) {
