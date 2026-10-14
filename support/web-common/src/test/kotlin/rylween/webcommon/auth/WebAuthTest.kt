@@ -1,8 +1,9 @@
 package rylween.webcommon.auth
 
+import org.junit.jupiter.api.io.TempDir
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermissions
-import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -10,9 +11,12 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 
 class WebAuthTest {
+    @TempDir
+    private lateinit var dir: File
+
     @Test
     fun registeredAccountCanAuthenticateByEmailAndSlug() {
-        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+        val store = WebUserStore(dir)
 
         val registered = assertIs<WebAuthResult.Success>(store.register("Strong Party", "strong@example.test", "password123"))
         val byEmail = assertIs<WebAuthResult.Success>(store.authenticate("strong@example.test", "password123"))
@@ -25,7 +29,7 @@ class WebAuthTest {
 
     @Test
     fun availabilityReportsDuplicateNameAndEmail() {
-        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+        val store = WebUserStore(dir)
 
         store.register("Strong Party", "strong@example.test", "password123")
 
@@ -40,7 +44,7 @@ class WebAuthTest {
 
     @Test
     fun reservedNamesCannotBeRegisteredButCanBeBootstrapped() {
-        val store = WebUserStore(createTempDirectory("rylween-auth").toFile(), reservedNames = setOf("Admin"))
+        val store = WebUserStore(dir, reservedNames = setOf("Admin"))
 
         val refused = assertIs<WebAuthResult.Failure>(store.register("admin", "someone@example.test", "password123"))
         assertEquals("That adventurer name is reserved.", refused.message)
@@ -51,7 +55,6 @@ class WebAuthTest {
 
     @Test
     fun theSysopAccountIsCreatedOnceWithAGeneratedPasswordOnlyItsOwnerCanRead() {
-        val dir = createTempDirectory("rylween-auth").toFile()
         val store = WebUserStore(dir, reservedNames = setOf("admin"))
         val passwordFile = dir.resolve("admin-password.txt")
 
@@ -67,7 +70,6 @@ class WebAuthTest {
 
     @Test
     fun theSysopAccountUsesTheServersPasswordWhenOneIsSet() {
-        val dir = createTempDirectory("rylween-auth").toFile()
         val store = WebUserStore(dir)
         val passwordFile = dir.resolve("admin-password.txt")
 
@@ -80,7 +82,7 @@ class WebAuthTest {
 
     @Test
     fun bootstrapAccountIsCreatedOrVerified() {
-        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+        val store = WebUserStore(dir)
         val bootstrap = WebAuthBootstrapAccount("Strong Party", "strong@example.test", "password123")
 
         val created = assertIs<WebAuthBootstrapResult.Created>(store.ensureAccount(bootstrap))
@@ -94,7 +96,7 @@ class WebAuthTest {
 
     @Test
     fun bootstrapAccountRejectsMismatchedExistingPassword() {
-        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+        val store = WebUserStore(dir)
 
         store.ensureAccount(WebAuthBootstrapAccount("Strong", "strong@example.test", "password123"))
 
@@ -105,7 +107,7 @@ class WebAuthTest {
 
     @Test
     fun wrongPasswordIsRejected() {
-        val store = WebUserStore(createTempDirectory("rylween-auth").toFile())
+        val store = WebUserStore(dir)
 
         store.register("Strong", "strong@example.test", "password123")
 

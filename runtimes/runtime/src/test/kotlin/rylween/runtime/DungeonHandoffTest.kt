@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.RuntimeCommandGroupId
@@ -17,7 +18,8 @@ class DungeonHandoffTest {
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content
-    private val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).resolve("dungeon-handoff").also(File::mkdirs)
+    @TempDir
+    private lateinit var testTmp: File
 
     @Test
     fun aCaveFoundInTheWildernessIsAnnouncedWithItsLevels() {

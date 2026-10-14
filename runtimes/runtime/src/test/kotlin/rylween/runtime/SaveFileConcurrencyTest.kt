@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import java.io.File
@@ -14,6 +15,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SaveFileConcurrencyTest {
+    @TempDir
+    private lateinit var testTmp: File
     private val bundleFile = File(checkNotNull(System.getProperty("rylween.runtime.bundle")))
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val content = bundle.content
@@ -192,12 +195,5 @@ class SaveFileConcurrencyTest {
         user: String,
     ): RuntimeState = SaveFile.read(file, content, { state }, user)
 
-    private fun withSaveFile(action: (File) -> Unit) {
-        val directory = Files.createTempDirectory("rylween-concurrent-save-").toFile()
-        try {
-            action(directory.resolve("world.rsave"))
-        } finally {
-            directory.deleteRecursively()
-        }
-    }
+    private fun withSaveFile(action: (File) -> Unit) = action(testTmp.resolve("world.rsave"))
 }

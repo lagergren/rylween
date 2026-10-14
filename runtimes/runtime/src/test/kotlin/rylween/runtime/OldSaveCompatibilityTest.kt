@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.dsl.impl.PcClass
@@ -10,6 +11,8 @@ import kotlin.test.assertTrue
 
 /** Saves written by older runtimes still load, with what has changed since brought up to date. */
 class OldSaveCompatibilityTest {
+    @TempDir
+    private lateinit var testTmp: File
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val content = bundle.content
@@ -18,7 +21,7 @@ class OldSaveCompatibilityTest {
     fun aCastersSpellPointsFromBeforeTheyGrewWithWisdomAreRaisedToWisdom() {
         val runtime = RuntimeState.from(bundle.states.single { state -> content.slug(state.state) == "near-winning-replay" }, content)
         val priest = runtime.party.members.indexOfFirst { member -> member.pcClass == PcClass.Priest }
-        val save = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).also(File::mkdirs).resolve("old-spell-points.rsave").also(File::delete)
+        val save = testTmp.resolve("old-spell-points.rsave")
         SaveFile.write(save, runtime, bundleFile.readExternalCompiledBundleContentHash(), content, "veteran", null)
         val maxKey = Regex("""(member\.${priest + 1}\.magicMax=)\d+""")
         val old = save.readText()

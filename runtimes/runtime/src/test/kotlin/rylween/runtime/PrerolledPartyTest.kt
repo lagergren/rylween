@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
@@ -9,7 +10,6 @@ import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.Race
 import rylween.terminal.AnsiTerminal
 import java.io.File
-import java.nio.file.Files
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -18,6 +18,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PrerolledPartyTest {
+    @TempDir
+    private lateinit var testTmp: File
     private val bundleFile = File(checkNotNull(System.getProperty("rylween.runtime.bundle")))
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val bundleHash = bundleFile.readExternalCompiledBundleContentHash()
@@ -192,14 +194,7 @@ class PrerolledPartyTest {
             user,
         )
 
-    private fun withSaveFile(action: (File) -> Unit) {
-        val directory = Files.createTempDirectory("rylween-prerolled-").toFile()
-        try {
-            action(directory.resolve("world.rsave"))
-        } finally {
-            directory.deleteRecursively()
-        }
-    }
+    private fun withSaveFile(action: (File) -> Unit) = action(testTmp.resolve("world.rsave"))
 }
 
 private class CreationTestTerminal : AnsiTerminal {

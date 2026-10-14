@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.RuntimeCommandActionId
 import rylween.compiled.readExternalCompiledBundleContentHash
@@ -16,19 +17,23 @@ import kotlin.test.assertTrue
  * neither much harder nor much easier than the game is meant to be.
  *
  * One seed plays by default. `-Prylween.autopilot.seeds=1,2,3` plays several,
- * for balance work; the report lands in the test tmp directory.
+ * for balance work; the report, coverage, and daily logs land in
+ * `build/test-logs/AutopilotFullGameTest/aRolledPartyWinsTheGameWithinBalanceBounds`.
  */
 class AutopilotFullGameTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content
-    private val workDir = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).resolve("autopilot-full-game").also(File::mkdirs)
-    private val sessions =
+
+    @TempDir
+    private lateinit var workDir: File
+    private val sessions by lazy {
         AutopilotSessions(
             factory = RuntimeSessionFactory.load(bundle, systems, bundleFile.readExternalCompiledBundleContentHash()),
             workDir = workDir,
         )
+    }
     private val castle = systems.castleRows.single()
     private val castleVictory = content.ref(CompiledHandleKind.Milestone, checkNotNull(castle.completionMilestone))
 

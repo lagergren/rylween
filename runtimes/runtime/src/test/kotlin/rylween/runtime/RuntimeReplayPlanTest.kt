@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
 import java.io.File
@@ -12,7 +13,8 @@ import kotlin.test.assertTrue
 class RuntimeReplayPlanTest {
     private val executable = File(requiredProperty("rylween.runtime.executable"))
     private val bundleFile = File(requiredProperty("rylween.runtime.bundle"))
-    private val testTmp = File(requiredProperty("rylween.runtime.testTmp")).also(File::mkdirs)
+    @TempDir
+    private lateinit var testTmp: File
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
 

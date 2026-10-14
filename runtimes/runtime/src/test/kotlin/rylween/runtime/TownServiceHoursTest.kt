@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.CompiledBuildingService
 import rylween.compiled.readExternalCompiledGameBundle
 import java.io.File
@@ -11,7 +12,8 @@ import kotlin.test.assertTrue
 
 class TownServiceHoursTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
-    private val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).also(File::mkdirs)
+    @TempDir
+    private lateinit var testTmp: File
     private val content = bundleFile.readExternalCompiledGameBundle().content
 
     @Test

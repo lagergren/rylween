@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalRuntimeSystems
@@ -18,7 +19,8 @@ class RuntimeSaveTest {
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content
     private val hash = bundleFile.readExternalCompiledBundleContentHash()
-    private val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).resolve("runtime-save").also(File::mkdirs)
+    @TempDir
+    private lateinit var testTmp: File
     private val runtime = RuntimeState.from(bundle.states.single { state -> content.slug(state.state) == "fresh-replay" }, content)
 
     @Test

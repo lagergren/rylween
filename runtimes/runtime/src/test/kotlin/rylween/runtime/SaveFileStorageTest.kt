@@ -1,7 +1,9 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -10,8 +12,9 @@ import kotlin.test.assertTrue
 
 class SaveFileStorageTest {
     @Test
-    fun separateJvmProcessesPreserveEveryUpdate() {
-        val directory = Files.createTempDirectory("rylween-process-save-").toFile()
+    fun separateJvmProcessesPreserveEveryUpdate(
+        @TempDir directory: File,
+    ) {
         val processes = mutableListOf<Process>()
         try {
             val save = directory.resolve("world.rsave").also { it.writeText("0") }
@@ -48,27 +51,23 @@ class SaveFileStorageTest {
                 if (process.isAlive) process.destroyForcibly()
                 process.waitFor(10, TimeUnit.SECONDS)
             }
-            directory.deleteRecursively()
         }
     }
 
     @Test
-    fun replacingSavePreservesPermissionsAndRemovesTemporaryFiles() {
-        val directory = Files.createTempDirectory("rylween-save-permissions-")
-        try {
-            val file = directory.resolve("world.rsave")
-            Files.writeString(file, "old")
-            val permissions = PosixFilePermissions.fromString("rw-r-----")
-            Files.setPosixFilePermissions(file, permissions)
+    fun replacingSavePreservesPermissionsAndRemovesTemporaryFiles(
+        @TempDir directory: Path,
+    ) {
+        val file = directory.resolve("world.rsave")
+        Files.writeString(file, "old")
+        val permissions = PosixFilePermissions.fromString("rw-r-----")
+        Files.setPosixFilePermissions(file, permissions)
 
-            SaveFileStorage.update(file.toFile()) { SaveFileStorage.replace(it, "new") }
+        SaveFileStorage.update(file.toFile()) { SaveFileStorage.replace(it, "new") }
 
-            assertEquals("new", Files.readString(file))
-            assertEquals(permissions, Files.getPosixFilePermissions(file))
-            assertEquals(setOf("world.rsave", "world.rsave.lock"), directory.toFile().list()?.toSet())
-        } finally {
-            directory.toFile().deleteRecursively()
-        }
+        assertEquals("new", Files.readString(file))
+        assertEquals(permissions, Files.getPosixFilePermissions(file))
+        assertEquals(setOf("world.rsave", "world.rsave.lock"), directory.toFile().list()?.toSet())
     }
 }
 

@@ -3,6 +3,7 @@ import org.gradle.jvm.application.tasks.CreateStartScripts
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService
 import rylween.gradle.RunInstalledLauncherWithJavaTask
+import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -151,6 +152,12 @@ tasks.withType<RunInstalledLauncherWithJavaTask>().configureEach {
     userId.set("gradle-smoke")
 }
 
+/** Gives the test task's doFirst a configuration-cache-safe way to delete files. */
+interface InjectedFileSystem {
+    @get:Inject
+    val fileSystem: FileSystemOperations
+}
+
 tasks.test {
     dependsOn(installRuntime)
     dependsOn(":tools:emitExternalCompiledBundle")
@@ -158,14 +165,17 @@ tasks.test {
     systemProperty("rylween.runtime.bundle", externalBundleArtifact.get().asFile.path)
     // Full-game autopilot seeds for balance work: ./gradlew :runtime:test -Prylween.autopilot.seeds=1,2,3
     providers.gradleProperty("rylween.autopilot.seeds").orNull?.let { seeds -> systemProperty("rylween.autopilot.seeds", seeds) }
-    systemProperty(
-        "rylween.runtime.testTmp",
-        layout.buildDirectory
-            .dir("tmp/runtimeReplayTests")
-            .get()
-            .asFile
-            .path,
-    )
+
+    // Every @TempDir lands in build/test-logs/<test class>/<test method> and is kept after the run, so the
+    // logs, saves, and autopilot reports can be read afterwards (see TestLogDirFactory). A cached test run
+    // restores them, and each real run starts from an empty directory so no stale files survive.
+    val testLogDir = layout.buildDirectory.dir("test-logs")
+    val injected = objects.newInstance<InjectedFileSystem>()
+    outputs.dir(testLogDir).withPropertyName("testLogs")
+    systemProperty("rylween.runtime.testLogs", testLogDir.get().asFile.path)
+    doFirst {
+        injected.fileSystem.delete { delete(testLogDir) }
+    }
 }
 
 val checkRuntimeBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> =
