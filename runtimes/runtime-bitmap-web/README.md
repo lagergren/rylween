@@ -65,7 +65,7 @@ RYLWEEN_DEPLOY_HOST=192.168.x.y ./deploy-rylween.sh
 override the port (default `8081`), data directory, and log file (default
 `/tmp/rylween-bitmap-web-deploy.log`).
 
-`./rylween-deploy-docker.sh` (or `./deploy-rylween.sh --compose`) runs the production image through the root
+`./deploy-rylween-docker.sh` (or `./deploy-rylween.sh --compose`) runs the production image through the root
 `compose.yaml` instead, published on the same detected LAN address (see
 [`deploy/docker/README.md`](../../deploy/docker/README.md#compose)).
 
