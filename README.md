@@ -2,7 +2,9 @@
 Kotlin port and runtime workspace for Adventurers of Rylween, a MUD
 style game for BBSes that I wrote in 1992-1993.
 
-![The original 1993 ANSI title screen of Adventurers of Rylween](docs/images/rylween-title.png)
+<p align="center">
+  <img src="docs/images/rylween-title.png" alt="The original 1993 ANSI title screen of Adventurers of Rylween">
+</p>
 
 ## Running The Game
 
