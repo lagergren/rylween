@@ -52,6 +52,15 @@ val runtimeClasspathConfig: Configuration = configurations.runtimeClasspath.get(
 val runtimeJars: FileCollection =
     runtimeClasspathConfig.filter { file -> file.isFile && file.extension == "jar" }
 
+tasks.processResources {
+    // Stamps rylween.version into the runtime, which shows it on the title menu and in every log.
+    val rylweenVersion = project.version.toString()
+    inputs.property("rylweenVersion", rylweenVersion)
+    filesMatching("rylween/runtime/version.txt") {
+        expand("version" to rylweenVersion)
+    }
+}
+
 tasks.jar {
     archiveBaseName.set("rylween-runtime")
     manifest {

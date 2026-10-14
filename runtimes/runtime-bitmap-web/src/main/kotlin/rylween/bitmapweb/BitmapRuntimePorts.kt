@@ -286,11 +286,14 @@ internal class BitmapRuntimeScreen(
         )
     }
 
-    override fun showTitleMenu(lines: List<String>) {
+    override fun showTitleMenu(
+        lines: List<String>,
+        versionLabel: String,
+    ) {
         mode = "title_menu"
         backdrop = "title_menu"
         title = content.strings.value(content.universe.nameString)
-        subtitle = ""
+        subtitle = versionLabel
         status = null
         statusLines = emptyList()
         textLines = lines

@@ -76,7 +76,7 @@ class RuntimeLog private constructor(
             file.parentFile?.mkdirs()
             return RuntimeLog(file.printWriter(), file).also { log ->
                 extraSinks.forEach { sink -> log.addSink(sink) }
-                log.event("log.open path=${file.path}")
+                log.event("log.open path=${file.path} version=$rylweenVersion")
             }
         }
     }
