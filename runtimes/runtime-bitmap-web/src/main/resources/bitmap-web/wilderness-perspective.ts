@@ -73,7 +73,7 @@
     const toolFacing = toolElement("toolFacing", HTMLSelectElement);
     const toolPerspective = toolElement("toolPerspective", HTMLInputElement);
     const toolStatus = toolElement("toolStatus", HTMLElement);
-    const toolAssetVersion = "20260518-png-perspective";
+    const toolAssetVersion = "20261014-art-revamp";
     const toolPerspectiveTerrainAssets: Record<string, HTMLImageElement> = {
         plain: toolLoadAsset("/assets/wilderness/terrain-plain.png"),
         forest: toolLoadAsset("/assets/wilderness/terrain-forest.png"),
