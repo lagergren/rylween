@@ -1271,6 +1271,7 @@ private fun validateTextBlock(
             TextPart.HuntMemberSubjectPronoun,
             TextPart.HuntFoodGained,
             TextPart.UpkeepMemberName,
+            TextPart.CampGuardName,
             TextPart.PartyMemberCount,
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
@@ -2374,7 +2375,6 @@ private fun validateCampRules(camp: CampRulesModel) {
         "not enough food" to camp.notEnoughFood,
         "guard prompt" to camp.guardPrompt,
         "guard member dead" to camp.guardMemberDead,
-        "stands guard" to camp.standsGuard,
         "sleeping" to camp.sleeping,
         "rested" to camp.rested,
         "ambush" to camp.ambush,
@@ -2387,6 +2387,7 @@ private fun validateCampRules(camp: CampRulesModel) {
         "camp guard member prompt",
         allowedRuntimeBindings = memberChoiceTextBindings,
     )
+    validateTextBlock(camp.standsGuard, "camp stands guard", allowedRuntimeBindings = setOf(TextPart.CampGuardName))
     camp.temperatureMessage.forEach { (band, block) ->
         validateTextBlock(block, "camp ${band.name.lowercase()} temperature message")
     }

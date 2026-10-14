@@ -458,7 +458,7 @@ val authoredRylween: RylweenModel =
                     ambushTier = EncounterTiers.weak
                     notTired = literalText("Not tired.")
                     notEnoughFood = literalText("Not enough food.")
-                    guardPrompt = literalText("Camp.", "", "Post a guard?", "")
+                    guardPrompt = literalText("Camp.", "", "Post a guard?", "", "(Y)es", "(N)o")
                     guardMemberPrompt =
                         structuredText {
                             line("Who? (1-", HuntText.partyMemberCount, ")")
@@ -466,9 +466,8 @@ val authoredRylween: RylweenModel =
                     guardMemberDead = literalText("Dead.")
                     standsGuard =
                         flowText(
-                            """
-                            Guard stands watch. They won't get any health back during this rest.
-                            """,
+                            CampText.guardName,
+                            " stands guard and won't get any health back during this rest.",
                         )
                     sleeping = literalText("Zzz...")
                     rested = flowText("You wake up 8 hours later. Well rested.")

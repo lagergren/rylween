@@ -2582,6 +2582,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.HuntMemberSubjectPronoun -> textTokenJson("huntMemberSubjectPronoun")
             TextPart.HuntFoodGained -> textTokenJson("huntFoodGained")
             TextPart.UpkeepMemberName -> textTokenJson("upkeepMemberName")
+            TextPart.CampGuardName -> textTokenJson("campGuardName")
             TextPart.PartyMemberCount -> textTokenJson("partyMemberCount")
             TextPart.PartyMemberMax -> textTokenJson("partyMemberMax")
             TextPart.WildernessDungeonName -> textTokenJson("wildernessDungeonName")

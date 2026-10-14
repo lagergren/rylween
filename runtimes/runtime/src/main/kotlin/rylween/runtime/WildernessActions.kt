@@ -479,7 +479,7 @@ internal class WildernessActions(
         var runtime = copy(hour = (hour + rules.hoursAdvanced).positiveMod(24), party = party)
         audio.cue(AudioCue.Camp)
         screen.showImage(runtime.campBackdrop())
-        if (guardIndex != null) showCampBeat(rules.text.standsGuard.renderCamp(runtime))
+        if (guardIndex != null) showCampBeat(rules.text.standsGuard.renderCampGuard(runtime, guardIndex))
         audio.cue(AudioCue.Rest)
         showCampBeat(rules.text.sleeping.renderCamp(runtime))
 
@@ -822,6 +822,17 @@ internal class WildernessActions(
 
     private fun ExternalRuntimeTextBlock.renderCamp(runtime: RuntimeState): List<String> =
         renderRuntimeText(content, runtime, screen.textColumns)
+
+    private fun ExternalRuntimeTextBlock.renderCampGuard(
+        runtime: RuntimeState,
+        guardIndex: Int,
+    ): List<String> =
+        renderRuntimeText(content, runtime, screen.textColumns) { kind ->
+            when (kind) {
+                "campGuardName" -> runtime.party.members.getOrNull(guardIndex)?.let { guard -> content.strings.value(guard.nameString) }
+                else -> null
+            }
+        }
 
     private fun ExternalRuntimeTextBlock.renderHunt(
         runtime: RuntimeState,
