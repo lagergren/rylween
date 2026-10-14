@@ -23,6 +23,12 @@ Module guides:
 - [`bin`](bin/README.md) - local developer/operator launcher scripts.
 - [`deploy/docker`](deploy/docker/README.md) - Docker images and reverse-proxy deployment notes.
 
+The complete game DSL, the whole authored game from the world map and monsters
+to every mission script, is
+[`RylweenGame.kt`](game/src/main/kotlin/rylween/game/RylweenGame.kt); it pulls
+in the sound and music from
+[`RylweenAudio.kt`](game/src/main/kotlin/rylween/game/RylweenAudio.kt).
+
 The original game text and manual live in
 [`adventurers-of-rylween.md`](game/src/main/resources/adventurers-of-rylween.md).
 
