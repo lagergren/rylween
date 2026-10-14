@@ -92,7 +92,9 @@ internal class AutopilotTour(
 
         return buildList {
             if ("tavern" in services) {
-                listOf("tavern drink", "tavern story", "tavern rumors").filter(::pending).forEach { pastime -> add(AutopilotErrand.Pastime(pastime, "Tavern")) }
+                listOf("tavern drink", "tavern story", "tavern rumors").filter(::pending).forEach { pastime ->
+                    add(AutopilotErrand.Pastime(pastime, "Tavern"))
+                }
                 val bargirl =
                     content.characters.any { character ->
                         content.slug(character.job) == BARGIRL &&
@@ -121,13 +123,23 @@ internal class AutopilotTour(
 
     /** The stair choice the run has not made yet besides climbing on: leaving the stairs, then teleporting out. */
     fun stairsChoice(): RuntimeCommandActionId? {
-        val group = systems.castleRows.single().id.let(RuntimeCommandGroupId::castleStairs)
-        return listOf(RuntimeCommandActionId.Leave, RuntimeCommandActionId.TeleportOut).firstOrNull { action -> !coverage.used(group, action.id) }
+        val group =
+            systems.castleRows
+                .single()
+                .id
+                .let(RuntimeCommandGroupId::castleStairs)
+        return listOf(RuntimeCommandActionId.Leave, RuntimeCommandActionId.TeleportOut).firstOrNull { action ->
+            !coverage.used(group, action.id)
+        }
     }
 
     /** Whether to leave castle treasure behind once, having taken some before. */
     fun leavesTreasure(): Boolean {
-        val group = systems.castleRows.single().id.let(RuntimeCommandGroupId::castleTreasure)
+        val group =
+            systems.castleRows
+                .single()
+                .id
+                .let(RuntimeCommandGroupId::castleTreasure)
         return coverage.used(group, RuntimeCommandActionId.Take.id) && !coverage.used(group, RuntimeCommandActionId.Leave.id)
     }
 
@@ -160,7 +172,11 @@ internal class AutopilotTour(
                 add { key(group, commands, RuntimeCommandActionId.CastSpell) }
                 add { view -> priest.digit.takeIf { view.text.any { line -> line.startsWith("Who?") } } }
                 add { view -> AutopilotMenu.parse(view.text).find(name)?.key }
-                if (slug == HEALING && target != null) add { view -> target.digit.takeIf { view.text.any { line -> line.startsWith("Who?") } } }
+                if (slug == HEALING &&
+                    target != null
+                ) {
+                    add { view -> target.digit.takeIf { view.text.any { line -> line.startsWith("Who?") } } }
+                }
             },
         )
     }

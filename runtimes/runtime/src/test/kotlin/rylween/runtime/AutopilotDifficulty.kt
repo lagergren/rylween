@@ -61,7 +61,9 @@ internal data class AutopilotDifficulty(
                 banishes = shown.count { line -> "deafening clap" in line },
                 townVisits = stats.townVisits,
                 battleItems = stats.battleItems,
-                finalLevel = run.state.party.members.maxOf { member -> member.level },
+                finalLevel =
+                    run.state.party.members
+                        .maxOf { member -> member.level },
                 falls = falls(run.transcript),
             )
         }
@@ -85,7 +87,9 @@ internal data class AutopilotDifficulty(
                 transcript.forEachIndexed { index, line ->
                     when {
                         line.startsWith("=== day ") -> day = line.removePrefix("=== ").removeSuffix(" ===")
-                        line.trim() == "You face" || line.trim() == "You still face" -> foes = transcript.getOrNull(index + 1)?.trim().orEmpty()
+                        line.trim() == "You face" || line.trim() == "You still face" ->
+                            foes =
+                                transcript.getOrNull(index + 1)?.trim().orEmpty()
                         line.startsWith("The party has fallen") -> add("$day: $foes")
                     }
                 }

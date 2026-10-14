@@ -37,7 +37,11 @@ internal class AutopilotJournal(
                 // "A fighter named Groth knows of the Crown. He lives in Wilor": a pronoun stands for the last name given.
                 val name =
                     if (subject in pronouns) {
-                        namedPattern.findAll(text.substring(0, match.range.first)).lastOrNull()?.groupValues?.get(1) ?: return@forEach
+                        namedPattern
+                            .findAll(text.substring(0, match.range.first))
+                            .lastOrNull()
+                            ?.groupValues
+                            ?.get(1) ?: return@forEach
                     } else {
                         subject
                     }
@@ -78,6 +82,7 @@ internal class AutopilotJournal(
 
     private companion object {
         val coordinatePattern = Regex("""\b(\d{1,2})x(\d{1,2})\b""")
+
         /** "Marraga, the ranger lives at 46x16": the name, without the job the journal adds, and where, wherever it wraps. */
         val livesPattern = Regex("""([A-Z][\w']+)(?:, the [a-z ]+?)? lives (in [A-Z]\w+(?: at \d+x\d+)?|at \d+x\d+)""")
         val namedPattern = Regex("""named ([A-Z][\w']+)""")

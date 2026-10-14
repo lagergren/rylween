@@ -12,6 +12,7 @@ import kotlin.test.assertTrue
 
 class TownServiceHoursTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
+
     @TempDir
     private lateinit var testTmp: File
     private val content = bundleFile.readExternalCompiledGameBundle().content

@@ -14,6 +14,7 @@ import kotlin.test.assertTrue
 
 class BattleRunnerTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
+
     @TempDir
     private lateinit var testTmp: File
     private val bundle = bundleFile.readExternalCompiledGameBundle()
@@ -97,7 +98,11 @@ class BattleRunnerTest {
         assertContains(escaped.shown, "Coward.")
         assertFalse("You escaped" in escaped.shown)
         assertEquals(runtime.currentMode, escaped.result.runtime.currentMode)
-        assertEquals(runtime.party.experience(), escaped.result.runtime.party.experience())
+        assertEquals(
+            runtime.party.experience(),
+            escaped.result.runtime.party
+                .experience(),
+        )
 
         val caught = seededFights(runtime, commands).first { fight -> fight.flee("battle.flee")?.escaped == false }
         assertContains(caught.shown, "You fail to get away!")
@@ -173,8 +178,14 @@ class BattleRunnerTest {
         val screen = CapturingBattleScreen()
 
         RuntimeLog.open(testTmp.resolve("battle-party-held.log")).use { log ->
-            BattleRunner(holding, systems.combat, systems.pacing.battle, ScriptedInput("F" + "D".repeat(runtime.party.members.size)), screen, log)
-                .runMonster(runtime, chief, mandatory = true)
+            BattleRunner(
+                holding,
+                systems.combat,
+                systems.pacing.battle,
+                ScriptedInput("F" + "D".repeat(runtime.party.members.size)),
+                screen,
+                log,
+            ).runMonster(runtime, chief, mandatory = true)
         }
 
         val shown = screen.textLines

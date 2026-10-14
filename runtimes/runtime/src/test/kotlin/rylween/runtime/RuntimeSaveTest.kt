@@ -19,6 +19,7 @@ class RuntimeSaveTest {
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content
     private val hash = bundleFile.readExternalCompiledBundleContentHash()
+
     @TempDir
     private lateinit var testTmp: File
     private val runtime = RuntimeState.from(bundle.states.single { state -> content.slug(state.state) == "fresh-replay" }, content)
@@ -33,7 +34,12 @@ class RuntimeSaveTest {
         assertEquals(listOf("Saving position...", "Game saved."), screen.lines)
         assertTrue(file.isFile)
         assertContains(logText, "runtime.save reason=command")
-        assertEquals(systems.audio.cues.getValue(AudioCue.GameSaved.name).take(1), screen.sounds)
+        assertEquals(
+            systems.audio.cues
+                .getValue(AudioCue.GameSaved.name)
+                .take(1),
+            screen.sounds,
+        )
     }
 
     @Test

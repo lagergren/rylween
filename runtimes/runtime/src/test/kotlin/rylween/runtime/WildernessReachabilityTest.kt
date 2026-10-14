@@ -132,7 +132,11 @@ class WildernessReachabilityTest {
     fun aQuestDungeonLeftEarlyCanBeEnteredAgain() {
         val start = RuntimeState.from(newGame, content)
         val crypt = start.locations.single { placement -> content.slug(placement.location) == "nolrim_crypt" }.point
-        val beside = AutopilotDirection.entries.map { direction -> direction.from(crypt) }.first { point -> world.terrainAt(point)?.passable == true }
+        val beside =
+            AutopilotDirection.entries.map { direction -> direction.from(crypt) }.first { point ->
+                world.terrainAt(point)?.passable ==
+                    true
+            }
         val flag = content.flags.single { flag -> content.slug(flag.id) == "master_crown" }
         val borinMet = flag.states.single { state -> content.slug(state.id) == "master_crown.borin_met" }.id
         // No random state, so no wilderness event interrupts the walk.

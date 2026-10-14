@@ -271,7 +271,10 @@ internal class CastleRuntime(
             }
             command = input.readCommand() ?: return next
         }
-        val freeSlot = next.party.inventory.firstOrNull { slot -> slot.item == null }?.slot
+        val freeSlot =
+            next.party.inventory
+                .firstOrNull { slot -> slot.item == null }
+                ?.slot
         val targetSlot =
             freeSlot ?: chooseDropSlotForInventoryOverflow(
                 systems = systems,

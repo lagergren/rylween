@@ -22,6 +22,7 @@ class DungeonLevelEventsTest {
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content
     private val hash = bundleFile.readExternalCompiledBundleContentHash()
+
     @TempDir
     private lateinit var testTmp: File
     private val actions = AutopilotActions(systems)
@@ -52,7 +53,12 @@ class DungeonLevelEventsTest {
         val transcript =
             explore("banish", WEAK_ENCOUNTER) { state ->
                 val priest = AutopilotParty(content).firstLiving(state.party, PcClass.Priest)!!
-                listOf(actions.castPriestSpell(priest, "Banish Evil", commands = actions.commandsAt(state)), actions.descend(), actions.ascend(), actions.ascend())
+                listOf(
+                    actions.castPriestSpell(priest, "Banish Evil", commands = actions.commandsAt(state)),
+                    actions.descend(),
+                    actions.ascend(),
+                    actions.ascend(),
+                )
             }
 
         assertEquals(0, transcript.count { line -> line.trim() == "You face" }, transcript.joinToString("\n"))
@@ -96,11 +102,17 @@ class DungeonLevelEventsTest {
 
                 override fun wilderness(state: RuntimeState): AutopilotAction = throw AutopilotStuck("left the dungeon with steps to go")
 
-                override fun dungeon(state: RuntimeState): AutopilotAction = queue.removeFirstOrNull() ?: throw AutopilotStuck("out of steps")
+                override fun dungeon(state: RuntimeState): AutopilotAction =
+                    queue.removeFirstOrNull() ?: throw AutopilotStuck("out of steps")
             }
         val ports = AutopilotPorts(Autopilot(content, systems, plan), KEYS, TRANSCRIPT_TAIL)
         RuntimeLog.open(testTmp.resolve("$name.log")).use { log ->
-            RuntimeSessionFactory.load(bundle, systems, hash).start(ports, ports, RuntimeSessionConfig("dungeon-test", "strong-replay", save, save), log)
+            RuntimeSessionFactory
+                .load(
+                    bundle,
+                    systems,
+                    hash,
+                ).start(ports, ports, RuntimeSessionConfig("dungeon-test", "strong-replay", save, save), log)
         }
         return ports.transcript
     }

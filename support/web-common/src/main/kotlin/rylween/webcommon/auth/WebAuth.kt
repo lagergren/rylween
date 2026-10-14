@@ -203,7 +203,11 @@ class WebUserStore(
             loadUserProperties(slug)?.let { existing -> return WebSysopAccountResult.Existing(existing.account()) }
             val chosen = password ?: randomToken().also(passwordFile::writeOwnerOnly)
             when (val created = ensureAccount(WebAuthBootstrapAccount(displayName, null, chosen))) {
-                is WebAuthBootstrapResult.Created -> WebSysopAccountResult.Created(created.account, passwordFile.takeIf { password == null })
+                is WebAuthBootstrapResult.Created ->
+                    WebSysopAccountResult.Created(
+                        created.account,
+                        passwordFile.takeIf { password == null },
+                    )
                 is WebAuthBootstrapResult.Existing -> WebSysopAccountResult.Existing(created.account)
                 is WebAuthBootstrapResult.Failure -> {
                     if (password == null) passwordFile.delete()

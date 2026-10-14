@@ -74,7 +74,10 @@ class AutopilotFullGameTest {
         val stats = autopilot.stats
         val difficulty = AutopilotDifficulty.of(run, stats)
         val rolled = creation.accepted.map { (member, rolledStats) -> "$member:${rolledStats.values}" }
-        val line = "seed $seed won=${castleVictory in run.milestones} step='${plan.currentStepName}' blockers=${plan.blockers(run.state)} journalReads=${plan.journalReads} castleRetreatReasons=${plan.castleRetreatReasons} $difficulty rolls=${creation.rolls.values} stats=$rolled"
+        val line =
+            "seed $seed won=${castleVictory in run.milestones} step='${plan.currentStepName}' blockers=${plan.blockers(run.state)} " +
+                "journalReads=${plan.journalReads} castleRetreatReasons=${plan.castleRetreatReasons} $difficulty " +
+                "rolls=${creation.rolls.values} stats=$rolled"
         autopilot.coverage.recordKey("title", creation.titleKey)
         visitTitleScreens(seed, run, autopilot.coverage)
         val unused = autopilot.coverage.missing(run.state)
@@ -116,11 +119,21 @@ class AutopilotFullGameTest {
                 override fun dungeon(state: RuntimeState): AutopilotAction = actions.ascend()
             }
         listOf(
-            listOf(RuntimeCommandActionId.Scoreboard, RuntimeCommandActionId.HallOfFame, RuntimeCommandActionId.Documentation, RuntimeCommandActionId.ContinueSavedGame),
+            listOf(
+                RuntimeCommandActionId.Scoreboard,
+                RuntimeCommandActionId.HallOfFame,
+                RuntimeCommandActionId.Documentation,
+                RuntimeCommandActionId.ContinueSavedGame,
+            ),
             listOf(RuntimeCommandActionId.TerminateParty, RuntimeCommandActionId.Leave),
         ).forEachIndexed { index, visits ->
             val title = AutopilotTitleTour(systems, coverage, visits)
-            sessions.fromTitle("seed$seed-title$index", "fresh-replay", run.saveFile, Autopilot(content, systems, quitAfterLoading, coverage = coverage, title = title))
+            sessions.fromTitle(
+                "seed$seed-title$index",
+                "fresh-replay",
+                run.saveFile,
+                Autopilot(content, systems, quitAfterLoading, coverage = coverage, title = title),
+            )
         }
     }
 
@@ -133,6 +146,7 @@ class AutopilotFullGameTest {
         const val MAX_DAYS = 300
         const val KEYS_PER_DAY = 6_000
         const val MAX_RELOADS = 5
+
         // Seeds 1 to 5 scored 106 to 179 when these bounds were set: a game that takes a rolled party much less or
         // much longer than that has had its balance shifted.
         val scoreBounds = 80..260

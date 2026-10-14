@@ -314,7 +314,9 @@ internal class ScriptExecutor(
                     // The party stops in front of terrain it could not walk onto and at the edge of the map. The
                     // original stopped only at mountains, and could leave a party standing in water.
                     val destination =
-                        direction?.let { delta -> WorldMap.from(content, runtime.currentMap).lastPassable(runtime.party.position, delta, steps) }
+                        direction?.let { delta ->
+                            WorldMap.from(content, runtime.currentMap).lastPassable(runtime.party.position, delta, steps)
+                        }
                             ?: runtime.party.position
                     audio.cue(AudioCue.Teleport)
                     runtime =
@@ -941,7 +943,10 @@ internal class ScriptExecutor(
                             ?.let { slot ->
                                 val carried = party.withInventoryItem(slot, item).leaveExcessFood(content, systems, screen.textColumns)
                                 audio.cue(AudioCue.ItemTaken)
-                                val lines = reward.messages.pickedUp?.renderRewardLines(item).orEmpty() + carried.notice
+                                val lines =
+                                    reward.messages.pickedUp
+                                        ?.renderRewardLines(item)
+                                        .orEmpty() + carried.notice
                                 if (lines.isNotEmpty()) screen.writeText(lines)
                                 carried.party
                             }
@@ -1093,7 +1098,13 @@ internal class ScriptExecutor(
 
     private fun inventoryChoiceLines(choices: List<InventorySlotChoice>): List<String> =
         choices.map { choice ->
-            choiceLine(choice.key, runtime.party.inventoryItem(choice.slot)?.let(::itemName).orEmpty())
+            choiceLine(
+                choice.key,
+                runtime.party
+                    .inventoryItem(choice.slot)
+                    ?.let(::itemName)
+                    .orEmpty(),
+            )
         }
 
     private fun int(expr: CompiledIntExpr): Int =
@@ -1526,8 +1537,7 @@ internal class ScriptExecutor(
             is CompiledNativeStringArg.Literal -> content.strings.value(string).toIntOrNull() ?: 0
         }
 
-    private fun memberName(memberNumber: Int): String =
-        runtime.party.memberName(content, memberNumber - 1)
+    private fun memberName(memberNumber: Int): String = runtime.party.memberName(content, memberNumber - 1)
 
     private fun memberPronoun(
         memberNumber: Int,

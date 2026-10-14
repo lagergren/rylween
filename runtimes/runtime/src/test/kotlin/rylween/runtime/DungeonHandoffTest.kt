@@ -18,6 +18,7 @@ class DungeonHandoffTest {
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content
+
     @TempDir
     private lateinit var testTmp: File
 
@@ -49,11 +50,18 @@ class DungeonHandoffTest {
 
     @Test
     fun aMissionDungeonIsAnnouncedOnceTheScriptEntersIt() {
-        val gems = listOf("red_gem", "blue_gem", "green_gem", "red_gem", "blue_gem").map { slug -> content.ref(CompiledHandleKind.Item, slug) }
+        val gems =
+            listOf("red_gem", "blue_gem", "green_gem", "red_gem", "blue_gem").map { slug ->
+                content.ref(CompiledHandleKind.Item, slug)
+            }
         val base = runtime()
         val withGems =
             base.withParty(gems.foldIndexed(base.party) { index, party, gem -> party.withInventoryItem(party.inventory[index].slot, gem) })
-        val program = content.scripts.roots.single { root -> root.root.kind == ScriptRootKind.Scene && root.root.slug == "missions.thun_temple" }
+        val program =
+            content.scripts.roots.single { root ->
+                root.root.kind == ScriptRootKind.Scene &&
+                    root.root.slug == "missions.thun_temple"
+            }
         // Dismiss the two temple pages, put the gems in the sockets, dismiss the opening altar, then the handoff.
         val input = ScriptedInput("\n\nY\n\n")
         val screen = TextRecordingScreen()

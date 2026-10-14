@@ -19,6 +19,7 @@ import kotlin.test.assertTrue
 
 class RuntimeSecretsTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
+
     @TempDir
     private lateinit var testTmp: File
     private val bundle = bundleFile.readExternalCompiledGameBundle()
@@ -143,7 +144,10 @@ class RuntimeSecretsTest {
         val commands =
             systems.commands.getValue(RuntimeCommandGroupId.Wilderness.id) +
                 systems.commands[RuntimeCommandGroupId.WildernessDebug.id].orEmpty()
-        val keys = systems.secrets.players.flatMap { player -> player.keyActions }.map { keyAction -> keyAction.binding.primary.single() }
+        val keys =
+            systems.secrets.players
+                .flatMap { player -> player.keyActions }
+                .map { keyAction -> keyAction.binding.primary.single() }
 
         assertEquals(listOf('/', '*', '+'), keys)
         keys.forEach { key ->
@@ -194,7 +198,17 @@ class RuntimeSecretsTest {
         val state = bundle.states.single { state -> content.slug(state.state) == "fresh-replay" }
         val runtime = RuntimeState.from(state, content).withActiveUser(userId)
         if (inventory == null) return runtime
-        return runtime.withParty(runtime.party.copy(inventory = inventory.mapIndexed { index, item -> CompiledInventorySlot(index + 1, item) }))
+        return runtime.withParty(
+            runtime.party.copy(
+                inventory =
+                    inventory.mapIndexed {
+                        index,
+                        item,
+                        ->
+                        CompiledInventorySlot(index + 1, item)
+                    },
+            ),
+        )
     }
 
     private fun RuntimeState.withTimeLeft(timeLeft: Int): RuntimeState =
