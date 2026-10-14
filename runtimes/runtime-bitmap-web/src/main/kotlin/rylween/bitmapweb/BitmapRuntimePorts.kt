@@ -354,7 +354,8 @@ internal class BitmapRuntimeScreen(
         mode = "dungeon"
         backdrop = systems.dungeon.backdrop ?: "dungeon"
         title = "Dungeon"
-        subtitle = "Depth ${runtime.dungeon?.depth ?: 1}"
+        // The text already says "You are on level N."
+        subtitle = ""
         status = runtime.bitmapStatus()
         statusLines = runtime.runtimeStatusLines(content, systems)
         textLines = stickyMessageLines.takeIf(List<String>::isNotEmpty) ?: dungeonTextLines(runtime)
