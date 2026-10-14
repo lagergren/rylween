@@ -64,7 +64,7 @@ import rylween.dsl.impl.sourceId
 import rylween.dsl.pronoun
 
 private const val RANDOM_PERCENT_MAX = 99
-private const val BATTLE_SPELL_CANCEL_KEY = 'N'
+private const val BATTLE_SPELL_CANCEL_KEY = '\n'
 
 private const val BATTLE_FOE_DISPLAY_NAME = "battleFoeDisplayName"
 private const val BATTLE_ATTACKER_NAME = "battleAttackerName"
@@ -77,6 +77,15 @@ private const val BATTLE_LEVEL_MEMBER_NAME = "battleLevelMemberName"
 private const val BATTLE_LEVELS_GAINED = "battleLevelsGained"
 private const val BATTLE_MESSAGE_PAGE_LINES = 4
 private const val BATTLE_VICTORY_PAGE_LINES = 7
+
+/** The monsters still standing, such as `1 Wild Dog`; when a battle opens, that is all of them. */
+internal fun livingFoeDisplayName(
+    monsterName: String,
+    monsterHp: List<Int>,
+): String {
+    val living = monsterHp.count { hp -> hp > 0 }
+    return "$living $monsterName${"s".takeIf { living > 1 }.orEmpty()}"
+}
 
 /** Result of a battle handoff. */
 /**
@@ -1088,7 +1097,7 @@ internal class BattleRunner(
     private fun ExternalRuntimeTextBlock.renderBattle(values: Map<String, String> = emptyMap()): List<String> =
         render(values::get, screen.textColumns)
 
-    private fun BattleEncounter.foeDisplayName(): String = "$monsterCount ${monsterName()}${"s".takeIf { monsterCount > 1 }.orEmpty()}"
+    private fun BattleEncounter.foeDisplayName(): String = livingFoeDisplayName(monsterName(), monsterHp)
 
     private fun BattleEncounter.monsterName(): String = content.strings.value(monster.nameString)
 
@@ -1132,7 +1141,7 @@ internal class BattleRunner(
             prompt = emptyList(),
             choices =
                 spells.map { spell ->
-                    "${spell.slot}. ${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})"
+                    choiceLine(spell.slot, "${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})")
                 },
             trailer =
                 combat.standardBattle
@@ -1154,9 +1163,10 @@ internal class BattleRunner(
                 val key = ('A'.code + index).toChar()
                 val maxHp = monsterHpMax.getOrElse(index) { hitPointMax }
                 if (hp > 0) {
-                    add("$key. ${monsterName()} $hp/$maxHp HP")
+                    add(choiceLine(key, "${monsterName()} $hp/$maxHp HP"))
                 } else {
-                    add("   ${monsterName()} (dead)")
+                    // Indented under the names of the living, past their "(A) " keys.
+                    add("    ${monsterName()} (dead)")
                 }
             }
         }

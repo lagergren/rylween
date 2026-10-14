@@ -18,8 +18,10 @@ import rylween.game.RylweenCompiledGame
 import rylween.runtime.RuntimeLog
 import rylween.runtime.RuntimeSecretAccounts
 import rylween.runtime.RuntimeSessionConfig
+import rylween.runtime.RuntimeSessionExitReason
 import rylween.runtime.RuntimeSessionFactory
 import rylween.runtime.WorldMap
+import rylween.runtime.rylweenVersion
 import rylween.webcommon.WebHttpRequest
 import rylween.webcommon.WebServerStatus
 import rylween.webcommon.WebSocketConnection
@@ -791,6 +793,7 @@ private class BitmapWebServer(
         val body =
             WebServerStatus(
                 serverType = "bitmap",
+                version = rylweenVersion,
                 authRequired = config.authRequired,
                 currentUser = account?.displayName ?: account?.slug,
                 activeUsers = activeUsers.toList().sorted(),
@@ -1004,26 +1007,34 @@ private class BitmapWebServer(
                                 "save=${saveFile.path} title=$showTitleMenu",
                         )
                         try {
-                            runtimeFactory
-                                .start(
-                                    input = runtimeInput,
-                                    screen = screen,
-                                    config =
-                                        RuntimeSessionConfig(
-                                            userId = account.slug,
-                                            stateSlug = config.stateSlug,
-                                            loadFile = loadFile,
-                                            saveFile = saveFile,
-                                            showTitleMenu = showTitleMenu,
-                                            debugSecrets = config.debugSecrets,
-                                        ),
-                                    log = runtimeLog,
-                                ).also { result ->
-                                    runtimeLog.event("bitmap.session.end user=${account.slug} reason=${result.reason}")
+                            var sessionLoad = loadFile
+                            while (true) {
+                                val result =
+                                    runtimeFactory.start(
+                                        input = runtimeInput,
+                                        screen = screen,
+                                        config =
+                                            RuntimeSessionConfig(
+                                                userId = account.slug,
+                                                stateSlug = config.stateSlug,
+                                                loadFile = sessionLoad,
+                                                saveFile = saveFile,
+                                                showTitleMenu = showTitleMenu,
+                                                debugSecrets = config.debugSecrets,
+                                            ),
+                                        log = runtimeLog,
+                                    )
+                                runtimeLog.event("bitmap.session.end user=${account.slug} reason=${result.reason}")
+                                // Quitting goes back to the title screen, as in the original; the browser stays connected.
+                                if (result.reason != RuntimeSessionExitReason.Quit || !showTitleMenu) {
                                     serverLog.event(
                                         "bitmap.session.close user=${account.slug} reason=${result.reason} sessionLog=${logFile.path}",
                                     )
+                                    break
                                 }
+                                runtimeLog.event("bitmap.session.title user=${account.slug}")
+                                sessionLoad = sessionLoadFile(saveFile, account)
+                            }
                         } catch (error: Throwable) {
                             // Nothing reads this task's result, so record the failure here or it is lost.
                             runtimeLog.failure("bitmap.session.failed user=${account.slug}", error)

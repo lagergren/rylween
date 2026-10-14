@@ -884,6 +884,7 @@ enum class CompiledRuntimeTextPart {
     HuntMemberSubjectPronoun,
     HuntFoodGained,
     UpkeepMemberName,
+    CampGuardName,
     PartyMemberCount,
     PartyMemberMax,
     WildernessDungeonName,
@@ -1202,10 +1203,9 @@ data class CompiledShopBuy(
     val inventoryApplication: RewardApplicationModel,
 )
 
-/** Bindings used when confirming or declining a purchase. */
+/** The binding that confirms a purchase; RETURN declines it. */
 data class CompiledShopPurchaseKeys(
     val pay: CompiledInputBinding,
-    val decline: CompiledInputBinding,
 )
 
 /** One selectable buy catalog, such as weapons, armor, or general goods. */
@@ -2198,6 +2198,7 @@ private class CompiledBundleCompiler(
             TextPart.HuntMemberSubjectPronoun -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntMemberSubjectPronoun)
             TextPart.HuntFoodGained -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntFoodGained)
             TextPart.UpkeepMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.UpkeepMemberName)
+            TextPart.CampGuardName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CampGuardName)
             TextPart.PartyMemberCount -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberCount)
             TextPart.PartyMemberMax -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberMax)
             TextPart.WildernessDungeonName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.WildernessDungeonName)
@@ -2309,7 +2310,7 @@ private class CompiledBundleCompiler(
             unitPrice = buy.unitPrice?.let(::text),
             singlePrice = buy.singlePrice?.let(::text),
             payPrompt = text(buy.payPrompt),
-            paymentKeys = CompiledShopPurchaseKeys(binding(buy.paymentKeys.pay), binding(buy.paymentKeys.decline)),
+            paymentKeys = CompiledShopPurchaseKeys(binding(buy.paymentKeys.pay)),
             inventoryApplication = buy.inventoryApplication,
         )
 

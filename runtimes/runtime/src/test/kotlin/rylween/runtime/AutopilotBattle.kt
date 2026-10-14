@@ -173,7 +173,7 @@ internal class AutopilotBattle(
         return damageTaken <= partyHitPoints * acceptableShare && damageTaken / living.size < weakest * 0.75
     }
 
-    /** Remembers the target list ("A. Knight 67/95 HP") so later round decisions use real hit points. */
+    /** Remembers the target list ("(A) Knight 67/95 HP") so later round decisions use real hit points. */
     fun observeTargets(lines: List<String>) {
         val hitPoints = lines.mapNotNull(::targetHitPoints)
         if (hitPoints.isNotEmpty()) knownHitPoints = hitPoints
@@ -182,7 +182,7 @@ internal class AutopilotBattle(
     /** The key of the living target with the fewest hit points. */
     fun weakestTarget(lines: List<String>): Char? =
         lines
-            .mapNotNull { line -> targetHitPointsPattern.find(line)?.let { match -> line.trimStart().first() to match.groupValues[1].toInt() } }
+            .mapNotNull { line -> targetHitPointsPattern.find(line)?.let { match -> match.groupValues[1].single() to match.groupValues[2].toInt() } }
             .minByOrNull { (_, hitPoints) -> hitPoints }
             ?.first
 
@@ -260,7 +260,7 @@ internal class AutopilotBattle(
         return List(foes.count) { (low + high) / 2 }
     }
 
-    private fun targetHitPoints(line: String): Int? = targetHitPointsPattern.find(line)?.let { match -> match.groupValues[1].toInt() }
+    private fun targetHitPoints(line: String): Int? = targetHitPointsPattern.find(line)?.let { match -> match.groupValues[2].toInt() }
 
     private fun weaponDamage(member: CompiledPartyMember): Int =
         content.items.firstOrNull { item -> item.id == member.equipment.weapon }?.weaponDamage ?: 1
@@ -285,7 +285,7 @@ internal class AutopilotBattle(
         const val SPELL_DAMAGE = 25.0
         val defaultHitPoints = 50..100
         val foeLinePattern = Regex("""^(\d+)\s+(.+)$""")
-        val targetHitPointsPattern = Regex("""^\s*[A-Z]\.\s.*?(\d+)/\d+ HP""")
+        val targetHitPointsPattern = Regex("""^\s*\(([A-Z])\)\s.*?(\d+)/\d+ HP""")
     }
 }
 

@@ -194,15 +194,13 @@ internal class ShopService(
                 buy.catalogs.forEach { catalog ->
                     add(catalog.binding.mnemonicLine(content, content.strings.value(catalog.titleString)))
                 }
-                add(buy.paymentKeys.decline.mnemonicLine(content, "None"))
+                add(systems.prompts.returnLeavesLine())
             }
-        val generatedKeys =
-            (buy.catalogs.map { catalog -> catalog.binding } + buy.paymentKeys.decline)
-                .map { binding -> binding.primaryInputLabel(content) }
+        val generatedKeys = buy.catalogs.map { catalog -> catalog.binding.primaryInputLabel(content) }
         while (true) {
             screen.writeText(promptLines.withGeneratedChoices(generatedKeys, generatedLines))
             val choice = input.readCommand() ?: return null
-            if (buy.paymentKeys.decline.matchesInput(content, choice)) return null
+            if (choice == '\n') return null
             buy.catalogs.firstOrNull { catalog -> catalog.binding.matchesInput(content, choice) }?.let { return it }
         }
     }
@@ -222,7 +220,7 @@ internal class ShopService(
                 pageIndex = targetPage
                 continue
             }
-            if (buy.paymentKeys.decline.matchesInput(content, choice)) return null
+            if (choice == '\n') return null
             page.entries
                 .firstOrNull { item -> item.binding.matchesInput(content, choice) }
                 ?.let { return it }
@@ -244,7 +242,7 @@ internal class ShopService(
                 }
                 page.navigation.previous?.let { add(it.optionLine(content)) }
                 page.navigation.next?.let { add(it.optionLine(content)) }
-                add(buy.paymentKeys.decline.mnemonicLine(content, "None"))
+                add(systems.prompts.returnLeavesLine())
                 page.footer?.let { addAll(it.renderScreenTextLines()) }
             }
         screen.writeText(lines)
@@ -294,12 +292,13 @@ internal class ShopService(
                 offer.description?.let { addAll(it.renderShopLines(item = offer.item, price = totalPrice)) }
                 addAll(purchasePriceLines(buy, offer, unitPrice, totalPrice).withChoiceGap())
                 addAll(buy.payPrompt.renderScreenTextLines())
+                add(systems.prompts.returnLeavesLine())
             }
         var choice: Char
         do {
             screen.writeText(promptLines)
             choice = input.readCommand() ?: return party
-            if (buy.paymentKeys.decline.matchesInput(content, choice)) return party
+            if (choice == '\n') return party
         } while (!buy.paymentKeys.pay.matchesInput(content, choice))
         if (party.resources.gold < totalPrice) {
             audio.cue(AudioCue.NotEnoughGold)

@@ -406,6 +406,12 @@ object HuntText {
     val partyMemberMax: TextPart = TextPart.PartyMemberMax
 }
 
+/** Runtime placeholders available to authored camp messages. */
+object CampText {
+    /** The party member chosen to stand guard. */
+    val guardName: TextPart = TextPart.CampGuardName
+}
+
 /** Runtime placeholders available to authored wilderness upkeep messages. */
 object UpkeepText {
     /** The current party member affected by an upkeep effect. */

@@ -1953,16 +1953,14 @@ class TitleMenuPromptsBuilder(
 /**
  * Receiver for reusable spell-selection prompts.
  *
- * It owns the priest/mage selection wording, `(N)one` behavior, spell key
- * range, and failure messages used by the shared spell prompt runner.
+ * It owns the priest/mage selection wording, spell key range, and failure
+ * messages used by the shared spell prompt runner. RETURN leaves its menus.
  */
 @RylNextDsl
 class PriestSpellPromptsBuilder(
     initial: PriestSpellPromptsModel = PriestSpellPromptsModel(),
 ) {
     var who: TextBlock = initial.who
-    var none: TextBlock = initial.none
-    var noneKey: Char = initial.noneKey
     var firstSpellKey: Char = initial.firstSpellKey
     var mageCombatOnly: TextBlock = initial.mageCombatOnly
     var wrongClass: TextBlock = initial.wrongClass
@@ -1974,8 +1972,6 @@ class PriestSpellPromptsBuilder(
     fun build(): PriestSpellPromptsModel =
         PriestSpellPromptsModel(
             who = who,
-            none = none,
-            noneKey = noneKey,
             firstSpellKey = firstSpellKey,
             mageCombatOnly = mageCombatOnly,
             wrongClass = wrongClass,

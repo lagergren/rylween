@@ -394,8 +394,6 @@ data class CharacterCreationPromptsModel(
 
 data class PriestSpellPromptsModel(
     val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberCount, ")") },
-    val none: TextBlock = literalText("(N)one"),
-    val noneKey: Char = 'N',
     val firstSpellKey: Char = 'A',
     val mageCombatOnly: TextBlock = flowText("Sorry. Mage spells are combat-only."),
     val wrongClass: TextBlock = literalText("Wrong class."),

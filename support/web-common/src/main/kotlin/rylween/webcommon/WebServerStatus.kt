@@ -4,6 +4,8 @@ package rylween.webcommon
 
 data class WebServerStatus(
     val serverType: String,
+    /** The release version, such as `0.9.1`, which the pages show next to the game's name. */
+    val version: String,
     val authRequired: Boolean,
     val currentUser: String?,
     val activeUsers: List<String>,
@@ -13,6 +15,8 @@ data class WebServerStatus(
             append('{')
             append("\"serverType\":")
             append(serverType.json())
+            append(",\"version\":")
+            append(version.json())
             append(",\"authRequired\":")
             append(authRequired)
             append(",\"currentUser\":")

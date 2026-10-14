@@ -373,7 +373,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_merchant_buy_sell_matrix",
-                        commands = enterTown() + "MBA1PABB100000ABCNBCPASANASAYASDAL",
+                        commands = enterTown() + "MBA1PABB100000ABC\nBCPASANASAYASDAL",
                         checkpoints =
                             listOf(
                                 "output:Merchant",
@@ -387,7 +387,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_smith_buy_sell_haggle",
-                        commands = "SDABA1NBWM8PASBASCYASDHYALL",
+                        commands = "SDABA1\nBWM8PASBASCYASDHYALL",
                         checkpoints =
                             listOf(
                                 "output:The smith welcomes you",
@@ -437,7 +437,7 @@ internal object ReplayPlans {
                 listOf(
                     ReplayComponent(
                         name = "town.thord_tavern_drinks_rumor_niklas_story",
-                        commands = enterTown() + "TOAOBOCODONRAS2CBS1QLYBT1TL",
+                        commands = enterTown() + "TOAOBOCODO\nRAS2CBS1QLYBT1TL",
                         checkpoints =
                             listOf(
                                 "output:Welcome! Have a seat",

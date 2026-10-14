@@ -1271,6 +1271,7 @@ private fun validateTextBlock(
             TextPart.HuntMemberSubjectPronoun,
             TextPart.HuntFoodGained,
             TextPart.UpkeepMemberName,
+            TextPart.CampGuardName,
             TextPart.PartyMemberCount,
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
@@ -1973,11 +1974,6 @@ fun validateScriptRewards(
             }
             validateTextBlock(buy.payPrompt, "shop ${shop.building.slug} pay prompt")
             validateInputChoiceBinding(buy.paymentKeys.pay, "shop ${shop.building.slug} pay key")
-            validateInputChoiceBinding(buy.paymentKeys.decline, "shop ${shop.building.slug} decline-purchase key")
-            checkUniqueBindings(
-                listOf(buy.paymentKeys.pay, buy.paymentKeys.decline),
-                "shop ${shop.building.slug} purchase confirmation",
-            )
             check(buy.catalogs.isNotEmpty()) { "shop ${shop.building.slug} buy section has no catalogs" }
             val buyOffers = buy.catalogs.flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
             check(buy.unitPrice != null || buyOffers.none { offer -> offer.purchase is ShopPurchaseModel.Bulk }) {
@@ -2374,7 +2370,6 @@ private fun validateCampRules(camp: CampRulesModel) {
         "not enough food" to camp.notEnoughFood,
         "guard prompt" to camp.guardPrompt,
         "guard member dead" to camp.guardMemberDead,
-        "stands guard" to camp.standsGuard,
         "sleeping" to camp.sleeping,
         "rested" to camp.rested,
         "ambush" to camp.ambush,
@@ -2387,6 +2382,7 @@ private fun validateCampRules(camp: CampRulesModel) {
         "camp guard member prompt",
         allowedRuntimeBindings = memberChoiceTextBindings,
     )
+    validateTextBlock(camp.standsGuard, "camp stands guard", allowedRuntimeBindings = setOf(TextPart.CampGuardName))
     camp.temperatureMessage.forEach { (band, block) ->
         validateTextBlock(block, "camp ${band.name.lowercase()} temperature message")
     }
@@ -2995,12 +2991,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.titleMenu.terminateFailed, "title menu terminate-failed prompt")
     validateTextBlock(prompts.titleMenu.invalidInput, "title menu invalid-input prompt")
     validateTextBlock(prompts.priest.who, "priest who prompt", allowedRuntimeBindings = huntTextBindings)
-    validateTextBlock(prompts.priest.none, "priest none prompt")
-    check(prompts.priest.noneKey.isLetterOrDigit()) { "priest none key must be a visible letter or digit" }
     check(prompts.priest.firstSpellKey.isLetterOrDigit()) { "priest first-spell key must be a visible letter or digit" }
-    check(prompts.priest.noneKey.uppercaseChar() != prompts.priest.firstSpellKey.uppercaseChar()) {
-        "priest none key must not overlap the first spell key"
-    }
     validateTextBlock(prompts.priest.mageCombatOnly, "priest mage-combat-only prompt")
     validateTextBlock(prompts.priest.wrongClass, "priest wrong-class prompt")
     validateTextBlock(prompts.priest.dead, "priest dead prompt")

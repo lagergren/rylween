@@ -88,6 +88,9 @@ sealed interface TextPart {
     /** Name of the wilderness-party member affected by an upkeep event such as starvation. */
     object UpkeepMemberName : TextPart
 
+    /** Name of the party member who stands guard while the party camps. */
+    object CampGuardName : TextPart
+
     object PartyMemberCount : TextPart
 
     object PartyMemberMax : TextPart
@@ -165,6 +168,7 @@ fun TextPart.fallbackText(): String =
         TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
         TextPart.HuntFoodGained -> "{hunt_food_gained}"
         TextPart.UpkeepMemberName -> "{upkeep_member_name}"
+        TextPart.CampGuardName -> "{camp_guard_name}"
         TextPart.PartyMemberCount -> "{party_count}"
         TextPart.PartyMemberMax -> "{party_max}"
         TextPart.WildernessDungeonName -> "{dungeon}"

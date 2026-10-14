@@ -472,6 +472,8 @@ internal class ScriptExecutor(
             }
             val optionIndex = options.indexOfFirst { menu -> menu.binding.matchesInput(content, choice) }
             val selected = options.getOrNull(optionIndex)
+            // A menu that shows "RETURN leaves." is left on RETURN.
+            if (selected == null && defaultBody.isEmpty() && choice == '\n' && baseLines.mentionReturnKey()) return ScriptSignal.Continue
             if (selected != null || defaultBody.isNotEmpty()) {
                 val body = selected?.body ?: defaultBody
                 return executeBlock(
@@ -594,14 +596,15 @@ internal class ScriptExecutor(
     }
 
     /** The "RETURN leaves." line, unless the authored prompt already explains the RETURN key. */
-    private fun List<String>.returnCancelTrailer(): List<String> {
+    private fun List<String>.returnCancelTrailer(): List<String> =
+        if (mentionReturnKey()) emptyList() else listOf(systems.prompts.returnLeavesLine())
+
+    private fun List<String>.mentionReturnKey(): Boolean {
         val returnLabel = systems.prompts.returnKeyLabel()
-        val hasReturn =
-            any { line ->
-                line.contains(returnLabel, ignoreCase = true) ||
-                    line.contains(systems.prompts.returnKeyName, ignoreCase = true)
-            }
-        return if (hasReturn) emptyList() else listOf(systems.prompts.returnLeavesLine())
+        return any { line ->
+            line.contains(returnLabel, ignoreCase = true) ||
+                line.contains(systems.prompts.returnKeyName, ignoreCase = true)
+        }
     }
 
     private fun executeAskText(
@@ -1085,12 +1088,12 @@ internal class ScriptExecutor(
 
     private fun memberChoiceLines(choices: List<Int>): List<String> =
         choices.map { member ->
-            "$member. ${runtime.party.memberName(content, member - 1)}"
+            choiceLine(member, runtime.party.memberName(content, member - 1))
         }
 
     private fun inventoryChoiceLines(choices: List<InventorySlotChoice>): List<String> =
         choices.map { choice ->
-            "${choice.key}. ${runtime.party.inventoryItem(choice.slot)?.let(::itemName).orEmpty()}"
+            choiceLine(choice.key, runtime.party.inventoryItem(choice.slot)?.let(::itemName).orEmpty())
         }
 
     private fun int(expr: CompiledIntExpr): Int =
@@ -1353,7 +1356,7 @@ internal class ScriptExecutor(
 
     private fun npcChoiceLines(npcs: List<CompiledCharacter>): List<String> =
         npcs.mapIndexed { index, npc ->
-            "${index + 1}. ${content.strings.value(npc.nameString)}, ${content.slug(npc.job).readableSlug()}"
+            choiceLine(index + 1, "${content.strings.value(npc.nameString)}, ${content.slug(npc.job).readableSlug()}")
         }
 
     private fun ExternalRuntimeSpeak.screen(id: String): ExternalRuntimeTextBlock? =

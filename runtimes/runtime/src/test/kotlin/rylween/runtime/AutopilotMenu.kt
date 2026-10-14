@@ -51,11 +51,15 @@ internal data class AutopilotMenu(
         /** A listed key such as "A. Xvart 159/159 HP" or "1. Aragorn". */
         private val listedOptionPattern = Regex("""^\s*([A-Z0-9])\.\s+(.+)$""")
 
+        /** The "RETURN leaves." line that ends a menu; it reads as a "Leave" option on RETURN. */
+        private val leaveLinePattern = Regex("""^\s*RETURN leaves\.\s*$""")
+
         /** Multi-column rows, such as an inventory picker's "A. Sword<TAB>B. Bow", hold one choice per cell. */
         fun parse(lines: List<String>): AutopilotMenu =
             AutopilotMenu(lines.flatMap { line -> line.split(TEXT_COLUMN_SEPARATOR) }.flatMap(::optionsIn))
 
         private fun optionsIn(line: String): List<AutopilotOption> {
+            if (leaveLinePattern.matches(line)) return listOf(AutopilotOption('\n', "Leave"))
             listedOptionPattern.find(line)?.let { match ->
                 return listOf(AutopilotOption(match.groupValues[1].single(), match.groupValues[2].normalized()))
             }
