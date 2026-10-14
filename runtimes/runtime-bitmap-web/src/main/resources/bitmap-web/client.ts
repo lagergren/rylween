@@ -293,6 +293,10 @@ let currentCommands: BitmapCommand[] = [];
 let statusHotspots: StatusHotspot[] = [];
 let choiceTargets: ChoiceTarget[] = [];
 let pointerPoint: CanvasPoint | null = null;
+// The highlighted choice in a menu, which Up/Down move and Enter picks, and the
+// menu's choice keys in screen order.
+let menuHighlight: string | null = null;
+let menuHighlightTokens: string[] = [];
 let pointerRedraw = 0;
 let titleFade: TitleFade | null = null;
 let sceneFade: SceneFade | null = null;
@@ -1060,6 +1064,7 @@ function connect(): void {
         }
         const nextFrame = message as unknown as BitmapFrame;
         gameAudio.setMusic(nextFrame.music);
+        syncMenuHighlight(nextFrame);
         recordCompiledImageAssets(nextFrame.imageAssets || []);
         const previousFrame = frame;
         applyServerWildernessFacing(nextFrame);
@@ -1425,6 +1430,10 @@ window.addEventListener("keydown", (event: KeyboardEvent) => {
         toggleCommandPalette();
         return;
     }
+    if (!(frame && frame.textInput) && handleMenuHighlightKey(event)) {
+        event.preventDefault();
+        return;
+    }
     if (!(frame && frame.textInput) && handleWildernessDisplayShortcut(event)) {
         event.preventDefault();
         return;
@@ -1486,10 +1495,58 @@ function choiceTargetKey(target: ChoiceTarget | null): string {
     return target ? target.token + "@" + Math.round(target.x) + "," + Math.round(target.y) : "";
 }
 
+// Views where the arrow keys page or do nothing useful, so they never move a menu highlight.
+const noMenuHighlightModes = new Set(["boot", "debug_map", "party_page"]);
+// Views whose standing text offers keys, such as "(D) Descend", while the arrows
+// walk; there only a menu that RETURN leaves takes the arrows.
+const crawlModes = new Set(["castle", "dungeon"]);
+
+// The choice keys of a menu the keyboard can step through, in screen order: at
+// least two choices, none of which is an arrow key itself. In the wilderness the
+// map text offers no keys, so a menu there means the party is not walking.
+function menuChoiceTokens(candidate: BitmapFrame): string[] {
+    const mode = candidate.mode || "";
+    if (candidate.textInput || candidate.document || noMenuHighlightModes.has(mode)) return [];
+    const tokens = (candidate.textLines || []).flatMap((line) => choiceSegments(line).map((segment) => segment.token));
+    if (tokens.length < 2 || tokens.some((token) => token.startsWith("ARROW_"))) return [];
+    if (crawlModes.has(mode) && !tokens.includes("ENTER")) return [];
+    return tokens;
+}
+
+// A new menu starts with "RETURN leaves." highlighted, so a stray Enter still
+// leaves; a menu without one has no highlight until an arrow key is pressed.
+function syncMenuHighlight(next: BitmapFrame): void {
+    const tokens = menuChoiceTokens(next);
+    if (tokens.join("|") === menuHighlightTokens.join("|")) return;
+    menuHighlightTokens = tokens;
+    menuHighlight = tokens.includes("ENTER") ? "ENTER" : null;
+}
+
+function handleMenuHighlightKey(event: KeyboardEvent): boolean {
+    if (menuHighlightTokens.length === 0 || event.altKey || event.ctrlKey || event.metaKey) return false;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        const tokens = menuHighlightTokens;
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        const current = menuHighlight === null ? (step > 0 ? -1 : tokens.length) : tokens.indexOf(menuHighlight);
+        menuHighlight = tokens[(current + step + tokens.length) % tokens.length];
+        gameAudio.playCue("MenuMove");
+        requestPointerRedraw();
+        return true;
+    }
+    if (event.key === "Enter" && menuHighlight !== null) {
+        gameAudio.playCue("MenuSelect");
+        send(menuHighlight);
+        return true;
+    }
+    return false;
+}
+
 function updatePointer(point: CanvasPoint | null): void {
     const previous = choiceTargetKey(pointerPoint ? choiceTargetAt(pointerPoint) : null);
     pointerPoint = point;
     const next = point ? choiceTargetAt(point) : null;
+    // The mouse and the keyboard share one highlight.
+    if (next && menuHighlightTokens.includes(next.token)) menuHighlight = next.token;
     canvas.style.cursor = next || (point && anywhereClickToken()) ? "pointer" : "";
     if (choiceTargetKey(next) !== previous) {
         if (next) gameAudio.playCue("MenuMove");
@@ -4060,11 +4117,12 @@ function registerChoiceTargets(
     }
 }
 
-// Highlights the target under the mouse pointer as it is registered, before
-// its text is drawn on top.
+// Highlights the target under the mouse pointer, or the menu's highlighted
+// choice, as it is registered, before its text is drawn on top.
 function addChoiceTarget(target: ChoiceTarget): void {
     choiceTargets.push(target);
-    if (!pointerPoint || !boundsContain(target, pointerPoint)) return;
+    const hovered = pointerPoint !== null && boundsContain(target, pointerPoint);
+    if (!hovered && target.token !== menuHighlight) return;
     ctx.save();
     ctx.fillStyle = "rgba(232, 201, 109, 0.16)";
     ctx.fillRect(target.x, target.y, target.w, target.h);
