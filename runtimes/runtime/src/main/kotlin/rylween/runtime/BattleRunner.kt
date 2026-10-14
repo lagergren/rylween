@@ -78,6 +78,15 @@ private const val BATTLE_LEVELS_GAINED = "battleLevelsGained"
 private const val BATTLE_MESSAGE_PAGE_LINES = 4
 private const val BATTLE_VICTORY_PAGE_LINES = 7
 
+/** The monsters still standing, such as `1 Wild Dog`; when a battle opens, that is all of them. */
+internal fun livingFoeDisplayName(
+    monsterName: String,
+    monsterHp: List<Int>,
+): String {
+    val living = monsterHp.count { hp -> hp > 0 }
+    return "$living $monsterName${"s".takeIf { living > 1 }.orEmpty()}"
+}
+
 /** Result of a battle handoff. */
 /**
  * A monster weapon skill lowered by [penalty], as defending or a battle cry does. As in the original, a skill no
@@ -1088,7 +1097,7 @@ internal class BattleRunner(
     private fun ExternalRuntimeTextBlock.renderBattle(values: Map<String, String> = emptyMap()): List<String> =
         render(values::get, screen.textColumns)
 
-    private fun BattleEncounter.foeDisplayName(): String = "$monsterCount ${monsterName()}${"s".takeIf { monsterCount > 1 }.orEmpty()}"
+    private fun BattleEncounter.foeDisplayName(): String = livingFoeDisplayName(monsterName(), monsterHp)
 
     private fun BattleEncounter.monsterName(): String = content.strings.value(monster.nameString)
 

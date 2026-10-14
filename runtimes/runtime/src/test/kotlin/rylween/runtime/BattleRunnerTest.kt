@@ -105,6 +105,12 @@ class BattleRunnerTest {
     }
 
     @Test
+    fun theRoundTextCountsOnlyTheMonstersStillStanding() {
+        assertEquals("2 Wild Dogs", livingFoeDisplayName("Wild Dog", listOf(6, 4)))
+        assertEquals("1 Wild Dog", livingFoeDisplayName("Wild Dog", listOf(0, 4)))
+    }
+
+    @Test
     fun runningBetweenRoundsIsADesperateFlee() {
         val runtime = strongReplay()
         val chance = checkNotNull(systems.combat.standardBattle).opening.desperateFleeChancePercent
