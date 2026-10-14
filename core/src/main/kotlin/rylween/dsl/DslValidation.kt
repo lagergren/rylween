@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 /**
  * Author-facing validation for the Kotlin DSL model.
  *
@@ -6,6 +8,7 @@
  * game-specific invariants before compiled loaders or runtime sessions see the
  * data.
  */
+
 package rylween.dsl
 
 import rylween.dsl.impl.*

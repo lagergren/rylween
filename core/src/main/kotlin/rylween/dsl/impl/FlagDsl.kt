@@ -8,7 +8,8 @@
  */
 package rylween.dsl.impl
 
-import rylween.dsl.*
+import rylween.dsl.BoolAst
+import rylween.dsl.BoolExpr
 
 /** Runtime storage scope for authored story flags. */
 enum class FlagScope { Party, Encounter }

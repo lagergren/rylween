@@ -11,7 +11,12 @@
 
 package rylween.dsl
 
-import rylween.dsl.impl.*
+import rylween.dsl.impl.QuestionActionScriptModel
+import rylween.dsl.impl.RandomItemOfferModel
+import rylween.dsl.impl.ShopBuyModel
+import rylween.dsl.impl.ShopPurchaseModel
+import rylween.dsl.impl.ShopSellModel
+import rylween.dsl.impl.ShopServiceModel
 
 /** Kinds of script roots that can be authored in the Kotlin DSL. */
 enum class ScriptSourceRootKind {

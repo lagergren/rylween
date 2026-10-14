@@ -9,7 +9,23 @@
  */
 package rylween.dsl.impl
 
-import rylween.dsl.*
+import rylween.dsl.DslDefaultMapLayers
+import rylween.dsl.EncounterTier
+import rylween.dsl.ImageId
+import rylween.dsl.ItemId
+import rylween.dsl.MapLayerId
+import rylween.dsl.PaletteColorId
+import rylween.dsl.ScreenRegionId
+import rylween.dsl.StaticScreenId
+import rylween.dsl.TerrainId
+import rylween.dsl.TerrainTagId
+import rylween.dsl.TextBlock
+import rylween.dsl.TextPart
+import rylween.dsl.WorldMapId
+import rylween.dsl.line
+import rylween.dsl.literalText
+import rylween.dsl.structuredText
+import rylween.dsl.terrain
 
 /** Item categories understood by inventory, equipment, shops, rewards, and saves. */
 enum class ItemKind { Empty, Weapon, Armor, Gear, Potion, Treasure, Special, MagicItem }
