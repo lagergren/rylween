@@ -60,6 +60,13 @@ abstract class RunInstalledLauncherWithJavaTask
         @get:OutputFile
         abstract val logFile: RegularFileProperty
 
+        /**
+         * What the launcher printed, ANSI screens and all. Defaults to `build/logs/runtime/<task name>.out`, so a
+         * passing check keeps the build output quiet and a failing one prints only its tail.
+         */
+        @get:OutputFile
+        abstract val outputFile: RegularFileProperty
+
         @get:Input
         @get:Optional
         abstract val userId: Property<String>
@@ -110,6 +117,7 @@ abstract class RunInstalledLauncherWithJavaTask
         init {
             expectedOutputContains.convention(emptyList())
             logFile.convention(layout.buildDirectory.file("logs/runtime/$name.log"))
+            outputFile.convention(layout.buildDirectory.file("logs/runtime/$name.out"))
         }
 
         @TaskAction
@@ -159,29 +167,26 @@ abstract class RunInstalledLauncherWithJavaTask
                 launcherArgs += listOf("--save", saveFile.get().asFile.path)
             }
             val javaHome = javaLauncher.get().metadata.installationPath.asFile.absolutePath
-            val expectedOutput = expectedOutputContains.get()
-            // Without expected output, the launcher prints straight to the build output and a failure fails the exec.
-            val output = ByteArrayOutputStream().takeIf { expectedOutput.isNotEmpty() }
+            val output = ByteArrayOutputStream()
             val result =
                 execOperations.exec {
                     // The start script runs $JAVA_HOME/bin/java when JAVA_HOME is set.
                     environment("JAVA_HOME", javaHome)
                     commandLine(launcherArgs)
-                    if (output != null) {
-                        isIgnoreExitValue = true
-                        standardOutput = output
-                        errorOutput = output
-                    }
+                    isIgnoreExitValue = true
+                    standardOutput = output
+                    errorOutput = output
                 }
-            if (output == null) return
             val text = output.toString(Charsets.UTF_8)
+            val outputPath = outputFile.get().asFile
+            outputPath.writeText(text)
             if (result.exitValue != 0) {
-                throw GradleException("launcher exited with ${result.exitValue}\n${text.takeLast(4000)}")
+                throw GradleException("launcher exited with ${result.exitValue}; output in $outputPath\n${text.takeLast(4000)}")
             }
-            val missing = expectedOutput.filterNot(text::contains)
+            val missing = expectedOutputContains.get().filterNot(text::contains)
             if (missing.isNotEmpty()) {
                 throw GradleException(
-                    "launcher output missed expected text ${missing.joinToString()}\n${text.takeLast(4000)}",
+                    "launcher output missed expected text ${missing.joinToString()}; output in $outputPath\n${text.takeLast(4000)}",
                 )
             }
         }
