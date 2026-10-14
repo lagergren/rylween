@@ -1,5 +1,5 @@
 # Runs every module's checks: unit tests, the scripted runtime playthroughs,
-# ktlint, and PMD. The root `check` additionally reports dependency updates over
+# and ktlint. The root `check` additionally reports dependency updates over
 # the network, which is not worth gating CI on, so the module checks are listed.
 name: CI
 

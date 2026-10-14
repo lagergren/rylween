@@ -2,41 +2,56 @@
 Kotlin port and runtime workspace for Adventurers of Rylween, a MUD
 style game for BBSes that I wrote in 1992-1993.
 
-The current runnable Kotlin game is the `:runtime` project. Shared
-DSL/compiler and compiled-bundle contracts live under `:core`, authored game
-DSL and resources live under `:game`, bundle emitters and native probes live
-under `:tools`, and terminal transport/protocol code lives under `:terminal`.
+## Running The Game
 
-Module guides:
+### On Your Network: `./deploy.sh`
 
-- [DSL authoring guide](docs/dsl-authoring.md) - how to modify or extend the
-  authored game.
-- [`:core`](core/README.md) - DSL, validation, compiled bundle contracts.
-- [`:game`](game/README.md) - authored Rylween game script, fixtures, assets.
-- [`:runtime`](runtimes/runtime/README.md) - shared game runtime and direct ANSI terminal.
-- [`:runtime-web`](runtimes/runtime-web/README.md) - browser-served ANSI runtime.
-- [`:runtime-bitmap-web`](runtimes/runtime-bitmap-web/README.md) - canvas bitmap runtime.
-- [`:web-common`](support/web-common/README.md) - shared web HTTP, WebSocket, auth, status.
-- [`:terminal`](support/terminal/README.md) - ANSI terminal primitives.
-- [`:tools`](support/tools/README.md) - compiled-bundle artifact tools and native probes.
-- [`build-logic`](build-logic/README.md) - Gradle conventions and custom tasks.
-- [`bin`](bin/README.md) - local developer/operator launcher scripts.
-- [`deploy/docker`](deploy/docker/README.md) - Docker images and reverse-proxy deployment notes.
+```sh
+./deploy.sh
+```
 
-The complete game DSL, the whole authored game from the world map and monsters
-to every mission script, is
-[`RylweenGame.kt`](game/src/main/kotlin/rylween/game/RylweenGame.kt); it pulls
-in the sound and music from
-[`RylweenAudio.kt`](game/src/main/kotlin/rylween/game/RylweenAudio.kt).
+This is the one command for hosting the game. It builds the bitmap web game's
+image and starts it with Docker Compose (Podman Compose when Docker is missing),
+published on this machine's private LAN address, port 8081, and prints the
+address when the server is up. Open it in a browser on any machine on the
+network and register an account. The build runs inside the image, so the host
+needs only Docker or Podman, not a JDK.
 
-The original game text and manual live in
-[`adventurers-of-rylween.md`](game/src/main/resources/adventurers-of-rylween.md).
+Run `./deploy.sh` again after pulling changes to rebuild and restart. Saves,
+accounts, and logs live on the `rylween_data` volume and survive rebuilds;
+`docker compose -f deploy/compose.yaml down` stops the server and keeps them.
 
-The old interpreted Kotlin ANSI project and historical C/JSON5 port are
-removed from the active checkout; their final tree is zipped at
-`scratch/legacy-archive.zip`.
+On first start the server creates the sysop account, `admin`, which gets the
+game's secret wilderness keys. Unless `RYLWEEN_ADMIN_PASSWORD` is set, its
+password is generated:
 
-## Terminal compatibility
+```sh
+docker compose -f deploy/compose.yaml exec rylween cat /data/auth/admin-password.txt
+```
+
+To change the port, the data location, or the accounts, copy
+`deploy/.env.example` to `deploy/.env` and edit it.
+[`deploy/docker/README.md`](deploy/docker/README.md) covers the settings,
+backups, and the production images, and
+[`runtimes/runtime-web/README.md`](runtimes/runtime-web/README.md#exposing-a-production-docker-deployment)
+covers putting the game on the internet behind an HTTPS reverse proxy.
+
+### In A Terminal: `./bin/run.sh`
+
+```sh
+./bin/run.sh --build
+```
+
+This builds the game and plays the ANSI version in the current terminal. It
+needs JDK 23 or newer; Gradle downloads the JDK 25 toolchain the modules build
+with if none is installed. Size the terminal to at least 80 columns by 25 rows.
+At the splash screen press RETURN, then `N` to create a party. Move with the
+arrow keys or the keypad digits 8, 2, 4, and 6; press `?` in the wilderness for
+the full list of commands, and `X` to quit. The save and logs go to
+`~/.rylween/data`.
+
+[`bin/README.md`](bin/README.md) lists the other launchers and their options,
+such as starting with a seeded Strong party, and the local web servers.
 
 The game streams ANSI escape codes (color, cursor positioning) and uses
 ambiguous-width Unicode characters in some art. How those characters are
@@ -53,113 +68,45 @@ sized depends on the terminal:
 If you must run in `Terminal.app`, expect occasional one-cell drift in
 borders and decorative art. Gameplay text is unaffected.
 
-## Runtime commands
+## The Code
 
-Build and run the direct runtime:
+The current version is 0.9.1, set by `rylween.version` in `gradle.properties`.
+It shows on the title menu, in the bitmap page's title bar, in `/api/status`,
+and in the `log.open` line of every runtime log.
 
-```sh
-./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain
-./bin/run.sh --build --seed 1
-./bin/run.sh --build --name Strong
-./bin/run.sh --build --name StrongEndgame
-runtimes/runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --user local --state fresh-replay --seed 1
-```
+The current runnable Kotlin game is the `:runtime` project. Shared
+DSL/compiler and compiled-bundle contracts live under `:core`, authored game
+DSL and resources live under `:game`, the compiled-bundle emitter and its checks
+live under `:tools`, and ANSI terminal primitives live under `:terminal`.
 
-The `bin/run.sh` wrapper is now the closest current equivalent to
-`rylween.exe`. It builds `build/compiled/rylween-bundle.json` and
-`:runtime:installRuntime` when needed, injects the bundle path,
-and runs outside Gradle so Gradle progress output and key echo do not share the
-game screen.
+The complete game DSL, the whole authored game from the world map and monsters
+to every mission script, is
+[`RylweenGame.kt`](game/src/main/kotlin/rylween/game/RylweenGame.kt); it pulls
+in the sound and music from
+[`RylweenAudio.kt`](game/src/main/kotlin/rylween/game/RylweenAudio.kt).
+The original game text and manual live in
+[`adventurers-of-rylween.md`](game/src/main/resources/adventurers-of-rylween.md).
 
-`bin/run.sh` uses `~/.rylween/data` by default. It stores the shared save at
-`~/.rylween/data/saves/world.rsave` and logs to
-`~/.rylween/data/logs/runtime/latest.log` unless `RYLWEEN_DATA_DIR`,
-`RYLWEEN_SAVE_FILE`, or `RYLWEEN_LOG_FILE` override those paths.
+Module guides:
 
-`bin/run.sh` shows the title flow by default. Press RETURN at the splash screen,
-then `C` to create a new party. Use `--name Strong` to load the seeded Strong
-party outside Thord, or `--name StrongEndgame` to load a Strong party two steps
-north of Castle Ydarg with the five required power artifacts. Use `--no-title`
-only when you intentionally want to boot a state or feed a direct script.
-Use `--log <file>` to keep a named capture instead of replacing `latest.log`.
-For manual forensics, `--debug-log` flashes the latest log line below the game
-frame, and `--debug-secrets` enables hidden wilderness triggers: `[` forces a
-cave discovery and `]` forces a random encounter.
+- [DSL authoring guide](docs/dsl-authoring.md) - how to modify or extend the
+  authored game.
+- [`:core`](core/README.md) - DSL, validation, compiled bundle contracts.
+- [`:game`](game/README.md) - authored Rylween game script, fixtures, assets.
+- [`:runtime`](runtimes/runtime/README.md) - shared game runtime and direct ANSI terminal.
+- [`:runtime-web`](runtimes/runtime-web/README.md) - browser-served ANSI runtime.
+- [`:runtime-bitmap-web`](runtimes/runtime-bitmap-web/README.md) - canvas bitmap runtime.
+- [`:web-common`](support/web-common/README.md) - shared web HTTP, WebSocket, auth, status.
+- [`:terminal`](support/terminal/README.md) - ANSI terminal primitives.
+- [`:tools`](support/tools/README.md) - emits, checks, and inspects the compiled bundle.
+- [`support/audio`](support/audio) - Python scripts that synthesize the sound effects, music, and ambient loops.
+- [`build-logic`](build-logic/README.md) - Gradle conventions and custom tasks.
+- [`bin`](bin/README.md) - local developer/operator launcher scripts.
+- [`deploy/docker`](deploy/docker/README.md) - Docker images, compose, the LAN deploy scripts, and reverse-proxy notes.
 
-```sh
-./bin/run.sh --screen title
-./bin/run.sh --no-title --script 22SX --save build/saves/runtime.rsave
-./bin/run.sh --load build/saves/runtime.rsave
-./bin/run.sh --name Strong --debug-log --debug-secrets
-```
-
-Run the browser ANSI proof of concept in Docker:
-
-```sh
-./bin/run-server.sh --build
-./bin/run-server.sh --build --name Strong
-./bin/run-server.sh --build --name StrongEndgame
-./bin/run-server.sh --account Strong --email strong@example.test --password 'change-this-password'
-```
-
-The named forms seed `~/.rylween/data/saves/world.rsave` before starting the
-container and use the local development auth bypass. The account form creates
-or verifies a persisted web account before the server starts.
-
-Run the bitmap web runtime locally:
-
-```sh
-./bin/run-bitmap-server.sh --build
-./bin/run-bitmap-server.sh --build --name Strong
-./bin/run-bitmap-server.sh --build --name StrongEndgame
-./bin/run-bitmap-server.sh --account Strong --email strong@example.test --password 'change-this-password'
-```
-
-Back up web game state and users as one artifact:
-
-```sh
-./bin/backup-web-data.sh --data ~/.rylween/data --output rylween-backup.tar.gz
-```
-
-The data directory is split by ownership: `saves/world.rsave` is game state,
-`auth/users` is account state, and `logs` is operational history. The exact file
-layout and field meanings are documented in
-[`support/web-common/README.md`](support/web-common/README.md) and
-[`runtimes/runtime/README.md`](runtimes/runtime/README.md).
-
-Build the production-oriented ANSI web image for reverse-proxy deployment:
-
-```sh
-docker build -f deploy/docker/Dockerfile.production -t rylween-web-prod .
-```
-
-Build the bitmap production image:
-
-```sh
-docker build -f deploy/docker/Dockerfile.bitmap-production -t rylween-bitmap-prod .
-```
-
-Or build and run it with a persistent data volume through
-`deploy/compose.yaml` (see [`deploy/docker/README.md`](deploy/docker/README.md#compose)):
-
-```sh
-docker compose -f deploy/compose.yaml up --build -d     # or: podman compose ...
-```
-
-The production image still serves plain HTTP internally. Bind it to loopback or
-a private container network, terminate HTTPS at nginx/Caddy/HAProxy/a load
-balancer, and keep `RYLWEEN_AUTH_SECURE_COOKIES=true`. See
-[`support/web-common/README.md`](support/web-common/README.md) for the auth model and production
-hardening checklist.
-
-The runtime boots directly from the compiled bundle, renders static screens and
-wilderness frames, runs wilderness/town/services/battle/dungeon and castle flows
-from compiled tables, handles direct save/load with bundle-hash validation, and
-is verified by `:runtime:check`. Long acceptance routes are generated from
-test-only replay plans and fed to the installed runtime through `--script`;
-the shipped launcher does not expose a replay-planning mode.
-
-
+The old interpreted Kotlin ANSI project and the historical C/JSON5 port are no
+longer part of this repository. The original Amiga release is kept as described
+in the appendix.
 
 ## Verification
 
@@ -177,17 +124,42 @@ updates intentionally, run:
 ./gradlew updateDependencyCatalog --console=plain
 ```
 
+CI (`.github/workflows/ci.yml`) runs the module checks on every push to `main`
+and every pull request, leaving out the root dependency-update report:
+
+```sh
+./gradlew --console=plain :core:check :game:check :tools:check :terminal:check :web-common:check :runtime:check :runtime-web:check :runtime-bitmap-web:check
+```
+
+ktlint findings fail `check`; `./gradlew ktlintFormat --console=plain` fixes
+most of them. Each scripted `:runtime:checkRuntime*` task writes its runtime log
+and the launcher's screen output to
+`runtimes/runtime/build/logs/runtime/<task>.log` and `<task>.out`. The runtime
+tests keep their logs, saves, and autopilot reports in
+`runtimes/runtime/build/test-logs/<TestClass>/<testMethod>/`. CI uploads both as
+the `test-logs` artifact. The browser smoke check is not part of `check`; run it
+with `./gradlew :runtime-bitmap-web:checkBitmapBrowserSmoke --console=plain`.
+
 ## Cleanup
 
-Generated files are confined to Gradle build output, local Kotlin compiler
-caches, and runtime save/log directories under `build/`. From the repo root:
+Generated files are Gradle build output, local Kotlin compiler caches, the
+direct launcher's default saves and logs under `build/`, and the bitmap web
+client's `node_modules` and downloaded Node.js under `runtimes/runtime-bitmap-web/`.
+The `bin/` scripts keep saves and logs in `~/.rylween/data`. From the repo root:
 
 ```sh
 ./gradlew clean --console=plain
 ```
 
 This removes project build directories, the included `build-logic/build`
-directory, and regenerated local `.kotlin` session/error caches.
+directory, and regenerated local `.kotlin` session/error caches. It leaves
+`runtimes/runtime-bitmap-web/node_modules`, `runtimes/runtime-bitmap-web/.gradle`,
+and `~/.rylween` in place.
+
+## Questions
+
+Ask questions and share ideas in
+[GitHub Discussions](https://github.com/lagergren/rylween/discussions).
 
 ## Appendix: the original Amiga release
 

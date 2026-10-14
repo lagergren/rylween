@@ -8,6 +8,12 @@
 - `Dockerfile.bitmap-production` builds the production-oriented bitmap web
   runtime image.
 
+`Dockerfile` and `Dockerfile.production` serve the ANSI web runtime on port
+8080; `Dockerfile.bitmap-production` serves the bitmap runtime on port 8081. All
+keep saves, accounts, and logs under the `/data` volume. Run directly, the
+bitmap image uses an 8x8 wilderness view at 64 px per tile, while compose and the
+bitmap launcher default to 6x6 at 68 px.
+
 Build commands still use the repository root as the Docker context so Gradle,
 source modules, resources, and `.dockerignore` are all visible:
 
@@ -17,9 +23,11 @@ docker build -f deploy/docker/Dockerfile.bitmap-production -t rylween-bitmap-pro
 ```
 
 The production images serve plain HTTP inside the container. Bind the container
-to loopback or a private container network, terminate HTTPS at nginx, Caddy,
-HAProxy, a platform load balancer, or another reverse proxy, and set
-`RYLWEEN_AUTH_SECURE_COOKIES=true` when traffic reaches users over HTTPS.
+to loopback or a private container network and terminate HTTPS at nginx, Caddy,
+HAProxy, a platform load balancer, or another reverse proxy. Both production
+images set `RYLWEEN_AUTH_SECURE_COOKIES=true`, so browsers keep the login cookie
+only over HTTPS; set it to `false` only when players reach the server over plain
+HTTP.
 
 ## Compose
 
@@ -47,6 +55,15 @@ host directory instead, for example to back it up with
 ```sh
 mkdir -p ~/.rylween/compose-data
 RYLWEEN_DATA_VOLUME=~/.rylween/compose-data docker compose up -d
+bin/backup-web-data.sh --data ~/.rylween/compose-data --output rylween-backup.tar.gz
+```
+
+On first start the server creates the sysop account (`RYLWEEN_ADMIN_ACCOUNT`,
+default `admin`), which players cannot register. Unless `RYLWEEN_ADMIN_PASSWORD`
+is set, its generated password is saved in `/data/auth/admin-password.txt`:
+
+```sh
+docker compose exec rylween cat /data/auth/admin-password.txt
 ```
 
 The container publishes on `127.0.0.1:8081` by default. To let other machines
@@ -61,12 +78,21 @@ deploy/deploy-rylween-docker.sh  # same as deploy/deploy-rylween.sh --compose
 
 Or set `RYLWEEN_PUBLISH_HOST` yourself, to a LAN address such as `192.168.x.y`
 or to `0.0.0.0`. `RYLWEEN_HOST_PORT` changes the port.
-Unlike the plain image, compose turns secure cookies off so logins work over
-plain HTTP; set `RYLWEEN_AUTH_SECURE_COOKIES=true` behind an HTTPS proxy. All
+Unlike the production image run with `docker run`, compose sets
+`RYLWEEN_AUTH_SECURE_COOKIES=false` so logins work over plain HTTP; set it to
+`true` behind an HTTPS proxy. When `deploy/.env` sets `RYLWEEN_PUBLISH_HOST`,
+the deploy script uses that address instead of detecting the LAN address. All
 settings are listed at the top of `compose.yaml` and can be kept in an
 uncommitted `deploy/.env` file next to it; copy `deploy/.env.example`, which
 shows each one at its default. A relative `RYLWEEN_DATA_VOLUME` such as
 `./data` is relative to `deploy/`.
+
+`deploy/deploy-rylween.sh` without `--compose` skips Docker: it starts the
+installed bitmap launcher in the background on the LAN address, port 8081, with
+its data in `~/.rylween/deploy` and its log in
+`/tmp/rylween-bitmap-web-deploy.log`, stopping a server it started earlier.
+Build the launcher first with
+`./gradlew :runtime-bitmap-web:installRuntimeBitmapWeb`.
 
 The root `.dockerignore` intentionally remains at the repository root because
 Docker reads ignore rules relative to the build context, not relative to the
