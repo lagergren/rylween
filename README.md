@@ -182,3 +182,16 @@ caches, and runtime save/log directories under `build/`. From the repo root:
 
 This removes project build directories, the included `build-logic/build`
 directory, and regenerated local `.kotlin` session/error caches.
+
+## Appendix: the original Amiga release
+
+The original Amiga release of the game is kept as
+[`docs/original/rylween-amiga.zip`](docs/original/rylween-amiga.zip). It holds the
+`Rylween` executable, the manual (`Rylween.DOC`), the sysop notes
+(`Sysop.TXT` and `IMPORTANT!.README`), the data files, and the ANSI title and
+status screens, dated 1993 to 1996. It needs AmigaOS, on a real or emulated
+Amiga, and runs as a door program on a BBS.
+
+The game asks for a registration file. Generate one with
+[rylween-regfile-generator](https://github.com/lagergren/rylween-regfile-generator),
+the repository this archive was copied from.
