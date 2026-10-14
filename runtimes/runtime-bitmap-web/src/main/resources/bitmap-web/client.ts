@@ -351,6 +351,11 @@ type SoundMessage = {
     id: string;
 };
 
+type MusicMessage = {
+    type: "music";
+    id: string | null;
+};
+
 type PlayingMusic = {
     id: string;
     source: AudioBufferSourceNode;
@@ -1045,6 +1050,10 @@ function connect(): void {
         }
         if (message.type === "sound") {
             gameAudio.playSound((message as unknown as SoundMessage).id);
+            return;
+        }
+        if (message.type === "music") {
+            gameAudio.setMusic((message as unknown as MusicMessage).id);
             return;
         }
         const nextFrame = message as unknown as BitmapFrame;

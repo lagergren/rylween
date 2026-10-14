@@ -532,9 +532,15 @@ internal class BitmapRuntimeScreen(
         connection.sendText(jsonObject("type" to "sound".json(), "id" to soundSlug.json()))
     }
 
-    /** Takes effect with the next frame; frames always carry the current track so reconnects resume it. */
+    /**
+     * Switches the browser's track at once, without waiting for the next frame: after an escaped battle the
+     * wilderness track is chosen only once the map is already on screen. Frames still carry the current track,
+     * so a reconnect resumes it.
+     */
     override fun playMusic(musicSlug: String?) {
+        if (musicSlug == music) return
         music = musicSlug
+        connection.sendText(jsonObject("type" to "music".json(), "id" to (musicSlug?.json() ?: "null")))
     }
 
     private fun send() {
