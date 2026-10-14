@@ -249,6 +249,7 @@ type ServerStatus = {
     connectedUsers: number;
     currentUser?: string | null;
     serverType: string;
+    version: string;
 };
 
 function requireElement<T extends HTMLElement>(id: string, elementType: { new(): T }): T {
@@ -268,6 +269,7 @@ const preferencesPopover = requireElement("preferencesPopover", HTMLElement);
 const serverInfoToggle = requireElement("serverInfoToggle", HTMLButtonElement);
 const serverInfoPopover = requireElement("serverInfoPopover", HTMLElement);
 const userAccount = requireElement("userAccount", HTMLElement);
+const gameTitle = requireElement("gameTitle", HTMLElement);
 const textRevealToggle = requireElement("textRevealToggle", HTMLInputElement);
 const bitmapFontToggle = requireElement("bitmapFontToggle", HTMLInputElement);
 const wildernessViewModeSelect = requireElement("wildernessViewModeSelect", HTMLSelectElement);
@@ -1092,12 +1094,14 @@ async function refreshServerInfo(): Promise<void> {
     const user = status.currentUser || "not signed in";
     const runtimeName = runtimeDisplayName(status.serverType);
     serverInfoToggle.textContent = "Status";
+    gameTitle.textContent = "Adventurers of Rylween (v" + status.version + ")";
     userAccount.textContent = user;
     userAccount.title = "Logged in as " + user;
     serverInfoPopover.innerHTML =
         "<h2>Status</h2>" +
         "<dl>" +
         "<dt>Runtime</dt><dd>" + escapeHtml(runtimeName) + "</dd>" +
+        "<dt>Version</dt><dd>" + escapeHtml(status.version) + "</dd>" +
         "<dt>Account</dt><dd>" + escapeHtml(user) + "</dd>" +
         "<dt>Auth</dt><dd>" + (status.authRequired ? "enabled" : "dev bypass") + "</dd>" +
         "<dt>Connected players</dt><dd>" + status.connectedUsers.toString() + "</dd>" +

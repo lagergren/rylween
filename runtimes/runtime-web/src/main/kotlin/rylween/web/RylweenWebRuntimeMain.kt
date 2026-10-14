@@ -9,6 +9,7 @@ import rylween.runtime.RuntimeLog
 import rylween.runtime.RuntimeSecretAccounts
 import rylween.runtime.RuntimeSessionConfig
 import rylween.runtime.RuntimeSessionFactory
+import rylween.runtime.rylweenVersion
 import rylween.webcommon.WebHttpRequest
 import rylween.webcommon.WebServerStatus
 import rylween.webcommon.WebSocketConnection
@@ -578,6 +579,7 @@ private class RuntimeWebServer(
         val body =
             WebServerStatus(
                 serverType = "ansi",
+                version = rylweenVersion,
                 authRequired = config.authRequired,
                 currentUser = account?.displayName ?: account?.slug,
                 activeUsers = activeUsers.toList().sorted(),

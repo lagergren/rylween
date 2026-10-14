@@ -21,6 +21,7 @@ import rylween.runtime.RuntimeSessionConfig
 import rylween.runtime.RuntimeSessionExitReason
 import rylween.runtime.RuntimeSessionFactory
 import rylween.runtime.WorldMap
+import rylween.runtime.rylweenVersion
 import rylween.webcommon.WebHttpRequest
 import rylween.webcommon.WebServerStatus
 import rylween.webcommon.WebSocketConnection
@@ -792,6 +793,7 @@ private class BitmapWebServer(
         val body =
             WebServerStatus(
                 serverType = "bitmap",
+                version = rylweenVersion,
                 authRequired = config.authRequired,
                 currentUser = account?.displayName ?: account?.slug,
                 activeUsers = activeUsers.toList().sorted(),
