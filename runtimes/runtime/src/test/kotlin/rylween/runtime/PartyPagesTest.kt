@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
@@ -11,6 +12,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PartyPagesTest {
+    @TempDir
+    private lateinit var testTmp: File
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
@@ -58,7 +61,7 @@ class PartyPagesTest {
         val kobold = content.ref(CompiledHandleKind.Monster, "kobold")
         val orc = content.ref(CompiledHandleKind.Monster, "orc")
         val runtime = base.withParty(base.party.copy(monsterKills = mapOf(kobold to 3, orc to 12)))
-        val save = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).also(File::mkdirs).resolve("kill-ledger.rsave").also(File::delete)
+        val save = testTmp.resolve("kill-ledger.rsave")
         SaveFile.write(save, runtime, bundleFile.readExternalCompiledBundleContentHash(), content, "ledger", null)
         val loaded = SaveFile.read(save, content, { slug -> bundle.states.single { state -> content.slug(state.state) == slug } }, "ledger")
         val screen = CountingPartyPageScreen()

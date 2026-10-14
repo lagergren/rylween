@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInventorySlot
@@ -19,7 +20,8 @@ import kotlin.test.assertTrue
 
 class UtilityActionsTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
-    private val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).also(File::mkdirs)
+    @TempDir
+    private lateinit var testTmp: File
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content

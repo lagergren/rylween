@@ -1,8 +1,10 @@
 # Runs the bitmap web game. Saves, accounts, and logs live on a persistent
 # volume mounted at /data, so they survive `down`, rebuilds, and image updates.
 #
-#   docker compose up --build -d      # or: podman compose up --build -d
+#   docker compose -f deploy/compose.yaml up --build -d   # or: podman compose ...
 #   open http://127.0.0.1:8081/ and register an account
+#
+# From inside deploy/, plain `docker compose up --build -d` works too.
 #
 # Rebuild with --build after pulling new game code. `down -v` deletes the volume
 # and with it every save and account.
@@ -10,13 +12,14 @@
 # Settings come from the shell environment or a .env file next to this file
 # (copy .env.example to start one):
 #   RYLWEEN_PUBLISH_HOST        Host address to publish on. Default: 127.0.0.1.
-#                               `./deploy-rylween-docker.sh` sets it to this
+#                               `deploy/deploy-rylween-docker.sh` sets it to this
 #                               machine's LAN address so others on the local
 #                               network can connect; 0.0.0.0 publishes on every
 #                               interface.
 #   RYLWEEN_HOST_PORT           Host port. Default: 8081
 #   RYLWEEN_DATA_VOLUME         Named volume or host directory (./path, ~/path, /path)
-#                               mounted at /data. Default: the `data` named volume.
+#                               mounted at /data; ./path is relative to deploy/.
+#                               Default: the `data` named volume.
 #   RYLWEEN_BITMAP_STATE        Initial compiled state slug. Default: fresh-replay
 #   RYLWEEN_BITMAP_MAP_TILES    Wilderness viewport edge length. Default: 6
 #   RYLWEEN_BITMAP_TILE_SIZE    Wilderness tile size in px. Default: 68
@@ -38,7 +41,8 @@ name: rylween
 services:
     rylween:
         build:
-            context: .
+            # The repository root, which the Dockerfile copies the sources from.
+            context: ..
             dockerfile: deploy/docker/Dockerfile.bitmap-production
         restart: unless-stopped
         ports:

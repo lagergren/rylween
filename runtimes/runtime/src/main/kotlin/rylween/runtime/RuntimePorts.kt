@@ -111,9 +111,12 @@ interface RuntimeScreenPort {
         writeText(lines)
     }
 
-    fun showTitleMenu(lines: List<String>) {
+    fun showTitleMenu(
+        lines: List<String>,
+        versionLabel: String,
+    ) {
         bootFrame()
-        writeText(lines)
+        writeText(lines + "" + versionLabel)
     }
 
     fun showCharacterPortrait(preview: RuntimeCharacterPortraitPreview?): Unit = Unit

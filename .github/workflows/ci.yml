@@ -1,0 +1,61 @@
+# Runs every module's checks: unit tests, the scripted runtime playthroughs,
+# ktlint, and PMD. The root `check` additionally reports dependency updates over
+# the network, which is not worth gating CI on, so the module checks are listed.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Kotlin toolchain version from gradle/libs.versions.toml.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      # Caches Gradle state between runs and validates the wrapper.
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Check
+        run: >-
+          ./gradlew --console=plain
+          :core:check :game:check :tools:check :terminal:check :web-common:check
+          :runtime:check :runtime-web:check :runtime-bitmap-web:check
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/
+            **/build/test-results/
+          if-no-files-found: ignore
+
+      # The runtime tests' logs, saves, and autopilot reports, and each scripted check's runtime log.
+      - name: Upload test logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-logs
+          path: |
+            runtimes/runtime/build/test-logs/
+            runtimes/runtime/build/logs/runtime/
+          if-no-files-found: ignore
+          retention-days: 14

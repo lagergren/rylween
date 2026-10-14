@@ -3,6 +3,7 @@ import org.gradle.jvm.application.tasks.CreateStartScripts
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService
 import rylween.gradle.RunInstalledLauncherWithJavaTask
+import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -51,6 +52,15 @@ val runtimeJarFile: Provider<RegularFile> = runtimeJar.flatMap { it.archiveFile 
 val runtimeClasspathConfig: Configuration = configurations.runtimeClasspath.get()
 val runtimeJars: FileCollection =
     runtimeClasspathConfig.filter { file -> file.isFile && file.extension == "jar" }
+
+tasks.processResources {
+    // Stamps rylween.version into the runtime, which shows it on the title menu and in every log.
+    val rylweenVersion = project.version.toString()
+    inputs.property("rylweenVersion", rylweenVersion)
+    filesMatching("rylween/runtime/version.txt") {
+        expand("version" to rylweenVersion)
+    }
+}
 
 tasks.jar {
     archiveBaseName.set("rylween-runtime")
@@ -134,8 +144,18 @@ val installRuntime: TaskProvider<Sync> =
     }
 
 tasks.withType<RunInstalledLauncherWithJavaTask>().configureEach {
-    userId.set("gradle-smoke")
+    dependsOn(":tools:emitExternalCompiledBundle")
+    executableFile.set(runtimeExecutable)
     launcherFiles.from(installRuntime)
+    bundleFile.set(externalBundleArtifact)
+    javaLauncher.set(kotlinRuntimeJavaLauncher)
+    userId.set("gradle-smoke")
+}
+
+/** Gives the test task's doFirst a configuration-cache-safe way to delete files. */
+interface InjectedFileSystem {
+    @get:Inject
+    val fileSystem: FileSystemOperations
 }
 
 tasks.test {
@@ -143,25 +163,19 @@ tasks.test {
     dependsOn(":tools:emitExternalCompiledBundle")
     systemProperty("rylween.runtime.executable", runtimeExecutable.get().asFile.path)
     systemProperty("rylween.runtime.bundle", externalBundleArtifact.get().asFile.path)
-    systemProperty(
-        "rylween.runtime.javaHome",
-        kotlinRuntimeJavaLauncher
-            .get()
-            .metadata
-            .installationPath
-            .asFile
-            .absolutePath,
-    )
     // Full-game autopilot seeds for balance work: ./gradlew :runtime:test -Prylween.autopilot.seeds=1,2,3
     providers.gradleProperty("rylween.autopilot.seeds").orNull?.let { seeds -> systemProperty("rylween.autopilot.seeds", seeds) }
-    systemProperty(
-        "rylween.runtime.testTmp",
-        layout.buildDirectory
-            .dir("tmp/runtimeReplayTests")
-            .get()
-            .asFile
-            .path,
-    )
+
+    // Every @TempDir lands in build/test-logs/<test class>/<test method> and is kept after the run, so the
+    // logs, saves, and autopilot reports can be read afterwards (see TestLogDirFactory). A cached test run
+    // restores them, and each real run starts from an empty directory so no stale files survive.
+    val testLogDir = layout.buildDirectory.dir("test-logs")
+    val injected = objects.newInstance<InjectedFileSystem>()
+    outputs.dir(testLogDir).withPropertyName("testLogs")
+    systemProperty("rylween.runtime.testLogs", testLogDir.get().asFile.path)
+    doFirst {
+        injected.fileSystem.delete { delete(testLogDir) }
+    }
 }
 
 val checkRuntimeBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> =
@@ -169,16 +183,6 @@ val checkRuntimeBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> =
         group = "verification"
         description = "Boots the runtime without old session composition."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         screen.set("title")
     }
 
@@ -187,16 +191,6 @@ val checkRuntimeNewPartyCreation: TaskProvider<RunInstalledLauncherWithJavaTask>
         group = "verification"
         description = "Runs title-menu party creation through reroll, gender, race, and class selection."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         script.set(
             listOf(
                 "x",
@@ -268,16 +262,6 @@ val checkRuntimeSaveScript: TaskProvider<RunInstalledLauncherWithJavaTask> =
         group = "verification"
         description = "Saves wilderness state from the runtime without old save/session code."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         script.set("22SX")
         saveFile.set(runtimeSaveFile)
     }
@@ -288,14 +272,6 @@ val checkRuntimeLoadScript: TaskProvider<RunInstalledLauncherWithJavaTask> =
         description = "Loads a runtime save and boots the saved wilderness state."
 
         dependsOn(checkRuntimeSaveScript)
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         script.set("X")
         loadFile.set(runtimeSaveFile)
     }
@@ -305,16 +281,6 @@ val checkRuntimePartyJournalScript: TaskProvider<RunInstalledLauncherWithJavaTas
         group = "verification"
         description = "Views direct party and journal pages through the runtime."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         stateSlug.set("strong-replay")
         script.set("V666666\u001B?1J\u001BX")
         expectedOutputContains.set(
@@ -334,16 +300,6 @@ val checkRuntimeTownPromptScript: TaskProvider<RunInstalledLauncherWithJavaTask>
         group = "verification"
         description = "Checks shared town member-choice and shop confirmation prompts."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         stateSlug.set("strong-replay")
         script.set("22EMSANXLCH2LL")
         expectedOutputContains.set(
@@ -362,16 +318,6 @@ val checkRuntimeWildernessActionsScript: TaskProvider<RunInstalledLauncherWithJa
         group = "verification"
         description = "Runs direct hunt, camp, and wilderness upkeep paths in the runtime."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         script.set("H1C2X")
     }
 
@@ -380,16 +326,6 @@ val checkRuntimeWildernessEquipmentScript: TaskProvider<RunInstalledLauncherWith
         group = "verification"
         description = "Runs wilderness ready-weapon and ready-armor utility pickers in the runtime."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         stateSlug.set("strong-replay")
         script.set("W1HR1IX")
         expectedOutputContains.set(
@@ -409,16 +345,6 @@ val checkRuntimeWildernessDebugSecretsScript: TaskProvider<RunInstalledLauncherW
         group = "verification"
         description = "Runs hidden manual-test wilderness cave and encounter triggers in the runtime."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         stateSlug.set("strong-replay")
         script.set("[L]" + runtimeBattleMacro() + "X")
         seed.set(31)
@@ -440,16 +366,6 @@ val checkRuntimeDungeonScript: TaskProvider<RunInstalledLauncherWithJavaTask> =
         group = "verification"
         description = "Runs direct priest-spell cave discovery into the runtime dungeon loop."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         stateSlug.set("strong-replay")
         script.set("Z47ELAX")
     }
@@ -459,16 +375,6 @@ val checkRuntimeCastleScript: TaskProvider<RunInstalledLauncherWithJavaTask> =
         group = "verification"
         description = "Runs direct wilderness entry into the generic compiled castle loop."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         stateSlug.set("near-winning-replay")
         script.set("2".repeat(21) + "66EAAAA")
     }
@@ -478,16 +384,6 @@ val checkRuntimeHeroesScreen: TaskProvider<RunInstalledLauncherWithJavaTask> =
         group = "verification"
         description = "Renders the runtime-backed Hall-of-Heroes static screen from direct compiled state."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         stateSlug.set("winning-replay")
         screen.set("heroes")
     }
@@ -497,16 +393,6 @@ val checkRuntimeFullPlaythrough: TaskProvider<RunInstalledLauncherWithJavaTask> 
         group = "verification"
         description = "Completes the winning castle route in the runtime and saves the result."
 
-        dependsOn(installRuntime)
-        dependsOn(":tools:emitExternalCompiledBundle")
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         stateSlug.set("near-winning-replay")
         script.set(runtimeWinningRoute())
         saveFile.set(runtimeFullPlaythroughSaveFile)
@@ -526,14 +412,6 @@ val checkRuntimeFullPlaythroughHeroesScreen: TaskProvider<RunInstalledLauncherWi
         description = "Renders Hall-of-Heroes from the runtime's saved winning route."
 
         dependsOn(checkRuntimeFullPlaythrough)
-        executableFile.set(runtimeExecutable)
-        bundleFile.set(externalBundleArtifact)
-        javaHomePath.set(
-            kotlinRuntimeJavaLauncher.map { launcher ->
-                launcher.metadata.installationPath.asFile.absolutePath
-            },
-        )
-        inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
         screen.set("heroes")
         loadFile.set(runtimeFullPlaythroughSaveFile)
         expectedOutputContains.set(

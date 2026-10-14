@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
@@ -13,11 +14,15 @@ class AutopilotPlaythroughTest {
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
-    private val sessions =
+
+    @TempDir
+    private lateinit var workDir: File
+    private val sessions by lazy {
         AutopilotSessions(
             factory = RuntimeSessionFactory.load(bundle, systems, bundleFile.readExternalCompiledBundleContentHash()),
-            workDir = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).resolve("autopilot").also(File::mkdirs),
+            workDir = workDir,
         )
+    }
     private val castle = systems.castleRows.single()
     private val castleVictory = bundle.content.ref(CompiledHandleKind.Milestone, checkNotNull(castle.completionMilestone))
 

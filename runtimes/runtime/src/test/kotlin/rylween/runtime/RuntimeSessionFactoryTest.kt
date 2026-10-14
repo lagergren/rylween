@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.terminal.AnsiTerminal
 import java.io.File
@@ -12,7 +13,8 @@ import kotlin.test.assertTrue
 
 class RuntimeSessionFactoryTest {
     private val bundleFile = File(requiredRuntimeProperty("rylween.runtime.bundle"))
-    private val testTmp = File(requiredRuntimeProperty("rylween.runtime.testTmp")).also(File::mkdirs)
+    @TempDir
+    private lateinit var testTmp: File
 
     @Test
     fun staticScreensRenderThroughInjectedTerminal() {

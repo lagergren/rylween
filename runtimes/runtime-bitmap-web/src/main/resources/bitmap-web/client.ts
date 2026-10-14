@@ -1969,6 +1969,12 @@ function drawTitleMenu(frame: BitmapFrame): void {
         }
         textY += rowGap;
     });
+    if (frame.subtitle) {
+        ctx.textAlign = "right";
+        ctx.font = "15px Menlo, Monaco, Consolas, monospace";
+        ctx.fillStyle = "rgba(188, 170, 118, 0.72)";
+        ctx.fillText(frame.subtitle, canvas.width - 42, canvas.height - 42);
+    }
     ctx.restore();
 }
 

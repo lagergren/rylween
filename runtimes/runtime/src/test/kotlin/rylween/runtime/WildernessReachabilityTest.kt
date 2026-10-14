@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.CompiledCharacterPlacement
 import rylween.compiled.CompiledGameBundle
 import rylween.compiled.CompiledHandleKind
@@ -24,6 +25,8 @@ import kotlin.test.assertTrue
  * game can strand a quest out of the party's reach.
  */
 class WildernessReachabilityTest {
+    @TempDir
+    private lateinit var testTmp: File
     private val bundleFile = File(requiredRuntimeTestProperty("rylween.runtime.bundle"))
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
@@ -105,7 +108,6 @@ class WildernessReachabilityTest {
         val state = bundle.state("near-winning-replay")
         val walk = walkKeys(state.startPoint(), hut)
         val screen = TextCapturingScreen()
-        val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).also(File::mkdirs)
         RuntimeLog.open(testTmp.resolve("wilderness-hut.log")).use { log ->
             RuntimeSessionFactory.load(bundle, systems, bundleFile.readExternalCompiledBundleContentHash()).start(
                 input = ScriptedInput("${walk}ET1BBBL"),
@@ -140,7 +142,6 @@ class WildernessReachabilityTest {
                 flags = start.party.flags - flag.states.map { state -> state.id }.toSet() + borinMet,
                 rngState = null,
             )
-        val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).also(File::mkdirs)
         val hash = bundleFile.readExternalCompiledBundleContentHash()
         val load = testTmp.resolve("crypt-reentry-start.rsave").also(File::delete)
         SaveFile.write(load, start.withParty(party), hash, content, "crypt-test", null)

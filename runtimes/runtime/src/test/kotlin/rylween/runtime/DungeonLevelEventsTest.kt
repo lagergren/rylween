@@ -1,5 +1,6 @@
 package rylween.runtime
 
+import org.junit.jupiter.api.io.TempDir
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.readExternalCompiledBundleContentHash
 import rylween.compiled.readExternalCompiledGameBundle
@@ -21,7 +22,8 @@ class DungeonLevelEventsTest {
     private val systems = bundleFile.readExternalRuntimeSystems()
     private val content = bundle.content
     private val hash = bundleFile.readExternalCompiledBundleContentHash()
-    private val testTmp = File(requiredRuntimeTestProperty("rylween.runtime.testTmp")).resolve("dungeon-level-events").also(File::mkdirs)
+    @TempDir
+    private lateinit var testTmp: File
     private val actions = AutopilotActions(systems)
 
     @Test

@@ -844,7 +844,10 @@ class GameRuntime private constructor(
         var pendingTitleCommand: Char? = input.readCommand() ?: return null
         while (true) {
             val savedRuntime = loadSavedRuntimeOrNull(save, log)
-            screen.showTitleMenu(titleMenuLines(hasSavedGame = savedRuntime != null, wrapWidth = screen.textColumns))
+            screen.showTitleMenu(
+                titleMenuLines(hasSavedGame = savedRuntime != null, wrapWidth = screen.textColumns),
+                rylweenVersionLabel,
+            )
             val command =
                 pendingTitleCommand
                     ?.takeIf { candidate -> acceptsTitleCommand(candidate, savedRuntime != null) }
