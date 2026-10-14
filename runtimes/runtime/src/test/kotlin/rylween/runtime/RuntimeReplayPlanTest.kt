@@ -12,7 +12,6 @@ import kotlin.test.assertTrue
 class RuntimeReplayPlanTest {
     private val executable = File(requiredProperty("rylween.runtime.executable"))
     private val bundleFile = File(requiredProperty("rylween.runtime.bundle"))
-    private val javaHome = File(requiredProperty("rylween.runtime.javaHome"))
     private val testTmp = File(requiredProperty("rylween.runtime.testTmp")).also(File::mkdirs)
     private val bundle = bundleFile.readExternalCompiledGameBundle()
     private val systems = bundleFile.readExternalRuntimeSystems()
@@ -303,10 +302,9 @@ class RuntimeReplayPlanTest {
             ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .redirectOutput(outputFile)
-                .apply {
-                    environment()["JAVA_HOME"] = javaHome.path
-                    environment()["PATH"] = javaHome.resolve("bin").path + File.pathSeparator + environment()["PATH"].orEmpty()
-                }.start()
+                // The start script runs $JAVA_HOME/bin/java: the JDK this test runs on.
+                .apply { environment()["JAVA_HOME"] = System.getProperty("java.home") }
+                .start()
         val finished = process.waitFor(120, TimeUnit.SECONDS)
         if (!finished) {
             process.destroyForcibly()

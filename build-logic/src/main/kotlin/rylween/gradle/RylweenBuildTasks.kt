@@ -10,22 +10,25 @@ package rylween.gradle
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Nested
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
+import org.gradle.jvm.toolchain.JavaLauncher
 import org.gradle.process.ExecOperations
 import java.io.ByteArrayOutputStream
 import java.io.File
 import javax.inject.Inject
 
 /**
- * Runs an installed launcher against a compiled bundle with a known Java home.
+ * Runs an installed launcher against a compiled bundle on the [javaLauncher] JDK.
  *
  * Active builds use this for runtime smoke checks after
  * install tasks have produced scripts.
@@ -34,6 +37,7 @@ abstract class RunInstalledLauncherWithJavaTask
     @Inject
     constructor(
         private val execOperations: ExecOperations,
+        layout: ProjectLayout,
     ) : DefaultTask() {
         @get:InputFile
         abstract val executableFile: RegularFileProperty
@@ -48,11 +52,13 @@ abstract class RunInstalledLauncherWithJavaTask
         @get:InputFile
         abstract val bundleFile: RegularFileProperty
 
-        @get:Input
-        abstract val javaHomePath: Property<String>
+        /** The JDK the start script runs on, handed to it as `JAVA_HOME`. */
+        @get:Nested
+        abstract val javaLauncher: Property<JavaLauncher>
 
-        @get:Input
-        abstract val inheritedPath: Property<String>
+        /** The runtime's forensic log for this check. Defaults to `build/logs/runtime/<task name>.log`. */
+        @get:OutputFile
+        abstract val logFile: RegularFileProperty
 
         @get:Input
         @get:Optional
@@ -103,11 +109,11 @@ abstract class RunInstalledLauncherWithJavaTask
 
         init {
             expectedOutputContains.convention(emptyList())
+            logFile.convention(layout.buildDirectory.file("logs/runtime/$name.log"))
         }
 
         @TaskAction
         fun run() {
-            val javaHome = File(javaHomePath.get())
             val hasScreen = screen.isPresent
             val hasScript = script.isPresent
             check(listOf(hasScreen, hasScript).count { it } == 1) {
@@ -118,6 +124,8 @@ abstract class RunInstalledLauncherWithJavaTask
                     executableFile.get().asFile.path,
                     "--bundle",
                     bundleFile.get().asFile.path,
+                    "--log",
+                    logFile.get().asFile.path,
                 )
             if (hasScreen) {
                 launcherArgs += listOf("--screen", screen.get())
@@ -150,26 +158,22 @@ abstract class RunInstalledLauncherWithJavaTask
                 if (resetSaveFile.orNull == true) saveFile.get().asFile.delete()
                 launcherArgs += listOf("--save", saveFile.get().asFile.path)
             }
+            val javaHome = javaLauncher.get().metadata.installationPath.asFile.absolutePath
             val expectedOutput = expectedOutputContains.get()
-            if (expectedOutput.isEmpty()) {
-                execOperations.exec {
-                    environment("JAVA_HOME", javaHome.absolutePath)
-                    environment("PATH", javaHome.resolve("bin").path + File.pathSeparator + inheritedPath.get())
-                    commandLine(launcherArgs)
-                }
-                return
-            }
-
-            val output = ByteArrayOutputStream()
+            // Without expected output, the launcher prints straight to the build output and a failure fails the exec.
+            val output = ByteArrayOutputStream().takeIf { expectedOutput.isNotEmpty() }
             val result =
                 execOperations.exec {
-                    isIgnoreExitValue = true
-                    standardOutput = output
-                    errorOutput = output
-                    environment("JAVA_HOME", javaHome.absolutePath)
-                    environment("PATH", javaHome.resolve("bin").path + File.pathSeparator + inheritedPath.get())
+                    // The start script runs $JAVA_HOME/bin/java when JAVA_HOME is set.
+                    environment("JAVA_HOME", javaHome)
                     commandLine(launcherArgs)
+                    if (output != null) {
+                        isIgnoreExitValue = true
+                        standardOutput = output
+                        errorOutput = output
+                    }
                 }
+            if (output == null) return
             val text = output.toString(Charsets.UTF_8)
             if (result.exitValue != 0) {
                 throw GradleException("launcher exited with ${result.exitValue}\n${text.takeLast(4000)}")
