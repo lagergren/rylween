@@ -228,16 +228,9 @@ internal class AutopilotFullGamePlan(
                 add(AutopilotErrand.BuyBulk("Torch", torches))
                 gold -= torches
             }
-            val potionPrice = redPotion.cost + leaderLevel * POTION_PRICE_PER_LEVEL
-            val potions =
-                minOf(
-                    RED_POTIONS_KEPT - party.inventoryCount(p, RED_POTION),
-                    party.freeSlots(p) - maxOf(step.freeSlots, MIN_FREE_SLOTS),
-                    (gold - reserve(step)) / potionPrice,
-                )
-            repeat(potions.coerceAtLeast(0)) {
+            repeat(potionsToBuy(p, step, gold)) {
                 add(AutopilotErrand.BuyItem(HEALING_POTION))
-                gold -= potionPrice
+                gold -= potionPrice(p)
             }
             step.carry?.takeIf { slug -> party.inventoryCount(p, slug) == 0 }?.let { slug ->
                 content.items.firstOrNull { item -> content.slug(item.id) == slug }?.let { item ->
@@ -588,11 +581,12 @@ internal class AutopilotFullGamePlan(
         val needs = townNeeds(state, step)
         if (needs.isEmpty()) return null
         val needsChurch = needs.any { need -> need in churchNeeds }
+        // A trip only for the shops waits until they open: every entry costs the town tax, and a visit skips closed
+        // services. Meanwhile the party grinds, or goes on with a step it is ready for.
+        if (!needsChurch && shopServices.none { shop -> content.serviceOpenAt(shop, state.hour) }) return null
         val p = state.party
         val towns = content.towns.filter { town -> !needsChurch || town.offers("church") }
         val town = towns.minByOrNull { town -> distance(p.position, town.position) } ?: return null
-        // A visit skips services that are closed, and leaving town takes an hour, so a party that needs a shop at
-        // night comes back in each hour until it opens.
         return walkTo(state, town.position) ?: actions.enter()
     }
 
@@ -619,8 +613,35 @@ internal class AutopilotFullGamePlan(
             if (carried != null && party.inventoryCount(p, step.carry) == 0 && gold >= carried.cost) add("carry")
             if (gearUpgrades(p, gold - reserve(step)).isNotEmpty() && gold > reserve(step) + GEAR_TRIP_GOLD) add("gear")
             if (!saving(p, step) && party.freeSlots(p) < maxOf(step.freeSlots, MIN_FREE_SLOTS) && junk(p).sellable.isNotEmpty()) add("sell")
+            if (restockPotions(p, step)) add("potions")
         }
     }
+
+    /**
+     * Whether a party facing a boss, the castle above all, should restock red potions before going on. Potions are
+     * otherwise bought only on trips made for other needs, and those can come at night when the merchant is closed.
+     */
+    private fun restockPotions(
+        p: PartyState,
+        step: AutopilotQuestStep,
+    ): Boolean =
+        step.minimumLevel >= BOSS_LEVEL &&
+            party.inventoryCount(p, RED_POTION) < RED_POTIONS_LOW &&
+            potionsToBuy(p, step, p.resources.gold) > 0
+
+    private fun potionPrice(p: PartyState): Int = redPotion.cost + leaderLevel(p) * POTION_PRICE_PER_LEVEL
+
+    /** Red potions to buy toward the stock the party keeps, as free slots and [gold] beyond [step]'s reserve allow. */
+    private fun potionsToBuy(
+        p: PartyState,
+        step: AutopilotQuestStep,
+        gold: Int,
+    ): Int =
+        minOf(
+            RED_POTIONS_KEPT - party.inventoryCount(p, RED_POTION),
+            party.freeSlots(p) - maxOf(step.freeSlots, MIN_FREE_SLOTS),
+            (gold - reserve(step)) / potionPrice(p),
+        ).coerceAtLeast(0)
 
     /** Works on [step]: talks to its character, walks onto its location, or wanders until its event fires. */
     private fun pursue(
@@ -811,6 +832,7 @@ internal class AutopilotFullGamePlan(
             if (party.living(p).any { member -> member.hitPointShare < maxOf(READY_HEALTH, healBelow(step)) }) add("health")
             if (step.minimumLevel >= BOSS_LEVEL && party.living(p).any { member -> manaShare(member) < READY_MANA }) add("mana")
             if (banishFirst(step) && !canCast(p, BANISH_EVIL)) add("banish")
+            if (restockPotions(p, step)) add("potions")
         }
     }
 
@@ -911,9 +933,11 @@ internal class AutopilotFullGamePlan(
         const val TAX_LEVEL = 5
         const val RED_POTION = "red_potion"
         const val RED_POTIONS_KEPT = 6
+        const val RED_POTIONS_LOW = 3
         const val BATTLE_ITEMS_KEPT = 3
         val keepItems = setOf("tent", "blanket", "donkey")
         val battleCasters = setOf(PcClass.Mage)
         val churchNeeds = setOf("raise", "heal", "energize")
+        val shopServices = listOf("Smith", "Merchant")
     }
 }
