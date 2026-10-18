@@ -21,8 +21,8 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
- * Dexterity and charisma in play: the ranger's hunting chance, the thief's castle trap disarm, and the party's
- * haggling, each with its cap. Without a random state every draw is its lowest value, 0, so a chance of 0 fails and
+ * Dexterity and charisma in play: the ranger's hunting chance, the thief's castle trap disarm and dungeon chest check,
+ * and the party's haggling, each with its cap. Without a random state every draw is its lowest value, 0, so a chance of 0 fails and
  * anything higher succeeds; [withNextRoll] sets the roll where a test needs another.
  */
 class StatModifiersTest {
@@ -73,6 +73,85 @@ class StatModifiersTest {
         val refused = sell("sell-refused.log", "SAHL", talker.updateMember(0) { member -> member.copy(dead = true) }.withNextRoll(60))
         assertEquals(axe, refused.party.inventoryItem(1))
         assertEquals(base.party.resources.gold, refused.party.resources.gold)
+    }
+
+    @Test
+    fun aThiefsDexterityCutsTheChestTrapChanceToNoLessThanFour() {
+        // The chest's trap roll is 14: under the 40% unchecked chance and a dexterity-50 thief's 20%, but not under a
+        // dexterity-70 thief's 12%.
+        val runs =
+            listOf(null, 50, 70).map { dexterity ->
+                openChest("chest-dexterity-${dexterity ?: "none"}", ROLL_14_SEED, thiefDexterity = dexterity)
+            }
+        assertEquals(listOf(14, 14, 14), runs.map(ChestRun::roll))
+        assertEquals(listOf(40, 20, 12), runs.map(ChestRun::chance))
+        assertEquals(listOf(false, true, true), runs.map(ChestRun::thiefChecked))
+        assertEquals(listOf(true, true, false), runs.map(ChestRun::trapSprung))
+
+        // A roll of 0 still springs the trap for a dexterity-200 thief: the chance never drops below 4%.
+        val floor = openChest("chest-dexterity-200", ROLL_0_SEED, thiefDexterity = 200)
+        assertEquals(0 to 4, floor.roll to floor.chance)
+        assertTrue(floor.trapSprung)
+    }
+
+    /** What opening a chest showed, and its trap roll: the d100 [roll] and the trap [chance] it was compared with. */
+    private class ChestRun(
+        val transcript: List<String>,
+        val roll: Int,
+        val chance: Int,
+    ) {
+        val thiefChecked: Boolean get() = transcript.any { line -> "chest for traps." in line }
+        val trapSprung: Boolean get() = transcript.any { line -> line.trim() == "A TRAP!" }
+    }
+
+    /**
+     * Opens the chest on level 2 of a three-level dungeon with the strong party, its first member made a thief with
+     * [thiefDexterity] unless that is null, and returns what the screen showed and the chest's trap roll.
+     */
+    private fun openChest(
+        name: String,
+        seed: Long,
+        thiefDexterity: Int?,
+    ): ChestRun {
+        val base = RuntimeState.from(bundle.states.single { state -> content.slug(state.state) == "strong-replay" }, content)
+        val seeded = base.withParty(base.party.copy(rngState = seed))
+        val adventurers =
+            thiefDexterity?.let { dexterity -> seeded.updateMember(0) { member -> member.asThief(dexterity, member.wisdom) } } ?: seeded
+        val inDungeon =
+            RuntimeLog.open(testTmp.resolve("$name-setup.log")).use { log ->
+                adventurers.enterDungeon(content, content.ref(CompiledHandleKind.Dungeon, "ogre_cave"), levels = 3, log = log)
+            }
+        val chest = content.ref(CompiledHandleKind.DungeonEvent, "gold_chest")
+        val start = inDungeon.copy(dungeon = inDungeon.dungeon?.copy(levelEvents = mapOf(2 to chest)))
+        val save = testTmp.resolve("$name.rsave").also(File::delete)
+        val hash = bundleFile.readExternalCompiledBundleContentHash()
+        SaveFile.write(save, start, hash, content, "chest-test", null)
+        val actions = AutopilotActions(systems)
+        val queue = ArrayDeque(listOf(actions.descend(), actions.ascend(), actions.ascend()))
+        val plan =
+            object : AutopilotPlan {
+                override fun done(state: RuntimeState): Boolean = queue.isEmpty() && state.currentMode == RuntimeMode.Wilderness
+
+                override fun wilderness(state: RuntimeState): AutopilotAction = throw AutopilotStuck("left the dungeon with steps to go")
+
+                override fun dungeon(state: RuntimeState): AutopilotAction =
+                    queue.removeFirstOrNull() ?: throw AutopilotStuck("out of steps")
+            }
+        val ports = AutopilotPorts(Autopilot(content, systems, plan), CHEST_KEYS, CHEST_TRANSCRIPT_TAIL)
+        val log = testTmp.resolve("$name.log")
+        RuntimeLog.open(log).use { runtimeLog ->
+            RuntimeSessionFactory
+                .load(bundle, systems, hash)
+                .start(ports, ports, RuntimeSessionConfig("chest-test", "strong-replay", save, save), runtimeLog)
+        }
+        // The chest rolls `random(0..99) lt trapChance`, logged as a script chance with the trap chance as its threshold,
+        // and then the d100 of its gold, logged as a script random.
+        val lines = log.readLines()
+        val goldRoll = lines.indexOfFirst { line -> "rng.draw context=script.random range=0..99 " in line }
+        assertTrue(goldRoll >= 0, "the chest was opened and paid out its gold")
+        val trapRoll = lines.take(goldRoll).last { line -> "rng.draw context=script.chance range=0..99 " in line }
+        val (roll, chance) = Regex("""value=(\d+) .*threshold=(\d+)""").find(trapRoll)!!.destructured
+        return ChestRun(ports.transcript, roll.toInt(), chance.toInt())
     }
 
     private fun hunt(
@@ -182,4 +261,12 @@ class StatModifiersTest {
     private fun hitPoints(runtime: RuntimeState): List<Int> = runtime.party.members.map { member -> member.hitPoints.current }
 
     private fun item(slug: String): CompiledHandleRef = content.ref(CompiledHandleKind.Item, slug)
+
+    private companion object {
+        // Party random states whose chest trap roll, on level 2 of the test dungeon, is 14 and 0.
+        const val ROLL_14_SEED = 21L
+        const val ROLL_0_SEED = 14L
+        const val CHEST_KEYS = 2_000
+        const val CHEST_TRANSCRIPT_TAIL = 200
+    }
 }
