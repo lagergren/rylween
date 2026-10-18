@@ -3041,7 +3041,7 @@ class RylweenCompiledGameLedgerTest {
             "prompts {",
             "worldMap(Maps.wilderness)",
             "dungeons {",
-            "state(States.strong)",
+            "stateFixture(States.strongReplay)",
             "runtimeSystems",
             "source-script IR",
             currentSourcePath,
