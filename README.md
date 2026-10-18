@@ -1,9 +1,51 @@
-# Adventurers of Rylween
+<h1 align="center">
+  <img src="docs/images/rylween-logo.png" width="720" alt="Adventurers of Rylween">
+</h1>
+
 Kotlin port and runtime workspace for Adventurers of Rylween, a MUD
-style game for BBSes that I wrote in 1992-1993.
+style game for BBSes that I wrote in 1992-1993. The same game plays in two
+ways: as the original ANSI version in a terminal, and as a repainted bitmap
+version in the browser.
 
 <p align="center">
-  <img src="docs/images/rylween-title.png" alt="The original 1993 ANSI title screen of Adventurers of Rylween">
+  <img src="docs/images/bitmap-thord.jpg" alt="The bitmap version in the town of Thord: a painting of the lamplit main street at night next to the town menu, in a carved bronze frame with torches, skulls, and a scorpion">
+</p>
+
+## Then And Now
+
+Each pair below is the same moment in the same game: the title screen, a
+party at dawn in the wilderness just north of Thord, and the tavern in Thord.
+The ANSI version keeps the look of the 1993 original and plays in a terminal
+with `./bin/run.sh`; the bitmap version is what `./deploy.sh` serves to browsers.
+
+<table>
+  <tr>
+    <th>ANSI, as on the BBS in 1993</th>
+    <th>Bitmap, in the browser</th>
+  </tr>
+  <tr>
+    <td><img src="docs/images/ansi-title.png" width="380" alt="The original 1993 ANSI title screen: a rider on horseback silhouetted against a red sun, between a bloody axe and a bloody sword"></td>
+    <td><img src="docs/images/bitmap-title.jpg" width="380" alt="The bitmap title art: an armored rider on a black horse raising a bloody sword under a full moon, above a valley at sunset"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/ansi-wilderness.png" width="380" alt="The ANSI wilderness: a map window of dots, carets, and letters for plains, mountains, and towns, beside a scorpion and the party status line"></td>
+    <td><img src="docs/images/bitmap-wilderness.jpg" width="380" alt="The bitmap wilderness: a painted tile map of grassland and mountains with a horse-head party marker and the town of Thord below it"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/ansi-tavern.png" width="380" alt="The ANSI tavern: a block-character beer mug next to Niklas the keeper's greeting and the tavern menu"></td>
+    <td><img src="docs/images/bitmap-tavern.jpg" width="380" alt="The bitmap tavern: a painting of a candlelit, crowded tavern next to Niklas the keeper's greeting and the tavern menu"></td>
+  </tr>
+</table>
+
+In the game DSL a picture is an image id bound to an ANSI tile, a bitmap
+painting, or both, and each front end draws its own. A few of the paintings,
+from [`game/src/main/resources/bitmap/assets`](game/src/main/resources/bitmap/assets):
+
+<p align="center">
+  <img src="docs/images/art-ydarg-castle.jpg" width="24%" alt="Ydarg Castle on a crag under a red sky">
+  <img src="docs/images/art-cave-entrance.jpg" width="24%" alt="A torchlit cave entrance shored up with timber">
+  <img src="docs/images/art-church.jpg" width="24%" alt="The church: a statue above a candlelit altar">
+  <img src="docs/images/art-undead.jpg" width="24%" alt="An undead horde of skeletons and ghosts">
 </p>
 
 ## Running The Game
