@@ -89,7 +89,7 @@ import kotlin.reflect.typeOf
 
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
-private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 12
+private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 13
 private const val GRID_CASTLE_KIND = "gridCastle"
 
 /** Serializes this game into the canonical strict JSON J1 artifact bytes. */
@@ -900,7 +900,7 @@ data class ExternalCampText(
 
 /** Hunt balance and text from the stable runtime-system section. */
 data class ExternalHuntRules(
-    val successChancePercent: Int,
+    val successChance: String,
     val timeCost: Int,
     val foodMin: Int,
     val foodMax: Int,
@@ -1083,6 +1083,7 @@ data class ExternalCastleTreasure(
 /** Castle pitfall damage and narration rows exported for direct runtimes. */
 data class ExternalCastlePitfall(
     val damageDivisor: Int,
+    val disarmChance: String,
     val trapTypes: List<ExternalRuntimeTextBlock>,
 )
 
@@ -1787,7 +1788,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun huntJson(hunt: HuntRulesModel): JsonValue =
         jsonObject(
-            "successChancePercent" to JsonNumber(hunt.successChancePercent.toString()),
+            "successChance" to JsonString(hunt.successChance.slug),
             "timeCost" to JsonNumber(hunt.timeCost.toString()),
             "foodMin" to JsonNumber(hunt.foodMin.toString()),
             "foodMax" to JsonNumber(hunt.foodMax.toString()),
@@ -2443,6 +2444,12 @@ private class ExternalBundleArtifactWriter {
             "pitfall" to
                 jsonObject(
                     "damageDivisor" to JsonNumber(castle.pitfall.damageDivisor.toString()),
+                    "disarmChance" to
+                        JsonString(
+                            checkNotNull(castle.pitfall.disarmChance) {
+                                "castle ${castle.id.slug} pitfall has no disarm chance formula"
+                            }.slug,
+                        ),
                     "trapTypes" to JsonArray(castle.pitfall.trapTypes.map(::textBlockJson)),
                 ),
             "stairs" to
@@ -3443,6 +3450,7 @@ private class ExternalRuntimeSystemsReader(
     private fun JsonObject.readCastlePitfall(): ExternalCastlePitfall =
         ExternalCastlePitfall(
             damageDivisor = requiredInt("damageDivisor"),
+            disarmChance = requiredString("disarmChance"),
             trapTypes = requiredArray("trapTypes").values.map { text -> text.readTextBlock() },
         )
 
@@ -3879,7 +3887,7 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readHunt(): ExternalHuntRules =
         ExternalHuntRules(
-            successChancePercent = requiredInt("successChancePercent"),
+            successChance = requiredString("successChance"),
             timeCost = requiredInt("timeCost"),
             foodMin = requiredInt("foodMin"),
             foodMax = requiredInt("foodMax"),

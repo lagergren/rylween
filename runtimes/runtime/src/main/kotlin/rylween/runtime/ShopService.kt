@@ -530,22 +530,34 @@ internal class ShopService(
         var current = price
         val haggle = sell.haggle ?: return SellQuote(current, party)
         val draw = party.drawRandom(0, 99)
+        // The party's best talker haggles: the roll bonus sees the highest living charisma.
+        val bonusResult =
+            haggle.rollBonus?.let { formula ->
+                val charisma =
+                    draw.party.members
+                        .filterNot { it.dead }
+                        .maxOfOrNull { it.charisma } ?: 0
+                content.evalFormula(formula.slug, draw.party, mapOf("charisma" to charisma))
+            }
+        val afterRoll = bonusResult?.party ?: draw.party
+        val bonus = bonusResult?.value ?: 0
+        val roll = draw.value + bonus
         haggle.rejectRollBelow?.let { threshold ->
-            if (draw.value < threshold) {
+            if (roll < threshold) {
                 log.rngDraw(
                     context = "shop.sell.haggle",
                     lo = 0,
                     hi = 99,
                     value = draw.value,
                     hit = false,
-                    details = mapOf("threshold" to threshold, "item" to content.slug(item), "price" to current),
+                    details = mapOf("bonus" to bonus, "threshold" to threshold, "item" to content.slug(item), "price" to current),
                 )
-                return SellQuote(price = null, party = draw.party)
+                return SellQuote(price = null, party = afterRoll)
             }
         }
-        haggle.bonuses.forEach { bonus ->
-            if (draw.value > bonus.rollGreaterThan) {
-                current += current / max(1, bonus.addCurrentDivisor)
+        haggle.bonuses.forEach { priceBonus ->
+            if (roll > priceBonus.rollGreaterThan) {
+                current += current / max(1, priceBonus.addCurrentDivisor)
             }
         }
         log.rngDraw(
@@ -554,9 +566,9 @@ internal class ShopService(
             hi = 99,
             value = draw.value,
             hit = true,
-            details = mapOf("item" to content.slug(item), "price" to current),
+            details = mapOf("bonus" to bonus, "item" to content.slug(item), "price" to current),
         )
-        return SellQuote(current, draw.party)
+        return SellQuote(current, afterRoll)
     }
 
     private fun rumorLines(runtime: RuntimeState): RumorResult {

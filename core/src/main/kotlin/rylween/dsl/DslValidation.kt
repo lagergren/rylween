@@ -323,6 +323,23 @@ fun validateFormulas(formulas: List<FormulaModel>) {
     check(formulas.map { it.id }.toSet().size == formulas.size) { "duplicate formula" }
 }
 
+/** Validates that the hunt and castle trap chances name authored formulas. */
+private fun validateSystemFormulaReferences(content: GameModel) {
+    val formulaIds = content.formulas.map { it.id }.toSet()
+    content.realm.hunt?.let { hunt ->
+        check(hunt.successChance in formulaIds) {
+            "hunt success chance references missing formula ${hunt.successChance.slug}"
+        }
+    }
+    content.castles.forEach { castle ->
+        val disarmChance =
+            checkNotNull(castle.pitfall.disarmChance) { "castle ${castle.id.slug} pitfall needs a disarm chance formula" }
+        check(disarmChance in formulaIds) {
+            "castle ${castle.id.slug} pitfall disarm chance references missing formula ${disarmChance.slug}"
+        }
+    }
+}
+
 /** Validates optional leveling rules and formula references. */
 fun validateLeveling(
     leveling: LevelingModel?,
@@ -2083,6 +2100,11 @@ fun validateScriptRewards(
             check(sell.declined != null) { "shop ${shop.building.slug} sell section must author declined text" }
             check(sell.sold != null) { "shop ${shop.building.slug} sell section must author sold text" }
             validateShopPrice(sell.price, "shop ${shop.building.slug} sell")
+            sell.haggle?.rollBonus?.let { formula ->
+                check(formula in content.formulas.map { it.id }) {
+                    "shop ${shop.building.slug} haggle roll bonus references missing formula ${formula.slug}"
+                }
+            }
             validateInputChoiceBinding(sell.saleKeys.accept, "shop ${shop.building.slug} sale accept key")
             validateInputChoiceBinding(sell.saleKeys.decline, "shop ${shop.building.slug} sale decline key")
             sell.haggle?.let {
@@ -2935,6 +2957,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("missions") { validateMissions(content, flagStates, terrainBindings) }
         captureValidation("formulas") { validateFormulas(content.formulas) }
         captureValidation("leveling") { validateLeveling(content.leveling, content.formulas) }
+        captureValidation("formulas.references") { validateSystemFormulaReferences(content) }
         captureValidation("rewards") { validateRewardBundles(content.rewards, content.formulas, content.itemCatalog) }
         captureValidation("combat") { validateCombatSystem(content.combat, content.rewards) }
         captureValidation("wilderness") { validateWildernessSystem(content.wilderness, terrainBindings) }

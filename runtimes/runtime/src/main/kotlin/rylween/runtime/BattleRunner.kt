@@ -17,7 +17,6 @@ package rylween.runtime
 
 import rylween.compiled.CompiledBoolExpr
 import rylween.compiled.CompiledContentBundle
-import rylween.compiled.CompiledFormula
 import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledInstruction
@@ -754,14 +753,14 @@ internal class BattleRunner(
         var party = runtime.party
         val experience =
             reward?.experience?.let { formula ->
-                val result = evalFormula(formula, party, bindings)
+                val result = content.evalFormula(formula, party, bindings)
                 party = result.party
                 result.value
             }
                 ?: 0
         val gold =
             reward?.gold?.let { formula ->
-                val result = evalFormula(formula, party, bindings)
+                val result = content.evalFormula(formula, party, bindings)
                 party = result.party
                 result.value
             } ?: 0
@@ -902,8 +901,8 @@ internal class BattleRunner(
                 "party_avg" to partyAverage,
                 "first_level" to firstLevel,
             )
-        val min = evalFormula(rules.encounterHitPointMinFormula, party, bindings).value
-        val max = evalFormula(rules.encounterHitPointMaxFormula, party, bindings).value
+        val min = content.evalFormula(rules.encounterHitPointMinFormula, party, bindings).value
+        val max = content.evalFormula(rules.encounterHitPointMaxFormula, party, bindings).value
         return min.coerceAtMost(max)..max
     }
 
@@ -970,7 +969,7 @@ internal class BattleRunner(
                 val growth = growthByClass[member.pcClass]
                 val nextHealth = member.health + (growth?.health ?: 0) * gained
                 val nextWisdom = member.wisdom + (growth?.wisdom ?: 0) * gained
-                val hpFloor = evalFormula(leveling.hitPointFloor, this, mapOf("health" to nextHealth)).value
+                val hpFloor = content.evalFormula(leveling.hitPointFloor, this, mapOf("health" to nextHealth)).value
                 member.copy(
                     level = (member.level + gained).coerceAtMost(leveling.maxLevel),
                     weaponSkill = member.weaponSkill + (growth?.weaponSkill ?: 0) * gained,
@@ -985,35 +984,6 @@ internal class BattleRunner(
             }
         return BattleLevelUps(copy(members = nextMembers), gains.toList())
     }
-
-    private fun evalFormula(
-        formulaRef: CompiledHandleRef,
-        party: PartyState,
-        bindings: Map<String, Int>,
-    ): FormulaResult {
-        val formula = content.formulas.firstOrNull { current -> current.id == formulaRef }
-        return evalFormula(
-            checkNotNull(formula) { "missing compiled formula ${content.slug(formulaRef)}" },
-            party,
-            bindings,
-        )
-    }
-
-    private fun evalFormula(
-        formulaSlug: String,
-        party: PartyState,
-        bindings: Map<String, Int>,
-    ): FormulaResult {
-        val formulaRef = content.ref(CompiledHandleKind.Formula, formulaSlug)
-        val formula = content.formulas.firstOrNull { current -> current.id == formulaRef }
-        return evalFormula(checkNotNull(formula) { "missing compiled formula $formulaSlug" }, party, bindings)
-    }
-
-    private fun evalFormula(
-        formula: CompiledFormula,
-        party: PartyState,
-        bindings: Map<String, Int>,
-    ): FormulaResult = FormulaEvaluator(party, bindings).eval(formula.value)
 
     private fun CompiledPartyMember.weaponDamage(): Int = content.itemRecord(equipment.weapon)?.weaponDamage ?: 1
 
@@ -1791,86 +1761,6 @@ internal class BattleRunner(
                 is CompiledViewCommand.PlayMusic -> RuntimeViewCommand.PlayMusic(content.slug(music))
             }
     }
-
-    private inner class FormulaEvaluator(
-        private var party: PartyState,
-        private val bindings: Map<String, Int>,
-    ) {
-        fun eval(expr: CompiledIntExpr): FormulaResult {
-            val value = int(expr)
-            return FormulaResult(value, party)
-        }
-
-        private fun int(expr: CompiledIntExpr): Int =
-            when (expr) {
-                is CompiledIntExpr.Literal -> expr.value
-                is CompiledIntExpr.Local -> bindings[content.strings.value(expr.nameString)] ?: 0
-                is CompiledIntExpr.Binary -> int(expr.left).applyCompiledBinary(expr.op, int(expr.right))
-                is CompiledIntExpr.If ->
-                    when {
-                        bool(expr.cond) -> int(expr.thenValue)
-                        else -> int(expr.elseValue)
-                    }
-
-                is CompiledIntExpr.Random -> random(int(expr.lo), int(expr.hi))
-                is CompiledIntExpr.MemberField -> memberField(int(expr.member), content.strings.value(expr.fieldString))
-                is CompiledIntExpr.MonsterField,
-                is CompiledIntExpr.BattleFlag,
-                is CompiledIntExpr.BattleQuery,
-                is CompiledIntExpr.PartyMemberQuery,
-                is CompiledIntExpr.RealmScalar,
-                is CompiledIntExpr.PartyScalar,
-                is CompiledIntExpr.InventoryPoolCount,
-                is CompiledIntExpr.InventorySlotCost,
-                -> 0
-            }
-
-        private fun bool(expr: CompiledBoolExpr): Boolean =
-            when (expr) {
-                is CompiledBoolExpr.Cmp -> int(expr.left).compareCompiled(expr.op, int(expr.right))
-                is CompiledBoolExpr.Not -> !bool(expr.expr)
-                is CompiledBoolExpr.And -> bool(expr.left) && bool(expr.right)
-                is CompiledBoolExpr.Or -> bool(expr.left) || bool(expr.right)
-                is CompiledBoolExpr.FlagIs -> expr.state in party.flags
-                is CompiledBoolExpr.MilestoneAchieved -> expr.milestone in party.milestones
-                is CompiledBoolExpr.MemberFlag,
-                is CompiledBoolExpr.MonsterFlag,
-                is CompiledBoolExpr.BattleFlag,
-                is CompiledBoolExpr.RuntimeFlag,
-                -> false
-            }
-
-        private fun random(
-            lo: Int,
-            hi: Int,
-        ): Int {
-            val draw = party.drawRandom(lo, hi)
-            party = draw.party
-            return draw.value
-        }
-
-        private fun memberField(
-            index: Int,
-            field: String,
-        ): Int {
-            val member = party.members.getOrNull(index) ?: return 0
-            return when (field) {
-                "level" -> member.level
-                "health" -> member.health
-                "hit_points" -> member.hitPoints.current
-                "hit_point_max" -> member.hitPoints.max
-                "weapon_skill" -> member.weaponSkill
-                "wisdom" -> member.wisdom
-                "mana" -> member.mana.current
-                "mana_max" -> member.mana.max
-                "charisma" -> member.charisma
-                "dexterity" -> member.dexterity
-                "experience" -> member.experience
-                "dead" -> if (member.dead) 1 else 0
-                else -> 0
-            }
-        }
-    }
 }
 
 private fun BattleEncounter.withClearedInventorySlot(slot: Int): BattleEncounter =
@@ -1940,9 +1830,4 @@ private data class BattleLevelUps(
 private data class BattleLevelGain(
     val memberName: String,
     val levels: Int,
-)
-
-private data class FormulaResult(
-    val value: Int,
-    val party: PartyState,
 )

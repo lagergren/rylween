@@ -73,6 +73,7 @@ import rylween.game.Castles
 import rylween.game.DungeonEvents
 import rylween.game.Dungeons
 import rylween.game.EncounterTiers
+import rylween.game.Formulas
 import rylween.game.Images
 import rylween.game.ItemPools
 import rylween.game.Items
@@ -117,7 +118,7 @@ class RylweenCompiledGameLedgerTest {
         val externalBundleText = externalBundle.decodeToString()
         val runtimeSystems = externalBundle.readExternalRuntimeSystems()
 
-        check(runtimeSystems.schemaVersion == 12)
+        check(runtimeSystems.schemaVersion == 13)
         check("\"dexterity\"" in externalBundleText)
         check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 14)
@@ -198,7 +199,7 @@ class RylweenCompiledGameLedgerTest {
                 it.requiredStat == CharacterCreationStat.Dexterity && it.minimum == 50
             },
         )
-        check(nextDsl.formulas.size == 5)
+        check(nextDsl.formulas.size == 8)
         check(nextDsl.rewards.size == 1)
         check(
             nextDsl.rewards
@@ -489,6 +490,7 @@ class RylweenCompiledGameLedgerTest {
         check(castleContent.entry == xy(14, 30))
         check(castleContent.entryRequirement == Milestones.silverKey)
         check(castleContent.completionMilestone == Milestones.ydargVictory)
+        check(castleContent.pitfall.disarmChance == Formulas.castleTrapDisarmChance)
         check(castleContent.scripts.completed?.slug == "castle.ydarg.completed")
         check(castleContent.text.stairsIllustration?.slug == "blitgfx.castle_stairs_guardians")
         check(
@@ -752,6 +754,7 @@ class RylweenCompiledGameLedgerTest {
                             ShopHaggleBonusModel(rollGreaterThan = 75, addCurrentDivisor = 6),
                         ),
                     rejectRollBelow = 76,
+                    rollBonus = Formulas.haggleRollBonus,
                 ),
         )
         val innScene = nextDsl.scenes.single { it.id == Scenes.Towne.inn }
@@ -1136,7 +1139,7 @@ class RylweenCompiledGameLedgerTest {
         )
         check(
             nextDsl.realm.hunt?.let {
-                it.successChancePercent == 45 && it.timeCost == 5 && it.foodMin == 10 && it.foodMax == 19
+                it.successChance == Formulas.huntSuccessChance && it.timeCost == 5 && it.foodMin == 10 && it.foodMax == 19
             } == true,
         )
         check(nextDsl.realm.camp.healthGain == 15)

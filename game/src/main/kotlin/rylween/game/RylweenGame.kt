@@ -418,7 +418,7 @@ val authoredRylween: RylweenModel =
                 // Hunt is a reusable ranger action. The fields define chance,
                 // move cost, food range, target prompts, and result text.
                 hunt {
-                    successChancePercent = 45
+                    successChance = Formulas.huntSuccessChance
                     timeCost = 5
                     foodMin = 10
                     foodMax = 19
@@ -556,10 +556,12 @@ val authoredRylween: RylweenModel =
                     )
                 }
 
-                // Pitfall text and damage are authored here; the castle runner
-                // chooses and applies traps through the generic room system.
+                // Pitfall text, damage, and the thief's disarm chance are authored
+                // here; the castle runner chooses and applies traps through the
+                // generic room system.
                 pitfall {
                     damageDivisor = 6
+                    disarmChance = Formulas.castleTrapDisarmChance
                     trap(flowText("Arrows speed through the air and hit the party!"))
                     trap(flowText("Poison needles shoot out from the floor!"))
                     trap(flowText("A volley of shurikens is hurled from a hatch in the wall!"))
@@ -1319,6 +1321,23 @@ val authoredRylween: RylweenModel =
                 formula(Formulas.levelUpHitPointFloor) {
                     value = (health * 2) / 3
                 }
+                // Dexterity and charisma chances are anchored at the class
+                // minimum of 50: hunting is 45% for a dexterity-50 ranger, a
+                // castle trap is disarmed at the thief's dexterity in percent,
+                // and the best charisma moves the haggle roll by half its
+                // distance from 50. Stats keep growing with levels, so each
+                // is capped: hunting and disarming at 95%, and the haggle
+                // bonus at +20, which leaves the smith refusing at least 56%
+                // of haggles.
+                formula(Formulas.huntSuccessChance) {
+                    value = whenValue(dexterity gt 100, lit(95), dexterity - 5)
+                }
+                formula(Formulas.castleTrapDisarmChance) {
+                    value = whenValue(dexterity gt 95, lit(95), dexterity)
+                }
+                formula(Formulas.haggleRollBonus) {
+                    value = whenValue(charisma gt 90, lit(20), (charisma - 50) / 2)
+                }
             }
 
             // Reward bundles define how XP, gold, loot, and special milestones
@@ -1689,7 +1708,10 @@ val authoredRylween: RylweenModel =
                             option('O') {
                                 playSound(Sounds.Explore.chestOpen)
                                 realm.levelCleared set true
-                                localInt(4) { trapChance ->
+                                // The trap chance is 40% unchecked. A thief's check cuts it
+                                // by dexterity: 20% at the class minimum of 50, 12% at 70,
+                                // and never below 4%.
+                                localInt(40) { trapChance ->
                                     localInt(0) { thiefFound ->
                                         forEachMember {
                                             whenever((thiefFound eq 0) and it.isClass(PcClass.Thief)) {
@@ -1699,12 +1721,15 @@ val authoredRylween: RylweenModel =
                                                     line("chest for traps.")
                                                 }
                                                 pause1s()
-                                                trapChance set 2
+                                                trapChance set lit(40) - it.dexterity * 2 / 5
+                                                whenever(trapChance lt 4) {
+                                                    trapChance set 4
+                                                }
                                                 thiefFound set 1
                                             }
                                         }
 
-                                        whenever(random(0..9) lt trapChance) {
+                                        whenever(random(0..99) lt trapChance) {
                                             clearText()
                                             showBackdrop(Images.Dungeon.trap)
                                             writeText("A TRAP!")
@@ -4271,6 +4296,7 @@ val authoredRylween: RylweenModel =
                             bonus(rollGreaterThan = 90, addCurrentDivisor = 4)
                             bonus(rollGreaterThan = 75, addCurrentDivisor = 6)
                             rejectWhenRollBelow(76)
+                            rollBonus(Formulas.haggleRollBonus)
                         }
                     }
                 }

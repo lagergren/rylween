@@ -216,9 +216,10 @@ internal class CastleRuntime(
                             content.strings.value(thief.nameString),
                         ) + castle.text.trapTriesDisarmSuffix.renderCastle(screen.textColumns),
                     )
-                    val draw = next.party.drawRandom(0, 99)
+                    val disarmChance = content.evalFormula(castle.pitfall.disarmChance, next.party, thief.statBindings())
+                    val draw = disarmChance.party.drawRandom(0, 99)
                     next = next.withParty(draw.party)
-                    draw.value < thief.wisdom.coerceIn(0, 100)
+                    draw.value < disarmChance.value.coerceIn(0, 100)
                 } ?: false
         if (thiefIndex >= 0) {
             screen.writeText(

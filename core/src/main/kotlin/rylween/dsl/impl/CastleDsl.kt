@@ -12,6 +12,7 @@ package rylween.dsl.impl
 
 import rylween.dsl.CastleId
 import rylween.dsl.EncounterTier
+import rylween.dsl.FormulaId
 import rylween.dsl.GameMilestoneId
 import rylween.dsl.ImageId
 import rylween.dsl.InputBindingModel
@@ -81,9 +82,15 @@ data class CastleTreasureModel(
     val magic: List<ItemId> = emptyList(),
 )
 
-/** Pitfall damage and narration configuration for castle trap rooms. */
+/**
+ * Pitfall damage, disarm chance, and narration configuration for castle trap rooms.
+ *
+ * [disarmChance] is a formula, evaluated as a percentage with the disarming
+ * thief's stats bound. Validation requires it.
+ */
 data class CastlePitfallModel(
     val damageDivisor: Int = 6,
+    val disarmChance: FormulaId? = null,
     val trapTypes: List<TextBlock> = emptyList(),
 )
 
@@ -287,14 +294,16 @@ class CastleTreasureBuilder(
 /**
  * Receiver for castle pitfall configuration.
  *
- * Designers author the damage divisor and trap-type text variants; the runtime
- * handles the actual damage, disarm check, and room flow.
+ * Designers author the damage divisor, the disarm chance formula, and
+ * trap-type text variants; the runtime handles the actual damage, disarm
+ * roll, and room flow.
  */
 @RylNextDsl
 class CastlePitfallBuilder(
     initial: CastlePitfallModel = CastlePitfallModel(),
 ) {
     var damageDivisor: Int = initial.damageDivisor
+    var disarmChance: FormulaId? = initial.disarmChance
     private val trapTypes = initial.trapTypes.toMutableList()
 
     fun trap(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -308,6 +317,7 @@ class CastlePitfallBuilder(
     fun build(): CastlePitfallModel =
         CastlePitfallModel(
             damageDivisor = damageDivisor,
+            disarmChance = disarmChance,
             trapTypes = trapTypes.toList(),
         )
 }

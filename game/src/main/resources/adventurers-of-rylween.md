@@ -103,11 +103,13 @@ classes. Mages and priests need a wisdom value of at least 50.
 
 This measures the character's general personality and leadership skills.
 The party will gain more friends and fewer enemies if it has many characters
-with high charisma. Bards need a charisma value of at least 50.
+with high charisma. The most charismatic living character does the haggling
+when you sell to a shop. Bards need a charisma value of at least 50.
 
 ### Dexterity
 
-This measures how nimble and quick-handed the character is. Thieves and
+This measures how nimble and quick-handed the character is. A nimble thief
+disarms more traps, and a nimble ranger catches more game. Thieves and
 rangers need a dexterity value of at least 50.
 
 When you have decided you want to keep a good roll, enter a name for this

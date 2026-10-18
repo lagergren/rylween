@@ -331,11 +331,13 @@ class CampRulesBuilder {
  * Receiver for wilderness hunting balance and prose.
  *
  * Designers use it to set ranger success chance, move cost, food gain range,
- * and the prompts/messages shown by the reusable hunt action.
+ * and the prompts/messages shown by the reusable hunt action. The success
+ * chance is a formula, evaluated as a percentage with the hunting ranger's
+ * stats bound.
  */
 @RylNextDsl
 class HuntRulesBuilder {
-    var successChancePercent: Int = 0
+    var successChance: FormulaId? = null
     var timeCost: Int = 0
     var foodMin: Int = 0
     var foodMax: Int = 0
@@ -349,7 +351,7 @@ class HuntRulesBuilder {
 
     internal fun build(): HuntRulesModel =
         HuntRulesModel(
-            successChancePercent = successChancePercent,
+            successChance = requireNotNull(successChance) { "hunt rules require a success chance formula" },
             timeCost = timeCost,
             foodMin = foodMin,
             foodMax = foodMax,
