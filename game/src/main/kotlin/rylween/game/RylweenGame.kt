@@ -1233,7 +1233,13 @@ val authoredRylween: RylweenModel =
                         failureText = flowText("Weapon skill must be at least 50."),
                     )
                 }
-                playerClass(PcClass.Thief, "Thief")
+                playerClass(PcClass.Thief, "Thief") {
+                    requires(
+                        CharacterCreationStat.Dexterity,
+                        minimum = 50,
+                        failureText = flowText("Dexterity must be at least 50."),
+                    )
+                }
                 playerClass(PcClass.Mage, "Mage") {
                     requires(
                         CharacterCreationStat.Wisdom,
@@ -1255,7 +1261,13 @@ val authoredRylween: RylweenModel =
                         failureText = flowText("Charisma must be at least 50."),
                     )
                 }
-                playerClass(PcClass.Ranger, "Ranger")
+                playerClass(PcClass.Ranger, "Ranger") {
+                    requires(
+                        CharacterCreationStat.Dexterity,
+                        minimum = 50,
+                        failureText = flowText("Dexterity must be at least 50."),
+                    )
+                }
 
                 prerolledMember("Ronan", Gender.Male, Race.Human, PcClass.Fighter)
                 prerolledMember("Brynja", Gender.Female, Race.Dwarf, PcClass.Ranger)
