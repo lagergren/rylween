@@ -3515,6 +3515,12 @@ class FormulaBuilder(
     val monsterSpellPower: IntExpr = v("monster_spell_power")
     val health: IntExpr = v("health")
 
+    // Member stats, bound by the system that evaluates the formula: the
+    // hunting ranger, the thief disarming a castle trap, or, for a haggle roll
+    // bonus, the party's highest living charisma.
+    val charisma: IntExpr = v("charisma")
+    val dexterity: IntExpr = v("dexterity")
+
     fun whenValue(
         condition: BoolExpr,
         thenValue: IntExpr,

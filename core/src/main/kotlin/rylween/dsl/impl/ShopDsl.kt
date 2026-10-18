@@ -10,6 +10,7 @@
 package rylween.dsl.impl
 
 import rylween.dsl.BuildingId
+import rylween.dsl.FormulaId
 import rylween.dsl.ImageId
 import rylween.dsl.InputBindingModel
 import rylween.dsl.ItemId
@@ -36,9 +37,15 @@ data class ShopHaggleBonusModel(
     }
 }
 
+/**
+ * How a shop answers a haggle: one d100 roll, plus [rollBonus] when set, is
+ * compared with [rejectRollBelow] and each bonus threshold. [rollBonus] is a
+ * formula evaluated with the party's highest living charisma bound.
+ */
 data class ShopSellHaggleModel(
     val bonuses: List<ShopHaggleBonusModel>,
     val rejectRollBelow: Int?,
+    val rollBonus: FormulaId? = null,
 ) {
     init {
         rejectRollBelow?.let { threshold ->
@@ -873,6 +880,7 @@ class ShopSellBuilder {
 class ShopSellHaggleBuilder {
     private val bonuses = mutableListOf<ShopHaggleBonusModel>()
     private var rejectRollBelow: Int? = null
+    private var rollBonus: FormulaId? = null
 
     fun bonus(
         rollGreaterThan: Int,
@@ -885,10 +893,15 @@ class ShopSellHaggleBuilder {
         rejectRollBelow = threshold
     }
 
+    fun rollBonus(formula: FormulaId) {
+        rollBonus = formula
+    }
+
     internal fun build(): ShopSellHaggleModel =
         ShopSellHaggleModel(
             bonuses = bonuses.toList(),
             rejectRollBelow = rejectRollBelow,
+            rollBonus = rollBonus,
         )
 }
 

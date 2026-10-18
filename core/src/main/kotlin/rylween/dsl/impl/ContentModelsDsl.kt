@@ -11,6 +11,7 @@ package rylween.dsl.impl
 
 import rylween.dsl.DslDefaultMapLayers
 import rylween.dsl.EncounterTier
+import rylween.dsl.FormulaId
 import rylween.dsl.ImageId
 import rylween.dsl.ItemId
 import rylween.dsl.MapLayerId
@@ -165,11 +166,11 @@ data class TemperatureBandRange(
 
 /**
  * Authored wilderness hunting balance. The runtime owns party-state mutation
- * and deterministic RNG; designers own the chance, move cost, food range, and
- * player-facing narration.
+ * and deterministic RNG; designers own the chance formula, move cost, food
+ * range, and player-facing narration.
  */
 data class HuntRulesModel(
-    val successChancePercent: Int,
+    val successChance: FormulaId,
     val timeCost: Int,
     val foodMin: Int,
     val foodMax: Int,
@@ -182,7 +183,6 @@ data class HuntRulesModel(
     val fails: TextBlock,
 ) {
     init {
-        require(successChancePercent in 0..100) { "hunt success chance must be 0..100" }
         require(timeCost >= 0) { "hunt time cost must be non-negative" }
         require(foodMin >= 0) { "hunt food minimum must be non-negative" }
         require(foodMax >= foodMin) { "hunt food range must be ascending: $foodMin..$foodMax" }

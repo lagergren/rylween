@@ -405,6 +405,9 @@ internal class WildernessActions(
             party.copy(
                 resources = party.resources.copy(timeLeft = party.resources.timeLeft - rules.timeCost),
             )
+        val successChance = content.evalFormula(rules.successChance, party, member.statBindings())
+        party = successChance.party
+        val successPercent = successChance.value.coerceIn(0, 100)
         val chance = party.drawRandom(0, 99)
         party = chance.party
         log.rngDraw(
@@ -412,14 +415,14 @@ internal class WildernessActions(
             lo = 0,
             hi = 99,
             value = chance.value,
-            hit = chance.value < rules.successChancePercent,
+            hit = chance.value < successPercent,
             details =
                 mapOf(
                     "member" to memberNumber,
-                    "threshold_lt" to rules.successChancePercent,
+                    "threshold_lt" to successPercent,
                 ),
         )
-        if (chance.value >= rules.successChancePercent) {
+        if (chance.value >= successPercent) {
             audio.cue(AudioCue.HuntFail)
             return WildernessActionResult(
                 withParty(party),
