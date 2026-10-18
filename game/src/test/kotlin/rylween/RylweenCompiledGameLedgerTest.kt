@@ -188,6 +188,16 @@ class RylweenCompiledGameLedgerTest {
                 it.requiredStat == CharacterCreationStat.Charisma && it.minimum == 50
             },
         )
+        check(
+            characterCreation.classes.single { it.klass == PcClass.Thief }.let {
+                it.requiredStat == CharacterCreationStat.Dexterity && it.minimum == 50
+            },
+        )
+        check(
+            characterCreation.classes.single { it.klass == PcClass.Ranger }.let {
+                it.requiredStat == CharacterCreationStat.Dexterity && it.minimum == 50
+            },
+        )
         check(nextDsl.formulas.size == 5)
         check(nextDsl.rewards.size == 1)
         check(

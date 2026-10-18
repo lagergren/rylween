@@ -76,7 +76,7 @@ You will direct a party of four heroes through Rylween. This is where you
 create them. First, enter a name for your party. This name will be used on
 the top list, and should be something fantasy-ish.
 
-Now it's time to create the first character. You will see four basic
+Now it's time to create the first character. You will see five basic
 attributes, and can choose between rerolling them or keeping them. You can
 reroll them an infinite number of times, but the initial values can never be
 lower than 15 or greater than 70 for any skill.
@@ -104,6 +104,11 @@ classes. Mages and priests need a wisdom value of at least 50.
 This measures the character's general personality and leadership skills.
 The party will gain more friends and fewer enemies if it has many characters
 with high charisma. Bards need a charisma value of at least 50.
+
+### Dexterity
+
+This measures how nimble and quick-handed the character is. Thieves and
+rangers need a dexterity value of at least 50.
 
 When you have decided you want to keep a good roll, enter a name for this
 character. Once again, names with a fantasy flavor will create a better
