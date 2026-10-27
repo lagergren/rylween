@@ -832,10 +832,7 @@ internal class WildernessActions(
     ): List<String> =
         renderRuntimeText(content, runtime, screen.textColumns) { kind ->
             when (kind) {
-                "campGuardName" ->
-                    runtime.party.members
-                        .getOrNull(guardIndex)
-                        ?.let { guard -> content.strings.value(guard.nameString) }
+                "campGuardName" -> runtime.party.memberName(content, guardIndex)
                 else -> null
             }
         }
@@ -848,7 +845,7 @@ internal class WildernessActions(
     ): List<String> =
         renderRuntimeText(content, runtime, screen.textColumns) { kind ->
             when (kind) {
-                "huntMemberName" -> member?.let { content.strings.value(it.nameString) }
+                "huntMemberName" -> memberNumber?.let { number -> runtime.party.memberName(content, number - 1) }
                 "huntMemberSubjectPronoun" -> member?.gender?.pronoun(PronounCase.Subject)
                 "huntFoodGained" -> foodGained?.toString()
                 else -> null
