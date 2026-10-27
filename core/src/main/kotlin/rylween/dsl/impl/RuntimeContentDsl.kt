@@ -396,7 +396,7 @@ data class CharacterCreationPromptsModel(
 )
 
 data class PriestSpellPromptsModel(
-    val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberCount, ")") },
+    val who: TextBlock = literalText { line("Who? (1-", HuntText.partyMemberCount, ")") },
     val firstSpellKey: Char = 'A',
     val mageCombatOnly: TextBlock = flowText("Sorry. Mage spells are combat-only."),
     val wrongClass: TextBlock = literalText("Wrong class."),
@@ -412,14 +412,12 @@ data class InventoryUsePromptsModel(
     val noItems: TextBlock = flowText("You are not carrying anything."),
     val noItem: TextBlock = flowText("There is nothing in that slot."),
     val invalidSlot: TextBlock =
-        structuredText {
-            line("Inventory slot ", InventoryText.slotName)
-            line("does not exist.")
+        literalText {
+            line("Inventory slot ", InventoryText.slotName, " does not exist.")
         },
     val notUsable: TextBlock =
-        structuredText {
-            line("Nothing happens")
-            line("with ", InventoryText.itemName, ".")
+        literalText {
+            line("Nothing happens with ", InventoryText.itemName, ".")
         },
 ) {
     fun choose(
@@ -432,11 +430,11 @@ data class EquipmentPromptsModel(
     val inventory: TextBlock = literalText("Ready what?"),
     val who: TextBlock = literalText("Who? (1-N)"),
     val noAvailable: TextBlock =
-        structuredText {
+        literalText {
             line("No ", TextPart.EquipmentKindName, " available.")
         },
     val equipped: TextBlock =
-        structuredText {
+        literalText {
             line("Equipped ", TextPart.SelectedItemName, ".")
         },
     val readyWeapons: TextBlock = literalText("Do you want to ready some weapons before leaving?", "", "(Y)es", "(N)o"),
@@ -444,7 +442,7 @@ data class EquipmentPromptsModel(
 )
 
 data class TownPromptsModel(
-    val menuTitle: TextBlock = structuredText { line("Entering ", TownText.name) },
+    val menuTitle: TextBlock = literalText { line("Entering ", TownText.name) },
     val entryWelcome: TextBlock = missingPrompt("town.entry_welcome"),
     val entryTax: TextBlock = missingPrompt("town.entry_tax"),
     val entryTaxThanks: TextBlock = missingPrompt("town.entry_tax_thanks"),
@@ -460,9 +458,8 @@ data class PartyPromptsModel(
     val dropEmptySlot: TextBlock = literalText("Nothing to drop."),
     val dropAborted: TextBlock = literalText("Aborted."),
     val dropDropped: TextBlock =
-        structuredText {
-            line("You drop the")
-            line(TextPart.SelectedItemName, ".")
+        literalText {
+            line("You drop the ", TextPart.SelectedItemName, ".")
         },
     val dropCapacityReduced: TextBlock = flowText("You are forced to leave some of your food behind..."),
     val dropOverflowConfirm: TextBlock = literalText("Drop an item? (Y/N)"),

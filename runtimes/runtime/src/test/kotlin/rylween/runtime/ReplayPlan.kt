@@ -108,8 +108,8 @@ internal object ReplayPlans {
                     walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_intro",
-                        commands = enterInnGuestChat() + speakInnNpc(3) + speakInnNpc(5) + "LL",
-                        checkpoints = listOf("output:suited for this than I am", "state:master_crown.task1_assigned"),
+                        commands = enterInnGuestChat() + speakInnNpc(3, waitForInput(2)) + speakInnNpc(5, waitForInput(3)) + "LL",
+                        checkpoints = listOf("output:Take this ring and", "state:master_crown.task1_assigned"),
                     ),
                     walker.moveTo("travel.to_kobold_village", walker.location("kobold_village")),
                     ReplayComponent(
@@ -120,7 +120,7 @@ internal object ReplayPlans {
                     walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_second_task",
-                        commands = enterInnGuestChat() + speakInnNpc(5) + "LL",
+                        commands = enterInnGuestChat() + speakInnNpc(5, waitForInput(2)) + "LL",
                         checkpoints = listOf("output:second quest", "state:master_crown.task2_assigned"),
                     ),
                     walker.moveToTerrain("travel.to_skullweed_swamp", "swamp"),
@@ -132,7 +132,7 @@ internal object ReplayPlans {
                     walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_third_task",
-                        commands = enterInnGuestChat() + speakInnNpc(5) + "LL",
+                        commands = enterInnGuestChat() + speakInnNpc(5, waitForInput(2)) + "LL",
                         checkpoints = listOf("output:DWARF STONE", "state:master_crown.task3_assigned"),
                     ),
                     walker.moveTo("travel.to_borin_camp", walker.location("borin_camp")),
@@ -156,7 +156,7 @@ internal object ReplayPlans {
                     walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_master_crown_location",
-                        commands = enterInnGuestChat() + speakInnNpc(5) + "LLX",
+                        commands = enterInnGuestChat() + speakInnNpc(5, waitForInput()) + "LLX",
                         checkpoints = listOf("output:Master Crown is hidden", "state:master_crown.crown_told"),
                     ),
                 ),
@@ -176,7 +176,7 @@ internal object ReplayPlans {
                     walker.moveToTown("wilor"),
                     ReplayComponent(
                         name = "town.wilor_buy_silver_key_map",
-                        commands = enterInnGuestChat() + speakInnNpc(1, "B") + "LL",
+                        commands = enterInnGuestChat() + speakInnNpc(1, bernakBuysMap()) + "LL",
                         checkpoints = listOf("output:precious map", "state:silver_key.map_bought"),
                     ),
                     walker.moveTo("travel.to_silver_sanctum", walker.location("silver_key_pit")),
@@ -188,7 +188,7 @@ internal object ReplayPlans {
                     walker.moveToTown("ollk"),
                     ReplayComponent(
                         name = "town.ollk_smith_confession",
-                        commands = enterInnGuestChat() + speakInnNpc(2) + speakInnNpc(1) + "LLX",
+                        commands = enterInnGuestChat() + speakInnNpc(2, waitForInput(2)) + speakInnNpc(1, waitForInput(3)) + "LLX",
                         checkpoints = listOf("output:sold the Key", "state:silver_key.smith_confessed"),
                     ),
                 ),
@@ -239,7 +239,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.ollk_silver_key_chain",
-                        commands = enterTown() + "TNLINNN" + speakInnNpc(2) + speakInnNpc(1) + "LLX",
+                        commands = enterTown() + "TNLINNN" + speakInnNpc(2, waitForInput(2)) + speakInnNpc(1, waitForInput(3)) + "LLX",
                         checkpoints =
                             listOf(
                                 "output:Tokawa, the keeper",
@@ -318,7 +318,7 @@ internal object ReplayPlans {
                     ),
                     ReplayComponent(
                         name = "town.thord_garth_reward_dialogue",
-                        commands = enterInnGuestChat() + speakInnNpc(1, "A") + "LLX",
+                        commands = enterInnGuestChat() + speakInnNpc(1, waitForInput(2)) + "LLX",
                         checkpoints =
                             listOf(
                                 "output:Entering Thord",
@@ -655,7 +655,12 @@ internal object ReplayPlans {
             append(castleFloor('2', attackers))
             append(castleFloor('3', attackers))
             append(castleFloor('4', attackers))
-            repeat(5) { append(battle(attackersPerRound = attackers)) }
+            // The finale pages before the minions, before Ydarg, and after him.
+            append(waitForInput(2))
+            repeat(4) { append(battle(attackersPerRound = attackers)) }
+            append(waitForInput(5))
+            append(battle(attackersPerRound = attackers))
+            append(waitForInput(6))
         }
 
     private fun castleFloor(
@@ -676,27 +681,32 @@ internal object ReplayPlans {
 
     private fun thordMissionDialogueRoute(): String =
         enterInnGuestChat() +
-            speakInnNpc(2, "AA") +
-            speakInnNpc(1) +
-            speakInnNpc(3) +
-            speakInnNpc(7) +
-            speakInnNpc(2, "A") +
-            speakInnNpc(8) +
-            speakInnNpc(6) +
-            speakInnNpc(5, "AA") +
+            // Garth, Areth, Gorm, Nevaak, Garth again, Nrim'to, Marraga, then Leander, who takes an item from slot A.
+            speakInnNpc(2, waitForInput(2)) +
+            speakInnNpc(1, waitForInput(3)) +
+            speakInnNpc(3, waitForInput(3)) +
+            speakInnNpc(7, waitForInput()) +
+            speakInnNpc(2, waitForInput()) +
+            speakInnNpc(8, waitForInput(2)) +
+            speakInnNpc(6, waitForInput(2)) +
+            speakInnNpc(5, waitForInput(2) + "A" + waitForInput()) +
             "LL"
 
     private fun wilorMissionDialogueRoute(): String =
         enterInnGuestChat() +
-            speakInnNpc(1, "B") +
-            speakInnNpc(4, "B") +
-            speakInnNpc(3) +
-            speakInnNpc(5) +
-            speakInnNpc(6) +
-            speakInnNpc(7) +
+            // Bernak and Harry sell their maps; Groth, Ithienn, Ron and Tybalt hand out their missions.
+            speakInnNpc(1, bernakBuysMap()) +
+            speakInnNpc(4, waitForInput() + "B" + waitForInput()) +
+            speakInnNpc(3, waitForInput(2)) +
+            speakInnNpc(5, waitForInput(3)) +
+            speakInnNpc(6, waitForInput(2)) +
+            speakInnNpc(7, waitForInput(4)) +
             "LLX"
 
     private fun enterTown(): String = "EP"
+
+    // Bernak's two story pages, (B)uy at his menu, then the page with the map.
+    private fun bernakBuysMap(): String = waitForInput(2) + "B" + waitForInput()
 
     private fun enterInnGuestChat(): String = enterTown() + "INNN"
 

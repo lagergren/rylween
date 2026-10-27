@@ -82,6 +82,7 @@ class RuntimeReplayPlanTest {
             "silver-key-discovery-route",
             expected =
                 listOf(
+                    "- Deal?",
                     "precious map",
                     "This room shines like",
                     "Master Thief",
@@ -107,7 +108,7 @@ class RuntimeReplayPlanTest {
             expected =
                 listOf(
                     "better suited for",
-                    "this than I am",
+                    "Take this ring and",
                     "ugly pendant",
                     "grant you the second",
                     "skullweed plant",
@@ -192,8 +193,7 @@ class RuntimeReplayPlanTest {
                     "Deanna",
                     "The other guests giggle.",
                     "exhausting hour",
-                    "Are you in need",
-                    "of lodging?",
+                    "Are you in need of",
                     "You are served a tasty",
                     "You go to bed",
                     "You wake up",

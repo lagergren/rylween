@@ -38,7 +38,10 @@ class DungeonLevelEventsTest {
     fun goldFoundOnALevelIsNotThereOnTheNextVisit() {
         val transcript = explore("gold", "gold") { twoVisits() }
 
-        assertEquals(listOf(true, false), levelTwoVisits(transcript).map { visit -> visit.any { line -> line.trim() == "gold pieces." } })
+        assertEquals(
+            listOf(true, false),
+            levelTwoVisits(transcript).map { visit -> visit.any { line -> line.trim().endsWith(" gold pieces.") } },
+        )
     }
 
     @Test

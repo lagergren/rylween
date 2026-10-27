@@ -133,10 +133,13 @@ notes:
 
 - Use generated handles such as `Items.fireWand`, `Scenes.Missions.bandits`,
   `Towns.thord`, and `Terrain.forest` instead of raw strings.
-- Put game prose in `writeText`, `showTextAndWait`, `literalText`,
-  `structuredText`, `flowText`, or runtime-system prompt rows. Use
-  `flowText("""...""")` for natural paragraphs that the renderer should wrap;
-  use literal line lists only when each row is an intentional menu or layout row.
+- Put game prose in `writeText`, `appendText`, `showTextAndWait`, or
+  runtime-system prompt rows. Text comes in two kinds: `flowText(...)` is prose
+  the renderer wraps to its own width (a plain string is flow text, and a blank
+  line starts a new paragraph), and `literalText(...)` is lines kept exactly as
+  written. Use literal lines only when each row is an intentional menu, layout,
+  sign or verse row; `literalText { line("You find ", amount) }` mixes in
+  runtime values the same way `flowText("You find ", amount, " gold.")` does.
 - Use block helpers such as `localInt { ... }`, `ask.member { ... }`,
   `ask.monsterAlive { ... }`, and `withCurrentCasterCost { ... }` instead of
   raw Kotlin temporaries in script bodies.
@@ -152,7 +155,7 @@ Preferred script text vocabulary:
 ```kotlin
 scene(Scenes.Missions.bandits) {
     showBackdrop(Images.Backdrop.encounterBanner1)
-    writeText("Bandits rush from the trees.", "")
+    showTextAndWait("Bandits rush from the trees.")
 
     choice.yesNo(
         "Stand and fight?",
@@ -163,15 +166,30 @@ scene(Scenes.Missions.bandits) {
             mark(Story.garth.bandits.recovered)
         },
         no = {
-            writeText("You slip away into the wilderness.", "")
+            showTextAndWait("You slip away into the wilderness.")
         },
     )
 }
 ```
 
-`writeText(...)` is the only normal script verb for text output.
-`showTextAndWait(...)` is the read-and-dismiss page verb: it writes text, waits
-for Return/Enter, and clears the text window. Historical script aliases such as
+`writeText(...)` starts a fresh page in the text window, and `appendText(...)`
+adds below what the page already shows; appended flow text gets a blank line
+above it, appended literal lines continue directly below. `showTextAndWait(...)`
+is the read-and-dismiss page verb: it writes text, waits for Return/Enter, and
+clears the text window.
+
+Text must stay on screen until something holds it: a `waitInput()`, a pause,
+or a menu whose prompt only lists its choices (such a menu keeps the page above
+them). The content check rejects a script that writes a fresh page, clears the
+window, shows a prompt with its own text, starts a battle or other handoff, or
+ends while text it showed is still unheld, because the player would never get
+to read it. Split long speeches into pages at sentence or paragraph breaks,
+each held by a key press, and use a short pause plus `appendText` for a beat
+that belongs on the same page, such as "...nothing but..." followed by "dust...".
+
+Literal lines are rows, not hand-wrapped prose: put each sentence on one line
+and let the renderer wrap it to the window, and break the line only where a new
+sentence, speech or option row starts. Historical script aliases such as
 `say(...)`, text-output `screen(...)`, and `readScreen(...)` have been removed
 from the current authoring API; reusable/static screen declarations still use
 their own `screen(...)` builders under `visuals { staticScreens { ... } }` and
@@ -255,7 +273,7 @@ itemUse(Items.moonCharm) {
     consume = ItemConsumePolicy.NeverConsumes
 
     effect {
-        showTextAndWait("The charm glows softly.", "")
+        showTextAndWait("The charm glows softly.")
         gainFood(10)
     }
 }
@@ -296,7 +314,7 @@ script counters:
 ```kotlin
 pay(
     amount = lit(10_000),
-    broke = { showTextAndWait("Come back when you have the gold.", "") },
+    broke = { showTextAndWait("Come back when you have the gold.") },
     ok = { mark(Story.bracelets.thun.mapBought) },
 )
 ```
@@ -335,13 +353,13 @@ The mission chains the game has today are listed in
 ```kotlin
 scene(Scenes.Missions.cryptDoor) {
     showBackdrop(Images.Backdrop.cave)
-    showTextAndWait("A cold door blocks the path.", "")
+    showTextAndWait("A cold door blocks the path.")
 
     whenever(achieved(Milestones.silverKey)) {
-        writeText("The Silver Key turns by itself.", "")
+        showTextAndWait("The Silver Key turns by itself.")
         enterDungeon(Dungeons.reebarTomb, levels = 20)
     } otherwise {
-        writeText("The lock does not yield.", "")
+        showTextAndWait("The lock does not yield.")
     }
 }
 
@@ -366,13 +384,14 @@ it runs.
 dialogue {
     npc(Npcs.garth) {
         whenState(Story.garth.bandits.none) {
-            writeText("- Bandits trouble the road.", "")
+            writeText("- Bandits trouble the road.")
             mark(Story.garth.bandits.accepted)
             journal("Garth asked us to defeat the bandits.")
+            waitInput("after Garth's request")
         }
 
         default {
-            writeText("- Keep your blades sharp.", "")
+            showTextAndWait("- Keep your blades sharp.")
         }
     }
 }

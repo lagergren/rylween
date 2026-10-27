@@ -2,10 +2,10 @@
  * Text blocks, structured text parts, and text helper builders.
  *
  * Runtime-facing text is represented as typed parts rather than ad hoc string
- * replacement. This file defines literal/ref/structured/flow text blocks,
- * dynamic placeholders for runtime values and NPC/town references, and small
- * builder helpers used by content, scripts, prompts, and compiled text
- * emission.
+ * replacement. This file defines the two kinds of authored text, [flowText]
+ * prose and [literalText] lines, the dynamic placeholders for runtime values
+ * and NPC/town references both can hold, and small builder helpers used by
+ * content, scripts, prompts, and compiled text emission.
  */
 package rylween.dsl
 
@@ -201,12 +201,13 @@ data class TextLine(
     val parts: List<TextPart>,
 )
 
-/** Authored text block, either by catalog ref, literal lines, structured parts, or deferred-wrap prose. */
+/**
+ * Authored text block. There are two kinds: [flowText] prose, which renderers
+ * wrap to their own width, and [literalText] lines, which every renderer shows
+ * as rows. `Inline` and `Structured` are both literal lines, without and with
+ * runtime values; the names stay for compiled-bundle compatibility.
+ */
 sealed interface TextBlock {
-    data class Ref(
-        val id: TextId,
-    ) : TextBlock
-
     data class Inline(
         val lines: List<String>,
     ) : TextBlock
@@ -221,22 +222,20 @@ sealed interface TextBlock {
 }
 
 /**
- * Creates a literal text block from fixed lines.
- *
- * This is the preferred constructor for reusable prose or prompt text that does
- * not need runtime-bound placeholders. The internal block kind is still named
- * `Inline` for compiled-bundle compatibility, but the authoring API calls this
- * literal text because it is independent of where the text is displayed.
+ * Creates literal text: each line starts a row of its own, and a line longer
+ * than the window is wrapped there. Use it for layout, such as menus, prompts,
+ * tables, signs and verse, with each sentence on one line rather than broken
+ * by hand; prose belongs in [flowText].
  */
 fun literalText(vararg lines: String): TextBlock = TextBlock.Inline(expandMultiline(lines))
 
-/** Creates a structured text block with dynamic parts. */
-fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = StructuredTextBlockBuilder().apply(body).build()
+/** Creates literal text whose lines mix fixed text with runtime values, one [line] per row. */
+fun literalText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = StructuredTextBlockBuilder().apply(body).build()
 
 /**
- * Captures multi-paragraph prose without choosing a render width. Paragraphs
- * are separated by blank lines in the source, and renderers wrap them at output
- * time using their own column or pixel measurement.
+ * Creates flow text: prose the renderer wraps to its own column or pixel
+ * width. Single newlines in the source are spaces; a blank line starts a new
+ * paragraph, which renderers show with a blank line above it.
  */
 fun flowText(text: String): TextBlock = TextBlock.Flow(flowParagraphs(text))
 
@@ -291,7 +290,6 @@ fun combineTextBlocks(blocks: List<TextBlock>): TextBlock =
 private fun TextBlock.asStructuredLines(): List<TextLine> =
     when (this) {
         is TextBlock.Inline -> lines.map { line -> TextLine(listOf(TextPart.Literal(line))) }
-        is TextBlock.Ref -> listOf(TextLine(listOf(TextPart.Literal("[${id.id}]"))))
         is TextBlock.Structured -> lines
         is TextBlock.Flow ->
             paragraphs.flatMapIndexed { index, line ->

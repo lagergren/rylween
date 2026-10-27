@@ -104,8 +104,13 @@ fun runtimeWinningRoute(): String =
         append(runtimeCastleFloor('2'))
         append(runtimeCastleFloor('3'))
         append(runtimeCastleFloor('4'))
+        // The finale's pages before the minions, before Ydarg, and after him each wait for a key.
+        append("AA")
         append(runtimeBattleMacro(attacks = 3))
-        repeat(4) { append(runtimeBattleMacro(attacks = 1)) }
+        repeat(3) { append(runtimeBattleMacro(attacks = 1)) }
+        append("AAAAA")
+        append(runtimeBattleMacro(attacks = 1))
+        append("AAAAAA")
         append('S')
     }
 

@@ -23,7 +23,6 @@ import rylween.dsl.StructuredTextBlockBuilder
 import rylween.dsl.TextBlock
 import rylween.dsl.inputKey
 import rylween.dsl.literalText
-import rylween.dsl.structuredText
 
 /** Room-event categories encoded in a generated castle room map. */
 enum class CastleRoomEvent { Empty, Monster, Pitfall, Treasure }
@@ -307,7 +306,7 @@ class CastlePitfallBuilder(
     private val trapTypes = initial.trapTypes.toMutableList()
 
     fun trap(body: StructuredTextBlockBuilder.() -> Unit) {
-        trapTypes += structuredText(body)
+        trapTypes += literalText(body)
     }
 
     fun trap(text: TextBlock) {

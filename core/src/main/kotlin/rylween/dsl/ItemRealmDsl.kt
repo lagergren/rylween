@@ -210,7 +210,7 @@ class WildernessUpkeepRulesBuilder(
 
     /** Defines authored prose for a member death caused by wilderness starvation upkeep. */
     fun starvationDeath(body: StructuredTextBlockBuilder.() -> Unit) {
-        starvationDeath = structuredText(body)
+        starvationDeath = literalText(body)
     }
 
     fun fatigueAt(

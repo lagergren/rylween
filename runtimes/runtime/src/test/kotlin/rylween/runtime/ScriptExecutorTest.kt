@@ -77,6 +77,26 @@ class ScriptExecutorTest {
         assertEquals(1, catalog.count { line -> line.offersChoiceKey("A") }, "catalog choices must be listed once: $catalog")
     }
 
+    @Test
+    fun appendedTextStaysBelowThePageAsItsOwnParagraph() {
+        val screen = TextCapturingScreen()
+        // Dismiss Ron's plea, then the page that names the orc cave.
+        runScript(
+            scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.ron.peasant.wife.none"),
+            thordRuntime(),
+            "AA",
+            screen,
+            "ron-append.log",
+        )
+
+        val page = screen.texts.single { lines -> lines.any { line -> line.startsWith("The orcs have a cave") } && pausePromptIn(lines) }
+        val cave = page.indexOfFirst { line -> line.startsWith("The orcs have a cave") }
+        assertTrue(page.first().startsWith("About 3,000"), "the cave is added below Ron's offer, not on a page of its own: $page")
+        assertEquals("", page[cave - 1], "appended flow text starts its own paragraph: $page")
+    }
+
+    private fun pausePromptIn(lines: List<String>): Boolean = lines.lastOrNull()?.startsWith("(") == true
+
     private fun townSceneTexts(
         sceneSlug: String,
         commands: String,

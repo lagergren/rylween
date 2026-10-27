@@ -1174,6 +1174,9 @@ internal class BattleRunner(
             screen.writeText(lines)
         }
 
+        // Rewrites the whole page, so a pause prompt still on screen is dropped rather than left above the new lines.
+        private fun appendText(lines: List<String>) = writeText(currentTextLines + lines)
+
         private fun execute(instructions: List<CompiledInstruction>) {
             instructions.forEach { instruction ->
                 if (execute(instruction)) return
@@ -1187,11 +1190,10 @@ internal class BattleRunner(
                         writeText(instruction.textBlockOperand(0).renderScriptLines())
                     }
 
-                CompiledOpcode.Emit ->
+                CompiledOpcode.AppendScreen ->
                     false.also {
-                        writeText(
-                            runtimeDiagnosticText("[text:${content.slug(instruction.handleOperand(0))}]"),
-                        )
+                        val text = instruction.textBlockOperand(0)
+                        appendText(currentTextLines.appendedLines(text, text.renderScriptLines()))
                     }
 
                 CompiledOpcode.WaitInput ->

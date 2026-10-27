@@ -108,7 +108,7 @@ object CompiledOpcodeContract {
     private val schemas: Map<CompiledOpcode, Schema> =
         mapOf(
             CompiledOpcode.Screen to Schema.of(Slot.TextBlockValue),
-            CompiledOpcode.Emit to Schema.of(Slot.Handle),
+            CompiledOpcode.AppendScreen to Schema.of(Slot.TextBlockValue),
             CompiledOpcode.WaitInput to
                 Schema.ofAny(
                     emptyList(),

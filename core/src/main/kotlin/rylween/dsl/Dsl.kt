@@ -98,31 +98,38 @@ class ScriptScope(
     fun fresh(prefix: String): String = ctx.fresh(prefix)
 
     /**
-     * Writes text to the active text window.
+     * Writes text to the active text window, on a fresh page: whatever the
+     * window showed before is gone.
      *
      * This is the preferred script display verb. It intentionally names the
-     * runtime side effect, while [literalText], [structuredText], and [flowText]
-     * name reusable text data.
+     * runtime side effect, while [flowText] and [literalText] name reusable text
+     * data. Text the player has not had time to read must be held first, by
+     * [waitInput], a pause, or a prompt; use [appendText] to keep it on screen
+     * and add more below it. A plain string is [flowText] prose.
      */
     fun writeText(text: TextBlock): Unit = record(ScriptStatementNode.Screen(text))
 
-    fun writeText(id: TextId): Unit = writeText(TextBlock.Ref(id))
-
     fun writeText(text: String): Unit = writeText(flowText(text))
 
-    fun writeText(vararg lines: String): Unit = writeText(literalText(*lines))
+    fun writeText(body: StructuredTextBlockBuilder.() -> Unit): Unit = writeText(literalText(body))
 
-    fun writeText(body: StructuredTextBlockBuilder.() -> Unit): Unit = writeText(structuredText(body))
+    /**
+     * Adds text below what the text window already shows, so a beat such as
+     * "...you reveal nothing but..." can be followed, after a pause, by "dust..."
+     * on the same page. Flow text is a new paragraph and gets a blank line
+     * above it; literal lines continue directly below, exactly as written.
+     */
+    fun appendText(text: TextBlock): Unit = record(ScriptStatementNode.Screen(text, append = true))
+
+    fun appendText(text: String): Unit = appendText(flowText(text))
+
+    fun appendText(body: StructuredTextBlockBuilder.() -> Unit): Unit = appendText(literalText(body))
 
     /**
      * Writes text, waits for the player to press Return/Enter, and clears the
      * text window. Use this for read-and-dismiss pages rather than spelling out
      * the three operations at each script site.
      */
-    fun showTextAndWait(vararg lines: String) {
-        showTextAndWait(literalText(*lines))
-    }
-
     fun showTextAndWait(text: String) {
         showTextAndWait(flowText(text))
     }
@@ -134,16 +141,14 @@ class ScriptScope(
     }
 
     fun showTextAndWait(body: StructuredTextBlockBuilder.() -> Unit) {
-        showTextAndWait(structuredText(body))
+        showTextAndWait(literalText(body))
     }
-
-    fun emit(id: TextId): Unit = record(ScriptStatementNode.Emit(id))
 
     fun journal(text: TextBlock): Unit = record(ScriptStatementNode.AppendJournal(text))
 
     fun journal(vararg lines: String): Unit = journal(literalText(*lines))
 
-    fun journal(body: StructuredTextBlockBuilder.() -> Unit): Unit = journal(structuredText(body))
+    fun journal(body: StructuredTextBlockBuilder.() -> Unit): Unit = journal(literalText(body))
 
     fun waitInput(reason: String? = null): Unit = record(ScriptStatementNode.WaitInput(reason))
 
@@ -315,15 +320,6 @@ class ScriptScope(
     }
 
     fun menu(
-        prompt: TextId,
-        body: MenuBuilder.() -> Unit,
-    ) {
-        val builder = MenuBuilder(ctx)
-        builder.body()
-        record(builder.build(TextBlock.Ref(prompt)))
-    }
-
-    fun menu(
         vararg promptLines: String,
         body: MenuBuilder.() -> Unit,
     ) {
@@ -423,7 +419,7 @@ class ScriptScope(
     ) {
         clearText()
         choice.enterOrLeave(
-            structuredText(prompt),
+            literalText(prompt),
             enter = {
                 enterDungeon(dungeon, levels)
                 clearMapWindow()
@@ -440,8 +436,7 @@ class ScriptScope(
             free()
             choiceKeys(buy = inputKey("T"), decline = inputKey("L"))
             offer {
-                line("You find a")
-                line(itemName, ".")
+                line("You find a ", itemName, ".")
                 line("")
             }
             choicePrompt("(T)ake it", "(L)eave it")
@@ -592,7 +587,7 @@ class ScriptRewardBuilder {
     }
 
     // Public authoring overload: callers may pass structured reward/drop text,
-    // while String/TextId overloads below keep common one-line cases simple.
+    // while the String overload below keeps common one-line cases simple.
     @Suppress("MemberVisibilityCanBePrivate")
     fun promptDrop(
         cantCarry: TextBlock,
@@ -610,13 +605,6 @@ class ScriptRewardBuilder {
             literalText(cantCarry),
             pickedUp?.let { literalText(it) },
         )
-    }
-
-    fun promptDrop(
-        cantCarry: TextId,
-        pickedUp: TextId? = null,
-    ) {
-        promptDrop(TextBlock.Ref(cantCarry), pickedUp?.let(TextBlock::Ref))
     }
 
     fun build(): ScriptRewardModel = ScriptRewardModel(goldAst, itemIds.toList(), applicationModel, messagesModel)
@@ -754,10 +742,6 @@ class RandomItemOfferBuilder(
 
     fun promptDrop(pickedUp: String) {
         promptDrop(literalText(pickedUp))
-    }
-
-    fun promptDrop(pickedUp: TextId) {
-        promptDrop(TextBlock.Ref(pickedUp))
     }
 
     fun deal(vararg lines: String) {
@@ -905,23 +889,10 @@ class MenuBuilder(
  */
 interface PartyPrompts {
     fun member(
-        prompt: TextId,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
-    ): MemberRef
-
-    fun member(
         prompt: TextBlock,
         filter: MemberChoiceFilter = MemberChoiceFilter.Any,
         accepting: MemberChoiceFilter = filter,
     ): MemberRef
-
-    fun member(
-        prompt: TextId,
-        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
-        accepting: MemberChoiceFilter = filter,
-        body: ScriptScope.(MemberRef) -> Unit,
-    )
 
     fun member(
         prompt: TextBlock,
@@ -992,12 +963,6 @@ class AskScope(
     }
 
     override fun member(
-        prompt: TextId,
-        filter: MemberChoiceFilter,
-        accepting: MemberChoiceFilter,
-    ): MemberRef = member(TextBlock.Ref(prompt), filter, accepting)
-
-    override fun member(
         prompt: TextBlock,
         filter: MemberChoiceFilter,
         accepting: MemberChoiceFilter,
@@ -1005,15 +970,6 @@ class AskScope(
         val name = script.fresh("member")
         script.record(ScriptStatementNode.AskMember(prompt, name, filter, accepting))
         return script.party.member(v(name))
-    }
-
-    override fun member(
-        prompt: TextId,
-        filter: MemberChoiceFilter,
-        accepting: MemberChoiceFilter,
-        body: ScriptScope.(MemberRef) -> Unit,
-    ) {
-        script.body(member(prompt, filter, accepting))
     }
 
     override fun member(
@@ -1046,19 +1002,10 @@ class AskScope(
         script.body(inventorySlot(prompt, firstKey, slots, filter))
     }
 
-    fun monsterAlive(prompt: TextId): MonsterRef = monsterAlive(TextBlock.Ref(prompt))
-
     fun monsterAlive(prompt: TextBlock): MonsterRef {
         val name = script.fresh("monster")
         script.record(ScriptStatementNode.AskMonster(prompt, name))
         return MonsterRef(script, v(name))
-    }
-
-    fun monsterAlive(
-        prompt: TextId,
-        body: ScriptScope.(MonsterRef) -> Unit,
-    ) {
-        script.body(monsterAlive(prompt))
     }
 
     fun monsterAlive(
@@ -2000,11 +1947,11 @@ class InventoryUsePromptsBuilder(
     var notUsable: TextBlock = initial.notUsable
 
     fun invalidSlot(body: StructuredTextBlockBuilder.() -> Unit) {
-        invalidSlot = structuredText(body)
+        invalidSlot = literalText(body)
     }
 
     fun notUsable(body: StructuredTextBlockBuilder.() -> Unit) {
-        notUsable = structuredText(body)
+        notUsable = literalText(body)
     }
 
     fun build(): InventoryUsePromptsModel =
@@ -2157,7 +2104,7 @@ class TownPromptsBuilder(
     var entryTaxThanks: TextBlock = initial.entryTaxThanks
 
     fun menuTitle(body: StructuredTextBlockBuilder.() -> Unit) {
-        menuTitleText = structuredText(body)
+        menuTitleText = literalText(body)
     }
 
     fun build(): TownPromptsModel =
@@ -2589,7 +2536,7 @@ class WildernessKeysBuilder(
     }
 
     fun commandHint(body: StructuredTextBlockBuilder.() -> Unit) {
-        commandHintText = structuredText(body)
+        commandHintText = literalText(body)
     }
 
     fun helpPages(body: WildernessHelpPagesBuilder.() -> Unit) {
@@ -2648,7 +2595,7 @@ class WildernessHelpPagesBuilder {
     }
 
     fun page(body: StructuredTextBlockBuilder.() -> Unit) {
-        pages += structuredText(body)
+        pages += literalText(body)
     }
 
     fun build(): List<TextBlock> = pages.toList()
@@ -2730,7 +2677,7 @@ class DungeonKeysBuilder(
     }
 
     fun commandHint(body: StructuredTextBlockBuilder.() -> Unit) {
-        commandHintText = structuredText(body)
+        commandHintText = literalText(body)
     }
 
     fun helpPages(body: WildernessHelpPagesBuilder.() -> Unit) {
@@ -2906,7 +2853,7 @@ class WildernessEventBuilder {
     }
 
     fun caveFoundPrompt(body: StructuredTextBlockBuilder.() -> Unit) {
-        caveFoundPromptText = structuredText(body)
+        caveFoundPromptText = literalText(body)
     }
 
     fun caveNoMoves(vararg lines: String) {
@@ -2918,7 +2865,7 @@ class WildernessEventBuilder {
     }
 
     fun caveNoMoves(body: StructuredTextBlockBuilder.() -> Unit) {
-        caveNoMovesText = structuredText(body)
+        caveNoMovesText = literalText(body)
     }
 
     fun build(): WildernessEventModel =
@@ -2966,7 +2913,7 @@ class TerrainTransitionBuilder {
         id: TerrainId,
         body: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        entries += TerrainTransitionTextModel(id, structuredText(body))
+        entries += TerrainTransitionTextModel(id, literalText(body))
     }
 
     fun build(): TerrainTransitionModel = TerrainTransitionModel(chancePercent = chancePercent, entries = entries.toList())

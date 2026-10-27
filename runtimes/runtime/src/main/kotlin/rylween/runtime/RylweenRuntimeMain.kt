@@ -2605,7 +2605,6 @@ internal class CompiledTextRenderContext(
 
 internal fun CompiledTextBlock.renderTextLines(context: CompiledTextRenderContext): List<String> =
     when (this) {
-        is CompiledTextBlock.Ref -> runtimeDiagnosticText("[text:${context.content.slug(text)}]")
         is CompiledTextBlock.Inline -> lineStrings.map(context.content.strings::value)
         is CompiledTextBlock.Structured ->
             lines.map { line ->

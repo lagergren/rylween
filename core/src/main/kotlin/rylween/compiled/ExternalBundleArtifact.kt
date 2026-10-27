@@ -2518,7 +2518,6 @@ private class ExternalBundleArtifactWriter {
 
     private fun textBlockJson(block: TextBlock): JsonValue =
         when (block) {
-            is TextBlock.Ref -> jsonObject("kind" to JsonString("ref"), "id" to JsonString(block.id.id))
             is TextBlock.Inline -> jsonObject("kind" to JsonString("inline"), "lines" to stringArray(block.lines))
             is TextBlock.Structured ->
                 jsonObject(
@@ -3920,10 +3919,6 @@ private class ExternalRuntimeSystemsReader(
     private fun JsonValue.readTextBlock(): ExternalRuntimeTextBlock {
         val block = asObject("runtime text block")
         return when (val kind = block.requiredString("kind")) {
-            "ref" ->
-                ExternalRuntimeTextBlock(
-                    listOf(listOf(ExternalRuntimeTextPart.Literal("[text:${block.requiredString("id")}]"))),
-                )
             "inline" ->
                 ExternalRuntimeTextBlock(
                     block.requiredArray("lines").values.map { line ->

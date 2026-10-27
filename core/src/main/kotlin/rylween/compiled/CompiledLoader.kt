@@ -455,7 +455,6 @@ private class CompiledBundleValidator(
         context: OperandValidationContext? = null,
     ) {
         when (block) {
-            is CompiledTextBlock.Ref -> handle(block.text, "text ref")
             is CompiledTextBlock.Inline -> block.lineStrings.forEach { string(it, "inline text") }
             is CompiledTextBlock.Structured ->
                 block.lines.forEach { line ->
