@@ -62,7 +62,7 @@ class PrerolledPartyTest {
                     assertEquals("blank", bundle.content.slug(member.equipment.armor))
                 }
                 assertEquals(GridPoint(12, 9), party.position)
-                assertEquals(1_000, party.resources.gold)
+                assertEquals(2_000, party.resources.gold)
                 assertEquals(5, party.resources.torches)
                 assertEquals(100, party.resources.food)
                 assertTrue(party.inventory.all { it.item == null })

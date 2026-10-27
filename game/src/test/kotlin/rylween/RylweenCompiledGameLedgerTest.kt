@@ -154,7 +154,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             characterCreation.start.resources ==
                 PartyResources(
-                    gold = 1000,
+                    gold = 2000,
                     torches = 5,
                     food = 100,
                     timeLeft = 200,

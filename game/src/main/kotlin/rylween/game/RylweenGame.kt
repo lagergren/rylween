@@ -1213,7 +1213,7 @@ val authoredRylween: RylweenModel =
                     level = 1
                     dailyTimeLeft = 175
                     resources {
-                        gold = 1_000
+                        gold = 2_000
                         torches = 5
                         food = 100
                         timeLeft = 200
