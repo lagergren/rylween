@@ -184,8 +184,31 @@ them). The content check rejects a script that writes a fresh page, clears the
 window, shows a prompt with its own text, starts a battle or other handoff, or
 ends while text it showed is still unheld, because the player would never get
 to read it. Split long speeches into pages at sentence or paragraph breaks,
-each held by a key press, and use a short pause plus `appendText` for a beat
-that belongs on the same page, such as "...nothing but..." followed by "dust...".
+each held by a key press.
+
+A beat that belongs on the same page goes in the text as a `{pause}` marker:
+`{pause}` is a default beat of 1.5 seconds, and `{pause 600ms}` or
+`{pause 2s}` set the length. `writeText` and `showTextAndWait` show the page up
+to the marker, pause, and then show it again with the rest, so the text grows
+instead of being replaced:
+
+```kotlin
+writeText(
+    """
+    Poisonous gas hisses out through hidden holes. {pause}
+
+    The party coughs and retches. {pause 600ms}
+
+    Finally. The gas clears.
+    """,
+)
+writeText(flowText(partyName(caster), " utters three syllables in an archaic tongue... {pause 2s} and the ground cracks open!"))
+```
+
+Markers work only in those two verbs; any other text that holds one, such as a
+menu prompt, a journal entry or `appendText`, is rejected. Keep a separate
+`pause(...)` where something else happens at the beat, such as a sound cue or a
+new page.
 
 Literal lines are rows, not hand-wrapped prose: put each sentence on one line
 and let the renderer wrap it to the window, and break the line only where a new

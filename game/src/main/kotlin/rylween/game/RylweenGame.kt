@@ -1719,23 +1719,35 @@ val authoredRylween: RylweenModel =
                                             choose(random(0..2)) {
                                                 case(0) {
                                                     playSound(Sounds.Explore.trapGas)
-                                                    writeText("Poisonous gas hisses out through hidden holes.")
-                                                    pause1500ms()
-                                                    writeText("The party coughs and retches.")
-                                                    pause600ms()
-                                                    writeText("Finally. The gas clears.")
+                                                    writeText(
+                                                        """
+                                                        Poisonous gas hisses out through hidden holes. {pause}
+
+                                                        The party coughs and retches. {pause 600ms}
+
+                                                        Finally. The gas clears.
+                                                        """,
+                                                    )
                                                 }
                                                 case(1) {
                                                     playSound(Sounds.Explore.trapPit)
-                                                    writeText("A spiked pitfall opens in the floor beneath you.")
-                                                    pause1500ms()
-                                                    writeText("You climb out of it, badly wounded.")
+                                                    writeText(
+                                                        """
+                                                        A spiked pitfall opens in the floor beneath you. {pause}
+
+                                                        You climb out of it, badly wounded.
+                                                        """,
+                                                    )
                                                 }
                                                 case(2) {
                                                     playSound(Sounds.Explore.trapBoulder)
-                                                    writeText("A large boulder drops from above!!!")
-                                                    pause1500ms()
-                                                    writeText("Badly bruised, you try to stand up again.")
+                                                    writeText(
+                                                        """
+                                                        A large boulder drops from above!!! {pause}
+
+                                                        Badly bruised, you try to stand up again.
+                                                        """,
+                                                    )
                                                 }
                                             }
                                             forEachMember {
@@ -3926,11 +3938,11 @@ val authoredRylween: RylweenModel =
                 )
                 writeText(
                     """
-                    He pulls a huge trident from his robe and utters a single syllable. Without warning he appears a foot before you!!!
+                    He pulls a huge trident from his robe and utters a single syllable. Without warning he appears a foot before you!!! {pause}
+
+                    Let the battle commence!
                     """,
                 )
-                pause1500ms()
-                appendText("Let the battle commence!")
                 waitInput("before the battle with Ydarg")
                 encounter(Monsters.baronYdarg, mandatory = true)
                 showTextAndWait(
@@ -4605,12 +4617,8 @@ val authoredRylween: RylweenModel =
                         writeText(
                             """
                             Just as you are about to sit down at a table,
-                            a scruffy little man pulls at your sleeve...
-                            """,
-                        )
-                        pause3s()
-                        writeText(
-                            """
+                            a scruffy little man pulls at your sleeve... {pause 3s}
+
                             - Hey, hey, hey! You! Yes... you! I have an offer
                             that may interest you...
                             """,
@@ -5061,10 +5069,7 @@ val authoredRylween: RylweenModel =
                 battle.randomAliveMember { target ->
                     localInt((battle.encounterHitPointMax / 5) + random(0..3)) { damage ->
                         writeText {
-                            line("Frost Finger on ", partyName(target), "!")
-                        }
-                        pause1s()
-                        appendText {
+                            line("Frost Finger on ", partyName(target), "! {pause 1s}")
                             line("and does ", damage, " pts of damage!")
                         }
                         pause1s()
@@ -5103,17 +5108,25 @@ val authoredRylween: RylweenModel =
             }
 
             spell(Spells.Monster.hold, slot = 3, baseCost = 0, name = "Hold Creature") {
-                writeText("Hold Creature!")
-                pause600ms()
-                writeText("You realize with horror that you cannot move!")
+                writeText(
+                    """
+                    Hold Creature! {pause 600ms}
+
+                    You realize with horror that you cannot move!
+                    """,
+                )
                 pause1500ms()
                 battle.partyHeld set true
             }
 
             spell(Spells.Monster.confusion, slot = 4, baseCost = 0, name = "Confusion") {
-                writeText("Confusion!")
-                pause600ms()
-                writeText("You are almost blinded by a colorful haze.")
+                writeText(
+                    """
+                    Confusion! {pause 600ms}
+
+                    You are almost blinded by a colorful haze.
+                    """,
+                )
                 pause1500ms()
                 battle.partyConfused set true
             }
@@ -5382,9 +5395,12 @@ val authoredRylween: RylweenModel =
                     } otherwise {
                         whenever(caster.mp gte cost) {
                             caster.mp -= cost
-                            writeText(flowText(partyName(caster), " utters three syllables in an archaic tongue..."))
-                            pause2s()
-                            writeText("and the ground cracks open!")
+                            writeText(
+                                flowText(
+                                    partyName(caster),
+                                    " utters three syllables in an archaic tongue... {pause 2s} and the ground cracks open!",
+                                ),
+                            )
                             pause3s()
                             clearMapWindow()
                             showBackdrop(Images.Backdrop.cave)
@@ -6475,15 +6491,14 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.tybalt) {
                     whenState(Story.erethor.lute.none) {
-                        writeText(
+                        showTextAndWait(
                             """
                             - Rumor has it that Erethor's Lute, a musical instrument
-                            with magical properties exists somewhere in the realm.
+                            with magical properties exists somewhere in the realm. {pause}
+
+                            - Erethor is a mighty demon...
                             """,
                         )
-                        pause1500ms()
-                        appendText("- Erethor is a mighty demon...")
-                        waitInput("after Erethor is named")
                         showTextAndWait(
                             """
                             - I am a very poor man myself, but I know of the Cloak of
@@ -6657,16 +6672,17 @@ val authoredRylween: RylweenModel =
                             ),
                         )
                         writeText(
-                            flowText(
-                                "After breaking a few of his teeth, he also willingly reveals that the ",
-                                character(Roles.silverKeySmith).job,
-                                " went by the name of ",
-                                character(Roles.silverKeySmith).name,
-                                "...",
-                            ),
+                            flowText {
+                                paragraph(
+                                    "After breaking a few of his teeth, he also willingly reveals that the ",
+                                    character(Roles.silverKeySmith).job,
+                                    " went by the name of ",
+                                    character(Roles.silverKeySmith).name,
+                                    "... {pause}",
+                                )
+                                paragraph("You let go of your grip on his collar, and he falls to the floor.")
+                            },
                         )
-                        pause1500ms()
-                        appendText("You let go of your grip on his collar, and he falls to the floor.")
                         waitInput("after Gotharp talks")
                     }
                 }

@@ -28,6 +28,16 @@ sealed interface TextPart {
         val value: StrAst,
     ) : TextPart
 
+    /**
+     * A beat in script text, written `{pause}`, `{pause 1.5s}` or `{pause 600ms}`
+     * inside a string. [ScriptScope.writeText] and [ScriptScope.showTextAndWait]
+     * show the text up to the beat, pause, then show the page again with more of
+     * it; no other text accepts one.
+     */
+    data class Pause(
+        val millis: Int,
+    ) : TextPart
+
     data class RoleName(
         val role: NpcRole,
     ) : TextPart
@@ -148,6 +158,7 @@ fun TextPart.fallbackText(): String =
         is TextPart.Literal -> text
         is TextPart.IntValue -> "{int}"
         is TextPart.StringValue -> "{string}"
+        is TextPart.Pause -> ""
         is TextPart.RoleName -> "{${role.slug}.name}"
         is TextPart.RoleJob -> "{${role.slug}.job}"
         is TextPart.RoleLocation -> "{${role.slug}.location}"
@@ -227,7 +238,14 @@ sealed interface TextBlock {
  * tables, signs and verse, with each sentence on one line rather than broken
  * by hand; prose belongs in [flowText].
  */
-fun literalText(vararg lines: String): TextBlock = TextBlock.Inline(expandMultiline(lines))
+fun literalText(vararg lines: String): TextBlock {
+    val rows = expandMultiline(lines)
+    return if (rows.none(pauseMarker::containsMatchIn)) {
+        TextBlock.Inline(rows)
+    } else {
+        TextBlock.Structured(rows.map { row -> TextLine(literalParts(row)) })
+    }
+}
 
 /** Creates literal text whose lines mix fixed text with runtime values, one [line] per row. */
 fun literalText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = StructuredTextBlockBuilder().apply(body).build()
@@ -240,7 +258,7 @@ fun literalText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = Struct
 fun flowText(text: String): TextBlock = TextBlock.Flow(flowParagraphs(text))
 
 /** Creates a single deferred-wrap paragraph from literal and dynamic parts. */
-fun flowText(vararg parts: Any): TextBlock = TextBlock.Flow(listOf(TextLine(parts.map(::textPart))))
+fun flowText(vararg parts: Any): TextBlock = TextBlock.Flow(listOf(TextLine(parts.flatMap(::textParts))))
 
 /** Creates deferred-wrap text with multiple paragraphs and optional dynamic parts. */
 fun flowText(body: FlowTextBlockBuilder.() -> Unit): TextBlock = FlowTextBlockBuilder().apply(body).build()
@@ -265,7 +283,7 @@ interface TextLineSink {
 
 /** Adds one structured text line, coercing strings and expression wrappers into [TextPart] values. */
 fun TextLineSink.line(vararg parts: Any) {
-    addTextLine(TextLine(parts.map(::textPart)))
+    addTextLine(TextLine(parts.flatMap(::textParts)))
 }
 
 /** Adds multiple literal lines to a text-line sink. */
@@ -297,13 +315,102 @@ private fun TextBlock.asStructuredLines(): List<TextLine> =
             }
     }
 
-private fun textPart(part: Any): TextPart =
+private fun textParts(part: Any): List<TextPart> =
     when (part) {
-        is TextPart -> part
-        is IntExpr -> TextPart.IntValue(part.ast)
-        is StrExpr -> TextPart.StringValue(part.ast)
-        is String -> TextPart.Literal(part)
-        else -> TextPart.Literal(part.toString())
+        is TextPart -> listOf(part)
+        is IntExpr -> listOf(TextPart.IntValue(part.ast))
+        is StrExpr -> listOf(TextPart.StringValue(part.ast))
+        is String -> literalParts(part)
+        else -> listOf(TextPart.Literal(part.toString()))
+    }
+
+private const val DEFAULT_PAUSE_MILLIS = 1_500
+private val pauseMarker = Regex("""\{pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s))?\}""")
+
+/** Splits literal text at its `{pause}` markers; text without one stays a single literal. */
+private fun literalParts(text: String): List<TextPart> {
+    if (!pauseMarker.containsMatchIn(text)) return listOf(TextPart.Literal(text))
+    val parts = mutableListOf<TextPart>()
+    var rest = 0
+    pauseMarker.findAll(text).forEach { marker ->
+        text.substring(rest, marker.range.first).takeIf(String::isNotEmpty)?.let { before -> parts += TextPart.Literal(before) }
+        parts += TextPart.Pause(marker.pauseMillis())
+        rest = marker.range.last + 1
+    }
+    text.substring(rest).takeIf(String::isNotEmpty)?.let { after -> parts += TextPart.Literal(after) }
+    return parts
+}
+
+private fun MatchResult.pauseMillis(): Int {
+    val amount = groupValues[1].takeIf(String::isNotEmpty)?.toDouble() ?: return DEFAULT_PAUSE_MILLIS
+    return if (groupValues[2] == "s") (amount * 1_000).toInt() else amount.toInt()
+}
+
+/** One step of text shown with `{pause}` beats: the text so far, then the pause after it; the last step has none. */
+internal data class TextBeat(
+    val text: TextBlock,
+    val pauseMillis: Int?,
+)
+
+/**
+ * The steps [ScriptScope.writeText] shows this text in: one per `{pause}`
+ * marker, each with everything up to that marker, and a last one with the
+ * whole text. Text without markers is a single step.
+ */
+internal fun TextBlock.beats(): List<TextBeat> {
+    val rows =
+        when (this) {
+            is TextBlock.Inline -> return listOf(TextBeat(this, null))
+            is TextBlock.Structured -> lines
+            is TextBlock.Flow -> paragraphs
+        }
+    if (rows.none { row -> row.parts.any { part -> part is TextPart.Pause } }) return listOf(TextBeat(this, null))
+    val beats = mutableListOf<TextBeat>()
+    rows.forEachIndexed { rowIndex, row ->
+        row.parts.forEachIndexed { partIndex, part ->
+            if (part is TextPart.Pause) {
+                val partial = TextLine(row.parts.take(partIndex)).withoutPauses()
+                val shown = rows.take(rowIndex).map(TextLine::withoutPauses) + listOfNotNull(partial.takeIf { it.parts.isNotEmpty() })
+                beats += TextBeat(withRows(shown), part.millis)
+            }
+        }
+    }
+    return beats + TextBeat(withRows(rows.map(TextLine::withoutPauses)), null)
+}
+
+/**
+ * The line as shown once its beats are over. Where a marker stood between two
+ * words, the spaces around it become one, so "but... {pause 2s} dust..." reads
+ * "but... dust..."; a line that ends at a beat drops the space before it.
+ */
+private fun TextLine.withoutPauses(): TextLine {
+    val joined = mutableListOf<TextPart>()
+    var afterPause = false
+    parts.forEach { part ->
+        val previous = joined.lastOrNull() as? TextPart.Literal
+        when {
+            part is TextPart.Pause -> afterPause = true
+            afterPause && previous != null && part is TextPart.Literal -> {
+                val spaced = previous.text.endsWith(' ') || part.text.startsWith(' ')
+                joined[joined.lastIndex] = TextPart.Literal(previous.text.trimEnd() + (if (spaced) " " else "") + part.text.trimStart())
+                afterPause = false
+            }
+            else -> {
+                joined += part
+                afterPause = false
+            }
+        }
+    }
+    val last = joined.lastOrNull() as? TextPart.Literal
+    if (last != null) joined[joined.lastIndex] = TextPart.Literal(last.text.trimEnd())
+    return TextLine(joined)
+}
+
+private fun TextBlock.withRows(rows: List<TextLine>): TextBlock =
+    when (this) {
+        is TextBlock.Inline -> this
+        is TextBlock.Structured -> TextBlock.Structured(rows)
+        is TextBlock.Flow -> TextBlock.Flow(rows)
     }
 
 @RylNextDsl
@@ -327,7 +434,7 @@ class FlowTextBlockBuilder {
      * renderer, so use another [paragraph] call for intentional paragraph breaks.
      */
     fun paragraph(vararg parts: Any) {
-        paragraphs += TextLine(parts.map(::textPart))
+        paragraphs += TextLine(parts.flatMap(::textParts))
     }
 
     /** Adds one or more literal paragraphs from triple-quoted prose. */
@@ -344,7 +451,7 @@ private fun flowParagraphs(text: String): List<TextLine> {
         .split(Regex("\\n\\s*\\n"))
         .map { paragraph -> paragraph.trim().replace('\n', ' ') }
         .filter(String::isNotEmpty)
-        .map { paragraph -> TextLine(listOf(TextPart.Literal(paragraph))) }
+        .map { paragraph -> TextLine(literalParts(paragraph)) }
 }
 
 /** Text-placeholder helper for NPC name, job, and location. */

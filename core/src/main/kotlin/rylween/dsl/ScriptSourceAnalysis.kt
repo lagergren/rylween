@@ -453,6 +453,7 @@ private class NativePathCollector {
         when (part) {
             is TextPart.IntValue -> collect(part.value)
             is TextPart.StringValue -> collect(part.value)
+            is TextPart.Pause -> Unit
             is TextPart.Literal,
             is TextPart.RoleName,
             is TextPart.RoleJob,

@@ -1227,6 +1227,7 @@ private fun validateTextBlock(
             is TextPart.Literal -> Unit
             is TextPart.IntValue -> Unit
             is TextPart.StringValue -> Unit
+            is TextPart.Pause -> error("$label has a {pause} marker, but only writeText and showTextAndWait show text in beats")
             is TextPart.RoleName -> {
                 check(part.role.slug.isNotBlank()) { "$label references blank character role" }
                 check(knownRoles == null || part.role in knownRoles) {

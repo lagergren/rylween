@@ -106,8 +106,17 @@ class ScriptScope(
      * data. Text the player has not had time to read must be held first, by
      * [waitInput], a pause, or a prompt; use [appendText] to keep it on screen
      * and add more below it. A plain string is [flowText] prose.
+     *
+     * `{pause}` markers in the text, such as "nothing but... {pause 2s} dust...",
+     * show the page up to each marker, pause, and then show it again with more of
+     * the text, so a scene's beats need no separate [pause] calls.
      */
-    fun writeText(text: TextBlock): Unit = record(ScriptStatementNode.Screen(text))
+    fun writeText(text: TextBlock) {
+        text.beats().forEach { beat ->
+            record(ScriptStatementNode.Screen(beat.text))
+            beat.pauseMillis?.let(::pause)
+        }
+    }
 
     fun writeText(text: String): Unit = writeText(flowText(text))
 
@@ -119,7 +128,10 @@ class ScriptScope(
      * on the same page. Flow text is a new paragraph and gets a blank line
      * above it; literal lines continue directly below, exactly as written.
      */
-    fun appendText(text: TextBlock): Unit = record(ScriptStatementNode.Screen(text, append = true))
+    fun appendText(text: TextBlock) {
+        require(text.beats().size == 1) { "appendText cannot hold {pause} markers; put the beats in writeText" }
+        record(ScriptStatementNode.Screen(text, append = true))
+    }
 
     fun appendText(text: String): Unit = appendText(flowText(text))
 
