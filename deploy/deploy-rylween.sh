@@ -1,7 +1,27 @@
 #!/usr/bin/env bash
+# Rebuilds the bitmap web game's image and (re)starts it with docker compose
+# (podman compose when docker is missing), published on this machine's private
+# LAN address so others on the local network can connect, then waits until the
+# server answers and prints its address. Settings come from compose.yaml and
+# .env next to this script. The repository root's deploy.sh is a symlink to
+# this script, so `./deploy.sh` there and `./deploy-rylween.sh` here are the
+# same command, and either works from any directory.
+#
+# --launcher skips Docker and starts the installed bitmap launcher in the
+# background instead. --compose names the default explicitly.
 set -euo pipefail
 
-DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Follow symlinks such as the root deploy.sh, so DEPLOY_DIR is the directory
+# holding this script and compose.yaml rather than the one holding the link.
+script="$0"
+while [ -L "$script" ]; do
+    target="$(readlink "$script")"
+    case "$target" in
+        /*) script="$target" ;;
+        *) script="$(dirname "$script")/$target" ;;
+    esac
+done
+DEPLOY_DIR="$(cd "$(dirname "$script")" && pwd)"
 ROOT_DIR="$(dirname "$DEPLOY_DIR")"
 
 APP="${RYLWEEN_DEPLOY_APP:-$ROOT_DIR/runtimes/runtime-bitmap-web/build/install/rylween-bitmap-web/bin/rylween-bitmap-web}"
@@ -11,11 +31,12 @@ DATA_DIR="${RYLWEEN_DEPLOY_DATA_DIR:-$HOME/.rylween/deploy}"
 LOG_FILE="${RYLWEEN_DEPLOY_LOG_FILE:-/tmp/rylween-bitmap-web-deploy.log}"
 MAIN_CLASS="${RYLWEEN_DEPLOY_MAIN_CLASS:-rylween.bitmapweb.RylweenBitmapWebRuntimeMainKt}"
 
-case "${1-}" in
-    "") MODE=launcher ;;
-    --compose) MODE=compose ;;
+# At most one argument, the mode; compose is the default.
+case "$#:${1-}" in
+    0: | 1:--compose) MODE=compose ;;
+    1:--launcher) MODE=launcher ;;
     *)
-        echo "usage: $0 [--compose]" >&2
+        echo "usage: $0 [--compose | --launcher]" >&2
         exit 2
         ;;
 esac
@@ -144,10 +165,24 @@ stop_existing_server() {
     kill -9 $pids
 }
 
-# --compose builds and runs the image with compose instead of the installed
-# launcher. It publishes on the same detected LAN address unless
-# RYLWEEN_PUBLISH_HOST is set in the shell or in .env; every other setting comes
-# from compose.yaml and .env, both in this directory.
+# Waits up to a minute for any HTTP answer from the URL in $1; /api/status
+# answers 401 without a login, which is enough. `compose up -d` returns as soon
+# as the container starts, seconds before the server in it listens, and the
+# container port forwarder may accept connections before then, so only an HTTP
+# response shows the server is up. Without curl it cannot tell and does not wait.
+wait_for_http() {
+    local url="$1" deadline=$((SECONDS + 60))
+    command -v curl >/dev/null 2>&1 || return 0
+    until curl --noproxy '*' --silent --output /dev/null --max-time 2 "$url"; do
+        [ "$SECONDS" -lt "$deadline" ] || return 1
+        sleep 1
+    done
+}
+
+# Compose mode builds and runs the image instead of the installed launcher. It
+# publishes on the detected LAN address unless RYLWEEN_PUBLISH_HOST is set in
+# the shell or in .env; every other setting comes from compose.yaml and .env,
+# both in this directory, which is why it runs compose from here.
 if [ "$MODE" = compose ]; then
     cd "$DEPLOY_DIR"
     if [ -z "${RYLWEEN_PUBLISH_HOST-}" ] && ! grep -qE '^[[:space:]]*RYLWEEN_PUBLISH_HOST=' .env 2>/dev/null; then
@@ -161,8 +196,35 @@ if [ "$MODE" = compose ]; then
     compose=(docker compose)
     command -v docker >/dev/null 2>&1 || compose=(podman compose)
     "${compose[@]}" up --build -d
-    echo "Started bitmap compose service on http://$("${compose[@]}" port rylween 8081 2>/dev/null)"
+
+    # The follow-up commands name the compose file by its full path, so they
+    # work from any directory, not only from this one or the repository root.
+    printf -v manage '%s -f %q' "${compose[*]}" "$DEPLOY_DIR/compose.yaml"
+    address="$("${compose[@]}" port rylween 8081 2>/dev/null)" || address=""
+    if [ -z "$address" ]; then
+        echo "Compose reports no published port for the rylween service; see its log:" >&2
+        echo "  $manage logs rylween" >&2
+        exit 1
+    fi
+    if ! wait_for_http "http://$address/api/status"; then
+        echo "The server on http://$address/ did not answer within a minute; see its log:" >&2
+        echo "  $manage logs rylween" >&2
+        exit 1
+    fi
+    echo "Rylween is up on http://$address/"
+    echo "  Sysop password: $manage exec rylween cat /data/auth/admin-password.txt"
+    echo "  Server log:     $manage logs -f rylween"
+    echo "  Stop:           $manage down"
     exit 0
+fi
+
+# --launcher: run the installed bitmap launcher in the background on the LAN
+# address, with its own data directory, replacing a server it started earlier.
+# Starting it detached hides a missing launcher, so check for it first.
+if [ ! -x "$APP" ]; then
+    echo "No installed bitmap launcher at $APP." >&2
+    echo "Build it with ./gradlew :runtime-bitmap-web:installRuntimeBitmapWeb first." >&2
+    exit 2
 fi
 
 HOST="$(resolve_host)" || {

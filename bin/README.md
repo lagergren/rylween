@@ -21,9 +21,8 @@ load a named save, and keep their data under `~/.rylween/data`
 These scripts are intentionally not under `deploy/`: they are normal checkout
 commands, useful for development, smoke testing, local play, and simple
 operations. Production packaging lives under `deploy/docker/`. Container and
-LAN rollout lives in `deploy/`: `compose.yaml`, `deploy-rylween.sh`, and
-`deploy-rylween-docker.sh`, with the root `./deploy.sh` as a symlink to the
-last.
+LAN rollout lives in `deploy/`: `compose.yaml` and `deploy-rylween.sh`, which
+the root `./deploy.sh` links to.
 
 Run them from the repository root.
 

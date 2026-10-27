@@ -1,1 +1,1 @@
-deploy/deploy-rylween-docker.sh
+deploy/deploy-rylween.sh

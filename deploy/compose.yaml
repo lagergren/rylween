@@ -12,10 +12,10 @@
 # Settings come from the shell environment or a .env file next to this file
 # (copy .env.example to start one):
 #   RYLWEEN_PUBLISH_HOST        Host address to publish on. Default: 127.0.0.1.
-#                               `deploy/deploy-rylween-docker.sh` sets it to this
-#                               machine's LAN address so others on the local
-#                               network can connect; 0.0.0.0 publishes on every
-#                               interface.
+#                               The root ./deploy.sh (deploy-rylween.sh here)
+#                               sets it to this machine's LAN address so others
+#                               on the local network can connect; 0.0.0.0
+#                               publishes on every interface.
 #   RYLWEEN_HOST_PORT           Host port. Default: 8081
 #   RYLWEEN_DATA_VOLUME         Named volume or host directory (./path, ~/path, /path)
 #                               mounted at /data; ./path is relative to deploy/.
