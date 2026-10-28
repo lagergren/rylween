@@ -435,13 +435,16 @@ data class ExternalTownPrompts(
 /** Town-system runtime rows consumed by direct runtimes. */
 data class ExternalRuntimeTown(
     val entryTax: ExternalTownEntryTax?,
+    /** The street view shown with the town menu and the entry tax. */
+    val image: String? = null,
     /** Equipment questions asked, in order, when the party leaves town. */
     val leavePrompts: List<EquipmentCommand> = emptyList(),
 )
 
 /** Town-entry tax gate exported from authored town-system content. */
 data class ExternalTownEntryTax(
-    val minimumLeaderLevel: Int,
+    /** Slug of the formula for the gold the party pays to enter, or null when towns charge nothing. */
+    val amount: String?,
     val pay: ExternalRuntimeInputBinding,
     val leave: ExternalRuntimeInputBinding,
 )
@@ -707,6 +710,8 @@ data class ExternalStandardBattle(
     val encounterFoeCountMax: Int,
     val encounterHitPointMinFormula: String,
     val encounterHitPointMaxFormula: String,
+    val encounterFoeCountMaxFormula: String,
+    val encounterWeaponSkillFormula: String,
     val victoryImage: String?,
     val defeatImage: String?,
     val nativeServices: List<ExternalEngineServiceUse>,
@@ -742,16 +747,15 @@ data class ExternalPlayerRoundRules(
     val battleCry: ExternalBattleCryRules,
 )
 
-/** Player attack hit and damage tuning. */
+/** Slugs of the formulas for a player attack's hit chance and damage. */
 data class ExternalPlayerAttackRules(
-    val hitBonus: Int,
-    val damageSpreadMax: Int,
-    val confusionDivisor: Int,
-    val hpDefenseDivisor: Int,
+    val hitChance: String,
+    val damage: String,
 )
 
-/** Defend action tuning. */
+/** Defend action tuning; [healing] is the slug of the formula for the hit points regained. */
 data class ExternalDefendRules(
+    val healing: String,
     val weaponSkillPenalty: Int,
     val restThreshold: Int,
     val cap: Int,
@@ -762,19 +766,16 @@ data class ExternalBattleCryRules(
     val weaponSkillPenalty: Int,
 )
 
-/** Monster-side spell and mêlée rules. */
+/** Monster-side spell and mêlée rules; [spellChance] is a formula slug. */
 data class ExternalMonsterRoundRules(
-    val spellChanceBasePercent: Int,
-    val spellPowerDivisor: Int,
+    val spellChance: String,
     val melee: ExternalMonsterMeleeRules,
 )
 
-/** Monster mêlée hit and damage tuning. */
+/** Slugs of the formulas for a monster mêlée hit's chance and damage. */
 data class ExternalMonsterMeleeRules(
-    val hitBonus: Int,
-    val damageDivisor: Int,
-    val damageSpreadMax: Int,
-    val damageMin: Int,
+    val hitChance: String,
+    val damage: String,
     val fallback: String,
 )
 
@@ -844,7 +845,8 @@ data class ExternalEngineServiceUse(
 
 /** Wilderness upkeep balance and fatigue text from the stable runtime-system section. */
 data class ExternalWildernessUpkeep(
-    val foodCostLeaderDiv: Int,
+    /** Slug of the formula for the food eaten every food tick, or null when the party eats none. */
+    val foodCost: String?,
     val foodTickEvery: Int,
     val starveFoodThreshold: Int,
     val starveDamage: Int,
@@ -1586,6 +1588,8 @@ private class ExternalBundleArtifactWriter {
             "encounterFoeCountMax" to JsonNumber(battle.encounterFoeCountMax.toString()),
             "encounterHitPointMinFormula" to JsonString(battle.encounterHitPointMinFormula.slug),
             "encounterHitPointMaxFormula" to JsonString(battle.encounterHitPointMaxFormula.slug),
+            "encounterFoeCountMaxFormula" to JsonString(battle.encounterFoeCountMaxFormula.slug),
+            "encounterWeaponSkillFormula" to JsonString(battle.encounterWeaponSkillFormula.slug),
             "victoryImage" to battle.victoryImage?.let { JsonString(it.slug) }.orJsonNull(),
             "defeatImage" to battle.defeatImage?.let { JsonString(it.slug) }.orJsonNull(),
             "nativeServices" to nativeServicesJson(battle.nativeServices),
@@ -1612,10 +1616,8 @@ private class ExternalBundleArtifactWriter {
         jsonObject(
             "attack" to
                 jsonObject(
-                    "hitBonus" to JsonNumber(round.attack.hitBonus.toString()),
-                    "damageSpreadMax" to JsonNumber(round.attack.damageSpreadMax.toString()),
-                    "confusionDivisor" to JsonNumber(round.attack.confusionDivisor.toString()),
-                    "hpDefenseDivisor" to JsonNumber(round.attack.hpDefenseDivisor.toString()),
+                    "hitChance" to JsonString(round.attack.hitChance.slug),
+                    "damage" to JsonString(round.attack.damage.slug),
                 ),
             "defend" to defendRulesJson(round.defend),
             "battleCry" to
@@ -1626,6 +1628,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun defendRulesJson(rules: DefendRulesModel): JsonValue =
         jsonObject(
+            "healing" to JsonString(rules.healing.slug),
             "weaponSkillPenalty" to JsonNumber(rules.weaponSkillPenalty.toString()),
             "restThreshold" to JsonNumber(rules.restThreshold.toString()),
             "cap" to JsonNumber(rules.cap.toString()),
@@ -1633,17 +1636,14 @@ private class ExternalBundleArtifactWriter {
 
     private fun monsterRoundJson(round: MonsterRoundModel): JsonValue =
         jsonObject(
-            "spellChanceBasePercent" to JsonNumber(round.spellChanceBasePercent.toString()),
-            "spellPowerDivisor" to JsonNumber(round.spellPowerDivisor.toString()),
+            "spellChance" to JsonString(round.spellChance.slug),
             "melee" to monsterMeleeJson(round.melee),
         )
 
     private fun monsterMeleeJson(melee: MonsterMeleeRulesModel): JsonValue =
         jsonObject(
-            "hitBonus" to JsonNumber(melee.hitBonus.toString()),
-            "damageDivisor" to JsonNumber(melee.damageDivisor.toString()),
-            "damageSpreadMax" to JsonNumber(melee.damageSpreadMax.toString()),
-            "damageMin" to JsonNumber(melee.damageMin.toString()),
+            "hitChance" to JsonString(melee.hitChance.slug),
+            "damage" to JsonString(melee.damage.slug),
             "fallback" to JsonString(melee.fallback.slug),
         )
 
@@ -1731,7 +1731,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun upkeepJson(upkeep: WildernessUpkeepRules): JsonValue =
         jsonObject(
-            "foodCostLeaderDiv" to JsonNumber(upkeep.foodCostLeaderDiv.toString()),
+            "foodCost" to upkeep.foodCost?.let { formula -> JsonString(formula.slug) }.orJsonNull(),
             "foodTickEvery" to JsonNumber(upkeep.foodTickEvery.toString()),
             "starveFoodThreshold" to JsonNumber(upkeep.starveFoodThreshold.toString()),
             "starveDamage" to JsonNumber(upkeep.starveDamage.toString()),
@@ -2292,9 +2292,13 @@ private class ExternalBundleArtifactWriter {
             ?.let {
                 jsonObject(
                     "leavePrompts" to JsonArray(it.leavePrompts.map { command -> JsonString(command.name) }),
+                    "image" to it.image?.let { image -> JsonString(image.slug) }.orJsonNull(),
                     "entryTax" to
                         jsonObject(
-                            "minimumLeaderLevel" to JsonNumber(it.entryTax.minimumLeaderLevel.toString()),
+                            "amount" to
+                                it.entryTax.amount
+                                    ?.let { formula -> JsonString(formula.slug) }
+                                    .orJsonNull(),
                             "pay" to bindingJson(it.entryTax.pay),
                             "leave" to bindingJson(it.entryTax.leave),
                         ),
@@ -3339,6 +3343,7 @@ private class ExternalRuntimeSystemsReader(
                     ?.takeUnless { it is JsonNull }
                     ?.asObject("town entry tax")
                     ?.readTownEntryTax(),
+            image = optionalNullableString("image"),
             leavePrompts =
                 optionalArray("leavePrompts")?.values.orEmpty().map { command ->
                     enumValueOf<EquipmentCommand>(command.asString("town leave prompt"))
@@ -3347,7 +3352,7 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readTownEntryTax(): ExternalTownEntryTax =
         ExternalTownEntryTax(
-            minimumLeaderLevel = requiredInt("minimumLeaderLevel"),
+            amount = optionalNullableString("amount"),
             pay = requiredObject("pay").readBinding(),
             leave = requiredObject("leave").readBinding(),
         )
@@ -3678,6 +3683,8 @@ private class ExternalRuntimeSystemsReader(
             encounterFoeCountMax = requiredInt("encounterFoeCountMax"),
             encounterHitPointMinFormula = requiredString("encounterHitPointMinFormula"),
             encounterHitPointMaxFormula = requiredString("encounterHitPointMaxFormula"),
+            encounterFoeCountMaxFormula = requiredString("encounterFoeCountMaxFormula"),
+            encounterWeaponSkillFormula = requiredString("encounterWeaponSkillFormula"),
             victoryImage = optionalNullableString("victoryImage"),
             defeatImage = optionalNullableString("defeatImage"),
             nativeServices = requiredArray("nativeServices").values.map { row -> row.asObject("native service").readNativeService() },
@@ -3705,15 +3712,14 @@ private class ExternalRuntimeSystemsReader(
             attack =
                 requiredObject("attack").let { attack ->
                     ExternalPlayerAttackRules(
-                        hitBonus = attack.requiredInt("hitBonus"),
-                        damageSpreadMax = attack.requiredInt("damageSpreadMax"),
-                        confusionDivisor = attack.requiredInt("confusionDivisor"),
-                        hpDefenseDivisor = attack.requiredInt("hpDefenseDivisor"),
+                        hitChance = attack.requiredString("hitChance"),
+                        damage = attack.requiredString("damage"),
                     )
                 },
             defend =
                 requiredObject("defend").let { defend ->
                     ExternalDefendRules(
+                        healing = defend.requiredString("healing"),
                         weaponSkillPenalty = defend.requiredInt("weaponSkillPenalty"),
                         restThreshold = defend.requiredInt("restThreshold"),
                         cap = defend.requiredInt("cap"),
@@ -3725,15 +3731,12 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readMonsterRound(): ExternalMonsterRoundRules =
         ExternalMonsterRoundRules(
-            spellChanceBasePercent = requiredInt("spellChanceBasePercent"),
-            spellPowerDivisor = requiredInt("spellPowerDivisor"),
+            spellChance = requiredString("spellChance"),
             melee =
                 requiredObject("melee").let { melee ->
                     ExternalMonsterMeleeRules(
-                        hitBonus = melee.requiredInt("hitBonus"),
-                        damageDivisor = melee.requiredInt("damageDivisor"),
-                        damageSpreadMax = melee.requiredInt("damageSpreadMax"),
-                        damageMin = melee.requiredInt("damageMin"),
+                        hitChance = melee.requiredString("hitChance"),
+                        damage = melee.requiredString("damage"),
                         fallback = melee.requiredString("fallback"),
                     )
                 },
@@ -3832,7 +3835,7 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readUpkeep(): ExternalWildernessUpkeep =
         ExternalWildernessUpkeep(
-            foodCostLeaderDiv = requiredInt("foodCostLeaderDiv"),
+            foodCost = optionalNullableString("foodCost"),
             foodTickEvery = requiredInt("foodTickEvery"),
             starveFoodThreshold = requiredInt("starveFoodThreshold"),
             starveDamage = requiredInt("starveDamage"),

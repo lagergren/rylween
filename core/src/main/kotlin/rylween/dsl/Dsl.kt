@@ -3084,6 +3084,9 @@ class TownSystemBuilder {
     private var leavePromptCommands: List<EquipmentCommand> = emptyList()
     private var entryTaxModel: TownEntryTaxModel = TownEntryTaxModel()
 
+    /** The street view shown with the town menu and the entry tax. */
+    var image: ImageId? = null
+
     fun menu(body: TownMenuBuilder.() -> Unit) {
         menuModel = TownMenuBuilder().apply(body).build()
     }
@@ -3110,6 +3113,7 @@ class TownSystemBuilder {
             buildingServices = buildingServiceModels,
             leavePrompts = leavePromptCommands,
             entryTax = entryTaxModel,
+            image = image,
             nativeServices =
                 listOf(
                     EngineServiceUse(EngineService.KeyboardInput, "town menu command selection"),
@@ -3127,20 +3131,21 @@ class TownSystemBuilder {
 /**
  * Receiver for the town-entry tax interaction.
  *
- * It declares the leader-level threshold and pay/leave bindings used when a
- * town charges entry tax.
+ * It declares the tax formula and the pay/leave bindings used when a town
+ * charges entry tax.
  */
 @RylNextDsl
 class TownEntryTaxBuilder(
     initial: TownEntryTaxModel = TownEntryTaxModel(),
 ) {
-    var minimumLeaderLevel: Int = initial.minimumLeaderLevel
+    /** The gold a party pays to enter a town, as a formula; a town with nothing to charge lets it in. */
+    var amount: FormulaId? = initial.amount
     var pay: InputBindingModel = initial.pay
     var leave: InputBindingModel = initial.leave
 
     fun build(): TownEntryTaxModel =
         TownEntryTaxModel(
-            minimumLeaderLevel = minimumLeaderLevel,
+            amount = amount,
             pay = pay,
             leave = leave,
         )
@@ -3478,6 +3483,24 @@ class FormulaBuilder(
 
     // The spell being cast, for the spell cost formula; the caster's stats are bound above.
     val spellBaseCost: IntExpr = v("spell_base_cost")
+
+    // Upkeep and town entry: the party's living members and the gold it
+    // carries, and the tax rate of the town it enters.
+    val livingMembers: IntExpr = v("living_members")
+    val gold: IntExpr = v("gold")
+    val taxPercent: IntExpr = v("tax_percent")
+
+    // Battle arithmetic, bound by the battle runner: the member who attacks or
+    // defends, or the one a monster attacks; the attacking monster; and the
+    // monster an encounter is made of.
+    val weaponSkill: IntExpr = v("weapon_skill")
+    val weaponDamage: IntExpr = v("weapon_damage")
+    val hitPoints: IntExpr = v("hit_points")
+    val armorClass: IntExpr = v("armor_class")
+    val partyConfused: BoolExpr = Bool(BoolAst.Cmp(IntAst.Var("party_confused"), "ne", IntAst.Lit(0)))
+    val monsterHitPoints: IntExpr = v("monster_hit_points")
+    val monsterCountMax: IntExpr = v("monster_count_max")
+    val countMaxLevelDivisor: IntExpr = v("count_max_level_divisor")
 
     fun whenValue(
         condition: BoolExpr,

@@ -31,7 +31,26 @@ abstract class IntExpr {
     operator fun div(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "div", other.ast))
 
     operator fun div(other: Int): IntExpr = this / lit(other)
+
+    /** This value, or [other] when this is smaller: `damage atLeast 1`. */
+    infix fun atLeast(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "max", other.ast))
+
+    infix fun atLeast(other: Int): IntExpr = this atLeast lit(other)
+
+    /** This value, or [other] when this is larger: `chance atMost 95`. */
+    infix fun atMost(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "min", other.ast))
+
+    infix fun atMost(other: Int): IntExpr = this atMost lit(other)
 }
+
+// A plain number on the left of a value, as in `40 - dexterity * 2 / 5`, needs no lit().
+operator fun Int.plus(other: IntExpr): IntExpr = lit(this) + other
+
+operator fun Int.minus(other: IntExpr): IntExpr = lit(this) - other
+
+operator fun Int.times(other: IntExpr): IntExpr = lit(this) * other
+
+operator fun Int.div(other: IntExpr): IntExpr = lit(this) / other
 
 data class Expr(
     override val ast: IntAst,

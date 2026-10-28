@@ -657,10 +657,12 @@ internal class WildernessActions(
         return party.copy(members = members)
     }
 
-    private fun PartyState.foodTickCost(): Int {
-        val leaderLevelCost = if (realm.upkeep.foodCostLeaderDiv > 0) leaderLevel() / realm.upkeep.foodCostLeaderDiv else 0
-        return (counters.memberCount ?: members.size) + leaderLevelCost
-    }
+    private fun PartyState.foodTickCost(): Int =
+        realm.upkeep.foodCost
+            ?.let { formula ->
+                val upkeep = mapOf("living_members" to (counters.memberCount ?: members.size), "first_level" to leaderLevel())
+                content.evalFormula(formula, this, upkeep).value
+            } ?: 0
 
     private fun PartyState.applyStarvation(
         foodAfterTick: Int,

@@ -134,6 +134,8 @@ import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.ScriptContinuationSnapshot
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.scriptRootCatalog
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Complete compiled J1 bundle: content tables plus save/start state images.
@@ -999,7 +1001,7 @@ sealed interface CompiledIntExpr {
 }
 
 /** Arithmetic operator for [CompiledIntExpr.Binary]. */
-enum class CompiledBinaryOp { Add, Sub, Mul, Div, Mod }
+enum class CompiledBinaryOp { Add, Sub, Mul, Div, Mod, Max, Min }
 
 /** Applies a compiled integer binary operator using runtime-compatible divide-by-zero semantics. */
 fun Int.applyCompiledBinary(
@@ -1012,6 +1014,8 @@ fun Int.applyCompiledBinary(
         CompiledBinaryOp.Mul -> this * right
         CompiledBinaryOp.Div -> this / (right.takeUnless { value -> value == 0 } ?: 1)
         CompiledBinaryOp.Mod -> this % (right.takeUnless { value -> value == 0 } ?: 1)
+        CompiledBinaryOp.Max -> max(this, right)
+        CompiledBinaryOp.Min -> min(this, right)
     }
 
 /** Compiled boolean expression tree evaluated by scripts and runtime conditions. */
@@ -2105,6 +2109,8 @@ private class CompiledBundleCompiler(
             "*", "mul" -> CompiledBinaryOp.Mul
             "/", "div" -> CompiledBinaryOp.Div
             "%", "mod" -> CompiledBinaryOp.Mod
+            "max" -> CompiledBinaryOp.Max
+            "min" -> CompiledBinaryOp.Min
             else -> error("unknown int operator '$op'")
         }
 

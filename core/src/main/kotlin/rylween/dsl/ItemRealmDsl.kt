@@ -203,7 +203,8 @@ class TimeOfDayBandsBuilder {
 class WildernessUpkeepRulesBuilder(
     initial: WildernessUpkeepRules = WildernessUpkeepRules(),
 ) {
-    var foodCostLeaderDiv: Int = initial.foodCostLeaderDiv
+    /** The food the party eats every [foodTickEvery] turns, as a formula; without one it eats none. */
+    var foodCost: FormulaId? = initial.foodCost
     var foodTickEvery: Int = initial.foodTickEvery
     var starveFoodThreshold: Int = initial.starveFoodThreshold
     var starveDamage: Int = initial.starveDamage
@@ -250,7 +251,7 @@ class WildernessUpkeepRulesBuilder(
 
     internal fun build(): WildernessUpkeepRules =
         WildernessUpkeepRules(
-            foodCostLeaderDiv = foodCostLeaderDiv,
+            foodCost = foodCost,
             foodTickEvery = foodTickEvery,
             starveFoodThreshold = starveFoodThreshold,
             starveDamage = starveDamage,

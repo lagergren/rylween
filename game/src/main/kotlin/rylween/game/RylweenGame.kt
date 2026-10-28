@@ -401,7 +401,7 @@ val authoredRylween: RylweenModel =
                 // Upkeep runs during wilderness turns. These fields control food
                 // ticking, fatigue labels/drain, mana recovery, and starvation.
                 upkeep {
-                    foodCostLeaderDiv = 4
+                    foodCost = Formulas.foodUpkeep
                     foodTickEvery = 5
                     starveFoodThreshold = 0
                     starveDamage = 2
@@ -1325,18 +1325,59 @@ val authoredRylween: RylweenModel =
                 // bonus at +20, which leaves the smith refusing at least 56%
                 // of haggles.
                 formula(Formulas.huntSuccessChance) {
-                    value = whenValue(dexterity gt 100, lit(95), dexterity - 5)
+                    value = (dexterity - 5) atMost 95
                 }
                 formula(Formulas.castleTrapDisarmChance) {
-                    value = whenValue(dexterity gt 95, lit(95), dexterity)
+                    value = dexterity atMost 95
                 }
                 formula(Formulas.haggleRollBonus) {
-                    value = whenValue(charisma gt 90, lit(20), (charisma - 50) / 2)
+                    value = ((charisma - 50) / 2) atMost 20
                 }
                 // A spell costs its base cost plus the caster's level, for mage
                 // spells in battle and priest spells alike.
+                // Every food tick each living member eats a ration, and the
+                // leader one more for every four levels.
+                formula(Formulas.foodUpkeep) {
+                    value = livingMembers + firstLevel / 4
+                }
+                // Towns tax a party whose leader has reached level 5: a share
+                // of the gold it carries, at the town's rate.
+                formula(Formulas.townEntryTax) {
+                    value = whenValue(firstLevel gte 5, gold * taxPercent / 100)
+                }
                 formula(Formulas.spellCost) {
                     value = spellBaseCost + level
+                }
+                // Battle arithmetic. A chance is a percentage, rolled against
+                // 0-99. A confused party fights at a third of its weapon skill,
+                // and a member's own hit points add to the damage they deal.
+                formula(Formulas.playerHitChance) {
+                    value = whenValue(partyConfused, weaponSkill / 3, weaponSkill) + 1
+                }
+                formula(Formulas.playerDamage) {
+                    value = weaponDamage + random(0..4) + hitPoints / 12
+                }
+                formula(Formulas.defendHealing) {
+                    value = level
+                }
+                // A wounded monster hits less hard, and armor takes damage off
+                // every blow, down to a single point.
+                formula(Formulas.monsterHitChance) {
+                    value = monsterWeaponSkill + 1
+                }
+                formula(Formulas.monsterDamage) {
+                    value = (monsterHitPoints / 6 + random(0..9) - armorClass) atLeast 1
+                }
+                formula(Formulas.monsterSpellChance) {
+                    value = 15 + monsterSpellPower / 2
+                }
+                // Encounters grow with the party: monsters gain the leader's
+                // level in weapon skill, and some come in bigger groups.
+                formula(Formulas.encounterWeaponSkill) {
+                    value = monsterWeaponSkill + firstLevel
+                }
+                formula(Formulas.encounterFoeCountMax) {
+                    value = monsterCountMax + whenValue(countMaxLevelDivisor gt 0, firstLevel / countMaxLevelDivisor)
                 }
             }
 
@@ -1372,6 +1413,8 @@ val authoredRylween: RylweenModel =
                     encounterFoeCountMax = 8
                     encounterHitPointMinFormula = Formulas.encounterH1Scaled
                     encounterHitPointMaxFormula = Formulas.encounterH2Scaled
+                    encounterFoeCountMaxFormula = Formulas.encounterFoeCountMax
+                    encounterWeaponSkillFormula = Formulas.encounterWeaponSkill
                     victoryImage(Images.Backdrop.battleVictory)
                     defeatImage(Images.Backdrop.death)
 
@@ -1467,23 +1510,20 @@ val authoredRylween: RylweenModel =
                         castMageSpell('C') { line("(C)ast Spell") }
                     }
 
-                    // Player-round tunables control hit/damage math and the
-                    // effects of defending or using a battle cry.
+                    // The player round's hit and damage math lives in the formulas
+                    // above; defending and a battle cry also wear the foes down.
                     playerRound {
-                        attack(hitBonus = 1, damageSpreadMax = 4, confusionDivisor = 3, hpDefenseDivisor = 12)
-                        defend(weaponSkillPenalty = 2, restThreshold = 5, cap = 250)
+                        attack(hitChance = Formulas.playerHitChance, damage = Formulas.playerDamage)
+                        defend(healing = Formulas.defendHealing, weaponSkillPenalty = 2, restThreshold = 5, cap = 250)
                         battleCry(weaponSkillPenalty = 4)
                     }
 
-                    // Monster-round tunables control spell chance and fallback
-                    // melee damage for enemies that do not cast this round.
+                    // A monster casts a spell or, failing that, attacks in melee.
                     monsterRound {
-                        spellChance(basePercent = 15, spellPowerDivisor = 2)
+                        spellChance = Formulas.monsterSpellChance
                         melee(
-                            hitBonus = 1,
-                            damageDivisor = 6,
-                            damageSpreadMax = 9,
-                            damageMin = 1,
+                            hitChance = Formulas.monsterHitChance,
+                            damage = Formulas.monsterDamage,
                             fallback = Scenes.Battle.monsterMelee,
                         )
                     }
@@ -2839,10 +2879,12 @@ val authoredRylween: RylweenModel =
             // leave prompts, service scene ids, and opening-hour policy.
             townSystem {
                 leavePrompts(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)
+                // The street view behind the town menu and the entry tax.
+                image = Images.Scene.towneMainstreet
                 // Entry tax applies before town entry for qualifying parties.
                 // The bindings are semantic actions used by the town prompt.
                 entryTax {
-                    minimumLeaderLevel = 5
+                    amount = Formulas.townEntryTax
                     pay = inputKey("P", label = "Pay to Enter")
                     leave = inputKey("L", label = "Leave")
                 }
