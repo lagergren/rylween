@@ -571,6 +571,9 @@ class ScriptScope(
 @RylNextDsl
 @Suppress("unused")
 class ScriptRewardBuilder {
+    /** The item being placed, for the cant-carry and picked-up messages. */
+    val itemName: TextPart = TextPart.SelectedItemName
+
     private var goldAst: IntAst? = null
     private val itemIds = mutableListOf<ItemId>()
     private var applicationModel = RewardApplicationBuilder().build()

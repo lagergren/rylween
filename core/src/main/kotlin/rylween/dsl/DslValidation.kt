@@ -1859,8 +1859,8 @@ fun validateScriptRewards(
         if (reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
             check(reward.messages.cantCarry != null) { "drop-prompt reward requires cant-carry text" }
         }
-        reward.messages.cantCarry?.let { validateTextBlock(it, "reward cant-carry") }
-        reward.messages.pickedUp?.let { validateTextBlock(it, "reward picked-up") }
+        reward.messages.cantCarry?.let { validateTextBlock(it, "reward cant-carry", allowedRuntimeBindings = selectedItemTextBindings) }
+        reward.messages.pickedUp?.let { validateTextBlock(it, "reward picked-up", allowedRuntimeBindings = selectedItemTextBindings) }
         if (reward.messages.pickedUp != null) {
             check(reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
                 "picked-up reward text only applies to drop-prompt rewards"
@@ -3044,7 +3044,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.inventoryUse.invalidSlot, "inventory invalid-slot prompt", allowedRuntimeBindings = inventoryUseTextBindings)
     validateTextBlock(prompts.inventoryUse.notUsable, "inventory not-usable prompt", allowedRuntimeBindings = inventoryUseTextBindings)
     validateTextBlock(prompts.equipment.inventory, "equipment inventory prompt")
-    validateTextBlock(prompts.equipment.who, "equipment who prompt")
+    validateTextBlock(prompts.equipment.who, "equipment who prompt", allowedRuntimeBindings = memberChoiceTextBindings)
     validateTextBlock(prompts.equipment.noAvailable, "equipment no-available prompt", allowedRuntimeBindings = equipmentTextBindings)
     validateTextBlock(prompts.equipment.equipped, "equipment equipped prompt", allowedRuntimeBindings = selectedItemTextBindings)
     validateTextBlock(prompts.equipment.readyWeapons, "equipment ready-weapons prompt")

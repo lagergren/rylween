@@ -403,8 +403,15 @@ object HuntText {
     val memberName: TextPart = TextPart.HuntMemberName
     val memberSubjectPronoun: TextPart = TextPart.HuntMemberSubjectPronoun
     val foodGained: TextPart = TextPart.HuntFoodGained
-    val partyMemberCount: TextPart = TextPart.PartyMemberCount
-    val partyMemberMax: TextPart = TextPart.PartyMemberMax
+}
+
+/** Runtime placeholders about the whole party, for any prompt that lists its members. */
+object PartyText {
+    /** How many members the party has, dead or alive, as in "Who? (1-4)". */
+    val memberCount: TextPart = TextPart.PartyMemberCount
+
+    /** The most members a party can have. */
+    val memberMax: TextPart = TextPart.PartyMemberMax
 }
 
 /** Runtime placeholders available to authored camp messages. */

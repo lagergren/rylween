@@ -424,7 +424,7 @@ val authoredRylween: RylweenModel =
                     foodMax = 19
                     whoPrompt =
                         literalText {
-                            line("Who? (1-", HuntText.partyMemberCount, ")")
+                            line("Who? (1-", PartyText.memberCount, ")")
                         }
                     dead = literalText("Dead.")
                     notRanger =
@@ -459,7 +459,7 @@ val authoredRylween: RylweenModel =
                     guardPrompt = literalText("Camp.", "", "Post a guard?", "", "(Y)es", "(N)o")
                     guardMemberPrompt =
                         literalText {
-                            line("Who? (1-", HuntText.partyMemberCount, ")")
+                            line("Who? (1-", PartyText.memberCount, ")")
                         }
                     guardMemberDead = literalText("Dead.")
                     standsGuard =
@@ -694,7 +694,7 @@ val authoredRylween: RylweenModel =
                     invalidInput = literalText("Choose an option.")
                 }
                 priest {
-                    who = literalText { line("Who? (1-", HuntText.partyMemberCount, ")") }
+                    who = literalText { line("Who? (1-", PartyText.memberCount, ")") }
                     mageCombatOnly = flowText("Sorry. Mage spells are combat-only.")
                     wrongClass = literalText("Not a spellcaster!")
                     dead = literalText("Dead.")
@@ -714,7 +714,7 @@ val authoredRylween: RylweenModel =
                 }
                 equipment {
                     inventory = literalText("Ready what?")
-                    who = literalText("Who? (1-N)")
+                    who = literalText { line("Who? (1-", PartyText.memberCount, ")") }
                     readyWeapons = literalText("Do you want to ready any weapons before leaving?", "", "(Y)es", "(N)o")
                     readyArmors = literalText("Do you want to ready any armors before leaving?", "", "(Y)es", "(N)o")
                 }
@@ -3990,7 +3990,7 @@ val authoredRylween: RylweenModel =
                         option('H') {
                             clearText()
                             choice.member(
-                                literalText { line("Who? (1-", HuntText.partyMemberCount, ")") },
+                                literalText { line("Who? (1-", PartyText.memberCount, ")") },
                                 filter = MemberChoiceFilter.AliveOnly,
                                 accepting = MemberChoiceFilter.Any,
                             ) { m ->
@@ -4033,7 +4033,7 @@ val authoredRylween: RylweenModel =
                         option('E') {
                             clearText()
                             choice.member(
-                                literalText { line("Who? (1-", HuntText.partyMemberCount, ")") },
+                                literalText { line("Who? (1-", PartyText.memberCount, ")") },
                                 filter = MemberChoiceFilter.SpellcasterOnly,
                                 accepting = MemberChoiceFilter.Any,
                             ) { m ->
@@ -4072,7 +4072,7 @@ val authoredRylween: RylweenModel =
                         option('R') {
                             clearText()
                             choice.member(
-                                literalText { line("Who? (1-", HuntText.partyMemberCount, ")") },
+                                literalText { line("Who? (1-", PartyText.memberCount, ")") },
                                 filter = MemberChoiceFilter.DeadOnly,
                                 accepting = MemberChoiceFilter.Any,
                             ) { m ->
@@ -4586,7 +4586,7 @@ val authoredRylween: RylweenModel =
                                 clearText()
                                 choice.member(
                                     literalText {
-                                        line("Who wants to tell a story? (1-", HuntText.partyMemberMax, ")")
+                                        line("Who wants to tell a story? (1-", PartyText.memberCount, ")")
                                     },
                                     filter = MemberChoiceFilter.AliveOnly,
                                     accepting = MemberChoiceFilter.Any,
@@ -4998,7 +4998,7 @@ val authoredRylween: RylweenModel =
                         caster.mp -= cost
                         ask.member(
                             literalText {
-                                line("Who? (1-", HuntText.partyMemberMax, ")")
+                                line("Who? (1-", PartyText.memberCount, ")")
                             },
                             filter = MemberChoiceFilter.Any,
                         ) { target ->
@@ -5036,7 +5036,7 @@ val authoredRylween: RylweenModel =
                         caster.mp -= cost
                         ask.member(
                             literalText {
-                                line("Who? (1-", HuntText.partyMemberMax, ")")
+                                line("Who? (1-", PartyText.memberCount, ")")
                             },
                             filter = MemberChoiceFilter.Any,
                         ) { target ->
@@ -5057,7 +5057,7 @@ val authoredRylween: RylweenModel =
                     whenever(caster.mp gte cost) {
                         ask.member(
                             literalText {
-                                line("Who? (1-", HuntText.partyMemberMax, ")")
+                                line("Who? (1-", PartyText.memberCount, ")")
                             },
                             filter = MemberChoiceFilter.Any,
                         ) { target ->
@@ -5273,7 +5273,7 @@ val authoredRylween: RylweenModel =
                 effect {
                     ask.member(
                         literalText {
-                            line("Who? (1-", HuntText.partyMemberMax, ")")
+                            line("Who? (1-", PartyText.memberCount, ")")
                         },
                         filter = MemberChoiceFilter.AliveOnly,
                     ) { target ->
@@ -5293,7 +5293,7 @@ val authoredRylween: RylweenModel =
                 effect {
                     ask.member(
                         literalText {
-                            line("Who? (1-", HuntText.partyMemberMax, ")")
+                            line("Who? (1-", PartyText.memberCount, ")")
                         },
                         filter = MemberChoiceFilter.AliveOnly,
                     ) { target ->
@@ -5313,7 +5313,7 @@ val authoredRylween: RylweenModel =
                 effect {
                     ask.member(
                         literalText {
-                            line("Who? (1-", HuntText.partyMemberMax, ")")
+                            line("Who? (1-", PartyText.memberCount, ")")
                         },
                         filter = MemberChoiceFilter.SpellcasterOnly,
                         accepting = MemberChoiceFilter.AliveOnly,
@@ -5427,7 +5427,7 @@ val authoredRylween: RylweenModel =
                 effect {
                     ask.member(
                         literalText {
-                            line("On Whom? (1-", HuntText.partyMemberMax, ")")
+                            line("On Whom? (1-", PartyText.memberCount, ")")
                         },
                         filter = MemberChoiceFilter.Any,
                     ) { target ->
@@ -5484,7 +5484,7 @@ val authoredRylween: RylweenModel =
                 effect {
                     ask.member(
                         literalText {
-                            line("On Whom? (1-", HuntText.partyMemberMax, ")")
+                            line("On Whom? (1-", PartyText.memberCount, ")")
                         },
                         filter = MemberChoiceFilter.DeadOnly,
                         accepting = MemberChoiceFilter.Any,
@@ -6477,7 +6477,7 @@ val authoredRylween: RylweenModel =
                         reward {
                             gold(3_000)
                             items(Items.admtMail, Items.holyHandGrenade, Items.amberPotion, Items.fireWand, Items.crystalBowl)
-                            promptDrop(cantCarry = "You can't carry all the")
+                            promptDrop(cantCarry = flowText("You can't carry the ", itemName, "."))
                         }
                         waitInput("after Ron's reward")
                     }
