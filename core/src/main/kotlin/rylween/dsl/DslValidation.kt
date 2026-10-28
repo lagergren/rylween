@@ -1757,6 +1757,7 @@ fun validateScriptRewards(
             .map { it.id }
             .toSet()
     val dungeonScenarios = content.dungeons.scenarios.associateBy { it.dungeon }
+    val knownFormulas = content.formulas.map { it.id }.toSet()
 
     fun validateSlottedItemPool(
         pool: ItemPoolId,
@@ -1916,18 +1917,10 @@ fun validateScriptRewards(
         label: String,
     ) {
         when (price) {
-            ShopPriceModel.ItemCost,
-            ShopPriceModel.HalfItemCost,
-            -> Unit
+            ShopPriceModel.ItemCost -> Unit
             is ShopPriceModel.Fixed -> check(price.amount >= 0) { "$label fixed price is negative" }
-            is ShopPriceModel.LeaderLevelPlus ->
-                check(price.addend >= 0) {
-                    "$label leader-level addend is negative"
-                }
-            is ShopPriceModel.ItemCostPlusLeaderLevelTimes ->
-                check(price.multiplier >= 0) {
-                    "$label leader-level multiplier is negative"
-                }
+            is ShopPriceModel.Formula ->
+                check(price.formula in knownFormulas) { "$label price references missing formula ${price.formula.slug}" }
         }
     }
 

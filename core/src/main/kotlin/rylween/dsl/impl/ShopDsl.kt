@@ -88,30 +88,22 @@ object ShopZeroQuantityDeal {
 sealed interface ShopPriceModel {
     object ItemCost : ShopPriceModel
 
-    object HalfItemCost : ShopPriceModel
-
     data class Fixed(
         val amount: Int,
     ) : ShopPriceModel
 
-    data class LeaderLevelPlus(
-        val addend: Int,
-    ) : ShopPriceModel
-
-    data class ItemCostPlusLeaderLevelTimes(
-        val multiplier: Int,
+    /** A price worked out by a formula, which sees the item's cost and the party leader's level. */
+    data class Formula(
+        val formula: FormulaId,
     ) : ShopPriceModel
 }
 
 class ShopPriceRefs {
     val itemCost: ShopPriceModel = ShopPriceModel.ItemCost
-    val halfItemCost: ShopPriceModel = ShopPriceModel.HalfItemCost
 
     fun fixed(amount: Int): ShopPriceModel = ShopPriceModel.Fixed(amount)
 
-    fun leaderLevelPlus(addend: Int): ShopPriceModel = ShopPriceModel.LeaderLevelPlus(addend)
-
-    fun itemCostPlusLeaderLevelTimes(multiplier: Int): ShopPriceModel = ShopPriceModel.ItemCostPlusLeaderLevelTimes(multiplier)
+    fun formula(formula: FormulaId): ShopPriceModel = ShopPriceModel.Formula(formula)
 }
 
 val ShopPrices: ShopPriceRefs = ShopPriceRefs()
@@ -799,7 +791,9 @@ class ShopSellBuilder {
     private var offerText: TextBlock? = null
     private var declinedText: TextBlock? = null
     private var soldText: TextBlock? = null
-    var price: ShopPriceModel = ShopPriceModel.HalfItemCost
+
+    /** What the shop offers for an item before any haggling. */
+    var price: ShopPriceModel? = null
     private var haggleModel: ShopSellHaggleModel? = null
     private var saleKeysModel: ShopSaleKeysModel = ShopSaleKeysModel()
 
@@ -869,7 +863,7 @@ class ShopSellBuilder {
             offer = requireNotNull(offerText) { "shop sell section requires offer text" },
             declined = declinedText,
             sold = soldText,
-            price = price,
+            price = requireNotNull(price) { "shop sell section requires a price" },
             haggle = haggleModel,
             saleKeys = saleKeysModel,
         )

@@ -1345,6 +1345,18 @@ val authoredRylween: RylweenModel =
                 formula(Formulas.townEntryTax) {
                     value = whenValue(firstLevel gte 5, gold * taxPercent / 100)
                 }
+                // Shop prices: a ration costs a gold piece more than the
+                // leader's level, a healing potion three per level on top of
+                // its cost, and shops buy at half an item's cost.
+                formula(Formulas.rationPrice) {
+                    value = firstLevel + 1
+                }
+                formula(Formulas.healingPotionPrice) {
+                    value = itemCost + firstLevel * 3
+                }
+                formula(Formulas.sellPrice) {
+                    value = itemCost / 2
+                }
                 formula(Formulas.spellCost) {
                     value = spellBaseCost + level
                 }
@@ -4284,6 +4296,7 @@ val authoredRylween: RylweenModel =
                     sell {
                         prompt("Sell what?", "")
                         acceptsKinds(ItemKind.Weapon, ItemKind.Armor)
+                        price = ShopPrices.formula(Formulas.sellPrice)
                         wrongKind("Not weapon or armor.")
                         offer {
                             line("Ok! Give ya ", price, "!")
@@ -4549,7 +4562,7 @@ val authoredRylween: RylweenModel =
                                         line("You can carry no more than ", cap, " units!")
                                     },
                                 label = "Food Ration",
-                                price = ShopPrices.leaderLevelPlus(1),
+                                price = ShopPrices.formula(Formulas.rationPrice),
                                 description = flowText("Better food is not available anywhere else in the entire realm."),
                             )
                             item('C', Items.blanket, label = "Blanket", description = flowText("Our blankets are very warm and soft."))
@@ -4559,7 +4572,7 @@ val authoredRylween: RylweenModel =
                                 'F',
                                 Items.redPotion,
                                 label = "Healing Potion",
-                                price = ShopPrices.itemCostPlusLeaderLevelTimes(3),
+                                price = ShopPrices.formula(Formulas.healingPotionPrice),
                                 description = flowText("The best healing potions available for money!"),
                             )
                             item(
@@ -4576,6 +4589,7 @@ val authoredRylween: RylweenModel =
                         accepts(Items.ration, Items.blanket, Items.tent, Items.rope)
                         acceptsKinds(ItemKind.Potion, ItemKind.Treasure, ItemKind.MagicItem)
                         rejects(Items.donkey)
+                        price = ShopPrices.formula(Formulas.sellPrice)
                         wrongKind(flowText("- I don't deal in that kind of stuff!"))
                         offer {
                             line("- Ok. Give ya ", price, "!")

@@ -199,7 +199,7 @@ class RylweenCompiledGameLedgerTest {
                 it.requiredStat == CharacterCreationStat.Dexterity && it.minimum == 50
             },
         )
-        check(nextDsl.formulas.size == 19)
+        check(nextDsl.formulas.size == 22)
         check(nextDsl.rewards.size == 1)
         check(
             nextDsl.rewards

@@ -613,14 +613,15 @@ internal class ShopService(
     private fun price(
         price: CompiledShopPrice,
         item: CompiledHandleRef,
-        party: PartyState?,
+        party: PartyState,
     ): Int =
         when (price) {
             CompiledShopPrice.ItemCost -> itemRecord(item).cost
-            CompiledShopPrice.HalfItemCost -> itemRecord(item).cost / 2
             is CompiledShopPrice.Fixed -> price.amount
-            is CompiledShopPrice.LeaderLevelPlus -> (party?.leaderLevel ?: 0) + price.addend
-            is CompiledShopPrice.ItemCostPlusLeaderLevelTimes -> itemRecord(item).cost + (party?.leaderLevel ?: 0) * price.multiplier
+            is CompiledShopPrice.Formula -> {
+                val priced = mapOf("item_cost" to itemRecord(item).cost, "first_level" to party.leaderLevel)
+                content.evalFormula(price.formula, party, priced).value.coerceAtLeast(0)
+            }
         }
 
     private fun remainingCapacity(
