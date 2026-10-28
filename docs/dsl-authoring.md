@@ -93,12 +93,12 @@ rylween
     wilderness
       keys / events / terrainTransitions
     dungeons
-      keys / event / scenario
+      keys / event / randomEvents / scenario
     speak
       standardConversation / textTables / questionAction
     towns
     townSystem
-      entryTax / menu / buildingServices
+      image / entryTax / menu / buildingServices
     characters
       randomPlacementPolicy / character
     monsters
@@ -330,6 +330,9 @@ reward {
 }
 ```
 
+A reward of several items can name each one it has no room for with `itemName`:
+`promptDrop(cantCarry = flowText("You can't carry the ", itemName, "."))`.
+
 For simple player-facing resource gains, use the narrow helpers:
 
 ```kotlin
@@ -419,6 +422,11 @@ what game state changes. A mission triggers `at(...)` a square or a
 `onTerrain(...)`, and `requires(...)` a story flag state or a condition before
 it runs.
 
+Text that tells the player where a mission waits names it rather than copying
+its square: `flowText("The orcs have a cave at ", mission(Missions.husbandCave).coordinates, ".")`
+shows the mission's `at(...)` square, or its location's square wherever this
+game placed it, so the text follows the mission when it moves.
+
 ### Dialogue Branch
 
 ```kotlin
@@ -465,6 +473,7 @@ scene(Scenes.Towne.smith) {
         sell {
             prompt("Sell what?", "")
             acceptsKinds(ItemKind.Weapon, ItemKind.Armor)
+            price = ShopPrices.formula(Formulas.sellPrice)
             offer { line("Ok! Give ya ", price, "!") }
         }
     }
@@ -475,6 +484,10 @@ scene(Scenes.Towne.smith) {
 catalog too long for one screen splits into `page { ... }` blocks. Shop
 catalogs, sell policy, haggle text, paging, and purchase keys are authored.
 The runtime service loop owns live input, inventory mutation, and paging state.
+A price is the item's cost (`ShopPrices.itemCost`, the default for buying), a
+fixed amount (`ShopPrices.fixed(n)`), or a formula
+(`ShopPrices.formula(Formulas.rationPrice)`) that sees the item's `itemCost` and
+the leader's `firstLevel`. A sell section names its price.
 
 ### Runtime-System Prompt
 
@@ -494,8 +507,54 @@ prompts {
 
 Use this pattern when a runtime loop owns the input cadence but the text is
 player-facing game prose. Values only the runtime knows come in through
-placeholder objects: `InventoryText` (`slotName`, `itemName`), `CampText`
-(`guardName`), `HuntText`, `UpkeepText`, `TownText`, and `BattleText`.
+placeholder objects: `InventoryText` (`slotName`, `itemName`), `PartyText`
+(`memberCount`, `memberMax`), `CampText` (`guardName`), `CastleText`
+(`thiefName`), `HuntText`, `UpkeepText`, `TownText`, and `BattleText` (with
+`roundNumber` for the page each round opens with). Each message is authored
+whole, the runtime only filling in its values: the castle's
+`trapTriesDisarm = literalText { line(CastleText.thiefName, " tries to disarm it...") }`,
+not a fragment the runtime joins to a name. Where the runtime lists choices it
+knows, such as party members or the stairs items the castle guardian takes, the
+prompt holds only the question and the runtime adds the choices and the RETURN
+line.
+
+### Formulas
+
+A game rule that works something out, rather than naming a fixed number, is a
+formula, so the game author can change it without touching a runtime:
+
+```kotlin
+formulas {
+    formula(Formulas.spellCost) {
+        value = spellBaseCost + level
+    }
+    formula(Formulas.monsterDamage) {
+        value = (monsterHitPoints / 6 + random(0..9) - armorClass) atLeast 1
+    }
+}
+
+realm { spellCost = Formulas.spellCost }
+```
+
+The system that uses a formula binds its variables: the member it is about
+(`weaponSkill`, `weaponDamage`, `hitPoints`, `armorClass`, `level`, `charisma`,
+`dexterity`), the monster (`monsterWeaponSkill`, `monsterHitPoints`,
+`monsterSpellPower`), the encounter, the party (`firstLevel`, `livingMembers`,
+`gold`), a town's `taxPercent`, a shop item's `itemCost`, or a spell's
+`spellBaseCost`. `atLeast` and `atMost` clamp a value, `whenValue(condition, a, b)`
+picks one, and `random(lo..hi)` draws from the game's own random numbers. A
+chance is a percentage the runtime rolls 0-99 against.
+
+This game's rules that are formulas: what a spell costs (`realm { spellCost }`),
+a party member's and a monster's chance to hit and damage, a monster's chance to
+cast, the hit points a defending member regains, how encounters grow with the
+leader's level (`encounterFoeCountMaxFormula`, `encounterWeaponSkillFormula`,
+and the hit point range), battle experience and gold, level-up hit points, the
+food the party eats (`upkeep { foodCost }`), the town entry tax
+(`entryTax { amount }`), shop prices, the hunting and trap-disarm chances, and
+the haggle bonus. Inside a priest spell, `withCurrentCasterCost { caster, cost -> }`
+hands over the cost the formula works out; the spell's `baseCost` is declared
+once, in its `spell(...)` header.
 
 ### Map Or Terrain
 
@@ -629,17 +688,23 @@ dungeons {
         }
     }
 
+    // The mix every scenario draws its other levels from, unless it names its own.
+    randomEvents(
+        DungeonEvents.weakEncounter to 2,
+        DungeonEvents.goldChest to 1,
+    )
+
     scenario(Dungeons.reebarTomb) {
         name("Reebar Tomb")
         levels(20)
-        randomEvents(
-            DungeonEvents.weakEncounter to 2,
-            DungeonEvents.goldChest to 1,
-        )
         level(2, DungeonEvents.cryptWarning)
+        level(13..19, DungeonEvents.colorRiddle)
     }
 }
 ```
+
+A scenario's own `randomEvents(...)` replaces the dungeons' mix for that
+dungeon, and `level(3, 6, 9, event = ...)` puts one event on several levels.
 
 An event's disposition decides whether it is still on its level when the party
 comes back:
