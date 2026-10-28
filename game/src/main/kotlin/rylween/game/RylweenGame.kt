@@ -2343,35 +2343,28 @@ val authoredRylween: RylweenModel =
                     }
                 }
 
-                // Scenarios map a dungeon id to depth, random-event weights, and
-                // fixed levels that override the random mix.
+                // Every dungeon draws the levels without a fixed event from this
+                // weighted mix, unless its scenario names a mix of its own.
+                randomEvents(
+                    DungeonEvents.findObject to 1,
+                    DungeonEvents.gold to 1,
+                    DungeonEvents.weakEncounter to 2,
+                    DungeonEvents.deepEncounter to 1,
+                    DungeonEvents.nothingSpecial to 1,
+                    DungeonEvents.emptyLevel to 1,
+                    DungeonEvents.goldChest to 1,
+                    DungeonEvents.torches to 1,
+                )
+
+                // Scenarios map a dungeon id to depth and the fixed levels that
+                // override the random mix.
                 scenario(Dungeons.randomCave) {
                     name("Random Cave")
-                    randomEvents(
-                        DungeonEvents.findObject to 1,
-                        DungeonEvents.gold to 1,
-                        DungeonEvents.weakEncounter to 2,
-                        DungeonEvents.deepEncounter to 1,
-                        DungeonEvents.nothingSpecial to 1,
-                        DungeonEvents.emptyLevel to 1,
-                        DungeonEvents.goldChest to 1,
-                        DungeonEvents.torches to 1,
-                    )
                 }
 
                 scenario(Dungeons.fireShieldCave) {
                     name("Fire Shield Cave")
                     levels(20)
-                    randomEvents(
-                        DungeonEvents.findObject to 1,
-                        DungeonEvents.gold to 1,
-                        DungeonEvents.weakEncounter to 2,
-                        DungeonEvents.deepEncounter to 1,
-                        DungeonEvents.nothingSpecial to 1,
-                        DungeonEvents.emptyLevel to 1,
-                        DungeonEvents.goldChest to 1,
-                        DungeonEvents.torches to 1,
-                    )
                     level(19, DungeonEvents.fireShieldGuardian)
                     level(20, DungeonEvents.fireShield)
                 }
@@ -2379,16 +2372,6 @@ val authoredRylween: RylweenModel =
                 scenario(Dungeons.thunTemple) {
                     name("Thun Temple")
                     levels(18)
-                    randomEvents(
-                        DungeonEvents.findObject to 1,
-                        DungeonEvents.gold to 1,
-                        DungeonEvents.weakEncounter to 2,
-                        DungeonEvents.deepEncounter to 1,
-                        DungeonEvents.nothingSpecial to 1,
-                        DungeonEvents.emptyLevel to 1,
-                        DungeonEvents.goldChest to 1,
-                        DungeonEvents.torches to 1,
-                    )
                     level(4, DungeonEvents.thunRiddle1)
                     level(8, DungeonEvents.thunRiddle2)
                     level(12, DungeonEvents.thunRiddle3)
@@ -2398,78 +2381,27 @@ val authoredRylween: RylweenModel =
                 scenario(Dungeons.reebarTomb) {
                     name("Reebar Tomb")
                     levels(20)
-                    randomEvents(
-                        DungeonEvents.findObject to 1,
-                        DungeonEvents.gold to 1,
-                        DungeonEvents.weakEncounter to 2,
-                        DungeonEvents.deepEncounter to 1,
-                        DungeonEvents.nothingSpecial to 1,
-                        DungeonEvents.emptyLevel to 1,
-                        DungeonEvents.goldChest to 1,
-                        DungeonEvents.torches to 1,
-                    )
                     level(12, DungeonEvents.spectrumMessage)
-                    level(13, DungeonEvents.colorRiddle)
-                    level(14, DungeonEvents.colorRiddle)
-                    level(15, DungeonEvents.colorRiddle)
-                    level(16, DungeonEvents.colorRiddle)
-                    level(17, DungeonEvents.colorRiddle)
-                    level(18, DungeonEvents.colorRiddle)
-                    level(19, DungeonEvents.colorRiddle)
+                    level(13..19, DungeonEvents.colorRiddle)
                     level(20, DungeonEvents.nolrimTomb)
                 }
 
                 scenario(Dungeons.masterCrownDungeon) {
                     name("Master Crown Dungeon")
                     levels(10)
-                    randomEvents(
-                        DungeonEvents.findObject to 1,
-                        DungeonEvents.gold to 1,
-                        DungeonEvents.weakEncounter to 2,
-                        DungeonEvents.deepEncounter to 1,
-                        DungeonEvents.nothingSpecial to 1,
-                        DungeonEvents.emptyLevel to 1,
-                        DungeonEvents.goldChest to 1,
-                        DungeonEvents.torches to 1,
-                    )
                     level(10, DungeonEvents.masterCrown)
                 }
 
                 scenario(Dungeons.silverSanctum) {
                     name("Silver Sanctum")
                     levels(20)
-                    randomEvents(
-                        DungeonEvents.findObject to 1,
-                        DungeonEvents.gold to 1,
-                        DungeonEvents.weakEncounter to 2,
-                        DungeonEvents.deepEncounter to 1,
-                        DungeonEvents.nothingSpecial to 1,
-                        DungeonEvents.emptyLevel to 1,
-                        DungeonEvents.goldChest to 1,
-                        DungeonEvents.torches to 1,
-                    )
                     level(20, DungeonEvents.silverSanctum)
                 }
 
                 scenario(Dungeons.hobgoblinStronghold) {
                     name("Hobgoblin Stronghold")
                     levels(22)
-                    randomEvents(
-                        DungeonEvents.findObject to 1,
-                        DungeonEvents.gold to 1,
-                        DungeonEvents.weakEncounter to 2,
-                        DungeonEvents.deepEncounter to 1,
-                        DungeonEvents.nothingSpecial to 1,
-                        DungeonEvents.emptyLevel to 1,
-                        DungeonEvents.goldChest to 1,
-                        DungeonEvents.torches to 1,
-                    )
-                    level(3, DungeonEvents.hobgoblinPatrol)
-                    level(6, DungeonEvents.hobgoblinPatrol)
-                    level(9, DungeonEvents.hobgoblinPatrol)
-                    level(14, DungeonEvents.hobgoblinPatrol)
-                    level(17, DungeonEvents.hobgoblinPatrol)
-                    level(19, DungeonEvents.hobgoblinPatrol)
+                    level(3, 6, 9, 14, 17, 19, event = DungeonEvents.hobgoblinPatrol)
                     level(20, DungeonEvents.royalGuard1)
                     level(21, DungeonEvents.royalGuard2)
                     level(22, DungeonEvents.hobgoblinChief)
@@ -2478,16 +2410,6 @@ val authoredRylween: RylweenModel =
                 scenario(Dungeons.ogreCave) {
                     name("Ogre Cave")
                     levels(7)
-                    randomEvents(
-                        DungeonEvents.findObject to 1,
-                        DungeonEvents.gold to 1,
-                        DungeonEvents.weakEncounter to 2,
-                        DungeonEvents.deepEncounter to 1,
-                        DungeonEvents.nothingSpecial to 1,
-                        DungeonEvents.emptyLevel to 1,
-                        DungeonEvents.goldChest to 1,
-                        DungeonEvents.torches to 1,
-                    )
                     level(6, DungeonEvents.orcNest)
                     level(7, DungeonEvents.tammysPrison)
                 }
@@ -2495,18 +2417,7 @@ val authoredRylween: RylweenModel =
                 scenario(Dungeons.erethorTemple) {
                     name("Erethor Temple")
                     levels(12)
-                    randomEvents(
-                        DungeonEvents.findObject to 1,
-                        DungeonEvents.gold to 1,
-                        DungeonEvents.weakEncounter to 2,
-                        DungeonEvents.deepEncounter to 1,
-                        DungeonEvents.nothingSpecial to 1,
-                        DungeonEvents.emptyLevel to 1,
-                        DungeonEvents.goldChest to 1,
-                        DungeonEvents.torches to 1,
-                    )
-                    level(3, DungeonEvents.erethorPriests)
-                    level(7, DungeonEvents.erethorPriests)
+                    level(3, 7, event = DungeonEvents.erethorPriests)
                     level(12, DungeonEvents.luteChamber)
                 }
             }
