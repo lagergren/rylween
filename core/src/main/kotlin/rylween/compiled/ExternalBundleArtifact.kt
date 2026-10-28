@@ -2548,6 +2548,7 @@ private class ExternalBundleArtifactWriter {
             is TextPart.IntValue -> jsonObject("kind" to JsonString("intExpr"), "expr" to intAstJson(part.value))
             is TextPart.StringValue -> jsonObject("kind" to JsonString("stringExpr"), "expr" to strAstJson(part.value))
             is TextPart.Pause -> error("{pause} markers only work in writeText and showTextAndWait")
+            is TextPart.LineColor -> jsonObject("kind" to JsonString("literal"), "text" to JsonString(part.color.escape))
             is TextPart.RoleName -> jsonObject("kind" to JsonString("roleName"), "role" to JsonString(part.role.slug))
             is TextPart.RoleJob -> jsonObject("kind" to JsonString("roleJob"), "role" to JsonString(part.role.slug))
             is TextPart.RoleLocation ->

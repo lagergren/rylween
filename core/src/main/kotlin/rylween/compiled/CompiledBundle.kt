@@ -2177,6 +2177,7 @@ private class CompiledBundleCompiler(
             is TextPart.IntValue -> CompiledTextPart.IntValue(intExpr(part.value))
             is TextPart.StringValue -> CompiledTextPart.StringValue(stringExpr(part.value))
             is TextPart.Pause -> error("{pause} markers only work in writeText and showTextAndWait")
+            is TextPart.LineColor -> CompiledTextPart.Literal(strings.id(part.color.escape))
             is TextPart.RoleName -> CompiledTextPart.RoleName(roleRef(part.role))
             is TextPart.RoleJob -> CompiledTextPart.RoleJob(roleRef(part.role))
             is TextPart.RoleLocation -> CompiledTextPart.RoleLocation(roleRef(part.role))

@@ -39,6 +39,14 @@ sealed interface TextPart {
         val millis: Int,
     ) : TextPart
 
+    /**
+     * The color of a whole line or paragraph, written `{red}` (or another
+     * [TextColor]) at its start. It can only start a line.
+     */
+    data class LineColor(
+        val color: TextColor,
+    ) : TextPart
+
     data class RoleName(
         val role: NpcRole,
     ) : TextPart
@@ -160,6 +168,7 @@ fun TextPart.fallbackText(): String =
         is TextPart.IntValue -> "{int}"
         is TextPart.StringValue -> "{string}"
         is TextPart.Pause -> ""
+        is TextPart.LineColor -> ""
         is TextPart.RoleName -> "{${role.slug}.name}"
         is TextPart.RoleJob -> "{${role.slug}.job}"
         is TextPart.RoleLocation -> "{${role.slug}.location}"
@@ -241,7 +250,7 @@ sealed interface TextBlock {
  */
 fun literalText(vararg lines: String): TextBlock {
     val rows = expandMultiline(lines)
-    return if (rows.none(pauseMarker::containsMatchIn)) {
+    return if (rows.none(textMarker::containsMatchIn)) {
         TextBlock.Inline(rows)
     } else {
         TextBlock.Structured(rows.map { row -> TextLine(literalParts(row)) })
@@ -326,21 +335,48 @@ private fun textParts(part: Any): List<TextPart> =
     }
 
 private const val DEFAULT_PAUSE_MILLIS = 1_500
-private val pauseMarker = Regex("""\{pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s))?\}""")
+private val textMarker =
+    Regex("""\{(?:pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s))?|(${TextColor.entries.joinToString("|") { color -> color.marker }}))\}""")
 
-/** Splits literal text at its `{pause}` markers; text without one stays a single literal. */
+/** Splits literal text at its `{pause}` and color markers; text without one stays a single literal. */
 private fun literalParts(text: String): List<TextPart> {
-    val pauses = pauseMarker.findAll(text).map { marker -> TextPart.Pause(marker.pauseMillis()) }.toList()
-    if (pauses.isEmpty()) return listOf(TextPart.Literal(text))
-    return text.split(pauseMarker).flatMapIndexed { index, piece ->
-        listOfNotNull(piece.takeIf(String::isNotEmpty)?.let { literal -> TextPart.Literal(literal) }, pauses.getOrNull(index))
+    val markers = textMarker.findAll(text).map { marker -> marker.textPart() }.toList()
+    if (markers.isEmpty()) return listOf(TextPart.Literal(text))
+    return text.split(textMarker).flatMapIndexed { index, piece ->
+        listOfNotNull(piece.takeIf(String::isNotEmpty)?.let { literal -> TextPart.Literal(literal) }, markers.getOrNull(index))
     }
 }
 
-private fun MatchResult.pauseMillis(): Int {
-    val amount = groupValues[1].takeIf(String::isNotEmpty)?.toDouble() ?: return DEFAULT_PAUSE_MILLIS
-    return if (groupValues[2] == "s") (amount * 1_000).toInt() else amount.toInt()
+private fun MatchResult.textPart(): TextPart {
+    val color = groupValues[3].takeIf(String::isNotEmpty)
+    if (color != null) return TextPart.LineColor(TextColor.entries.single { entry -> entry.marker == color })
+    val amount = groupValues[1].takeIf(String::isNotEmpty)?.toDouble() ?: return TextPart.Pause(DEFAULT_PAUSE_MILLIS)
+    return TextPart.Pause(if (groupValues[2] == "s") (amount * 1_000).toInt() else amount.toInt())
 }
+
+/**
+ * A color for a whole line of text-window text, written `{red}`, `{green}` and
+ * so on at the start of the line. Compiled text starts the line with the
+ * color's ANSI [escape]; every renderer reads it back with [lineColor], so the
+ * terminal shows the line in that color and the browser draws it so.
+ */
+enum class TextColor(
+    val marker: String,
+    val escape: String,
+) {
+    Red("red", "\u001B[31m"),
+    Green("green", "\u001B[32m"),
+    Yellow("yellow", "\u001B[33m"),
+    Blue("blue", "\u001B[34m"),
+    Magenta("magenta", "\u001B[35m"),
+    Cyan("cyan", "\u001B[36m"),
+}
+
+/** The color a rendered text-window line starts with, if it has one. */
+fun String.lineColor(): TextColor? = TextColor.entries.firstOrNull { color -> startsWith(color.escape) }
+
+/** The line without its leading color escape. */
+fun String.withoutLineColor(): String = lineColor()?.let { color -> removePrefix(color.escape) } ?: this
 
 /** One step of text shown with `{pause}` beats: the text so far, then the pause after it, if any. */
 internal data class TextBeat(
