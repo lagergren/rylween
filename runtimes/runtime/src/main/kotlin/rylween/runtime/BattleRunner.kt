@@ -1207,9 +1207,9 @@ internal class BattleRunner(
                     }
                 CompiledOpcode.View ->
                     false.also {
-                        screen.writeViewCommand(
-                            instruction.viewOperand(0).toRuntimeViewCommand(),
-                        )
+                        val command = instruction.viewOperand(0).toRuntimeViewCommand()
+                        if (command == RuntimeViewCommand.ClearText) currentTextLines = emptyList()
+                        screen.writeViewCommand(command)
                     }
 
                 CompiledOpcode.LetInt ->

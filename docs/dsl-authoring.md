@@ -172,11 +172,11 @@ scene(Scenes.Missions.bandits) {
 }
 ```
 
-`writeText(...)` starts a fresh page in the text window, and `appendText(...)`
-adds below what the page already shows; appended flow text gets a blank line
-above it, appended literal lines continue directly below. `showTextAndWait(...)`
-is the read-and-dismiss page verb: it writes text, waits for Return/Enter, and
-clears the text window.
+`writeText(...)` starts a fresh page in the text window, so it needs no
+`clearText()` before it, and `appendText(...)` adds below what the page already
+shows; appended flow text gets a blank line above it, appended literal lines
+continue directly below. `showTextAndWait(...)` is the read-and-dismiss page
+verb: it writes text, waits for Return/Enter, and clears the text window.
 
 Text must stay on screen until something holds it: a `waitInput()`, a pause,
 or a menu whose prompt only lists its choices (such a menu keeps the page above
@@ -205,10 +205,11 @@ writeText(
 writeText(flowText(partyName(caster), " utters three syllables in an archaic tongue... {pause 2s} and the ground cracks open!"))
 ```
 
-Markers work only in those two verbs; any other text that holds one, such as a
-menu prompt, a journal entry or `appendText`, is rejected. Keep a separate
-`pause(...)` where something else happens at the beat, such as a sound cue or a
-new page.
+A marker at the very end of the text holds the page that long, so a short
+notice is one call: `writeText("No money - No drink! {pause 1s}")`. That is
+also the only place `appendText` takes one. Any other text that holds a marker,
+such as a menu prompt or a journal entry, is rejected. `pause(ms)` is left for a
+beat between two other things, such as a sound cue and the line after it.
 
 Literal lines are rows, not hand-wrapped prose: put each sentence on one line
 and let the renderer wrap it to the window, and break the line only where a new

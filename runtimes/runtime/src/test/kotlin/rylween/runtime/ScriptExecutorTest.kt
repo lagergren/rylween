@@ -97,24 +97,7 @@ class ScriptExecutorTest {
 
     @Test
     fun aPauseMarkerShowsThePageUpToItThenTheRest() {
-        val events = mutableListOf<String>()
-        val screen =
-            object : NoOpRuntimeScreen(textColumns = CLASSIC_TEXT_WINDOW_COLUMNS) {
-                override fun writeText(lines: List<String>) {
-                    events += lines.joinToString(" / ")
-                }
-            }
-        val scripted = ScriptedInput("AAAA")
-        val input =
-            object : RuntimeInputPort by scripted {
-                override fun pause(ms: Int) {
-                    events += "pause $ms"
-                }
-            }
-        val program = scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.tybalt.erethor.lute.none")
-        RuntimeLog.open(testTmp.resolve("tybalt-beat.log")).use { log ->
-            ScriptExecutor(bundle.content, systems, input, screen, thordRuntime(), log = log).execute(program)
-        }
+        val events = pagesAndPauses(scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.tybalt.erethor.lute.none"), "AAAA")
 
         val beat = events.indexOf("pause 1500")
         assertTrue(beat > 0, "the rumor pauses at its {pause} marker: $events")
@@ -123,6 +106,40 @@ class ScriptExecutorTest {
             events[beat + 1].startsWith(events[beat - 1]) && "- Erethor is a mighty" in events[beat + 1],
             "after the beat the same page shows the rest below it: ${events[beat + 1]}",
         )
+    }
+
+    @Test
+    fun aPauseMarkerAtTheEndHoldsThePageOnce() {
+        val events = pagesAndPauses(scriptRoot(ScriptRootKind.Scene, "towne.hut"), "L")
+
+        val shown = events.indexOf("You enter the hut.")
+        assertEquals("pause 600", events.getOrNull(shown + 1), "the trailing marker holds the page: $events")
+        assertEquals(1, events.count { event -> event == "You enter the hut." }, "the held page is not shown again: $events")
+    }
+
+    // Every page the script writes, joined into one string, and every pause, in order.
+    private fun pagesAndPauses(
+        program: CompiledScriptProgram,
+        commands: String,
+    ): List<String> {
+        val events = mutableListOf<String>()
+        val screen =
+            object : NoOpRuntimeScreen(textColumns = CLASSIC_TEXT_WINDOW_COLUMNS) {
+                override fun writeText(lines: List<String>) {
+                    events += lines.joinToString(" / ")
+                }
+            }
+        val scripted = ScriptedInput(commands)
+        val input =
+            object : RuntimeInputPort by scripted {
+                override fun pause(ms: Int) {
+                    events += "pause $ms"
+                }
+            }
+        RuntimeLog.open(testTmp.resolve("${program.root.slug}-beats.log")).use { log ->
+            ScriptExecutor(bundle.content, systems, input, screen, thordRuntime(), log = log).execute(program)
+        }
+        return events
     }
 
     private fun pausePromptIn(lines: List<String>): Boolean = lines.lastOrNull()?.startsWith("(") == true
