@@ -491,7 +491,7 @@ class RylweenCompiledGameLedgerTest {
         check(castleContent.entryRequirement == Milestones.silverKey)
         check(castleContent.completionMilestone == Milestones.ydargVictory)
         check(castleContent.pitfall.disarmChance == Formulas.castleTrapDisarmChance)
-        check(castleContent.scripts.completed?.slug == "castle.ydarg.completed")
+        check(castleContent.scripts.completed?.slug == "castle.ydarg_completed")
         check(castleContent.text.stairsIllustration?.slug == "blitgfx.castle_stairs_guardians")
         check(
             runtimeSystems.castleRows
@@ -546,7 +546,7 @@ class RylweenCompiledGameLedgerTest {
                     RuntimeCommandActionId.Save.id to "Save Game",
                 ),
         )
-        listOf("castle.ydarg.entry_blocked", "castle.ydarg.entered").forEach { sceneSlug ->
+        listOf("castle.ydarg_entry_blocked", "castle.ydarg_entered").forEach { sceneSlug ->
             val scene = nextDsl.scenes.single { it.id.slug == sceneSlug }
             val firstScreen = scene.statementNodes.first { op -> op is ScriptStatementNode.Screen } as ScriptStatementNode.Screen
             check("Jaara" in firstScreen.text.fallbackText()) {
@@ -567,7 +567,7 @@ class RylweenCompiledGameLedgerTest {
         )
         check(
             nextDsl.scenes
-                .single { it.id.slug == "castle.ydarg.completed" }
+                .single { it.id.slug == "castle.ydarg_completed" }
                 .statementNodes
                 .filterIsInstance<ScriptStatementNode.Encounter>()
                 .map { it.foe } ==
@@ -2943,7 +2943,7 @@ class RylweenCompiledGameLedgerTest {
                 "characters {",
                 "monsters {",
                 "missions {",
-                "scene(sceneId(\"castle.ydarg.already_completed\")) {",
+                "scene(Scenes.Castle.ydargAlreadyCompleted) {",
                 "scene(Scenes.Towne.church) {",
                 "scene(Scenes.Missions.erethorEntry) {",
                 "dialogue {",

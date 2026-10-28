@@ -137,7 +137,7 @@ data class CastleTextModel(
     val stairsLeave: TextBlock = literalText(),
     val teleportVortex: TextBlock = literalText(),
     val teleportOutside: TextBlock = literalText(),
-    val giveMenu: TextBlock = literalText(),
+    val givePrompt: TextBlock = literalText(),
     val stairsGuardianGrateful: TextBlock = literalText(),
     val floorNames: List<String> = emptyList(),
 )
@@ -500,7 +500,9 @@ class CastleTextBuilder(
     var stairsLeave: TextBlock = initial.stairsLeave
     var teleportVortex: TextBlock = initial.teleportVortex
     var teleportOutside: TextBlock = initial.teleportOutside
-    var giveMenu: TextBlock = initial.giveMenu
+
+    /** The question above the stairs items the party can give; the runtime lists the items and RETURN leaves. */
+    var givePrompt: TextBlock = initial.givePrompt
     var stairsGuardianGrateful: TextBlock = initial.stairsGuardianGrateful
     private val floorNames = initial.floorNames.toMutableList()
 
@@ -531,7 +533,7 @@ class CastleTextBuilder(
             stairsLeave = stairsLeave,
             teleportVortex = teleportVortex,
             teleportOutside = teleportOutside,
-            giveMenu = giveMenu,
+            givePrompt = givePrompt,
             stairsGuardianGrateful = stairsGuardianGrateful,
             floorNames = floorNames.toList(),
         )
