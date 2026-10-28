@@ -87,6 +87,16 @@ class ScriptExecutorTest {
     }
 
     @Test
+    fun theInnListsEachDrinkWithItsPrice() {
+        // Decline supper, then ask for a drink.
+        val menu = townSceneTexts("towne.inn", "NY").first { lines -> "What'll it be?" in lines }
+
+        val ale = menu.single { line -> line.startsWith("(A)") }
+        assertEquals(listOf("(A) Ale", "2 au"), ale.split(TEXT_COLUMN_SEPARATOR), "the price is its own column: $menu")
+        assertEquals("RETURN leaves.", menu.last(), "the drinks menu ends with its way out: $menu")
+    }
+
+    @Test
     fun shopMenusSeparateProseFromKeyChoicesWithoutRepeatingThem() {
         // Decline the forced beer interlude, dismiss its pause, open Buy, then decline the catalog choice.
         val texts = townSceneTexts("towne.smith", "DXBN")

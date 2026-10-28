@@ -558,6 +558,12 @@ class ScriptScope(
         }
     }
 
+    fun pay(
+        amount: Int,
+        broke: ScriptScope.() -> Unit,
+        ok: ScriptScope.() -> Unit,
+    ): Unit = pay(lit(amount), broke, ok)
+
     internal fun capture(body: ScriptScope.() -> Unit): List<ScriptStatementNode> = recordStatementNodes(ctx, body)
 }
 
