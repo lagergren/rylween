@@ -323,7 +323,7 @@ fun validateFormulas(formulas: List<FormulaModel>) {
     check(formulas.map { it.id }.toSet().size == formulas.size) { "duplicate formula" }
 }
 
-/** Validates that the hunt and castle trap chances and the spell cost name authored formulas. */
+/** Validates that the hunt and castle trap chances, the spell cost and the battle arithmetic name authored formulas. */
 private fun validateSystemFormulaReferences(content: GameModel) {
     val formulaIds = content.formulas.map { it.id }.toSet()
     content.realm.hunt?.let { hunt ->
@@ -333,6 +333,28 @@ private fun validateSystemFormulaReferences(content: GameModel) {
     }
     content.realm.spellCost?.let { spellCost ->
         check(spellCost in formulaIds) { "realm spell cost references missing formula ${spellCost.slug}" }
+    }
+    content.realm.upkeep.foodCost?.let { foodCost ->
+        check(foodCost in formulaIds) { "realm upkeep food cost references missing formula ${foodCost.slug}" }
+    }
+    content.townSystem?.entryTax?.amount?.let { tax ->
+        check(tax in formulaIds) { "town entry tax references missing formula ${tax.slug}" }
+    }
+    content.combat.standardBattle?.let { battle ->
+        listOf(
+            "attack hit chance" to battle.playerRound.attack.hitChance,
+            "attack damage" to battle.playerRound.attack.damage,
+            "defend healing" to battle.playerRound.defend.healing,
+            "monster spell chance" to battle.monsterRound.spellChance,
+            "monster melee hit chance" to battle.monsterRound.melee.hitChance,
+            "monster melee damage" to battle.monsterRound.melee.damage,
+            "encounter minimum hit points" to battle.encounterHitPointMinFormula,
+            "encounter maximum hit points" to battle.encounterHitPointMaxFormula,
+            "encounter foe count maximum" to battle.encounterFoeCountMaxFormula,
+            "encounter weapon skill" to battle.encounterWeaponSkillFormula,
+        ).forEach { (rule, formula) ->
+            check(formula in formulaIds) { "standard battle $rule references missing formula ${formula.slug}" }
+        }
     }
     content.castles.forEach { castle ->
         val disarmChance =
@@ -436,18 +458,6 @@ fun validateCombatSystem(
         }
         validateBattleText(battle.text)
 
-        check(battle.playerRound.attack.hitBonus >= 0) {
-            "standard battle attack hit bonus must be non-negative"
-        }
-        check(battle.playerRound.attack.damageSpreadMax >= 0) {
-            "standard battle attack damage spread must be non-negative"
-        }
-        check(battle.playerRound.attack.confusionDivisor > 0) {
-            "standard battle attack confusion divisor must be positive"
-        }
-        check(battle.playerRound.attack.hpDefenseDivisor > 0) {
-            "standard battle attack HP defense divisor must be positive"
-        }
         check(battle.playerRound.defend.weaponSkillPenalty >= 0) {
             "standard battle defend weapon-skill penalty must be non-negative"
         }
@@ -461,22 +471,6 @@ fun validateCombatSystem(
             "standard battle battle-cry weapon-skill penalty must be non-negative"
         }
 
-        checkPercent(battle.monsterRound.spellChanceBasePercent, "standard battle monster spell base chance")
-        check(battle.monsterRound.spellPowerDivisor > 0) {
-            "standard battle monster spell-power divisor must be positive"
-        }
-        check(battle.monsterRound.melee.hitBonus >= 0) {
-            "standard battle monster melee hit bonus must be non-negative"
-        }
-        check(battle.monsterRound.melee.damageDivisor > 0) {
-            "standard battle monster melee damage divisor must be positive"
-        }
-        check(battle.monsterRound.melee.damageSpreadMax >= 0) {
-            "standard battle monster melee damage spread must be non-negative"
-        }
-        check(battle.monsterRound.melee.damageMin >= 0) {
-            "standard battle monster melee damage minimum must be non-negative"
-        }
         check(battle.roundLimit > 0) { "standard battle round limit must be positive" }
         check(battle.encounterFoeCountMax > 0) { "standard battle foe count max must be positive" }
 
@@ -998,9 +992,6 @@ fun validateTownSystem(
         check(command in setOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)) {
             "town leave prompt ${command.name} is not a ready command"
         }
-    }
-    check(townSystem.entryTax.minimumLeaderLevel >= 0) {
-        "town entry tax minimum leader level must be non-negative"
     }
     validateInputChoiceBinding(townSystem.entryTax.pay, "town entry tax pay key")
     validateInputChoiceBinding(townSystem.entryTax.leave, "town entry tax leave key")

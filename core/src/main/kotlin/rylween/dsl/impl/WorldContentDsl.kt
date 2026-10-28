@@ -164,10 +164,11 @@ data class TownSystemModel(
     val leavePrompts: List<EquipmentCommand>,
     val entryTax: TownEntryTaxModel,
     val nativeServices: List<EngineServiceUse>,
+    val image: ImageId? = null,
 )
 
 data class TownEntryTaxModel(
-    val minimumLeaderLevel: Int = 5,
+    val amount: FormulaId? = null,
     val pay: InputBindingModel = inputKey("P", label = "Pay to Enter"),
     val leave: InputBindingModel = inputKey("L", label = "Leave"),
 )

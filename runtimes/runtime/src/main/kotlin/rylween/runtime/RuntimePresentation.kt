@@ -16,8 +16,6 @@ import rylween.compiled.RuntimeCommandGroupId
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.WildernessFatigueMatch
 
-private const val PERCENT_DENOMINATOR = 100
-
 fun runtimeWildernessContextLines(
     content: CompiledContentBundle,
     systems: ExternalRuntimeSystems,
@@ -77,15 +75,8 @@ fun RuntimeState.runtimeTextValue(
         "partyMemberMax" -> partyMemberMax.toString()
         "currentTownName" -> currentTown?.let(content::runtimeTownName)
         "townTaxPercent" -> currentTown?.let(content::runtimeTown)?.taxPercent?.toString()
-        "townTaxAmount" -> runtimeTownTaxAmount(content)?.toString()
         else -> null
     }
-
-fun RuntimeState.runtimeTownTaxAmount(content: CompiledContentBundle): Int? =
-    currentTown
-        ?.let(content::runtimeTown)
-        ?.taxPercent
-        ?.let { tax -> party.resources.gold * tax / PERCENT_DENOMINATOR }
 
 fun RuntimeState.runtimeTextValue(
     content: CompiledContentBundle,

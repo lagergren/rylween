@@ -89,7 +89,6 @@ private const val MANUAL_SCREEN = "manual"
 private const val HUT_SCENE = "towne.hut"
 
 private const val TEXT_WINDOW_PAGE_LINES = 9
-private const val TOWN_MAIN_STREET_IMAGE = "blitgfx.towne_mainstreet"
 private val townCommandGroup = RuntimeCommandGroupId.Town.id
 private val townLeaveAction = RuntimeCommandActionId.LeaveTown.id
 
@@ -1673,7 +1672,7 @@ class GameRuntime private constructor(
             val menu = menuLines(menuNotice)
             menuNotice = emptyList()
             audio.music(MusicArea.Town)
-            screen.showImage(TOWN_MAIN_STREET_IMAGE)
+            systems.town?.image?.let(screen::showImage)
             screen.writeText(menu)
             var choice = input.readCommand() ?: return current
             while (choice == '!') {
@@ -1719,13 +1718,16 @@ class GameRuntime private constructor(
         town: rylween.compiled.CompiledTown,
         log: RuntimeLog,
     ): TownEntryTaxResult? {
-        val tax = systems.town?.entryTax ?: return TownEntryTaxResult(runtime)
+        val townSystem = systems.town ?: return TownEntryTaxResult(runtime)
+        val tax = townSystem.entryTax ?: return TownEntryTaxResult(runtime)
+        val formula = tax.amount ?: return TownEntryTaxResult(runtime)
         val leaderLevel = runtime.party.leaderLevel
-        if (leaderLevel < tax.minimumLeaderLevel) return TownEntryTaxResult(runtime)
-        val amount = runtime.runtimeTownTaxAmount(content)?.takeIf { gold -> gold > 0 } ?: return TownEntryTaxResult(runtime)
-        val lines = townEntryTaxLines(runtime, tax, screen)
+        val taxed = mapOf("gold" to runtime.party.resources.gold, "tax_percent" to town.taxPercent, "first_level" to leaderLevel)
+        val amount =
+            content.evalFormula(formula, runtime.party, taxed).value.takeIf { gold -> gold > 0 } ?: return TownEntryTaxResult(runtime)
+        val lines = townEntryTaxLines(runtime, tax, amount, screen)
         log.event("town.tax.prompt town=${slug(town.id)} level=$leaderLevel amount=$amount gold=${runtime.party.resources.gold}")
-        screen.showImage(TOWN_MAIN_STREET_IMAGE)
+        townSystem.image?.let(screen::showImage)
         screen.writeText(lines)
         val audio = RuntimeAudio(systems.audio, screen)
         val choice =
@@ -1752,11 +1754,12 @@ class GameRuntime private constructor(
     private fun townEntryTaxLines(
         runtime: RuntimeState,
         tax: ExternalTownEntryTax,
+        amount: Int,
         screen: RuntimeScreenPort,
     ): List<String> =
         screen.choiceMenuLines(
             systems.prompts.town.entryTax
-                .renderRuntimeText(content, runtime, screen.textColumns),
+                .renderRuntimeText(content, runtime, screen.textColumns) { kind -> amount.toString().takeIf { kind == "townTaxAmount" } },
             listOf(
                 tax.pay.mnemonicLine(tax.pay.label),
                 tax.leave.mnemonicLine(tax.leave.label),

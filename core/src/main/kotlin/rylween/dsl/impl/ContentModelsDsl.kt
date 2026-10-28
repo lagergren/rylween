@@ -104,7 +104,7 @@ data class WildernessFatigueRule(
  * prose authored while the runtime only supplies the affected member name.
  */
 data class WildernessUpkeepRules(
-    val foodCostLeaderDiv: Int = 0,
+    val foodCost: FormulaId? = null,
     val foodTickEvery: Int = 0,
     val starveFoodThreshold: Int = 0,
     val starveDamage: Int = 0,
@@ -118,7 +118,6 @@ data class WildernessUpkeepRules(
 ) {
     init {
         require(foodTickEvery >= 0) { "food tick interval must be non-negative" }
-        require(foodCostLeaderDiv >= 0) { "food leader divisor must be non-negative" }
         require(starveFoodThreshold >= 0) { "starvation food threshold must be non-negative" }
         require(starveDamage >= 0) { "starve damage must be non-negative" }
         require(manaRegenChance in 0..100) { "mana regeneration chance must be 0..100" }

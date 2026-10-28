@@ -91,13 +91,12 @@ data class BattleTextModel(
 )
 
 data class PlayerAttackRulesModel(
-    val hitBonus: Int,
-    val damageSpreadMax: Int,
-    val confusionDivisor: Int,
-    val hpDefenseDivisor: Int,
+    val hitChance: FormulaId,
+    val damage: FormulaId,
 )
 
 data class DefendRulesModel(
+    val healing: FormulaId,
     val weaponSkillPenalty: Int,
     val restThreshold: Int,
     val cap: Int,
@@ -114,16 +113,13 @@ data class PlayerRoundModel(
 )
 
 data class MonsterMeleeRulesModel(
-    val hitBonus: Int,
-    val damageDivisor: Int,
-    val damageSpreadMax: Int,
-    val damageMin: Int,
+    val hitChance: FormulaId,
+    val damage: FormulaId,
     val fallback: SceneId,
 )
 
 data class MonsterRoundModel(
-    val spellChanceBasePercent: Int,
-    val spellPowerDivisor: Int,
+    val spellChance: FormulaId,
     val melee: MonsterMeleeRulesModel,
 )
 
@@ -139,6 +135,8 @@ data class StandardBattleModel(
     val encounterFoeCountMax: Int,
     val encounterHitPointMinFormula: FormulaId,
     val encounterHitPointMaxFormula: FormulaId,
+    val encounterFoeCountMaxFormula: FormulaId,
+    val encounterWeaponSkillFormula: FormulaId,
     val victoryImage: ImageId?,
     val defeatImage: ImageId?,
     val nativeServices: List<EngineServiceUse>,
@@ -198,6 +196,8 @@ class StandardBattleBuilder {
     var encounterFoeCountMax: Int? = null
     var encounterHitPointMinFormula: FormulaId? = null
     var encounterHitPointMaxFormula: FormulaId? = null
+    var encounterFoeCountMaxFormula: FormulaId? = null
+    var encounterWeaponSkillFormula: FormulaId? = null
     private var victoryImage: ImageId? = null
     private var defeatImage: ImageId? = null
 
@@ -248,6 +248,10 @@ class StandardBattleBuilder {
                 requiredStandardBattle(encounterHitPointMinFormula, "encounterHitPointMinFormula = ..."),
             encounterHitPointMaxFormula =
                 requiredStandardBattle(encounterHitPointMaxFormula, "encounterHitPointMaxFormula = ..."),
+            encounterFoeCountMaxFormula =
+                requiredStandardBattle(encounterFoeCountMaxFormula, "encounterFoeCountMaxFormula = ..."),
+            encounterWeaponSkillFormula =
+                requiredStandardBattle(encounterWeaponSkillFormula, "encounterWeaponSkillFormula = ..."),
             victoryImage = victoryImage,
             defeatImage = defeatImage,
             nativeServices = defaultNativeServices,
@@ -743,21 +747,22 @@ class PlayerRoundBuilder(
     private var defendRules = initial?.defend
     private var battleCryRules = initial?.battleCry
 
+    /** A member's chance to hit, in percent, and the damage a hit does: both formulas. */
     fun attack(
-        hitBonus: Int,
-        damageSpreadMax: Int,
-        confusionDivisor: Int,
-        hpDefenseDivisor: Int,
+        hitChance: FormulaId,
+        damage: FormulaId,
     ) {
-        attackRules = PlayerAttackRulesModel(hitBonus, damageSpreadMax, confusionDivisor, hpDefenseDivisor)
+        attackRules = PlayerAttackRulesModel(hitChance, damage)
     }
 
+    /** The hit points a defending member regains, from the [healing] formula, and how defending wears the foes down. */
     fun defend(
+        healing: FormulaId,
         weaponSkillPenalty: Int,
         restThreshold: Int,
         cap: Int,
     ) {
-        defendRules = DefendRulesModel(weaponSkillPenalty, restThreshold, cap)
+        defendRules = DefendRulesModel(healing, weaponSkillPenalty, restThreshold, cap)
     }
 
     fun battleCry(weaponSkillPenalty: Int) {
@@ -782,32 +787,22 @@ class PlayerRoundBuilder(
 class MonsterRoundBuilder(
     initial: MonsterRoundModel? = null,
 ) {
-    private var spellChanceBasePercent = initial?.spellChanceBasePercent
-    private var spellPowerDivisor = initial?.spellPowerDivisor
+    /** A monster's chance, in percent, to cast a spell instead of attacking. */
+    var spellChance: FormulaId? = initial?.spellChance
     private var meleeRules = initial?.melee
 
-    fun spellChance(
-        basePercent: Int,
-        spellPowerDivisor: Int,
-    ) {
-        spellChanceBasePercent = basePercent
-        this.spellPowerDivisor = spellPowerDivisor
-    }
-
+    /** A monster's chance to hit, in percent, and the damage a hit does: both formulas. */
     fun melee(
-        hitBonus: Int,
-        damageDivisor: Int,
-        damageSpreadMax: Int,
-        damageMin: Int,
+        hitChance: FormulaId,
+        damage: FormulaId,
         fallback: SceneId,
     ) {
-        meleeRules = MonsterMeleeRulesModel(hitBonus, damageDivisor, damageSpreadMax, damageMin, fallback)
+        meleeRules = MonsterMeleeRulesModel(hitChance, damage, fallback)
     }
 
     fun build(): MonsterRoundModel =
         MonsterRoundModel(
-            spellChanceBasePercent = requiredStandardBattle(spellChanceBasePercent, "monsterRound.spellChance(...)"),
-            spellPowerDivisor = requiredStandardBattle(spellPowerDivisor, "monsterRound.spellChance(...)"),
+            spellChance = requiredStandardBattle(spellChance, "monsterRound.spellChance = ..."),
             melee = requiredStandardBattle(meleeRules, "monsterRound.melee(...)"),
         )
 }

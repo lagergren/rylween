@@ -3,15 +3,19 @@
  * the rest, and wear the enemy down from its weakest member.
  *
  * Decisions come from an expected-value model of the bundle's own combat
- * rules: a party member hits with chance weapon skill + bonus for weapon
- * damage plus a spread plus current hit points over a divisor, and each living
- * monster hits with chance weapon skill + bonus for its current hit points over
- * a divisor plus a spread, less the target's armor.
+ * formulas: each is evaluated at its average, a random draw counting as the
+ * middle of its range, for the party's hits on the foes and the foes' hits on
+ * the party.
  */
 
 package rylween.runtime
 
+import rylween.compiled.CompiledBinaryOp
+import rylween.compiled.CompiledBoolExpr
+import rylween.compiled.CompiledComparisonOp
 import rylween.compiled.CompiledContentBundle
+import rylween.compiled.CompiledHandleKind
+import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledMonster
 import rylween.compiled.CompiledPartyMember
 import rylween.compiled.ExternalRuntimeSystems
@@ -211,8 +215,8 @@ internal class AutopilotBattle(
         val attack = rules.playerRound.attack
         val partyDamagePerRound =
             living.sumOf { member ->
-                hitChance(member.weaponSkill + attack.hitBonus) *
-                    (weaponDamage(member) + attack.damageSpreadMax / 2.0 + member.hitPoints.current / attack.hpDefenseDivisor)
+                val attacker = formulaBindings(member)
+                hitChance(expected(attack.hitChance, attacker)) * expected(attack.damage, attacker)
             }
         if (partyDamagePerRound <= 0.0) return Double.MAX_VALUE
         val melee = rules.monsterRound.melee
@@ -221,7 +225,7 @@ internal class AutopilotBattle(
             foes.monster
                 ?.spellPower
                 ?.takeIf { power -> power > 0 }
-                ?.let { power -> (rules.monsterRound.spellChanceBasePercent + power / rules.monsterRound.spellPowerDivisor) / 100.0 }
+                ?.let { power -> expected(rules.monsterRound.spellChance, mapOf("monster_spell_power" to power.toDouble())) / 100.0 }
                 ?: 0.0
         val armor = living.map(::armorClass).average()
         // Kill the weakest foe first: it stops attacking soonest.
@@ -236,8 +240,13 @@ internal class AutopilotBattle(
         while (remaining.isNotEmpty() && rounds < MAX_ROUNDS) {
             taken +=
                 remaining.sumOf { hitPoints ->
-                    val hit = maxOf(melee.damageMin.toDouble(), hitPoints / melee.damageDivisor + melee.damageSpreadMax / 2.0 - armor)
-                    hitChance(weaponSkill + melee.hitBonus) * hit * (1 - spellChance) + spellChance * SPELL_DAMAGE
+                    val foe =
+                        mapOf(
+                            "monster_weapon_skill" to weaponSkill.toDouble(),
+                            "monster_hit_points" to hitPoints,
+                            "armor_class" to armor,
+                        )
+                    hitChance(expected(melee.hitChance, foe)) * expected(melee.damage, foe) * (1 - spellChance) + spellChance * SPELL_DAMAGE
                 }
             var damage = partyDamagePerRound
             while (damage > 0 && remaining.isNotEmpty()) {
@@ -257,11 +266,21 @@ internal class AutopilotBattle(
         foes: AutopilotFoes,
     ): List<Int> {
         val range = foes.monster?.hitPoints ?: defaultHitPoints
-        val leaderLevel = party.members.firstOrNull()?.level ?: 1
-        val averageLevel = party.members.map(CompiledPartyMember::level).average()
-        val low = range.first + (averageLevel * 2).toInt() + if (leaderLevel > 2) leaderLevel * 2 else 0
-        val high = range.last + leaderLevel * 3
-        return List(foes.count) { (low + high) / 2 }
+        val scaling =
+            mapOf(
+                "encounter_hit_point_min_base" to range.first.toDouble(),
+                "encounter_hit_point_max_base" to range.last.toDouble(),
+                "party_avg" to
+                    party.members
+                        .map(CompiledPartyMember::level)
+                        .average()
+                        .toInt()
+                        .toDouble(),
+                "first_level" to (party.members.firstOrNull()?.level ?: 1).toDouble(),
+            )
+        val low = expected(rules.encounterHitPointMinFormula, scaling)
+        val high = expected(rules.encounterHitPointMaxFormula, scaling)
+        return List(foes.count) { ((low + high) / 2).toInt() }
     }
 
     private fun targetHitPoints(line: String): Int? = targetHitPointsPattern.find(line)?.let { match -> match.groupValues[2].toInt() }
@@ -272,7 +291,93 @@ internal class AutopilotBattle(
     private fun armorClass(member: CompiledPartyMember): Int =
         content.items.firstOrNull { item -> item.id == member.equipment.armor }?.armorClass ?: 0
 
-    private fun hitChance(chance: Int): Double = chance.coerceIn(0, 100) / 100.0
+    private fun hitChance(chance: Double): Double = chance.coerceIn(0.0, 100.0) / 100.0
+
+    // The formula variables the battle runner binds for a member.
+    private fun formulaBindings(member: CompiledPartyMember): Map<String, Double> =
+        mapOf(
+            "weapon_skill" to member.weaponSkill,
+            "weapon_damage" to weaponDamage(member),
+            "hit_points" to member.hitPoints.current,
+            "armor_class" to armorClass(member),
+            "level" to member.level,
+            "charisma" to member.charisma,
+            "dexterity" to member.dexterity,
+        ).mapValues { (_, value) -> value.toDouble() }
+
+    /** The average value of the formula [slug]: a random draw counts as the middle of its range. */
+    private fun expected(
+        slug: String,
+        bindings: Map<String, Double>,
+    ): Double {
+        val formula = content.ref(CompiledHandleKind.Formula, slug)
+        return expected(content.formulas.single { candidate -> candidate.id == formula }.value, bindings)
+    }
+
+    private fun expected(
+        expr: CompiledIntExpr,
+        bindings: Map<String, Double>,
+    ): Double =
+        when (expr) {
+            is CompiledIntExpr.Literal -> expr.value.toDouble()
+            is CompiledIntExpr.Local -> bindings[content.strings.value(expr.nameString)] ?: 0.0
+            is CompiledIntExpr.Binary -> expected(expr.left, bindings).combinedWith(expr.op, expected(expr.right, bindings))
+            is CompiledIntExpr.If ->
+                if (holds(
+                        expr.cond,
+                        bindings,
+                    )
+                ) {
+                    expected(expr.thenValue, bindings)
+                } else {
+                    expected(expr.elseValue, bindings)
+                }
+            is CompiledIntExpr.Random -> (expected(expr.lo, bindings) + expected(expr.hi, bindings)) / 2
+            else -> 0.0
+        }
+
+    // Whole numbers divide as the runtime's integers do; an average divides exactly.
+    private fun Double.combinedWith(
+        op: CompiledBinaryOp,
+        right: Double,
+    ): Double =
+        when (op) {
+            CompiledBinaryOp.Add -> this + right
+            CompiledBinaryOp.Sub -> this - right
+            CompiledBinaryOp.Mul -> this * right
+            CompiledBinaryOp.Div ->
+                when {
+                    right == 0.0 -> this
+                    this % 1.0 == 0.0 && right % 1.0 == 0.0 -> (this / right).toLong().toDouble()
+                    else -> this / right
+                }
+            CompiledBinaryOp.Mod -> if (right == 0.0) this else this % right
+            CompiledBinaryOp.Max -> maxOf(this, right)
+            CompiledBinaryOp.Min -> minOf(this, right)
+        }
+
+    private fun holds(
+        cond: CompiledBoolExpr,
+        bindings: Map<String, Double>,
+    ): Boolean =
+        when (cond) {
+            is CompiledBoolExpr.Cmp -> {
+                val left = expected(cond.left, bindings)
+                val right = expected(cond.right, bindings)
+                when (cond.op) {
+                    CompiledComparisonOp.Eq -> left == right
+                    CompiledComparisonOp.Ne -> left != right
+                    CompiledComparisonOp.Lt -> left < right
+                    CompiledComparisonOp.Lte -> left <= right
+                    CompiledComparisonOp.Gt -> left > right
+                    CompiledComparisonOp.Gte -> left >= right
+                }
+            }
+            is CompiledBoolExpr.Not -> !holds(cond.expr, bindings)
+            is CompiledBoolExpr.And -> holds(cond.left, bindings) && holds(cond.right, bindings)
+            is CompiledBoolExpr.Or -> holds(cond.left, bindings) || holds(cond.right, bindings)
+            else -> false
+        }
 
     private companion object {
         const val HOPELESS_AFTER_FAILED_ESCAPES = 2

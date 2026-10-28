@@ -199,7 +199,7 @@ class RylweenCompiledGameLedgerTest {
                 it.requiredStat == CharacterCreationStat.Dexterity && it.minimum == 50
             },
         )
-        check(nextDsl.formulas.size == 9)
+        check(nextDsl.formulas.size == 19)
         check(nextDsl.rewards.size == 1)
         check(
             nextDsl.rewards
@@ -211,10 +211,10 @@ class RylweenCompiledGameLedgerTest {
         check(standardBattle.actions.map { it.prompt }.first() == literalText { line("(A)ttack") })
         check(standardBattle.text.useWhat == literalText { lines("Use what?", "") })
         check(standardBattle.text.spellAbort.fallbackText() == "RETURN leaves.")
-        check(standardBattle.playerRound.attack.confusionDivisor == 3)
-        check(standardBattle.playerRound.attack.hpDefenseDivisor == 12)
+        check(standardBattle.playerRound.attack.hitChance == Formulas.playerHitChance)
+        check(standardBattle.playerRound.attack.damage == Formulas.playerDamage)
         check(standardBattle.playerRound.defend.cap == 250)
-        check(standardBattle.monsterRound.melee.damageDivisor == 6)
+        check(standardBattle.monsterRound.melee.damage == Formulas.monsterDamage)
         check(standardBattle.roundLimit == 200)
         check(standardBattle.encounterFoeCountMax == 8)
         check(standardBattle.victoryImage == Images.Backdrop.battleVictory)
@@ -358,7 +358,7 @@ class RylweenCompiledGameLedgerTest {
         check(townSystem.menu.single { it.key == 'C' }.building == Buildings.church)
         check(townSystem.menu.single { it.action == keyAction("leave_town") }.endsMenu)
         check(townSystem.leavePrompts == listOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor))
-        check(townSystem.entryTax.minimumLeaderLevel == 5)
+        check(townSystem.entryTax.amount == Formulas.townEntryTax)
         check(townSystem.entryTax.pay.primary == "P")
         check(townSystem.entryTax.pay.label == "Pay to Enter")
         check(townSystem.entryTax.leave.primary == "L")
