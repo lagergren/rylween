@@ -1762,7 +1762,7 @@ val authoredRylween: RylweenModel =
                                         forEachMember {
                                             whenever((thiefFound eq 0) and it.isClass(PcClass.Thief)) {
                                                 writeText(flowText(partyName(it), " checks the chest for traps. {pause 1s}"))
-                                                trapChance set lit(40) - it.dexterity * 2 / 5
+                                                trapChance set 40 - it.dexterity * 2 / 5
                                                 whenever(trapChance lt 4) {
                                                     trapChance set 4
                                                 }
@@ -4264,93 +4264,23 @@ val authoredRylween: RylweenModel =
                             },
                         )
 
-                        clearText()
                         choice.yesNo(
                             "Anything to drink?",
                             "",
                             "(Y)es",
                             "(N)o",
                             yes = {
-                                clearText()
-                                menu(
+                                orderDrink(
                                     "What'll it be?",
-                                    "",
-                                    "(A) Ale         2 au",
-                                    "(B) Mead        3 au",
-                                    "(C) Wine        5 au",
-                                    "(D) Whiskey     7 au",
-                                    "(E) Fanta       1 au",
-                                    "RETURN leaves.",
-                                ) {
-                                    option('A') {
-                                        pay(
-                                            lit(2),
-                                            broke = {
-                                                writeText("No money - No drink! {pause 1s}")
-                                            },
-                                            ok = {
-                                                playSound(Sounds.Town.drink)
-                                                writeText("Ahh...! {pause 1s}")
-                                                healLivingMembers((lit(2) / 2) + 1)
-                                            },
-                                        )
-                                    }
-                                    option('B') {
-                                        pay(
-                                            lit(3),
-                                            broke = {
-                                                writeText("No money - No drink! {pause 1s}")
-                                            },
-                                            ok = {
-                                                playSound(Sounds.Town.drink)
-                                                writeText("Ahh...! {pause 1s}")
-                                                healLivingMembers((lit(3) / 2) + 1)
-                                            },
-                                        )
-                                    }
-                                    option('C') {
-                                        pay(
-                                            lit(5),
-                                            broke = {
-                                                writeText("No money - No drink! {pause 1s}")
-                                            },
-                                            ok = {
-                                                playSound(Sounds.Town.drink)
-                                                writeText("Ahh...! {pause 1s}")
-                                                healLivingMembers((lit(5) / 2) + 1)
-                                            },
-                                        )
-                                    }
-                                    option('D') {
-                                        pay(
-                                            lit(7),
-                                            broke = {
-                                                writeText("No money - No drink! {pause 1s}")
-                                            },
-                                            ok = {
-                                                playSound(Sounds.Town.drink)
-                                                writeText("Ahh...! {pause 1s}")
-                                                healLivingMembers((lit(7) / 2) + 1)
-                                            },
-                                        )
-                                    }
-                                    option('E') {
-                                        pay(
-                                            lit(1),
-                                            broke = {
-                                                writeText("No money - No drink! {pause 1s}")
-                                            },
-                                            ok = {
-                                                writeText("The other guests giggle. {pause 1s}")
-                                                healLivingMembers((lit(1) / 2) + 1)
-                                            },
-                                        )
-                                    }
-                                }
+                                    Drink('A', "Ale", price = 2, served = "Ahh...! {pause 1s}"),
+                                    Drink('B', "Mead", price = 3, served = "Ahh...! {pause 1s}"),
+                                    Drink('C', "Wine", price = 5, served = "Ahh...! {pause 1s}"),
+                                    Drink('D', "Whiskey", price = 7, served = "Ahh...! {pause 1s}"),
+                                    Drink('E', "Fanta", price = 1, served = "The other guests giggle. {pause 1s}", sound = null),
+                                )
                             },
                         )
 
-                        clearText()
                         choice.yesNo(
                             "Are you in need of lodging?",
                             "",
@@ -4723,76 +4653,19 @@ val authoredRylween: RylweenModel =
                             }
 
                             option('O') {
-                                clearText()
-                                menu(
+                                orderDrink(
                                     "Order:",
-                                    "",
-                                    "(A) Ale       2 au",
-                                    "(B) Mead      3 au",
-                                    "(C) Wine      4 au",
-                                    "(D) Fanta     1 au",
-                                    "RETURN leaves.",
-                                ) {
-                                    option('A') {
-                                        pay(
-                                            lit(2),
-                                            broke = {
-                                                writeText("No money - No drink! {pause 1s}")
-                                            },
-                                            ok = {
-                                                playSound(Sounds.Town.drink)
-                                                writeText("AAH! (your health returns). {pause 1s}")
-                                                forEachMember(includeDead = true) {
-                                                    it.hp.addClamped((lit(2) / 2) + 1, it.maxHp)
-                                                }
-                                            },
-                                        )
-                                    }
-                                    option('B') {
-                                        pay(
-                                            lit(3),
-                                            broke = {
-                                                writeText("No money - No drink! {pause 1s}")
-                                            },
-                                            ok = {
-                                                playSound(Sounds.Town.drink)
-                                                writeText("AAH! (your health returns). {pause 1s}")
-                                                forEachMember(includeDead = true) {
-                                                    it.hp.addClamped((lit(3) / 2) + 1, it.maxHp)
-                                                }
-                                            },
-                                        )
-                                    }
-                                    option('C') {
-                                        pay(
-                                            lit(4),
-                                            broke = {
-                                                writeText("No money - No drink! {pause 1s}")
-                                            },
-                                            ok = {
-                                                playSound(Sounds.Town.drink)
-                                                writeText("AAH! (your health returns). {pause 1s}")
-                                                forEachMember(includeDead = true) {
-                                                    it.hp.addClamped((lit(4) / 2) + 1, it.maxHp)
-                                                }
-                                            },
-                                        )
-                                    }
-                                    option('D') {
-                                        pay(
-                                            lit(1),
-                                            broke = {
-                                                writeText("No money - No drink! {pause 1s}")
-                                            },
-                                            ok = {
-                                                writeText("You are the laughing stock of the entire tavern... {pause 2s}")
-                                                forEachMember(includeDead = true) {
-                                                    it.hp.addClamped((lit(1) / 2) + 1, it.maxHp)
-                                                }
-                                            },
-                                        )
-                                    }
-                                }
+                                    Drink('A', "Ale", price = 2, served = "AAH! (your health returns). {pause 1s}"),
+                                    Drink('B', "Mead", price = 3, served = "AAH! (your health returns). {pause 1s}"),
+                                    Drink('C', "Wine", price = 4, served = "AAH! (your health returns). {pause 1s}"),
+                                    Drink(
+                                        'D',
+                                        "Fanta",
+                                        price = 1,
+                                        served = "You are the laughing stock of the entire tavern... {pause 2s}",
+                                        sound = null,
+                                    ),
+                                )
                             }
                         }
                     }
@@ -5232,12 +5105,11 @@ val authoredRylween: RylweenModel =
                             )
                             clearMapWindow()
                             showBackdrop(Images.Backdrop.cave)
-                            clearText()
                             choice.enterOrLeave(
                                 literalText("You find a cave!", "", "(E)nter", "(L)eave"),
                                 enter = {
                                     whenever(party.timeLeft gt 10) {
-                                        discoverCave(random(5..18), Dungeons.randomCave, lit(10))
+                                        discoverCave(random(5..18))
                                     } otherwise {
                                         writeText(
                                             flowText(
@@ -5675,7 +5547,6 @@ val authoredRylween: RylweenModel =
             }
 
             scene(Scenes.Missions.koboldVillage) {
-                clearText()
                 menu(
                     literalText {
                         line(
@@ -5806,7 +5677,6 @@ val authoredRylween: RylweenModel =
             }
 
             scene(Scenes.Missions.ogreCave) {
-                clearText()
                 choice.enterOrLeave(
                     literalText {
                         line("You find the cave the half-orc told you about.")
@@ -6207,7 +6077,7 @@ val authoredRylween: RylweenModel =
                         menu("(B)uy it", "(N)o thanks") {
                             option('B') {
                                 pay(
-                                    amount = lit(50_000),
+                                    amount = 50_000,
                                     broke = {
                                         writeText(
                                             """
@@ -6327,7 +6197,7 @@ val authoredRylween: RylweenModel =
                         menu("(B)uy it", "(N)o thanks") {
                             option('B') {
                                 pay(
-                                    amount = lit(10_000),
+                                    amount = 10_000,
                                     broke = {
                                         writeText(
                                             """
@@ -6729,6 +6599,48 @@ val authoredDsl: GameModel = authoredRylween.content
 // the original game, growing with the drinker's level so potions stay worth
 // carrying once hit points and spell points run into the hundreds.
 private fun potionPoints(target: MemberRef): IntExpr = target.level * 3 + 12
+
+// A drink on an inn or tavern menu: it costs [price] gold, and restores half
+// of that plus one hit point to every living member.
+private data class Drink(
+    val key: Char,
+    val name: String,
+    val price: Int,
+    val served: String,
+    val sound: SoundId? = Sounds.Town.drink,
+)
+
+// The drinks menu, one row per drink with its price, and RETURN to leave.
+private fun ScriptScope.orderDrink(
+    prompt: String,
+    vararg drinks: Drink,
+) {
+    menu(
+        literalText(
+            prompt,
+            "",
+            *drinks
+                .map { drink ->
+                    "(${drink.key}) ${drink.name}  ${drink.price} au"
+                }.toTypedArray(),
+            "RETURN leaves.",
+        ),
+    ) {
+        drinks.forEach { drink ->
+            option(drink.key) {
+                pay(
+                    drink.price,
+                    broke = { writeText("No money - No drink! {pause 1s}") },
+                    ok = {
+                        drink.sound?.let { sound -> playSound(sound) }
+                        writeText(drink.served)
+                        healLivingMembers(drink.price / 2 + 1)
+                    },
+                )
+            }
+        }
+    }
+}
 
 // Fire damage shared by the Fire Cloud spell and the fire wand: every monster
 // still standing takes caster.level * damageRoll points.
