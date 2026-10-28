@@ -470,6 +470,7 @@ private class NativePathCollector {
             TextPart.HuntFoodGained,
             TextPart.UpkeepMemberName,
             TextPart.CampGuardName,
+            TextPart.CastleThiefName,
             TextPart.PartyMemberCount,
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
@@ -495,6 +496,7 @@ private class NativePathCollector {
             TextPart.BattleLootName,
             TextPart.BattleLevelMemberName,
             TextPart.BattleLevelsGained,
+            TextPart.BattleRoundNumber,
             -> Unit
         }
     }

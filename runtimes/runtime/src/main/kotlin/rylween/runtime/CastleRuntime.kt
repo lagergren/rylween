@@ -220,10 +220,10 @@ internal class CastleRuntime(
                 .takeIf { index -> index >= 0 }
                 ?.let { index ->
                     val thief = next.party.members[index]
-                    // The suffix continues the thief's name, so the first of its lines joins the name's.
-                    val suffix = castle.text.trapTriesDisarmSuffix.renderCastle(screen.textColumns)
-                    val tries = next.party.memberName(content, index) + suffix.firstOrNull()?.let { line -> " $line" }.orEmpty()
-                    screen.writeText(listOf(tries) + suffix.drop(1))
+                    val thiefName = next.party.memberName(content, index)
+                    screen.writeText(
+                        castle.text.trapTriesDisarm.render({ kind -> thiefName.takeIf { kind == "castleThiefName" } }, screen.textColumns),
+                    )
                     val disarmChance = content.evalFormula(castle.pitfall.disarmChance, next.party, thief.statBindings())
                     val draw = disarmChance.party.drawRandom(0, 99)
                     next = next.withParty(draw.party)

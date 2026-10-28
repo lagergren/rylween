@@ -110,6 +110,9 @@ sealed interface TextPart {
     /** Name of the party member who stands guard while the party camps. */
     object CampGuardName : TextPart
 
+    /** Name of the thief who tries to disarm a castle trap. */
+    object CastleThiefName : TextPart
+
     object PartyMemberCount : TextPart
 
     object PartyMemberMax : TextPart
@@ -159,6 +162,8 @@ sealed interface TextPart {
     object BattleLevelMemberName : TextPart
 
     object BattleLevelsGained : TextPart
+
+    object BattleRoundNumber : TextPart
 }
 
 /** Returns a deterministic placeholder used when no runtime renderer is available. */
@@ -190,6 +195,7 @@ fun TextPart.fallbackText(): String =
         TextPart.HuntFoodGained -> "{hunt_food_gained}"
         TextPart.UpkeepMemberName -> "{upkeep_member_name}"
         TextPart.CampGuardName -> "{camp_guard_name}"
+        TextPart.CastleThiefName -> "{castle_thief_name}"
         TextPart.PartyMemberCount -> "{party_count}"
         TextPart.PartyMemberMax -> "{party_max}"
         TextPart.WildernessDungeonName -> "{dungeon}"
@@ -215,6 +221,7 @@ fun TextPart.fallbackText(): String =
         TextPart.BattleLootName -> "{battle_loot}"
         TextPart.BattleLevelMemberName -> "{battle_level_member}"
         TextPart.BattleLevelsGained -> "{battle_levels}"
+        TextPart.BattleRoundNumber -> "{battle_round}"
     }
 
 /** Structured text line made of literal and dynamic parts. */

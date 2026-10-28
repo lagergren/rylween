@@ -74,6 +74,7 @@ private const val BATTLE_GOLD = "battleGold"
 private const val BATTLE_LOOT_NAME = "battleLootName"
 private const val BATTLE_LEVEL_MEMBER_NAME = "battleLevelMemberName"
 private const val BATTLE_LEVELS_GAINED = "battleLevelsGained"
+private const val BATTLE_ROUND_NUMBER = "battleRoundNumber"
 private const val BATTLE_MESSAGE_PAGE_LINES = 4
 private const val BATTLE_VICTORY_PAGE_LINES = 7
 
@@ -362,9 +363,7 @@ internal class BattleRunner(
 
     private fun ExternalStandardBattle.openingText(encounter: BattleEncounter): List<String> =
         screen.choiceMenuLines(
-            text.encounterBanner.renderBattle() +
-                text.youFace.renderBattle() +
-                text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()),
+            text.encounter.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()),
             text.fight.renderBattle() + text.run.renderBattle(),
         )
 
@@ -393,9 +392,10 @@ internal class BattleRunner(
         roundNumber: Int,
     ): List<String> =
         screen.choiceMenuLines(
-            listOf("Round $roundNumber", "") +
-                text.stillFace.renderBattle() +
-                text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()),
+            text.nextRound.renderBattle(
+                BATTLE_ROUND_NUMBER to roundNumber.toString(),
+                BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName(),
+            ),
             text.fight.renderBattle() + text.run.renderBattle(),
         )
 
@@ -782,16 +782,14 @@ internal class BattleRunner(
             buildList {
                 addAll(rules.text.victoryBested.renderBattle())
                 addAll(
-                    rules.text.victoryEachSurvivor.renderBattle() +
-                        rules.text.victoryReward.renderBattle(
-                            BATTLE_EXPERIENCE to experience.toString(),
-                            BATTLE_GOLD to gold.toString(),
-                        ),
+                    rules.text.victoryReward.renderBattle(
+                        BATTLE_EXPERIENCE to experience.toString(),
+                        BATTLE_GOLD to gold.toString(),
+                    ),
                 )
                 loot?.let { item ->
                     addAll(
-                        rules.text.victoryFoundObject.renderBattle() +
-                            rules.text.victoryLoot.renderBattle(BATTLE_LOOT_NAME to item.displayName()),
+                        rules.text.victoryLoot.renderBattle(BATTLE_LOOT_NAME to item.displayName()),
                     )
                 }
                 levelUps.gains.forEach { gain ->
