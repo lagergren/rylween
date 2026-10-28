@@ -413,6 +413,12 @@ object CampText {
     val guardName: TextPart = TextPart.CampGuardName
 }
 
+/** Runtime placeholders available to authored castle messages. */
+object CastleText {
+    /** The thief who tries to disarm a trap. */
+    val thiefName: TextPart = TextPart.CastleThiefName
+}
+
 /** Runtime placeholders available to authored wilderness upkeep messages. */
 object UpkeepText {
     /** The current party member affected by an upkeep effect. */

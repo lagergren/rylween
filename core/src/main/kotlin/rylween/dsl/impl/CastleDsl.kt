@@ -118,7 +118,7 @@ data class CastleScriptsModel(
 /** Text prompts and narration used by the castle runtime session. */
 data class CastleTextModel(
     val roomMonster: TextBlock = literalText(),
-    val trapTriesDisarmSuffix: TextBlock = literalText(),
+    val trapTriesDisarm: TextBlock = literalText(),
     val trapDisarmSucceed: TextBlock = literalText(),
     val trapDisarmFail: TextBlock = literalText(),
     val pitfallIllustration: ImageId? = null,
@@ -479,7 +479,9 @@ class CastleTextBuilder(
     initial: CastleTextModel = CastleTextModel(),
 ) {
     var roomMonster: TextBlock = initial.roomMonster
-    var trapTriesDisarmSuffix: TextBlock = initial.trapTriesDisarmSuffix
+
+    /** The line a thief tries a trap with, naming them with [CastleText.thiefName]. */
+    var trapTriesDisarm: TextBlock = initial.trapTriesDisarm
     var trapDisarmSucceed: TextBlock = initial.trapDisarmSucceed
     var trapDisarmFail: TextBlock = initial.trapDisarmFail
     var pitfallIllustration: ImageId? = initial.pitfallIllustration
@@ -510,7 +512,7 @@ class CastleTextBuilder(
     fun build(): CastleTextModel =
         CastleTextModel(
             roomMonster = roomMonster,
-            trapTriesDisarmSuffix = trapTriesDisarmSuffix,
+            trapTriesDisarm = trapTriesDisarm,
             trapDisarmSucceed = trapDisarmSucceed,
             trapDisarmFail = trapDisarmFail,
             pitfallIllustration = pitfallIllustration,

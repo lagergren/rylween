@@ -191,6 +191,7 @@ private val battleTextBindings: Set<TextPart> =
         TextPart.BattleLootName,
         TextPart.BattleLevelMemberName,
         TextPart.BattleLevelsGained,
+        TextPart.BattleRoundNumber,
     )
 private val characterCreationStatsTextBindings: Set<TextPart> =
     setOf(
@@ -485,10 +486,8 @@ fun validateCombatSystem(
 
 private fun validateBattleText(text: BattleTextModel) {
     listOf(
-        "encounter banner" to text.encounterBanner,
-        "you-face" to text.youFace,
-        "foe display name" to text.foeDisplayName,
-        "still-face" to text.stillFace,
+        "encounter" to text.encounter,
+        "next round" to text.nextRound,
         "fight prompt" to text.fight,
         "run prompt" to text.run,
         "blood-flow" to text.bloodFlow,
@@ -516,9 +515,7 @@ private fun validateBattleText(text: BattleTextModel) {
         "party held" to text.partyHeld,
         "party defeated" to text.partyDefeated,
         "victory bested" to text.victoryBested,
-        "victory each survivor" to text.victoryEachSurvivor,
         "victory reward" to text.victoryReward,
-        "victory found object" to text.victoryFoundObject,
         "victory loot" to text.victoryLoot,
         "level gain" to text.levelGain,
     ).forEach { (label, block) ->
@@ -834,7 +831,6 @@ private fun validateCastleText(
 ) {
     listOf(
         "room monster" to text.roomMonster,
-        "trap disarm suffix" to text.trapTriesDisarmSuffix,
         "trap disarm succeeds" to text.trapDisarmSucceed,
         "trap disarm fails" to text.trapDisarmFail,
         "treasure menu" to text.treasureMenu,
@@ -853,6 +849,7 @@ private fun validateCastleText(
         "give menu" to text.giveMenu,
         "stairs guardian grateful" to text.stairsGuardianGrateful,
     ).forEach { (textLabel, block) -> validateTextBlock(block, "$label $textLabel") }
+    validateTextBlock(text.trapTriesDisarm, "$label trap disarm", allowedRuntimeBindings = setOf(TextPart.CastleThiefName))
     text.floorNames.forEachIndexed { index, floor ->
         check(floor.isNotBlank()) { "$label floor name ${index + 1} is blank" }
     }
@@ -1303,6 +1300,7 @@ private fun validateTextBlock(
             TextPart.HuntFoodGained,
             TextPart.UpkeepMemberName,
             TextPart.CampGuardName,
+            TextPart.CastleThiefName,
             TextPart.PartyMemberCount,
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
@@ -1328,6 +1326,7 @@ private fun validateTextBlock(
             TextPart.BattleLootName,
             TextPart.BattleLevelMemberName,
             TextPart.BattleLevelsGained,
+            TextPart.BattleRoundNumber,
             ->
                 check(part in allowedRuntimeBindings) {
                     "$label uses runtime text binding ${part.fallbackText()}, but this text is not rendered with that binding"

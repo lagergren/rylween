@@ -2458,7 +2458,7 @@ class RylweenCompiledGameLedgerTest {
         }
         check(
             "nextRoundDecision" in battleRunnerSource &&
-                "Round $" + "roundNumber" in battleRunnerSource &&
+                "BATTLE_ROUND_NUMBER to roundNumber" in battleRunnerSource &&
                 "rules.openingKeys.run.matches(choice) -> return attemptDesperateRun(this)" in battleRunnerSource,
         ) {
             "battle runner must offer Fight/Run decisions with round numbers after completed rounds"

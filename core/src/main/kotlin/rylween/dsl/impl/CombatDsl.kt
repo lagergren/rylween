@@ -52,10 +52,8 @@ data class BattleOpeningKeysModel(
 )
 
 data class BattleTextModel(
-    val encounterBanner: TextBlock,
-    val youFace: TextBlock,
-    val foeDisplayName: TextBlock,
-    val stillFace: TextBlock,
+    val encounter: TextBlock,
+    val nextRound: TextBlock,
     val fight: TextBlock,
     val run: TextBlock,
     val bloodFlow: TextBlock,
@@ -83,9 +81,7 @@ data class BattleTextModel(
     val partyHeld: TextBlock,
     val partyDefeated: TextBlock,
     val victoryBested: TextBlock,
-    val victoryEachSurvivor: TextBlock,
     val victoryReward: TextBlock,
-    val victoryFoundObject: TextBlock,
     val victoryLoot: TextBlock,
     val levelGain: TextBlock,
 )
@@ -156,6 +152,7 @@ object BattleText {
     val lootName: TextPart = TextPart.BattleLootName
     val levelMemberName: TextPart = TextPart.BattleLevelMemberName
     val levelsGained: TextPart = TextPart.BattleLevelsGained
+    val roundNumber: TextPart = TextPart.BattleRoundNumber
 }
 
 /**
@@ -302,10 +299,8 @@ class BattleOpeningKeysBuilder(
 class BattleTextBuilder(
     initial: BattleTextModel? = null,
 ) {
-    private var encounterBannerText = initial?.encounterBanner
-    private var youFaceText = initial?.youFace
-    private var foeDisplayNameText = initial?.foeDisplayName
-    private var stillFaceText = initial?.stillFace
+    private var encounterText = initial?.encounter
+    private var nextRoundText = initial?.nextRound
     private var fightText = initial?.fight
     private var runText = initial?.run
     private var bloodFlowText = initial?.bloodFlow
@@ -333,26 +328,18 @@ class BattleTextBuilder(
     private var partyHeldText = initial?.partyHeld
     private var partyDefeatedText = initial?.partyDefeated
     private var victoryBestedText = initial?.victoryBested
-    private var victoryEachSurvivorText = initial?.victoryEachSurvivor
     private var victoryRewardText = initial?.victoryReward
-    private var victoryFoundObjectText = initial?.victoryFoundObject
     private var victoryLootText = initial?.victoryLoot
     private var levelGainText = initial?.levelGain
 
-    fun encounterBanner(body: StructuredTextBlockBuilder.() -> Unit) {
-        encounterBannerText = literalText(body)
+    /** The page that opens a battle, naming the foes with [BattleText.foeDisplayName]. */
+    fun encounter(body: StructuredTextBlockBuilder.() -> Unit) {
+        encounterText = literalText(body)
     }
 
-    fun youFace(body: StructuredTextBlockBuilder.() -> Unit) {
-        youFaceText = literalText(body)
-    }
-
-    fun foeDisplayName(body: StructuredTextBlockBuilder.() -> Unit) {
-        foeDisplayNameText = literalText(body)
-    }
-
-    fun stillFace(body: StructuredTextBlockBuilder.() -> Unit) {
-        stillFaceText = literalText(body)
+    /** The page each later round opens with: [BattleText.roundNumber] and the foes still standing. */
+    fun nextRound(body: StructuredTextBlockBuilder.() -> Unit) {
+        nextRoundText = literalText(body)
     }
 
     fun fight(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -503,16 +490,8 @@ class BattleTextBuilder(
         victoryBestedText = text
     }
 
-    fun victoryEachSurvivor(body: StructuredTextBlockBuilder.() -> Unit) {
-        victoryEachSurvivorText = literalText(body)
-    }
-
     fun victoryReward(body: StructuredTextBlockBuilder.() -> Unit) {
         victoryRewardText = literalText(body)
-    }
-
-    fun victoryFoundObject(body: StructuredTextBlockBuilder.() -> Unit) {
-        victoryFoundObjectText = literalText(body)
     }
 
     fun victoryLoot(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -525,10 +504,8 @@ class BattleTextBuilder(
 
     fun build(): BattleTextModel =
         BattleTextModel(
-            encounterBanner = requiredStandardBattleText(encounterBannerText, "encounterBanner"),
-            youFace = requiredStandardBattleText(youFaceText, "youFace"),
-            foeDisplayName = requiredStandardBattleText(foeDisplayNameText, "foeDisplayName"),
-            stillFace = requiredStandardBattleText(stillFaceText, "stillFace"),
+            encounter = requiredStandardBattleText(encounterText, "encounter"),
+            nextRound = requiredStandardBattleText(nextRoundText, "nextRound"),
             fight = requiredStandardBattleText(fightText, "fight"),
             run = requiredStandardBattleText(runText, "run"),
             bloodFlow = requiredStandardBattleText(bloodFlowText, "bloodFlow"),
@@ -556,9 +533,7 @@ class BattleTextBuilder(
             partyHeld = requiredStandardBattleText(partyHeldText, "partyHeld"),
             partyDefeated = requiredStandardBattleText(partyDefeatedText, "partyDefeated"),
             victoryBested = requiredStandardBattleText(victoryBestedText, "victoryBested"),
-            victoryEachSurvivor = requiredStandardBattleText(victoryEachSurvivorText, "victoryEachSurvivor"),
             victoryReward = requiredStandardBattleText(victoryRewardText, "victoryReward"),
-            victoryFoundObject = requiredStandardBattleText(victoryFoundObjectText, "victoryFoundObject"),
             victoryLoot = requiredStandardBattleText(victoryLootText, "victoryLoot"),
             levelGain = requiredStandardBattleText(levelGainText, "levelGain"),
         )

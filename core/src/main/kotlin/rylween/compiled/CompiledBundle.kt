@@ -883,6 +883,7 @@ enum class CompiledRuntimeTextPart {
     HuntFoodGained,
     UpkeepMemberName,
     CampGuardName,
+    CastleThiefName,
     PartyMemberCount,
     PartyMemberMax,
     WildernessDungeonName,
@@ -908,6 +909,7 @@ enum class CompiledRuntimeTextPart {
     BattleLootName,
     BattleLevelMemberName,
     BattleLevelsGained,
+    BattleRoundNumber,
 }
 
 /** Screen/view command emitted from scripts and interpreted by runtime renderers. */
@@ -2200,6 +2202,7 @@ private class CompiledBundleCompiler(
             TextPart.HuntFoodGained -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntFoodGained)
             TextPart.UpkeepMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.UpkeepMemberName)
             TextPart.CampGuardName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CampGuardName)
+            TextPart.CastleThiefName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CastleThiefName)
             TextPart.PartyMemberCount -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberCount)
             TextPart.PartyMemberMax -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberMax)
             TextPart.WildernessDungeonName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.WildernessDungeonName)
@@ -2225,6 +2228,7 @@ private class CompiledBundleCompiler(
             TextPart.BattleLootName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleLootName)
             TextPart.BattleLevelMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleLevelMemberName)
             TextPart.BattleLevelsGained -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleLevelsGained)
+            TextPart.BattleRoundNumber -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleRoundNumber)
         }
 
     private fun viewCommand(command: ViewCommand): CompiledViewCommand =

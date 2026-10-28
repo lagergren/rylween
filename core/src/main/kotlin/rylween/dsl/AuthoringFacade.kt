@@ -107,6 +107,7 @@ val BattleText: rylween.dsl.impl.BattleText get() = rylween.dsl.impl.BattleText
 val HuntText: rylween.dsl.impl.HuntText get() = rylween.dsl.impl.HuntText
 val UpkeepText: rylween.dsl.impl.UpkeepText get() = rylween.dsl.impl.UpkeepText
 val CampText: rylween.dsl.impl.CampText get() = rylween.dsl.impl.CampText
+val CastleText: rylween.dsl.impl.CastleText get() = rylween.dsl.impl.CastleText
 val InventoryText: rylween.dsl.impl.InventoryText get() = rylween.dsl.impl.InventoryText
 val TownText: rylween.dsl.impl.TownText get() = rylween.dsl.impl.TownText
 val ShopResources: rylween.dsl.impl.ShopResources get() = rylween.dsl.impl.ShopResources

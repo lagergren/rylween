@@ -781,10 +781,8 @@ data class ExternalMonsterMeleeRules(
 
 /** Battle prompt and narration text blocks. */
 data class ExternalBattleText(
-    val encounterBanner: ExternalRuntimeTextBlock,
-    val youFace: ExternalRuntimeTextBlock,
-    val foeDisplayName: ExternalRuntimeTextBlock,
-    val stillFace: ExternalRuntimeTextBlock,
+    val encounter: ExternalRuntimeTextBlock,
+    val nextRound: ExternalRuntimeTextBlock,
     val fight: ExternalRuntimeTextBlock,
     val run: ExternalRuntimeTextBlock,
     val bloodFlow: ExternalRuntimeTextBlock,
@@ -812,9 +810,7 @@ data class ExternalBattleText(
     val partyHeld: ExternalRuntimeTextBlock,
     val partyDefeated: ExternalRuntimeTextBlock,
     val victoryBested: ExternalRuntimeTextBlock,
-    val victoryEachSurvivor: ExternalRuntimeTextBlock,
     val victoryReward: ExternalRuntimeTextBlock,
-    val victoryFoundObject: ExternalRuntimeTextBlock,
     val victoryLoot: ExternalRuntimeTextBlock,
     val levelGain: ExternalRuntimeTextBlock,
 )
@@ -1116,7 +1112,7 @@ data class ExternalCastleScripts(
 /** Castle text prompts and narration exported without the Kotlin runtime facade. */
 data class ExternalCastleText(
     val roomMonster: ExternalRuntimeTextBlock,
-    val trapTriesDisarmSuffix: ExternalRuntimeTextBlock,
+    val trapTriesDisarm: ExternalRuntimeTextBlock,
     val trapDisarmSucceed: ExternalRuntimeTextBlock,
     val trapDisarmFail: ExternalRuntimeTextBlock,
     val pitfallIllustration: String?,
@@ -1649,10 +1645,8 @@ private class ExternalBundleArtifactWriter {
 
     private fun battleTextJson(text: BattleTextModel): JsonValue =
         jsonObject(
-            "encounterBanner" to textBlockJson(text.encounterBanner),
-            "youFace" to textBlockJson(text.youFace),
-            "foeDisplayName" to textBlockJson(text.foeDisplayName),
-            "stillFace" to textBlockJson(text.stillFace),
+            "encounter" to textBlockJson(text.encounter),
+            "nextRound" to textBlockJson(text.nextRound),
             "fight" to textBlockJson(text.fight),
             "run" to textBlockJson(text.run),
             "bloodFlow" to textBlockJson(text.bloodFlow),
@@ -1680,9 +1674,7 @@ private class ExternalBundleArtifactWriter {
             "partyHeld" to textBlockJson(text.partyHeld),
             "partyDefeated" to textBlockJson(text.partyDefeated),
             "victoryBested" to textBlockJson(text.victoryBested),
-            "victoryEachSurvivor" to textBlockJson(text.victoryEachSurvivor),
             "victoryReward" to textBlockJson(text.victoryReward),
-            "victoryFoundObject" to textBlockJson(text.victoryFoundObject),
             "victoryLoot" to textBlockJson(text.victoryLoot),
             "levelGain" to textBlockJson(text.levelGain),
         )
@@ -2499,7 +2491,7 @@ private class ExternalBundleArtifactWriter {
     private fun castleTextJson(text: CastleTextModel): JsonValue =
         jsonObject(
             "roomMonster" to textBlockJson(text.roomMonster),
-            "trapTriesDisarmSuffix" to textBlockJson(text.trapTriesDisarmSuffix),
+            "trapTriesDisarm" to textBlockJson(text.trapTriesDisarm),
             "trapDisarmSucceed" to textBlockJson(text.trapDisarmSucceed),
             "trapDisarmFail" to textBlockJson(text.trapDisarmFail),
             "pitfallIllustration" to text.pitfallIllustration?.let { JsonString(it.slug) }.orJsonNull(),
@@ -2594,6 +2586,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.HuntFoodGained -> textTokenJson("huntFoodGained")
             TextPart.UpkeepMemberName -> textTokenJson("upkeepMemberName")
             TextPart.CampGuardName -> textTokenJson("campGuardName")
+            TextPart.CastleThiefName -> textTokenJson("castleThiefName")
             TextPart.PartyMemberCount -> textTokenJson("partyMemberCount")
             TextPart.PartyMemberMax -> textTokenJson("partyMemberMax")
             TextPart.WildernessDungeonName -> textTokenJson("wildernessDungeonName")
@@ -2619,6 +2612,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.BattleLootName -> textTokenJson("battleLootName")
             TextPart.BattleLevelMemberName -> textTokenJson("battleLevelMemberName")
             TextPart.BattleLevelsGained -> textTokenJson("battleLevelsGained")
+            TextPart.BattleRoundNumber -> textTokenJson("battleRoundNumber")
         }
 
     private fun textTokenJson(kind: String): JsonValue = jsonObject("kind" to JsonString(kind))
@@ -3489,7 +3483,7 @@ private class ExternalRuntimeSystemsReader(
     private fun JsonObject.readCastleText(): ExternalCastleText =
         ExternalCastleText(
             roomMonster = required("roomMonster").readTextBlock(),
-            trapTriesDisarmSuffix = required("trapTriesDisarmSuffix").readTextBlock(),
+            trapTriesDisarm = required("trapTriesDisarm").readTextBlock(),
             trapDisarmSucceed = required("trapDisarmSucceed").readTextBlock(),
             trapDisarmFail = required("trapDisarmFail").readTextBlock(),
             pitfallIllustration = optionalNullableString("pitfallIllustration"),
@@ -3744,10 +3738,8 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readBattleText(): ExternalBattleText =
         ExternalBattleText(
-            encounterBanner = required("encounterBanner").readTextBlock(),
-            youFace = required("youFace").readTextBlock(),
-            foeDisplayName = required("foeDisplayName").readTextBlock(),
-            stillFace = required("stillFace").readTextBlock(),
+            encounter = required("encounter").readTextBlock(),
+            nextRound = required("nextRound").readTextBlock(),
             fight = required("fight").readTextBlock(),
             run = required("run").readTextBlock(),
             bloodFlow = required("bloodFlow").readTextBlock(),
@@ -3775,9 +3767,7 @@ private class ExternalRuntimeSystemsReader(
             partyHeld = required("partyHeld").readTextBlock(),
             partyDefeated = required("partyDefeated").readTextBlock(),
             victoryBested = required("victoryBested").readTextBlock(),
-            victoryEachSurvivor = required("victoryEachSurvivor").readTextBlock(),
             victoryReward = required("victoryReward").readTextBlock(),
-            victoryFoundObject = required("victoryFoundObject").readTextBlock(),
             victoryLoot = required("victoryLoot").readTextBlock(),
             levelGain = required("levelGain").readTextBlock(),
         )

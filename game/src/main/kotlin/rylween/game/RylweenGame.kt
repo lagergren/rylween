@@ -589,7 +589,11 @@ val authoredRylween: RylweenModel =
                 text {
                     floorNames("(Ground Level)", "(First Floor)", "(Base of Tower)", "(Top of Tower)")
                     roomMonster = flowText("You are spotted by monsters!")
-                    trapTriesDisarmSuffix = literalText("tries to disarm it...", "")
+                    trapTriesDisarm =
+                        literalText {
+                            line(CastleText.thiefName, " tries to disarm it...")
+                            line("")
+                        }
                     trapDisarmSucceed = literalText("AND SUCCEEDS!")
                     trapDisarmFail = literalText("BUT FAILS!")
                     treasureIllustration = Images.Castle.treasure
@@ -795,7 +799,7 @@ val authoredRylween: RylweenModel =
                     dropPrompt = literalText("Drop what?")
                     dropEmptySlot = literalText("Nothing to drop.")
                     dropAborted = literalText("Aborted.")
-                    dropped(flowText("You drop the ", TextPart.SelectedItemName, "."))
+                    dropped(flowText("You drop the ", InventoryText.itemName, "."))
                     dropCapacityReduced = flowText("You are forced to leave some of your food behind...")
                     killsHeader = literalText("MONSTERS SLAIN", "")
                     killsEmpty = literalText("No monsters slain yet.")
@@ -1455,13 +1459,19 @@ val authoredRylween: RylweenModel =
                     // Battle text uses typed placeholders such as attackerName
                     // and damage so the runtime does not assemble prose itself.
                     text {
-                        encounterBanner { lines("ENCOUNTER!", "") }
-                        youFace { line("You face") }
-                        foeDisplayName {
+                        encounter {
+                            lines("ENCOUNTER!", "")
+                            line("You face")
                             line(BattleText.foeDisplayName)
                             line("")
                         }
-                        stillFace { line("You still face") }
+                        nextRound {
+                            line("Round ", BattleText.roundNumber)
+                            line("")
+                            line("You still face")
+                            line(BattleText.foeDisplayName)
+                            line("")
+                        }
                         fight { line("(F)ight") }
                         fleeOption { line("(R)un") }
                         bloodFlow { line("Blood shall flow!") }
@@ -1500,13 +1510,15 @@ val authoredRylween: RylweenModel =
                         partyHeld { line("PARTY IS HELD!") }
                         partyDefeated { line("The party has fallen.") }
                         victoryBested(flowText("Thou hast bested thy foes."))
-                        victoryEachSurvivor { line("Each survivor gets") }
                         victoryReward {
+                            line("Each survivor gets")
                             line(BattleText.experience, " experience pts and ", BattleText.gold, " gold pieces.")
                             line("")
                         }
-                        victoryFoundObject { line("You find a") }
-                        victoryLoot { line(BattleText.lootName, ".") }
+                        victoryLoot {
+                            line("You find a")
+                            line(BattleText.lootName, ".")
+                        }
                         levelGain {
                             line(BattleText.levelMemberName, " gains >", BattleText.levelsGained, "< experience levels.")
                         }
