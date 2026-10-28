@@ -125,6 +125,7 @@ import rylween.dsl.impl.TownModel
 import rylween.dsl.impl.Trigger
 import rylween.dsl.impl.WorldMapModel
 import rylween.dsl.impl.WorldPosition
+import rylween.dsl.impl.mapCoordinates
 import rylween.dsl.impl.runtimeContent
 import rylween.runtime.CastleSessionSnapshot
 import rylween.runtime.DungeonSavedStep
@@ -2174,6 +2175,14 @@ private class CompiledBundleCompiler(
                 )
         }
 
+    // A mission's square is fixed content, or the placed location it waits on.
+    private fun missionCoordinate(id: MissionId): CompiledTextPart =
+        when (val trigger = game.missions.singleOrNull { mission -> mission.id == id }?.trigger) {
+            is Trigger.AtPosition -> CompiledTextPart.Literal(strings.id(trigger.point.mapCoordinates()))
+            is Trigger.AtLocation -> CompiledTextPart.LocationCoordinate(locationRef(trigger.location))
+            else -> error("text names the coordinates of mission ${id.slug}, which waits on no square")
+        }
+
     private fun textPart(part: TextPart): CompiledTextPart =
         when (part) {
             is TextPart.Literal -> CompiledTextPart.Literal(strings.id(part.text))
@@ -2190,6 +2199,7 @@ private class CompiledBundleCompiler(
             is TextPart.TownName -> CompiledTextPart.TownName(townRef(part.town))
             is TextPart.FuzzyTownLocation -> CompiledTextPart.FuzzyTownLocation(townRef(part.town), part.radius)
             is TextPart.LocationCoordinate -> CompiledTextPart.LocationCoordinate(locationRef(part.location))
+            is TextPart.MissionCoordinate -> missionCoordinate(part.mission)
             TextPart.OfferedItemName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.OfferedItemName)
             TextPart.OfferedItemPrice -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.OfferedItemPrice)
             TextPart.SelectedItemName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.SelectedItemName)

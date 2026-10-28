@@ -2569,6 +2569,7 @@ private class ExternalBundleArtifactWriter {
                     "town" to JsonString(part.town.slug),
                     "radius" to JsonNumber(part.radius.toString()),
                 )
+            is TextPart.MissionCoordinate -> error("mission coordinates only work in script text")
             is TextPart.LocationCoordinate ->
                 jsonObject(
                     "kind" to JsonString("locationCoordinate"),

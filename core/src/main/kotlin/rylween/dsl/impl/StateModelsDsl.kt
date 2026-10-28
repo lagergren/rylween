@@ -61,6 +61,9 @@ data class GridPoint(
     val y: Int,
 )
 
+/** The point as the game writes map coordinates, such as `6x20`. */
+fun GridPoint.mapCoordinates(): String = "${x}x$y"
+
 data class GridOffset(
     val x: Int,
     val y: Int,

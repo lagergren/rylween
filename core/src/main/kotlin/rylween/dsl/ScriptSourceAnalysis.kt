@@ -458,6 +458,7 @@ private class NativePathCollector {
             is TextPart.TownName,
             is TextPart.FuzzyTownLocation,
             is TextPart.LocationCoordinate,
+            is TextPart.MissionCoordinate,
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
             TextPart.SelectedItemName,

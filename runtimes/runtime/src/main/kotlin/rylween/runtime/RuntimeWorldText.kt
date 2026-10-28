@@ -18,6 +18,7 @@ import rylween.compiled.CompiledWorldPosition
 import rylween.compiled.ExternalRuntimeTextBlock
 import rylween.compiled.ExternalRuntimeTextPart
 import rylween.dsl.impl.GridPoint
+import rylween.dsl.impl.mapCoordinates
 
 /** Resolves authored town, role, NPC, and location references in [content] to player-facing text. */
 internal class RuntimeWorldText(
@@ -245,7 +246,7 @@ internal class RuntimeWorldText(
             is CompiledWorldPosition.Wilderness -> "at ${pointText(position.point)}"
         }
 
-    private fun pointText(point: GridPoint): String = "${point.x}x${point.y}"
+    private fun pointText(point: GridPoint): String = point.mapCoordinates()
 
     private fun fuzzyPoint(
         point: GridPoint,
