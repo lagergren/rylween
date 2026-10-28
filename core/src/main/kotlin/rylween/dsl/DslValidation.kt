@@ -1287,6 +1287,9 @@ private fun validateTextBlock(
             is TextPart.LocationCoordinate -> {
                 check(part.location.slug.isNotBlank()) { "$label references blank location" }
             }
+            is TextPart.MissionCoordinate -> {
+                check(part.mission.slug.isNotBlank()) { "$label references blank mission" }
+            }
             // CPD-OFF
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,

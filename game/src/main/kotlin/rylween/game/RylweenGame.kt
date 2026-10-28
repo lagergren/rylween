@@ -6257,10 +6257,11 @@ val authoredRylween: RylweenModel =
                             """,
                         )
                         showTextAndWait(
-                            """
-                            One of Erethor's temples, where mad priests practice
-                            blasphemous magic, is located at 6x20, near the western peaks.
-                            """,
+                            flowText(
+                                "One of Erethor's temples, where mad priests practice blasphemous magic, is located at ",
+                                mission(Missions.erethorEntry).coordinates,
+                                ", near the western peaks.",
+                            ),
                         )
                         writeText(
                             """
@@ -6268,7 +6269,9 @@ val authoredRylween: RylweenModel =
                             but the Cloak will make its bearer almost invulnerable.
                             """,
                         )
-                        journal("Erethor's temple is situated at 6x20.")
+                        journal {
+                            line("Erethor's temple is situated at ", mission(Missions.erethorEntry).coordinates, ".")
+                        }
                         mark(Story.erethor.lute.rumorTold)
                         waitInput("after Tybalt's offer")
                     }
@@ -6452,8 +6455,10 @@ val authoredRylween: RylweenModel =
                             my father left me, will be yours if you rescue her.
                             """,
                         )
-                        appendText("The orcs have a cave at 42x23 in Lonewood.")
-                        journal("The orc cavern is at 42x23.")
+                        appendText(flowText("The orcs have a cave at ", mission(Missions.husbandCave).coordinates, " in Lonewood."))
+                        journal {
+                            line("The orc cavern is at ", mission(Missions.husbandCave).coordinates, ".")
+                        }
                         mark(Story.peasant.wife.accepted)
                         waitInput("after Ron names the orc cave")
                     }

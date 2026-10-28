@@ -84,6 +84,11 @@ sealed interface TextPart {
         val location: LocationId,
     ) : TextPart
 
+    /** The square a mission waits on, as the map shows coordinates. */
+    data class MissionCoordinate(
+        val mission: MissionId,
+    ) : TextPart
+
     object OfferedItemName : TextPart
 
     object OfferedItemPrice : TextPart
@@ -183,6 +188,7 @@ fun TextPart.fallbackText(): String =
         is TextPart.TownName -> town.slug
         is TextPart.FuzzyTownLocation -> "${town.slug}.near"
         is TextPart.LocationCoordinate -> "{${location.slug}.coordinates}"
+        is TextPart.MissionCoordinate -> "{${mission.slug}.coordinates}"
         TextPart.OfferedItemName -> "{item_name}"
         TextPart.OfferedItemPrice -> "{item_price}"
         TextPart.SelectedItemName -> "{selected_item_name}"
@@ -546,3 +552,12 @@ class LocationTextRef(
 
 /** Creates text placeholders for a [location]. */
 fun location(location: LocationId): LocationTextRef = LocationTextRef(location)
+
+/** Text about a mission, such as the square it waits on: `mission(Missions.erethorEntry).coordinates`. */
+class MissionTextRef(
+    mission: MissionId,
+) {
+    val coordinates: TextPart = TextPart.MissionCoordinate(mission)
+}
+
+fun mission(mission: MissionId): MissionTextRef = MissionTextRef(mission)
