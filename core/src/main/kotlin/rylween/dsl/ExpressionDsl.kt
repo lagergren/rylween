@@ -185,7 +185,9 @@ class PartyRef(
     val food: IntSlot = IntSlot(script, LValueAst.PartyScalar("food"), IntAst.PartyScalar("food"))
     val timeLeft: IntSlot = IntSlot(script, LValueAst.PartyScalar("time_left"), IntAst.PartyScalar("time_left"))
     val restedHours: IntSlot = IntSlot(script, LValueAst.PartyScalar("rested_hours"), IntAst.PartyScalar("rested_hours"))
-    val memberCount: IntSlot = IntSlot(script, LValueAst.PartyScalar("member_count"), IntAst.PartyScalar("member_count"))
+
+    /** The number of living members. The runtime counts them again whenever a member dies or comes back, so scripts only read it. */
+    val memberCount: IntExpr = Expr(IntAst.PartyScalar("member_count"))
     val inventory: PartyInventoryRef = PartyInventoryRef(script)
     val leader: MemberRef get() = member(lit(1))
 
@@ -296,12 +298,32 @@ class MemberRef(
         script.record(ScriptStatementNode.Set(LValueAst.MemberField(index.ast, "hit_points"), maxHp.ast))
     }
 
+    /** Takes [amount] hit points; at zero or below the member dies. */
+    fun wound(amount: IntExpr) {
+        hp -= amount
+        script.whenever(hp lte 0) { kill() }
+    }
+
+    fun wound(amount: Int): Unit = wound(lit(amount))
+
+    /** Kills the member outright. The runtime keeps the party's count of living members. */
+    fun kill() {
+        hp set 0
+        dead set true
+    }
+
+    /** Brings a dead member back to life with [hitPoints] hit points. */
+    fun revive(hitPoints: Int = 1) {
+        dead set false
+        hp set hitPoints
+    }
+
     private fun intField(field: String): IntSlot =
         IntSlot(script, LValueAst.MemberField(index.ast, field), IntAst.MemberField(index.ast, field))
 }
 
 class MonsterRef(
-    script: ScriptScope,
+    private val script: ScriptScope,
     val index: IntExpr,
 ) {
     val hp: IntSlot = IntSlot(script, LValueAst.MonsterField(index.ast, "hit_points"), IntAst.MonsterField(index.ast, "hit_points"))
@@ -311,6 +333,20 @@ class MonsterRef(
             LValueAst.MonsterField(index.ast, "dead"),
             BoolAst.MonsterFlag(index.ast, "dead"),
         )
+
+    /** Takes [amount] hit points; at zero or below the monster dies. */
+    fun wound(amount: IntExpr) {
+        hp -= amount
+        script.whenever(hp lte 0) { kill() }
+    }
+
+    fun wound(amount: Int): Unit = wound(lit(amount))
+
+    /** Kills the monster outright. */
+    fun kill() {
+        hp set 0
+        dead set true
+    }
 }
 
 class BattleRef(

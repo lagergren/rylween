@@ -66,6 +66,26 @@ class ScriptExecutorTest {
         assertTrue(menu.size <= CLASSIC_TEXT_WINDOW_ROWS, "church menu must fit the classic text window: $menu")
     }
 
+    // The runtime counts the living members itself, so a raise must not count the raised member twice.
+    @Test
+    fun raisingTheDeadAtTheChurchCountsTheLivingOnce() {
+        val town = thordRuntime()
+        val members = town.party.members.mapIndexed { index, member -> if (index == 1) member.copy(dead = true) else member }
+        val runtime =
+            town.withParty(
+                town.party.copy(
+                    members = members,
+                    resources = town.party.resources.copy(gold = 100_000),
+                    counters = town.party.counters.copy(memberCount = members.count { member -> !member.dead }),
+                ),
+            )
+
+        val after = runScript(scriptRoot(ScriptRootKind.Scene, "towne.church"), runtime, "R2PL", TextCapturingScreen(), "church-raise.log")
+
+        assertTrue(after.party.members.none { member -> member.dead }, "the dead member is raised: ${after.party.members}")
+        assertEquals(after.party.members.size, after.party.counters.memberCount)
+    }
+
     @Test
     fun shopMenusSeparateProseFromKeyChoicesWithoutRepeatingThem() {
         // Decline the forced beer interlude, dismiss its pause, open Buy, then decline the catalog choice.

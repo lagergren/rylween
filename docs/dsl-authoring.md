@@ -338,6 +338,17 @@ gainTorches(2)
 gainFood(10)
 ```
 
+Members and monsters take damage with `wound(amount)`, which also kills them at
+zero hit points; `kill()` and `revive()` do the rest. The runtime keeps the
+party's count of living members, so `party.memberCount` is only read:
+
+```kotlin
+target.wound(damage)
+whenever(target.dead) {
+    appendText { line("{red}", partyName(target), " DIES! {pause 1s}") }
+}
+```
+
 Use direct state slots for local mechanics such as costs, damage, timers, and
 script counters:
 

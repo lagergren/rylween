@@ -4114,9 +4114,7 @@ val authoredRylween: RylweenModel =
                                                 writeText("You don't have the gold! {pause 1s}")
                                             },
                                             paid = {
-                                                m.hp set 1
-                                                m.dead set false
-                                                party.memberCount += 1
+                                                m.revive()
                                                 playSound(Sounds.Spell.rebirth)
                                                 writeText(flowText("The priestess raises ", pronoun(m, PronounCase.Object), ". {pause 1s}"))
                                             },
@@ -4888,11 +4886,8 @@ val authoredRylween: RylweenModel =
                         localInt(caster.level * random(2..8)) { damage ->
                             writeText(flowText(partyName(caster), " chills the opponent for ", damage, " damage pts. {pause 2s}"))
 
-                            target.hp -= damage
-
-                            whenever(target.hp lte 0) {
-                                target.hp set 0
-                                target.dead set true
+                            target.wound(damage)
+                            whenever(target.dead) {
                                 writeText("...KILLED! {pause 600ms}")
                             }
                         }
@@ -4934,8 +4929,7 @@ val authoredRylween: RylweenModel =
                             The enemy is wiped straight off the surface of the earth! {pause 2s}
                             """,
                         )
-                        target.dead set true
-                        target.hp set 0
+                        target.kill()
                     }
                 }
             }
@@ -4971,10 +4965,8 @@ val authoredRylween: RylweenModel =
                             line("Frost Finger on ", partyName(target), "! {pause 1s}")
                             line("and does ", damage, " pts of damage! {pause 1s}")
                         }
-                        target.hp -= damage
-                        whenever(target.hp lte 0) {
-                            target.hp set 0
-                            target.dead set true
+                        target.wound(damage)
+                        whenever(target.dead) {
                             appendText {
                                 line("{red}", partyName(target), " DIES! {pause 1s}")
                             }
@@ -4988,10 +4980,8 @@ val authoredRylween: RylweenModel =
                 forEachMember { target ->
                     localInt((battle.encounterHitPointMax / 5) + random(0..4)) { damage ->
                         writeText(flowText(partyName(target), " is burnt for ", damage, " damage pts! {pause 1s}"))
-                        target.hp -= damage
-                        whenever(target.hp lte 0) {
-                            target.hp set 0
-                            target.dead set true
+                        target.wound(damage)
+                        whenever(target.dead) {
                             writeText {
                                 line("{red}", partyName(target), " DIES! {pause 1s}")
                             }
@@ -5097,9 +5087,7 @@ val authoredRylween: RylweenModel =
                         ) { target ->
                             whenever(target.dead) {
                                 caster.mp -= cost
-                                target.dead set false
-                                party.memberCount += 1
-                                target.hp set 1
+                                target.revive()
                                 writeText(
                                     flowText(
                                         partyName(target),
@@ -5335,13 +5323,8 @@ val authoredRylween: RylweenModel =
                     ) { target ->
                         consumeActiveItem()
                         localInt(potionPoints(target)) { points ->
-                            target.hp -= points
+                            target.wound(points)
                             writeText(flowText(partyName(target), " is poisoned for ", points, " hit points. {pause 1s}"))
-                        }
-                        whenever(target.hp lte 0) {
-                            target.hp set 0
-                            target.dead set true
-                            party.memberCount -= 1
                         }
                     }
                 }
@@ -5387,12 +5370,9 @@ val authoredRylween: RylweenModel =
                                     ),
                                 )
 
-                                target.hp -= damage
-
-                                whenever(target.hp lte 0) {
-                                    target.hp set 0
+                                target.wound(damage)
+                                whenever(target.dead) {
                                     writeText("...KILLED! {pause 600ms}")
-                                    target.dead set true
                                 }
                             }
                         }
@@ -5457,8 +5437,7 @@ val authoredRylween: RylweenModel =
                         battle.firstAliveMonster { target ->
                             writeText(flowText(partyName(caster), " summons death to take a ", monsterName(target), " away... {pause 2s}"))
                             writeText("...KILLED! {pause 600ms}")
-                            target.dead set true
-                            target.hp set 0
+                            target.kill()
                             clearText()
                         }
                     }
@@ -5539,8 +5518,7 @@ val authoredRylween: RylweenModel =
                             writeText {
                                 line(partyName(target), " opens ", pronoun(target, PronounCase.Possessive), " eyes! {pause 1s}")
                             }
-                            target.dead set false
-                            target.hp set 1
+                            target.revive()
                             consumeActiveItem()
                         } otherwise {
                             writeText {
@@ -6782,12 +6760,9 @@ private fun ScriptScope.burnEveryLivingMonster(
             whenever(!foe.dead) {
                 writeText(flowText(partyName(caster), " burns ", monsterName(foe), " for ", damage, " pts! {pause 1s}"))
 
-                foe.hp -= damage
-
-                whenever(foe.hp lte 0) {
-                    foe.hp set 0
+                foe.wound(damage)
+                whenever(foe.dead) {
                     writeText("...KILLED! {pause 600ms}")
-                    foe.dead set true
                 }
             }
         }
