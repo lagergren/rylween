@@ -3487,6 +3487,9 @@ class FormulaBuilder(
     // Upkeep and town entry: the party's living members and the gold it
     // carries, and the tax rate of the town it enters.
     val livingMembers: IntExpr = v("living_members")
+
+    // A shop price: the cost of the item on offer.
+    val itemCost: IntExpr = v("item_cost")
     val gold: IntExpr = v("gold")
     val taxPercent: IntExpr = v("tax_percent")
 

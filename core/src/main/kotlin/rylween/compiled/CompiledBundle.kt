@@ -1243,18 +1243,13 @@ data class CompiledShopItemOffer(
 sealed interface CompiledShopPrice {
     data object ItemCost : CompiledShopPrice
 
-    data object HalfItemCost : CompiledShopPrice
-
     data class Fixed(
         val amount: Int,
     ) : CompiledShopPrice
 
-    data class LeaderLevelPlus(
-        val addend: Int,
-    ) : CompiledShopPrice
-
-    data class ItemCostPlusLeaderLevelTimes(
-        val multiplier: Int,
+    /** A price from an authored formula, evaluated with the item's cost and the party leader's level. */
+    data class Formula(
+        val formula: CompiledHandleRef,
     ) : CompiledShopPrice
 }
 
@@ -2352,11 +2347,8 @@ private class CompiledBundleCompiler(
     private fun shopPrice(price: ShopPriceModel): CompiledShopPrice =
         when (price) {
             ShopPriceModel.ItemCost -> CompiledShopPrice.ItemCost
-            ShopPriceModel.HalfItemCost -> CompiledShopPrice.HalfItemCost
             is ShopPriceModel.Fixed -> CompiledShopPrice.Fixed(price.amount)
-            is ShopPriceModel.LeaderLevelPlus -> CompiledShopPrice.LeaderLevelPlus(price.addend)
-            is ShopPriceModel.ItemCostPlusLeaderLevelTimes ->
-                CompiledShopPrice.ItemCostPlusLeaderLevelTimes(price.multiplier)
+            is ShopPriceModel.Formula -> CompiledShopPrice.Formula(formulaRef(price.formula))
         }
 
     private fun shopPurchase(purchase: ShopPurchaseModel): CompiledShopPurchase =
