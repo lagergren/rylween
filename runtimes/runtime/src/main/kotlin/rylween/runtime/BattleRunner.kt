@@ -102,6 +102,8 @@ internal data class BattleResult(
 internal class BattleRunner(
     private val content: CompiledContentBundle,
     private val combat: ExternalRuntimeCombat,
+    // The game's spell cost formula, from the realm rules.
+    private val spellCost: String?,
     private val pacing: ExternalBattlePacing,
     private val input: RuntimeInputPort,
     private val screen: RuntimeScreenPort,
@@ -569,7 +571,7 @@ internal class BattleRunner(
         messages: MutableList<String>,
     ): BattleEncounter {
         val spells = mageSpells()
-        screen.writeText(spellChoiceLines(member, spells))
+        screen.writeText(spellChoiceLines(member, spells, runtime.party))
         val command = input.readCommand()?.uppercaseChar() ?: return copy(actionRetry = true)
         if (command == BATTLE_SPELL_CANCEL_KEY) return copy(actionRetry = true)
         val slot = command.digitToIntOrNull() ?: return copy(actionRetry = true)
@@ -583,7 +585,7 @@ internal class BattleRunner(
             messages += rules.text.spellFizzle.renderBattle()
             return this
         }
-        val cost = spell.baseCost + member.level
+        val cost = content.spellCost(spellCost, spell, member, runtime.party)
         if (member.mana.current < cost) {
             audio.cue(AudioCue.SpellFizzle)
             messages += rules.text.notEnoughMagic.renderBattle()
@@ -594,7 +596,7 @@ internal class BattleRunner(
         return copy(runtime = runtime.withMember(memberIndex, nextMember))
             .runBattleScript(
                 scriptRoot = spell.scriptRoot,
-                locals = mapOf("caster_idx" to memberIndex),
+                locals = mapOf("caster_idx" to memberIndex, "spell_cost" to cost),
             )
     }
 
@@ -1109,6 +1111,7 @@ internal class BattleRunner(
     private fun spellChoiceLines(
         member: CompiledPartyMember,
         spells: List<CompiledSpell>,
+        party: PartyState,
     ): List<String> =
         screen.choiceMenuLines(
             prompt = emptyList(),
@@ -1116,7 +1119,9 @@ internal class BattleRunner(
                 spells.map { spell ->
                     choiceLine(
                         spell.slot,
-                        "${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})",
+                        "${content.strings.value(
+                            spell.nameString,
+                        )} (${content.spellCost(spellCost, spell, member, party)}/${member.mana.current})",
                     )
                 },
             trailer =

@@ -397,6 +397,7 @@ val authoredRylween: RylweenModel =
             // capacity, turn upkeep, hunting, camping, fatigue, and starvation.
             realm {
                 baseResourceCapacity(Resource.Food, 150)
+                spellCost = Formulas.spellCost
                 // Upkeep runs during wilderness turns. These fields control food
                 // ticking, fatigue labels/drain, mana recovery, and starvation.
                 upkeep {
@@ -1331,6 +1332,11 @@ val authoredRylween: RylweenModel =
                 }
                 formula(Formulas.haggleRollBonus) {
                     value = whenValue(charisma gt 90, lit(20), (charisma - 50) / 2)
+                }
+                // A spell costs its base cost plus the caster's level, for mage
+                // spells in battle and priest spells alike.
+                formula(Formulas.spellCost) {
+                    value = spellBaseCost + level
                 }
             }
 
@@ -5016,7 +5022,7 @@ val authoredRylween: RylweenModel =
             // runtime owns the "Who?", class gate, spell list, and abort key; these
             // blocks declare the current game's spell effects.
             spell(Spells.Priest.heal, slot = 1, baseCost = 8, name = "Healing") {
-                withCurrentCasterCost(8) { caster, cost ->
+                withCurrentCasterCost { caster, cost ->
                     clearText()
                     whenever(caster.mp gte cost) {
                         caster.mp -= cost
@@ -5054,7 +5060,7 @@ val authoredRylween: RylweenModel =
             }
 
             spell(Spells.Priest.restoration, slot = 2, baseCost = 20, name = "Restoration") {
-                withCurrentCasterCost(20) { caster, cost ->
+                withCurrentCasterCost { caster, cost ->
                     clearText()
                     whenever(caster.mp gte cost) {
                         caster.mp -= cost
@@ -5076,7 +5082,7 @@ val authoredRylween: RylweenModel =
             }
 
             spell(Spells.Priest.rebirth, slot = 3, baseCost = 90, name = "Rebirth") {
-                withCurrentCasterCost(90) { caster, cost ->
+                withCurrentCasterCost { caster, cost ->
                     clearText()
                     whenever(caster.mp gte cost) {
                         ask.member(
@@ -5111,7 +5117,7 @@ val authoredRylween: RylweenModel =
             }
 
             spell(Spells.Priest.banish, slot = 4, baseCost = 85, name = "Banish Evil") {
-                withCurrentCasterCost(85) { caster, cost ->
+                withCurrentCasterCost { caster, cost ->
                     clearText()
                     whenever(caster.mp gte cost) {
                         whenever(context.inDungeon) {
@@ -5157,7 +5163,7 @@ val authoredRylween: RylweenModel =
             }
 
             spell(Spells.Priest.revelation, slot = 5, baseCost = 40, name = "Revelation") {
-                withCurrentCasterCost(40) { caster, cost ->
+                withCurrentCasterCost { caster, cost ->
                     clearText()
                     whenever(caster.mp gte cost) {
                         whenever(context.inDungeon) {
@@ -5191,7 +5197,7 @@ val authoredRylween: RylweenModel =
             }
 
             spell(Spells.Priest.teleport, slot = 6, baseCost = 35, name = "Teleport") {
-                withCurrentCasterCost(35) { caster, cost ->
+                withCurrentCasterCost { caster, cost ->
                     whenever(caster.mp gte cost) {
                         caster.mp -= cost
                         writeText(
@@ -5241,7 +5247,7 @@ val authoredRylween: RylweenModel =
             }
 
             spell(Spells.Priest.earthquake, slot = 7, baseCost = 55, name = "Earthquake") {
-                withCurrentCasterCost(55) { caster, cost ->
+                withCurrentCasterCost { caster, cost ->
                     clearText()
                     whenever(context.inDungeon or context.inCastle) {
                         showTextAndWait("The roof would cave in on you!")

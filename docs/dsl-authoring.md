@@ -722,7 +722,7 @@ Use this placement rule during design review:
 
 A change to the shape of the `runtimeSystems` rows also bumps
 `EXTERNAL_RUNTIME_SYSTEMS_VERSION` in
-`core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt` (12 today), so
+`core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt` (14 today), so
 a runtime refuses a bundle written for another shape.
 
 If a rule mentions Rylween story content, item names, NPCs, mission prose,

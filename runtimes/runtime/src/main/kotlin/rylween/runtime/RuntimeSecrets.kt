@@ -165,5 +165,15 @@ internal class SecretActions(
             ?: content.slug(item)
 
     private fun battleRunner(): BattleRunner =
-        BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts), systems.audio)
+        BattleRunner(
+            content,
+            systems.combat,
+            systems.realm.spellCost,
+            systems.pacing.battle,
+            input,
+            screen,
+            log,
+            PausePrompts(systems.prompts),
+            systems.audio,
+        )
 }

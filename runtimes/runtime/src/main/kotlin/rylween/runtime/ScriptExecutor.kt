@@ -899,8 +899,17 @@ internal class ScriptExecutor(
         mandatory: Boolean,
     ) {
         val battle =
-            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, pausePrompts, systems.audio)
-                .runMonster(runtime, monster, mandatory = mandatory)
+            BattleRunner(
+                content,
+                systems.combat,
+                systems.realm.spellCost,
+                systems.pacing.battle,
+                input,
+                screen,
+                log,
+                pausePrompts,
+                systems.audio,
+            ).runMonster(runtime, monster, mandatory = mandatory)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         if (runtime.currentMode != RuntimeMode.GameOver) music?.let(screen::playMusic)

@@ -64,6 +64,7 @@ data class RealmContentModel(
     val camp: CampRulesModel = CampRulesModel(),
     val hunt: HuntRulesModel? = null,
     val timeOfDay: List<TimeOfDayBandModel> = defaultTimeOfDayBands(),
+    val spellCost: FormulaId? = null,
 )
 
 /** Authored label for an inclusive hour span in the status line. */

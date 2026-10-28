@@ -38,7 +38,7 @@ class BattleRunnerTest {
         val input = ScriptedInput("FAA")
 
         RuntimeLog.open(testTmp.resolve("battle-saved-names.log")).use { log ->
-            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log)
+            BattleRunner(content, systems.combat, systems.realm.spellCost, systems.pacing.battle, input, screen, log)
                 .runMonster(runtime, content.monsters.first().id, mandatory = true)
         }
 
@@ -58,7 +58,7 @@ class BattleRunnerTest {
         val screen = CapturingBattleScreen()
         val result =
             RuntimeLog.open(testTmp.resolve("battle-kill-tally.log")).use { log ->
-                BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log)
+                BattleRunner(content, systems.combat, systems.realm.spellCost, systems.pacing.battle, input, screen, log)
                     .runMonster(runtime, chief, mandatory = true)
             }
 
@@ -78,7 +78,7 @@ class BattleRunnerTest {
 
         val result =
             RuntimeLog.open(testTmp.resolve("battle-level-up-mana.log")).use { log ->
-                BattleRunner(content, systems.combat, systems.pacing.battle, input, CapturingBattleScreen(), log)
+                BattleRunner(content, systems.combat, systems.realm.spellCost, systems.pacing.battle, input, CapturingBattleScreen(), log)
                     .runMonster(runtime, chief, mandatory = true)
             }
 
@@ -181,6 +181,7 @@ class BattleRunnerTest {
             BattleRunner(
                 holding,
                 systems.combat,
+                systems.realm.spellCost,
                 systems.pacing.battle,
                 ScriptedInput("F" + "D".repeat(runtime.party.members.size)),
                 screen,
@@ -218,7 +219,7 @@ class BattleRunnerTest {
         val logged = mutableListOf<String>()
         val result =
             RuntimeLog.open(testTmp.resolve("battle-run.log"), listOf { line -> logged += line }).use { log ->
-                BattleRunner(content, systems.combat, systems.pacing.battle, ScriptedInput(commands), screen, log)
+                BattleRunner(content, systems.combat, systems.realm.spellCost, systems.pacing.battle, ScriptedInput(commands), screen, log)
                     .runMonster(runtime, content.ref(CompiledHandleKind.Monster, "hobgoblin_chief"), mandatory)
             }
         return BattleFight(result, (screen.textLines + result.messages).joinToString("\n"), logged)

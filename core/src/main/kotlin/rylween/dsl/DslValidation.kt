@@ -323,13 +323,16 @@ fun validateFormulas(formulas: List<FormulaModel>) {
     check(formulas.map { it.id }.toSet().size == formulas.size) { "duplicate formula" }
 }
 
-/** Validates that the hunt and castle trap chances name authored formulas. */
+/** Validates that the hunt and castle trap chances and the spell cost name authored formulas. */
 private fun validateSystemFormulaReferences(content: GameModel) {
     val formulaIds = content.formulas.map { it.id }.toSet()
     content.realm.hunt?.let { hunt ->
         check(hunt.successChance in formulaIds) {
             "hunt success chance references missing formula ${hunt.successChance.slug}"
         }
+    }
+    content.realm.spellCost?.let { spellCost ->
+        check(spellCost in formulaIds) { "realm spell cost references missing formula ${spellCost.slug}" }
     }
     content.castles.forEach { castle ->
         val disarmChance =

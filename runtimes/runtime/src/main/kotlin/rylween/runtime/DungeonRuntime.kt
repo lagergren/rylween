@@ -175,6 +175,7 @@ internal class DungeonRuntime(
                 BattleRunner(
                     content,
                     systems.combat,
+                    systems.realm.spellCost,
                     systems.pacing.battle,
                     input,
                     screen,
