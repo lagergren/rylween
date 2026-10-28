@@ -300,7 +300,7 @@ internal class UtilityActions(
         input.readValidInventorySlotChoice(
             screen = screen,
             lines = lines,
-            validSlots = choices.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
+            validSlots = choices.map(CompiledInventorySlot::slot).toSet(),
             cancelKeys = inventoryCancelKeys,
             audio = audio,
         )
@@ -405,7 +405,7 @@ internal class UtilityActions(
             .readValidDigitChoice(
                 screen = screen,
                 lines = lines,
-                validDigits = indexes.mapTo(mutableSetOf()) { index -> index + 1 },
+                validDigits = indexes.map { index -> index + 1 }.toSet(),
                 cancelKeys = inventoryCancelKeys,
                 audio = audio,
             )?.minus(1)
@@ -547,7 +547,11 @@ internal fun chooseDropSlotForInventoryOverflow(
     return input.readValidInventorySlotChoice(
         screen = screen,
         lines = slotLines,
-        validSlots = party.inventory.filter { slot -> slot.item != null }.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
+        validSlots =
+            party.inventory
+                .filter { slot -> slot.item != null }
+                .map(CompiledInventorySlot::slot)
+                .toSet(),
         cancelKeys = inventoryCancelKeys,
     )
 }

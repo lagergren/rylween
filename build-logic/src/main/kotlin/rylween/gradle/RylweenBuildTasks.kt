@@ -128,44 +128,48 @@ abstract class RunInstalledLauncherWithJavaTask
                 "configure exactly one launcher smoke mode: screen or script"
             }
             val launcherArgs =
-                mutableListOf(
-                    executableFile.get().asFile.path,
-                    "--bundle",
-                    bundleFile.get().asFile.path,
-                    "--log",
-                    logFile.get().asFile.path,
-                )
-            if (hasScreen) {
-                launcherArgs += listOf("--screen", screen.get())
-            }
-            if (userId.isPresent) {
-                launcherArgs += listOf("--user", userId.get())
-            }
-            if (stateSlug.isPresent) {
-                launcherArgs += listOf("--state", stateSlug.get())
-            }
-            if (hasScript) {
-                launcherArgs += listOf("--script", script.get())
-            }
-            if (title.orNull == true) {
-                launcherArgs += "--title"
-            }
-            if (seed.isPresent) {
-                launcherArgs += listOf("--seed", seed.get().toString())
-            }
-            if (debugLog.orNull == true) {
-                launcherArgs += "--debug-log"
-            }
-            if (debugSecrets.orNull == true) {
-                launcherArgs += "--debug-secrets"
-            }
-            if (loadFile.isPresent) {
-                launcherArgs += listOf("--load", loadFile.get().asFile.path)
-            }
-            if (saveFile.isPresent) {
-                if (resetSaveFile.orNull == true) saveFile.get().asFile.delete()
-                launcherArgs += listOf("--save", saveFile.get().asFile.path)
-            }
+                buildList {
+                    addAll(
+                        listOf(
+                            executableFile.get().asFile.path,
+                            "--bundle",
+                            bundleFile.get().asFile.path,
+                            "--log",
+                            logFile.get().asFile.path,
+                        ),
+                    )
+                    if (hasScreen) {
+                        addAll(listOf("--screen", screen.get()))
+                    }
+                    if (userId.isPresent) {
+                        addAll(listOf("--user", userId.get()))
+                    }
+                    if (stateSlug.isPresent) {
+                        addAll(listOf("--state", stateSlug.get()))
+                    }
+                    if (hasScript) {
+                        addAll(listOf("--script", script.get()))
+                    }
+                    if (title.orNull == true) {
+                        add("--title")
+                    }
+                    if (seed.isPresent) {
+                        addAll(listOf("--seed", seed.get().toString()))
+                    }
+                    if (debugLog.orNull == true) {
+                        add("--debug-log")
+                    }
+                    if (debugSecrets.orNull == true) {
+                        add("--debug-secrets")
+                    }
+                    if (loadFile.isPresent) {
+                        addAll(listOf("--load", loadFile.get().asFile.path))
+                    }
+                    if (saveFile.isPresent) {
+                        if (resetSaveFile.orNull == true) saveFile.get().asFile.delete()
+                        addAll(listOf("--save", saveFile.get().asFile.path))
+                    }
+                }
             val javaHome = javaLauncher.get().metadata.installationPath.asFile.absolutePath
             val output = ByteArrayOutputStream()
             val result =
@@ -1458,15 +1462,9 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
         )
     }
 
-    private fun List<String>.distinctInOrder(): List<String> {
-        val seen = linkedSetOf<String>()
-        return filter { seen.add(it) }
-    }
+    private fun List<String>.distinctInOrder(): List<String> = distinct()
 
-    private fun List<SourceHandle>.distinctNamesInOrder(): List<String> {
-        val seen = linkedSetOf<String>()
-        return mapNotNull { handle -> handle.name.takeIf { seen.add(it) } }
-    }
+    private fun List<SourceHandle>.distinctNamesInOrder(): List<String> = map(SourceHandle::name).distinct()
 
     private fun MatchResult.groupOffset(index: Int): Int = groups[index]?.range?.first ?: range.first
 
@@ -1497,15 +1495,9 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
 
     private fun String.sourceLocation(offset: Int): SourceLocation {
         val boundedOffset = offset.coerceIn(0, length)
-        var line = 1
-        var lineStart = 0
-        for (index in 0 until boundedOffset) {
-            if (this[index] == '\n') {
-                line += 1
-                lineStart = index + 1
-            }
-        }
-        return SourceLocation(line, boundedOffset - lineStart + 1)
+        val before = take(boundedOffset)
+        val lineStart = before.lastIndexOf('\n') + 1
+        return SourceLocation(line = before.count { char -> char == '\n' } + 1, column = boundedOffset - lineStart + 1)
     }
 
     private fun validateNoDuplicateDeclarations(

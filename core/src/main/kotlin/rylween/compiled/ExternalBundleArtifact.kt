@@ -4897,11 +4897,4 @@ private inline fun <reified T : Enum<T>> JsonObject.requiredEnum(name: String): 
 private inline fun <reified T : Enum<T>> JsonObject.optionalNullableEnum(name: String): T? =
     optionalNullableString(name)?.let(::enumValueOf)
 
-internal fun ByteArray.fnv1a32(): Int {
-    var hash = 0x811c9dc5.toInt()
-    forEach { byte ->
-        hash = hash xor (byte.toInt() and 0xff)
-        hash *= 0x01000193
-    }
-    return hash
-}
+internal fun ByteArray.fnv1a32(): Int = fold(0x811c9dc5.toInt()) { hash, byte -> (hash xor (byte.toInt() and 0xff)) * 0x01000193 }

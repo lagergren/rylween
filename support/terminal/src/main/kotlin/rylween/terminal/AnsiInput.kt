@@ -28,33 +28,33 @@ object AnsiInput {
         consumeQueuedLf: () -> Unit,
         writeRaw: (String) -> Unit,
         flush: () -> Unit,
-    ): String? {
-        val out = StringBuilder()
-        while (true) {
-            when (val ch = readCode(null)) {
-                -1,
-                '\u0003'.code,
-                '\u0004'.code,
-                -> return null
-                '\n'.code,
-                '\r'.code,
-                -> {
-                    consumeQueuedLf()
-                    return out.toString()
-                }
-                '\b'.code,
-                '\u007F'.code,
-                -> {
-                    if (out.isNotEmpty()) {
-                        out.deleteCharAt(out.lastIndex)
-                        writeRaw("\b \b")
-                        flush()
+    ): String? =
+        buildString {
+            while (true) {
+                when (val ch = readCode(null)) {
+                    -1,
+                    '\u0003'.code,
+                    '\u0004'.code,
+                    -> return null
+                    '\n'.code,
+                    '\r'.code,
+                    -> {
+                        consumeQueuedLf()
+                        break
                     }
+                    '\b'.code,
+                    '\u007F'.code,
+                    -> {
+                        if (isNotEmpty()) {
+                            deleteCharAt(lastIndex)
+                            writeRaw("\b \b")
+                            flush()
+                        }
+                    }
+                    else -> appendPrintable(maxLength, this, ch, writeRaw, flush)
                 }
-                else -> appendPrintable(maxLength, out, ch, writeRaw, flush)
             }
         }
-    }
 
     private fun decodeEscapeKey(readCode: (timeoutMs: Int?) -> Int): String {
         val b1 = readCode(50)

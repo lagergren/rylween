@@ -175,12 +175,14 @@ internal class AutopilotFullGamePlan(
         lastFloor: Boolean,
     ): Boolean {
         val reasons = if (lastFloor) blockers(state, castleStep) else listOf("weakened").takeIf { weakened(state) }.orEmpty()
-        reasons.forEach { reason -> castleRetreatReasons.merge(reason, 1, Int::plus) }
+        reasons.forEach { reason -> retreatReasons.merge(reason, 1, Int::plus) }
         return reasons.isEmpty()
     }
 
+    private val retreatReasons = sortedMapOf<String, Int>()
+
     /** Why the party has left the castle to recover, such as "mana", counted per reason. */
-    val castleRetreatReasons: MutableMap<String, Int> = sortedMapOf()
+    val castleRetreatReasons: Map<String, Int> get() = retreatReasons
 
     /** Between castle fights the priest heals and revives, and potions top the party up. */
     override fun castle(state: RuntimeState): AutopilotAction? = upkeep(state) ?: quaff(state) ?: quaffMana(state)
@@ -563,26 +565,26 @@ internal class AutopilotFullGamePlan(
         budget: Int,
     ): List<AutopilotErrand> {
         var gold = budget
-        val bought = mutableListOf<AutopilotErrand>()
         val inventoryFree = party.freeSlots(p) - 1
-        AutopilotGear.entries.forEach { gear ->
-            val offers = if (gear == AutopilotGear.Weapon) shops.weapons else shops.armor
-            party
-                .living(p)
-                .sortedBy { member -> strength(member.member, gear) }
-                .forEach { member ->
-                    if (bought.size >= inventoryFree) return@forEach
-                    val best =
-                        offers
-                            .filter { offer -> offer.price <= gold && strength(offer.item, gear) > strength(member.member, gear) }
-                            .filter { offer -> offer.item.equippableBy.isEmpty() || member.member.pcClass in offer.item.equippableBy }
-                            .maxByOrNull { offer -> strength(offer.item, gear) }
-                            ?: return@forEach
-                    bought += AutopilotErrand.BuyGear(gear, best.label)
-                    gold -= best.price
-                }
+        return buildList {
+            AutopilotGear.entries.forEach { gear ->
+                val offers = if (gear == AutopilotGear.Weapon) shops.weapons else shops.armor
+                party
+                    .living(p)
+                    .sortedBy { member -> strength(member.member, gear) }
+                    .forEach { member ->
+                        if (size >= inventoryFree) return@forEach
+                        val best =
+                            offers
+                                .filter { offer -> offer.price <= gold && strength(offer.item, gear) > strength(member.member, gear) }
+                                .filter { offer -> offer.item.equippableBy.isEmpty() || member.member.pcClass in offer.item.equippableBy }
+                                .maxByOrNull { offer -> strength(offer.item, gear) }
+                                ?: return@forEach
+                        add(AutopilotErrand.BuyGear(gear, best.label))
+                        gold -= best.price
+                    }
+            }
         }
-        return bought
     }
 
     /** Heads for a town when the party needs healing, food, torches, an item for the next step, or better gear. */

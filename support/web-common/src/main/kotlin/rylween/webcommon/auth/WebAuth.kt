@@ -104,7 +104,7 @@ class WebUserStore(
     private val dataDir: File,
     reservedNames: Set<String> = emptySet(),
 ) {
-    private val reservedSlugs = reservedNames.mapNotNullTo(mutableSetOf(), ::slugFrom)
+    private val reservedSlugs = reservedNames.mapNotNull(::slugFrom).toSet()
     private val lock = ReentrantLock(true)
     private val usersDir = dataDir.resolve("users/by-slug")
     private val emailIndexFile = dataDir.resolve("users/email-index.properties")

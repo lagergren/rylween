@@ -849,16 +849,12 @@ private class ReplayWorldMap(
     private fun commandsTo(
         end: GridPoint,
         previous: Map<GridPoint, Pair<GridPoint, Char>?>,
-    ): String {
-        val commands = ArrayDeque<Char>()
-        var cursor = end
-        while (true) {
-            val step = previous[cursor] ?: break
-            commands.addFirst(step.second)
-            cursor = step.first
-        }
-        return commands.joinToString(separator = "")
-    }
+    ): String =
+        generateSequence(previous[end]) { (from, _) -> previous[from] }
+            .map { (_, command) -> command }
+            .toList()
+            .reversed()
+            .joinToString(separator = "")
 
     private fun GridPoint.neighbors(): List<ReplayStep> =
         listOf(

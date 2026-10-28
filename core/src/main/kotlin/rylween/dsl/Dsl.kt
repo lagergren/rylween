@@ -322,7 +322,7 @@ class ScriptScope(
     ) {
         val builder = SwitchBuilder(ctx)
         builder.body()
-        record(ScriptStatementNode.Switch(expr.ast, builder.cases))
+        record(ScriptStatementNode.Switch(expr.ast, builder.cases.toList()))
     }
 
     fun menu(
@@ -823,17 +823,18 @@ class ElseBranch(
 class SwitchBuilder(
     private val ctx: ScriptContext,
 ) {
-    val cases: MutableList<SwitchCase> = mutableListOf()
+    private val switchCases = mutableListOf<SwitchCase>()
+    val cases: List<SwitchCase> get() = switchCases
 
     fun case(
         value: Int,
         body: ScriptScope.() -> Unit,
     ) {
-        cases += SwitchCase(value, recordStatementNodes(ctx, body))
+        switchCases += SwitchCase(value, recordStatementNodes(ctx, body))
     }
 
     fun default(body: ScriptScope.() -> Unit) {
-        cases += SwitchCase(null, recordStatementNodes(ctx, body))
+        switchCases += SwitchCase(null, recordStatementNodes(ctx, body))
     }
 }
 

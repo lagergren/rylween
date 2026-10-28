@@ -1087,89 +1087,88 @@ class GameRuntime private constructor(
         val partyName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
         log.event("creation.party_name name=$partyName")
         var runtime = baseRuntime
-        val members = mutableListOf<CompiledPartyMember>()
-        val memberNames = mutableListOf<String>()
-        while (members.size < rules.start.partyMemberMax) {
-            val memberNumber = members.size + 1
-            if (prerolled) {
-                val member = rules.prerolledMembers[members.size]
-                val pcClass = rules.classes.single { it.pcClass == member.pcClass }
-                val draw = runtime.drawCreationStats(rules.statRoll, memberNumber, log, pcClass)
-                runtime = draw.runtime
-                members += runtime.creationMember(memberNumber, member.gender, member.race, member.pcClass, draw.stats)
-                memberNames += member.name
-                log.event(
-                    "creation.member_accepted member=$memberNumber gender=${member.gender} race=${member.race} class=${member.pcClass}",
-                )
-                continue
-            }
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, null, null, null, null))
-            val statsResult = readAcceptedCreationStats(runtime, memberNumber, input, screen, log) ?: return null
-            runtime = statsResult.runtime
-            screen.writeText(prompts.memberName.renderCreation(memberNumber = memberNumber, wrapWidth = screen.textColumns))
-            val memberName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
-            log.event("creation.member_name member=$memberNumber name=$memberName")
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, null, null, null))
-            val gender =
-                readCreationChoice(
-                    screen,
-                    input,
-                    log,
-                    prompts.gender.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
-                    creationGenderChoices(prompts),
-                    "gender",
-                )
-                    ?: return null
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, null, null))
-            val race =
-                readCreationChoice(
-                    screen,
-                    input,
-                    log,
-                    prompts.race.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
-                    rules.races.mapIndexed { index, option ->
-                        CreationChoice(
-                            index.digitChoiceKey(),
-                            option.label,
-                            option.race,
+        val (members, memberNames) =
+            buildList {
+                while (size < rules.start.partyMemberMax) {
+                    val memberNumber = size + 1
+                    if (prerolled) {
+                        val member = rules.prerolledMembers[memberNumber - 1]
+                        val pcClass = rules.classes.single { it.pcClass == member.pcClass }
+                        val draw = runtime.drawCreationStats(rules.statRoll, memberNumber, log, pcClass)
+                        runtime = draw.runtime
+                        add(runtime.creationMember(memberNumber, member.gender, member.race, member.pcClass, draw.stats) to member.name)
+                        log.event(
+                            "creation.member_accepted member=$memberNumber gender=${member.gender} race=${member.race} class=${member.pcClass}",
                         )
-                    },
-                    "race",
-                )
-                    ?: return null
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, null))
-            val pcClass =
-                readCreationChoice(
-                    screen,
-                    input,
-                    log,
-                    prompts.classMenu.renderCreation(wrapWidth = screen.textColumns),
-                    rules.classes.mapIndexed { index, option ->
-                        CreationChoice(
-                            index.digitChoiceKey(),
-                            option.label,
-                            option,
+                        continue
+                    }
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, null, null, null, null))
+                    val statsResult = readAcceptedCreationStats(runtime, memberNumber, input, screen, log) ?: return null
+                    runtime = statsResult.runtime
+                    screen.writeText(prompts.memberName.renderCreation(memberNumber = memberNumber, wrapWidth = screen.textColumns))
+                    val memberName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
+                    log.event("creation.member_name member=$memberNumber name=$memberName")
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, null, null, null))
+                    val gender =
+                        readCreationChoice(
+                            screen,
+                            input,
+                            log,
+                            prompts.gender.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
+                            creationGenderChoices(prompts),
+                            "gender",
                         )
-                    },
-                    "class",
-                )
-                    ?: return null
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, pcClass.pcClass))
-            val failure = pcClass.failureFor(statsResult.stats)
-            if (failure != null) {
-                log.event(
-                    "creation.class_rejected member=$memberNumber class=${pcClass.pcClass} required=${pcClass.requiredStat} minimum=${pcClass.minimum}",
-                )
-                audio.cue(AudioCue.InvalidChoice)
-                screen.writeText(failure.renderCreation(wrapWidth = screen.textColumns))
-                input.pause(systems.pacing.characterCreation.classRejectionPauseMs)
-            } else {
-                log.event("creation.member_accepted member=$memberNumber gender=$gender race=$race class=${pcClass.pcClass}")
-                audio.cue(AudioCue.CharacterCreated)
-                members += runtime.creationMember(memberNumber, gender, race, pcClass.pcClass, statsResult.stats)
-                memberNames += memberName
-            }
-        }
+                            ?: return null
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, null, null))
+                    val race =
+                        readCreationChoice(
+                            screen,
+                            input,
+                            log,
+                            prompts.race.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
+                            rules.races.mapIndexed { index, option ->
+                                CreationChoice(
+                                    index.digitChoiceKey(),
+                                    option.label,
+                                    option.race,
+                                )
+                            },
+                            "race",
+                        )
+                            ?: return null
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, null))
+                    val pcClass =
+                        readCreationChoice(
+                            screen,
+                            input,
+                            log,
+                            prompts.classMenu.renderCreation(wrapWidth = screen.textColumns),
+                            rules.classes.mapIndexed { index, option ->
+                                CreationChoice(
+                                    index.digitChoiceKey(),
+                                    option.label,
+                                    option,
+                                )
+                            },
+                            "class",
+                        )
+                            ?: return null
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, pcClass.pcClass))
+                    val failure = pcClass.failureFor(statsResult.stats)
+                    if (failure != null) {
+                        log.event(
+                            "creation.class_rejected member=$memberNumber class=${pcClass.pcClass} required=${pcClass.requiredStat} minimum=${pcClass.minimum}",
+                        )
+                        audio.cue(AudioCue.InvalidChoice)
+                        screen.writeText(failure.renderCreation(wrapWidth = screen.textColumns))
+                        input.pause(systems.pacing.characterCreation.classRejectionPauseMs)
+                    } else {
+                        log.event("creation.member_accepted member=$memberNumber gender=$gender race=$race class=${pcClass.pcClass}")
+                        audio.cue(AudioCue.CharacterCreated)
+                        add(runtime.creationMember(memberNumber, gender, race, pcClass.pcClass, statsResult.stats) to memberName)
+                    }
+                }
+            }.unzip()
         runtime = runtime.applyCreatedParty(partyName, members, memberNames)
         log.event(
             "creation.party_created name=${logValue(partyName)} members=${members.size} " +
@@ -1805,7 +1804,6 @@ class GameRuntime private constructor(
     ): RuntimeState {
         var current = this
         var placementParty = current.party.copy(rngState = current.party.rngState ?: 1L)
-        val placements = current.npcs.toMutableList()
         content.characters.forEach { character ->
             if (character.position(current) != null) return@forEach
             if (character.placement == CompiledCharacterPlacement.Unplaced) {
@@ -1826,8 +1824,7 @@ class GameRuntime private constructor(
             }
             placementParty = draw.party
             val position = draw.position
-            placements += CompiledNpcPlacement(character.id, position)
-            current = current.copy(npcs = placements.toList())
+            current = current.copy(npcs = current.npcs + CompiledNpcPlacement(character.id, position))
             log.event(
                 "npc.placement.generated npc=${slug(character.id)} " +
                     "name=${logValue(string(character.nameString))} job=${slug(character.job)} " +
@@ -1904,12 +1901,8 @@ class GameRuntime private constructor(
         val shareTotal = policy.options.sumOf(CompiledRandomNpcPlacementOption::chanceShares)
         if (shareTotal <= 0) return null
         val optionDraw = drawRandom(1, shareTotal)
-        var remaining = optionDraw.value
-        val option =
-            policy.options.firstOrNull { candidate ->
-                remaining -= candidate.chanceShares
-                remaining <= 0
-            } ?: return null
+        val cumulativeShares = policy.options.map(CompiledRandomNpcPlacementOption::chanceShares).runningReduce(Int::plus)
+        val option = policy.options.getOrNull(cumulativeShares.indexOfFirst { shares -> shares >= optionDraw.value }) ?: return null
         return optionDraw.party.drawNpcPlacementOption(option, world, occupiedPositions)
     }
 

@@ -120,27 +120,29 @@ private data class ParsedToolArgs(
 )
 
 private fun parseToolArgs(args: Array<String>): ParsedToolArgs {
-    val positionals = mutableListOf<String>()
     var logFile = System.getenv("RYLWEEN_TOOL_LOG")?.takeIf { value -> value.isNotBlank() }?.let(::File)
     var index = 0
-    while (index < args.size) {
-        val arg = args[index]
-        when (arg) {
-            "--log" -> {
-                require(index + 1 < args.size) { "--log requires a file path" }
-                index += 1
-                logFile = File(args[index])
-            }
-            else -> {
-                if (arg.startsWith("--log=")) {
-                    logFile = File(arg.substringAfter("--log="))
-                } else {
-                    positionals += arg
+    val positionals =
+        buildList {
+            while (index < args.size) {
+                val arg = args[index]
+                when (arg) {
+                    "--log" -> {
+                        require(index + 1 < args.size) { "--log requires a file path" }
+                        index += 1
+                        logFile = File(args[index])
+                    }
+                    else -> {
+                        if (arg.startsWith("--log=")) {
+                            logFile = File(arg.substringAfter("--log="))
+                        } else {
+                            add(arg)
+                        }
+                    }
                 }
+                index += 1
             }
         }
-        index += 1
-    }
     return ParsedToolArgs(positionals, logFile)
 }
 

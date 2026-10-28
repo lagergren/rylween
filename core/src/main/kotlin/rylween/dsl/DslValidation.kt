@@ -1192,7 +1192,7 @@ private fun validateRandomNpcTownServices(
     check(option.services.isNotEmpty()) {
         "character ${character.slug} random placement in ${option.town.slug} has no town services"
     }
-    val townServices = town.services.mapTo(mutableSetOf(), TownServiceModel::building)
+    val townServices = town.services.map(TownServiceModel::building).toSet()
     option.services.forEach { service ->
         check(service in townServices) {
             "character ${character.slug} random placement references ${option.town.slug}.${service.slug}, but that town does not offer the service"

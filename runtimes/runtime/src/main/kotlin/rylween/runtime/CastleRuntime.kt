@@ -352,7 +352,7 @@ internal class CastleRuntime(
     ): RuntimeState {
         val lines = castle.text.giveMenu.renderCastle(screen.textColumns)
         screen.writeText(lines)
-        val digits = castle.stairs.items.mapTo(mutableSetOf()) { stair -> stair.digit } + 5
+        val digits = (castle.stairs.items.map { stair -> stair.digit } + 5).toSet()
         val digit = input.readValidDigitChoice(screen, lines, digits, audio = audio) ?: return runtime
         if (digit == 5) return runtime
         val item = castle.stairs.items.firstOrNull { stair -> stair.digit == digit } ?: return runtime
