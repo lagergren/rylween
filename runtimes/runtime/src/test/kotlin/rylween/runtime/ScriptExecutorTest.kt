@@ -97,6 +97,20 @@ class ScriptExecutorTest {
         assertEquals(1, catalog.count { line -> line.offersChoiceKey("A") }, "catalog choices must be listed once: $catalog")
     }
 
+    // A reward the party has no room for names the item it can't carry.
+    @Test
+    fun aFullInventoryNamesTheRewardThereIsNoRoomFor() {
+        val town = thordRuntime()
+        val sword = bundle.content.ref(CompiledHandleKind.Item, "sword")
+        val full = town.withParty(town.party.copy(inventory = town.party.inventory.map { slot -> slot.copy(item = sword) }))
+        val screen = TextCapturingScreen()
+
+        runScript(scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.ron.peasant.wife.rescued"), full, "\n".repeat(10), screen, "ron-full.log")
+
+        val pages = screen.texts.map { lines -> lines.joinToString(" ") }
+        assertTrue(pages.any { page -> page.startsWith("You can't carry the Admt. Mail.") }, "$pages")
+    }
+
     @Test
     fun appendedTextStaysBelowThePageAsItsOwnParagraph() {
         val screen = TextCapturingScreen()
