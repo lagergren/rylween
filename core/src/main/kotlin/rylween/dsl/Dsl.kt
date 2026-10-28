@@ -126,11 +126,14 @@ class ScriptScope(
      * Adds text below what the text window already shows, so a beat such as
      * "...you reveal nothing but..." can be followed, after a pause, by "dust..."
      * on the same page. Flow text is a new paragraph and gets a blank line
-     * above it; literal lines continue directly below, exactly as written.
+     * above it; literal lines continue directly below, exactly as written. A
+     * `{pause}` marker at the end holds the page that long.
      */
     fun appendText(text: TextBlock) {
-        require(text.beats().size == 1) { "appendText cannot hold {pause} markers; put the beats in writeText" }
-        record(ScriptStatementNode.Screen(text, append = true))
+        val beat = text.beats().singleOrNull()
+        requireNotNull(beat) { "appendText takes a {pause} marker only at the end of its text; put earlier beats in writeText" }
+        record(ScriptStatementNode.Screen(beat.text, append = true))
+        beat.pauseMillis?.let(::pause)
     }
 
     fun appendText(text: String): Unit = appendText(flowText(text))
@@ -164,19 +167,12 @@ class ScriptScope(
 
     fun waitInput(reason: String? = null): Unit = record(ScriptStatementNode.WaitInput(reason))
 
+    /**
+     * Waits [ms] milliseconds. A pause that holds text belongs in the text as a
+     * `{pause}` marker; this is for a beat between other things, such as a
+     * sound and the line that follows it.
+     */
     fun pause(ms: Int): Unit = record(ScriptStatementNode.Pause(ms))
-
-    fun pause600ms(): Unit = pause(600)
-
-    fun pause1s(): Unit = pause(1_000)
-
-    fun pause1500ms(): Unit = pause(1_500)
-
-    fun pause2s(): Unit = pause(2_000)
-
-    fun pause3s(): Unit = pause(3_000)
-
-    fun pause4s(): Unit = pause(4_000)
 
     fun clearText(): Unit = view.clearText()
 

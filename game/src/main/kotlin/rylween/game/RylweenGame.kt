@@ -1700,9 +1700,7 @@ val authoredRylween: RylweenModel =
                                     localInt(0) { thiefFound ->
                                         forEachMember {
                                             whenever((thiefFound eq 0) and it.isClass(PcClass.Thief)) {
-                                                clearText()
-                                                writeText(flowText(partyName(it), " checks the chest for traps."))
-                                                pause1s()
+                                                writeText(flowText(partyName(it), " checks the chest for traps. {pause 1s}"))
                                                 trapChance set lit(40) - it.dexterity * 2 / 5
                                                 whenever(trapChance lt 4) {
                                                     trapChance set 4
@@ -1712,10 +1710,8 @@ val authoredRylween: RylweenModel =
                                         }
 
                                         whenever(random(0..99) lt trapChance) {
-                                            clearText()
                                             showBackdrop(Images.Dungeon.trap)
-                                            writeText("A TRAP!")
-                                            pause600ms()
+                                            writeText("A TRAP! {pause 600ms}")
                                             choose(random(0..2)) {
                                                 case(0) {
                                                     playSound(Sounds.Explore.trapGas)
@@ -1759,7 +1755,6 @@ val authoredRylween: RylweenModel =
                                             waitInput("after chest trap")
                                         }
 
-                                        clearText()
                                         localInt(random(0..99) + 320 + (party.leader.experience / 500)) { goldAmount ->
                                             writeText(flowText("The chest contained ", goldAmount, " pieces of gold."))
                                             gainGold(goldAmount)
@@ -2154,10 +2149,9 @@ val authoredRylween: RylweenModel =
                                         """
                                         - GUARDS! GUARDS!
 
-                                        (Hobgoblin guards rush to confront you.)
+                                        (Hobgoblin guards rush to confront you.) {pause 2s}
                                         """,
                                     )
-                                    pause2s()
                                     encounter(Monsters.hobgoblin, mandatory = true)
                                     encounter(Monsters.hobgoblinChief, mandatory = true)
                                 },
@@ -2750,8 +2744,7 @@ val authoredRylween: RylweenModel =
                                 pay(
                                     price,
                                     broke = {
-                                        writeText("- No money, eh? Don't bother to come back!")
-                                        pause2s()
+                                        writeText("- No money, eh? Don't bother to come back! {pause 2s}")
                                     },
                                     ok = {
                                         forEachMember {
@@ -2763,10 +2756,9 @@ val authoredRylween: RylweenModel =
                                             """
                                             You spend a very exhausting hour upstairs.
 
-                                            (PERVERT!) ;-)
+                                            (PERVERT!) ;-) {pause 2s}
                                             """,
                                         )
-                                        pause2s()
                                     },
                                 )
                             },
@@ -3922,10 +3914,9 @@ val authoredRylween: RylweenModel =
                 )
                 writeText(
                     """
-                    A glowing energy sphere appears, and at a gesture from Ydarg's stick, it hurtles towards you!!!
+                    A glowing energy sphere appears, and at a gesture from Ydarg's stick, it hurtles towards you!!! {pause 3s}
                     """,
                 )
-                pause3s()
                 showTextAndWait(
                     """
                     Suddenly! You feel someone else near. The four gray-clad mages raise their hands, and the sphere is absorbed by their hands!
@@ -3962,10 +3953,9 @@ val authoredRylween: RylweenModel =
                     """,
                 )
                 playSound(Sounds.Combat.monsterDissolve)
-                pause2s()
+                pause(2_000)
                 appendText(literalText("dust..."))
                 waitInput("after Ydarg turns to dust")
-                clearText()
                 writeText(
                     """
                     CONGRATULATIONS!
@@ -4032,32 +4022,32 @@ val authoredRylween: RylweenModel =
                             ) { m ->
                                 whenever(m.dead) {
                                     playSound(Sounds.Town.thrownOut)
-                                    writeText("- GET THAT CORPSE OUTTA HERE! (You are thrown out).")
-                                    pause1500ms()
+                                    writeText("- GET THAT CORPSE OUTTA HERE! (You are thrown out). {pause}")
                                     breakLoop("corpse exits the church service")
                                 } otherwise {
                                     whenever(m.hp eq m.maxHp) {
                                         writeText {
-                                            line(partyName(m), " needs no healing.")
+                                            line(partyName(m), " needs no healing. {pause 1s}")
                                         }
-                                        pause1s()
                                     } otherwise {
                                         localInt((m.maxHp - m.hp) * 7) { price ->
-                                            clearText()
                                             writeText(flowText("- That'll be ", price, " gold coins, please."))
 
                                             choice.payNoThanks(
                                                 price,
                                                 broke = {
-                                                    writeText("You don't have enough gold!")
-                                                    pause1s()
+                                                    writeText("You don't have enough gold! {pause 1s}")
                                                 },
                                                 paid = {
-                                                    clearText()
                                                     m.hp set m.maxHp
                                                     playSound(Sounds.Spell.heal)
-                                                    writeText(flowText("The priestess heals ", pronoun(m, PronounCase.Object), " fully."))
-                                                    pause1s()
+                                                    writeText(
+                                                        flowText(
+                                                            "The priestess heals ",
+                                                            pronoun(m, PronounCase.Object),
+                                                            " fully. {pause 1s}",
+                                                        ),
+                                                    )
                                                 },
                                             )
                                         }
@@ -4074,34 +4064,29 @@ val authoredRylween: RylweenModel =
                                 accepting = MemberChoiceFilter.Any,
                             ) { m ->
                                 whenever(!m.spellcaster) {
-                                    clearText()
-                                    writeText("Not a spellcaster!")
-                                    pause1s()
+                                    writeText("Not a spellcaster! {pause 1s}")
                                 } otherwise {
                                     whenever(m.mp eq m.wisdom) {
-                                        clearText()
-                                        writeText("That character needs no spell points to be restored.")
-                                        pause2s()
+                                        writeText("That character needs no spell points to be restored. {pause 2s}")
                                     } otherwise {
-                                        clearText()
                                         localInt(m.level * (m.wisdom - m.mp) * 2) { price ->
                                             writeText(flowText("- That will be ", price, " gold coins, please."))
 
                                             choice.payNoThanks(
                                                 price,
                                                 broke = {
-                                                    clearText()
-                                                    writeText("You don't have the gold!")
-                                                    pause1s()
+                                                    writeText("You don't have the gold! {pause 1s}")
                                                 },
                                                 paid = {
                                                     m.mp set m.wisdom
-                                                    clearText()
                                                     playSound(Sounds.Spell.mana)
                                                     writeText(
-                                                        flowText("The priestess restores ", pronoun(m, PronounCase.Possessive), " energy."),
+                                                        flowText(
+                                                            "The priestess restores ",
+                                                            pronoun(m, PronounCase.Possessive),
+                                                            " energy. {pause 1s}",
+                                                        ),
                                                     )
-                                                    pause1s()
                                                 },
                                             )
                                         }
@@ -4118,29 +4103,22 @@ val authoredRylween: RylweenModel =
                                 accepting = MemberChoiceFilter.Any,
                             ) { m ->
                                 whenever(!m.dead) {
-                                    clearText()
-                                    writeText(flowText("- ", partyName(m), " seems very alive at the moment."))
-                                    pause1500ms()
+                                    writeText(flowText("- ", partyName(m), " seems very alive at the moment. {pause}"))
                                 } otherwise {
-                                    clearText()
                                     localInt(m.level * 650) { price ->
                                         writeText(flowText("- That will be ", price, " gold coins, please."))
 
                                         choice.payNoThanks(
                                             price,
                                             broke = {
-                                                clearText()
-                                                writeText("You don't have the gold!")
-                                                pause1s()
+                                                writeText("You don't have the gold! {pause 1s}")
                                             },
                                             paid = {
                                                 m.hp set 1
                                                 m.dead set false
                                                 party.memberCount += 1
-                                                clearText()
                                                 playSound(Sounds.Spell.rebirth)
-                                                writeText(flowText("The priestess raises ", pronoun(m, PronounCase.Object), "."))
-                                                pause1s()
+                                                writeText(flowText("The priestess raises ", pronoun(m, PronounCase.Object), ". {pause 1s}"))
                                             },
                                         )
                                     }
@@ -4283,7 +4261,6 @@ val authoredRylween: RylweenModel =
 
                 loop {
                     localInt((party.leader.level * party.leader.level) * 15) { cost ->
-                        clearText()
                         writeText(
                             flowText {
                                 paragraph(townNpcName(NpcJobs.innkeeper), ", the Innkeeper welcomes you.")
@@ -4297,21 +4274,18 @@ val authoredRylween: RylweenModel =
                                 pay(
                                     cost,
                                     broke = {
-                                        clearText()
-                                        writeText(flowText("Sorry, supper is ", cost, " gold."))
-                                        pause1s()
+                                        writeText(flowText("Sorry, supper is ", cost, " gold. {pause 1s}"))
                                     },
                                     ok = {
                                         clearText()
                                         playSound(Sounds.Town.meal)
+                                        healLivingMembers(6)
                                         writeText(
                                             """
                                             You are served a tasty dinner.
-                                            Some of your health returns.
+                                            Some of your health returns. {pause 2s}
                                             """,
                                         )
-                                        healLivingMembers(6)
-                                        pause2s()
                                     },
                                 )
                             },
@@ -4339,15 +4313,11 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             lit(2),
                                             broke = {
-                                                clearText()
-                                                writeText("No money - No drink!")
-                                                pause1s()
+                                                writeText("No money - No drink! {pause 1s}")
                                             },
                                             ok = {
-                                                clearText()
                                                 playSound(Sounds.Town.drink)
-                                                writeText("Ahh...!")
-                                                pause1s()
+                                                writeText("Ahh...! {pause 1s}")
                                                 healLivingMembers((lit(2) / 2) + 1)
                                             },
                                         )
@@ -4356,15 +4326,11 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             lit(3),
                                             broke = {
-                                                clearText()
-                                                writeText("No money - No drink!")
-                                                pause1s()
+                                                writeText("No money - No drink! {pause 1s}")
                                             },
                                             ok = {
-                                                clearText()
                                                 playSound(Sounds.Town.drink)
-                                                writeText("Ahh...!")
-                                                pause1s()
+                                                writeText("Ahh...! {pause 1s}")
                                                 healLivingMembers((lit(3) / 2) + 1)
                                             },
                                         )
@@ -4373,15 +4339,11 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             lit(5),
                                             broke = {
-                                                clearText()
-                                                writeText("No money - No drink!")
-                                                pause1s()
+                                                writeText("No money - No drink! {pause 1s}")
                                             },
                                             ok = {
-                                                clearText()
                                                 playSound(Sounds.Town.drink)
-                                                writeText("Ahh...!")
-                                                pause1s()
+                                                writeText("Ahh...! {pause 1s}")
                                                 healLivingMembers((lit(5) / 2) + 1)
                                             },
                                         )
@@ -4390,15 +4352,11 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             lit(7),
                                             broke = {
-                                                clearText()
-                                                writeText("No money - No drink!")
-                                                pause1s()
+                                                writeText("No money - No drink! {pause 1s}")
                                             },
                                             ok = {
-                                                clearText()
                                                 playSound(Sounds.Town.drink)
-                                                writeText("Ahh...!")
-                                                pause1s()
+                                                writeText("Ahh...! {pause 1s}")
                                                 healLivingMembers((lit(7) / 2) + 1)
                                             },
                                         )
@@ -4407,14 +4365,10 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             lit(1),
                                             broke = {
-                                                clearText()
-                                                writeText("No money - No drink!")
-                                                pause1s()
+                                                writeText("No money - No drink! {pause 1s}")
                                             },
                                             ok = {
-                                                clearText()
-                                                writeText("The other guests giggle.")
-                                                pause1s()
+                                                writeText("The other guests giggle. {pause 1s}")
                                                 healLivingMembers((lit(1) / 2) + 1)
                                             },
                                         )
@@ -4430,7 +4384,6 @@ val authoredRylween: RylweenModel =
                             "(Y)es",
                             "(N)o",
                             yes = {
-                                clearText()
                                 writeText {
                                     line("A room is ", cost, " gold/night.")
                                     line("")
@@ -4442,21 +4395,16 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             cost,
                                             broke = {
-                                                clearText()
                                                 playSound(Sounds.Town.thrownOut)
-                                                writeText("- AHA! No gold! You are thrown out.")
-                                                pause2s()
+                                                writeText("- AHA! No gold! You are thrown out. {pause 2s}")
                                                 clearMapWindow()
                                                 breakLoop("thrown out of inn")
                                             },
                                             ok = {
-                                                clearText()
-                                                writeText("You go to bed...")
-                                                pause1s()
+                                                writeText("You go to bed... {pause 1s}")
                                                 playSound(Sounds.Explore.rest)
-                                                writeText("Zzzz...")
                                                 party.restedHours set 14
-                                                pause1500ms()
+                                                writeText("Zzzz... {pause}")
                                                 writeText(
                                                     flowText(
                                                         """
@@ -4485,7 +4433,6 @@ val authoredRylween: RylweenModel =
                             },
                             no = {
                                 loop {
-                                    clearText()
                                     writeText("The innkeeper leaves.")
                                     menu("(C)hitchat with guests", "(L)eave") {
                                         option('C') {
@@ -4596,9 +4543,7 @@ val authoredRylween: RylweenModel =
 
             scene(Scenes.Towne.tavern) {
                 whenever((realm.hour lt 6) and (realm.hour gt 1)) {
-                    clearText()
-                    writeText("Tavern Closed.")
-                    pause1s()
+                    writeText("Tavern Closed. {pause 1s}")
                     stop("tavern closed")
                 }
 
@@ -4613,17 +4558,15 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenever(chance(priestBonus + 5)) {
-                        clearText()
                         writeText(
                             """
                             Just as you are about to sit down at a table,
                             a scruffy little man pulls at your sleeve... {pause 3s}
 
                             - Hey, hey, hey! You! Yes... you! I have an offer
-                            that may interest you...
+                            that may interest you... {pause 3s}
                             """,
                         )
-                        pause3s()
                         clearText()
                         choice.randomItemOffer(ItemPools.tavernScruffySpecials) {
                             offer {
@@ -4640,7 +4583,6 @@ val authoredRylween: RylweenModel =
 
                 localInt(0) { rumors ->
                     loop {
-                        clearText()
                         writeText(
                             flowText(
                                 "- Welcome! Have a seat ",
@@ -4676,22 +4618,17 @@ val authoredRylween: RylweenModel =
                                     accepting = MemberChoiceFilter.Any,
                                 ) { storyteller ->
                                     whenever(storyteller.dead) {
-                                        clearText()
-                                        writeText("Dead men tell no stories...")
-                                        pause2s()
+                                        writeText("Dead men tell no stories... {pause 2s}")
                                     } otherwise {
-                                        clearText()
                                         writeText(
                                             flowText {
                                                 paragraph(partyName(storyteller), " stands up and screams:")
-                                                paragraph("- ANYONE WHO WANNA HEAR A TRAVELER'S STORY?")
+                                                paragraph("- ANYONE WHO WANNA HEAR A TRAVELER'S STORY? {pause 2s}")
                                             },
                                         )
-                                        pause2s()
 
                                         playSound(Sounds.Town.crowdCheer)
-                                        writeText("- YEAAH! Roars the crowd!")
-                                        pause2s()
+                                        writeText("- YEAAH! Roars the crowd! {pause 2s}")
 
                                         localInt(0) { isBoast ->
                                             menu("(T)rue story", "(B)oast") {
@@ -4718,12 +4655,9 @@ val authoredRylween: RylweenModel =
 
                                                 whenever(isBoast eq 1) {
                                                     whenever(random(0..99) gt storyteller.charisma) {
-                                                        clearText()
-                                                        writeText("- Out with the liar!")
-                                                        pause2s()
+                                                        writeText("- Out with the liar! {pause 2s}")
                                                         playSound(Sounds.Town.thrownOut)
-                                                        appendText("You are thrown out.")
-                                                        pause1500ms()
+                                                        appendText("You are thrown out. {pause}")
                                                         whenever(storyteller.charisma gte 10) {
                                                             storyteller.charisma -= 10
                                                         } otherwise {
@@ -4738,24 +4672,20 @@ val authoredRylween: RylweenModel =
                                                 whenever(score gt 400) {
                                                     writeText(
                                                         flowText(
-                                                            "Superb Story! Let's give 'em some ale, lads! You are given a whole tray of ale!",
+                                                            "Superb Story! Let's give 'em some ale, lads! You are given a whole tray of ale! {pause 2s}",
                                                         ),
                                                     )
-                                                    pause2s()
                                                     storyteller.charisma += 3
                                                 }
                                                 whenever((score gt 300) and (score lt 401)) {
-                                                    writeText("Very good! You've been through much!")
-                                                    pause2s()
+                                                    writeText("Very good! You've been through much! {pause 2s}")
                                                     storyteller.charisma += 1
                                                 }
                                                 whenever((score gt 150) and (score lt 301)) {
-                                                    writeText("Nice story, sir!")
-                                                    pause2s()
+                                                    writeText("Nice story, sir! {pause 2s}")
                                                 }
                                                 whenever((score gt 100) and (score lt 151)) {
-                                                    writeText("The mob is bored.")
-                                                    pause2s()
+                                                    writeText("The mob is bored. {pause 2s}")
                                                     whenever(storyteller.charisma gt 0) {
                                                         storyteller.charisma -= 1
                                                     }
@@ -4764,10 +4694,9 @@ val authoredRylween: RylweenModel =
                                                     writeText(
                                                         """
                                                         Most of the crowd falls asleep.
-                                                        The rest beg you to stop.
+                                                        The rest beg you to stop. {pause 2s}
                                                         """,
                                                     )
-                                                    pause2s()
                                                     whenever(storyteller.charisma gte 3) {
                                                         storyteller.charisma -= 3
                                                     }
@@ -4792,29 +4721,28 @@ val authoredRylween: RylweenModel =
                                             writeText(
                                                 """
                                                 After listening a while you hear an old
-                                                man say to another:
+                                                man say to another: {pause 600ms}
                                                 """,
                                             )
                                         }
                                         case(1) {
-                                            writeText("A drunken bard bellows:")
+                                            writeText("A drunken bard bellows: {pause 600ms}")
                                         }
                                         case(2) {
-                                            writeText("A halfling you rescued from a brawl whispers:")
+                                            writeText("A halfling you rescued from a brawl whispers: {pause 600ms}")
                                         }
                                         case(3) {
                                             writeText(
                                                 """
                                                 The tavern keeper motions to you to come
-                                                closer, and whispers:
+                                                closer, and whispers: {pause 600ms}
                                                 """,
                                             )
                                         }
                                         case(4) {
-                                            writeText("A bargirl tells you:")
+                                            writeText("A bargirl tells you: {pause 600ms}")
                                         }
                                     }
-                                    pause600ms()
                                     tellRumor()
                                     waitInput("after tavern rumor")
                                 }
@@ -4835,15 +4763,11 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             lit(2),
                                             broke = {
-                                                clearText()
-                                                writeText("No money - No drink!")
-                                                pause1s()
+                                                writeText("No money - No drink! {pause 1s}")
                                             },
                                             ok = {
-                                                clearText()
                                                 playSound(Sounds.Town.drink)
-                                                writeText("AAH! (your health returns).")
-                                                pause1s()
+                                                writeText("AAH! (your health returns). {pause 1s}")
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(2) / 2) + 1, it.maxHp)
                                                 }
@@ -4854,15 +4778,11 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             lit(3),
                                             broke = {
-                                                clearText()
-                                                writeText("No money - No drink!")
-                                                pause1s()
+                                                writeText("No money - No drink! {pause 1s}")
                                             },
                                             ok = {
-                                                clearText()
                                                 playSound(Sounds.Town.drink)
-                                                writeText("AAH! (your health returns).")
-                                                pause1s()
+                                                writeText("AAH! (your health returns). {pause 1s}")
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(3) / 2) + 1, it.maxHp)
                                                 }
@@ -4873,15 +4793,11 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             lit(4),
                                             broke = {
-                                                clearText()
-                                                writeText("No money - No drink!")
-                                                pause1s()
+                                                writeText("No money - No drink! {pause 1s}")
                                             },
                                             ok = {
-                                                clearText()
                                                 playSound(Sounds.Town.drink)
-                                                writeText("AAH! (your health returns).")
-                                                pause1s()
+                                                writeText("AAH! (your health returns). {pause 1s}")
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(4) / 2) + 1, it.maxHp)
                                                 }
@@ -4892,14 +4808,10 @@ val authoredRylween: RylweenModel =
                                         pay(
                                             lit(1),
                                             broke = {
-                                                clearText()
-                                                writeText("No money - No drink!")
-                                                pause1s()
+                                                writeText("No money - No drink! {pause 1s}")
                                             },
                                             ok = {
-                                                clearText()
-                                                writeText("You are the laughing stock of the entire tavern...")
-                                                pause2s()
+                                                writeText("You are the laughing stock of the entire tavern... {pause 2s}")
                                                 forEachMember(includeDead = true) {
                                                     it.hp.addClamped((lit(1) / 2) + 1, it.maxHp)
                                                 }
@@ -4948,10 +4860,8 @@ val authoredRylween: RylweenModel =
             scene(Scenes.Towne.hut) {
                 clearMapWindow()
                 showBackdrop(Images.Scene.hut)
-                clearText()
                 playSound(Sounds.Explore.doorOpen)
-                writeText("You enter the hut.")
-                pause600ms()
+                writeText("You enter the hut. {pause 600ms}")
 
                 loop {
                     clearText()
@@ -4976,17 +4886,14 @@ val authoredRylween: RylweenModel =
                 withCurrentCaster { caster ->
                     ask.monsterAlive(literalText("Who?", "")) { target ->
                         localInt(caster.level * random(2..8)) { damage ->
-                            clearText()
-                            writeText(flowText(partyName(caster), " chills the opponent for ", damage, " damage pts."))
-                            pause2s()
+                            writeText(flowText(partyName(caster), " chills the opponent for ", damage, " damage pts. {pause 2s}"))
 
                             target.hp -= damage
 
                             whenever(target.hp lte 0) {
                                 target.hp set 0
                                 target.dead set true
-                                writeText("...KILLED!")
-                                pause600ms()
+                                writeText("...KILLED! {pause 600ms}")
                             }
                         }
                     }
@@ -5001,12 +4908,10 @@ val authoredRylween: RylweenModel =
 
             spell(Spells.Mage.confusion, slot = 3, baseCost = 17, name = "Confusion") {
                 withCurrentCaster { caster ->
-                    clearText()
                     writeText {
                         line(partyName(caster), " utters a word.")
                     }
-                    appendText("Your images waver and blur in front of your enemies")
-                    pause2s()
+                    appendText("Your images waver and blur in front of your enemies {pause 2s}")
                     battle.monsterWeaponSkill /= 2
                     battle.monsterConfused set true
                 }
@@ -5019,18 +4924,16 @@ val authoredRylween: RylweenModel =
                         writeText(
                             """
                             Through INCREDIBLE resistance, the enemy is still
-                            alive, badly wounded.
+                            alive, badly wounded. {pause 2s}
                             """,
                         )
-                        pause2s()
                         target.hp set 1
                     } otherwise {
                         writeText(
                             """
-                            The enemy is wiped straight off the surface of the earth!
+                            The enemy is wiped straight off the surface of the earth! {pause 2s}
                             """,
                         )
-                        pause2s()
                         target.dead set true
                         target.hp set 0
                     }
@@ -5039,28 +4942,24 @@ val authoredRylween: RylweenModel =
 
             spell(Spells.Mage.hold, slot = 5, baseCost = 43, name = "Hold Enemies") {
                 withCurrentCaster { caster ->
-                    clearText()
                     writeText {
                         line(partyName(caster), " utters a word.")
                     }
-                    appendText("The enemies freeze dead in their tracks.")
-                    pause2s()
+                    appendText("The enemies freeze dead in their tracks. {pause 2s}")
                     battle.monstersHeld set true
                 }
             }
 
             spell(Spells.Mage.antimagic, slot = 6, baseCost = 28, name = "Anti Magic") {
                 withCurrentCaster { caster ->
-                    clearText()
                     writeText {
                         line(partyName(caster), " utters a word.")
                     }
                     appendText(
                         """
-                        The enemy is now stopped from using magic against you this round.
+                        The enemy is now stopped from using magic against you this round. {pause 3s}
                         """,
                     )
-                    pause3s()
                     battle.antimagic set true
                 }
             }
@@ -5070,38 +4969,32 @@ val authoredRylween: RylweenModel =
                     localInt((battle.encounterHitPointMax / 5) + random(0..3)) { damage ->
                         writeText {
                             line("Frost Finger on ", partyName(target), "! {pause 1s}")
-                            line("and does ", damage, " pts of damage!")
+                            line("and does ", damage, " pts of damage! {pause 1s}")
                         }
-                        pause1s()
                         target.hp -= damage
                         whenever(target.hp lte 0) {
                             target.hp set 0
                             target.dead set true
                             appendText {
-                                line("\u001B[31m", partyName(target), " DIES!\u001B[37m")
+                                line("\u001B[31m", partyName(target), " DIES!\u001B[37m {pause 1s}")
                             }
-                            pause1s()
                         }
                     }
                 }
             }
 
             spell(Spells.Monster.fire, slot = 2, baseCost = 0, name = "Cloud of Fire") {
-                writeText("Cloud of Fire!")
-                pause1s()
+                writeText("Cloud of Fire! {pause 1s}")
                 forEachMember { target ->
                     localInt((battle.encounterHitPointMax / 5) + random(0..4)) { damage ->
-                        clearText()
-                        writeText(flowText(partyName(target), " is burnt for ", damage, " damage pts!"))
-                        pause1s()
+                        writeText(flowText(partyName(target), " is burnt for ", damage, " damage pts! {pause 1s}"))
                         target.hp -= damage
                         whenever(target.hp lte 0) {
                             target.hp set 0
                             target.dead set true
                             writeText {
-                                line("\u001B[31m", partyName(target), " DIES!\u001B[37m")
+                                line("\u001B[31m", partyName(target), " DIES!\u001B[37m {pause 1s}")
                             }
-                            pause1s()
                         }
                     }
                 }
@@ -5112,10 +5005,9 @@ val authoredRylween: RylweenModel =
                     """
                     Hold Creature! {pause 600ms}
 
-                    You realize with horror that you cannot move!
+                    You realize with horror that you cannot move! {pause}
                     """,
                 )
-                pause1500ms()
                 battle.partyHeld set true
             }
 
@@ -5124,10 +5016,9 @@ val authoredRylween: RylweenModel =
                     """
                     Confusion! {pause 600ms}
 
-                    You are almost blinded by a colorful haze.
+                    You are almost blinded by a colorful haze. {pause}
                     """,
                 )
-                pause1500ms()
                 battle.partyConfused set true
             }
 
@@ -5147,22 +5038,26 @@ val authoredRylween: RylweenModel =
                         ) { target ->
                             localInt(random(10..19) + (caster.level * 2)) { healing ->
                                 whenever(target.dead) {
-                                    clearText()
-                                    writeText("Dead.")
-                                    pause600ms()
+                                    writeText("Dead. {pause 600ms}")
                                     clearText()
                                 } otherwise {
                                     target.hp.addClamped(healing, target.maxHp)
-                                    clearText()
-                                    writeText(flowText(partyName(caster), " heals ", partyName(target), " for ", healing, " hit points..."))
-                                    pause1500ms()
+                                    writeText(
+                                        flowText(
+                                            partyName(caster),
+                                            " heals ",
+                                            partyName(target),
+                                            " for ",
+                                            healing,
+                                            " hit points... {pause}",
+                                        ),
+                                    )
                                     clearText()
                                 }
                             }
                         }
                     } otherwise {
-                        writeText("Not enough spell pts!")
-                        pause1s()
+                        writeText("Not enough spell pts! {pause 1s}")
                         clearText()
                     }
                 }
@@ -5180,14 +5075,11 @@ val authoredRylween: RylweenModel =
                             filter = MemberChoiceFilter.Any,
                         ) { target ->
                             target.fullHeal()
-                            clearText()
-                            writeText(flowText(partyName(caster), " heals ", partyName(target), " fully..."))
-                            pause1500ms()
+                            writeText(flowText(partyName(caster), " heals ", partyName(target), " fully... {pause}"))
                             clearText()
                         }
                     } otherwise {
-                        writeText("Not enough spell pts!")
-                        pause1s()
+                        writeText("Not enough spell pts! {pause 1s}")
                         clearText()
                     }
                 }
@@ -5208,7 +5100,6 @@ val authoredRylween: RylweenModel =
                                 target.dead set false
                                 party.memberCount += 1
                                 target.hp set 1
-                                clearText()
                                 writeText(
                                     flowText(
                                         partyName(target),
@@ -5216,19 +5107,16 @@ val authoredRylween: RylweenModel =
                                         pronoun(target, PronounCase.Subject),
                                         " opens ",
                                         pronoun(target, PronounCase.Possessive),
-                                        " eyes!",
+                                        " eyes! {pause 2s}",
                                     ),
                                 )
-                                pause2s()
                                 clearText()
                             } otherwise {
-                                writeText(flowText(partyName(target), " is alive and healthy."))
-                                pause1500ms()
+                                writeText(flowText(partyName(target), " is alive and healthy. {pause}"))
                             }
                         }
                     } otherwise {
-                        writeText("Not enough spell pts!")
-                        pause1s()
+                        writeText("Not enough spell pts! {pause 1s}")
                         clearText()
                     }
                 }
@@ -5240,7 +5128,6 @@ val authoredRylween: RylweenModel =
                     whenever(caster.mp gte cost) {
                         whenever(context.inDungeon) {
                             caster.mp -= cost
-                            clearText()
                             writeText(
                                 flowText(
                                     partyName(caster),
@@ -5252,11 +5139,10 @@ val authoredRylween: RylweenModel =
                                     pronoun(caster, PronounCase.Possessive),
                                     " palms, and suddenly clasps them together over ",
                                     pronoun(caster, PronounCase.Possessive),
-                                    " head.",
+                                    " head. {pause 2s}",
                                 ),
                             )
-                            pause2s()
-                            writeText(
+                            showTextAndWait(
                                 flowText(
                                     """
                                     There is a deafening clap of thunder, and you hear
@@ -5264,11 +5150,9 @@ val authoredRylween: RylweenModel =
                                     """,
                                 ),
                             )
-                            waitInput("after banish evil")
-                            clearText()
                             realm.banished set true
                         } otherwise {
-                            writeText(
+                            showTextAndWait(
                                 flowText(
                                     """
                                     There is no particular target for this banishing.
@@ -5276,12 +5160,9 @@ val authoredRylween: RylweenModel =
                                     """,
                                 ),
                             )
-                            waitInput("after banish no target")
-                            clearText()
                         }
                     } otherwise {
-                        writeText("Not enough spell pts!")
-                        pause1s()
+                        writeText("Not enough spell pts! {pause 1s}")
                         clearText()
                     }
                 }
@@ -5294,14 +5175,9 @@ val authoredRylween: RylweenModel =
                         whenever(context.inDungeon) {
                             caster.mp -= cost
                             whenever(chance(59)) {
-                                clearText()
-                                writeText("There is nothing special near.")
-                                waitInput("after revelation nothing near")
-                                clearText()
+                                showTextAndWait("There is nothing special near.")
                             } otherwise {
-                                clearText()
-                                writeText("Something special is near!")
-                                pause1500ms()
+                                writeText("Something special is near! {pause}")
                                 clearText()
                                 choose(random(0..2)) {
                                     case(0) { dungeonItemFind(ItemPools.dungeonWeaponFinds) }
@@ -5310,7 +5186,7 @@ val authoredRylween: RylweenModel =
                                 }
                             }
                         } otherwise {
-                            writeText(
+                            showTextAndWait(
                                 flowText(
                                     """
                                     This spell can be used in dungeons only, where there
@@ -5318,12 +5194,9 @@ val authoredRylween: RylweenModel =
                                     """,
                                 ),
                             )
-                            waitInput("after revelation dungeon-only")
-                            clearText()
                         }
                     } otherwise {
-                        writeText("Not enough spell pts!")
-                        pause1s()
+                        writeText("Not enough spell pts! {pause 1s}")
                         clearText()
                     }
                 }
@@ -5333,7 +5206,6 @@ val authoredRylween: RylweenModel =
                 withCurrentCasterCost(35) { caster, cost ->
                     whenever(caster.mp gte cost) {
                         caster.mp -= cost
-                        clearText()
                         writeText(
                             flowText(
                                 partyName(caster),
@@ -5344,8 +5216,7 @@ val authoredRylween: RylweenModel =
                         )
                         realm.hour += 1
                         waitInput("after teleport ritual")
-                        clearText()
-                        writeText(
+                        showTextAndWait(
                             flowText(
                                 pronoun(caster, PronounCase.Subject),
                                 " picks up a stone slab from ",
@@ -5355,8 +5226,6 @@ val authoredRylween: RylweenModel =
                                 " wants you to teleport to.",
                             ),
                         )
-                        waitInput("after teleport slab")
-                        clearText()
                         ask.wildernessDirection(
                             literalText(
                                 "Teleport :",
@@ -5371,15 +5240,13 @@ val authoredRylween: RylweenModel =
                             clearText()
                             ask.digit(flowText("How many miles do you want to travel? (1-9)"), 1..9) { distance ->
                                 teleportParty(direction, distance)
-                                writeText("You appear to be somewhere else.")
                                 renderMap()
-                                pause1500ms()
+                                writeText("You appear to be somewhere else. {pause}")
                                 clearText()
                             }
                         }
                     } otherwise {
-                        writeText("Not enough spell pts!")
-                        pause1s()
+                        writeText("Not enough spell pts! {pause 1s}")
                         clearText()
                     }
                 }
@@ -5389,19 +5256,16 @@ val authoredRylween: RylweenModel =
                 withCurrentCasterCost(55) { caster, cost ->
                     clearText()
                     whenever(context.inDungeon or context.inCastle) {
-                        writeText("The roof would cave in on you!")
-                        waitInput("after earthquake dungeon warning")
-                        clearText()
+                        showTextAndWait("The roof would cave in on you!")
                     } otherwise {
                         whenever(caster.mp gte cost) {
                             caster.mp -= cost
                             writeText(
                                 flowText(
                                     partyName(caster),
-                                    " utters three syllables in an archaic tongue... {pause 2s} and the ground cracks open!",
+                                    " utters three syllables in an archaic tongue... {pause 2s} and the ground cracks open! {pause 3s}",
                                 ),
                             )
-                            pause3s()
                             clearMapWindow()
                             showBackdrop(Images.Backdrop.cave)
                             clearText()
@@ -5411,7 +5275,6 @@ val authoredRylween: RylweenModel =
                                     whenever(party.timeLeft gt 10) {
                                         discoverCave(random(5..18), Dungeons.randomCave, lit(10))
                                     } otherwise {
-                                        clearText()
                                         writeText(
                                             flowText(
                                                 """
@@ -5432,8 +5295,7 @@ val authoredRylween: RylweenModel =
                                 },
                             )
                         } otherwise {
-                            writeText("Not enough spell pts!")
-                            pause1s()
+                            writeText("Not enough spell pts! {pause 1s}")
                             clearText()
                         }
                     }
@@ -5454,9 +5316,8 @@ val authoredRylween: RylweenModel =
                         consumeActiveItem()
                         localInt(potionPoints(target)) { points ->
                             target.hp.addClamped(points, target.maxHp)
-                            writeText(flowText(partyName(target), " recovers ", points, " hit points."))
+                            writeText(flowText(partyName(target), " recovers ", points, " hit points. {pause 1s}"))
                         }
-                        pause1s()
                     }
                 }
             }
@@ -5475,14 +5336,13 @@ val authoredRylween: RylweenModel =
                         consumeActiveItem()
                         localInt(potionPoints(target)) { points ->
                             target.hp -= points
-                            writeText(flowText(partyName(target), " is poisoned for ", points, " hit points."))
+                            writeText(flowText(partyName(target), " is poisoned for ", points, " hit points. {pause 1s}"))
                         }
                         whenever(target.hp lte 0) {
                             target.hp set 0
                             target.dead set true
                             party.memberCount -= 1
                         }
-                        pause1s()
                     }
                 }
             }
@@ -5502,9 +5362,8 @@ val authoredRylween: RylweenModel =
                         consumeActiveItem()
                         localInt(potionPoints(target)) { points ->
                             target.mp.addClamped(points, target.maxMp)
-                            writeText(flowText(partyName(target), " recovers ", points, " spell points."))
+                            writeText(flowText(partyName(target), " recovers ", points, " spell points. {pause 1s}"))
                         }
-                        pause1s()
                     }
                 }
             }
@@ -5517,16 +5376,22 @@ val authoredRylween: RylweenModel =
                     withCurrentCaster { caster ->
                         battle.firstAliveMonster { target ->
                             localInt(random(5..11) + caster.level) { damage ->
-                                clearText()
-                                writeText(flowText(partyName(caster), " chills ", monsterName(target), " for ", damage, " damage pts."))
-                                pause1s()
+                                writeText(
+                                    flowText(
+                                        partyName(caster),
+                                        " chills ",
+                                        monsterName(target),
+                                        " for ",
+                                        damage,
+                                        " damage pts. {pause 1s}",
+                                    ),
+                                )
 
                                 target.hp -= damage
 
                                 whenever(target.hp lte 0) {
                                     target.hp set 0
-                                    writeText("...KILLED!")
-                                    pause600ms()
+                                    writeText("...KILLED! {pause 600ms}")
                                     target.dead set true
                                 }
                             }
@@ -5553,16 +5418,13 @@ val authoredRylween: RylweenModel =
 
                 effect {
                     withCurrentCaster { caster ->
-                        clearText()
-                        writeText(
+                        showTextAndWait(
                             flowText(
                                 partyName(caster),
                                 " throws the gem at the enemy. It breaks before them in a rain of sparks.",
                                 " They bump into each other as they try to see you.",
                             ),
                         )
-                        waitInput("after gem of confusion")
-                        clearText()
                         battle.monsterWeaponSkill /= 2
                     }
                 }
@@ -5574,16 +5436,13 @@ val authoredRylween: RylweenModel =
 
                 effect {
                     withCurrentCaster { caster ->
-                        clearText()
-                        writeText(
+                        showTextAndWait(
                             flowText(
                                 partyName(caster),
                                 " throws the gem at the enemy. It breaks, releasing a brilliant cloud of light which completely surrounds them.",
                                 " As the light fades, your enemies are blind.",
                             ),
                         )
-                        waitInput("after gem of blindness")
-                        clearText()
                         battle.monsterWeaponSkill set 5
                     }
                 }
@@ -5596,11 +5455,8 @@ val authoredRylween: RylweenModel =
                 effect {
                     withCurrentCaster { caster ->
                         battle.firstAliveMonster { target ->
-                            clearText()
-                            writeText(flowText(partyName(caster), " summons death to take a ", monsterName(target), " away..."))
-                            pause2s()
-                            writeText("...KILLED!")
-                            pause600ms()
+                            writeText(flowText(partyName(caster), " summons death to take a ", monsterName(target), " away... {pause 2s}"))
+                            writeText("...KILLED! {pause 600ms}")
                             target.dead set true
                             target.hp set 0
                             clearText()
@@ -5624,8 +5480,7 @@ val authoredRylween: RylweenModel =
                         whenever(!target.dead) {
                             target.fullHeal()
                         }
-                        writeText(flowText(partyName(target), " is fully healed."))
-                        pause1s()
+                        writeText(flowText(partyName(target), " is fully healed. {pause 1s}"))
                         clearText()
                     }
                 }
@@ -5636,15 +5491,12 @@ val authoredRylween: RylweenModel =
                 consume = ItemConsumePolicy.BeforeUse
 
                 effect {
-                    clearText()
-                    writeText(
+                    showTextAndWait(
                         """
                         The party feels their spirits grow. You are all stronger
                         than before.
                         """,
                     )
-                    waitInput("after blessing scroll")
-                    clearText()
 
                     forEachMember(includeDead = true) { member ->
                         member.weaponSkill += 3
@@ -5660,10 +5512,7 @@ val authoredRylween: RylweenModel =
                 consume = ItemConsumePolicy.BeforeUse
 
                 effect {
-                    clearText()
-                    writeText("The party is fully healed!")
-                    waitInput("after staff of curing")
-                    clearText()
+                    showTextAndWait("The party is fully healed!")
 
                     forEachMember(includeDead = true) { member ->
                         whenever(!member.dead) {
@@ -5688,17 +5537,15 @@ val authoredRylween: RylweenModel =
                         clearText()
                         whenever(target.dead) {
                             writeText {
-                                line(partyName(target), " opens ", pronoun(target, PronounCase.Possessive), " eyes!")
+                                line(partyName(target), " opens ", pronoun(target, PronounCase.Possessive), " eyes! {pause 1s}")
                             }
-                            pause1s()
                             target.dead set false
                             target.hp set 1
                             consumeActiveItem()
                         } otherwise {
                             writeText {
-                                line(partyName(target), " is not dead.")
+                                line(partyName(target), " is not dead. {pause 1s}")
                             }
-                            pause1s()
                             battle.actionRetry set true
                         }
                     }
@@ -5711,24 +5558,19 @@ val authoredRylween: RylweenModel =
 
                 effect {
                     withCurrentCaster { caster ->
-                        clearText()
-                        writeText(flowText(partyName(caster), " throws Kael's axe at the enemy!"))
-                        pause1500ms()
+                        writeText(flowText(partyName(caster), " throws Kael's axe at the enemy! {pause}"))
                         writeText(
                             """
                             It wounds them severely as it spins around, wielded by
-                            hands you cannot see!
+                            hands you cannot see! {pause 4s}
                             """,
                         )
-                        pause4s()
-                        clearText()
                         writeText(
                             """
                             With a raging battle cry, you attack the mortally
-                            wounded foes!
+                            wounded foes! {pause 3s}
                             """,
                         )
-                        pause3s()
 
                         forEachMonster { foe ->
                             foe.hp set random(1..3)
@@ -5743,11 +5585,10 @@ val authoredRylween: RylweenModel =
 
                 effect {
                     withCurrentCaster { caster ->
-                        clearText()
-                        writeText(flowText(partyName(caster), " pulls the holy pin, and lobbeth the holy hand grenade at the foes..."))
-                        pause3s()
-                        writeText("KA-BLAM!")
-                        pause1500ms()
+                        writeText(
+                            flowText(partyName(caster), " pulls the holy pin, and lobbeth the holy hand grenade at the foes... {pause 3s}"),
+                        )
+                        writeText("KA-BLAM! {pause}")
                         clearText()
 
                         forEachMonster { foe ->
@@ -5764,15 +5605,12 @@ val authoredRylween: RylweenModel =
 
                 effect {
                     withCurrentCaster { caster ->
-                        clearText()
-                        writeText(
+                        showTextAndWait(
                             flowText(
                                 partyName(caster),
                                 " plays the Flute of Madness. It produces a shrill, fragile sound, and breaks. Nothing happens.",
                             ),
                         )
-                        waitInput("after flute of madness")
-                        clearText()
                     }
                 }
             }
@@ -5804,7 +5642,6 @@ val authoredRylween: RylweenModel =
             }
 
             scene(Scenes.Missions.bandits) {
-                clearText()
                 showTextAndWait(
                     """
                     You come across the camp of the bandits. One of them spots you
@@ -5813,7 +5650,6 @@ val authoredRylween: RylweenModel =
                 )
                 encounter(Monsters.bandit, mandatory = true)
                 renderMap()
-                clearText()
                 showTextAndWait(flowText("You find the cargo the ", character(Roles.banditsQuestGiver).job, " wanted you to bring him."))
                 mark(Story.garth.bandits.recovered)
             }
@@ -5821,16 +5657,13 @@ val authoredRylween: RylweenModel =
             scene(Scenes.Missions.trollTooth) {
                 encounter(Monsters.troll, mandatory = true)
                 renderMap()
-                clearText()
-                writeText(
+                showTextAndWait(
                     flowText(
                         "You break off a troll tooth to give the ",
                         character(Roles.hermitTrollTooth).job,
                         ". After wiping the slime off it, you put it in your backpack.",
                     ),
                 )
-                waitInput("after troll tooth")
-                clearText()
                 mark(Story.hermit.trollTooth.extracted)
             }
 
@@ -5845,7 +5678,6 @@ val authoredRylween: RylweenModel =
             }
 
             scene(Scenes.Missions.thunTemple) {
-                clearText()
                 showTextAndWait(
                     """
                     You stand before the ancient temple of Thun. Around you are
@@ -5868,11 +5700,9 @@ val authoredRylween: RylweenModel =
                 ) {
                     defaultOption('Y') {
                         whenever(party.inventory.count(ItemPools.thunAltarGems) lt 5) {
-                            clearText()
                             showTextAndWait("You don't have five different gems.")
                         } otherwise {
                             party.inventory.consume(ItemPools.thunAltarGems, 5)
-                            clearText()
                             showTextAndWait(
                                 """
                                 With a resounding 'CRUNG' the altar slides away to
@@ -5904,18 +5734,14 @@ val authoredRylween: RylweenModel =
                     },
                 ) {
                     option('A') {
-                        clearText()
-                        writeText(
+                        showTextAndWait(
                             """
                             You run screaming into a large celebration of some sort.
                             There are about forty kobolds here. At first, they are
                             very surprised, and you manage to slay many, before they attack...
                             """,
                         )
-                        waitInput()
-                        clearText()
                         encounter(Monsters.koboldHorde, mandatory = true)
-                        clearText()
                         writeText(
                             """
                             Piles of dead kobolds are lying all around. Still, they
@@ -5924,7 +5750,6 @@ val authoredRylween: RylweenModel =
                         )
                         waitInput()
                         encounter(Monsters.koboldHorde, mandatory = true)
-                        clearText()
                         writeText(
                             """
                             You have annihilated most of the village. You pause to wipe
@@ -5935,7 +5760,6 @@ val authoredRylween: RylweenModel =
                         waitInput()
                         encounter(Monsters.orc, mandatory = true)
                         renderMap()
-                        clearText()
                         showTextAndWait(
                             """
                             The entire village is wiped out. You snatch an ugly pendant
@@ -5949,21 +5773,17 @@ val authoredRylween: RylweenModel =
             }
 
             scene(Scenes.Missions.skullweed) {
-                clearText()
                 showBackdrop(Images.Mission.skullweedSwamp)
-                writeText(
+                showTextAndWait(
                     """
                     On the ground before you grows the skullweed plant. You break
                     off a few plants and put them in your backpack.
                     """,
                 )
-                waitInput("after skullweed pickup")
-                clearText()
                 mark(Story.masterCrown.task2Done)
             }
 
             scene(Scenes.Missions.borinMeet) {
-                clearText()
                 showTextAndWait(
                     """
                     You arrive at a village which looks typically dwarfish. As you
@@ -6042,7 +5862,6 @@ val authoredRylween: RylweenModel =
                         line("(L)eave")
                     },
                     enter = {
-                        clearText()
                         writeText(
                             """
                             You enter the cave. Piles of treasure are thrown all around.
@@ -6053,7 +5872,6 @@ val authoredRylween: RylweenModel =
                         waitInput()
                         encounter(Monsters.ogre, mandatory = true)
                         renderMap()
-                        clearText()
                         writeText(
                             """
                             You defeat the ogres and start searching for the fabled
@@ -6065,7 +5883,6 @@ val authoredRylween: RylweenModel =
                         waitInput()
                         encounter(Monsters.ogreLord, mandatory = true)
                         renderMap()
-                        clearText()
                         showTextAndWait(
                             """
                             You defeat the Ogre Lord. You take all the gold you find,
@@ -6110,8 +5927,7 @@ val authoredRylween: RylweenModel =
             }
 
             scene(Scenes.Missions.jazzyFoot) {
-                clearText()
-                writeText(
+                showTextAndWait(
                     """
                     Something about this whole area is weird. The air seems to be
                     loaded with electricity. Suddenly you spot an object on the ground.
@@ -6119,8 +5935,6 @@ val authoredRylween: RylweenModel =
                     THIS IS THE FOOT OF JAZZY!
                     """,
                 )
-                waitInput("after finding the foot")
-                clearText()
                 writeText(
                     """
                     Just as you touch it, the sky splits open and amid the wailing
@@ -6131,16 +5945,13 @@ val authoredRylween: RylweenModel =
                 waitInput("before Jazzy minions")
                 encounter(Monsters.wingedThing, mandatory = true)
                 renderMap()
-                clearText()
-                writeText(
+                showTextAndWait(
                     """
                     Quiet settles again, as you destroy the foul creatures, one by one.
                     You reach for the foot again, when suddenly, something EVEN MORE
                     horrible happens...
                     """,
                 )
-                waitInput("after Jazzy minions")
-                clearText()
                 writeText(
                     """
                     A twenty-foot-tall being materializes in front of you! You will
@@ -6150,16 +5961,13 @@ val authoredRylween: RylweenModel =
                 waitInput("before Jazzy")
                 encounter(Monsters.jazzy, mandatory = true)
                 renderMap()
-                clearText()
-                writeText(
+                showTextAndWait(
                     """
                     Today, you have killed a god. You watch silently as the huge
                     body starts to melt. It fades away into Nothingness. This time,
                     when you pick up the foot, nothing happens.
                     """,
                 )
-                waitInput("after Jazzy defeat")
-                clearText()
                 mark(Story.jazzy.ogre.jazzyDefeated)
                 achieve(Milestones.footOfJazzy)
             }
@@ -6175,7 +5983,6 @@ val authoredRylween: RylweenModel =
             }
 
             scene(Scenes.Missions.hobgoblinCaravan) {
-                clearText()
                 showTextAndWait(
                     "Just before you is a caravan of hobgoblins on white, well-bred horses.",
                 )
@@ -6188,7 +5995,6 @@ val authoredRylween: RylweenModel =
                 )
                 encounter(Monsters.ridingHobgoblin, mandatory = true)
                 renderMap()
-                clearText()
                 showTextAndWait(
                     flowText {
                         paragraph("Before you kill the last hobgoblin you ask him about the key. The foul creature blurts:")
@@ -6224,7 +6030,6 @@ val authoredRylween: RylweenModel =
             // Script rewards use semantic item ids and placement policy, not
             // numeric inventory ids or runtime-specific reward shortcuts.
             scene(Scenes.Missions.borinGift) {
-                clearText()
                 showTextAndWait(
                     """
                     Borin greets you. He can hardly believe his eyes when you show
@@ -6250,45 +6055,37 @@ val authoredRylween: RylweenModel =
             dialogue {
                 npc(Npcs.garth) {
                     whenState(Story.garth.bandits.none) {
-                        writeText(
+                        showTextAndWait(
                             """
                             In fact, I have a mission for you. It will bring you much gold!
                             """,
                         )
-                        waitInput("after Garth mission offer")
-                        clearText()
-                        writeText(
+                        showTextAndWait(
                             """
                             I was robbed by bandits just to the east of here. If you find
                             these bandits, kill them, and return my cargo here, I'll pay
                             you 2,000 gold and a ruby my grandfather gave me.
                             """,
                         )
-                        waitInput("after Garth bandits story")
-                        clearText()
                         mark(Story.garth.bandits.accepted)
                     }
 
                     whenState(Story.garth.bandits.accepted) {
-                        writeText(
+                        showTextAndWait(
                             """
                             Find those bandits and bring my cargo back here. Then I'll pay you.
                             """,
                         )
-                        waitInput("after Garth accepted reminder")
-                        clearText()
                     }
 
                     whenState(Story.garth.bandits.recovered) {
-                        writeText(
+                        showTextAndWait(
                             flowText(
                                 "The ",
                                 character(Roles.banditsQuestGiver).job,
                                 " is GRATEFUL! He pays you 2,000 gold and hands you a red gem.",
                             ),
                         )
-                        waitInput("after Garth reward intro")
-                        clearText()
                         reward {
                             gold(2_000)
                             items(Items.redGem)
@@ -6428,8 +6225,7 @@ val authoredRylween: RylweenModel =
 
                 npc(Npcs.bernak) {
                     whenState(Story.silverKey.none) {
-                        writeText("- There is an item of great power, he hisses.")
-                        pause2s()
+                        writeText("- There is an item of great power, he hisses. {pause 2s}")
                         showTextAndWait(
                             """
                             - It is called the SILVER KEY. It has taken me many years
@@ -6524,8 +6320,7 @@ val authoredRylween: RylweenModel =
                     }
 
                     whenState(Story.erethor.lute.luteTaken) {
-                        writeText("You hand him the golden lute...")
-                        pause1500ms()
+                        writeText("You hand him the golden lute... {pause}")
                         showTextAndWait(
                             """
                             - I can't believe you actually made it!!!
@@ -6781,11 +6576,8 @@ val authoredRylween: RylweenModel =
                         )
                         ask.inventorySlot(literalText("Offer what?"), filter = InventorySlotChoiceFilter.NonEmpty) { slot ->
                             whenever(party.inventory.itemCost(slot) lt 35) {
-                                clearText()
-                                writeText("- NAH, THINK NOT!")
-                                pause1s()
+                                writeText("- NAH, THINK NOT! {pause 1s}")
                             } otherwise {
-                                clearText()
                                 writeText(
                                     flowText(
                                         "- YEEES! NICE NIICE! GO TO CAVE AT ",
@@ -6905,10 +6697,9 @@ val authoredRylween: RylweenModel =
                         writeText(
                             """
                             You ask him if he still has the Key, prepared for the
-                            worst...
+                            worst... {pause 2s}
                             """,
                         )
-                        pause2s()
                         showTextAndWait(
                             """
                             - Nah, sorry. I kinda studied it enough and was gonna bring
@@ -6989,16 +6780,13 @@ private fun ScriptScope.burnEveryLivingMonster(
     forEachMonster(includeDead = true) { foe ->
         localInt(caster.level * random(damageRoll)) { damage ->
             whenever(!foe.dead) {
-                clearText()
-                writeText(flowText(partyName(caster), " burns ", monsterName(foe), " for ", damage, " pts!"))
-                pause1s()
+                writeText(flowText(partyName(caster), " burns ", monsterName(foe), " for ", damage, " pts! {pause 1s}"))
 
                 foe.hp -= damage
 
                 whenever(foe.hp lte 0) {
                     foe.hp set 0
-                    writeText("...KILLED!")
-                    pause600ms()
+                    writeText("...KILLED! {pause 600ms}")
                     foe.dead set true
                 }
             }

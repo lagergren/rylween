@@ -32,7 +32,8 @@ sealed interface TextPart {
      * A beat in script text, written `{pause}`, `{pause 1.5s}` or `{pause 600ms}`
      * inside a string. [ScriptScope.writeText] and [ScriptScope.showTextAndWait]
      * show the text up to the beat, pause, then show the page again with more of
-     * it; no other text accepts one.
+     * it; a beat at the very end holds the page that long. [ScriptScope.appendText]
+     * takes a beat only at the end; no other text accepts one.
      */
     data class Pause(
         val millis: Int,
@@ -329,16 +330,11 @@ private val pauseMarker = Regex("""\{pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s))?\}""")
 
 /** Splits literal text at its `{pause}` markers; text without one stays a single literal. */
 private fun literalParts(text: String): List<TextPart> {
-    if (!pauseMarker.containsMatchIn(text)) return listOf(TextPart.Literal(text))
-    val parts = mutableListOf<TextPart>()
-    var rest = 0
-    pauseMarker.findAll(text).forEach { marker ->
-        text.substring(rest, marker.range.first).takeIf(String::isNotEmpty)?.let { before -> parts += TextPart.Literal(before) }
-        parts += TextPart.Pause(marker.pauseMillis())
-        rest = marker.range.last + 1
+    val pauses = pauseMarker.findAll(text).map { marker -> TextPart.Pause(marker.pauseMillis()) }.toList()
+    if (pauses.isEmpty()) return listOf(TextPart.Literal(text))
+    return text.split(pauseMarker).flatMapIndexed { index, piece ->
+        listOfNotNull(piece.takeIf(String::isNotEmpty)?.let { literal -> TextPart.Literal(literal) }, pauses.getOrNull(index))
     }
-    text.substring(rest).takeIf(String::isNotEmpty)?.let { after -> parts += TextPart.Literal(after) }
-    return parts
 }
 
 private fun MatchResult.pauseMillis(): Int {
@@ -346,7 +342,7 @@ private fun MatchResult.pauseMillis(): Int {
     return if (groupValues[2] == "s") (amount * 1_000).toInt() else amount.toInt()
 }
 
-/** One step of text shown with `{pause}` beats: the text so far, then the pause after it; the last step has none. */
+/** One step of text shown with `{pause}` beats: the text so far, then the pause after it, if any. */
 internal data class TextBeat(
     val text: TextBlock,
     val pauseMillis: Int?,
@@ -355,7 +351,8 @@ internal data class TextBeat(
 /**
  * The steps [ScriptScope.writeText] shows this text in: one per `{pause}`
  * marker, each with everything up to that marker, and a last one with the
- * whole text. Text without markers is a single step.
+ * whole text. A marker at the very end holds the whole text, so it adds no
+ * step of its own. Text without markers is a single step.
  */
 internal fun TextBlock.beats(): List<TextBeat> {
     val rows =
@@ -365,17 +362,18 @@ internal fun TextBlock.beats(): List<TextBeat> {
             is TextBlock.Flow -> paragraphs
         }
     if (rows.none { row -> row.parts.any { part -> part is TextPart.Pause } }) return listOf(TextBeat(this, null))
-    val beats = mutableListOf<TextBeat>()
-    rows.forEachIndexed { rowIndex, row ->
-        row.parts.forEachIndexed { partIndex, part ->
-            if (part is TextPart.Pause) {
-                val partial = TextLine(row.parts.take(partIndex)).withoutPauses()
-                val shown = rows.take(rowIndex).map(TextLine::withoutPauses) + listOfNotNull(partial.takeIf { it.parts.isNotEmpty() })
-                beats += TextBeat(withRows(shown), part.millis)
+    val beats =
+        rows.flatMapIndexed { rowIndex, row ->
+            row.parts.mapIndexedNotNull { partIndex, part ->
+                (part as? TextPart.Pause)?.let { pause ->
+                    val partial = TextLine(row.parts.take(partIndex)).withoutPauses()
+                    val shown = rows.take(rowIndex).map(TextLine::withoutPauses) + listOfNotNull(partial.takeIf { it.parts.isNotEmpty() })
+                    TextBeat(withRows(shown), pause.millis)
+                }
             }
         }
-    }
-    return beats + TextBeat(withRows(rows.map(TextLine::withoutPauses)), null)
+    val whole = withRows(rows.map(TextLine::withoutPauses))
+    return if (beats.last().text == whole) beats else beats + TextBeat(whole, null)
 }
 
 /**
@@ -384,26 +382,22 @@ internal fun TextBlock.beats(): List<TextBeat> {
  * "but... dust..."; a line that ends at a beat drops the space before it.
  */
 private fun TextLine.withoutPauses(): TextLine {
-    val joined = mutableListOf<TextPart>()
-    var afterPause = false
-    parts.forEach { part ->
-        val previous = joined.lastOrNull() as? TextPart.Literal
-        when {
-            part is TextPart.Pause -> afterPause = true
-            afterPause && previous != null && part is TextPart.Literal -> {
-                val spaced = previous.text.endsWith(' ') || part.text.startsWith(' ')
-                joined[joined.lastIndex] = TextPart.Literal(previous.text.trimEnd() + (if (spaced) " " else "") + part.text.trimStart())
-                afterPause = false
-            }
-            else -> {
-                joined += part
-                afterPause = false
+    val (joined, _) =
+        parts.fold(emptyList<TextPart>() to false) { (joined, afterPause), part ->
+            val previous = joined.lastOrNull() as? TextPart.Literal
+            when {
+                part is TextPart.Pause -> joined to true
+                afterPause && previous != null && part is TextPart.Literal -> joined.dropLast(1) + previous.joinedAcrossPause(part) to false
+                else -> joined + part to false
             }
         }
-    }
-    val last = joined.lastOrNull() as? TextPart.Literal
-    if (last != null) joined[joined.lastIndex] = TextPart.Literal(last.text.trimEnd())
-    return TextLine(joined)
+    val last = joined.lastOrNull() as? TextPart.Literal ?: return TextLine(joined)
+    return TextLine(joined.dropLast(1) + TextPart.Literal(last.text.trimEnd()))
+}
+
+private fun TextPart.Literal.joinedAcrossPause(next: TextPart.Literal): TextPart.Literal {
+    val spaced = text.endsWith(' ') || next.text.startsWith(' ')
+    return TextPart.Literal(text.trimEnd() + (if (spaced) " " else "") + next.text.trimStart())
 }
 
 private fun TextBlock.withRows(rows: List<TextLine>): TextBlock =
