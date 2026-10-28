@@ -2620,6 +2620,12 @@ class DungeonSystemBuilder {
     private val scenarios = mutableListOf<DungeonScenarioModel>()
     private var backdrop: ImageId? = null
     private var keys = DungeonKeysModel()
+    private var defaultRandomEvents = emptyList<DungeonRandomEventModel>()
+
+    /** The random-event mix of every scenario that names none of its own. */
+    fun randomEvents(vararg events: Pair<DungeonEventId, Int>) {
+        defaultRandomEvents = events.map { (event, weight) -> DungeonRandomEventModel(event, weight) }
+    }
 
     fun backdrop(image: ImageId?) {
         backdrop = image
@@ -2646,7 +2652,11 @@ class DungeonSystemBuilder {
     fun build(): DungeonSystemModel =
         DungeonSystemModel(
             events = events.toList(),
-            scenarios = scenarios.toList(),
+            scenarios =
+                scenarios.map { scenario ->
+                    scenario.takeUnless { it.randomEvents.isEmpty() }
+                        ?: scenario.copy(randomEvents = defaultRandomEvents)
+                },
             backdrop = backdrop,
             keys = keys,
         )
@@ -2788,6 +2798,22 @@ class DungeonScenarioBuilder(
         event: DungeonEventId,
     ) {
         fixedLevelEvents[number] = event
+    }
+
+    /** The same fixed event on each of [numbers], such as `level(13..19, DungeonEvents.colorRiddle)`. */
+    fun level(
+        numbers: IntRange,
+        event: DungeonEventId,
+    ) {
+        numbers.forEach { number -> level(number, event) }
+    }
+
+    /** The same fixed event on each of [numbers], such as `level(3, 6, 9, event = DungeonEvents.hobgoblinPatrol)`. */
+    fun level(
+        vararg numbers: Int,
+        event: DungeonEventId,
+    ) {
+        numbers.forEach { number -> level(number, event) }
     }
 
     fun randomEvents(body: DungeonRandomEventPoolBuilder.() -> Unit) {
