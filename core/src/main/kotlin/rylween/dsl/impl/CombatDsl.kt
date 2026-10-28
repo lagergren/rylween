@@ -21,7 +21,7 @@ import rylween.dsl.StructuredTextBlockBuilder
 import rylween.dsl.TextBlock
 import rylween.dsl.TextPart
 import rylween.dsl.inputKey
-import rylween.dsl.structuredText
+import rylween.dsl.literalText
 
 enum class MandatoryRunRule { NoEscape }
 
@@ -336,39 +336,39 @@ class BattleTextBuilder(
     private var levelGainText = initial?.levelGain
 
     fun encounterBanner(body: StructuredTextBlockBuilder.() -> Unit) {
-        encounterBannerText = structuredText(body)
+        encounterBannerText = literalText(body)
     }
 
     fun youFace(body: StructuredTextBlockBuilder.() -> Unit) {
-        youFaceText = structuredText(body)
+        youFaceText = literalText(body)
     }
 
     fun foeDisplayName(body: StructuredTextBlockBuilder.() -> Unit) {
-        foeDisplayNameText = structuredText(body)
+        foeDisplayNameText = literalText(body)
     }
 
     fun stillFace(body: StructuredTextBlockBuilder.() -> Unit) {
-        stillFaceText = structuredText(body)
+        stillFaceText = literalText(body)
     }
 
     fun fight(body: StructuredTextBlockBuilder.() -> Unit) {
-        fightText = structuredText(body)
+        fightText = literalText(body)
     }
 
     fun fleeOption(body: StructuredTextBlockBuilder.() -> Unit) {
-        runText = structuredText(body)
+        runText = literalText(body)
     }
 
     fun bloodFlow(body: StructuredTextBlockBuilder.() -> Unit) {
-        bloodFlowText = structuredText(body)
+        bloodFlowText = literalText(body)
     }
 
     fun whatNow(body: StructuredTextBlockBuilder.() -> Unit) {
-        whatNowText = structuredText(body)
+        whatNowText = literalText(body)
     }
 
     fun targetPrompt(body: StructuredTextBlockBuilder.() -> Unit) {
-        targetPromptText = structuredText(body)
+        targetPromptText = literalText(body)
     }
 
     fun targetPrompt(text: TextBlock) {
@@ -376,15 +376,15 @@ class BattleTextBuilder(
     }
 
     fun useWhat(body: StructuredTextBlockBuilder.() -> Unit) {
-        useWhatText = structuredText(body)
+        useWhatText = literalText(body)
     }
 
     fun spellAbort(body: StructuredTextBlockBuilder.() -> Unit) {
-        spellAbortText = structuredText(body)
+        spellAbortText = literalText(body)
     }
 
     fun runCoward(body: StructuredTextBlockBuilder.() -> Unit) {
-        runCowardText = structuredText(body)
+        runCowardText = literalText(body)
     }
 
     fun runCoward(text: TextBlock) {
@@ -392,7 +392,7 @@ class BattleTextBuilder(
     }
 
     fun runDesperateFail(body: StructuredTextBlockBuilder.() -> Unit) {
-        runDesperateFailText = structuredText(body)
+        runDesperateFailText = literalText(body)
     }
 
     fun runDesperateFail(text: TextBlock) {
@@ -400,19 +400,19 @@ class BattleTextBuilder(
     }
 
     fun runFailAway(body: StructuredTextBlockBuilder.() -> Unit) {
-        runFailAwayText = structuredText(body)
+        runFailAwayText = literalText(body)
     }
 
     fun runEscaped(body: StructuredTextBlockBuilder.() -> Unit) {
-        runEscapedText = structuredText(body)
+        runEscapedText = literalText(body)
     }
 
     fun notPossible(body: StructuredTextBlockBuilder.() -> Unit) {
-        notPossibleText = structuredText(body)
+        notPossibleText = literalText(body)
     }
 
     fun magicImmune(body: StructuredTextBlockBuilder.() -> Unit) {
-        magicImmuneText = structuredText(body)
+        magicImmuneText = literalText(body)
     }
 
     fun magicImmune(text: TextBlock) {
@@ -420,7 +420,7 @@ class BattleTextBuilder(
     }
 
     fun spellFizzle(body: StructuredTextBlockBuilder.() -> Unit) {
-        spellFizzleText = structuredText(body)
+        spellFizzleText = literalText(body)
     }
 
     fun spellFizzle(text: TextBlock) {
@@ -428,11 +428,11 @@ class BattleTextBuilder(
     }
 
     fun notEnoughMagic(body: StructuredTextBlockBuilder.() -> Unit) {
-        notEnoughMagicText = structuredText(body)
+        notEnoughMagicText = literalText(body)
     }
 
     fun restGainHits(body: StructuredTextBlockBuilder.() -> Unit) {
-        restGainHitsText = structuredText(body)
+        restGainHitsText = literalText(body)
     }
 
     fun restGainHits(text: TextBlock) {
@@ -440,7 +440,7 @@ class BattleTextBuilder(
     }
 
     fun defendStance(body: StructuredTextBlockBuilder.() -> Unit) {
-        defendStanceText = structuredText(body)
+        defendStanceText = literalText(body)
     }
 
     fun defendStance(text: TextBlock) {
@@ -448,7 +448,7 @@ class BattleTextBuilder(
     }
 
     fun battleCry(body: StructuredTextBlockBuilder.() -> Unit) {
-        battleCryText = structuredText(body)
+        battleCryText = literalText(body)
     }
 
     fun battleCry(text: TextBlock) {
@@ -456,27 +456,27 @@ class BattleTextBuilder(
     }
 
     fun playerHit(body: StructuredTextBlockBuilder.() -> Unit) {
-        playerHitText = structuredText(body)
+        playerHitText = literalText(body)
     }
 
     fun playerMiss(body: StructuredTextBlockBuilder.() -> Unit) {
-        playerMissText = structuredText(body)
+        playerMissText = literalText(body)
     }
 
     fun monsterHit(body: StructuredTextBlockBuilder.() -> Unit) {
-        monsterHitText = structuredText(body)
+        monsterHitText = literalText(body)
     }
 
     fun monsterMiss(body: StructuredTextBlockBuilder.() -> Unit) {
-        monsterMissText = structuredText(body)
+        monsterMissText = literalText(body)
     }
 
     fun memberDeath(body: StructuredTextBlockBuilder.() -> Unit) {
-        memberDeathText = structuredText(body)
+        memberDeathText = literalText(body)
     }
 
     fun killed(body: StructuredTextBlockBuilder.() -> Unit) {
-        killedText = structuredText(body)
+        killedText = literalText(body)
     }
 
     fun killed(text: TextBlock) {
@@ -484,15 +484,15 @@ class BattleTextBuilder(
     }
 
     fun partyHeld(body: StructuredTextBlockBuilder.() -> Unit) {
-        partyHeldText = structuredText(body)
+        partyHeldText = literalText(body)
     }
 
     fun partyDefeated(body: StructuredTextBlockBuilder.() -> Unit) {
-        partyDefeatedText = structuredText(body)
+        partyDefeatedText = literalText(body)
     }
 
     fun victoryBested(body: StructuredTextBlockBuilder.() -> Unit) {
-        victoryBestedText = structuredText(body)
+        victoryBestedText = literalText(body)
     }
 
     fun victoryBested(text: TextBlock) {
@@ -500,23 +500,23 @@ class BattleTextBuilder(
     }
 
     fun victoryEachSurvivor(body: StructuredTextBlockBuilder.() -> Unit) {
-        victoryEachSurvivorText = structuredText(body)
+        victoryEachSurvivorText = literalText(body)
     }
 
     fun victoryReward(body: StructuredTextBlockBuilder.() -> Unit) {
-        victoryRewardText = structuredText(body)
+        victoryRewardText = literalText(body)
     }
 
     fun victoryFoundObject(body: StructuredTextBlockBuilder.() -> Unit) {
-        victoryFoundObjectText = structuredText(body)
+        victoryFoundObjectText = literalText(body)
     }
 
     fun victoryLoot(body: StructuredTextBlockBuilder.() -> Unit) {
-        victoryLootText = structuredText(body)
+        victoryLootText = literalText(body)
     }
 
     fun levelGain(body: StructuredTextBlockBuilder.() -> Unit) {
-        levelGainText = structuredText(body)
+        levelGainText = literalText(body)
     }
 
     fun build(): BattleTextModel =
@@ -725,7 +725,7 @@ class PlayerCombatActionsBuilder {
         requirement: CombatActionRequirement,
         prompt: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        actions += CombatActionModel(binding, action, kind, requirement, structuredText(prompt))
+        actions += CombatActionModel(binding, action, kind, requirement, literalText(prompt))
     }
 }
 

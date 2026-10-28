@@ -81,7 +81,7 @@ secret manager to set `RYLWEEN_AUTH_PASSWORD` and `RYLWEEN_ADMIN_PASSWORD`.
 ## Data Directory Layout
 
 All web runtimes are configured around one data directory. The `bin/` scripts
-default to `~/.rylween/data`, `deploy/deploy-rylween.sh` to `~/.rylween/deploy`,
+default to `~/.rylween/data`, `./deploy.sh --launcher` to `~/.rylween/deploy`,
 and containers (including `deploy/compose.yaml`) to `/data`. Run bare, the
 `rylween-bitmap-web` launcher uses `build/rylween-data`.
 

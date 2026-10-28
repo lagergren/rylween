@@ -1227,6 +1227,7 @@ private fun validateTextBlock(
             is TextPart.Literal -> Unit
             is TextPart.IntValue -> Unit
             is TextPart.StringValue -> Unit
+            is TextPart.Pause -> error("$label has a {pause} marker, but only writeText and showTextAndWait show text in beats")
             is TextPart.RoleName -> {
                 check(part.role.slug.isNotBlank()) { "$label references blank character role" }
                 check(knownRoles == null || part.role in knownRoles) {
@@ -1326,7 +1327,6 @@ private fun validateTextBlock(
     }
 
     when (block) {
-        is TextBlock.Ref -> check(block.id.id.isNotBlank()) { "$label text id is blank" }
         is TextBlock.Inline -> {
             check(block.lines.isNotEmpty()) { "$label inline text has no lines" }
             check(block.lines.any { it.isNotBlank() }) { "$label inline text is blank" }
@@ -2265,6 +2265,12 @@ fun validateScriptRewards(
             }
         }
     }
+
+    val unread = content.unreadScriptTexts()
+    check(unread.isEmpty()) {
+        "scripts show text the player never gets to read; hold it with waitInput, a pause or a menu first, " +
+            "or keep it on screen with appendText:\n" + unread.joinToString(separator = "\n")
+    }
 }
 
 private fun validateItemPool(
@@ -3116,7 +3122,6 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
 
 private fun TextBlock.isSingleLinePrompt(): Boolean =
     when (this) {
-        is TextBlock.Ref -> true
         is TextBlock.Inline -> lines.size == 1
         is TextBlock.Structured -> lines.size == 1
         is TextBlock.Flow -> false

@@ -25,7 +25,6 @@ import rylween.dsl.TextPart
 import rylween.dsl.WorldMapId
 import rylween.dsl.line
 import rylween.dsl.literalText
-import rylween.dsl.structuredText
 import rylween.dsl.terrain
 
 /** Item categories understood by inventory, equipment, shops, rewards, and saves. */
@@ -109,9 +108,8 @@ data class WildernessUpkeepRules(
     val starveFoodThreshold: Int = 0,
     val starveDamage: Int = 0,
     val starvationDeath: TextBlock =
-        structuredText {
-            line(TextPart.UpkeepMemberName, " starved")
-            line("to death!!!")
+        literalText {
+            line(TextPart.UpkeepMemberName, " starved to death!!!")
         },
     val manaRegenChance: Int = 0,
     val restedHoursCostPerTurn: Int = 0,

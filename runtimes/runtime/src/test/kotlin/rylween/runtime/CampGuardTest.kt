@@ -41,6 +41,22 @@ class CampGuardTest {
         assertTrue(texts.any { text -> text.startsWith("$guard stands guard") }, "the text must name $guard: $texts")
     }
 
+    // A rolled party keeps its names in memberNames; the members' string handles name someone else.
+    @Test
+    fun aRolledGuardIsNamedByTheNameThePlayerGaveThem() {
+        val screen = TextRecordingScreen()
+        val tired = tiredParty()
+        val names =
+            tired.party.members.indices
+                .map { index -> "Rolled ${index + 1}" }
+        val runtime = tired.withParty(tired.party.copy(memberNames = names))
+
+        camp("Y2", screen, runtime)
+
+        val texts = screen.texts.map { lines -> lines.joinToString(" ") }
+        assertTrue(texts.any { text -> text.startsWith("Rolled 2 stands guard") }, "the text must name Rolled 2: $texts")
+    }
+
     private fun tiredParty(): RuntimeState {
         val state = bundle.states.single { state -> content.slug(state.state) == "fresh-replay" }
         val runtime = RuntimeState.from(state, content)

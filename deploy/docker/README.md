@@ -50,11 +50,13 @@ the `rylween_data` named volume. They survive `down`, rebuilds, and image
 updates; only `down -v` or `volume rm` deletes them. To keep the data in a
 host directory instead, for example to back it up with
 `bin/backup-web-data.sh`, create the directory and point
-`RYLWEEN_DATA_VOLUME` at it:
+`RYLWEEN_DATA_VOLUME` at it in `deploy/.env`, so every later deploy uses it
+too. From the repository root:
 
 ```sh
 mkdir -p ~/.rylween/compose-data
-RYLWEEN_DATA_VOLUME=~/.rylween/compose-data docker compose up -d
+echo 'RYLWEEN_DATA_VOLUME=~/.rylween/compose-data' >> deploy/.env
+./deploy.sh
 bin/backup-web-data.sh --data ~/.rylween/compose-data --output rylween-backup.tar.gz
 ```
 
@@ -68,12 +70,13 @@ docker compose exec rylween cat /data/auth/admin-password.txt
 
 The container publishes on `127.0.0.1:8081` by default. To let other machines
 on the local network connect, run compose through the deploy script, which
-builds the image, detects this machine's private LAN address, and publishes on
-it:
+builds the image, detects this machine's private LAN address, publishes on it,
+waits until the server answers, and prints its address with the commands for
+the sysop password, the log, and `down`:
 
 ```sh
-./deploy.sh                      # root symlink to deploy/deploy-rylween-docker.sh
-deploy/deploy-rylween-docker.sh  # same as deploy/deploy-rylween.sh --compose
+./deploy.sh                      # from the repository root; a link to deploy/deploy-rylween.sh
+./deploy-rylween.sh              # from deploy/; the same script
 ```
 
 Or set `RYLWEEN_PUBLISH_HOST` yourself, to a LAN address such as `192.168.x.y`
@@ -87,11 +90,10 @@ uncommitted `deploy/.env` file next to it; copy `deploy/.env.example`, which
 shows each one at its default. A relative `RYLWEEN_DATA_VOLUME` such as
 `./data` is relative to `deploy/`.
 
-`deploy/deploy-rylween.sh` without `--compose` skips Docker: it starts the
-installed bitmap launcher in the background on the LAN address, port 8081, with
-its data in `~/.rylween/deploy` and its log in
-`/tmp/rylween-bitmap-web-deploy.log`, stopping a server it started earlier.
-Build the launcher first with
+`./deploy.sh --launcher` skips Docker: it starts the installed bitmap launcher
+in the background on the LAN address, port 8081, with its data in
+`~/.rylween/deploy` and its log in `/tmp/rylween-bitmap-web-deploy.log`,
+stopping a server it started earlier. Build the launcher first with
 `./gradlew :runtime-bitmap-web:installRuntimeBitmapWeb`.
 
 The root `.dockerignore` intentionally remains at the repository root because

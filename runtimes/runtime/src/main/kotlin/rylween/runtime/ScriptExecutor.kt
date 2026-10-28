@@ -173,9 +173,10 @@ internal class ScriptExecutor(
                     writeText(instruction.textBlockOperand(0).renderScriptLines())
                 }
 
-            CompiledOpcode.Emit ->
+            CompiledOpcode.AppendScreen ->
                 continueAfter {
-                    screen.writeText(runtimeDiagnosticText("[text:${content.slug(instruction.handleOperand(0))}]"))
+                    val text = instruction.textBlockOperand(0)
+                    appendText(currentTextLines.appendedLines(text, text.renderScriptLines()))
                 }
 
             CompiledOpcode.WaitInput ->
@@ -392,6 +393,9 @@ internal class ScriptExecutor(
         currentTextLines = lines
         screen.writeText(lines)
     }
+
+    // Rewrites the whole page, so a pause prompt still on screen is dropped rather than left above the new lines.
+    private fun appendText(lines: List<String>) = writeText(currentTextLines + lines)
 
     private fun waitForCurrentText() {
         screen.writeText(currentTextLines.withPausePrompt(pausePrompts))
@@ -928,12 +932,12 @@ internal class ScriptExecutor(
             is ItemPlacement.Placed ->
                 placed.party.also {
                     audio.cue(AudioCue.ItemTaken)
-                    reward.messages.pickedUp?.let { text -> screen.writeText(text.renderRewardLines(item)) }
+                    reward.messages.pickedUp?.let { text -> writeText(text.renderRewardLines(item)) }
                 }
 
             ItemPlacement.Full ->
                 party.also {
-                    reward.messages.cantCarry?.let { text -> screen.writeText(text.renderRewardLines(item)) }
+                    reward.messages.cantCarry?.let { text -> writeText(text.renderRewardLines(item)) }
                 }
 
             ItemPlacement.NeedsDropSlot ->
@@ -1783,6 +1787,16 @@ internal class ScriptExecutor(
         return block
     }
 }
+
+/**
+ * The lines [text], rendered as [rendered], adds below the text window's current lines: flow text is a new
+ * paragraph and gets a blank line above it, unless the window is empty or already ends with one; literal
+ * lines continue directly below.
+ */
+internal fun List<String>.appendedLines(
+    text: CompiledTextBlock,
+    rendered: List<String>,
+): List<String> = if (text is CompiledTextBlock.Flow && isNotEmpty() && last().isNotBlank()) listOf("") + rendered else rendered
 
 private enum class ScriptSignal { Continue, BreakNearestLoop, StopScript }
 

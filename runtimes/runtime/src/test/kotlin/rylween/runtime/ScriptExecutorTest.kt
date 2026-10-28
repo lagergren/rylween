@@ -77,6 +77,56 @@ class ScriptExecutorTest {
         assertEquals(1, catalog.count { line -> line.offersChoiceKey("A") }, "catalog choices must be listed once: $catalog")
     }
 
+    @Test
+    fun appendedTextStaysBelowThePageAsItsOwnParagraph() {
+        val screen = TextCapturingScreen()
+        // Dismiss Ron's plea, then the page that names the orc cave.
+        runScript(
+            scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.ron.peasant.wife.none"),
+            thordRuntime(),
+            "AA",
+            screen,
+            "ron-append.log",
+        )
+
+        val page = screen.texts.single { lines -> lines.any { line -> line.startsWith("The orcs have a cave") } && pausePromptIn(lines) }
+        val cave = page.indexOfFirst { line -> line.startsWith("The orcs have a cave") }
+        assertTrue(page.first().startsWith("About 3,000"), "the cave is added below Ron's offer, not on a page of its own: $page")
+        assertEquals("", page[cave - 1], "appended flow text starts its own paragraph: $page")
+    }
+
+    @Test
+    fun aPauseMarkerShowsThePageUpToItThenTheRest() {
+        val events = mutableListOf<String>()
+        val screen =
+            object : NoOpRuntimeScreen(textColumns = CLASSIC_TEXT_WINDOW_COLUMNS) {
+                override fun writeText(lines: List<String>) {
+                    events += lines.joinToString(" / ")
+                }
+            }
+        val scripted = ScriptedInput("AAAA")
+        val input =
+            object : RuntimeInputPort by scripted {
+                override fun pause(ms: Int) {
+                    events += "pause $ms"
+                }
+            }
+        val program = scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.tybalt.erethor.lute.none")
+        RuntimeLog.open(testTmp.resolve("tybalt-beat.log")).use { log ->
+            ScriptExecutor(bundle.content, systems, input, screen, thordRuntime(), log = log).execute(program)
+        }
+
+        val beat = events.indexOf("pause 1500")
+        assertTrue(beat > 0, "the rumor pauses at its {pause} marker: $events")
+        assertTrue("Erethor is a mighty" !in events[beat - 1], "the page before the beat stops at the marker: ${events[beat - 1]}")
+        assertTrue(
+            events[beat + 1].startsWith(events[beat - 1]) && "- Erethor is a mighty" in events[beat + 1],
+            "after the beat the same page shows the rest below it: ${events[beat + 1]}",
+        )
+    }
+
+    private fun pausePromptIn(lines: List<String>): Boolean = lines.lastOrNull()?.startsWith("(") == true
+
     private fun townSceneTexts(
         sceneSlug: String,
         commands: String,

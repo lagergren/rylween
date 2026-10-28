@@ -624,7 +624,7 @@ data class CompiledScriptProgram(
 /** VM opcode set emitted from authored script AST operations. */
 enum class CompiledOpcode {
     Screen,
-    Emit,
+    AppendScreen,
     WaitInput,
     Pause,
     View,
@@ -793,10 +793,6 @@ data class CompiledTextAnswer(
 
 /** Compiled text block, either a handle ref, inline literal lines, structured lines, or deferred-wrap prose. */
 sealed interface CompiledTextBlock {
-    data class Ref(
-        val text: CompiledHandleRef,
-    ) : CompiledTextBlock
-
     data class Inline(
         val lineStrings: List<Int>,
     ) : CompiledTextBlock
@@ -1833,8 +1829,11 @@ private class CompiledBundleCompiler(
 
     private fun compileStatement(statement: ScriptStatement): CompiledInstruction =
         when (val op = statement.asStatementNode()) {
-            is ScriptStatementNode.Screen -> instruction(CompiledOpcode.Screen, CompiledOperand.TextBlockValue(text(op.text)))
-            is ScriptStatementNode.Emit -> instruction(CompiledOpcode.Emit, CompiledOperand.Handle(textRef(op.text.id)))
+            is ScriptStatementNode.Screen ->
+                instruction(
+                    if (op.append) CompiledOpcode.AppendScreen else CompiledOpcode.Screen,
+                    CompiledOperand.TextBlockValue(text(op.text)),
+                )
             is ScriptStatementNode.WaitInput ->
                 instruction(
                     CompiledOpcode.WaitInput,
@@ -2160,7 +2159,6 @@ private class CompiledBundleCompiler(
 
     private fun text(block: TextBlock): CompiledTextBlock =
         when (block) {
-            is TextBlock.Ref -> CompiledTextBlock.Ref(textRef(block.id.id))
             is TextBlock.Inline -> CompiledTextBlock.Inline(block.lines.map(strings::id))
             is TextBlock.Structured ->
                 CompiledTextBlock.Structured(
@@ -2178,6 +2176,7 @@ private class CompiledBundleCompiler(
             is TextPart.Literal -> CompiledTextPart.Literal(strings.id(part.text))
             is TextPart.IntValue -> CompiledTextPart.IntValue(intExpr(part.value))
             is TextPart.StringValue -> CompiledTextPart.StringValue(stringExpr(part.value))
+            is TextPart.Pause -> error("{pause} markers only work in writeText and showTextAndWait")
             is TextPart.RoleName -> CompiledTextPart.RoleName(roleRef(part.role))
             is TextPart.RoleJob -> CompiledTextPart.RoleJob(roleRef(part.role))
             is TextPart.RoleLocation -> CompiledTextPart.RoleLocation(roleRef(part.role))
@@ -2822,9 +2821,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
     buildList {
         fun collectText(block: TextBlock) {
             when (block) {
-                is TextBlock.Ref,
-                is TextBlock.Inline,
-                -> Unit
+                is TextBlock.Inline -> Unit
 
                 is TextBlock.Structured ->
                     block.lines.forEach { line ->

@@ -442,9 +442,7 @@ private class NativePathCollector {
             when (block) {
                 is TextBlock.Structured -> block.lines
                 is TextBlock.Flow -> block.paragraphs
-                is TextBlock.Ref,
-                is TextBlock.Inline,
-                -> emptyList()
+                is TextBlock.Inline -> emptyList()
             }
         lines.forEach { line ->
             line.parts.forEach(::collect)
@@ -455,6 +453,7 @@ private class NativePathCollector {
         when (part) {
             is TextPart.IntValue -> collect(part.value)
             is TextPart.StringValue -> collect(part.value)
+            is TextPart.Pause -> Unit
             is TextPart.Literal,
             is TextPart.RoleName,
             is TextPart.RoleJob,
@@ -509,7 +508,6 @@ private class NativePathCollector {
     private fun collect(statement: ScriptStatement) {
         when (val op = statement) {
             is ScriptStatementNode.Screen -> collect(op.text)
-            is ScriptStatementNode.Emit -> Unit
             is ScriptStatementNode.WaitInput -> Unit
             is ScriptStatementNode.Pause -> Unit
             is ScriptStatementNode.View -> Unit
@@ -629,4 +627,220 @@ private class NativePathCollector {
         sell.declined?.let(::collect)
         sell.sold?.let(::collect)
     }
+}
+
+/**
+ * Text a script shows that the player never gets to read: before anything holds
+ * it on screen (a key press, a pause, or a menu that keeps it above its choices),
+ * the script writes a fresh page over it, clears it, or hands the screen to
+ * something that draws its own, such as a battle or the runtime's view once the
+ * script ends.
+ */
+data class UnreadScriptText(
+    val root: String,
+    val text: String,
+    val replacedBy: String,
+) {
+    override fun toString(): String = "$root: \"$text\" is replaced by $replacedBy before it can be read"
+}
+
+/** Every [UnreadScriptText] in the game's script roots. */
+fun GameModel.unreadScriptTexts(): List<UnreadScriptText> = scriptSourceRoots().flatMap(ScriptSourceRoot::unreadTexts)
+
+/** Every [UnreadScriptText] in this script root. */
+fun ScriptSourceRoot.unreadTexts(): List<UnreadScriptText> = UnreadTextScan(label).scan(script.statementNodes)
+
+/**
+ * Walks one script tracking the texts on screen that nothing has held yet. Where
+ * control can take several paths, the texts left unread by each are merged.
+ */
+private class UnreadTextScan(
+    private val root: String,
+) {
+    private val findings = linkedSetOf<UnreadScriptText>()
+    private val loopExits = ArrayDeque<LoopExit>()
+    private val scriptEnd = mutableSetOf<String>()
+
+    private class LoopExit {
+        val unread = mutableSetOf<String>()
+        var reached = false
+    }
+
+    fun scan(statements: List<ScriptStatementNode>): List<UnreadScriptText> {
+        scan(statements, emptySet())?.let(scriptEnd::addAll)
+        replace(scriptEnd, "the end of the script")
+        return findings.toList()
+    }
+
+    /** The texts still unread after [statements], or null when no path falls through them. */
+    private fun scan(
+        statements: List<ScriptStatementNode>,
+        unread: Set<String>,
+    ): Set<String>? =
+        statements.fold<ScriptStatementNode, Set<String>?>(unread) { current, statement -> current?.let { step(statement, it) } }
+
+    private fun step(
+        statement: ScriptStatementNode,
+        unread: Set<String>,
+    ): Set<String>? =
+        when (statement) {
+            is ScriptStatementNode.Screen -> {
+                val shown = setOfNotNull(statement.text.preview().takeIf(String::isNotBlank))
+                when {
+                    statement.append -> unread + shown
+                    shown.isEmpty() -> replace(unread, "a blank page")
+                    else -> replace(unread, "\"${shown.single()}\"") + shown
+                }
+            }
+            is ScriptStatementNode.View ->
+                if (statement.command == ViewCommand.ClearText) replace(unread, "clearText()") else unread
+            is ScriptStatementNode.WaitInput,
+            is ScriptStatementNode.Pause,
+            -> emptySet()
+            is ScriptStatementNode.Menu -> {
+                if (!statement.prompt.listsOnly(statement.options)) replace(unread, "the menu \"${statement.prompt.preview()}\"")
+                val defaultPath = if (statement.defaultStatements.isEmpty()) emptySet() else scan(statement.defaultStatements, emptySet())
+                merge(statement.options.map { option -> scan(option.body, emptySet()) } + listOf(defaultPath))
+            }
+            is ScriptStatementNode.AskKey -> replace(unread, "the prompt \"${statement.prompt.preview()}\"")
+            is ScriptStatementNode.AskMember -> replace(unread, "the prompt \"${statement.prompt.preview()}\"")
+            is ScriptStatementNode.AskInventorySlot -> replace(unread, "the prompt \"${statement.prompt.preview()}\"")
+            is ScriptStatementNode.AskMonster -> replace(unread, "the prompt \"${statement.prompt.preview()}\"")
+            is ScriptStatementNode.AskText -> {
+                replace(unread, "the prompt \"${statement.prompt.preview()}\"")
+                merge(listOf(scan(statement.matchStatements, emptySet()), scan(statement.missStatements, emptySet())))
+            }
+            is ScriptStatementNode.If -> merge(listOf(scan(statement.thenStatements, unread), scan(statement.elseStatements, unread)))
+            is ScriptStatementNode.Switch ->
+                merge(
+                    statement.cases.map { case -> scan(case.body, unread) } +
+                        listOf(unread.takeIf { statement.cases.none { case -> case.match == null } }),
+                )
+            is ScriptStatementNode.Loop -> loop(statement.body, unread)
+            is ScriptStatementNode.ForEachMember -> repeated(statement.body, unread)
+            is ScriptStatementNode.ForEachMonster -> repeated(statement.body, unread)
+            is ScriptStatementNode.Break -> exit(statement.signal, unread)
+            is ScriptStatementNode.Stop -> exit(statement.signal, unread)
+            is ScriptStatementNode.TellRumor -> unread + "a rumor"
+            is ScriptStatementNode.GrantReward ->
+                statement.reward.messages.pickedUp
+                    ?.takeIf { statement.reward.items.isNotEmpty() }
+                    ?.let { message -> replace(unread, "\"${message.preview()}\"") + message.preview() }
+                    ?: unread
+            is ScriptStatementNode.Speak -> replace(unread, "the conversation menu")
+            is ScriptStatementNode.RunScene -> replace(unread, "scene ${statement.scene.slug}")
+            is ScriptStatementNode.Encounter -> replace(unread, "the battle")
+            is ScriptStatementNode.EnterDungeon,
+            is ScriptStatementNode.DiscoverCave,
+            -> replace(unread, "the dungeon entrance")
+            is ScriptStatementNode.ShopService -> replace(unread, "the shop")
+            is ScriptStatementNode.RandomItemOffer -> replace(unread, "the item offer")
+            is ScriptStatementNode.LetInt,
+            is ScriptStatementNode.BindText,
+            is ScriptStatementNode.Set,
+            is ScriptStatementNode.Add,
+            is ScriptStatementNode.Sub,
+            is ScriptStatementNode.AddClamped,
+            is ScriptStatementNode.SetFlag,
+            is ScriptStatementNode.AppendJournal,
+            is ScriptStatementNode.TeleportParty,
+            ScriptStatementNode.ConsumeActiveItem,
+            is ScriptStatementNode.ClearInventorySlot,
+            is ScriptStatementNode.ConsumeInventoryPool,
+            is ScriptStatementNode.AchieveMilestone,
+            -> unread
+        }
+
+    /** Records every text in [unread] as lost to [replacedBy]; nothing is unread afterwards. */
+    private fun replace(
+        unread: Set<String>,
+        replacedBy: String,
+    ): Set<String> {
+        unread.forEach { text -> findings += UnreadScriptText(root, text, replacedBy) }
+        return emptySet()
+    }
+
+    /** A script loop leaves only through a break, so what is unread afterwards is what each break left. */
+    private fun loop(
+        body: List<ScriptStatementNode>,
+        unread: Set<String>,
+    ): Set<String>? {
+        val exit = LoopExit()
+        loopExits.addLast(exit)
+        // A second pass carries the end of one iteration into the start of the next.
+        scan(body, unread)?.let { end -> scan(body, unread + end) }
+        loopExits.removeLast()
+        return exit.unread.takeIf { exit.reached }
+    }
+
+    /** A member or monster iteration runs its body any number of times, including none. */
+    private fun repeated(
+        body: List<ScriptStatementNode>,
+        unread: Set<String>,
+    ): Set<String> {
+        val once = scan(body, unread)
+        val twice = once?.let { end -> scan(body, unread + end) }
+        return unread + once.orEmpty() + twice.orEmpty()
+    }
+
+    private fun exit(
+        signal: ScriptControlSignal,
+        unread: Set<String>,
+    ): Set<String>? =
+        when (signal) {
+            ScriptControlSignal.Continue -> unread
+            ScriptControlSignal.BreakNearestLoop -> {
+                val exit = loopExits.lastOrNull()
+                if (exit == null) {
+                    scriptEnd += unread
+                } else {
+                    exit.unread += unread
+                    exit.reached = true
+                }
+                null
+            }
+            ScriptControlSignal.StopScript -> {
+                scriptEnd += unread
+                null
+            }
+        }
+
+    private fun merge(paths: List<Set<String>?>): Set<String>? =
+        paths
+            .filterNotNull()
+            .takeIf(List<Set<String>>::isNotEmpty)
+            ?.flatten()
+            ?.toSet()
+}
+
+/** True when every non-blank line of this menu prompt offers one of [options], so the menu keeps the text above it. */
+private fun TextBlock.listsOnly(options: List<MenuOption>): Boolean {
+    val lines = plainLines().filter(String::isNotBlank)
+    return lines.isNotEmpty() &&
+        lines.all { line ->
+            options.any { option ->
+                val key = option.binding.primary
+                "($key)" in line || line.trimStart().startsWith("$key.")
+            }
+        }
+}
+
+private fun TextBlock.plainLines(): List<String> =
+    when (this) {
+        is TextBlock.Inline -> lines
+        is TextBlock.Structured -> lines.map(TextLine::plainText)
+        is TextBlock.Flow -> paragraphs.map(TextLine::plainText)
+    }
+
+private fun TextLine.plainText(): String =
+    parts.joinToString(separator = "") { part ->
+        (part as? TextPart.Literal)?.text
+            ?: part.fallbackText()
+    }
+
+private const val PREVIEW_LENGTH = 48
+
+private fun TextBlock.preview(): String {
+    val text = plainLines().joinToString(separator = " ").replace(Regex("\\s+"), " ").trim()
+    return if (text.length <= PREVIEW_LENGTH) text else text.take(PREVIEW_LENGTH - 3) + "..."
 }

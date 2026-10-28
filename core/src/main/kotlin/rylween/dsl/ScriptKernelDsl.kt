@@ -280,13 +280,10 @@ fun inputTokenVariants(raw: String): Set<String> =
     }
 
 sealed interface ScriptStatementNode : ScriptStatement {
+    /** Shows [text] in the text window: on a fresh page, or below the text already there when [append] is set. */
     data class Screen(
         val text: TextBlock,
-    ) : ScriptStatementNode,
-        ScriptStatement.TextView
-
-    data class Emit(
-        val text: TextId,
+        val append: Boolean = false,
     ) : ScriptStatementNode,
         ScriptStatement.TextView
 

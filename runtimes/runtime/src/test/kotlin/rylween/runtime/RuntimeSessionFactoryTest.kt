@@ -205,8 +205,9 @@ class RuntimeSessionFactoryTest {
                 )
         }
 
+        // The classic 26-column window may wrap the line anywhere after the name.
         assertContains(terminal.output, "$memberName starved")
-        assertContains(terminal.output, "to death!!!")
+        assertContains(terminal.output, "death!!!")
     }
 
     @Test

@@ -94,19 +94,21 @@ require a login unless the server runs with the `--user` development bypass.
 
 ## Deploy Script
 
-On Linux and macOS, the `deploy/deploy-rylween.sh` helper starts the installed
-bitmap runtime in the background with an isolated data directory under
-`~/.rylween/deploy`. By default it binds to the private LAN IPv4 address of the
-interface carrying the default route, so other machines on the local network
-can reach the server without it listening on every network interface:
+On Linux and macOS, `./deploy.sh --launcher` (the root `deploy.sh` links to
+`deploy/deploy-rylween.sh`) starts the installed bitmap runtime in the
+background with an isolated data directory under `~/.rylween/deploy`. By
+default it binds to the private LAN IPv4 address of the interface carrying the
+default route, so other machines on the local network can reach the server
+without it listening on every network interface:
 
 ```sh
 ./gradlew :runtime-bitmap-web:installRuntimeBitmapWeb --console=plain
-deploy/deploy-rylween.sh
+./deploy.sh --launcher
 ```
 
 It finds the installed launcher relative to the repository, so it can be run
-from any directory. Rerunning it stops the server it started
+from any directory, and refuses to start when the launcher is not installed.
+Rerunning it stops the server it started
 earlier before starting a new one. On Linux it uses `ip`, `/proc`, and
 `setsid`; on macOS it falls back to `route`, `ifconfig`, `ps`, and `nohup`. It
 prints the detected server URL, for example `http://192.168.1.20:8081`. It
@@ -114,8 +116,8 @@ refuses to pick a public address automatically. Override the bind address when
 needed:
 
 ```sh
-RYLWEEN_DEPLOY_HOST=127.0.0.1 deploy/deploy-rylween.sh
-RYLWEEN_DEPLOY_HOST=192.168.x.y deploy/deploy-rylween.sh
+RYLWEEN_DEPLOY_HOST=127.0.0.1 ./deploy.sh --launcher
+RYLWEEN_DEPLOY_HOST=192.168.x.y ./deploy.sh --launcher
 ```
 
 `RYLWEEN_DEPLOY_PORT`, `RYLWEEN_DEPLOY_DATA_DIR`, and `RYLWEEN_DEPLOY_LOG_FILE`
@@ -125,8 +127,7 @@ another installed launcher. On first start the server creates the sysop account
 `admin`; unless `RYLWEEN_ADMIN_PASSWORD` is set, its generated password is in
 `~/.rylween/deploy/auth/admin-password.txt`.
 
-`deploy/deploy-rylween-docker.sh` (also `./deploy.sh` at the repository root, or
-`deploy/deploy-rylween.sh --compose`) runs the production image through
+Without `--launcher`, `./deploy.sh` runs the production image through
 `deploy/compose.yaml` instead, published on the same detected LAN address (see
 [`deploy/docker/README.md`](../../deploy/docker/README.md#compose)). There
 `RYLWEEN_DEPLOY_HOST` still picks the address; the port, data, and log settings

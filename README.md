@@ -56,20 +56,34 @@ from [`game/src/main/resources/bitmap/assets`](game/src/main/resources/bitmap/as
 ./deploy.sh
 ```
 
-This is the one command for hosting the game. It builds the bitmap web game's
-image and starts it with Docker Compose (Podman Compose when Docker is missing),
-published on this machine's private LAN address, port 8081, and prints the
-address when the server is up. Open it in a browser on any machine on the
-network and register an account. The build runs inside the image, so the host
-needs only Docker or Podman, not a JDK.
+This is the one command for hosting the game. `deploy.sh` is a link to
+`deploy/deploy-rylween.sh`, so inside `deploy/` the same command is
+`./deploy-rylween.sh`; either works from any directory. It builds the bitmap web
+game's image and starts it with Docker Compose (Podman Compose when Docker is
+missing), published on this machine's private LAN address, port 8081. After the
+build output it waits until the server answers, then prints the address and the
+commands for the sysop password, the server log, and stopping the server:
 
-Run `./deploy.sh` again after pulling changes to rebuild and restart. Saves,
-accounts, and logs live on the `rylween_data` volume and survive rebuilds;
-`docker compose -f deploy/compose.yaml down` stops the server and keeps them.
+```text
+Rylween is up on http://192.168.1.20:8081/
+  Sysop password: docker compose -f /path/to/rylween/deploy/compose.yaml exec rylween cat /data/auth/admin-password.txt
+  Server log:     docker compose -f /path/to/rylween/deploy/compose.yaml logs -f rylween
+  Stop:           docker compose -f /path/to/rylween/deploy/compose.yaml down
+```
+
+Open the address in a browser on any machine on the network and register an
+account. The build runs inside the image, so the host needs only Docker or
+Podman, not a JDK.
+
+Run `./deploy.sh` again after pulling changes to rebuild and restart; a plain
+`docker compose up` would publish on 127.0.0.1 only. Saves, accounts, and logs
+live on the `rylween_data` volume and survive rebuilds; `down` stops the server
+and keeps them.
 
 On first start the server creates the sysop account, `admin`, which gets the
 game's secret wilderness keys. Unless `RYLWEEN_ADMIN_PASSWORD` is set, its
-password is generated:
+password is generated, and the `Sysop password` command prints it. From the
+repository root (inside `deploy/`, leave out `-f deploy/compose.yaml`):
 
 ```sh
 docker compose -f deploy/compose.yaml exec rylween cat /data/auth/admin-password.txt
@@ -148,7 +162,7 @@ Module guides:
 - [`support/audio`](support/audio) - Python scripts that synthesize the sound effects, music, and ambient loops.
 - [`build-logic`](build-logic/README.md) - Gradle conventions and custom tasks.
 - [`bin`](bin/README.md) - local developer/operator launcher scripts.
-- [`deploy/docker`](deploy/docker/README.md) - Docker images, compose, the LAN deploy scripts, and reverse-proxy notes.
+- [`deploy/docker`](deploy/docker/README.md) - Docker images, compose, the LAN deploy script, and reverse-proxy notes.
 
 The old interpreted Kotlin ANSI project and the historical C/JSON5 port are no
 longer part of this repository. The original Amiga release is kept as described

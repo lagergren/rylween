@@ -124,7 +124,7 @@ class WildernessReachabilityTest {
 
         assertContains(screen.lines, "You enter the hut.")
         assertContains(screen.lines, "(1) Marcus, Hermit")
-        assertTrue(screen.lines.any { line -> line.startsWith("Marcus") }, screen.lines.takeLast(40).joinToString("\n"))
+        assertTrue(screen.lines.any { line -> line.startsWith("Chatting with Marcus") }, screen.lines.takeLast(40).joinToString("\n"))
     }
 
     /** Leaving a quest dungeon at its entrance, or climbing out before its last level, keeps the quest open. */
@@ -169,7 +169,7 @@ class WildernessReachabilityTest {
             )
         }
 
-        assertEquals(3, screen.lines.count { line -> line == "Before you is the crypt" }, screen.lines.joinToString("\n"))
+        assertEquals(3, screen.lines.count { line -> line.startsWith("Before you is the crypt") }, screen.lines.joinToString("\n"))
     }
 
     private fun walkKeys(

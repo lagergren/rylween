@@ -90,7 +90,12 @@ class PartyCapacityTest {
             }
 
         assertEquals(150, result.runtime.party.resources.food)
-        assertTrue("5 food rations." in result.messages, "the text says what the party kept, found ${result.messages}")
+        assertTrue(
+            result.messages.any { line ->
+                line.endsWith(" 5 food rations.")
+            },
+            "the text says what the party kept, found ${result.messages}",
+        )
     }
 
     private fun item(slug: String): CompiledHandleRef = content.ref(CompiledHandleKind.Item, slug)

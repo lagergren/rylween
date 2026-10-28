@@ -24,8 +24,8 @@ import rylween.dsl.TextLine
 import rylween.dsl.TextLineSink
 import rylween.dsl.TextPart
 import rylween.dsl.inputKey
+import rylween.dsl.literalText
 import rylween.dsl.recordAuthoredScript
-import rylween.dsl.structuredText
 
 @RylNextDsl
 class SpeakBuilder {
@@ -69,7 +69,7 @@ class SpeakTextTablesBuilder {
         id: TextId,
         body: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        screens += ReusableScreenTextModel(id, structuredText(body))
+        screens += ReusableScreenTextModel(id, literalText(body))
     }
 
     fun screen(
@@ -127,7 +127,7 @@ class ChitchatPromptTextBuilder(
         variants +=
             ChitchatPromptVariantModel(
                 ChitchatPromptAudience.Any,
-                structuredText(body),
+                literalText(body),
             )
     }
 
@@ -139,7 +139,7 @@ class ChitchatPromptTextBuilder(
         variants +=
             ChitchatPromptVariantModel(
                 ChitchatPromptAudience.Female,
-                structuredText(body),
+                literalText(body),
             )
     }
 
@@ -151,7 +151,7 @@ class ChitchatPromptTextBuilder(
         variants +=
             ChitchatPromptVariantModel(
                 ChitchatPromptAudience.Male,
-                structuredText(body),
+                literalText(body),
             )
     }
 
@@ -170,7 +170,7 @@ class JobTextTableBuilder {
         id: NpcJobId,
         body: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        replies += JobTextModel(id, structuredText(body))
+        replies += JobTextModel(id, literalText(body))
     }
 
     fun job(
@@ -218,7 +218,7 @@ class RumorTextTableBuilder(
 class RumorEntryBuilder(
     private val id: RumorId?,
 ) : TextLineSink {
-    private val structuredText = StructuredTextBlockBuilder()
+    private val literalText = StructuredTextBlockBuilder()
     private var textBlock: TextBlock? = null
     private var hasStructuredLines = false
     private val excludedStates = mutableListOf<FlagState>()
@@ -226,7 +226,7 @@ class RumorEntryBuilder(
     override fun addTextLine(line: TextLine) {
         require(textBlock == null) { "rumor entry cannot mix flow text and structured lines" }
         hasStructuredLines = true
-        structuredText.addTextLine(line)
+        literalText.addTextLine(line)
     }
 
     fun text(text: TextBlock) {
@@ -238,7 +238,7 @@ class RumorEntryBuilder(
         excludedStates += states
     }
 
-    fun build(): RumorEntryModel = RumorEntryModel(id, textBlock ?: structuredText.build(), excludedStates.toList())
+    fun build(): RumorEntryModel = RumorEntryModel(id, textBlock ?: literalText.build(), excludedStates.toList())
 }
 
 @RylNextDsl

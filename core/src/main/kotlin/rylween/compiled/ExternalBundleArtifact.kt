@@ -2518,7 +2518,6 @@ private class ExternalBundleArtifactWriter {
 
     private fun textBlockJson(block: TextBlock): JsonValue =
         when (block) {
-            is TextBlock.Ref -> jsonObject("kind" to JsonString("ref"), "id" to JsonString(block.id.id))
             is TextBlock.Inline -> jsonObject("kind" to JsonString("inline"), "lines" to stringArray(block.lines))
             is TextBlock.Structured ->
                 jsonObject(
@@ -2548,6 +2547,7 @@ private class ExternalBundleArtifactWriter {
             is TextPart.Literal -> jsonObject("kind" to JsonString("literal"), "text" to JsonString(part.text))
             is TextPart.IntValue -> jsonObject("kind" to JsonString("intExpr"), "expr" to intAstJson(part.value))
             is TextPart.StringValue -> jsonObject("kind" to JsonString("stringExpr"), "expr" to strAstJson(part.value))
+            is TextPart.Pause -> error("{pause} markers only work in writeText and showTextAndWait")
             is TextPart.RoleName -> jsonObject("kind" to JsonString("roleName"), "role" to JsonString(part.role.slug))
             is TextPart.RoleJob -> jsonObject("kind" to JsonString("roleJob"), "role" to JsonString(part.role.slug))
             is TextPart.RoleLocation ->
@@ -3920,10 +3920,6 @@ private class ExternalRuntimeSystemsReader(
     private fun JsonValue.readTextBlock(): ExternalRuntimeTextBlock {
         val block = asObject("runtime text block")
         return when (val kind = block.requiredString("kind")) {
-            "ref" ->
-                ExternalRuntimeTextBlock(
-                    listOf(listOf(ExternalRuntimeTextPart.Literal("[text:${block.requiredString("id")}]"))),
-                )
             "inline" ->
                 ExternalRuntimeTextBlock(
                     block.requiredArray("lines").values.map { line ->

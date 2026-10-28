@@ -63,7 +63,6 @@ import rylween.dsl.lines
 import rylween.dsl.literalText
 import rylween.dsl.matches
 import rylween.dsl.specialInventoryItems
-import rylween.dsl.structuredText
 import rylween.dsl.validateAuthoredContent
 import rylween.dsl.validateFlagCatalog
 import rylween.dsl.validateGameProgress
@@ -154,7 +153,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             characterCreation.start.resources ==
                 PartyResources(
-                    gold = 1000,
+                    gold = 2000,
                     torches = 5,
                     food = 100,
                     timeLeft = 200,
@@ -208,8 +207,8 @@ class RylweenCompiledGameLedgerTest {
         )
         check(standardBattle.actions.size == 5)
         check(standardBattle.actions.map { it.key } == listOf('A', 'D', 'U', 'B', 'C'))
-        check(standardBattle.actions.map { it.prompt }.first() == structuredText { line("(A)ttack") })
-        check(standardBattle.text.useWhat == structuredText { lines("Use what?", "") })
+        check(standardBattle.actions.map { it.prompt }.first() == literalText { line("(A)ttack") })
+        check(standardBattle.text.useWhat == literalText { lines("Use what?", "") })
         check(standardBattle.text.spellAbort.fallbackText() == "RETURN leaves.")
         check(standardBattle.playerRound.attack.confusionDivisor == 3)
         check(standardBattle.playerRound.attack.hpDefenseDivisor == 12)
@@ -1054,7 +1053,7 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.prompts.inventoryUse.quaff == literalText("Quaff what?"))
         check(
             nextDsl.prompts.inventoryUse.invalidSlot
-                .fallbackText() == "Inventory slot {inventory_slot}\ndoes not exist.",
+                .fallbackText() == "Inventory slot {inventory_slot} does not exist.",
         )
         check(
             nextDsl.prompts.inventoryUse.notUsable
@@ -1063,7 +1062,7 @@ class RylweenCompiledGameLedgerTest {
         check(
             runtimeSystems.prompts.inventoryUse.invalidSlot.render { kind ->
                 if (kind == "inventorySlotName") "A" else null
-            } == listOf("Inventory slot A", "does not exist."),
+            } == listOf("Inventory slot A does not exist."),
         )
         check(
             runtimeSystems.prompts.inventoryUse.notUsable.render { kind ->
@@ -1130,7 +1129,7 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
         check(
             nextDsl.realm.upkeep.starvationDeath
-                .fallbackText() == "{upkeep_member_name} starved\nto death!!!",
+                .fallbackText() == "{upkeep_member_name} starved to death!!!",
         )
         check(nextDsl.realm.upkeep.fatigue.size == 4)
         check(
@@ -2041,15 +2040,14 @@ class RylweenCompiledGameLedgerTest {
         val scriptDsl = File("core/src/main/kotlin/rylween/dsl/Dsl.kt").readText()
         val textDsl = File("core/src/main/kotlin/rylween/dsl/TextDsl.kt").readText()
 
-        check(
-            "fun literalText(" in textDsl &&
-                "fun structuredText(" in textDsl &&
-                "fun flowText(" in textDsl,
-        ) {
-            "text data constructors must distinguish literal, structured, and deferred-wrap text"
+        check("fun literalText(" in textDsl && "fun flowText(" in textDsl) {
+            "text data constructors must distinguish literal lines from deferred-wrap prose"
         }
-        check("fun writeText(" in scriptDsl && "fun showTextAndWait(" in scriptDsl) {
-            "script display actions must name write-only text and write/wait/clear text explicitly"
+        check("fun structuredText(" !in textDsl && "TextBlock.Ref" !in textDsl) {
+            "literal text with runtime values is literalText { line(...) }, and text is never a bare catalog reference"
+        }
+        check("fun writeText(" in scriptDsl && "fun appendText(" in scriptDsl && "fun showTextAndWait(" in scriptDsl) {
+            "script display actions must name a fresh page, an addition to the page, and write/wait/clear text explicitly"
         }
         check("fun say(" !in scriptDsl && "fun readScreen(" !in scriptDsl && "fun screen(" !in scriptDsl) {
             "legacy script display aliases must stay retired from ScriptScope"
@@ -3105,7 +3103,6 @@ class RylweenCompiledGameLedgerTest {
 
 private fun TextBlock.textParts(): List<TextPart> =
     when (this) {
-        is TextBlock.Ref -> emptyList()
         is TextBlock.Inline -> emptyList()
         is TextBlock.Structured -> lines.flatMap { line -> line.parts }
         is TextBlock.Flow -> paragraphs.flatMap { line -> line.parts }
@@ -3113,7 +3110,6 @@ private fun TextBlock.textParts(): List<TextPart> =
 
 private fun TextBlock.fallbackText(): String =
     when (this) {
-        is TextBlock.Ref -> id.id
         is TextBlock.Inline -> lines.joinToString("\n")
         is TextBlock.Structured -> lines.joinToString("\n") { line -> line.parts.joinToString("", transform = TextPart::fallbackText) }
         is TextBlock.Flow ->

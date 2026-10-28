@@ -23,7 +23,6 @@ import rylween.dsl.TextLineSink
 import rylween.dsl.TextPart
 import rylween.dsl.inputKey
 import rylween.dsl.literalText
-import rylween.dsl.structuredText
 
 enum class ShopZeroQuantityDealPolicy { Always, NonZeroOnly }
 
@@ -290,7 +289,7 @@ class ShopServiceBuilder(
     }
 
     fun closed(body: StructuredTextBlockBuilder.() -> Unit) {
-        closedText = structuredText(body)
+        closedText = literalText(body)
     }
 
     fun intro(vararg lines: String) {
@@ -302,7 +301,7 @@ class ShopServiceBuilder(
     }
 
     fun intro(body: StructuredTextBlockBuilder.() -> Unit) {
-        introText = structuredText(body)
+        introText = literalText(body)
     }
 
     fun menu(vararg lines: String) {
@@ -310,7 +309,7 @@ class ShopServiceBuilder(
     }
 
     fun menu(body: StructuredTextBlockBuilder.() -> Unit) {
-        menuText = structuredText(body)
+        menuText = literalText(body)
     }
 
     fun keys(body: ShopMenuKeysBuilder.() -> Unit) {
@@ -326,7 +325,7 @@ class ShopServiceBuilder(
     }
 
     fun goodbye(body: StructuredTextBlockBuilder.() -> Unit) {
-        goodbyeText = structuredText(body)
+        goodbyeText = literalText(body)
     }
 
     fun interlude(
@@ -410,7 +409,7 @@ class ShopInterludeBuilder(
     }
 
     fun offer(body: StructuredTextBlockBuilder.() -> Unit) {
-        offerText = structuredText(body)
+        offerText = literalText(body)
     }
 
     fun offer(text: TextBlock) {
@@ -426,7 +425,7 @@ class ShopInterludeBuilder(
     }
 
     fun accepted(body: StructuredTextBlockBuilder.() -> Unit) {
-        acceptedTexts += structuredText(body)
+        acceptedTexts += literalText(body)
     }
 
     fun declined(vararg lines: String) {
@@ -434,7 +433,7 @@ class ShopInterludeBuilder(
     }
 
     fun declined(body: StructuredTextBlockBuilder.() -> Unit) {
-        declinedText = structuredText(body)
+        declinedText = literalText(body)
     }
 
     fun declined(text: TextBlock) {
@@ -481,7 +480,7 @@ class ShopBuyBuilder {
     }
 
     fun prompt(body: StructuredTextBlockBuilder.() -> Unit) {
-        promptText = structuredText(body)
+        promptText = literalText(body)
     }
 
     fun tooExpensive(vararg lines: String) {
@@ -642,7 +641,7 @@ class ShopCatalogBuilder(
             price,
             zeroQuantityDeal,
             quantityPrompt,
-            structuredText(description),
+            literalText(description),
         )
     }
 
@@ -668,7 +667,7 @@ class ShopCatalogBuilder(
             price,
             zeroQuantityDeal,
             quantityPrompt,
-            structuredText(description),
+            literalText(description),
         )
     }
 
@@ -777,7 +776,7 @@ fun ShopItemSink.item(
     price: ShopPriceModel = ShopPriceModel.ItemCost,
     description: StructuredTextBlockBuilder.() -> Unit,
 ) {
-    item(binding, item, label, price, structuredText(description))
+    item(binding, item, label, price, literalText(description))
 }
 
 fun ShopItemSink.item(
@@ -787,7 +786,7 @@ fun ShopItemSink.item(
     price: ShopPriceModel = ShopPriceModel.ItemCost,
     description: StructuredTextBlockBuilder.() -> Unit,
 ) {
-    item(inputKey(key), item, label, price, structuredText(description))
+    item(inputKey(key), item, label, price, literalText(description))
 }
 
 @RylNextDsl

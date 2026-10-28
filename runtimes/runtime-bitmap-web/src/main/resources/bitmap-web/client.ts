@@ -1466,7 +1466,8 @@ canvas.addEventListener("mouseleave", () => {
 
 // Clicking a choice sends its key, so menus, inventory pickers, and paging
 // prompts can be played with the mouse. Where the only thing to do is press
-// RETURN (the title screen, "(Smash RETURN key)" pauses), any click does it.
+// RETURN (the title screen, "(Smash RETURN key)" pauses), any click does it,
+// and on a document page (the manual, the journal) any click turns the page.
 canvas.addEventListener("click", (event: MouseEvent) => {
     const target = choiceTargetAt(canvasPoint(event));
     const token = target?.token ?? anywhereClickToken();
@@ -1478,7 +1479,7 @@ canvas.addEventListener("click", (event: MouseEvent) => {
 });
 
 function anywhereClickToken(): string | null {
-    if (frame && isTitleFrame(frame)) return "ENTER";
+    if (frame && (isTitleFrame(frame) || frame.document)) return "ENTER";
     if (choiceTargets.length === 0) return null;
     return choiceTargets.every((target) => target.token === "ENTER") ? "ENTER" : null;
 }
