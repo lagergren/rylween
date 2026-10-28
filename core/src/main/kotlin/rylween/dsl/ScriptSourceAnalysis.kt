@@ -222,15 +222,8 @@ fun ScriptSourceRoot.visitScriptStatements(visitor: (ScriptSourceStatement) -> U
 }
 
 /** Returns true when any source statement in this source root matches [predicate]. */
-fun ScriptSourceRoot.anyScriptStatement(predicate: (ScriptStatement) -> Boolean): Boolean {
-    var found = false
-    visitScriptStatements { sourceStatement ->
-        if (!found && predicate(sourceStatement.statement)) {
-            found = true
-        }
-    }
-    return found
-}
+fun ScriptSourceRoot.anyScriptStatement(predicate: (ScriptStatement) -> Boolean): Boolean =
+    buildList { visitScriptStatements { sourceStatement -> add(sourceStatement.statement) } }.any(predicate)
 
 /** Walks an authored script using the shared traversal that feeds validation and source maps. */
 fun visitScriptStatements(
@@ -663,8 +656,8 @@ private class UnreadTextScan(
     private val scriptEnd = mutableSetOf<String>()
 
     private class LoopExit {
-        val unread = mutableSetOf<String>()
-        var reached = false
+        /** What the breaks out of the loop left unread, or null while no break has reached it. */
+        var unread: Set<String>? = null
     }
 
     fun scan(statements: List<ScriptStatementNode>): List<UnreadScriptText> {
@@ -771,7 +764,7 @@ private class UnreadTextScan(
         // A second pass carries the end of one iteration into the start of the next.
         scan(body, unread)?.let { end -> scan(body, unread + end) }
         loopExits.removeLast()
-        return exit.unread.takeIf { exit.reached }
+        return exit.unread
     }
 
     /** A member or monster iteration runs its body any number of times, including none. */
@@ -795,8 +788,7 @@ private class UnreadTextScan(
                 if (exit == null) {
                     scriptEnd += unread
                 } else {
-                    exit.unread += unread
-                    exit.reached = true
+                    exit.unread = exit.unread.orEmpty() + unread
                 }
                 null
             }

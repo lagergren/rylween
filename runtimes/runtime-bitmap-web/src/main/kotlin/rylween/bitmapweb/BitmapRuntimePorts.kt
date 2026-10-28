@@ -99,25 +99,28 @@ internal class BitmapRuntimeInput : RuntimeInputPort {
 
     override fun readText(maxLength: Int?): String? {
         val limit = (maxLength ?: 80).coerceAtLeast(0)
-        val text = StringBuilder()
         logEvent?.invoke("input.text.start maxLength=$limit transport=bitmap")
-        publishTextInput(text.toString(), limit)
-        while (true) {
-            when (val token = input.take()) {
-                CLOSED_INPUT -> return closeTextInput(null, "closed")
-                "ENTER", "RETURN" -> return closeTextInput(text.toString(), "submit")
-                "ESCAPE" -> return closeTextInput(null, "escape")
-                "BACKSPACE" -> {
-                    if (text.isNotEmpty()) text.deleteAt(text.lastIndex)
-                    publishTextInput(text.toString(), limit)
-                }
-                else -> {
-                    val char = token.singleOrNull()?.takeIf { value -> !value.isISOControl() }
-                    if (char != null && text.length < limit) text.append(char)
-                    publishTextInput(text.toString(), limit)
+        val text =
+            buildString {
+                publishTextInput(toString(), limit)
+                while (true) {
+                    when (val token = input.take()) {
+                        CLOSED_INPUT -> return closeTextInput(null, "closed")
+                        "ENTER", "RETURN" -> break
+                        "ESCAPE" -> return closeTextInput(null, "escape")
+                        "BACKSPACE" -> {
+                            if (isNotEmpty()) deleteAt(lastIndex)
+                            publishTextInput(toString(), limit)
+                        }
+                        else -> {
+                            val char = token.singleOrNull()?.takeIf { value -> !value.isISOControl() }
+                            if (char != null && length < limit) append(char)
+                            publishTextInput(toString(), limit)
+                        }
+                    }
                 }
             }
-        }
+        return closeTextInput(text, "submit")
     }
 
     fun acceptClientMessage(message: String) {
@@ -783,14 +786,13 @@ private fun waterMask(
     world: WorldMap,
     point: GridPoint,
     content: CompiledContentBundle,
-): Int {
-    var mask = 0
-    if (world.terrainAt(GridPoint(point.x, point.y - 1)).isBitmapWater(content)) mask = mask or WATER_NORTH
-    if (world.terrainAt(GridPoint(point.x + 1, point.y)).isBitmapWater(content)) mask = mask or WATER_EAST
-    if (world.terrainAt(GridPoint(point.x, point.y + 1)).isBitmapWater(content)) mask = mask or WATER_SOUTH
-    if (world.terrainAt(GridPoint(point.x - 1, point.y)).isBitmapWater(content)) mask = mask or WATER_WEST
-    return mask
-}
+): Int =
+    listOf(
+        WATER_NORTH to GridPoint(point.x, point.y - 1),
+        WATER_EAST to GridPoint(point.x + 1, point.y),
+        WATER_SOUTH to GridPoint(point.x, point.y + 1),
+        WATER_WEST to GridPoint(point.x - 1, point.y),
+    ).fold(0) { mask, (side, neighbor) -> if (world.terrainAt(neighbor).isBitmapWater(content)) mask or side else mask }
 
 private fun CompiledTerrain?.isBitmapWater(content: CompiledContentBundle): Boolean =
     this
@@ -823,12 +825,10 @@ private fun stableVariant(
     point: GridPoint,
     code: String,
     settlement: String?,
-): Int {
-    var hash = point.x * 73_856_093 xor point.y * 19_349_663
-    code.forEach { char -> hash = hash * 31 + char.code }
-    settlement.orEmpty().forEach { char -> hash = hash * 31 + char.code }
-    return hash.floorMod(4)
-}
+): Int =
+    (code + settlement.orEmpty())
+        .fold(point.x * 73_856_093 xor point.y * 19_349_663) { hash, char -> hash * 31 + char.code }
+        .floorMod(4)
 
 private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
 

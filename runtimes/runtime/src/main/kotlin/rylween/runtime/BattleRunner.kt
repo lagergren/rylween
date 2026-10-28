@@ -406,8 +406,7 @@ internal class BattleRunner(
                 var retry = true
                 var attempts = 0
                 while (retry && attempts < rules.roundLimit && next.monsterHasLivingMembers()) {
-                    val messages = mutableListOf<String>()
-                    next = next.playerAction(index, member, messages)
+                    val messages = buildList { next = next.playerAction(index, member, this) }
                     retry = next.actionRetry
                     next = next.copy(actionRetry = false)
                     screen.updateStatus(next.runtime)
@@ -604,13 +603,15 @@ internal class BattleRunner(
         var next = copy(partyHeld = false, partyConfused = false, actionRetry = false)
         monsterHp.forEachIndexed { index, hp ->
             if (hp > 0 && next.partyHasLivingMembers() && !next.monstersHeld) {
-                val messages = mutableListOf<String>()
                 val cast = next.shouldMonsterCast()
                 next = cast.encounter
-                next =
-                    when {
-                        cast.value -> next.castMonsterSpell(index)
-                        else -> next.monsterAttack(hp, messages)
+                val messages =
+                    buildList {
+                        next =
+                            when {
+                                cast.value -> next.castMonsterSpell(index)
+                                else -> next.monsterAttack(hp, this)
+                            }
                     }
                 screen.updateStatus(next.runtime)
                 showBattleMessages(messages)
@@ -959,32 +960,31 @@ internal class BattleRunner(
     private fun PartyState.applyLevelUps(leveling: ExternalLevelingRules?): BattleLevelUps {
         leveling ?: return BattleLevelUps(this)
         val growthByClass = leveling.classGrowth.associateBy { growth -> growth.pcClass }
-        val gains = mutableListOf<BattleLevelGain>()
-        val nextMembers =
-            members.mapIndexed { index, member ->
-                val gained =
-                    ((member.level + 1)..leveling.maxLevel).count { targetLevel ->
-                        member.experience >= leveling.xpThresholds.getOrElse(targetLevel) { Int.MAX_VALUE }
-                    }
-                if (gained == 0) return@mapIndexed member
-                gains += BattleLevelGain(memberName(content, index), gained)
-                val growth = growthByClass[member.pcClass]
-                val nextHealth = member.health + (growth?.health ?: 0) * gained
-                val nextWisdom = member.wisdom + (growth?.wisdom ?: 0) * gained
-                val hpFloor = content.evalFormula(leveling.hitPointFloor, this, mapOf("health" to nextHealth)).value
-                member.copy(
-                    level = (member.level + gained).coerceAtMost(leveling.maxLevel),
-                    weaponSkill = member.weaponSkill + (growth?.weaponSkill ?: 0) * gained,
-                    health = nextHealth,
-                    wisdom = nextWisdom,
-                    // Spell points refill up to wisdom, as in the original, so a wiser caster holds more of them.
-                    mana = member.mana.current of nextWisdom,
-                    charisma = member.charisma + (growth?.charisma ?: 0) * gained,
-                    dexterity = member.dexterity + (growth?.dexterity ?: 0) * gained,
-                    hitPoints = member.hitPoints.current.coerceAtLeast(hpFloor) of nextHealth,
-                )
-            }
-        return BattleLevelUps(copy(members = nextMembers), gains.toList())
+        val (nextMembers, gains) =
+            members
+                .mapIndexed { index, member ->
+                    val gained =
+                        ((member.level + 1)..leveling.maxLevel).count { targetLevel ->
+                            member.experience >= leveling.xpThresholds.getOrElse(targetLevel) { Int.MAX_VALUE }
+                        }
+                    if (gained == 0) return@mapIndexed member to null
+                    val growth = growthByClass[member.pcClass]
+                    val nextHealth = member.health + (growth?.health ?: 0) * gained
+                    val nextWisdom = member.wisdom + (growth?.wisdom ?: 0) * gained
+                    val hpFloor = content.evalFormula(leveling.hitPointFloor, this, mapOf("health" to nextHealth)).value
+                    member.copy(
+                        level = (member.level + gained).coerceAtMost(leveling.maxLevel),
+                        weaponSkill = member.weaponSkill + (growth?.weaponSkill ?: 0) * gained,
+                        health = nextHealth,
+                        wisdom = nextWisdom,
+                        // Spell points refill up to wisdom, as in the original, so a wiser caster holds more of them.
+                        mana = member.mana.current of nextWisdom,
+                        charisma = member.charisma + (growth?.charisma ?: 0) * gained,
+                        dexterity = member.dexterity + (growth?.dexterity ?: 0) * gained,
+                        hitPoints = member.hitPoints.current.coerceAtLeast(hpFloor) of nextHealth,
+                    ) to BattleLevelGain(memberName(content, index), gained)
+                }.unzip()
+        return BattleLevelUps(copy(members = nextMembers), gains.filterNotNull())
     }
 
     private fun CompiledPartyMember.weaponDamage(): Int = content.itemRecord(equipment.weapon)?.weaponDamage ?: 1
@@ -1093,17 +1093,9 @@ internal class BattleRunner(
             .filter { spell -> content.slug(spell.id) != "monster.melee" }
 
     private fun spellsByPrefix(prefix: String): List<CompiledSpell> =
-        buildList {
-            content.spells.forEach { spell ->
-                if (content.slug(spell.id).startsWith(prefix)) addBySlot(spell)
-            }
-        }
-
-    private fun MutableList<CompiledSpell>.addBySlot(spell: CompiledSpell) {
-        var index = 0
-        while (index < size && this[index].slot <= spell.slot) index++
-        add(index, spell)
-    }
+        content.spells
+            .filter { spell -> content.slug(spell.id).startsWith(prefix) }
+            .sortedBy(CompiledSpell::slot)
 
     private fun itemName(item: CompiledHandleRef): String =
         content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) } ?: content.slug(item)

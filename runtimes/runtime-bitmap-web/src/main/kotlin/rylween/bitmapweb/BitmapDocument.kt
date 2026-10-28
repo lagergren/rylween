@@ -109,34 +109,35 @@ internal fun bitmapMarkdownDocumentLayout(
  * code block only splits across pages when enough of it lands on both sides.
  */
 internal fun List<BitmapDocumentLine>.toBitmapDocumentPages(rows: Int = BITMAP_DOCUMENT_ROWS): List<List<BitmapDocumentLine>> {
-    val pages = mutableListOf<List<BitmapDocumentLine>>()
-    var page = mutableListOf<BitmapDocumentLine>()
+    val lines = this
+    return buildList {
+        var page = emptyList<BitmapDocumentLine>()
 
-    fun closePage() {
-        pages += page.dropLastWhile(BitmapDocumentLine::isBlank)
-        page = mutableListOf()
-    }
+        fun closePage() {
+            add(page.dropLastWhile(BitmapDocumentLine::isBlank))
+            page = emptyList()
+        }
 
-    var index = 0
-    while (index < size) {
-        if (this[index].isBlank) {
-            if (page.isNotEmpty()) page += this[index]
-            index += 1
-            if (page.size >= rows) closePage()
-            continue
+        var index = 0
+        while (index < lines.size) {
+            if (lines[index].isBlank) {
+                if (page.isNotEmpty()) page += lines[index]
+                index += 1
+                if (page.size >= rows) closePage()
+                continue
+            }
+            val take = lines.linesToPlace(index, free = rows - page.size, pageEmpty = page.isEmpty())
+            if (take == 0) {
+                closePage()
+                continue
+            }
+            page += lines.subList(index, index + take)
+            index += take
+            val runSplit = index < lines.size && !lines[index].isBlank && lines[index].kind == lines[index - 1].kind
+            if (page.size >= rows || runSplit) closePage()
         }
-        val take = linesToPlace(index, free = rows - page.size, pageEmpty = page.isEmpty())
-        if (take == 0) {
-            closePage()
-            continue
-        }
-        page += subList(index, index + take)
-        index += take
-        val runSplit = index < size && !this[index].isBlank && this[index].kind == this[index - 1].kind
-        if (page.size >= rows || runSplit) closePage()
+        if (page.isNotEmpty() || isEmpty()) closePage()
     }
-    if (page.isNotEmpty() || pages.isEmpty()) closePage()
-    return pages
 }
 
 /**

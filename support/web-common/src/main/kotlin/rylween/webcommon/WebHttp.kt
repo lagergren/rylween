@@ -46,16 +46,18 @@ fun readHttpRequest(
     if (requestLine.isBlank()) return null
     val parts = requestLine.split(" ", limit = 3)
     if (parts.size < 2) return null
-    val headers = linkedMapOf<String, String>()
-    while (true) {
-        val line = readHttpLine(input, maxLineBytes) ?: return null
-        if (line.isEmpty()) break
-        val separator = line.indexOf(':')
-        if (separator < 1) continue
-        val name = line.substring(0, separator).trim().lowercase(Locale.ROOT)
-        val value = line.substring(separator + 1).trim()
-        headers[name] = value
-    }
+    val headers =
+        buildMap {
+            while (true) {
+                val line = readHttpLine(input, maxLineBytes) ?: return null
+                if (line.isEmpty()) break
+                val separator = line.indexOf(':')
+                if (separator < 1) continue
+                val name = line.substring(0, separator).trim().lowercase(Locale.ROOT)
+                val value = line.substring(separator + 1).trim()
+                put(name, value)
+            }
+        }
     val contentLength = headers["content-length"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0
     check(contentLength <= maxBodyBytes) { "HTTP request body too large: $contentLength" }
     val body = ByteArray(contentLength)
@@ -148,16 +150,14 @@ private fun parseKeyValue(
     decode: (String) -> String,
 ): Map<String, String> {
     if (raw.isBlank()) return emptyMap()
-    val values = linkedMapOf<String, String>()
-    raw.split('&').forEach { part ->
+    return raw.split('&').associate { part ->
         val separator = part.indexOf('=')
         if (separator < 0) {
-            values[decode(part)] = ""
-            return@forEach
+            decode(part) to ""
+        } else {
+            decode(part.substring(0, separator)) to decode(part.substring(separator + 1))
         }
-        values[decode(part.substring(0, separator))] = decode(part.substring(separator + 1))
     }
-    return values
 }
 
 private fun String.parseCookieHeader(): Map<String, String> =

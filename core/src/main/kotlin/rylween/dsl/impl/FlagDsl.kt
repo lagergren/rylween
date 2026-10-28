@@ -33,8 +33,10 @@ open class FlagState internal constructor(
     override val ast: BoolAst = BoolAst.FlagIs(flag.slug, native)
 }
 
+private val flagRegistry = mutableListOf<FlagRef>()
+
 /** Process-local registry populated by generated flag declarations. */
-val declaredFlags: MutableList<FlagRef> = mutableListOf()
+val declaredFlags: List<FlagRef> get() = flagRegistry
 
 /** Registers a generated or hand-authored flag reference for validation and save parsing. */
-fun <F : FlagRef> F.declareFlag(): F = also { declaredFlags += it }
+fun <F : FlagRef> F.declareFlag(): F = also { flagRegistry += it }

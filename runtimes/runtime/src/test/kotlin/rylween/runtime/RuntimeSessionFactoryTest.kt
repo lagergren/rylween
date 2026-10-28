@@ -501,7 +501,7 @@ private data class SaveNpcPlacement(
 
 private fun rylween.compiled.CompiledContentBundle.townServiceSlugs(): Map<String, Set<String>> =
     towns.associate { town ->
-        slug(town.id) to town.services.mapTo(mutableSetOf(), ::slug)
+        slug(town.id) to town.services.map(::slug).toSet()
     }
 
 private class RecordingAnsiTerminal : AnsiTerminal {

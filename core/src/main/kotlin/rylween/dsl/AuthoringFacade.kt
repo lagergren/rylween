@@ -44,6 +44,7 @@
 
 package rylween.dsl
 
+import rylween.dsl.impl.declareFlag as implDeclareFlag
 import rylween.dsl.impl.item as implShopItem
 import rylween.dsl.impl.withStateModule as implWithStateModule
 
@@ -143,7 +144,7 @@ infix fun Int.of(max: Int): StatPool = StatPool(this, max)
 
 fun shopText(body: ShopTextBuilder.() -> Unit): TextBlock = rylween.dsl.impl.shopText(body)
 
-fun <F : FlagRef> F.declareFlag(): F = also { flag -> rylween.dsl.impl.declaredFlags += flag }
+fun <F : FlagRef> F.declareFlag(): F = implDeclareFlag()
 
 fun ShopItemSink.item(
     binding: InputBindingModel,

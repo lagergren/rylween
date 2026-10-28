@@ -34,10 +34,12 @@ class RylweenOpcodeContractTest {
     @Test
     fun emittedBundleInstructionsMatchTheirSchema() {
         val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
-        val violations = mutableListOf<String>()
-        bundle.content.scripts.roots.forEach { root ->
-            walk(root.instructions, root.rootHandle.toString(), violations)
-        }
+        val violations =
+            buildList {
+                bundle.content.scripts.roots.forEach { root ->
+                    walk(root.instructions, root.rootHandle.toString(), this)
+                }
+            }
         assertTrue(
             violations.isEmpty(),
             "compiled bundle has ${violations.size} contract violation(s):\n" + violations.joinToString("\n"),
@@ -56,8 +58,7 @@ class RylweenOpcodeContractTest {
         val instructionIndex = root.instructions.indexOfFirst(::hasFirstOperandOtherThanHandleList)
         val original = root.instructions[instructionIndex]
         val originalFirstSlot = CompiledOpcodeContract.slotOf(original.operands.first())
-        val mutatedOperands = original.operands.toMutableList()
-        mutatedOperands[0] = CompiledOperand.HandleList(emptyList())
+        val mutatedOperands = listOf(CompiledOperand.HandleList(emptyList())) + original.operands.drop(1)
         val mutatedBundle =
             bundle.withScriptInstruction(
                 rootIndex = rootIndex,
@@ -203,10 +204,11 @@ class RylweenOpcodeContractTest {
         instruction: CompiledInstruction,
     ): CompiledGameBundle {
         val root = content.scripts.roots[rootIndex]
-        val instructions = root.instructions.toMutableList()
-        instructions[instructionIndex] = instruction
-        val roots = content.scripts.roots.toMutableList()
-        roots[rootIndex] = root.copy(instructions = instructions)
+        val instructions = root.instructions.mapIndexed { index, current -> if (index == instructionIndex) instruction else current }
+        val roots =
+            content.scripts.roots.mapIndexed { index, current ->
+                if (index == rootIndex) root.copy(instructions = instructions) else current
+            }
         return copy(content = content.copy(scripts = content.scripts.copy(roots = roots)))
     }
 }
