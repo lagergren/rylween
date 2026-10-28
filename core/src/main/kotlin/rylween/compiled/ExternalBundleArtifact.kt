@@ -1131,7 +1131,7 @@ data class ExternalCastleText(
     val stairsLeave: ExternalRuntimeTextBlock,
     val teleportVortex: ExternalRuntimeTextBlock,
     val teleportOutside: ExternalRuntimeTextBlock,
-    val giveMenu: ExternalRuntimeTextBlock,
+    val givePrompt: ExternalRuntimeTextBlock,
     val stairsGuardianGrateful: ExternalRuntimeTextBlock,
     val floorNames: List<String>,
 )
@@ -2510,7 +2510,7 @@ private class ExternalBundleArtifactWriter {
             "stairsLeave" to textBlockJson(text.stairsLeave),
             "teleportVortex" to textBlockJson(text.teleportVortex),
             "teleportOutside" to textBlockJson(text.teleportOutside),
-            "giveMenu" to textBlockJson(text.giveMenu),
+            "givePrompt" to textBlockJson(text.givePrompt),
             "stairsGuardianGrateful" to textBlockJson(text.stairsGuardianGrateful),
             "floorNames" to JsonArray(text.floorNames.map(::JsonString)),
         )
@@ -3502,7 +3502,7 @@ private class ExternalRuntimeSystemsReader(
             stairsLeave = required("stairsLeave").readTextBlock(),
             teleportVortex = required("teleportVortex").readTextBlock(),
             teleportOutside = required("teleportOutside").readTextBlock(),
-            giveMenu = required("giveMenu").readTextBlock(),
+            givePrompt = required("givePrompt").readTextBlock(),
             stairsGuardianGrateful = required("stairsGuardianGrateful").readTextBlock(),
             floorNames = requiredArray("floorNames").values.map { value -> value.asString("castle floor name") },
         )

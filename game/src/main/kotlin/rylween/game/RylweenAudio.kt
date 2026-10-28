@@ -479,6 +479,6 @@ val rylweenAudio: GameSection =
             scene(Scenes.Towne.smith, Music.smithForge)
             scene(Scenes.Towne.merchant, Music.merchantShop)
             scene(Scenes.Towne.hut, Music.hutFireside)
-            scene(sceneId("castle.ydarg.completed"), Music.ending)
+            scene(Scenes.Castle.ydargCompleted, Music.ending)
         }
     }

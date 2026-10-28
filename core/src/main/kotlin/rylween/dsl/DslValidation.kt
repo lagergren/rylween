@@ -846,7 +846,7 @@ private fun validateCastleText(
         "stairs leave" to text.stairsLeave,
         "teleport vortex" to text.teleportVortex,
         "teleport outside" to text.teleportOutside,
-        "give menu" to text.giveMenu,
+        "give prompt" to text.givePrompt,
         "stairs guardian grateful" to text.stairsGuardianGrateful,
     ).forEach { (textLabel, block) -> validateTextBlock(block, "$label $textLabel") }
     validateTextBlock(text.trapTriesDisarm, "$label trap disarm", allowedRuntimeBindings = setOf(TextPart.CastleThiefName))

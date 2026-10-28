@@ -350,11 +350,18 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
-        val lines = castle.text.giveMenu.renderCastle(screen.textColumns)
+        val lines =
+            screen.choiceMenuLines(
+                castle.text.givePrompt.renderCastle(screen.textColumns),
+                castle.stairs.items.map { stair -> choiceLine(stair.digit, stair.itemName) },
+                listOf(systems.prompts.returnLeavesLine()),
+            )
         screen.writeText(lines)
-        val digits = (castle.stairs.items.map { stair -> stair.digit } + 5).toSet()
-        val digit = input.readValidDigitChoice(screen, lines, digits, audio = audio) ?: return runtime
-        if (digit == 5) return runtime
+        val digits =
+            castle.stairs.items
+                .map { stair -> stair.digit }
+                .toSet()
+        val digit = input.readValidDigitChoice(screen, lines, digits, cancelKeys = setOf('\n'), audio = audio) ?: return runtime
         val item = castle.stairs.items.firstOrNull { stair -> stair.digit == digit } ?: return runtime
         val milestone = content.ref(CompiledHandleKind.Milestone, item.milestone)
         if (milestone !in runtime.party.milestones) {

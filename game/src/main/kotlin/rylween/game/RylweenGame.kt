@@ -578,10 +578,10 @@ val authoredRylween: RylweenModel =
                 // Script ids are story hooks invoked by the castle runner at
                 // entry, completion, and blocked/already-complete branches.
                 scripts {
-                    alreadyCompleted = sceneId("castle.ydarg.already_completed")
-                    entryBlocked = sceneId("castle.ydarg.entry_blocked")
-                    entered = sceneId("castle.ydarg.entered")
-                    completed = sceneId("castle.ydarg.completed")
+                    alreadyCompleted = Scenes.Castle.ydargAlreadyCompleted
+                    entryBlocked = Scenes.Castle.ydargEntryBlocked
+                    entered = Scenes.Castle.ydargEntered
+                    completed = Scenes.Castle.ydargCompleted
                 }
 
                 // Text rows are castle-specific prompts, menus, labels, images,
@@ -619,16 +619,7 @@ val authoredRylween: RylweenModel =
                     stairsLeave = literalText("You take the nearest exit!")
                     teleportVortex = flowText("The world fades into a vortex of agonizing vertigo...")
                     teleportOutside = literalText("And you are outside...")
-                    giveMenu =
-                        literalText(
-                            "Give him what?",
-                            "",
-                            "1. The Fire Shield",
-                            "2. The Master Crown",
-                            "3. The Foot of Jazzy",
-                            "4. The Bracelets of Thun",
-                            "5. Nothing",
-                        )
+                    givePrompt = literalText("Give him what?", "")
                     stairsGuardianGrateful =
                         flowText(
                             """
@@ -3887,7 +3878,7 @@ val authoredRylween: RylweenModel =
 
             // Castle scenes are script roots named from the castle model above.
             // They keep the story beats authored while the castle runner stays generic.
-            scene(sceneId("castle.ydarg.already_completed")) {
+            scene(Scenes.Castle.ydargAlreadyCompleted) {
                 showBackdrop(Images.Backdrop.ydargCastle)
                 writeText(
                     flowText(
@@ -3899,7 +3890,7 @@ val authoredRylween: RylweenModel =
                 waitInput("after the ruined castle")
             }
 
-            scene(sceneId("castle.ydarg.entry_blocked")) {
+            scene(Scenes.Castle.ydargEntryBlocked) {
                 showBackdrop(Images.Backdrop.ydargCastle)
                 showBackdrop(Images.Castle.jaaraGate)
                 writeText(
@@ -3922,7 +3913,7 @@ val authoredRylween: RylweenModel =
                 waitInput("after Jaara blocks the gate")
             }
 
-            scene(sceneId("castle.ydarg.entered")) {
+            scene(Scenes.Castle.ydargEntered) {
                 showBackdrop(Images.Backdrop.ydargCastle)
                 showBackdrop(Images.Castle.jaaraGate)
                 writeText(
@@ -3955,7 +3946,7 @@ val authoredRylween: RylweenModel =
                 waitInput("after entering castle Ydarg")
             }
 
-            scene(sceneId("castle.ydarg.completed")) {
+            scene(Scenes.Castle.ydargCompleted) {
                 showTextAndWait(
                     """
                     The last trapdoor slams shut behind you. You are high above the forest, on the roof of this fortress. Suddenly, a voice speaks:

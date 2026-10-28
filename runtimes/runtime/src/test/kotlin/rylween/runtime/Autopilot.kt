@@ -410,7 +410,9 @@ internal class Autopilot(
                 val key = stairs.key(choice)
                 return key.also { coverage.recordKey(stairsGroup, it) }
             }
-            lines.any { line -> line.trimStart().startsWith("1.") } -> return stairsItemDigit(state, castle)
+            castle.text.givePrompt
+                .render { null }
+                .first() in lines -> return stairsItemDigit(state, castle)
             lines.offers(treasure.binding(RuntimeCommandActionId.Take)) -> {
                 val take = party.freeSlots(state.party) >= TREASURE_FREE_SLOTS && !tour.leavesTreasure()
                 val key = treasure.key(if (take) RuntimeCommandActionId.Take else RuntimeCommandActionId.Leave)
