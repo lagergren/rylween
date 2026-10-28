@@ -69,6 +69,8 @@ import rylween.dsl.impl.Race
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RuntimeMode
 import rylween.dsl.impl.StatPool
+import rylween.dsl.lineColor
+import rylween.dsl.withoutLineColor
 import rylween.terminal.AnsiTerminal
 import rylween.terminal.AnsiTerminals
 import java.io.Closeable
@@ -2342,6 +2344,15 @@ private fun CompiledContentBundle.journalEntryText(entry: CompiledJournalEntry):
  * via `chunked`.
  */
 internal fun wrapTextLine(
+    line: String,
+    width: Int,
+): List<String> {
+    // A colored line keeps its color on every row it wraps to.
+    val color = line.lineColor() ?: return wrapPlainTextLine(line, width)
+    return wrapPlainTextLine(line.withoutLineColor(), width).map { row -> color.escape + row }
+}
+
+private fun wrapPlainTextLine(
     line: String,
     width: Int,
 ): List<String> {

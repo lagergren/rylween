@@ -5,6 +5,9 @@
 
 package rylween.bitmapweb
 
+import rylween.dsl.lineColor
+import rylween.dsl.withoutLineColor
+
 private const val VIRTUAL_WIDTH = 1280
 private const val VIRTUAL_HEIGHT = 720
 
@@ -66,7 +69,8 @@ internal data class BitmapFrame(
             "subtitle" to subtitle.json(),
             "status" to (status?.toJson() ?: "null"),
             "statusLines" to statusLines.jsonArray(),
-            "textLines" to textLines.jsonArray(),
+            "textLines" to textLines.map(String::withoutLineColor).jsonArray(),
+            "textLineColors" to textLineColors().jsonArray(),
             "textInput" to (textInput?.toJson() ?: "null"),
             "textEffect" to textEffect.name.json(),
             "portrait" to (portrait?.toJson() ?: "null"),
@@ -81,6 +85,13 @@ internal data class BitmapFrame(
             "music" to (music?.json() ?: "null"),
         )
 }
+
+// The color each text line starts with, "" for plain ones; empty when no line has one.
+private fun BitmapFrame.textLineColors(): List<String> =
+    textLines
+        .map { line -> line.lineColor()?.marker.orEmpty() }
+        .takeIf { colors -> colors.any(String::isNotEmpty) }
+        .orEmpty()
 
 internal data class BitmapImageAsset(
     val id: String,

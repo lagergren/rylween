@@ -228,6 +228,7 @@ type BitmapFrame = {
     subtitle?: string;
     title?: string;
     textLines?: string[];
+    textLineColors?: string[];
     textInput?: BitmapTextInput | null;
     textEffect?: TextEffect;
     status?: BitmapStatus | null;
@@ -3963,7 +3964,7 @@ function drawTextPanel(frame: BitmapFrame): void {
     const bitmapScale = currentFantasyTextScale();
     const fantasy = textDisplaySettings.bitmapFont;
     ctx.font = textPanelFont;
-    const rows = textPanelRows(frame.textLines || [], maxWidth, bitmapScale);
+    const rows = textPanelRows(frame.textLines || [], maxWidth, bitmapScale, frame.textLineColors || []);
     const lineHeight = fittedLineHeight(
         fantasy ? currentFantasyLineHeight(bitmapScale) : Math.ceil(24 * textDisplaySettings.bitmapLineSpacing),
         fantasy ? Math.ceil(fantasyFontHeight * bitmapScale) + 3 : 19,
@@ -3986,10 +3987,10 @@ function drawTextPanel(frame: BitmapFrame): void {
         } else if (row.kind === "columns") {
             drawTextPanelColumns(row.cells, x, ty, rowTop, lineHeight, columnWidths.get(row.cells.length) || [maxWidth], reveal, bitmapScale);
         } else if (fantasy) {
-            drawFantasyRevealText(row.text, x, ty, textPanelLineColor(row.line), textPanelLineDimColor(row.line), reveal, bitmapScale);
+            drawFantasyRevealText(row.text, x, ty, textPanelRowColor(row), textPanelRowDimColor(row), reveal, bitmapScale);
         } else {
             ctx.font = textPanelFont;
-            drawRevealText(row.text, x, ty, textPanelLineColor(row.line), textPanelLineDimColor(row.line), reveal);
+            drawRevealText(row.text, x, ty, textPanelRowColor(row), textPanelRowDimColor(row), reveal);
         }
         ty += lineHeight;
     }
@@ -4002,16 +4003,16 @@ type CreationStatLine = { label: string; value: string };
 // One drawn row of the text panel: a wrapped piece of a prose line, a row of
 // aligned choice columns (cells separated by a tab), or a creation stat line.
 type TextPanelRow =
-    | { kind: "text"; line: string; text: string }
+    | { kind: "text"; line: string; text: string; color: string }
     | { kind: "columns"; line: string; cells: string[] }
     | { kind: "stat"; line: string; stat: CreationStatLine };
 
 const textPanelFont = "17px Georgia, 'Times New Roman', serif";
 const textPanelColumnGap = 20;
 
-function textPanelRows(lines: string[], maxWidth: number, scale: number): TextPanelRow[] {
+function textPanelRows(lines: string[], maxWidth: number, scale: number, colors: string[]): TextPanelRow[] {
     const rows: TextPanelRow[] = [];
-    for (const line of lines) {
+    for (const [index, line] of lines.entries()) {
         const stat = creationStatLine(line);
         if (stat) {
             rows.push({kind: "stat", line, stat});
@@ -4019,7 +4020,7 @@ function textPanelRows(lines: string[], maxWidth: number, scale: number): TextPa
             rows.push({kind: "columns", line, cells: line.split("\t")});
         } else {
             const parts = textDisplaySettings.bitmapFont ? wrapFantasyLines(line, maxWidth, scale) : wrapCanvasLines(line, maxWidth);
-            for (const text of parts) rows.push({kind: "text", line, text});
+            for (const text of parts) rows.push({kind: "text", line, text, color: colors[index] || ""});
         }
     }
     return rows;
@@ -4237,6 +4238,24 @@ function drawCreationStatLine(
     ctx.textAlign = "right";
     ctx.fillText(value, valueX, y);
     ctx.textAlign = "left";
+}
+
+// The colors a line of game text takes from a {red}-style marker at its start: the text, then its reveal tail.
+const textLineColors: Record<string, [string, string]> = {
+    red: ["#e8735c", "rgba(232, 115, 92, 0.25)"],
+    green: ["#8fcf7a", "rgba(143, 207, 122, 0.25)"],
+    yellow: ["#ead27a", "rgba(234, 210, 122, 0.25)"],
+    blue: ["#86aee8", "rgba(134, 174, 232, 0.25)"],
+    magenta: ["#d792d9", "rgba(215, 146, 217, 0.25)"],
+    cyan: ["#80d4d6", "rgba(128, 212, 214, 0.25)"]
+};
+
+function textPanelRowColor(row: TextPanelRow & {kind: "text"}): string {
+    return textLineColors[row.color]?.[0] ?? textPanelLineColor(row.line);
+}
+
+function textPanelRowDimColor(row: TextPanelRow & {kind: "text"}): string {
+    return textLineColors[row.color]?.[1] ?? textPanelLineDimColor(row.line);
 }
 
 /** Chooses the normal or disabled prose color for text-window rows. */

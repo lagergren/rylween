@@ -1214,6 +1214,18 @@ private fun validateRandomNpcWildernessRect(
     }
 }
 
+private const val TERMINAL_ESCAPE = '\u001B'
+
+// A color marker colors its whole line, so it can only start one.
+private fun checkLineColorStartsLine(
+    line: TextLine,
+    label: String,
+) {
+    check(line.parts.drop(1).none { part -> part is TextPart.LineColor }) {
+        "$label has a color marker after its start; {red} and the other colors go at the start of a line or paragraph"
+    }
+}
+
 private fun validateTextBlock(
     block: TextBlock,
     label: String,
@@ -1224,10 +1236,14 @@ private fun validateTextBlock(
 ) {
     fun validatePart(part: TextPart) {
         when (part) {
-            is TextPart.Literal -> Unit
+            is TextPart.Literal ->
+                check(
+                    TERMINAL_ESCAPE !in part.text,
+                ) { "$label has a terminal escape code; color a line with {red} or another color at its start" }
             is TextPart.IntValue -> Unit
             is TextPart.StringValue -> Unit
             is TextPart.Pause -> error("$label has a {pause} marker, but only writeText and showTextAndWait show text in beats")
+            is TextPart.LineColor -> Unit
             is TextPart.RoleName -> {
                 check(part.role.slug.isNotBlank()) { "$label references blank character role" }
                 check(knownRoles == null || part.role in knownRoles) {
@@ -1330,6 +1346,9 @@ private fun validateTextBlock(
         is TextBlock.Inline -> {
             check(block.lines.isNotEmpty()) { "$label inline text has no lines" }
             check(block.lines.any { it.isNotBlank() }) { "$label inline text is blank" }
+            check(block.lines.none { line -> TERMINAL_ESCAPE in line }) {
+                "$label has a terminal escape code; color a line with {red} or another color at its start"
+            }
         }
         is TextBlock.Structured -> {
             check(block.lines.isNotEmpty()) { "$label structured text has no lines" }
@@ -1342,6 +1361,7 @@ private fun validateTextBlock(
             }
             block.lines.forEachIndexed { index, line ->
                 check(line.parts.isNotEmpty()) { "$label line $index has no parts" }
+                checkLineColorStartsLine(line, "$label line $index")
                 line.parts.forEach(::validatePart)
             }
         }
@@ -1356,6 +1376,7 @@ private fun validateTextBlock(
             }
             block.paragraphs.forEachIndexed { index, line ->
                 check(line.parts.isNotEmpty()) { "$label paragraph $index has no parts" }
+                checkLineColorStartsLine(line, "$label paragraph $index")
                 line.parts.forEach(::validatePart)
             }
         }

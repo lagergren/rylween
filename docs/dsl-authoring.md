@@ -211,6 +211,12 @@ also the only place `appendText` takes one. Any other text that holds a marker,
 such as a menu prompt or a journal entry, is rejected. `pause(ms)` is left for a
 beat between two other things, such as a sound cue and the line after it.
 
+A line or paragraph that starts with `{red}` is shown in red, in the terminal
+and in the browser alike; `{green}`, `{yellow}`, `{blue}`, `{magenta}` and
+`{cyan}` work the same way. The color covers the whole line, so the marker can
+only start one: `line("{red}", partyName(target), " DIES!")`. Text never holds
+terminal escape codes itself; the content check rejects them.
+
 Literal lines are rows, not hand-wrapped prose: put each sentence on one line
 and let the renderer wrap it to the window, and break the line only where a new
 sentence, speech or option row starts. Historical script aliases such as

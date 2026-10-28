@@ -4976,7 +4976,7 @@ val authoredRylween: RylweenModel =
                             target.hp set 0
                             target.dead set true
                             appendText {
-                                line("\u001B[31m", partyName(target), " DIES!\u001B[37m {pause 1s}")
+                                line("{red}", partyName(target), " DIES! {pause 1s}")
                             }
                         }
                     }
@@ -4993,7 +4993,7 @@ val authoredRylween: RylweenModel =
                             target.hp set 0
                             target.dead set true
                             writeText {
-                                line("\u001B[31m", partyName(target), " DIES!\u001B[37m {pause 1s}")
+                                line("{red}", partyName(target), " DIES! {pause 1s}")
                             }
                         }
                     }
