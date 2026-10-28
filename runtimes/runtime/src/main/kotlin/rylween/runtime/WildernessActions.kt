@@ -745,7 +745,17 @@ internal class WildernessActions(
         )
 
     private fun battleRunner(): BattleRunner =
-        BattleRunner(content, combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts), systems.audio)
+        BattleRunner(
+            content,
+            combat,
+            systems.realm.spellCost,
+            systems.pacing.battle,
+            input,
+            screen,
+            log,
+            PausePrompts(systems.prompts),
+            systems.audio,
+        )
 
     private fun PartyState.matches(expr: CompiledBoolExpr): Boolean =
         when (expr) {

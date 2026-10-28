@@ -249,15 +249,13 @@ class ScriptScope(
     }
 
     /**
-     * Exposes the active caster plus the standard `baseCost + caster.level`
-     * expression used by current priest spells.
+     * Exposes the active caster plus what the spell costs them, as the game's
+     * `realm { spellCost }` formula works it out. The runtime supplies both,
+     * the way battle charges a mage spell.
      */
-    fun withCurrentCasterCost(
-        baseCost: Int,
-        body: ScriptScope.(MemberRef, IntExpr) -> Unit,
-    ) {
+    fun withCurrentCasterCost(body: ScriptScope.(MemberRef, IntExpr) -> Unit) {
         withCurrentCaster { caster ->
-            body(caster, lit(baseCost) + caster.level)
+            body(caster, v("spell_cost"))
         }
     }
 
@@ -3471,10 +3469,14 @@ class FormulaBuilder(
     val health: IntExpr = v("health")
 
     // Member stats, bound by the system that evaluates the formula: the
-    // hunting ranger, the thief disarming a castle trap, or, for a haggle roll
-    // bonus, the party's highest living charisma.
+    // hunting ranger, the thief disarming a castle trap, the caster of a spell,
+    // or, for a haggle roll bonus, the party's highest living charisma.
     val charisma: IntExpr = v("charisma")
     val dexterity: IntExpr = v("dexterity")
+    val level: IntExpr = v("level")
+
+    // The spell being cast, for the spell cost formula; the caster's stats are bound above.
+    val spellBaseCost: IntExpr = v("spell_base_cost")
 
     fun whenValue(
         condition: BoolExpr,

@@ -135,6 +135,9 @@ class RealmContentBuilder {
     private var hunt: HuntRulesModel? = null
     private var timeOfDayBands = defaultTimeOfDayBands()
 
+    /** What a spell costs its caster, mage spells in battle and priest spells alike; without it a spell costs its base cost. */
+    var spellCost: FormulaId? = null
+
     fun baseResourceCapacity(
         resource: Resource,
         amount: Int,
@@ -165,6 +168,7 @@ class RealmContentBuilder {
             camp = camp,
             hunt = hunt,
             timeOfDay = timeOfDayBands,
+            spellCost = spellCost,
         )
 }
 

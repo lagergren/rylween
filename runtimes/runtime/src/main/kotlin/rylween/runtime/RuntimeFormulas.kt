@@ -4,8 +4,9 @@
  * A formula is a named integer expression from the compiled bundle. The system
  * that evaluates it binds the formula's variables: battle rewards bind the
  * encounter numbers, leveling binds the new health, hunting binds the hunter's
- * stats, a castle trap binds the disarming thief's stats, and a shop haggle
- * binds the party's best charisma.
+ * stats, a castle trap binds the disarming thief's stats, a spell binds its
+ * caster's stats and base cost, and a shop haggle binds the party's best
+ * charisma.
  */
 
 package rylween.runtime
@@ -17,6 +18,7 @@ import rylween.compiled.CompiledHandleKind
 import rylween.compiled.CompiledHandleRef
 import rylween.compiled.CompiledIntExpr
 import rylween.compiled.CompiledPartyMember
+import rylween.compiled.CompiledSpell
 import rylween.compiled.applyCompiledBinary
 import rylween.compiled.compareCompiled
 
@@ -54,12 +56,28 @@ internal fun CompiledContentBundle.evalFormula(
     bindings: Map<String, Int>,
 ): FormulaResult = FormulaEvaluator(this, party, bindings).eval(formula.value)
 
-/** The stat variables a formula sees for the one member it is evaluated for, such as a hunter or a disarming thief. */
+/** The stat variables a formula sees for the one member it is evaluated for, such as a hunter, a disarming thief or a caster. */
 internal fun CompiledPartyMember.statBindings(): Map<String, Int> =
     mapOf(
         "charisma" to charisma,
         "dexterity" to dexterity,
+        "level" to level,
     )
+
+/**
+ * What [spell] costs [caster] in spell points: the game's spell cost formula
+ * [formulaSlug], evaluated with the caster's stats and the spell's base cost,
+ * or the base cost alone when the game declares no formula.
+ */
+internal fun CompiledContentBundle.spellCost(
+    formulaSlug: String?,
+    spell: CompiledSpell,
+    caster: CompiledPartyMember,
+    party: PartyState,
+): Int =
+    formulaSlug
+        ?.let { slug -> evalFormula(slug, party, caster.statBindings() + ("spell_base_cost" to spell.baseCost)).value }
+        ?: spell.baseCost
 
 private class FormulaEvaluator(
     private val content: CompiledContentBundle,

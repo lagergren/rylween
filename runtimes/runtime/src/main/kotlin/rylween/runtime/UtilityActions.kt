@@ -197,7 +197,11 @@ internal class UtilityActions(
             input = input,
             screen = screen,
             initialRuntime = runtime,
-            initialLocals = mapOf("caster_idx" to casterIndex + 1),
+            initialLocals =
+                mapOf(
+                    "caster_idx" to casterIndex + 1,
+                    "spell_cost" to content.spellCost(systems.realm.spellCost, spell, runtime.party.members[casterIndex], runtime.party),
+                ),
             log = log,
         ).execute(program)
     }

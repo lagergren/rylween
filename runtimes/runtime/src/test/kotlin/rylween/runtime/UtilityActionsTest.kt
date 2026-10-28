@@ -272,6 +272,27 @@ class UtilityActionsTest {
         assertEquals(GridPoint(1, 2), world.lastPassable(GridPoint(1, 2), GridPoint(0, 1), steps = 18))
     }
 
+    // The game prices spells with its spell cost formula: a heal costs its base cost plus the priest's level.
+    @Test
+    fun castingAPriestSpellChargesTheGamesSpellCost() {
+        val base = runtimeWithInventory()
+        val priest = base.party.members.indexOfFirst { member -> member.pcClass == PcClass.Priest }
+        val runtime = base.updateMember(priest) { member -> member.copy(mana = 200 of 200) }
+        val heal = priestSpells().single { spell -> content.slug(spell.id) == "priest.heal" }
+        val spellKey =
+            systems.prompts.priest.firstSpellKey
+                .single() + priestSpells().indexOf(heal)
+
+        val after = runUtility("heal-cost.log", "${priest + 1}${spellKey}1") { actions -> actions.castPriestSpell(runtime) }
+
+        val level = runtime.party.members[priest].level
+        assertEquals(
+            200 - (heal.baseCost + level),
+            after.party.members[priest]
+                .mana.current,
+        )
+    }
+
     /** Where the party lands when its priest teleports it [miles] miles towards [direction] from [from]. */
     private fun teleport(
         from: GridPoint,
@@ -281,10 +302,9 @@ class UtilityActionsTest {
         val base = runtimeWithInventory()
         val priest = base.party.members.indexOfFirst { member -> member.pcClass == PcClass.Priest }
         val runtime = base.updateMember(priest) { member -> member.copy(mana = 200 of 200) }
-        val spells = content.spells.filter { spell -> content.slug(spell.id).startsWith("priest.") }.sortedBy(CompiledSpell::slot)
         val spellKey =
             systems.prompts.priest.firstSpellKey
-                .single() + spells.indexOfFirst { spell -> content.slug(spell.id) == "priest.teleport" }
+                .single() + priestSpells().indexOfFirst { spell -> content.slug(spell.id) == "priest.teleport" }
         val input = ScriptedInput("${priest + 1}$spellKey  $direction$miles")
         val after =
             runUtility("teleport.log", input) { actions -> actions.castPriestSpell(runtime.withParty(runtime.party.copy(position = from))) }
@@ -292,6 +312,10 @@ class UtilityActionsTest {
         assertTrue(input.exhausted)
         return after.party.position
     }
+
+    // The priest spells in the order the spell menu lists them.
+    private fun priestSpells(): List<CompiledSpell> =
+        content.spells.filter { spell -> content.slug(spell.id).startsWith("priest.") }.sortedBy(CompiledSpell::slot)
 
     private fun leavePrompts(): List<EquipmentCommand> =
         checkNotNull(systems.town).leavePrompts.also { prompts ->

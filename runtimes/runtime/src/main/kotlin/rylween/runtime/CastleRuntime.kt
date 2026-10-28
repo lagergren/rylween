@@ -187,8 +187,17 @@ internal class CastleRuntime(
     ): RuntimeState {
         screen.writeText(castle.text.roomMonster.renderCastle(screen.textColumns))
         val battle =
-            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts), systems.audio)
-                .runTier(runtime, castle.monsterTier)
+            BattleRunner(
+                content,
+                systems.combat,
+                systems.realm.spellCost,
+                systems.pacing.battle,
+                input,
+                screen,
+                log,
+                PausePrompts(systems.prompts),
+                systems.audio,
+            ).runTier(runtime, castle.monsterTier)
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         return battle.runtime.copy(
             currentMode =
