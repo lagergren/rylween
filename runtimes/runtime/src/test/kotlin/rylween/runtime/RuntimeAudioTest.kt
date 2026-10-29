@@ -119,7 +119,7 @@ class RuntimeAudioTest {
         val input = ScriptedInput(("F" + "AA".repeat(runtime.party.members.size)).repeat(ROUNDS))
 
         RuntimeLog.open(testTmp.resolve("audio-battle-miss.log")).use { log ->
-            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, audioData = audio)
+            BattleRunner(content, systems.combat, systems.realm.spellCost, systems.pacing.battle, input, screen, log, audioData = audio)
                 .runMonster(runtime, content.ref(CompiledHandleKind.Monster, "hobgoblin_chief"), mandatory = true)
         }
 

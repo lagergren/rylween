@@ -37,11 +37,14 @@ internal class AutopilotCreation(
     private var started = false
     private var member = 0
 
+    private val rollCounts = sortedMapOf<Int, Int>()
+    private val acceptedStats = sortedMapOf<Int, Map<CharacterCreationStat, Int>>()
+
     /** Every stat roll seen, per member number, accepted or not. */
-    val rolls: MutableMap<Int, Int> = sortedMapOf()
+    val rolls: Map<Int, Int> get() = rollCounts
 
     /** The stats each member was created with, per member number. */
-    val accepted: MutableMap<Int, Map<CharacterCreationStat, Int>> = sortedMapOf()
+    val accepted: Map<Int, Map<CharacterCreationStat, Int>> get() = acceptedStats
 
     /** The key for a title or creation screen, or `null` when [view] shows neither. */
     fun key(view: AutopilotView): Char? {
@@ -82,7 +85,7 @@ internal class AutopilotCreation(
                     ?.get(1)
                     ?.toInt()
             }
-        rolls.merge(member, 1, Int::plus)
+        rollCounts.merge(member, 1, Int::plus)
         val stats =
             lines
                 .mapNotNull { line -> statPattern.find(line.trim()) }
@@ -91,7 +94,7 @@ internal class AutopilotCreation(
                         match.groupValues[2].toInt()
                 }
         val good = recruit().minimums.all { (stat, minimum) -> (stats[stat] ?: 0) >= minimum }
-        if (good) accepted[member] = stats
+        if (good) acceptedStats[member] = stats
         return if (good) 'N' else 'Y'
     }
 

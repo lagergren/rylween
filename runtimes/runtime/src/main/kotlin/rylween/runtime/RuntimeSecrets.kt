@@ -50,12 +50,13 @@ data class RuntimeSecretAccounts(
 /** The save-user spellings of an account name, with either `_` or `-` for spaces and punctuation. */
 private fun String.accountAliases(): Set<String> {
     val lowered = trim().lowercase()
-    return listOf('_', '-').mapTo(mutableSetOf()) { separator ->
-        lowered
-            .map { char -> char.takeIf { it.isLetterOrDigit() || it == '-' || it == '_' } ?: separator }
-            .joinToString("")
-            .trim('-', '_')
-    }
+    return listOf('_', '-')
+        .map { separator ->
+            lowered
+                .map { char -> char.takeIf { it.isLetterOrDigit() || it == '-' || it == '_' } ?: separator }
+                .joinToString("")
+                .trim('-', '_')
+        }.toSet()
 }
 
 /** Runs the secret actions of the roles the active account plays. */
@@ -133,25 +134,27 @@ internal class SecretActions(
         items: List<CompiledHandleRef>,
     ): WildernessActionResult {
         var party = runtime.party
-        val notices = mutableListOf<String>()
-        items.forEach { item ->
-            val freeSlot = party.inventory.firstOrNull { slot -> slot.item == null }?.slot
-            val slot =
-                freeSlot ?: chooseDropSlotForInventoryOverflow(
-                    systems = systems,
-                    input = input,
-                    screen = screen,
-                    party = party,
-                    leadLines = runtimeChromeText("${itemName(item)} does not fit."),
-                    itemName = ::itemName,
-                )
-            log.event("secret.grant_item item=${content.slug(item)} slot=${slot ?: "passed"}")
-            if (slot != null) {
-                val carried = party.withInventoryItem(slot, item).leaveExcessFood(content, systems, screen.textColumns)
-                party = carried.party
-                notices += carried.notice
+        val notices =
+            buildList {
+                items.forEach { item ->
+                    val freeSlot = party.inventory.firstOrNull { slot -> slot.item == null }?.slot
+                    val slot =
+                        freeSlot ?: chooseDropSlotForInventoryOverflow(
+                            systems = systems,
+                            input = input,
+                            screen = screen,
+                            party = party,
+                            leadLines = runtimeChromeText("${itemName(item)} does not fit."),
+                            itemName = ::itemName,
+                        )
+                    log.event("secret.grant_item item=${content.slug(item)} slot=${slot ?: "passed"}")
+                    if (slot != null) {
+                        val carried = party.withInventoryItem(slot, item).leaveExcessFood(content, systems, screen.textColumns)
+                        party = carried.party
+                        addAll(carried.notice)
+                    }
+                }
             }
-        }
         audio.cue(AudioCue.ItemTaken)
         val next = runtime.withParty(party)
         screen.updateStatus(next)
@@ -165,5 +168,15 @@ internal class SecretActions(
             ?: content.slug(item)
 
     private fun battleRunner(): BattleRunner =
-        BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts), systems.audio)
+        BattleRunner(
+            content,
+            systems.combat,
+            systems.realm.spellCost,
+            systems.pacing.battle,
+            input,
+            screen,
+            log,
+            PausePrompts(systems.prompts),
+            systems.audio,
+        )
 }

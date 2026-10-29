@@ -32,10 +32,19 @@ sealed interface TextPart {
      * A beat in script text, written `{pause}`, `{pause 1.5s}` or `{pause 600ms}`
      * inside a string. [ScriptScope.writeText] and [ScriptScope.showTextAndWait]
      * show the text up to the beat, pause, then show the page again with more of
-     * it; no other text accepts one.
+     * it; a beat at the very end holds the page that long. [ScriptScope.appendText]
+     * takes a beat only at the end; no other text accepts one.
      */
     data class Pause(
         val millis: Int,
+    ) : TextPart
+
+    /**
+     * The color of a whole line or paragraph, written `{red}` (or another
+     * [TextColor]) at its start. It can only start a line.
+     */
+    data class LineColor(
+        val color: TextColor,
     ) : TextPart
 
     data class RoleName(
@@ -75,6 +84,11 @@ sealed interface TextPart {
         val location: LocationId,
     ) : TextPart
 
+    /** The square a mission waits on, as the map shows coordinates. */
+    data class MissionCoordinate(
+        val mission: MissionId,
+    ) : TextPart
+
     object OfferedItemName : TextPart
 
     object OfferedItemPrice : TextPart
@@ -101,6 +115,9 @@ sealed interface TextPart {
     /** Name of the party member who stands guard while the party camps. */
     object CampGuardName : TextPart
 
+    /** Name of the thief who tries to disarm a castle trap. */
+    object CastleThiefName : TextPart
+
     object PartyMemberCount : TextPart
 
     object PartyMemberMax : TextPart
@@ -118,6 +135,8 @@ sealed interface TextPart {
     object TownTaxPercent : TextPart
 
     object TownTaxAmount : TextPart
+
+    object TownTaxShortfall : TextPart
 
     object CreationMemberNumber : TextPart
 
@@ -150,6 +169,8 @@ sealed interface TextPart {
     object BattleLevelMemberName : TextPart
 
     object BattleLevelsGained : TextPart
+
+    object BattleRoundNumber : TextPart
 }
 
 /** Returns a deterministic placeholder used when no runtime renderer is available. */
@@ -159,6 +180,7 @@ fun TextPart.fallbackText(): String =
         is TextPart.IntValue -> "{int}"
         is TextPart.StringValue -> "{string}"
         is TextPart.Pause -> ""
+        is TextPart.LineColor -> ""
         is TextPart.RoleName -> "{${role.slug}.name}"
         is TextPart.RoleJob -> "{${role.slug}.job}"
         is TextPart.RoleLocation -> "{${role.slug}.location}"
@@ -168,6 +190,7 @@ fun TextPart.fallbackText(): String =
         is TextPart.TownName -> town.slug
         is TextPart.FuzzyTownLocation -> "${town.slug}.near"
         is TextPart.LocationCoordinate -> "{${location.slug}.coordinates}"
+        is TextPart.MissionCoordinate -> "{${mission.slug}.coordinates}"
         TextPart.OfferedItemName -> "{item_name}"
         TextPart.OfferedItemPrice -> "{item_price}"
         TextPart.SelectedItemName -> "{selected_item_name}"
@@ -180,6 +203,7 @@ fun TextPart.fallbackText(): String =
         TextPart.HuntFoodGained -> "{hunt_food_gained}"
         TextPart.UpkeepMemberName -> "{upkeep_member_name}"
         TextPart.CampGuardName -> "{camp_guard_name}"
+        TextPart.CastleThiefName -> "{castle_thief_name}"
         TextPart.PartyMemberCount -> "{party_count}"
         TextPart.PartyMemberMax -> "{party_max}"
         TextPart.WildernessDungeonName -> "{dungeon}"
@@ -189,6 +213,7 @@ fun TextPart.fallbackText(): String =
         TextPart.CurrentTownName -> "{town}"
         TextPart.TownTaxPercent -> "{pct}"
         TextPart.TownTaxAmount -> "{amount}"
+        TextPart.TownTaxShortfall -> "{shortfall}"
         TextPart.CreationMemberNumber -> "{char_num}"
         TextPart.CreationMemberName -> "{name}"
         TextPart.CreationWeaponSkill -> "{weapon_skill}"
@@ -205,6 +230,7 @@ fun TextPart.fallbackText(): String =
         TextPart.BattleLootName -> "{battle_loot}"
         TextPart.BattleLevelMemberName -> "{battle_level_member}"
         TextPart.BattleLevelsGained -> "{battle_levels}"
+        TextPart.BattleRoundNumber -> "{battle_round}"
     }
 
 /** Structured text line made of literal and dynamic parts. */
@@ -240,7 +266,7 @@ sealed interface TextBlock {
  */
 fun literalText(vararg lines: String): TextBlock {
     val rows = expandMultiline(lines)
-    return if (rows.none(pauseMarker::containsMatchIn)) {
+    return if (rows.none(textMarker::containsMatchIn)) {
         TextBlock.Inline(rows)
     } else {
         TextBlock.Structured(rows.map { row -> TextLine(literalParts(row)) })
@@ -252,16 +278,48 @@ fun literalText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = Struct
 
 /**
  * Creates flow text: prose the renderer wraps to its own column or pixel
- * width. Single newlines in the source are spaces; a blank line starts a new
- * paragraph, which renderers show with a blank line above it.
+ * width, from strings and runtime values, as in
+ * `flowText("You find ", amount, " gold.")`. A newline in a string is a
+ * space; a blank line starts a new paragraph, which renderers show with a
+ * blank line above it.
  */
-fun flowText(text: String): TextBlock = TextBlock.Flow(flowParagraphs(text))
+fun flowText(vararg parts: Any): TextBlock =
+    TextBlock.Flow(
+        parts
+            .flatMap { part -> if (part is String) part.flowPieces() else listOf(part) }
+            .splitAtParagraphBreaks()
+            .map { paragraph -> TextLine(paragraph.flatMap(::textParts).trimmedEnds()) }
+            .filter { paragraph -> paragraph.parts.isNotEmpty() },
+    )
 
-/** Creates a single deferred-wrap paragraph from literal and dynamic parts. */
-fun flowText(vararg parts: Any): TextBlock = TextBlock.Flow(listOf(TextLine(parts.flatMap(::textParts))))
+/** Where a blank line in flow text starts a new paragraph. */
+private object ParagraphBreak
 
-/** Creates deferred-wrap text with multiple paragraphs and optional dynamic parts. */
-fun flowText(body: FlowTextBlockBuilder.() -> Unit): TextBlock = FlowTextBlockBuilder().apply(body).build()
+private val blankLine = Regex("""\n\s*\n""")
+private val lineBreak = Regex("""\s*\n\s*""")
+
+/** This string's paragraphs with a [ParagraphBreak] between them, each newline and the indentation around it a space. */
+private fun String.flowPieces(): List<Any> =
+    split(blankLine)
+        .map { piece -> piece.replace(lineBreak, " ") }
+        .flatMapIndexed { index, piece -> if (index == 0) listOf(piece) else listOf(ParagraphBreak, piece) }
+
+private fun List<Any>.splitAtParagraphBreaks(): List<List<Any>> {
+    val breaks = indices.filter { index -> this[index] == ParagraphBreak }
+    return (listOf(-1) + breaks).zip(breaks + size) { start, end -> subList(start + 1, end) }
+}
+
+/** A paragraph's parts without the spaces at its start and end. */
+private fun List<TextPart>.trimmedEnds(): List<TextPart> =
+    mapIndexed { index, part ->
+        when {
+            part !is TextPart.Literal -> part
+            index == 0 && index == lastIndex -> TextPart.Literal(part.text.trim())
+            index == 0 -> TextPart.Literal(part.text.trimStart())
+            index == lastIndex -> TextPart.Literal(part.text.trimEnd())
+            else -> part
+        }
+    }.filterNot { part -> part == TextPart.Literal("") }
 
 /**
  * Detection rule for triple-quoted multi-line authoring: if the caller
@@ -289,11 +347,6 @@ fun TextLineSink.line(vararg parts: Any) {
 /** Adds multiple literal lines to a text-line sink. */
 fun TextLineSink.lines(vararg lines: String) {
     expandMultiline(lines).forEach { line(it) }
-}
-
-/** Executes a nested structured-text builder block against this sink. */
-fun <T : TextLineSink> T.lines(body: T.() -> Unit) {
-    body()
 }
 
 /** Concatenates text blocks into one structured block. */
@@ -325,28 +378,50 @@ private fun textParts(part: Any): List<TextPart> =
     }
 
 private const val DEFAULT_PAUSE_MILLIS = 1_500
-private val pauseMarker = Regex("""\{pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s))?\}""")
+private val textMarker =
+    Regex("""\{(?:pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s))?|(${TextColor.entries.joinToString("|") { color -> color.marker }}))\}""")
 
-/** Splits literal text at its `{pause}` markers; text without one stays a single literal. */
+/** Splits literal text at its `{pause}` and color markers; text without one stays a single literal. */
 private fun literalParts(text: String): List<TextPart> {
-    if (!pauseMarker.containsMatchIn(text)) return listOf(TextPart.Literal(text))
-    val parts = mutableListOf<TextPart>()
-    var rest = 0
-    pauseMarker.findAll(text).forEach { marker ->
-        text.substring(rest, marker.range.first).takeIf(String::isNotEmpty)?.let { before -> parts += TextPart.Literal(before) }
-        parts += TextPart.Pause(marker.pauseMillis())
-        rest = marker.range.last + 1
+    val markers = textMarker.findAll(text).map { marker -> marker.textPart() }.toList()
+    if (markers.isEmpty()) return listOf(TextPart.Literal(text))
+    return text.split(textMarker).flatMapIndexed { index, piece ->
+        listOfNotNull(piece.takeIf(String::isNotEmpty)?.let { literal -> TextPart.Literal(literal) }, markers.getOrNull(index))
     }
-    text.substring(rest).takeIf(String::isNotEmpty)?.let { after -> parts += TextPart.Literal(after) }
-    return parts
 }
 
-private fun MatchResult.pauseMillis(): Int {
-    val amount = groupValues[1].takeIf(String::isNotEmpty)?.toDouble() ?: return DEFAULT_PAUSE_MILLIS
-    return if (groupValues[2] == "s") (amount * 1_000).toInt() else amount.toInt()
+private fun MatchResult.textPart(): TextPart {
+    val color = groupValues[3].takeIf(String::isNotEmpty)
+    if (color != null) return TextPart.LineColor(TextColor.entries.single { entry -> entry.marker == color })
+    val amount = groupValues[1].takeIf(String::isNotEmpty)?.toDouble() ?: return TextPart.Pause(DEFAULT_PAUSE_MILLIS)
+    return TextPart.Pause(if (groupValues[2] == "s") (amount * 1_000).toInt() else amount.toInt())
 }
 
-/** One step of text shown with `{pause}` beats: the text so far, then the pause after it; the last step has none. */
+/**
+ * A color for a whole line of text-window text, written `{red}`, `{green}` and
+ * so on at the start of the line. Compiled text starts the line with the
+ * color's ANSI [escape]; every renderer reads it back with [lineColor], so the
+ * terminal shows the line in that color and the browser draws it so.
+ */
+enum class TextColor(
+    val marker: String,
+    val escape: String,
+) {
+    Red("red", "\u001B[31m"),
+    Green("green", "\u001B[32m"),
+    Yellow("yellow", "\u001B[33m"),
+    Blue("blue", "\u001B[34m"),
+    Magenta("magenta", "\u001B[35m"),
+    Cyan("cyan", "\u001B[36m"),
+}
+
+/** The color a rendered text-window line starts with, if it has one. */
+fun String.lineColor(): TextColor? = TextColor.entries.firstOrNull { color -> startsWith(color.escape) }
+
+/** The line without its leading color escape. */
+fun String.withoutLineColor(): String = lineColor()?.let { color -> removePrefix(color.escape) } ?: this
+
+/** One step of text shown with `{pause}` beats: the text so far, then the pause after it, if any. */
 internal data class TextBeat(
     val text: TextBlock,
     val pauseMillis: Int?,
@@ -355,7 +430,8 @@ internal data class TextBeat(
 /**
  * The steps [ScriptScope.writeText] shows this text in: one per `{pause}`
  * marker, each with everything up to that marker, and a last one with the
- * whole text. Text without markers is a single step.
+ * whole text. A marker at the very end holds the whole text, so it adds no
+ * step of its own. Text without markers is a single step.
  */
 internal fun TextBlock.beats(): List<TextBeat> {
     val rows =
@@ -365,17 +441,18 @@ internal fun TextBlock.beats(): List<TextBeat> {
             is TextBlock.Flow -> paragraphs
         }
     if (rows.none { row -> row.parts.any { part -> part is TextPart.Pause } }) return listOf(TextBeat(this, null))
-    val beats = mutableListOf<TextBeat>()
-    rows.forEachIndexed { rowIndex, row ->
-        row.parts.forEachIndexed { partIndex, part ->
-            if (part is TextPart.Pause) {
-                val partial = TextLine(row.parts.take(partIndex)).withoutPauses()
-                val shown = rows.take(rowIndex).map(TextLine::withoutPauses) + listOfNotNull(partial.takeIf { it.parts.isNotEmpty() })
-                beats += TextBeat(withRows(shown), part.millis)
+    val beats =
+        rows.flatMapIndexed { rowIndex, row ->
+            row.parts.mapIndexedNotNull { partIndex, part ->
+                (part as? TextPart.Pause)?.let { pause ->
+                    val partial = TextLine(row.parts.take(partIndex)).withoutPauses()
+                    val shown = rows.take(rowIndex).map(TextLine::withoutPauses) + listOfNotNull(partial.takeIf { it.parts.isNotEmpty() })
+                    TextBeat(withRows(shown), pause.millis)
+                }
             }
         }
-    }
-    return beats + TextBeat(withRows(rows.map(TextLine::withoutPauses)), null)
+    val whole = withRows(rows.map(TextLine::withoutPauses))
+    return if (beats.last().text == whole) beats else beats + TextBeat(whole, null)
 }
 
 /**
@@ -384,26 +461,22 @@ internal fun TextBlock.beats(): List<TextBeat> {
  * "but... dust..."; a line that ends at a beat drops the space before it.
  */
 private fun TextLine.withoutPauses(): TextLine {
-    val joined = mutableListOf<TextPart>()
-    var afterPause = false
-    parts.forEach { part ->
-        val previous = joined.lastOrNull() as? TextPart.Literal
-        when {
-            part is TextPart.Pause -> afterPause = true
-            afterPause && previous != null && part is TextPart.Literal -> {
-                val spaced = previous.text.endsWith(' ') || part.text.startsWith(' ')
-                joined[joined.lastIndex] = TextPart.Literal(previous.text.trimEnd() + (if (spaced) " " else "") + part.text.trimStart())
-                afterPause = false
-            }
-            else -> {
-                joined += part
-                afterPause = false
+    val (joined, _) =
+        parts.fold(emptyList<TextPart>() to false) { (joined, afterPause), part ->
+            val previous = joined.lastOrNull() as? TextPart.Literal
+            when {
+                part is TextPart.Pause -> joined to true
+                afterPause && previous != null && part is TextPart.Literal -> joined.dropLast(1) + previous.joinedAcrossPause(part) to false
+                else -> joined + part to false
             }
         }
-    }
-    val last = joined.lastOrNull() as? TextPart.Literal
-    if (last != null) joined[joined.lastIndex] = TextPart.Literal(last.text.trimEnd())
-    return TextLine(joined)
+    val last = joined.lastOrNull() as? TextPart.Literal ?: return TextLine(joined)
+    return TextLine(joined.dropLast(1) + TextPart.Literal(last.text.trimEnd()))
+}
+
+private fun TextPart.Literal.joinedAcrossPause(next: TextPart.Literal): TextPart.Literal {
+    val spaced = text.endsWith(' ') || next.text.startsWith(' ')
+    return TextPart.Literal(text.trimEnd() + (if (spaced) " " else "") + next.text.trimStart())
 }
 
 private fun TextBlock.withRows(rows: List<TextLine>): TextBlock =
@@ -422,36 +495,6 @@ class StructuredTextBlockBuilder : TextLineSink {
     }
 
     fun build(): TextBlock = TextBlock.Structured(lines.toList())
-}
-
-/** Builder for deferred-wrap prose paragraphs that may include dynamic text parts. */
-@RylNextDsl
-class FlowTextBlockBuilder {
-    private val paragraphs = mutableListOf<TextLine>()
-
-    /**
-     * Adds one paragraph. String newlines inside [parts] are normalized by the
-     * renderer, so use another [paragraph] call for intentional paragraph breaks.
-     */
-    fun paragraph(vararg parts: Any) {
-        paragraphs += TextLine(parts.flatMap(::textParts))
-    }
-
-    /** Adds one or more literal paragraphs from triple-quoted prose. */
-    fun paragraphs(text: String) {
-        flowParagraphs(text).forEach(paragraphs::add)
-    }
-
-    fun build(): TextBlock = TextBlock.Flow(paragraphs.toList())
-}
-
-private fun flowParagraphs(text: String): List<TextLine> {
-    val trimmed = text.trimIndent()
-    return trimmed
-        .split(Regex("\\n\\s*\\n"))
-        .map { paragraph -> paragraph.trim().replace('\n', ' ') }
-        .filter(String::isNotEmpty)
-        .map { paragraph -> TextLine(literalParts(paragraph)) }
 }
 
 /** Text-placeholder helper for NPC name, job, and location. */
@@ -509,3 +552,12 @@ class LocationTextRef(
 
 /** Creates text placeholders for a [location]. */
 fun location(location: LocationId): LocationTextRef = LocationTextRef(location)
+
+/** Text about a mission, such as the square it waits on: `mission(Missions.erethorEntry).coordinates`. */
+class MissionTextRef(
+    mission: MissionId,
+) {
+    val coordinates: TextPart = TextPart.MissionCoordinate(mission)
+}
+
+fun mission(mission: MissionId): MissionTextRef = MissionTextRef(mission)

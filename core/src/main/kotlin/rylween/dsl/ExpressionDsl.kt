@@ -31,7 +31,26 @@ abstract class IntExpr {
     operator fun div(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "div", other.ast))
 
     operator fun div(other: Int): IntExpr = this / lit(other)
+
+    /** This value, or [other] when this is smaller: `damage atLeast 1`. */
+    infix fun atLeast(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "max", other.ast))
+
+    infix fun atLeast(other: Int): IntExpr = this atLeast lit(other)
+
+    /** This value, or [other] when this is larger: `chance atMost 95`. */
+    infix fun atMost(other: IntExpr): IntExpr = Expr(IntAst.Binary(ast, "min", other.ast))
+
+    infix fun atMost(other: Int): IntExpr = this atMost lit(other)
 }
+
+// A plain number on the left of a value, as in `40 - dexterity * 2 / 5`, needs no lit().
+operator fun Int.plus(other: IntExpr): IntExpr = lit(this) + other
+
+operator fun Int.minus(other: IntExpr): IntExpr = lit(this) - other
+
+operator fun Int.times(other: IntExpr): IntExpr = lit(this) * other
+
+operator fun Int.div(other: IntExpr): IntExpr = lit(this) / other
 
 data class Expr(
     override val ast: IntAst,
@@ -185,7 +204,9 @@ class PartyRef(
     val food: IntSlot = IntSlot(script, LValueAst.PartyScalar("food"), IntAst.PartyScalar("food"))
     val timeLeft: IntSlot = IntSlot(script, LValueAst.PartyScalar("time_left"), IntAst.PartyScalar("time_left"))
     val restedHours: IntSlot = IntSlot(script, LValueAst.PartyScalar("rested_hours"), IntAst.PartyScalar("rested_hours"))
-    val memberCount: IntSlot = IntSlot(script, LValueAst.PartyScalar("member_count"), IntAst.PartyScalar("member_count"))
+
+    /** The number of living members. The runtime counts them again whenever a member dies or comes back, so scripts only read it. */
+    val memberCount: IntExpr = Expr(IntAst.PartyScalar("member_count"))
     val inventory: PartyInventoryRef = PartyInventoryRef(script)
     val leader: MemberRef get() = member(lit(1))
 
@@ -296,12 +317,32 @@ class MemberRef(
         script.record(ScriptStatementNode.Set(LValueAst.MemberField(index.ast, "hit_points"), maxHp.ast))
     }
 
+    /** Takes [amount] hit points; at zero or below the member dies. */
+    fun wound(amount: IntExpr) {
+        hp -= amount
+        script.whenever(hp lte 0) { kill() }
+    }
+
+    fun wound(amount: Int): Unit = wound(lit(amount))
+
+    /** Kills the member outright. The runtime keeps the party's count of living members. */
+    fun kill() {
+        hp set 0
+        dead set true
+    }
+
+    /** Brings a dead member back to life with [hitPoints] hit points. */
+    fun revive(hitPoints: Int = 1) {
+        dead set false
+        hp set hitPoints
+    }
+
     private fun intField(field: String): IntSlot =
         IntSlot(script, LValueAst.MemberField(index.ast, field), IntAst.MemberField(index.ast, field))
 }
 
 class MonsterRef(
-    script: ScriptScope,
+    private val script: ScriptScope,
     val index: IntExpr,
 ) {
     val hp: IntSlot = IntSlot(script, LValueAst.MonsterField(index.ast, "hit_points"), IntAst.MonsterField(index.ast, "hit_points"))
@@ -311,6 +352,20 @@ class MonsterRef(
             LValueAst.MonsterField(index.ast, "dead"),
             BoolAst.MonsterFlag(index.ast, "dead"),
         )
+
+    /** Takes [amount] hit points; at zero or below the monster dies. */
+    fun wound(amount: IntExpr) {
+        hp -= amount
+        script.whenever(hp lte 0) { kill() }
+    }
+
+    fun wound(amount: Int): Unit = wound(lit(amount))
+
+    /** Kills the monster outright. */
+    fun kill() {
+        hp set 0
+        dead set true
+    }
 }
 
 class BattleRef(

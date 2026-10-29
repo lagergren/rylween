@@ -175,6 +175,7 @@ internal class DungeonRuntime(
                 BattleRunner(
                     content,
                     systems.combat,
+                    systems.realm.spellCost,
                     systems.pacing.battle,
                     input,
                     screen,
@@ -375,12 +376,8 @@ private fun List<CompiledDungeonRandomEvent>.drawDungeonEvent(
     val totalWeight = sumOf(CompiledDungeonRandomEvent::weight)
     if (totalWeight <= 0) return null
     val draw = party.drawRandom(1, totalWeight)
-    var running = 0
-    val event =
-        first { random ->
-            running += random.weight
-            draw.value <= running
-        }.event
+    val cumulativeWeights = map(CompiledDungeonRandomEvent::weight).runningReduce(Int::plus)
+    val event = this[cumulativeWeights.indexOfFirst { weight -> draw.value <= weight }].event
     log.rngDraw(
         context = "dungeon.random_event",
         lo = 1,

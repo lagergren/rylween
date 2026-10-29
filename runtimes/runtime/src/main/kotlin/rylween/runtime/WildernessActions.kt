@@ -72,28 +72,26 @@ internal class WildernessActions(
         runtime: RuntimeState,
         leadingMessages: List<String> = emptyList(),
     ): WildernessActionResult {
-        var party = runtime.party
-        val upkeepMessages = mutableListOf<String>()
-        party = party.regenerateMana(realm.upkeep.manaRegenChance)
+        val regenerated = runtime.party.regenerateMana(realm.upkeep.manaRegenChance)
 
-        val foodTick = realm.upkeep.foodTickEvery > 0 && party.resources.timeLeft % realm.upkeep.foodTickEvery == 0
-        val foodAfterTick = if (foodTick) (party.resources.food - party.foodTickCost()).coerceAtLeast(0) else party.resources.food
-        party =
-            party.applyStarvation(
+        val foodTick = realm.upkeep.foodTickEvery > 0 && regenerated.resources.timeLeft % realm.upkeep.foodTickEvery == 0
+        val foodAfterTick =
+            if (foodTick) (regenerated.resources.food - regenerated.foodTickCost()).coerceAtLeast(0) else regenerated.resources.food
+        val starvation =
+            regenerated.applyStarvation(
                 foodAfterTick,
                 realm.upkeep.starveFoodThreshold,
                 realm.upkeep.starveDamage,
                 realm.upkeep.starvationDeath,
-                upkeepMessages,
             )
         if (foodTick && foodAfterTick <= realm.upkeep.starveFoodThreshold && realm.upkeep.starveDamage > 0) audio.cue(AudioCue.Hunger)
 
-        val restedHours = party.resources.restedHours - realm.upkeep.restedHoursCostPerTurn
-        party = party.applyFatigue(restedHours, realm.upkeep.fatigue, upkeepMessages)
-        party =
-            party.copy(
+        val restedHours = starvation.party.resources.restedHours - realm.upkeep.restedHoursCostPerTurn
+        val fatigue = starvation.party.applyFatigue(restedHours, realm.upkeep.fatigue)
+        val party =
+            fatigue.party.copy(
                 resources =
-                    party.resources.copy(
+                    fatigue.party.resources.copy(
                         food = foodAfterTick,
                         restedHours = restedHours,
                     ),
@@ -108,7 +106,7 @@ internal class WildernessActions(
                     currentMode = mode,
                     party = party,
                 ),
-            messages = leadingMessages + upkeepMessages,
+            messages = leadingMessages + starvation.messages + fatigue.messages,
         )
     }
 
@@ -181,9 +179,9 @@ internal class WildernessActions(
         runtime: RuntimeState,
         move: MoveEvent,
     ): WildernessActionResult {
-        var current = runtime
-        val messages = mutableListOf<String>()
-        current = current.applyTerrainTransition(move, messages)
+        val transition = runtime.applyTerrainTransition(move)
+        var current = transition.runtime
+        val messages = transition.messages
 
         val mission = current.pollMission(move.toTerrain)
         if (mission.mission != null) {
@@ -608,14 +606,12 @@ internal class WildernessActions(
         return CampMutation(battle.runtime, triggered = true)
     }
 
-    private fun RuntimeState.applyTerrainTransition(
-        move: MoveEvent,
-        messages: MutableList<String>,
-    ): RuntimeState {
+    private fun RuntimeState.applyTerrainTransition(move: MoveEvent): WildernessActionResult {
         val from = move.fromTerrain?.let { terrain -> content.slug(terrain.id) }
         val to = move.toTerrain?.let { terrain -> content.slug(terrain.id) }
-        if (from == null || to == null || from == to) return this
-        val transition = wilderness.terrainTransitions.entries.firstOrNull { entry -> entry.terrain == to } ?: return this
+        if (from == null || to == null || from == to) return WildernessActionResult(this)
+        val transition =
+            wilderness.terrainTransitions.entries.firstOrNull { entry -> entry.terrain == to } ?: return WildernessActionResult(this)
         val draw = party.drawRandom(0, 99)
         log.rngDraw(
             context = "wilderness.terrain_transition",
@@ -630,10 +626,8 @@ internal class WildernessActions(
                     "threshold_lt" to wilderness.terrainTransitions.chancePercent,
                 ),
         )
-        if (draw.value < wilderness.terrainTransitions.chancePercent) {
-            messages += transition.text.renderText()
-        }
-        return withParty(draw.party)
+        val messages = if (draw.value < wilderness.terrainTransitions.chancePercent) transition.text.renderText() else emptyList()
+        return WildernessActionResult(withParty(draw.party), messages)
     }
 
     private fun PartyState.regenerateMana(chancePercent: Int): PartyState {
@@ -663,49 +657,51 @@ internal class WildernessActions(
         return party.copy(members = members)
     }
 
-    private fun PartyState.foodTickCost(): Int {
-        val leaderLevelCost = if (realm.upkeep.foodCostLeaderDiv > 0) leaderLevel() / realm.upkeep.foodCostLeaderDiv else 0
-        return (counters.memberCount ?: members.size) + leaderLevelCost
-    }
+    private fun PartyState.foodTickCost(): Int =
+        realm.upkeep.foodCost
+            ?.let { formula ->
+                val upkeep = mapOf("living_members" to (counters.memberCount ?: members.size), "first_level" to leaderLevel())
+                content.evalFormula(formula, this, upkeep).value
+            } ?: 0
 
     private fun PartyState.applyStarvation(
         foodAfterTick: Int,
         threshold: Int,
         damage: Int,
         deathText: ExternalRuntimeTextBlock,
-        messages: MutableList<String>,
-    ): PartyState {
-        if (foodAfterTick > threshold || damage == 0) return this
-        return copy(
-            members =
-                members.mapIndexed { index, member ->
-                    if (member.dead) return@mapIndexed member
+    ): PartyUpkeep {
+        if (foodAfterTick > threshold || damage == 0) return PartyUpkeep(this)
+        val (starved, deaths) =
+            members
+                .mapIndexed { index, member ->
+                    if (member.dead) return@mapIndexed member to emptyList()
                     val nextHp = member.hitPoints.current - damage
-                    if (nextHp >= 1) return@mapIndexed member.copy(hitPoints = member.hitPoints.copy(current = nextHp))
-                    messages += deathText.renderUpkeep(memberName(content, index))
+                    if (nextHp >= 1) return@mapIndexed member.copy(hitPoints = member.hitPoints.copy(current = nextHp)) to emptyList()
                     member.copy(
                         hitPoints = member.hitPoints.copy(current = 0),
                         dead = true,
-                    )
-                },
-        )
+                    ) to deathText.renderUpkeep(memberName(content, index))
+                }.unzip()
+        return PartyUpkeep(copy(members = starved), deaths.flatten())
     }
 
     private fun PartyState.applyFatigue(
         restedHours: Int,
         rules: List<ExternalWildernessFatigueRule>,
-        messages: MutableList<String>,
-    ): PartyState {
-        val rule = rules.firstOrNull { rule -> rule.matches(restedHours) } ?: return this
-        messages += rule.text.renderText()
+    ): PartyUpkeep {
+        val rule = rules.firstOrNull { rule -> rule.matches(restedHours) } ?: return PartyUpkeep(this)
+        val messages = rule.text.renderText()
         if (rule.startsAt(restedHours)) audio.cue(AudioCue.Fatigue)
-        if (!rule.drain) return this
-        return copy(
-            members =
-                members.map { member ->
-                    member.takeUnless { it.hitPoints.current > 1 }
-                        ?: member.copy(hitPoints = member.hitPoints.copy(current = member.hitPoints.current - 1))
-                },
+        if (!rule.drain) return PartyUpkeep(this, messages)
+        return PartyUpkeep(
+            copy(
+                members =
+                    members.map { member ->
+                        member.takeUnless { it.hitPoints.current > 1 }
+                            ?: member.copy(hitPoints = member.hitPoints.copy(current = member.hitPoints.current - 1))
+                    },
+            ),
+            messages,
         )
     }
 
@@ -745,7 +741,17 @@ internal class WildernessActions(
         )
 
     private fun battleRunner(): BattleRunner =
-        BattleRunner(content, combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts), systems.audio)
+        BattleRunner(
+            content,
+            combat,
+            systems.realm.spellCost,
+            systems.pacing.battle,
+            input,
+            screen,
+            log,
+            PausePrompts(systems.prompts),
+            systems.audio,
+        )
 
     private fun PartyState.matches(expr: CompiledBoolExpr): Boolean =
         when (expr) {
@@ -864,6 +870,11 @@ private data class CampMutation(
     val runtime: RuntimeState,
     val messages: List<String> = emptyList(),
     val triggered: Boolean = false,
+)
+
+private data class PartyUpkeep(
+    val party: PartyState,
+    val messages: List<String> = emptyList(),
 )
 
 /** Movement context used for direct runtime wilderness event polling. */

@@ -415,7 +415,11 @@ internal class ShopService(
             input.readValidInventorySlotChoice(
                 screen = screen,
                 lines = promptLines,
-                validSlots = party.inventory.filter { slot -> slot.item != null }.mapTo(mutableSetOf(), CompiledInventorySlot::slot),
+                validSlots =
+                    party.inventory
+                        .filter { slot -> slot.item != null }
+                        .map(CompiledInventorySlot::slot)
+                        .toSet(),
                 cancelKeys = setOf('\n'),
             ) ?: return runtime
         val item = party.inventoryItem(slot)
@@ -527,8 +531,7 @@ internal class ShopService(
         price: Int,
         party: PartyState,
     ): SellQuote {
-        var current = price
-        val haggle = sell.haggle ?: return SellQuote(current, party)
+        val haggle = sell.haggle ?: return SellQuote(price, party)
         val draw = party.drawRandom(0, 99)
         // The party's best talker haggles: the roll bonus sees the highest living charisma.
         val bonusResult =
@@ -550,25 +553,24 @@ internal class ShopService(
                     hi = 99,
                     value = draw.value,
                     hit = false,
-                    details = mapOf("bonus" to bonus, "threshold" to threshold, "item" to content.slug(item), "price" to current),
+                    details = mapOf("bonus" to bonus, "threshold" to threshold, "item" to content.slug(item), "price" to price),
                 )
                 return SellQuote(price = null, party = afterRoll)
             }
         }
-        haggle.bonuses.forEach { priceBonus ->
-            if (roll > priceBonus.rollGreaterThan) {
-                current += current / max(1, priceBonus.addCurrentDivisor)
-            }
-        }
+        val haggled =
+            haggle.bonuses
+                .filter { priceBonus -> roll > priceBonus.rollGreaterThan }
+                .fold(price) { current, priceBonus -> current + current / max(1, priceBonus.addCurrentDivisor) }
         log.rngDraw(
             context = "shop.sell.haggle",
             lo = 0,
             hi = 99,
             value = draw.value,
             hit = true,
-            details = mapOf("bonus" to bonus, "item" to content.slug(item), "price" to current),
+            details = mapOf("bonus" to bonus, "item" to content.slug(item), "price" to haggled),
         )
-        return SellQuote(current, afterRoll)
+        return SellQuote(haggled, afterRoll)
     }
 
     private fun rumorLines(runtime: RuntimeState): RumorResult {
@@ -611,14 +613,15 @@ internal class ShopService(
     private fun price(
         price: CompiledShopPrice,
         item: CompiledHandleRef,
-        party: PartyState?,
+        party: PartyState,
     ): Int =
         when (price) {
             CompiledShopPrice.ItemCost -> itemRecord(item).cost
-            CompiledShopPrice.HalfItemCost -> itemRecord(item).cost / 2
             is CompiledShopPrice.Fixed -> price.amount
-            is CompiledShopPrice.LeaderLevelPlus -> (party?.leaderLevel ?: 0) + price.addend
-            is CompiledShopPrice.ItemCostPlusLeaderLevelTimes -> itemRecord(item).cost + (party?.leaderLevel ?: 0) * price.multiplier
+            is CompiledShopPrice.Formula -> {
+                val priced = mapOf("item_cost" to itemRecord(item).cost, "first_level" to party.leaderLevel)
+                content.evalFormula(price.formula, party, priced).value.coerceAtLeast(0)
+            }
         }
 
     private fun remainingCapacity(

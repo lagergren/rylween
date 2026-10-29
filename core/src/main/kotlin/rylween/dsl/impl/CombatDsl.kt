@@ -52,10 +52,8 @@ data class BattleOpeningKeysModel(
 )
 
 data class BattleTextModel(
-    val encounterBanner: TextBlock,
-    val youFace: TextBlock,
-    val foeDisplayName: TextBlock,
-    val stillFace: TextBlock,
+    val encounter: TextBlock,
+    val nextRound: TextBlock,
     val fight: TextBlock,
     val run: TextBlock,
     val bloodFlow: TextBlock,
@@ -83,21 +81,18 @@ data class BattleTextModel(
     val partyHeld: TextBlock,
     val partyDefeated: TextBlock,
     val victoryBested: TextBlock,
-    val victoryEachSurvivor: TextBlock,
     val victoryReward: TextBlock,
-    val victoryFoundObject: TextBlock,
     val victoryLoot: TextBlock,
     val levelGain: TextBlock,
 )
 
 data class PlayerAttackRulesModel(
-    val hitBonus: Int,
-    val damageSpreadMax: Int,
-    val confusionDivisor: Int,
-    val hpDefenseDivisor: Int,
+    val hitChance: FormulaId,
+    val damage: FormulaId,
 )
 
 data class DefendRulesModel(
+    val healing: FormulaId,
     val weaponSkillPenalty: Int,
     val restThreshold: Int,
     val cap: Int,
@@ -114,16 +109,13 @@ data class PlayerRoundModel(
 )
 
 data class MonsterMeleeRulesModel(
-    val hitBonus: Int,
-    val damageDivisor: Int,
-    val damageSpreadMax: Int,
-    val damageMin: Int,
+    val hitChance: FormulaId,
+    val damage: FormulaId,
     val fallback: SceneId,
 )
 
 data class MonsterRoundModel(
-    val spellChanceBasePercent: Int,
-    val spellPowerDivisor: Int,
+    val spellChance: FormulaId,
     val melee: MonsterMeleeRulesModel,
 )
 
@@ -139,6 +131,8 @@ data class StandardBattleModel(
     val encounterFoeCountMax: Int,
     val encounterHitPointMinFormula: FormulaId,
     val encounterHitPointMaxFormula: FormulaId,
+    val encounterFoeCountMaxFormula: FormulaId,
+    val encounterWeaponSkillFormula: FormulaId,
     val victoryImage: ImageId?,
     val defeatImage: ImageId?,
     val nativeServices: List<EngineServiceUse>,
@@ -158,6 +152,7 @@ object BattleText {
     val lootName: TextPart = TextPart.BattleLootName
     val levelMemberName: TextPart = TextPart.BattleLevelMemberName
     val levelsGained: TextPart = TextPart.BattleLevelsGained
+    val roundNumber: TextPart = TextPart.BattleRoundNumber
 }
 
 /**
@@ -198,6 +193,8 @@ class StandardBattleBuilder {
     var encounterFoeCountMax: Int? = null
     var encounterHitPointMinFormula: FormulaId? = null
     var encounterHitPointMaxFormula: FormulaId? = null
+    var encounterFoeCountMaxFormula: FormulaId? = null
+    var encounterWeaponSkillFormula: FormulaId? = null
     private var victoryImage: ImageId? = null
     private var defeatImage: ImageId? = null
 
@@ -248,6 +245,10 @@ class StandardBattleBuilder {
                 requiredStandardBattle(encounterHitPointMinFormula, "encounterHitPointMinFormula = ..."),
             encounterHitPointMaxFormula =
                 requiredStandardBattle(encounterHitPointMaxFormula, "encounterHitPointMaxFormula = ..."),
+            encounterFoeCountMaxFormula =
+                requiredStandardBattle(encounterFoeCountMaxFormula, "encounterFoeCountMaxFormula = ..."),
+            encounterWeaponSkillFormula =
+                requiredStandardBattle(encounterWeaponSkillFormula, "encounterWeaponSkillFormula = ..."),
             victoryImage = victoryImage,
             defeatImage = defeatImage,
             nativeServices = defaultNativeServices,
@@ -298,10 +299,8 @@ class BattleOpeningKeysBuilder(
 class BattleTextBuilder(
     initial: BattleTextModel? = null,
 ) {
-    private var encounterBannerText = initial?.encounterBanner
-    private var youFaceText = initial?.youFace
-    private var foeDisplayNameText = initial?.foeDisplayName
-    private var stillFaceText = initial?.stillFace
+    private var encounterText = initial?.encounter
+    private var nextRoundText = initial?.nextRound
     private var fightText = initial?.fight
     private var runText = initial?.run
     private var bloodFlowText = initial?.bloodFlow
@@ -329,26 +328,18 @@ class BattleTextBuilder(
     private var partyHeldText = initial?.partyHeld
     private var partyDefeatedText = initial?.partyDefeated
     private var victoryBestedText = initial?.victoryBested
-    private var victoryEachSurvivorText = initial?.victoryEachSurvivor
     private var victoryRewardText = initial?.victoryReward
-    private var victoryFoundObjectText = initial?.victoryFoundObject
     private var victoryLootText = initial?.victoryLoot
     private var levelGainText = initial?.levelGain
 
-    fun encounterBanner(body: StructuredTextBlockBuilder.() -> Unit) {
-        encounterBannerText = literalText(body)
+    /** The page that opens a battle, naming the foes with [BattleText.foeDisplayName]. */
+    fun encounter(body: StructuredTextBlockBuilder.() -> Unit) {
+        encounterText = literalText(body)
     }
 
-    fun youFace(body: StructuredTextBlockBuilder.() -> Unit) {
-        youFaceText = literalText(body)
-    }
-
-    fun foeDisplayName(body: StructuredTextBlockBuilder.() -> Unit) {
-        foeDisplayNameText = literalText(body)
-    }
-
-    fun stillFace(body: StructuredTextBlockBuilder.() -> Unit) {
-        stillFaceText = literalText(body)
+    /** The page each later round opens with: [BattleText.roundNumber] and the foes still standing. */
+    fun nextRound(body: StructuredTextBlockBuilder.() -> Unit) {
+        nextRoundText = literalText(body)
     }
 
     fun fight(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -499,16 +490,8 @@ class BattleTextBuilder(
         victoryBestedText = text
     }
 
-    fun victoryEachSurvivor(body: StructuredTextBlockBuilder.() -> Unit) {
-        victoryEachSurvivorText = literalText(body)
-    }
-
     fun victoryReward(body: StructuredTextBlockBuilder.() -> Unit) {
         victoryRewardText = literalText(body)
-    }
-
-    fun victoryFoundObject(body: StructuredTextBlockBuilder.() -> Unit) {
-        victoryFoundObjectText = literalText(body)
     }
 
     fun victoryLoot(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -521,10 +504,8 @@ class BattleTextBuilder(
 
     fun build(): BattleTextModel =
         BattleTextModel(
-            encounterBanner = requiredStandardBattleText(encounterBannerText, "encounterBanner"),
-            youFace = requiredStandardBattleText(youFaceText, "youFace"),
-            foeDisplayName = requiredStandardBattleText(foeDisplayNameText, "foeDisplayName"),
-            stillFace = requiredStandardBattleText(stillFaceText, "stillFace"),
+            encounter = requiredStandardBattleText(encounterText, "encounter"),
+            nextRound = requiredStandardBattleText(nextRoundText, "nextRound"),
             fight = requiredStandardBattleText(fightText, "fight"),
             run = requiredStandardBattleText(runText, "run"),
             bloodFlow = requiredStandardBattleText(bloodFlowText, "bloodFlow"),
@@ -552,9 +533,7 @@ class BattleTextBuilder(
             partyHeld = requiredStandardBattleText(partyHeldText, "partyHeld"),
             partyDefeated = requiredStandardBattleText(partyDefeatedText, "partyDefeated"),
             victoryBested = requiredStandardBattleText(victoryBestedText, "victoryBested"),
-            victoryEachSurvivor = requiredStandardBattleText(victoryEachSurvivorText, "victoryEachSurvivor"),
             victoryReward = requiredStandardBattleText(victoryRewardText, "victoryReward"),
-            victoryFoundObject = requiredStandardBattleText(victoryFoundObjectText, "victoryFoundObject"),
             victoryLoot = requiredStandardBattleText(victoryLootText, "victoryLoot"),
             levelGain = requiredStandardBattleText(levelGainText, "levelGain"),
         )
@@ -743,21 +722,22 @@ class PlayerRoundBuilder(
     private var defendRules = initial?.defend
     private var battleCryRules = initial?.battleCry
 
+    /** A member's chance to hit, in percent, and the damage a hit does: both formulas. */
     fun attack(
-        hitBonus: Int,
-        damageSpreadMax: Int,
-        confusionDivisor: Int,
-        hpDefenseDivisor: Int,
+        hitChance: FormulaId,
+        damage: FormulaId,
     ) {
-        attackRules = PlayerAttackRulesModel(hitBonus, damageSpreadMax, confusionDivisor, hpDefenseDivisor)
+        attackRules = PlayerAttackRulesModel(hitChance, damage)
     }
 
+    /** The hit points a defending member regains, from the [healing] formula, and how defending wears the foes down. */
     fun defend(
+        healing: FormulaId,
         weaponSkillPenalty: Int,
         restThreshold: Int,
         cap: Int,
     ) {
-        defendRules = DefendRulesModel(weaponSkillPenalty, restThreshold, cap)
+        defendRules = DefendRulesModel(healing, weaponSkillPenalty, restThreshold, cap)
     }
 
     fun battleCry(weaponSkillPenalty: Int) {
@@ -782,32 +762,22 @@ class PlayerRoundBuilder(
 class MonsterRoundBuilder(
     initial: MonsterRoundModel? = null,
 ) {
-    private var spellChanceBasePercent = initial?.spellChanceBasePercent
-    private var spellPowerDivisor = initial?.spellPowerDivisor
+    /** A monster's chance, in percent, to cast a spell instead of attacking. */
+    var spellChance: FormulaId? = initial?.spellChance
     private var meleeRules = initial?.melee
 
-    fun spellChance(
-        basePercent: Int,
-        spellPowerDivisor: Int,
-    ) {
-        spellChanceBasePercent = basePercent
-        this.spellPowerDivisor = spellPowerDivisor
-    }
-
+    /** A monster's chance to hit, in percent, and the damage a hit does: both formulas. */
     fun melee(
-        hitBonus: Int,
-        damageDivisor: Int,
-        damageSpreadMax: Int,
-        damageMin: Int,
+        hitChance: FormulaId,
+        damage: FormulaId,
         fallback: SceneId,
     ) {
-        meleeRules = MonsterMeleeRulesModel(hitBonus, damageDivisor, damageSpreadMax, damageMin, fallback)
+        meleeRules = MonsterMeleeRulesModel(hitChance, damage, fallback)
     }
 
     fun build(): MonsterRoundModel =
         MonsterRoundModel(
-            spellChanceBasePercent = requiredStandardBattle(spellChanceBasePercent, "monsterRound.spellChance(...)"),
-            spellPowerDivisor = requiredStandardBattle(spellPowerDivisor, "monsterRound.spellChance(...)"),
+            spellChance = requiredStandardBattle(spellChance, "monsterRound.spellChance = ..."),
             melee = requiredStandardBattle(meleeRules, "monsterRound.melee(...)"),
         )
 }

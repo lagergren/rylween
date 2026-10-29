@@ -199,11 +199,11 @@ internal object SaveFile {
                 .heroEntries()
                 .withDerivedHeroes(scoreParties, hallOfHeroesCompletedBy, content)
         val values =
-            runtime
-                .worldSaveValues(bundleHash, content)
-                .toMutableMap()
-        values.putHeroEntries(heroes)
-        values.putUserRecords(userRecords)
+            buildMap {
+                putAll(runtime.worldSaveValues(bundleHash, content))
+                putHeroEntries(heroes)
+                putUserRecords(userRecords)
+            }
         SaveFileStorage.replace(target, SaveCodec.encodeValues(values))
     }
 
@@ -271,8 +271,11 @@ internal object SaveFile {
             val records = values.userRecords()
             if (records.isEmpty()) return@update target.delete()
             val nextRecords = records.filterNot { record -> record.id == userId.normalizedSaveUser() }
-            val nextValues = values.withoutUserRecords().toMutableMap()
-            nextValues.putUserRecords(nextRecords)
+            val nextValues =
+                buildMap {
+                    putAll(values.withoutUserRecords())
+                    putUserRecords(nextRecords)
+                }
             SaveFileStorage.replace(target, SaveCodec.encodeValues(nextValues))
             true
         }
@@ -650,10 +653,11 @@ internal object SaveFile {
         orEmpty()
             .takeIf(String::isNotEmpty)
             ?.split(',')
-            ?.mapTo(mutableSetOf()) { token ->
+            ?.map { token ->
                 val parts = token.split(':')
                 GridPoint(parts[0].toInt(), parts[1].toInt())
-            }.orEmpty()
+            }?.toSet()
+            .orEmpty()
 
     private fun Map<String, String>.readCastleFloorsOpened(base: Map<String, Int>): Map<String, Int> {
         val raw = get("party.castleFloorsOpened") ?: return base

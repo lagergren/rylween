@@ -118,7 +118,7 @@ data class CastleScriptsModel(
 /** Text prompts and narration used by the castle runtime session. */
 data class CastleTextModel(
     val roomMonster: TextBlock = literalText(),
-    val trapTriesDisarmSuffix: TextBlock = literalText(),
+    val trapTriesDisarm: TextBlock = literalText(),
     val trapDisarmSucceed: TextBlock = literalText(),
     val trapDisarmFail: TextBlock = literalText(),
     val pitfallIllustration: ImageId? = null,
@@ -137,7 +137,7 @@ data class CastleTextModel(
     val stairsLeave: TextBlock = literalText(),
     val teleportVortex: TextBlock = literalText(),
     val teleportOutside: TextBlock = literalText(),
-    val giveMenu: TextBlock = literalText(),
+    val givePrompt: TextBlock = literalText(),
     val stairsGuardianGrateful: TextBlock = literalText(),
     val floorNames: List<String> = emptyList(),
 )
@@ -479,7 +479,9 @@ class CastleTextBuilder(
     initial: CastleTextModel = CastleTextModel(),
 ) {
     var roomMonster: TextBlock = initial.roomMonster
-    var trapTriesDisarmSuffix: TextBlock = initial.trapTriesDisarmSuffix
+
+    /** The line a thief tries a trap with, naming them with [CastleText.thiefName]. */
+    var trapTriesDisarm: TextBlock = initial.trapTriesDisarm
     var trapDisarmSucceed: TextBlock = initial.trapDisarmSucceed
     var trapDisarmFail: TextBlock = initial.trapDisarmFail
     var pitfallIllustration: ImageId? = initial.pitfallIllustration
@@ -498,7 +500,9 @@ class CastleTextBuilder(
     var stairsLeave: TextBlock = initial.stairsLeave
     var teleportVortex: TextBlock = initial.teleportVortex
     var teleportOutside: TextBlock = initial.teleportOutside
-    var giveMenu: TextBlock = initial.giveMenu
+
+    /** The question above the stairs items the party can give; the runtime lists the items and RETURN leaves. */
+    var givePrompt: TextBlock = initial.givePrompt
     var stairsGuardianGrateful: TextBlock = initial.stairsGuardianGrateful
     private val floorNames = initial.floorNames.toMutableList()
 
@@ -510,7 +514,7 @@ class CastleTextBuilder(
     fun build(): CastleTextModel =
         CastleTextModel(
             roomMonster = roomMonster,
-            trapTriesDisarmSuffix = trapTriesDisarmSuffix,
+            trapTriesDisarm = trapTriesDisarm,
             trapDisarmSucceed = trapDisarmSucceed,
             trapDisarmFail = trapDisarmFail,
             pitfallIllustration = pitfallIllustration,
@@ -529,7 +533,7 @@ class CastleTextBuilder(
             stairsLeave = stairsLeave,
             teleportVortex = teleportVortex,
             teleportOutside = teleportOutside,
-            giveMenu = giveMenu,
+            givePrompt = givePrompt,
             stairsGuardianGrateful = stairsGuardianGrateful,
             floorNames = floorNames.toList(),
         )

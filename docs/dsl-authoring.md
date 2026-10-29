@@ -93,12 +93,12 @@ rylween
     wilderness
       keys / events / terrainTransitions
     dungeons
-      keys / event / scenario
+      keys / event / randomEvents / scenario
     speak
       standardConversation / textTables / questionAction
     towns
     townSystem
-      entryTax / menu / buildingServices
+      image / entryTax / menu / buildingServices
     characters
       randomPlacementPolicy / character
     monsters
@@ -135,11 +135,12 @@ notes:
   `Towns.thord`, and `Terrain.forest` instead of raw strings.
 - Put game prose in `writeText`, `appendText`, `showTextAndWait`, or
   runtime-system prompt rows. Text comes in two kinds: `flowText(...)` is prose
-  the renderer wraps to its own width (a plain string is flow text, and a blank
-  line starts a new paragraph), and `literalText(...)` is lines kept exactly as
-  written. Use literal lines only when each row is an intentional menu, layout,
-  sign or verse row; `literalText { line("You find ", amount) }` mixes in
-  runtime values the same way `flowText("You find ", amount, " gold.")` does.
+  the renderer wraps to its own width (a plain string is flow text; in its
+  strings a newline is a space, and a blank line or `\n\n` starts a new
+  paragraph), and `literalText(...)` is lines kept exactly as written. Use
+  literal lines only when each row is an intentional menu, layout, sign or verse
+  row; `literalText { line("You find ", amount) }` mixes in runtime values the
+  same way `flowText("You find ", amount, " gold.\n\nThe chest is empty.")` does.
 - Use block helpers such as `localInt { ... }`, `ask.member { ... }`,
   `ask.monsterAlive { ... }`, and `withCurrentCasterCost { ... }` instead of
   raw Kotlin temporaries in script bodies.
@@ -172,11 +173,11 @@ scene(Scenes.Missions.bandits) {
 }
 ```
 
-`writeText(...)` starts a fresh page in the text window, and `appendText(...)`
-adds below what the page already shows; appended flow text gets a blank line
-above it, appended literal lines continue directly below. `showTextAndWait(...)`
-is the read-and-dismiss page verb: it writes text, waits for Return/Enter, and
-clears the text window.
+`writeText(...)` starts a fresh page in the text window, so it needs no
+`clearText()` before it, and `appendText(...)` adds below what the page already
+shows; appended flow text gets a blank line above it, appended literal lines
+continue directly below. `showTextAndWait(...)` is the read-and-dismiss page
+verb: it writes text, waits for Return/Enter, and clears the text window.
 
 Text must stay on screen until something holds it: a `waitInput()`, a pause,
 or a menu whose prompt only lists its choices (such a menu keeps the page above
@@ -205,10 +206,17 @@ writeText(
 writeText(flowText(partyName(caster), " utters three syllables in an archaic tongue... {pause 2s} and the ground cracks open!"))
 ```
 
-Markers work only in those two verbs; any other text that holds one, such as a
-menu prompt, a journal entry or `appendText`, is rejected. Keep a separate
-`pause(...)` where something else happens at the beat, such as a sound cue or a
-new page.
+A marker at the very end of the text holds the page that long, so a short
+notice is one call: `writeText("No money - No drink! {pause 1s}")`. That is
+also the only place `appendText` takes one. Any other text that holds a marker,
+such as a menu prompt or a journal entry, is rejected. `pause(ms)` is left for a
+beat between two other things, such as a sound cue and the line after it.
+
+A line or paragraph that starts with `{red}` is shown in red, in the terminal
+and in the browser alike; `{green}`, `{yellow}`, `{blue}`, `{magenta}` and
+`{cyan}` work the same way. The color covers the whole line, so the marker can
+only start one: `line("{red}", partyName(target), " DIES!")`. Text never holds
+terminal escape codes itself; the content check rejects them.
 
 Literal lines are rows, not hand-wrapped prose: put each sentence on one line
 and let the renderer wrap it to the window, and break the line only where a new
@@ -323,12 +331,26 @@ reward {
 }
 ```
 
+A reward of several items can name each one it has no room for with `itemName`:
+`promptDrop(cantCarry = flowText("You can't carry the ", itemName, "."))`.
+
 For simple player-facing resource gains, use the narrow helpers:
 
 ```kotlin
 gainGold(random(40..339))
 gainTorches(2)
 gainFood(10)
+```
+
+Members and monsters take damage with `wound(amount)`, which also kills them at
+zero hit points; `kill()` and `revive()` do the rest. The runtime keeps the
+party's count of living members, so `party.memberCount` is only read:
+
+```kotlin
+target.wound(damage)
+whenever(target.dead) {
+    appendText { line("{red}", partyName(target), " DIES! {pause 1s}") }
+}
 ```
 
 Use direct state slots for local mechanics such as costs, damage, timers, and
@@ -401,6 +423,11 @@ what game state changes. A mission triggers `at(...)` a square or a
 `onTerrain(...)`, and `requires(...)` a story flag state or a condition before
 it runs.
 
+Text that tells the player where a mission waits names it rather than copying
+its square: `flowText("The orcs have a cave at ", mission(Missions.husbandCave).coordinates, ".")`
+shows the mission's `at(...)` square, or its location's square wherever this
+game placed it, so the text follows the mission when it moves.
+
 ### Dialogue Branch
 
 ```kotlin
@@ -447,6 +474,7 @@ scene(Scenes.Towne.smith) {
         sell {
             prompt("Sell what?", "")
             acceptsKinds(ItemKind.Weapon, ItemKind.Armor)
+            price = ShopPrices.formula(Formulas.sellPrice)
             offer { line("Ok! Give ya ", price, "!") }
         }
     }
@@ -457,6 +485,10 @@ scene(Scenes.Towne.smith) {
 catalog too long for one screen splits into `page { ... }` blocks. Shop
 catalogs, sell policy, haggle text, paging, and purchase keys are authored.
 The runtime service loop owns live input, inventory mutation, and paging state.
+A price is the item's cost (`ShopPrices.itemCost`, the default for buying), a
+fixed amount (`ShopPrices.fixed(n)`), or a formula
+(`ShopPrices.formula(Formulas.rationPrice)`) that sees the item's `itemCost` and
+the leader's `firstLevel`. A sell section names its price.
 
 ### Runtime-System Prompt
 
@@ -476,8 +508,56 @@ prompts {
 
 Use this pattern when a runtime loop owns the input cadence but the text is
 player-facing game prose. Values only the runtime knows come in through
-placeholder objects: `InventoryText` (`slotName`, `itemName`), `CampText`
-(`guardName`), `HuntText`, `UpkeepText`, `TownText`, and `BattleText`.
+placeholder objects: `InventoryText` (`slotName`, `itemName`), `PartyText`
+(`memberCount`, `memberMax`), `CampText` (`guardName`), `CastleText`
+(`thiefName`), `HuntText`, `UpkeepText`, `TownText`, and `BattleText` (with
+`roundNumber` for the page each round opens with). Each message is authored
+whole, the runtime only filling in its values: the castle's
+`trapTriesDisarm = literalText { line(CastleText.thiefName, " tries to disarm it...") }`,
+not a fragment the runtime joins to a name. Where the runtime lists choices it
+knows, such as party members or the stairs items the castle guardian takes, the
+prompt holds only the question and the runtime adds the choices and the RETURN
+line.
+
+### Formulas
+
+A game rule that works something out, rather than naming a fixed number, is a
+formula, so the game author can change it without touching a runtime:
+
+```kotlin
+formulas {
+    formula(Formulas.spellCost) {
+        value = spellBaseCost + level
+    }
+    formula(Formulas.monsterDamage) {
+        value = (monsterHitPoints / 6 + random(0..9) - armorClass) atLeast 1
+    }
+}
+
+realm { spellCost = Formulas.spellCost }
+```
+
+The system that uses a formula binds its variables: the member it is about
+(`weaponSkill`, `weaponDamage`, `hitPoints`, `armorClass`, `level`, `charisma`,
+`dexterity`), the monster (`monsterWeaponSkill`, `monsterHitPoints`,
+`monsterSpellPower`), the encounter, the party (`firstLevel`, `livingMembers`,
+`gold`), a town's `taxPercent`, a shop item's `itemCost`, or a spell's
+`spellBaseCost`. `atLeast` and `atMost` clamp a value, `whenValue(condition, a, b)`
+picks one, and `random(lo..hi)` draws from the game's own random numbers. A
+chance is a percentage the runtime rolls 0-99 against.
+
+This game's rules that are formulas: what a spell costs (`realm { spellCost }`),
+a party member's and a monster's chance to hit and damage, a monster's chance to
+cast, the hit points a defending member regains, how encounters grow with the
+leader's level (`encounterFoeCountMaxFormula`, `encounterWeaponSkillFormula`,
+and the hit point range), battle experience and gold, level-up hit points, the
+food the party eats (`upkeep { foodCost }`), the town entry tax
+(`entryTax { amount }`; a party with less gold than the tax is shown the
+`entryTaxShortfall` prompt, with `TownText.taxShortfall`, and stays outside),
+shop prices, the hunting and trap-disarm chances, and the haggle bonus. Inside a
+priest spell, `withCurrentCasterCost { caster, cost -> }`
+hands over the cost the formula works out; the spell's `baseCost` is declared
+once, in its `spell(...)` header.
 
 ### Map Or Terrain
 
@@ -611,17 +691,23 @@ dungeons {
         }
     }
 
+    // The mix every scenario draws its other levels from, unless it names its own.
+    randomEvents(
+        DungeonEvents.weakEncounter to 2,
+        DungeonEvents.goldChest to 1,
+    )
+
     scenario(Dungeons.reebarTomb) {
         name("Reebar Tomb")
         levels(20)
-        randomEvents(
-            DungeonEvents.weakEncounter to 2,
-            DungeonEvents.goldChest to 1,
-        )
         level(2, DungeonEvents.cryptWarning)
+        level(13..19, DungeonEvents.colorRiddle)
     }
 }
 ```
+
+A scenario's own `randomEvents(...)` replaces the dungeons' mix for that
+dungeon, and `level(3, 6, 9, event = ...)` puts one event on several levels.
 
 An event's disposition decides whether it is still on its level when the party
 comes back:
@@ -704,7 +790,7 @@ Use this placement rule during design review:
 
 A change to the shape of the `runtimeSystems` rows also bumps
 `EXTERNAL_RUNTIME_SYSTEMS_VERSION` in
-`core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt` (12 today), so
+`core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt` (14 today), so
 a runtime refuses a bundle written for another shape.
 
 If a rule mentions Rylween story content, item names, NPCs, mission prose,

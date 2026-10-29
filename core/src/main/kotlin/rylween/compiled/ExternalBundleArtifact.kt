@@ -89,7 +89,7 @@ import kotlin.reflect.typeOf
 
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
-private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 13
+private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 14
 private const val GRID_CASTLE_KIND = "gridCastle"
 
 /** Serializes this game into the canonical strict JSON J1 artifact bytes. */
@@ -430,18 +430,22 @@ data class ExternalTownPrompts(
     val entryWelcome: ExternalRuntimeTextBlock,
     val entryTax: ExternalRuntimeTextBlock,
     val entryTaxThanks: ExternalRuntimeTextBlock,
+    val entryTaxShortfall: ExternalRuntimeTextBlock,
 )
 
 /** Town-system runtime rows consumed by direct runtimes. */
 data class ExternalRuntimeTown(
     val entryTax: ExternalTownEntryTax?,
+    /** The street view shown with the town menu and the entry tax. */
+    val image: String? = null,
     /** Equipment questions asked, in order, when the party leaves town. */
     val leavePrompts: List<EquipmentCommand> = emptyList(),
 )
 
 /** Town-entry tax gate exported from authored town-system content. */
 data class ExternalTownEntryTax(
-    val minimumLeaderLevel: Int,
+    /** Slug of the formula for the gold the party pays to enter, or null when towns charge nothing. */
+    val amount: String?,
     val pay: ExternalRuntimeInputBinding,
     val leave: ExternalRuntimeInputBinding,
 )
@@ -579,6 +583,8 @@ data class ExternalRuntimeRealm(
     val camp: ExternalCampRules,
     val hunt: ExternalHuntRules?,
     val timeOfDay: List<ExternalTimeOfDayBand>,
+    /** Slug of the formula that prices a spell for its caster, or null when a spell costs its base cost. */
+    val spellCost: String?,
 )
 
 /** One status-line time label exported for direct runtimes. */
@@ -705,6 +711,8 @@ data class ExternalStandardBattle(
     val encounterFoeCountMax: Int,
     val encounterHitPointMinFormula: String,
     val encounterHitPointMaxFormula: String,
+    val encounterFoeCountMaxFormula: String,
+    val encounterWeaponSkillFormula: String,
     val victoryImage: String?,
     val defeatImage: String?,
     val nativeServices: List<ExternalEngineServiceUse>,
@@ -740,16 +748,15 @@ data class ExternalPlayerRoundRules(
     val battleCry: ExternalBattleCryRules,
 )
 
-/** Player attack hit and damage tuning. */
+/** Slugs of the formulas for a player attack's hit chance and damage. */
 data class ExternalPlayerAttackRules(
-    val hitBonus: Int,
-    val damageSpreadMax: Int,
-    val confusionDivisor: Int,
-    val hpDefenseDivisor: Int,
+    val hitChance: String,
+    val damage: String,
 )
 
-/** Defend action tuning. */
+/** Defend action tuning; [healing] is the slug of the formula for the hit points regained. */
 data class ExternalDefendRules(
+    val healing: String,
     val weaponSkillPenalty: Int,
     val restThreshold: Int,
     val cap: Int,
@@ -760,28 +767,23 @@ data class ExternalBattleCryRules(
     val weaponSkillPenalty: Int,
 )
 
-/** Monster-side spell and mêlée rules. */
+/** Monster-side spell and mêlée rules; [spellChance] is a formula slug. */
 data class ExternalMonsterRoundRules(
-    val spellChanceBasePercent: Int,
-    val spellPowerDivisor: Int,
+    val spellChance: String,
     val melee: ExternalMonsterMeleeRules,
 )
 
-/** Monster mêlée hit and damage tuning. */
+/** Slugs of the formulas for a monster mêlée hit's chance and damage. */
 data class ExternalMonsterMeleeRules(
-    val hitBonus: Int,
-    val damageDivisor: Int,
-    val damageSpreadMax: Int,
-    val damageMin: Int,
+    val hitChance: String,
+    val damage: String,
     val fallback: String,
 )
 
 /** Battle prompt and narration text blocks. */
 data class ExternalBattleText(
-    val encounterBanner: ExternalRuntimeTextBlock,
-    val youFace: ExternalRuntimeTextBlock,
-    val foeDisplayName: ExternalRuntimeTextBlock,
-    val stillFace: ExternalRuntimeTextBlock,
+    val encounter: ExternalRuntimeTextBlock,
+    val nextRound: ExternalRuntimeTextBlock,
     val fight: ExternalRuntimeTextBlock,
     val run: ExternalRuntimeTextBlock,
     val bloodFlow: ExternalRuntimeTextBlock,
@@ -809,9 +811,7 @@ data class ExternalBattleText(
     val partyHeld: ExternalRuntimeTextBlock,
     val partyDefeated: ExternalRuntimeTextBlock,
     val victoryBested: ExternalRuntimeTextBlock,
-    val victoryEachSurvivor: ExternalRuntimeTextBlock,
     val victoryReward: ExternalRuntimeTextBlock,
-    val victoryFoundObject: ExternalRuntimeTextBlock,
     val victoryLoot: ExternalRuntimeTextBlock,
     val levelGain: ExternalRuntimeTextBlock,
 )
@@ -842,7 +842,8 @@ data class ExternalEngineServiceUse(
 
 /** Wilderness upkeep balance and fatigue text from the stable runtime-system section. */
 data class ExternalWildernessUpkeep(
-    val foodCostLeaderDiv: Int,
+    /** Slug of the formula for the food eaten every food tick, or null when the party eats none. */
+    val foodCost: String?,
     val foodTickEvery: Int,
     val starveFoodThreshold: Int,
     val starveDamage: Int,
@@ -1112,7 +1113,7 @@ data class ExternalCastleScripts(
 /** Castle text prompts and narration exported without the Kotlin runtime facade. */
 data class ExternalCastleText(
     val roomMonster: ExternalRuntimeTextBlock,
-    val trapTriesDisarmSuffix: ExternalRuntimeTextBlock,
+    val trapTriesDisarm: ExternalRuntimeTextBlock,
     val trapDisarmSucceed: ExternalRuntimeTextBlock,
     val trapDisarmFail: ExternalRuntimeTextBlock,
     val pitfallIllustration: String?,
@@ -1131,7 +1132,7 @@ data class ExternalCastleText(
     val stairsLeave: ExternalRuntimeTextBlock,
     val teleportVortex: ExternalRuntimeTextBlock,
     val teleportOutside: ExternalRuntimeTextBlock,
-    val giveMenu: ExternalRuntimeTextBlock,
+    val givePrompt: ExternalRuntimeTextBlock,
     val stairsGuardianGrateful: ExternalRuntimeTextBlock,
     val floorNames: List<String>,
 )
@@ -1584,6 +1585,8 @@ private class ExternalBundleArtifactWriter {
             "encounterFoeCountMax" to JsonNumber(battle.encounterFoeCountMax.toString()),
             "encounterHitPointMinFormula" to JsonString(battle.encounterHitPointMinFormula.slug),
             "encounterHitPointMaxFormula" to JsonString(battle.encounterHitPointMaxFormula.slug),
+            "encounterFoeCountMaxFormula" to JsonString(battle.encounterFoeCountMaxFormula.slug),
+            "encounterWeaponSkillFormula" to JsonString(battle.encounterWeaponSkillFormula.slug),
             "victoryImage" to battle.victoryImage?.let { JsonString(it.slug) }.orJsonNull(),
             "defeatImage" to battle.defeatImage?.let { JsonString(it.slug) }.orJsonNull(),
             "nativeServices" to nativeServicesJson(battle.nativeServices),
@@ -1610,10 +1613,8 @@ private class ExternalBundleArtifactWriter {
         jsonObject(
             "attack" to
                 jsonObject(
-                    "hitBonus" to JsonNumber(round.attack.hitBonus.toString()),
-                    "damageSpreadMax" to JsonNumber(round.attack.damageSpreadMax.toString()),
-                    "confusionDivisor" to JsonNumber(round.attack.confusionDivisor.toString()),
-                    "hpDefenseDivisor" to JsonNumber(round.attack.hpDefenseDivisor.toString()),
+                    "hitChance" to JsonString(round.attack.hitChance.slug),
+                    "damage" to JsonString(round.attack.damage.slug),
                 ),
             "defend" to defendRulesJson(round.defend),
             "battleCry" to
@@ -1624,6 +1625,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun defendRulesJson(rules: DefendRulesModel): JsonValue =
         jsonObject(
+            "healing" to JsonString(rules.healing.slug),
             "weaponSkillPenalty" to JsonNumber(rules.weaponSkillPenalty.toString()),
             "restThreshold" to JsonNumber(rules.restThreshold.toString()),
             "cap" to JsonNumber(rules.cap.toString()),
@@ -1631,26 +1633,21 @@ private class ExternalBundleArtifactWriter {
 
     private fun monsterRoundJson(round: MonsterRoundModel): JsonValue =
         jsonObject(
-            "spellChanceBasePercent" to JsonNumber(round.spellChanceBasePercent.toString()),
-            "spellPowerDivisor" to JsonNumber(round.spellPowerDivisor.toString()),
+            "spellChance" to JsonString(round.spellChance.slug),
             "melee" to monsterMeleeJson(round.melee),
         )
 
     private fun monsterMeleeJson(melee: MonsterMeleeRulesModel): JsonValue =
         jsonObject(
-            "hitBonus" to JsonNumber(melee.hitBonus.toString()),
-            "damageDivisor" to JsonNumber(melee.damageDivisor.toString()),
-            "damageSpreadMax" to JsonNumber(melee.damageSpreadMax.toString()),
-            "damageMin" to JsonNumber(melee.damageMin.toString()),
+            "hitChance" to JsonString(melee.hitChance.slug),
+            "damage" to JsonString(melee.damage.slug),
             "fallback" to JsonString(melee.fallback.slug),
         )
 
     private fun battleTextJson(text: BattleTextModel): JsonValue =
         jsonObject(
-            "encounterBanner" to textBlockJson(text.encounterBanner),
-            "youFace" to textBlockJson(text.youFace),
-            "foeDisplayName" to textBlockJson(text.foeDisplayName),
-            "stillFace" to textBlockJson(text.stillFace),
+            "encounter" to textBlockJson(text.encounter),
+            "nextRound" to textBlockJson(text.nextRound),
             "fight" to textBlockJson(text.fight),
             "run" to textBlockJson(text.run),
             "bloodFlow" to textBlockJson(text.bloodFlow),
@@ -1678,9 +1675,7 @@ private class ExternalBundleArtifactWriter {
             "partyHeld" to textBlockJson(text.partyHeld),
             "partyDefeated" to textBlockJson(text.partyDefeated),
             "victoryBested" to textBlockJson(text.victoryBested),
-            "victoryEachSurvivor" to textBlockJson(text.victoryEachSurvivor),
             "victoryReward" to textBlockJson(text.victoryReward),
-            "victoryFoundObject" to textBlockJson(text.victoryFoundObject),
             "victoryLoot" to textBlockJson(text.victoryLoot),
             "levelGain" to textBlockJson(text.levelGain),
         )
@@ -1714,6 +1709,7 @@ private class ExternalBundleArtifactWriter {
             "upkeep" to upkeepJson(realm.upkeep),
             "camp" to campJson(realm.camp),
             "hunt" to realm.hunt?.let(::huntJson).orJsonNull(),
+            "spellCost" to realm.spellCost?.let { formula -> JsonString(formula.slug) }.orJsonNull(),
             "timeOfDay" to
                 JsonArray(
                     realm.timeOfDay.map { band ->
@@ -1728,7 +1724,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun upkeepJson(upkeep: WildernessUpkeepRules): JsonValue =
         jsonObject(
-            "foodCostLeaderDiv" to JsonNumber(upkeep.foodCostLeaderDiv.toString()),
+            "foodCost" to upkeep.foodCost?.let { formula -> JsonString(formula.slug) }.orJsonNull(),
             "foodTickEvery" to JsonNumber(upkeep.foodTickEvery.toString()),
             "starveFoodThreshold" to JsonNumber(upkeep.starveFoodThreshold.toString()),
             "starveDamage" to JsonNumber(upkeep.starveDamage.toString()),
@@ -1882,6 +1878,7 @@ private class ExternalBundleArtifactWriter {
                             textField("entryWelcome", prompts.town.entryWelcome),
                             textField("entryTax", prompts.town.entryTax),
                             textField("entryTaxThanks", prompts.town.entryTaxThanks),
+                            textField("entryTaxShortfall", prompts.town.entryTaxShortfall),
                         ),
                         promptGroupJson(
                             "party",
@@ -2289,9 +2286,13 @@ private class ExternalBundleArtifactWriter {
             ?.let {
                 jsonObject(
                     "leavePrompts" to JsonArray(it.leavePrompts.map { command -> JsonString(command.name) }),
+                    "image" to it.image?.let { image -> JsonString(image.slug) }.orJsonNull(),
                     "entryTax" to
                         jsonObject(
-                            "minimumLeaderLevel" to JsonNumber(it.entryTax.minimumLeaderLevel.toString()),
+                            "amount" to
+                                it.entryTax.amount
+                                    ?.let { formula -> JsonString(formula.slug) }
+                                    .orJsonNull(),
                             "pay" to bindingJson(it.entryTax.pay),
                             "leave" to bindingJson(it.entryTax.leave),
                         ),
@@ -2492,7 +2493,7 @@ private class ExternalBundleArtifactWriter {
     private fun castleTextJson(text: CastleTextModel): JsonValue =
         jsonObject(
             "roomMonster" to textBlockJson(text.roomMonster),
-            "trapTriesDisarmSuffix" to textBlockJson(text.trapTriesDisarmSuffix),
+            "trapTriesDisarm" to textBlockJson(text.trapTriesDisarm),
             "trapDisarmSucceed" to textBlockJson(text.trapDisarmSucceed),
             "trapDisarmFail" to textBlockJson(text.trapDisarmFail),
             "pitfallIllustration" to text.pitfallIllustration?.let { JsonString(it.slug) }.orJsonNull(),
@@ -2511,7 +2512,7 @@ private class ExternalBundleArtifactWriter {
             "stairsLeave" to textBlockJson(text.stairsLeave),
             "teleportVortex" to textBlockJson(text.teleportVortex),
             "teleportOutside" to textBlockJson(text.teleportOutside),
-            "giveMenu" to textBlockJson(text.giveMenu),
+            "givePrompt" to textBlockJson(text.givePrompt),
             "stairsGuardianGrateful" to textBlockJson(text.stairsGuardianGrateful),
             "floorNames" to JsonArray(text.floorNames.map(::JsonString)),
         )
@@ -2548,6 +2549,7 @@ private class ExternalBundleArtifactWriter {
             is TextPart.IntValue -> jsonObject("kind" to JsonString("intExpr"), "expr" to intAstJson(part.value))
             is TextPart.StringValue -> jsonObject("kind" to JsonString("stringExpr"), "expr" to strAstJson(part.value))
             is TextPart.Pause -> error("{pause} markers only work in writeText and showTextAndWait")
+            is TextPart.LineColor -> jsonObject("kind" to JsonString("literal"), "text" to JsonString(part.color.escape))
             is TextPart.RoleName -> jsonObject("kind" to JsonString("roleName"), "role" to JsonString(part.role.slug))
             is TextPart.RoleJob -> jsonObject("kind" to JsonString("roleJob"), "role" to JsonString(part.role.slug))
             is TextPart.RoleLocation ->
@@ -2569,6 +2571,7 @@ private class ExternalBundleArtifactWriter {
                     "town" to JsonString(part.town.slug),
                     "radius" to JsonNumber(part.radius.toString()),
                 )
+            is TextPart.MissionCoordinate -> error("mission coordinates only work in script text")
             is TextPart.LocationCoordinate ->
                 jsonObject(
                     "kind" to JsonString("locationCoordinate"),
@@ -2586,6 +2589,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.HuntFoodGained -> textTokenJson("huntFoodGained")
             TextPart.UpkeepMemberName -> textTokenJson("upkeepMemberName")
             TextPart.CampGuardName -> textTokenJson("campGuardName")
+            TextPart.CastleThiefName -> textTokenJson("castleThiefName")
             TextPart.PartyMemberCount -> textTokenJson("partyMemberCount")
             TextPart.PartyMemberMax -> textTokenJson("partyMemberMax")
             TextPart.WildernessDungeonName -> textTokenJson("wildernessDungeonName")
@@ -2595,6 +2599,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.CurrentTownName -> textTokenJson("currentTownName")
             TextPart.TownTaxPercent -> textTokenJson("townTaxPercent")
             TextPart.TownTaxAmount -> textTokenJson("townTaxAmount")
+            TextPart.TownTaxShortfall -> textTokenJson("townTaxShortfall")
             TextPart.CreationMemberNumber -> textTokenJson("creationMemberNumber")
             TextPart.CreationMemberName -> textTokenJson("creationMemberName")
             TextPart.CreationWeaponSkill -> textTokenJson("creationWeaponSkill")
@@ -2611,6 +2616,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.BattleLootName -> textTokenJson("battleLootName")
             TextPart.BattleLevelMemberName -> textTokenJson("battleLevelMemberName")
             TextPart.BattleLevelsGained -> textTokenJson("battleLevelsGained")
+            TextPart.BattleRoundNumber -> textTokenJson("battleRoundNumber")
         }
 
     private fun textTokenJson(kind: String): JsonValue = jsonObject("kind" to JsonString(kind))
@@ -3135,6 +3141,7 @@ private class ExternalRuntimeSystemsReader(
                     entryWelcome = town.requiredTextPrompt("entryWelcome"),
                     entryTax = town.requiredTextPrompt("entryTax"),
                     entryTaxThanks = town.requiredTextPrompt("entryTaxThanks"),
+                    entryTaxShortfall = town.requiredTextPrompt("entryTaxShortfall"),
                 ),
             party =
                 ExternalPartyPrompts(
@@ -3335,6 +3342,7 @@ private class ExternalRuntimeSystemsReader(
                     ?.takeUnless { it is JsonNull }
                     ?.asObject("town entry tax")
                     ?.readTownEntryTax(),
+            image = optionalNullableString("image"),
             leavePrompts =
                 optionalArray("leavePrompts")?.values.orEmpty().map { command ->
                     enumValueOf<EquipmentCommand>(command.asString("town leave prompt"))
@@ -3343,7 +3351,7 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readTownEntryTax(): ExternalTownEntryTax =
         ExternalTownEntryTax(
-            minimumLeaderLevel = requiredInt("minimumLeaderLevel"),
+            amount = optionalNullableString("amount"),
             pay = requiredObject("pay").readBinding(),
             leave = requiredObject("leave").readBinding(),
         )
@@ -3480,7 +3488,7 @@ private class ExternalRuntimeSystemsReader(
     private fun JsonObject.readCastleText(): ExternalCastleText =
         ExternalCastleText(
             roomMonster = required("roomMonster").readTextBlock(),
-            trapTriesDisarmSuffix = required("trapTriesDisarmSuffix").readTextBlock(),
+            trapTriesDisarm = required("trapTriesDisarm").readTextBlock(),
             trapDisarmSucceed = required("trapDisarmSucceed").readTextBlock(),
             trapDisarmFail = required("trapDisarmFail").readTextBlock(),
             pitfallIllustration = optionalNullableString("pitfallIllustration"),
@@ -3499,7 +3507,7 @@ private class ExternalRuntimeSystemsReader(
             stairsLeave = required("stairsLeave").readTextBlock(),
             teleportVortex = required("teleportVortex").readTextBlock(),
             teleportOutside = required("teleportOutside").readTextBlock(),
-            giveMenu = required("giveMenu").readTextBlock(),
+            givePrompt = required("givePrompt").readTextBlock(),
             stairsGuardianGrateful = required("stairsGuardianGrateful").readTextBlock(),
             floorNames = requiredArray("floorNames").values.map { value -> value.asString("castle floor name") },
         )
@@ -3674,6 +3682,8 @@ private class ExternalRuntimeSystemsReader(
             encounterFoeCountMax = requiredInt("encounterFoeCountMax"),
             encounterHitPointMinFormula = requiredString("encounterHitPointMinFormula"),
             encounterHitPointMaxFormula = requiredString("encounterHitPointMaxFormula"),
+            encounterFoeCountMaxFormula = requiredString("encounterFoeCountMaxFormula"),
+            encounterWeaponSkillFormula = requiredString("encounterWeaponSkillFormula"),
             victoryImage = optionalNullableString("victoryImage"),
             defeatImage = optionalNullableString("defeatImage"),
             nativeServices = requiredArray("nativeServices").values.map { row -> row.asObject("native service").readNativeService() },
@@ -3701,15 +3711,14 @@ private class ExternalRuntimeSystemsReader(
             attack =
                 requiredObject("attack").let { attack ->
                     ExternalPlayerAttackRules(
-                        hitBonus = attack.requiredInt("hitBonus"),
-                        damageSpreadMax = attack.requiredInt("damageSpreadMax"),
-                        confusionDivisor = attack.requiredInt("confusionDivisor"),
-                        hpDefenseDivisor = attack.requiredInt("hpDefenseDivisor"),
+                        hitChance = attack.requiredString("hitChance"),
+                        damage = attack.requiredString("damage"),
                     )
                 },
             defend =
                 requiredObject("defend").let { defend ->
                     ExternalDefendRules(
+                        healing = defend.requiredString("healing"),
                         weaponSkillPenalty = defend.requiredInt("weaponSkillPenalty"),
                         restThreshold = defend.requiredInt("restThreshold"),
                         cap = defend.requiredInt("cap"),
@@ -3721,15 +3730,12 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readMonsterRound(): ExternalMonsterRoundRules =
         ExternalMonsterRoundRules(
-            spellChanceBasePercent = requiredInt("spellChanceBasePercent"),
-            spellPowerDivisor = requiredInt("spellPowerDivisor"),
+            spellChance = requiredString("spellChance"),
             melee =
                 requiredObject("melee").let { melee ->
                     ExternalMonsterMeleeRules(
-                        hitBonus = melee.requiredInt("hitBonus"),
-                        damageDivisor = melee.requiredInt("damageDivisor"),
-                        damageSpreadMax = melee.requiredInt("damageSpreadMax"),
-                        damageMin = melee.requiredInt("damageMin"),
+                        hitChance = melee.requiredString("hitChance"),
+                        damage = melee.requiredString("damage"),
                         fallback = melee.requiredString("fallback"),
                     )
                 },
@@ -3737,10 +3743,8 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readBattleText(): ExternalBattleText =
         ExternalBattleText(
-            encounterBanner = required("encounterBanner").readTextBlock(),
-            youFace = required("youFace").readTextBlock(),
-            foeDisplayName = required("foeDisplayName").readTextBlock(),
-            stillFace = required("stillFace").readTextBlock(),
+            encounter = required("encounter").readTextBlock(),
+            nextRound = required("nextRound").readTextBlock(),
             fight = required("fight").readTextBlock(),
             run = required("run").readTextBlock(),
             bloodFlow = required("bloodFlow").readTextBlock(),
@@ -3768,9 +3772,7 @@ private class ExternalRuntimeSystemsReader(
             partyHeld = required("partyHeld").readTextBlock(),
             partyDefeated = required("partyDefeated").readTextBlock(),
             victoryBested = required("victoryBested").readTextBlock(),
-            victoryEachSurvivor = required("victoryEachSurvivor").readTextBlock(),
             victoryReward = required("victoryReward").readTextBlock(),
-            victoryFoundObject = required("victoryFoundObject").readTextBlock(),
             victoryLoot = required("victoryLoot").readTextBlock(),
             levelGain = required("levelGain").readTextBlock(),
         )
@@ -3812,6 +3814,7 @@ private class ExternalRuntimeSystemsReader(
             upkeep = requiredObject("upkeep").readUpkeep(),
             camp = requiredObject("camp").readCamp(),
             hunt = optional("hunt")?.takeUnless { it is JsonNull }?.asObject("hunt")?.readHunt(),
+            spellCost = optional("spellCost")?.takeUnless { it is JsonNull }?.asString("spellCost"),
             timeOfDay =
                 requiredArray("timeOfDay")
                     .values
@@ -3827,7 +3830,7 @@ private class ExternalRuntimeSystemsReader(
 
     private fun JsonObject.readUpkeep(): ExternalWildernessUpkeep =
         ExternalWildernessUpkeep(
-            foodCostLeaderDiv = requiredInt("foodCostLeaderDiv"),
+            foodCost = optionalNullableString("foodCost"),
             foodTickEvery = requiredInt("foodTickEvery"),
             starveFoodThreshold = requiredInt("starveFoodThreshold"),
             starveDamage = requiredInt("starveDamage"),
@@ -4892,11 +4895,4 @@ private inline fun <reified T : Enum<T>> JsonObject.requiredEnum(name: String): 
 private inline fun <reified T : Enum<T>> JsonObject.optionalNullableEnum(name: String): T? =
     optionalNullableString(name)?.let(::enumValueOf)
 
-internal fun ByteArray.fnv1a32(): Int {
-    var hash = 0x811c9dc5.toInt()
-    forEach { byte ->
-        hash = hash xor (byte.toInt() and 0xff)
-        hash *= 0x01000193
-    }
-    return hash
-}
+internal fun ByteArray.fnv1a32(): Int = fold(0x811c9dc5.toInt()) { hash, byte -> (hash xor (byte.toInt() and 0xff)) * 0x01000193 }

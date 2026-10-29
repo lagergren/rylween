@@ -25,6 +25,7 @@ import rylween.dsl.impl.GridPoint
 import rylween.dsl.impl.HitPoints
 import rylween.dsl.impl.PcClass
 import rylween.dsl.impl.TerrainSettlement
+import rylween.dsl.lineColor
 import rylween.terminal.AnsiCodes
 import rylween.terminal.AnsiTerminal
 import kotlin.math.max
@@ -213,7 +214,7 @@ internal class RuntimeScreen(
         logTextOverflow(rows)
         rows.take(textWindow.height ?: rows.size).forEachIndexed { index, row ->
             gotoTextRow(index)
-            terminal.writeRaw(row)
+            terminal.writeRaw(if (row.lineColor() == null) row else row + AnsiCodes.FG_WHITE)
         }
         terminal.flush()
     }

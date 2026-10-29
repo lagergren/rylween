@@ -126,11 +126,14 @@ class ScriptScope(
      * Adds text below what the text window already shows, so a beat such as
      * "...you reveal nothing but..." can be followed, after a pause, by "dust..."
      * on the same page. Flow text is a new paragraph and gets a blank line
-     * above it; literal lines continue directly below, exactly as written.
+     * above it; literal lines continue directly below, exactly as written. A
+     * `{pause}` marker at the end holds the page that long.
      */
     fun appendText(text: TextBlock) {
-        require(text.beats().size == 1) { "appendText cannot hold {pause} markers; put the beats in writeText" }
-        record(ScriptStatementNode.Screen(text, append = true))
+        val beat = text.beats().singleOrNull()
+        requireNotNull(beat) { "appendText takes a {pause} marker only at the end of its text; put earlier beats in writeText" }
+        record(ScriptStatementNode.Screen(beat.text, append = true))
+        beat.pauseMillis?.let(::pause)
     }
 
     fun appendText(text: String): Unit = appendText(flowText(text))
@@ -164,19 +167,12 @@ class ScriptScope(
 
     fun waitInput(reason: String? = null): Unit = record(ScriptStatementNode.WaitInput(reason))
 
+    /**
+     * Waits [ms] milliseconds. A pause that holds text belongs in the text as a
+     * `{pause}` marker; this is for a beat between other things, such as a
+     * sound and the line that follows it.
+     */
     fun pause(ms: Int): Unit = record(ScriptStatementNode.Pause(ms))
-
-    fun pause600ms(): Unit = pause(600)
-
-    fun pause1s(): Unit = pause(1_000)
-
-    fun pause1500ms(): Unit = pause(1_500)
-
-    fun pause2s(): Unit = pause(2_000)
-
-    fun pause3s(): Unit = pause(3_000)
-
-    fun pause4s(): Unit = pause(4_000)
 
     fun clearText(): Unit = view.clearText()
 
@@ -253,15 +249,13 @@ class ScriptScope(
     }
 
     /**
-     * Exposes the active caster plus the standard `baseCost + caster.level`
-     * expression used by current priest spells.
+     * Exposes the active caster plus what the spell costs them, as the game's
+     * `realm { spellCost }` formula works it out. The runtime supplies both,
+     * the way battle charges a mage spell.
      */
-    fun withCurrentCasterCost(
-        baseCost: Int,
-        body: ScriptScope.(MemberRef, IntExpr) -> Unit,
-    ) {
+    fun withCurrentCasterCost(body: ScriptScope.(MemberRef, IntExpr) -> Unit) {
         withCurrentCaster { caster ->
-            body(caster, lit(baseCost) + caster.level)
+            body(caster, v("spell_cost"))
         }
     }
 
@@ -328,7 +322,7 @@ class ScriptScope(
     ) {
         val builder = SwitchBuilder(ctx)
         builder.body()
-        record(ScriptStatementNode.Switch(expr.ast, builder.cases))
+        record(ScriptStatementNode.Switch(expr.ast, builder.cases.toList()))
     }
 
     fun menu(
@@ -564,6 +558,12 @@ class ScriptScope(
         }
     }
 
+    fun pay(
+        amount: Int,
+        broke: ScriptScope.() -> Unit,
+        ok: ScriptScope.() -> Unit,
+    ): Unit = pay(lit(amount), broke, ok)
+
     internal fun capture(body: ScriptScope.() -> Unit): List<ScriptStatementNode> = recordStatementNodes(ctx, body)
 }
 
@@ -577,6 +577,9 @@ class ScriptScope(
 @RylNextDsl
 @Suppress("unused")
 class ScriptRewardBuilder {
+    /** The item being placed, for the cant-carry and picked-up messages. */
+    val itemName: TextPart = TextPart.SelectedItemName
+
     private var goldAst: IntAst? = null
     private val itemIds = mutableListOf<ItemId>()
     private var applicationModel = RewardApplicationBuilder().build()
@@ -829,17 +832,18 @@ class ElseBranch(
 class SwitchBuilder(
     private val ctx: ScriptContext,
 ) {
-    val cases: MutableList<SwitchCase> = mutableListOf()
+    private val switchCases = mutableListOf<SwitchCase>()
+    val cases: List<SwitchCase> get() = switchCases
 
     fun case(
         value: Int,
         body: ScriptScope.() -> Unit,
     ) {
-        cases += SwitchCase(value, recordStatementNodes(ctx, body))
+        switchCases += SwitchCase(value, recordStatementNodes(ctx, body))
     }
 
     fun default(body: ScriptScope.() -> Unit) {
-        cases += SwitchCase(null, recordStatementNodes(ctx, body))
+        switchCases += SwitchCase(null, recordStatementNodes(ctx, body))
     }
 }
 
@@ -2104,7 +2108,7 @@ class CharacterCreationPromptsBuilder(
  * Receiver for town-entry and town-menu prompt text.
  *
  * Designers author the reusable town menu title and entry/tax messages shared
- * by the town session.
+ * by the town session, including the one a party that can't pay the tax sees.
  */
 @RylNextDsl
 class TownPromptsBuilder(
@@ -2114,6 +2118,7 @@ class TownPromptsBuilder(
     var entryWelcome: TextBlock = initial.entryWelcome
     var entryTax: TextBlock = initial.entryTax
     var entryTaxThanks: TextBlock = initial.entryTaxThanks
+    var entryTaxShortfall: TextBlock = initial.entryTaxShortfall
 
     fun menuTitle(body: StructuredTextBlockBuilder.() -> Unit) {
         menuTitleText = literalText(body)
@@ -2125,6 +2130,7 @@ class TownPromptsBuilder(
             entryWelcome = entryWelcome,
             entryTax = entryTax,
             entryTaxThanks = entryTaxThanks,
+            entryTaxShortfall = entryTaxShortfall,
         )
 }
 
@@ -2625,6 +2631,12 @@ class DungeonSystemBuilder {
     private val scenarios = mutableListOf<DungeonScenarioModel>()
     private var backdrop: ImageId? = null
     private var keys = DungeonKeysModel()
+    private var defaultRandomEvents = emptyList<DungeonRandomEventModel>()
+
+    /** The random-event mix of every scenario that names none of its own. */
+    fun randomEvents(vararg events: Pair<DungeonEventId, Int>) {
+        defaultRandomEvents = events.map { (event, weight) -> DungeonRandomEventModel(event, weight) }
+    }
 
     fun backdrop(image: ImageId?) {
         backdrop = image
@@ -2651,7 +2663,11 @@ class DungeonSystemBuilder {
     fun build(): DungeonSystemModel =
         DungeonSystemModel(
             events = events.toList(),
-            scenarios = scenarios.toList(),
+            scenarios =
+                scenarios.map { scenario ->
+                    scenario.takeUnless { it.randomEvents.isEmpty() }
+                        ?: scenario.copy(randomEvents = defaultRandomEvents)
+                },
             backdrop = backdrop,
             keys = keys,
         )
@@ -2793,6 +2809,22 @@ class DungeonScenarioBuilder(
         event: DungeonEventId,
     ) {
         fixedLevelEvents[number] = event
+    }
+
+    /** The same fixed event on each of [numbers], such as `level(13..19, DungeonEvents.colorRiddle)`. */
+    fun level(
+        numbers: IntRange,
+        event: DungeonEventId,
+    ) {
+        numbers.forEach { number -> level(number, event) }
+    }
+
+    /** The same fixed event on each of [numbers], such as `level(3, 6, 9, event = DungeonEvents.hobgoblinPatrol)`. */
+    fun level(
+        vararg numbers: Int,
+        event: DungeonEventId,
+    ) {
+        numbers.forEach { number -> level(number, event) }
     }
 
     fun randomEvents(body: DungeonRandomEventPoolBuilder.() -> Unit) {
@@ -3089,6 +3121,9 @@ class TownSystemBuilder {
     private var leavePromptCommands: List<EquipmentCommand> = emptyList()
     private var entryTaxModel: TownEntryTaxModel = TownEntryTaxModel()
 
+    /** The street view shown with the town menu and the entry tax. */
+    var image: ImageId? = null
+
     fun menu(body: TownMenuBuilder.() -> Unit) {
         menuModel = TownMenuBuilder().apply(body).build()
     }
@@ -3115,6 +3150,7 @@ class TownSystemBuilder {
             buildingServices = buildingServiceModels,
             leavePrompts = leavePromptCommands,
             entryTax = entryTaxModel,
+            image = image,
             nativeServices =
                 listOf(
                     EngineServiceUse(EngineService.KeyboardInput, "town menu command selection"),
@@ -3132,20 +3168,21 @@ class TownSystemBuilder {
 /**
  * Receiver for the town-entry tax interaction.
  *
- * It declares the leader-level threshold and pay/leave bindings used when a
- * town charges entry tax.
+ * It declares the tax formula and the pay/leave bindings used when a town
+ * charges entry tax.
  */
 @RylNextDsl
 class TownEntryTaxBuilder(
     initial: TownEntryTaxModel = TownEntryTaxModel(),
 ) {
-    var minimumLeaderLevel: Int = initial.minimumLeaderLevel
+    /** The gold a party pays to enter a town, as a formula; a town with nothing to charge lets it in. */
+    var amount: FormulaId? = initial.amount
     var pay: InputBindingModel = initial.pay
     var leave: InputBindingModel = initial.leave
 
     fun build(): TownEntryTaxModel =
         TownEntryTaxModel(
-            minimumLeaderLevel = minimumLeaderLevel,
+            amount = amount,
             pay = pay,
             leave = leave,
         )
@@ -3475,10 +3512,35 @@ class FormulaBuilder(
     val health: IntExpr = v("health")
 
     // Member stats, bound by the system that evaluates the formula: the
-    // hunting ranger, the thief disarming a castle trap, or, for a haggle roll
-    // bonus, the party's highest living charisma.
+    // hunting ranger, the thief disarming a castle trap, the caster of a spell,
+    // or, for a haggle roll bonus, the party's highest living charisma.
     val charisma: IntExpr = v("charisma")
     val dexterity: IntExpr = v("dexterity")
+    val level: IntExpr = v("level")
+
+    // The spell being cast, for the spell cost formula; the caster's stats are bound above.
+    val spellBaseCost: IntExpr = v("spell_base_cost")
+
+    // Upkeep and town entry: the party's living members and the gold it
+    // carries, and the tax rate of the town it enters.
+    val livingMembers: IntExpr = v("living_members")
+
+    // A shop price: the cost of the item on offer.
+    val itemCost: IntExpr = v("item_cost")
+    val gold: IntExpr = v("gold")
+    val taxPercent: IntExpr = v("tax_percent")
+
+    // Battle arithmetic, bound by the battle runner: the member who attacks or
+    // defends, or the one a monster attacks; the attacking monster; and the
+    // monster an encounter is made of.
+    val weaponSkill: IntExpr = v("weapon_skill")
+    val weaponDamage: IntExpr = v("weapon_damage")
+    val hitPoints: IntExpr = v("hit_points")
+    val armorClass: IntExpr = v("armor_class")
+    val partyConfused: BoolExpr = Bool(BoolAst.Cmp(IntAst.Var("party_confused"), "ne", IntAst.Lit(0)))
+    val monsterHitPoints: IntExpr = v("monster_hit_points")
+    val monsterCountMax: IntExpr = v("monster_count_max")
+    val countMaxLevelDivisor: IntExpr = v("count_max_level_divisor")
 
     fun whenValue(
         condition: BoolExpr,

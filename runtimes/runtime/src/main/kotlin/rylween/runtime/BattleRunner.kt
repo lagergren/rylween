@@ -74,6 +74,7 @@ private const val BATTLE_GOLD = "battleGold"
 private const val BATTLE_LOOT_NAME = "battleLootName"
 private const val BATTLE_LEVEL_MEMBER_NAME = "battleLevelMemberName"
 private const val BATTLE_LEVELS_GAINED = "battleLevelsGained"
+private const val BATTLE_ROUND_NUMBER = "battleRoundNumber"
 private const val BATTLE_MESSAGE_PAGE_LINES = 4
 private const val BATTLE_VICTORY_PAGE_LINES = 7
 
@@ -102,6 +103,8 @@ internal data class BattleResult(
 internal class BattleRunner(
     private val content: CompiledContentBundle,
     private val combat: ExternalRuntimeCombat,
+    // The game's spell cost formula, from the realm rules.
+    private val spellCost: String?,
     private val pacing: ExternalBattlePacing,
     private val input: RuntimeInputPort,
     private val screen: RuntimeScreenPort,
@@ -360,9 +363,7 @@ internal class BattleRunner(
 
     private fun ExternalStandardBattle.openingText(encounter: BattleEncounter): List<String> =
         screen.choiceMenuLines(
-            text.encounterBanner.renderBattle() +
-                text.youFace.renderBattle() +
-                text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()),
+            text.encounter.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()),
             text.fight.renderBattle() + text.run.renderBattle(),
         )
 
@@ -391,9 +392,10 @@ internal class BattleRunner(
         roundNumber: Int,
     ): List<String> =
         screen.choiceMenuLines(
-            listOf("Round $roundNumber", "") +
-                text.stillFace.renderBattle() +
-                text.foeDisplayName.renderBattle(BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName()),
+            text.nextRound.renderBattle(
+                BATTLE_ROUND_NUMBER to roundNumber.toString(),
+                BATTLE_FOE_DISPLAY_NAME to encounter.foeDisplayName(),
+            ),
             text.fight.renderBattle() + text.run.renderBattle(),
         )
 
@@ -404,8 +406,7 @@ internal class BattleRunner(
                 var retry = true
                 var attempts = 0
                 while (retry && attempts < rules.roundLimit && next.monsterHasLivingMembers()) {
-                    val messages = mutableListOf<String>()
-                    next = next.playerAction(index, member, messages)
+                    val messages = buildList { next = next.playerAction(index, member, this) }
                     retry = next.actionRetry
                     next = next.copy(actionRetry = false)
                     screen.updateStatus(next.runtime)
@@ -447,22 +448,15 @@ internal class BattleRunner(
     ): BattleEncounter {
         val targetIndex = selectMonsterTarget() ?: return copy(actionRetry = true)
         val hit = runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
-        val skill =
-            when {
-                partyConfused -> member.weaponSkill / rules.playerRound.attack.confusionDivisor
-                else -> member.weaponSkill
-            }
-        val hitChance = (skill + rules.playerRound.attack.hitBonus).coerceIn(0, 100)
+        val attacker = member.battleBindings() + ("party_confused" to if (partyConfused) 1 else 0)
+        val hitChance = content.evalFormula(rules.playerRound.attack.hitChance, hit.party, attacker).value.coerceIn(0, 100)
         if (hit.value >= hitChance) {
             audio.weaponMiss(content.slug(member.equipment.weapon))
             messages += rules.text.playerMiss.renderBattle(BATTLE_ATTACKER_NAME to runtime.party.memberName(content, memberIndex))
             return copy(runtime = runtime.withParty(hit.party))
         }
-        val damageDraw = hit.party.drawRandom(0, rules.playerRound.attack.damageSpreadMax)
-        val damage =
-            member.weaponDamage() +
-                damageDraw.value +
-                member.hitPoints.current / rules.playerRound.attack.hpDefenseDivisor
+        val damageDraw = content.evalFormula(rules.playerRound.attack.damage, hit.party, attacker)
+        val damage = damageDraw.value.coerceAtLeast(0)
         val nextHp =
             monsterHp.mapIndexed { index, hp ->
                 hp.takeUnless { index == targetIndex } ?: (hp - damage).coerceAtLeast(0)
@@ -493,7 +487,8 @@ internal class BattleRunner(
         messages: MutableList<String>,
     ): BattleEncounter {
         audio.cue(AudioCue.Defend)
-        val healed = (member.hitPoints.current + member.level).coerceAtMost(member.hitPoints.max)
+        val healing = content.evalFormula(rules.playerRound.defend.healing, runtime.party, member.battleBindings()).value
+        val healed = (member.hitPoints.current + healing).coerceAtMost(member.hitPoints.max)
         val nextMember = member.copy(hitPoints = healed of member.hitPoints.max)
         val nextMessages =
             rules.text.restGainHits
@@ -569,7 +564,7 @@ internal class BattleRunner(
         messages: MutableList<String>,
     ): BattleEncounter {
         val spells = mageSpells()
-        screen.writeText(spellChoiceLines(member, spells))
+        screen.writeText(spellChoiceLines(member, spells, runtime.party))
         val command = input.readCommand()?.uppercaseChar() ?: return copy(actionRetry = true)
         if (command == BATTLE_SPELL_CANCEL_KEY) return copy(actionRetry = true)
         val slot = command.digitToIntOrNull() ?: return copy(actionRetry = true)
@@ -583,7 +578,7 @@ internal class BattleRunner(
             messages += rules.text.spellFizzle.renderBattle()
             return this
         }
-        val cost = spell.baseCost + member.level
+        val cost = content.spellCost(spellCost, spell, member, runtime.party)
         if (member.mana.current < cost) {
             audio.cue(AudioCue.SpellFizzle)
             messages += rules.text.notEnoughMagic.renderBattle()
@@ -594,7 +589,7 @@ internal class BattleRunner(
         return copy(runtime = runtime.withMember(memberIndex, nextMember))
             .runBattleScript(
                 scriptRoot = spell.scriptRoot,
-                locals = mapOf("caster_idx" to memberIndex),
+                locals = mapOf("caster_idx" to memberIndex, "spell_cost" to cost),
             )
     }
 
@@ -602,13 +597,15 @@ internal class BattleRunner(
         var next = copy(partyHeld = false, partyConfused = false, actionRetry = false)
         monsterHp.forEachIndexed { index, hp ->
             if (hp > 0 && next.partyHasLivingMembers() && !next.monstersHeld) {
-                val messages = mutableListOf<String>()
                 val cast = next.shouldMonsterCast()
                 next = cast.encounter
-                next =
-                    when {
-                        cast.value -> next.castMonsterSpell(index)
-                        else -> next.monsterAttack(hp, messages)
+                val messages =
+                    buildList {
+                        next =
+                            when {
+                                cast.value -> next.castMonsterSpell(index)
+                                else -> next.monsterAttack(hp, this)
+                            }
                     }
                 screen.updateStatus(next.runtime)
                 showBattleMessages(messages)
@@ -628,7 +625,9 @@ internal class BattleRunner(
         val target = targetDraw.party.members[targetIndex]
         val targetName = targetDraw.party.memberName(content, targetIndex)
         val hit = targetDraw.party.drawRandom(0, RANDOM_PERCENT_MAX)
-        val hitChance = (monsterWeaponSkill + rules.monsterRound.melee.hitBonus).coerceIn(0, 100)
+        val melee =
+            target.battleBindings() + mapOf("monster_weapon_skill" to monsterWeaponSkill, "monster_hit_points" to monsterHitPoints)
+        val hitChance = content.evalFormula(rules.monsterRound.melee.hitChance, hit.party, melee).value.coerceIn(0, 100)
         if (hit.value >= hitChance) {
             audio.cue(AudioCue.MonsterMiss)
             messages +=
@@ -638,10 +637,8 @@ internal class BattleRunner(
                 )
             return copy(runtime = runtime.withParty(hit.party))
         }
-        val damageDraw = hit.party.drawRandom(0, rules.monsterRound.melee.damageSpreadMax)
-        val damage =
-            (monsterHitPoints / rules.monsterRound.melee.damageDivisor + damageDraw.value - target.armorClass())
-                .coerceAtLeast(rules.monsterRound.melee.damageMin)
+        val damageDraw = content.evalFormula(rules.monsterRound.melee.damage, hit.party, melee)
+        val damage = damageDraw.value.coerceAtLeast(0)
         val nextHp = (target.hitPoints.current - damage).coerceAtLeast(0)
         val nextTarget = target.copy(hitPoints = nextHp of target.hitPoints.max, dead = target.dead || nextHp == 0)
         audio.monsterHit(content.slug(monster.id), content.slug(target.equipment.armor))
@@ -662,7 +659,12 @@ internal class BattleRunner(
         val options = monsterSpells()
         if (antimagic || monster.spellPower <= 0 || options.isEmpty()) return BattleCastDecision(false, this)
         val chance =
-            rules.monsterRound.spellChanceBasePercent + monster.spellPower / rules.monsterRound.spellPowerDivisor
+            content
+                .evalFormula(
+                    rules.monsterRound.spellChance,
+                    runtime.party,
+                    mapOf("monster_spell_power" to monster.spellPower),
+                ).value
         val draw = runtime.party.drawRandom(0, RANDOM_PERCENT_MAX)
         return BattleCastDecision(draw.value < chance, copy(runtime = runtime.withParty(draw.party)))
     }
@@ -780,16 +782,14 @@ internal class BattleRunner(
             buildList {
                 addAll(rules.text.victoryBested.renderBattle())
                 addAll(
-                    rules.text.victoryEachSurvivor.renderBattle() +
-                        rules.text.victoryReward.renderBattle(
-                            BATTLE_EXPERIENCE to experience.toString(),
-                            BATTLE_GOLD to gold.toString(),
-                        ),
+                    rules.text.victoryReward.renderBattle(
+                        BATTLE_EXPERIENCE to experience.toString(),
+                        BATTLE_GOLD to gold.toString(),
+                    ),
                 )
                 loot?.let { item ->
                     addAll(
-                        rules.text.victoryFoundObject.renderBattle() +
-                            rules.text.victoryLoot.renderBattle(BATTLE_LOOT_NAME to item.displayName()),
+                        rules.text.victoryLoot.renderBattle(BATTLE_LOOT_NAME to item.displayName()),
                     )
                 }
                 levelUps.gains.forEach { gain ->
@@ -812,7 +812,14 @@ internal class BattleRunner(
     ): BattleEncounter {
         var party = runtime.party
         val firstLevel = party.members.firstOrNull()?.level ?: 0
-        val countMax = monster.count.last + (monster.countMaxLevelDivisor?.let { divisor -> firstLevel / divisor } ?: 0)
+        val scaling =
+            mapOf(
+                "first_level" to firstLevel,
+                "monster_weapon_skill" to monster.weaponSkill,
+                "monster_count_max" to monster.count.last,
+                "count_max_level_divisor" to (monster.countMaxLevelDivisor ?: 0),
+            )
+        val countMax = content.evalFormula(rules.encounterFoeCountMaxFormula, party, scaling).value
         val bannerDraw =
             rules.opening.banners
                 .takeIf { banners -> banners.isNotEmpty() }
@@ -875,7 +882,7 @@ internal class BattleRunner(
             monsterHp = hitPoints,
             monsterHpMax = hitPoints,
             hitPointMax = hpRange.last,
-            monsterWeaponSkill = monster.weaponSkill + firstLevel,
+            monsterWeaponSkill = content.evalFormula(rules.encounterWeaponSkillFormula, party, scaling).value,
             mandatory = mandatory,
             bannerIndex = bannerDraw?.value,
         )
@@ -957,33 +964,42 @@ internal class BattleRunner(
     private fun PartyState.applyLevelUps(leveling: ExternalLevelingRules?): BattleLevelUps {
         leveling ?: return BattleLevelUps(this)
         val growthByClass = leveling.classGrowth.associateBy { growth -> growth.pcClass }
-        val gains = mutableListOf<BattleLevelGain>()
-        val nextMembers =
-            members.mapIndexed { index, member ->
-                val gained =
-                    ((member.level + 1)..leveling.maxLevel).count { targetLevel ->
-                        member.experience >= leveling.xpThresholds.getOrElse(targetLevel) { Int.MAX_VALUE }
-                    }
-                if (gained == 0) return@mapIndexed member
-                gains += BattleLevelGain(memberName(content, index), gained)
-                val growth = growthByClass[member.pcClass]
-                val nextHealth = member.health + (growth?.health ?: 0) * gained
-                val nextWisdom = member.wisdom + (growth?.wisdom ?: 0) * gained
-                val hpFloor = content.evalFormula(leveling.hitPointFloor, this, mapOf("health" to nextHealth)).value
-                member.copy(
-                    level = (member.level + gained).coerceAtMost(leveling.maxLevel),
-                    weaponSkill = member.weaponSkill + (growth?.weaponSkill ?: 0) * gained,
-                    health = nextHealth,
-                    wisdom = nextWisdom,
-                    // Spell points refill up to wisdom, as in the original, so a wiser caster holds more of them.
-                    mana = member.mana.current of nextWisdom,
-                    charisma = member.charisma + (growth?.charisma ?: 0) * gained,
-                    dexterity = member.dexterity + (growth?.dexterity ?: 0) * gained,
-                    hitPoints = member.hitPoints.current.coerceAtLeast(hpFloor) of nextHealth,
-                )
-            }
-        return BattleLevelUps(copy(members = nextMembers), gains.toList())
+        val (nextMembers, gains) =
+            members
+                .mapIndexed { index, member ->
+                    val gained =
+                        ((member.level + 1)..leveling.maxLevel).count { targetLevel ->
+                            member.experience >= leveling.xpThresholds.getOrElse(targetLevel) { Int.MAX_VALUE }
+                        }
+                    if (gained == 0) return@mapIndexed member to null
+                    val growth = growthByClass[member.pcClass]
+                    val nextHealth = member.health + (growth?.health ?: 0) * gained
+                    val nextWisdom = member.wisdom + (growth?.wisdom ?: 0) * gained
+                    val hpFloor = content.evalFormula(leveling.hitPointFloor, this, mapOf("health" to nextHealth)).value
+                    member.copy(
+                        level = (member.level + gained).coerceAtMost(leveling.maxLevel),
+                        weaponSkill = member.weaponSkill + (growth?.weaponSkill ?: 0) * gained,
+                        health = nextHealth,
+                        wisdom = nextWisdom,
+                        // Spell points refill up to wisdom, as in the original, so a wiser caster holds more of them.
+                        mana = member.mana.current of nextWisdom,
+                        charisma = member.charisma + (growth?.charisma ?: 0) * gained,
+                        dexterity = member.dexterity + (growth?.dexterity ?: 0) * gained,
+                        hitPoints = member.hitPoints.current.coerceAtLeast(hpFloor) of nextHealth,
+                    ) to BattleLevelGain(memberName(content, index), gained)
+                }.unzip()
+        return BattleLevelUps(copy(members = nextMembers), gains.filterNotNull())
     }
+
+    // The formula variables for one member in battle: their stats, weapon and armor.
+    private fun CompiledPartyMember.battleBindings(): Map<String, Int> =
+        statBindings() +
+            mapOf(
+                "weapon_skill" to weaponSkill,
+                "weapon_damage" to weaponDamage(),
+                "hit_points" to hitPoints.current,
+                "armor_class" to armorClass(),
+            )
 
     private fun CompiledPartyMember.weaponDamage(): Int = content.itemRecord(equipment.weapon)?.weaponDamage ?: 1
 
@@ -1091,17 +1107,9 @@ internal class BattleRunner(
             .filter { spell -> content.slug(spell.id) != "monster.melee" }
 
     private fun spellsByPrefix(prefix: String): List<CompiledSpell> =
-        buildList {
-            content.spells.forEach { spell ->
-                if (content.slug(spell.id).startsWith(prefix)) addBySlot(spell)
-            }
-        }
-
-    private fun MutableList<CompiledSpell>.addBySlot(spell: CompiledSpell) {
-        var index = 0
-        while (index < size && this[index].slot <= spell.slot) index++
-        add(index, spell)
-    }
+        content.spells
+            .filter { spell -> content.slug(spell.id).startsWith(prefix) }
+            .sortedBy(CompiledSpell::slot)
 
     private fun itemName(item: CompiledHandleRef): String =
         content.itemRecord(item)?.let { record -> content.strings.value(record.displayNameString) } ?: content.slug(item)
@@ -1109,6 +1117,7 @@ internal class BattleRunner(
     private fun spellChoiceLines(
         member: CompiledPartyMember,
         spells: List<CompiledSpell>,
+        party: PartyState,
     ): List<String> =
         screen.choiceMenuLines(
             prompt = emptyList(),
@@ -1116,7 +1125,9 @@ internal class BattleRunner(
                 spells.map { spell ->
                     choiceLine(
                         spell.slot,
-                        "${content.strings.value(spell.nameString)} (${spell.baseCost + member.level}/${member.mana.current})",
+                        "${content.strings.value(
+                            spell.nameString,
+                        )} (${content.spellCost(spellCost, spell, member, party)}/${member.mana.current})",
                     )
                 },
             trailer =
@@ -1207,9 +1218,9 @@ internal class BattleRunner(
                     }
                 CompiledOpcode.View ->
                     false.also {
-                        screen.writeViewCommand(
-                            instruction.viewOperand(0).toRuntimeViewCommand(),
-                        )
+                        val command = instruction.viewOperand(0).toRuntimeViewCommand()
+                        if (command == RuntimeViewCommand.ClearText) currentTextLines = emptyList()
+                        screen.writeViewCommand(command)
                     }
 
                 CompiledOpcode.LetInt ->

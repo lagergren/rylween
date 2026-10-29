@@ -125,6 +125,7 @@ import rylween.dsl.impl.TownModel
 import rylween.dsl.impl.Trigger
 import rylween.dsl.impl.WorldMapModel
 import rylween.dsl.impl.WorldPosition
+import rylween.dsl.impl.mapCoordinates
 import rylween.dsl.impl.runtimeContent
 import rylween.runtime.CastleSessionSnapshot
 import rylween.runtime.DungeonSavedStep
@@ -134,6 +135,8 @@ import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.ScriptContinuationSnapshot
 import rylween.runtime.ScriptRootRef
 import rylween.runtime.scriptRootCatalog
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Complete compiled J1 bundle: content tables plus save/start state images.
@@ -881,6 +884,7 @@ enum class CompiledRuntimeTextPart {
     HuntFoodGained,
     UpkeepMemberName,
     CampGuardName,
+    CastleThiefName,
     PartyMemberCount,
     PartyMemberMax,
     WildernessDungeonName,
@@ -890,6 +894,7 @@ enum class CompiledRuntimeTextPart {
     CurrentTownName,
     TownTaxPercent,
     TownTaxAmount,
+    TownTaxShortfall,
     CreationMemberNumber,
     CreationMemberName,
     CreationWeaponSkill,
@@ -906,6 +911,7 @@ enum class CompiledRuntimeTextPart {
     BattleLootName,
     BattleLevelMemberName,
     BattleLevelsGained,
+    BattleRoundNumber,
 }
 
 /** Screen/view command emitted from scripts and interpreted by runtime renderers. */
@@ -999,7 +1005,7 @@ sealed interface CompiledIntExpr {
 }
 
 /** Arithmetic operator for [CompiledIntExpr.Binary]. */
-enum class CompiledBinaryOp { Add, Sub, Mul, Div, Mod }
+enum class CompiledBinaryOp { Add, Sub, Mul, Div, Mod, Max, Min }
 
 /** Applies a compiled integer binary operator using runtime-compatible divide-by-zero semantics. */
 fun Int.applyCompiledBinary(
@@ -1012,6 +1018,8 @@ fun Int.applyCompiledBinary(
         CompiledBinaryOp.Mul -> this * right
         CompiledBinaryOp.Div -> this / (right.takeUnless { value -> value == 0 } ?: 1)
         CompiledBinaryOp.Mod -> this % (right.takeUnless { value -> value == 0 } ?: 1)
+        CompiledBinaryOp.Max -> max(this, right)
+        CompiledBinaryOp.Min -> min(this, right)
     }
 
 /** Compiled boolean expression tree evaluated by scripts and runtime conditions. */
@@ -1239,18 +1247,13 @@ data class CompiledShopItemOffer(
 sealed interface CompiledShopPrice {
     data object ItemCost : CompiledShopPrice
 
-    data object HalfItemCost : CompiledShopPrice
-
     data class Fixed(
         val amount: Int,
     ) : CompiledShopPrice
 
-    data class LeaderLevelPlus(
-        val addend: Int,
-    ) : CompiledShopPrice
-
-    data class ItemCostPlusLeaderLevelTimes(
-        val multiplier: Int,
+    /** A price from an authored formula, evaluated with the item's cost and the party leader's level. */
+    data class Formula(
+        val formula: CompiledHandleRef,
     ) : CompiledShopPrice
 }
 
@@ -2105,6 +2108,8 @@ private class CompiledBundleCompiler(
             "*", "mul" -> CompiledBinaryOp.Mul
             "/", "div" -> CompiledBinaryOp.Div
             "%", "mod" -> CompiledBinaryOp.Mod
+            "max" -> CompiledBinaryOp.Max
+            "min" -> CompiledBinaryOp.Min
             else -> error("unknown int operator '$op'")
         }
 
@@ -2171,12 +2176,21 @@ private class CompiledBundleCompiler(
                 )
         }
 
+    // A mission's square is fixed content, or the placed location it waits on.
+    private fun missionCoordinate(id: MissionId): CompiledTextPart =
+        when (val trigger = game.missions.singleOrNull { mission -> mission.id == id }?.trigger) {
+            is Trigger.AtPosition -> CompiledTextPart.Literal(strings.id(trigger.point.mapCoordinates()))
+            is Trigger.AtLocation -> CompiledTextPart.LocationCoordinate(locationRef(trigger.location))
+            else -> error("text names the coordinates of mission ${id.slug}, which waits on no square")
+        }
+
     private fun textPart(part: TextPart): CompiledTextPart =
         when (part) {
             is TextPart.Literal -> CompiledTextPart.Literal(strings.id(part.text))
             is TextPart.IntValue -> CompiledTextPart.IntValue(intExpr(part.value))
             is TextPart.StringValue -> CompiledTextPart.StringValue(stringExpr(part.value))
             is TextPart.Pause -> error("{pause} markers only work in writeText and showTextAndWait")
+            is TextPart.LineColor -> CompiledTextPart.Literal(strings.id(part.color.escape))
             is TextPart.RoleName -> CompiledTextPart.RoleName(roleRef(part.role))
             is TextPart.RoleJob -> CompiledTextPart.RoleJob(roleRef(part.role))
             is TextPart.RoleLocation -> CompiledTextPart.RoleLocation(roleRef(part.role))
@@ -2186,6 +2200,7 @@ private class CompiledBundleCompiler(
             is TextPart.TownName -> CompiledTextPart.TownName(townRef(part.town))
             is TextPart.FuzzyTownLocation -> CompiledTextPart.FuzzyTownLocation(townRef(part.town), part.radius)
             is TextPart.LocationCoordinate -> CompiledTextPart.LocationCoordinate(locationRef(part.location))
+            is TextPart.MissionCoordinate -> missionCoordinate(part.mission)
             TextPart.OfferedItemName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.OfferedItemName)
             TextPart.OfferedItemPrice -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.OfferedItemPrice)
             TextPart.SelectedItemName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.SelectedItemName)
@@ -2198,6 +2213,7 @@ private class CompiledBundleCompiler(
             TextPart.HuntFoodGained -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.HuntFoodGained)
             TextPart.UpkeepMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.UpkeepMemberName)
             TextPart.CampGuardName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CampGuardName)
+            TextPart.CastleThiefName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CastleThiefName)
             TextPart.PartyMemberCount -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberCount)
             TextPart.PartyMemberMax -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.PartyMemberMax)
             TextPart.WildernessDungeonName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.WildernessDungeonName)
@@ -2207,6 +2223,7 @@ private class CompiledBundleCompiler(
             TextPart.CurrentTownName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CurrentTownName)
             TextPart.TownTaxPercent -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.TownTaxPercent)
             TextPart.TownTaxAmount -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.TownTaxAmount)
+            TextPart.TownTaxShortfall -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.TownTaxShortfall)
             TextPart.CreationMemberNumber -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationMemberNumber)
             TextPart.CreationMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationMemberName)
             TextPart.CreationWeaponSkill -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationWeaponSkill)
@@ -2223,6 +2240,7 @@ private class CompiledBundleCompiler(
             TextPart.BattleLootName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleLootName)
             TextPart.BattleLevelMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleLevelMemberName)
             TextPart.BattleLevelsGained -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleLevelsGained)
+            TextPart.BattleRoundNumber -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.BattleRoundNumber)
         }
 
     private fun viewCommand(command: ViewCommand): CompiledViewCommand =
@@ -2345,11 +2363,8 @@ private class CompiledBundleCompiler(
     private fun shopPrice(price: ShopPriceModel): CompiledShopPrice =
         when (price) {
             ShopPriceModel.ItemCost -> CompiledShopPrice.ItemCost
-            ShopPriceModel.HalfItemCost -> CompiledShopPrice.HalfItemCost
             is ShopPriceModel.Fixed -> CompiledShopPrice.Fixed(price.amount)
-            is ShopPriceModel.LeaderLevelPlus -> CompiledShopPrice.LeaderLevelPlus(price.addend)
-            is ShopPriceModel.ItemCostPlusLeaderLevelTimes ->
-                CompiledShopPrice.ItemCostPlusLeaderLevelTimes(price.multiplier)
+            is ShopPriceModel.Formula -> CompiledShopPrice.Formula(formulaRef(price.formula))
         }
 
     private fun shopPurchase(purchase: ShopPurchaseModel): CompiledShopPurchase =

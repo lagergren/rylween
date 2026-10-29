@@ -117,7 +117,8 @@ class RylweenCompiledGameLedgerTest {
         val externalBundleText = externalBundle.decodeToString()
         val runtimeSystems = externalBundle.readExternalRuntimeSystems()
 
-        check(runtimeSystems.schemaVersion == 13)
+        check(runtimeSystems.schemaVersion == 14)
+        check(runtimeSystems.realm.spellCost == Formulas.spellCost.slug)
         check("\"dexterity\"" in externalBundleText)
         check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 14)
@@ -198,7 +199,7 @@ class RylweenCompiledGameLedgerTest {
                 it.requiredStat == CharacterCreationStat.Dexterity && it.minimum == 50
             },
         )
-        check(nextDsl.formulas.size == 8)
+        check(nextDsl.formulas.size == 22)
         check(nextDsl.rewards.size == 1)
         check(
             nextDsl.rewards
@@ -210,10 +211,10 @@ class RylweenCompiledGameLedgerTest {
         check(standardBattle.actions.map { it.prompt }.first() == literalText { line("(A)ttack") })
         check(standardBattle.text.useWhat == literalText { lines("Use what?", "") })
         check(standardBattle.text.spellAbort.fallbackText() == "RETURN leaves.")
-        check(standardBattle.playerRound.attack.confusionDivisor == 3)
-        check(standardBattle.playerRound.attack.hpDefenseDivisor == 12)
+        check(standardBattle.playerRound.attack.hitChance == Formulas.playerHitChance)
+        check(standardBattle.playerRound.attack.damage == Formulas.playerDamage)
         check(standardBattle.playerRound.defend.cap == 250)
-        check(standardBattle.monsterRound.melee.damageDivisor == 6)
+        check(standardBattle.monsterRound.melee.damage == Formulas.monsterDamage)
         check(standardBattle.roundLimit == 200)
         check(standardBattle.encounterFoeCountMax == 8)
         check(standardBattle.victoryImage == Images.Backdrop.battleVictory)
@@ -357,7 +358,7 @@ class RylweenCompiledGameLedgerTest {
         check(townSystem.menu.single { it.key == 'C' }.building == Buildings.church)
         check(townSystem.menu.single { it.action == keyAction("leave_town") }.endsMenu)
         check(townSystem.leavePrompts == listOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor))
-        check(townSystem.entryTax.minimumLeaderLevel == 5)
+        check(townSystem.entryTax.amount == Formulas.townEntryTax)
         check(townSystem.entryTax.pay.primary == "P")
         check(townSystem.entryTax.pay.label == "Pay to Enter")
         check(townSystem.entryTax.leave.primary == "L")
@@ -490,7 +491,7 @@ class RylweenCompiledGameLedgerTest {
         check(castleContent.entryRequirement == Milestones.silverKey)
         check(castleContent.completionMilestone == Milestones.ydargVictory)
         check(castleContent.pitfall.disarmChance == Formulas.castleTrapDisarmChance)
-        check(castleContent.scripts.completed?.slug == "castle.ydarg.completed")
+        check(castleContent.scripts.completed?.slug == "castle.ydarg_completed")
         check(castleContent.text.stairsIllustration?.slug == "blitgfx.castle_stairs_guardians")
         check(
             runtimeSystems.castleRows
@@ -545,7 +546,7 @@ class RylweenCompiledGameLedgerTest {
                     RuntimeCommandActionId.Save.id to "Save Game",
                 ),
         )
-        listOf("castle.ydarg.entry_blocked", "castle.ydarg.entered").forEach { sceneSlug ->
+        listOf("castle.ydarg_entry_blocked", "castle.ydarg_entered").forEach { sceneSlug ->
             val scene = nextDsl.scenes.single { it.id.slug == sceneSlug }
             val firstScreen = scene.statementNodes.first { op -> op is ScriptStatementNode.Screen } as ScriptStatementNode.Screen
             check("Jaara" in firstScreen.text.fallbackText()) {
@@ -566,7 +567,7 @@ class RylweenCompiledGameLedgerTest {
         )
         check(
             nextDsl.scenes
-                .single { it.id.slug == "castle.ydarg.completed" }
+                .single { it.id.slug == "castle.ydarg_completed" }
                 .statementNodes
                 .filterIsInstance<ScriptStatementNode.Encounter>()
                 .map { it.foe } ==
@@ -2457,7 +2458,7 @@ class RylweenCompiledGameLedgerTest {
         }
         check(
             "nextRoundDecision" in battleRunnerSource &&
-                "Round $" + "roundNumber" in battleRunnerSource &&
+                "BATTLE_ROUND_NUMBER to roundNumber" in battleRunnerSource &&
                 "rules.openingKeys.run.matches(choice) -> return attemptDesperateRun(this)" in battleRunnerSource,
         ) {
             "battle runner must offer Fight/Run decisions with round numbers after completed rounds"
@@ -2942,7 +2943,7 @@ class RylweenCompiledGameLedgerTest {
                 "characters {",
                 "monsters {",
                 "missions {",
-                "scene(sceneId(\"castle.ydarg.already_completed\")) {",
+                "scene(Scenes.Castle.ydargAlreadyCompleted) {",
                 "scene(Scenes.Towne.church) {",
                 "scene(Scenes.Missions.erethorEntry) {",
                 "dialogue {",

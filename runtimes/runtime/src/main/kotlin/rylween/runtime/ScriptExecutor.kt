@@ -128,9 +128,7 @@ internal class ScriptExecutor(
         program: CompiledScriptProgram,
         frames: List<ScriptFrameState>,
     ): ScriptSignal {
-        var pending = frames
-        while (pending.isNotEmpty()) {
-            val frame = pending.first()
+        frames.forEachIndexed { index, frame ->
             val signal =
                 executeBlock(
                     instructions = program.blockAt(frame.blockPath),
@@ -138,13 +136,12 @@ internal class ScriptExecutor(
                         ScriptBlockContext(
                             program = program,
                             blockPath = frame.blockPath,
-                            parentFrames = pending.drop(1),
+                            parentFrames = frames.drop(index + 1),
                             insideLoop = frame.insideLoop,
                         ),
                     startIndex = frame.nextIndex,
                 )
             if (signal != ScriptSignal.Continue) return signal
-            pending = pending.drop(1)
         }
         return ScriptSignal.Continue
     }
@@ -899,8 +896,17 @@ internal class ScriptExecutor(
         mandatory: Boolean,
     ) {
         val battle =
-            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, pausePrompts, systems.audio)
-                .runMonster(runtime, monster, mandatory = mandatory)
+            BattleRunner(
+                content,
+                systems.combat,
+                systems.realm.spellCost,
+                systems.pacing.battle,
+                input,
+                screen,
+                log,
+                pausePrompts,
+                systems.audio,
+            ).runMonster(runtime, monster, mandatory = mandatory)
         runtime = battle.runtime
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         if (runtime.currentMode != RuntimeMode.GameOver) music?.let(screen::playMusic)
@@ -915,12 +921,9 @@ internal class ScriptExecutor(
     }
 
     private fun applyReward(reward: CompiledScriptReward): PartyState {
-        var party = reward.gold?.let { runtime.party.withGold(runtime.party.resources.gold + int(it)) } ?: runtime.party
-        if (party.resources.gold > runtime.party.resources.gold) audio.cue(AudioCue.GoldGained)
-        reward.items.forEach { item ->
-            party = applyItemReward(party, item, reward)
-        }
-        return party
+        val withGold = reward.gold?.let { runtime.party.withGold(runtime.party.resources.gold + int(it)) } ?: runtime.party
+        if (withGold.resources.gold > runtime.party.resources.gold) audio.cue(AudioCue.GoldGained)
+        return reward.items.fold(withGold) { party, item -> applyItemReward(party, item, reward) }
     }
 
     private fun applyItemReward(

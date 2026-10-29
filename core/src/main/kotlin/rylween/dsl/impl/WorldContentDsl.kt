@@ -164,10 +164,11 @@ data class TownSystemModel(
     val leavePrompts: List<EquipmentCommand>,
     val entryTax: TownEntryTaxModel,
     val nativeServices: List<EngineServiceUse>,
+    val image: ImageId? = null,
 )
 
 data class TownEntryTaxModel(
-    val minimumLeaderLevel: Int = 5,
+    val amount: FormulaId? = null,
     val pay: InputBindingModel = inputKey("P", label = "Pay to Enter"),
     val leave: InputBindingModel = inputKey("L", label = "Leave"),
 )
@@ -402,14 +403,27 @@ object HuntText {
     val memberName: TextPart = TextPart.HuntMemberName
     val memberSubjectPronoun: TextPart = TextPart.HuntMemberSubjectPronoun
     val foodGained: TextPart = TextPart.HuntFoodGained
-    val partyMemberCount: TextPart = TextPart.PartyMemberCount
-    val partyMemberMax: TextPart = TextPart.PartyMemberMax
+}
+
+/** Runtime placeholders about the whole party, for any prompt that lists its members. */
+object PartyText {
+    /** How many members the party has, dead or alive, as in "Who? (1-4)". */
+    val memberCount: TextPart = TextPart.PartyMemberCount
+
+    /** The most members a party can have. */
+    val memberMax: TextPart = TextPart.PartyMemberMax
 }
 
 /** Runtime placeholders available to authored camp messages. */
 object CampText {
     /** The party member chosen to stand guard. */
     val guardName: TextPart = TextPart.CampGuardName
+}
+
+/** Runtime placeholders available to authored castle messages. */
+object CastleText {
+    /** The thief who tries to disarm a trap. */
+    val thiefName: TextPart = TextPart.CastleThiefName
 }
 
 /** Runtime placeholders available to authored wilderness upkeep messages. */
@@ -431,6 +445,9 @@ object TownText {
     val name: TextPart = TextPart.CurrentTownName
     val taxPercent: TextPart = TextPart.TownTaxPercent
     val taxAmount: TextPart = TextPart.TownTaxAmount
+
+    /** The gold the party lacks to pay the entry tax. */
+    val taxShortfall: TextPart = TextPart.TownTaxShortfall
 }
 
 data class RewardBundleModel(

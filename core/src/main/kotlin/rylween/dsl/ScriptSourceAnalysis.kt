@@ -222,15 +222,8 @@ fun ScriptSourceRoot.visitScriptStatements(visitor: (ScriptSourceStatement) -> U
 }
 
 /** Returns true when any source statement in this source root matches [predicate]. */
-fun ScriptSourceRoot.anyScriptStatement(predicate: (ScriptStatement) -> Boolean): Boolean {
-    var found = false
-    visitScriptStatements { sourceStatement ->
-        if (!found && predicate(sourceStatement.statement)) {
-            found = true
-        }
-    }
-    return found
-}
+fun ScriptSourceRoot.anyScriptStatement(predicate: (ScriptStatement) -> Boolean): Boolean =
+    buildList { visitScriptStatements { sourceStatement -> add(sourceStatement.statement) } }.any(predicate)
 
 /** Walks an authored script using the shared traversal that feeds validation and source maps. */
 fun visitScriptStatements(
@@ -455,6 +448,7 @@ private class NativePathCollector {
             is TextPart.StringValue -> collect(part.value)
             is TextPart.Pause -> Unit
             is TextPart.Literal,
+            is TextPart.LineColor,
             is TextPart.RoleName,
             is TextPart.RoleJob,
             is TextPart.RoleLocation,
@@ -464,6 +458,7 @@ private class NativePathCollector {
             is TextPart.TownName,
             is TextPart.FuzzyTownLocation,
             is TextPart.LocationCoordinate,
+            is TextPart.MissionCoordinate,
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
             TextPart.SelectedItemName,
@@ -476,6 +471,7 @@ private class NativePathCollector {
             TextPart.HuntFoodGained,
             TextPart.UpkeepMemberName,
             TextPart.CampGuardName,
+            TextPart.CastleThiefName,
             TextPart.PartyMemberCount,
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
@@ -485,6 +481,7 @@ private class NativePathCollector {
             TextPart.CurrentTownName,
             TextPart.TownTaxPercent,
             TextPart.TownTaxAmount,
+            TextPart.TownTaxShortfall,
             TextPart.CreationMemberNumber,
             TextPart.CreationMemberName,
             TextPart.CreationWeaponSkill,
@@ -501,6 +498,7 @@ private class NativePathCollector {
             TextPart.BattleLootName,
             TextPart.BattleLevelMemberName,
             TextPart.BattleLevelsGained,
+            TextPart.BattleRoundNumber,
             -> Unit
         }
     }
@@ -662,8 +660,8 @@ private class UnreadTextScan(
     private val scriptEnd = mutableSetOf<String>()
 
     private class LoopExit {
-        val unread = mutableSetOf<String>()
-        var reached = false
+        /** What the breaks out of the loop left unread, or null while no break has reached it. */
+        var unread: Set<String>? = null
     }
 
     fun scan(statements: List<ScriptStatementNode>): List<UnreadScriptText> {
@@ -770,7 +768,7 @@ private class UnreadTextScan(
         // A second pass carries the end of one iteration into the start of the next.
         scan(body, unread)?.let { end -> scan(body, unread + end) }
         loopExits.removeLast()
-        return exit.unread.takeIf { exit.reached }
+        return exit.unread
     }
 
     /** A member or monster iteration runs its body any number of times, including none. */
@@ -794,8 +792,7 @@ private class UnreadTextScan(
                 if (exit == null) {
                     scriptEnd += unread
                 } else {
-                    exit.unread += unread
-                    exit.reached = true
+                    exit.unread = exit.unread.orEmpty() + unread
                 }
                 null
             }

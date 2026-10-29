@@ -180,6 +180,7 @@ private val townEntryTaxTextBindings: Set<TextPart> =
         TextPart.TownTaxPercent,
         TextPart.TownTaxAmount,
     )
+private val townEntryTaxShortfallTextBindings: Set<TextPart> = townEntryTaxTextBindings + TextPart.TownTaxShortfall
 private val battleTextBindings: Set<TextPart> =
     setOf(
         TextPart.BattleFoeDisplayName,
@@ -191,6 +192,7 @@ private val battleTextBindings: Set<TextPart> =
         TextPart.BattleLootName,
         TextPart.BattleLevelMemberName,
         TextPart.BattleLevelsGained,
+        TextPart.BattleRoundNumber,
     )
 private val characterCreationStatsTextBindings: Set<TextPart> =
     setOf(
@@ -323,12 +325,37 @@ fun validateFormulas(formulas: List<FormulaModel>) {
     check(formulas.map { it.id }.toSet().size == formulas.size) { "duplicate formula" }
 }
 
-/** Validates that the hunt and castle trap chances name authored formulas. */
+/** Validates that the hunt and castle trap chances, the spell cost and the battle arithmetic name authored formulas. */
 private fun validateSystemFormulaReferences(content: GameModel) {
     val formulaIds = content.formulas.map { it.id }.toSet()
     content.realm.hunt?.let { hunt ->
         check(hunt.successChance in formulaIds) {
             "hunt success chance references missing formula ${hunt.successChance.slug}"
+        }
+    }
+    content.realm.spellCost?.let { spellCost ->
+        check(spellCost in formulaIds) { "realm spell cost references missing formula ${spellCost.slug}" }
+    }
+    content.realm.upkeep.foodCost?.let { foodCost ->
+        check(foodCost in formulaIds) { "realm upkeep food cost references missing formula ${foodCost.slug}" }
+    }
+    content.townSystem?.entryTax?.amount?.let { tax ->
+        check(tax in formulaIds) { "town entry tax references missing formula ${tax.slug}" }
+    }
+    content.combat.standardBattle?.let { battle ->
+        listOf(
+            "attack hit chance" to battle.playerRound.attack.hitChance,
+            "attack damage" to battle.playerRound.attack.damage,
+            "defend healing" to battle.playerRound.defend.healing,
+            "monster spell chance" to battle.monsterRound.spellChance,
+            "monster melee hit chance" to battle.monsterRound.melee.hitChance,
+            "monster melee damage" to battle.monsterRound.melee.damage,
+            "encounter minimum hit points" to battle.encounterHitPointMinFormula,
+            "encounter maximum hit points" to battle.encounterHitPointMaxFormula,
+            "encounter foe count maximum" to battle.encounterFoeCountMaxFormula,
+            "encounter weapon skill" to battle.encounterWeaponSkillFormula,
+        ).forEach { (rule, formula) ->
+            check(formula in formulaIds) { "standard battle $rule references missing formula ${formula.slug}" }
         }
     }
     content.castles.forEach { castle ->
@@ -433,18 +460,6 @@ fun validateCombatSystem(
         }
         validateBattleText(battle.text)
 
-        check(battle.playerRound.attack.hitBonus >= 0) {
-            "standard battle attack hit bonus must be non-negative"
-        }
-        check(battle.playerRound.attack.damageSpreadMax >= 0) {
-            "standard battle attack damage spread must be non-negative"
-        }
-        check(battle.playerRound.attack.confusionDivisor > 0) {
-            "standard battle attack confusion divisor must be positive"
-        }
-        check(battle.playerRound.attack.hpDefenseDivisor > 0) {
-            "standard battle attack HP defense divisor must be positive"
-        }
         check(battle.playerRound.defend.weaponSkillPenalty >= 0) {
             "standard battle defend weapon-skill penalty must be non-negative"
         }
@@ -458,22 +473,6 @@ fun validateCombatSystem(
             "standard battle battle-cry weapon-skill penalty must be non-negative"
         }
 
-        checkPercent(battle.monsterRound.spellChanceBasePercent, "standard battle monster spell base chance")
-        check(battle.monsterRound.spellPowerDivisor > 0) {
-            "standard battle monster spell-power divisor must be positive"
-        }
-        check(battle.monsterRound.melee.hitBonus >= 0) {
-            "standard battle monster melee hit bonus must be non-negative"
-        }
-        check(battle.monsterRound.melee.damageDivisor > 0) {
-            "standard battle monster melee damage divisor must be positive"
-        }
-        check(battle.monsterRound.melee.damageSpreadMax >= 0) {
-            "standard battle monster melee damage spread must be non-negative"
-        }
-        check(battle.monsterRound.melee.damageMin >= 0) {
-            "standard battle monster melee damage minimum must be non-negative"
-        }
         check(battle.roundLimit > 0) { "standard battle round limit must be positive" }
         check(battle.encounterFoeCountMax > 0) { "standard battle foe count max must be positive" }
 
@@ -488,10 +487,8 @@ fun validateCombatSystem(
 
 private fun validateBattleText(text: BattleTextModel) {
     listOf(
-        "encounter banner" to text.encounterBanner,
-        "you-face" to text.youFace,
-        "foe display name" to text.foeDisplayName,
-        "still-face" to text.stillFace,
+        "encounter" to text.encounter,
+        "next round" to text.nextRound,
         "fight prompt" to text.fight,
         "run prompt" to text.run,
         "blood-flow" to text.bloodFlow,
@@ -519,9 +516,7 @@ private fun validateBattleText(text: BattleTextModel) {
         "party held" to text.partyHeld,
         "party defeated" to text.partyDefeated,
         "victory bested" to text.victoryBested,
-        "victory each survivor" to text.victoryEachSurvivor,
         "victory reward" to text.victoryReward,
-        "victory found object" to text.victoryFoundObject,
         "victory loot" to text.victoryLoot,
         "level gain" to text.levelGain,
     ).forEach { (label, block) ->
@@ -837,7 +832,6 @@ private fun validateCastleText(
 ) {
     listOf(
         "room monster" to text.roomMonster,
-        "trap disarm suffix" to text.trapTriesDisarmSuffix,
         "trap disarm succeeds" to text.trapDisarmSucceed,
         "trap disarm fails" to text.trapDisarmFail,
         "treasure menu" to text.treasureMenu,
@@ -853,9 +847,10 @@ private fun validateCastleText(
         "stairs leave" to text.stairsLeave,
         "teleport vortex" to text.teleportVortex,
         "teleport outside" to text.teleportOutside,
-        "give menu" to text.giveMenu,
+        "give prompt" to text.givePrompt,
         "stairs guardian grateful" to text.stairsGuardianGrateful,
     ).forEach { (textLabel, block) -> validateTextBlock(block, "$label $textLabel") }
+    validateTextBlock(text.trapTriesDisarm, "$label trap disarm", allowedRuntimeBindings = setOf(TextPart.CastleThiefName))
     text.floorNames.forEachIndexed { index, floor ->
         check(floor.isNotBlank()) { "$label floor name ${index + 1} is blank" }
     }
@@ -995,9 +990,6 @@ fun validateTownSystem(
         check(command in setOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)) {
             "town leave prompt ${command.name} is not a ready command"
         }
-    }
-    check(townSystem.entryTax.minimumLeaderLevel >= 0) {
-        "town entry tax minimum leader level must be non-negative"
     }
     validateInputChoiceBinding(townSystem.entryTax.pay, "town entry tax pay key")
     validateInputChoiceBinding(townSystem.entryTax.leave, "town entry tax leave key")
@@ -1189,7 +1181,7 @@ private fun validateRandomNpcTownServices(
     check(option.services.isNotEmpty()) {
         "character ${character.slug} random placement in ${option.town.slug} has no town services"
     }
-    val townServices = town.services.mapTo(mutableSetOf(), TownServiceModel::building)
+    val townServices = town.services.map(TownServiceModel::building).toSet()
     option.services.forEach { service ->
         check(service in townServices) {
             "character ${character.slug} random placement references ${option.town.slug}.${service.slug}, but that town does not offer the service"
@@ -1214,6 +1206,18 @@ private fun validateRandomNpcWildernessRect(
     }
 }
 
+private const val TERMINAL_ESCAPE = '\u001B'
+
+// A color marker colors its whole line, so it can only start one.
+private fun checkLineColorStartsLine(
+    line: TextLine,
+    label: String,
+) {
+    check(line.parts.drop(1).none { part -> part is TextPart.LineColor }) {
+        "$label has a color marker after its start; {red} and the other colors go at the start of a line or paragraph"
+    }
+}
+
 private fun validateTextBlock(
     block: TextBlock,
     label: String,
@@ -1224,10 +1228,14 @@ private fun validateTextBlock(
 ) {
     fun validatePart(part: TextPart) {
         when (part) {
-            is TextPart.Literal -> Unit
+            is TextPart.Literal ->
+                check(
+                    TERMINAL_ESCAPE !in part.text,
+                ) { "$label has a terminal escape code; color a line with {red} or another color at its start" }
             is TextPart.IntValue -> Unit
             is TextPart.StringValue -> Unit
             is TextPart.Pause -> error("$label has a {pause} marker, but only writeText and showTextAndWait show text in beats")
+            is TextPart.LineColor -> Unit
             is TextPart.RoleName -> {
                 check(part.role.slug.isNotBlank()) { "$label references blank character role" }
                 check(knownRoles == null || part.role in knownRoles) {
@@ -1280,6 +1288,9 @@ private fun validateTextBlock(
             is TextPart.LocationCoordinate -> {
                 check(part.location.slug.isNotBlank()) { "$label references blank location" }
             }
+            is TextPart.MissionCoordinate -> {
+                check(part.mission.slug.isNotBlank()) { "$label references blank mission" }
+            }
             // CPD-OFF
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
@@ -1293,6 +1304,7 @@ private fun validateTextBlock(
             TextPart.HuntFoodGained,
             TextPart.UpkeepMemberName,
             TextPart.CampGuardName,
+            TextPart.CastleThiefName,
             TextPart.PartyMemberCount,
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
@@ -1302,6 +1314,7 @@ private fun validateTextBlock(
             TextPart.CurrentTownName,
             TextPart.TownTaxPercent,
             TextPart.TownTaxAmount,
+            TextPart.TownTaxShortfall,
             TextPart.CreationMemberNumber,
             TextPart.CreationMemberName,
             TextPart.CreationWeaponSkill,
@@ -1318,6 +1331,7 @@ private fun validateTextBlock(
             TextPart.BattleLootName,
             TextPart.BattleLevelMemberName,
             TextPart.BattleLevelsGained,
+            TextPart.BattleRoundNumber,
             ->
                 check(part in allowedRuntimeBindings) {
                     "$label uses runtime text binding ${part.fallbackText()}, but this text is not rendered with that binding"
@@ -1330,6 +1344,9 @@ private fun validateTextBlock(
         is TextBlock.Inline -> {
             check(block.lines.isNotEmpty()) { "$label inline text has no lines" }
             check(block.lines.any { it.isNotBlank() }) { "$label inline text is blank" }
+            check(block.lines.none { line -> TERMINAL_ESCAPE in line }) {
+                "$label has a terminal escape code; color a line with {red} or another color at its start"
+            }
         }
         is TextBlock.Structured -> {
             check(block.lines.isNotEmpty()) { "$label structured text has no lines" }
@@ -1342,6 +1359,7 @@ private fun validateTextBlock(
             }
             block.lines.forEachIndexed { index, line ->
                 check(line.parts.isNotEmpty()) { "$label line $index has no parts" }
+                checkLineColorStartsLine(line, "$label line $index")
                 line.parts.forEach(::validatePart)
             }
         }
@@ -1356,6 +1374,7 @@ private fun validateTextBlock(
             }
             block.paragraphs.forEachIndexed { index, line ->
                 check(line.parts.isNotEmpty()) { "$label paragraph $index has no parts" }
+                checkLineColorStartsLine(line, "$label paragraph $index")
                 line.parts.forEach(::validatePart)
             }
         }
@@ -1742,6 +1761,7 @@ fun validateScriptRewards(
             .map { it.id }
             .toSet()
     val dungeonScenarios = content.dungeons.scenarios.associateBy { it.dungeon }
+    val knownFormulas = content.formulas.map { it.id }.toSet()
 
     fun validateSlottedItemPool(
         pool: ItemPoolId,
@@ -1844,8 +1864,8 @@ fun validateScriptRewards(
         if (reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
             check(reward.messages.cantCarry != null) { "drop-prompt reward requires cant-carry text" }
         }
-        reward.messages.cantCarry?.let { validateTextBlock(it, "reward cant-carry") }
-        reward.messages.pickedUp?.let { validateTextBlock(it, "reward picked-up") }
+        reward.messages.cantCarry?.let { validateTextBlock(it, "reward cant-carry", allowedRuntimeBindings = selectedItemTextBindings) }
+        reward.messages.pickedUp?.let { validateTextBlock(it, "reward picked-up", allowedRuntimeBindings = selectedItemTextBindings) }
         if (reward.messages.pickedUp != null) {
             check(reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
                 "picked-up reward text only applies to drop-prompt rewards"
@@ -1901,18 +1921,10 @@ fun validateScriptRewards(
         label: String,
     ) {
         when (price) {
-            ShopPriceModel.ItemCost,
-            ShopPriceModel.HalfItemCost,
-            -> Unit
+            ShopPriceModel.ItemCost -> Unit
             is ShopPriceModel.Fixed -> check(price.amount >= 0) { "$label fixed price is negative" }
-            is ShopPriceModel.LeaderLevelPlus ->
-                check(price.addend >= 0) {
-                    "$label leader-level addend is negative"
-                }
-            is ShopPriceModel.ItemCostPlusLeaderLevelTimes ->
-                check(price.multiplier >= 0) {
-                    "$label leader-level multiplier is negative"
-                }
+            is ShopPriceModel.Formula ->
+                check(price.formula in knownFormulas) { "$label price references missing formula ${price.formula.slug}" }
         }
     }
 
@@ -3037,7 +3049,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.inventoryUse.invalidSlot, "inventory invalid-slot prompt", allowedRuntimeBindings = inventoryUseTextBindings)
     validateTextBlock(prompts.inventoryUse.notUsable, "inventory not-usable prompt", allowedRuntimeBindings = inventoryUseTextBindings)
     validateTextBlock(prompts.equipment.inventory, "equipment inventory prompt")
-    validateTextBlock(prompts.equipment.who, "equipment who prompt")
+    validateTextBlock(prompts.equipment.who, "equipment who prompt", allowedRuntimeBindings = memberChoiceTextBindings)
     validateTextBlock(prompts.equipment.noAvailable, "equipment no-available prompt", allowedRuntimeBindings = equipmentTextBindings)
     validateTextBlock(prompts.equipment.equipped, "equipment equipped prompt", allowedRuntimeBindings = selectedItemTextBindings)
     validateTextBlock(prompts.equipment.readyWeapons, "equipment ready-weapons prompt")
@@ -3089,6 +3101,11 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.town.entryWelcome, "town entry welcome prompt", allowedRuntimeBindings = townEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTax, "town entry tax prompt", allowedRuntimeBindings = townEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTaxThanks, "town entry tax thanks prompt")
+    validateTextBlock(
+        prompts.town.entryTaxShortfall,
+        "town entry tax shortfall prompt",
+        allowedRuntimeBindings = townEntryTaxShortfallTextBindings,
+    )
     validateTextBlock(prompts.wilderness.pass, "wilderness pass prompt")
     validateTextBlock(prompts.wilderness.noMoves, "wilderness no-moves prompt")
     validateTextBlock(prompts.wilderness.outOfMoves, "wilderness out-of-moves prompt")

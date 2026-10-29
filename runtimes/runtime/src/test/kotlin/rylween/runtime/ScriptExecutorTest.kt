@@ -66,6 +66,36 @@ class ScriptExecutorTest {
         assertTrue(menu.size <= CLASSIC_TEXT_WINDOW_ROWS, "church menu must fit the classic text window: $menu")
     }
 
+    // The runtime counts the living members itself, so a raise must not count the raised member twice.
+    @Test
+    fun raisingTheDeadAtTheChurchCountsTheLivingOnce() {
+        val town = thordRuntime()
+        val members = town.party.members.mapIndexed { index, member -> if (index == 1) member.copy(dead = true) else member }
+        val runtime =
+            town.withParty(
+                town.party.copy(
+                    members = members,
+                    resources = town.party.resources.copy(gold = 100_000),
+                    counters = town.party.counters.copy(memberCount = members.count { member -> !member.dead }),
+                ),
+            )
+
+        val after = runScript(scriptRoot(ScriptRootKind.Scene, "towne.church"), runtime, "R2PL", TextCapturingScreen(), "church-raise.log")
+
+        assertTrue(after.party.members.none { member -> member.dead }, "the dead member is raised: ${after.party.members}")
+        assertEquals(after.party.members.size, after.party.counters.memberCount)
+    }
+
+    @Test
+    fun theInnListsEachDrinkWithItsPrice() {
+        // Decline supper, then ask for a drink.
+        val menu = townSceneTexts("towne.inn", "NY").first { lines -> "What'll it be?" in lines }
+
+        val ale = menu.single { line -> line.startsWith("(A)") }
+        assertEquals(listOf("(A) Ale", "2 au"), ale.split(TEXT_COLUMN_SEPARATOR), "the price is its own column: $menu")
+        assertEquals("RETURN leaves.", menu.last(), "the drinks menu ends with its way out: $menu")
+    }
+
     @Test
     fun shopMenusSeparateProseFromKeyChoicesWithoutRepeatingThem() {
         // Decline the forced beer interlude, dismiss its pause, open Buy, then decline the catalog choice.
@@ -75,6 +105,26 @@ class ScriptExecutorTest {
         assertEquals("", home[home.indexOf("(B)uy") - 1], "shop home needs a blank line before its key choices: $home")
         val catalog = texts.first { lines -> "Armor or Weapon?" in lines }
         assertEquals(1, catalog.count { line -> line.offersChoiceKey("A") }, "catalog choices must be listed once: $catalog")
+    }
+
+    // A reward the party has no room for names the item it can't carry.
+    @Test
+    fun aFullInventoryNamesTheRewardThereIsNoRoomFor() {
+        val town = thordRuntime()
+        val sword = bundle.content.ref(CompiledHandleKind.Item, "sword")
+        val full = town.withParty(town.party.copy(inventory = town.party.inventory.map { slot -> slot.copy(item = sword) }))
+        val screen = TextCapturingScreen()
+
+        runScript(
+            scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.ron.peasant.wife.rescued"),
+            full,
+            "\n".repeat(10),
+            screen,
+            "ron-full.log",
+        )
+
+        val pages = screen.texts.map { lines -> lines.joinToString(" ") }
+        assertTrue(pages.any { page -> page.startsWith("You can't carry the Admt. Mail.") }, "$pages")
     }
 
     @Test
@@ -97,24 +147,7 @@ class ScriptExecutorTest {
 
     @Test
     fun aPauseMarkerShowsThePageUpToItThenTheRest() {
-        val events = mutableListOf<String>()
-        val screen =
-            object : NoOpRuntimeScreen(textColumns = CLASSIC_TEXT_WINDOW_COLUMNS) {
-                override fun writeText(lines: List<String>) {
-                    events += lines.joinToString(" / ")
-                }
-            }
-        val scripted = ScriptedInput("AAAA")
-        val input =
-            object : RuntimeInputPort by scripted {
-                override fun pause(ms: Int) {
-                    events += "pause $ms"
-                }
-            }
-        val program = scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.tybalt.erethor.lute.none")
-        RuntimeLog.open(testTmp.resolve("tybalt-beat.log")).use { log ->
-            ScriptExecutor(bundle.content, systems, input, screen, thordRuntime(), log = log).execute(program)
-        }
+        val events = pagesAndPauses(scriptRoot(ScriptRootKind.DialogueBranch, "dialogue.tybalt.erethor.lute.none"), "AAAA")
 
         val beat = events.indexOf("pause 1500")
         assertTrue(beat > 0, "the rumor pauses at its {pause} marker: $events")
@@ -123,6 +156,40 @@ class ScriptExecutorTest {
             events[beat + 1].startsWith(events[beat - 1]) && "- Erethor is a mighty" in events[beat + 1],
             "after the beat the same page shows the rest below it: ${events[beat + 1]}",
         )
+    }
+
+    @Test
+    fun aPauseMarkerAtTheEndHoldsThePageOnce() {
+        val events = pagesAndPauses(scriptRoot(ScriptRootKind.Scene, "towne.hut"), "L")
+
+        val shown = events.indexOf("You enter the hut.")
+        assertEquals("pause 600", events.getOrNull(shown + 1), "the trailing marker holds the page: $events")
+        assertEquals(1, events.count { event -> event == "You enter the hut." }, "the held page is not shown again: $events")
+    }
+
+    // Every page the script writes, joined into one string, and every pause, in order.
+    private fun pagesAndPauses(
+        program: CompiledScriptProgram,
+        commands: String,
+    ): List<String> {
+        val events = mutableListOf<String>()
+        val screen =
+            object : NoOpRuntimeScreen(textColumns = CLASSIC_TEXT_WINDOW_COLUMNS) {
+                override fun writeText(lines: List<String>) {
+                    events += lines.joinToString(" / ")
+                }
+            }
+        val scripted = ScriptedInput(commands)
+        val input =
+            object : RuntimeInputPort by scripted {
+                override fun pause(ms: Int) {
+                    events += "pause $ms"
+                }
+            }
+        RuntimeLog.open(testTmp.resolve("${program.root.slug}-beats.log")).use { log ->
+            ScriptExecutor(bundle.content, systems, input, screen, thordRuntime(), log = log).execute(program)
+        }
+        return events
     }
 
     private fun pausePromptIn(lines: List<String>): Boolean = lines.lastOrNull()?.startsWith("(") == true

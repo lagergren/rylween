@@ -1,6 +1,7 @@
 package rylween.runtime
 
 import rylween.compiled.ExternalScreenRegion
+import rylween.dsl.TextColor
 import rylween.terminal.AnsiCodes
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -56,5 +57,15 @@ class RuntimeScreenTest {
         )
         assertEquals(listOf("There is nothing to enter", "here."), textWindowRows(listOf("There is nothing to enter here."), width = 26))
         assertEquals(listOf("Short line"), textWindowRows(listOf("Short line"), width = 26))
+    }
+
+    @Test
+    fun aColoredLineKeepsItsColorOnEveryRowItWrapsTo() {
+        val red = TextColor.Red.escape
+
+        assertEquals(
+            listOf("${red}Walter the Brave and", "${red}Mighty DIES!"),
+            textWindowRows(listOf("${red}Walter the Brave and Mighty DIES!"), width = 20),
+        )
     }
 }

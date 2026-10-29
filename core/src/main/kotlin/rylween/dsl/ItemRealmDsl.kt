@@ -135,6 +135,9 @@ class RealmContentBuilder {
     private var hunt: HuntRulesModel? = null
     private var timeOfDayBands = defaultTimeOfDayBands()
 
+    /** What a spell costs its caster, mage spells in battle and priest spells alike; without it a spell costs its base cost. */
+    var spellCost: FormulaId? = null
+
     fun baseResourceCapacity(
         resource: Resource,
         amount: Int,
@@ -165,6 +168,7 @@ class RealmContentBuilder {
             camp = camp,
             hunt = hunt,
             timeOfDay = timeOfDayBands,
+            spellCost = spellCost,
         )
 }
 
@@ -199,7 +203,8 @@ class TimeOfDayBandsBuilder {
 class WildernessUpkeepRulesBuilder(
     initial: WildernessUpkeepRules = WildernessUpkeepRules(),
 ) {
-    var foodCostLeaderDiv: Int = initial.foodCostLeaderDiv
+    /** The food the party eats every [foodTickEvery] turns, as a formula; without one it eats none. */
+    var foodCost: FormulaId? = initial.foodCost
     var foodTickEvery: Int = initial.foodTickEvery
     var starveFoodThreshold: Int = initial.starveFoodThreshold
     var starveDamage: Int = initial.starveDamage
@@ -246,7 +251,7 @@ class WildernessUpkeepRulesBuilder(
 
     internal fun build(): WildernessUpkeepRules =
         WildernessUpkeepRules(
-            foodCostLeaderDiv = foodCostLeaderDiv,
+            foodCost = foodCost,
             foodTickEvery = foodTickEvery,
             starveFoodThreshold = starveFoodThreshold,
             starveDamage = starveDamage,

@@ -69,6 +69,8 @@ import rylween.dsl.impl.Race
 import rylween.dsl.impl.Resource
 import rylween.dsl.impl.RuntimeMode
 import rylween.dsl.impl.StatPool
+import rylween.dsl.lineColor
+import rylween.dsl.withoutLineColor
 import rylween.terminal.AnsiTerminal
 import rylween.terminal.AnsiTerminals
 import java.io.Closeable
@@ -87,7 +89,6 @@ private const val MANUAL_SCREEN = "manual"
 private const val HUT_SCENE = "towne.hut"
 
 private const val TEXT_WINDOW_PAGE_LINES = 9
-private const val TOWN_MAIN_STREET_IMAGE = "blitgfx.towne_mainstreet"
 private val townCommandGroup = RuntimeCommandGroupId.Town.id
 private val townLeaveAction = RuntimeCommandActionId.LeaveTown.id
 
@@ -1085,89 +1086,88 @@ class GameRuntime private constructor(
         val partyName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
         log.event("creation.party_name name=$partyName")
         var runtime = baseRuntime
-        val members = mutableListOf<CompiledPartyMember>()
-        val memberNames = mutableListOf<String>()
-        while (members.size < rules.start.partyMemberMax) {
-            val memberNumber = members.size + 1
-            if (prerolled) {
-                val member = rules.prerolledMembers[members.size]
-                val pcClass = rules.classes.single { it.pcClass == member.pcClass }
-                val draw = runtime.drawCreationStats(rules.statRoll, memberNumber, log, pcClass)
-                runtime = draw.runtime
-                members += runtime.creationMember(memberNumber, member.gender, member.race, member.pcClass, draw.stats)
-                memberNames += member.name
-                log.event(
-                    "creation.member_accepted member=$memberNumber gender=${member.gender} race=${member.race} class=${member.pcClass}",
-                )
-                continue
-            }
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, null, null, null, null))
-            val statsResult = readAcceptedCreationStats(runtime, memberNumber, input, screen, log) ?: return null
-            runtime = statsResult.runtime
-            screen.writeText(prompts.memberName.renderCreation(memberNumber = memberNumber, wrapWidth = screen.textColumns))
-            val memberName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
-            log.event("creation.member_name member=$memberNumber name=$memberName")
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, null, null, null))
-            val gender =
-                readCreationChoice(
-                    screen,
-                    input,
-                    log,
-                    prompts.gender.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
-                    creationGenderChoices(prompts),
-                    "gender",
-                )
-                    ?: return null
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, null, null))
-            val race =
-                readCreationChoice(
-                    screen,
-                    input,
-                    log,
-                    prompts.race.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
-                    rules.races.mapIndexed { index, option ->
-                        CreationChoice(
-                            index.digitChoiceKey(),
-                            option.label,
-                            option.race,
+        val (members, memberNames) =
+            buildList {
+                while (size < rules.start.partyMemberMax) {
+                    val memberNumber = size + 1
+                    if (prerolled) {
+                        val member = rules.prerolledMembers[memberNumber - 1]
+                        val pcClass = rules.classes.single { it.pcClass == member.pcClass }
+                        val draw = runtime.drawCreationStats(rules.statRoll, memberNumber, log, pcClass)
+                        runtime = draw.runtime
+                        add(runtime.creationMember(memberNumber, member.gender, member.race, member.pcClass, draw.stats) to member.name)
+                        log.event(
+                            "creation.member_accepted member=$memberNumber gender=${member.gender} race=${member.race} class=${member.pcClass}",
                         )
-                    },
-                    "race",
-                )
-                    ?: return null
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, null))
-            val pcClass =
-                readCreationChoice(
-                    screen,
-                    input,
-                    log,
-                    prompts.classMenu.renderCreation(wrapWidth = screen.textColumns),
-                    rules.classes.mapIndexed { index, option ->
-                        CreationChoice(
-                            index.digitChoiceKey(),
-                            option.label,
-                            option,
+                        continue
+                    }
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, null, null, null, null))
+                    val statsResult = readAcceptedCreationStats(runtime, memberNumber, input, screen, log) ?: return null
+                    runtime = statsResult.runtime
+                    screen.writeText(prompts.memberName.renderCreation(memberNumber = memberNumber, wrapWidth = screen.textColumns))
+                    val memberName = input.readText(24)?.normalizedCreationName()?.takeIf(String::isNotBlank) ?: return null
+                    log.event("creation.member_name member=$memberNumber name=$memberName")
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, null, null, null))
+                    val gender =
+                        readCreationChoice(
+                            screen,
+                            input,
+                            log,
+                            prompts.gender.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
+                            creationGenderChoices(prompts),
+                            "gender",
                         )
-                    },
-                    "class",
-                )
-                    ?: return null
-            screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, pcClass.pcClass))
-            val failure = pcClass.failureFor(statsResult.stats)
-            if (failure != null) {
-                log.event(
-                    "creation.class_rejected member=$memberNumber class=${pcClass.pcClass} required=${pcClass.requiredStat} minimum=${pcClass.minimum}",
-                )
-                audio.cue(AudioCue.InvalidChoice)
-                screen.writeText(failure.renderCreation(wrapWidth = screen.textColumns))
-                input.pause(systems.pacing.characterCreation.classRejectionPauseMs)
-            } else {
-                log.event("creation.member_accepted member=$memberNumber gender=$gender race=$race class=${pcClass.pcClass}")
-                audio.cue(AudioCue.CharacterCreated)
-                members += runtime.creationMember(memberNumber, gender, race, pcClass.pcClass, statsResult.stats)
-                memberNames += memberName
-            }
-        }
+                            ?: return null
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, null, null))
+                    val race =
+                        readCreationChoice(
+                            screen,
+                            input,
+                            log,
+                            prompts.race.renderCreation(memberName = memberName, wrapWidth = screen.textColumns),
+                            rules.races.mapIndexed { index, option ->
+                                CreationChoice(
+                                    index.digitChoiceKey(),
+                                    option.label,
+                                    option.race,
+                                )
+                            },
+                            "race",
+                        )
+                            ?: return null
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, null))
+                    val pcClass =
+                        readCreationChoice(
+                            screen,
+                            input,
+                            log,
+                            prompts.classMenu.renderCreation(wrapWidth = screen.textColumns),
+                            rules.classes.mapIndexed { index, option ->
+                                CreationChoice(
+                                    index.digitChoiceKey(),
+                                    option.label,
+                                    option,
+                                )
+                            },
+                            "class",
+                        )
+                            ?: return null
+                    screen.showCharacterPortrait(rules.creationPortraitPreview(memberNumber, memberName, gender, race, pcClass.pcClass))
+                    val failure = pcClass.failureFor(statsResult.stats)
+                    if (failure != null) {
+                        log.event(
+                            "creation.class_rejected member=$memberNumber class=${pcClass.pcClass} required=${pcClass.requiredStat} minimum=${pcClass.minimum}",
+                        )
+                        audio.cue(AudioCue.InvalidChoice)
+                        screen.writeText(failure.renderCreation(wrapWidth = screen.textColumns))
+                        input.pause(systems.pacing.characterCreation.classRejectionPauseMs)
+                    } else {
+                        log.event("creation.member_accepted member=$memberNumber gender=$gender race=$race class=${pcClass.pcClass}")
+                        audio.cue(AudioCue.CharacterCreated)
+                        add(runtime.creationMember(memberNumber, gender, race, pcClass.pcClass, statsResult.stats) to memberName)
+                    }
+                }
+            }.unzip()
         runtime = runtime.applyCreatedParty(partyName, members, memberNames)
         log.event(
             "creation.party_created name=${logValue(partyName)} members=${members.size} " +
@@ -1672,7 +1672,7 @@ class GameRuntime private constructor(
             val menu = menuLines(menuNotice)
             menuNotice = emptyList()
             audio.music(MusicArea.Town)
-            screen.showImage(TOWN_MAIN_STREET_IMAGE)
+            systems.town?.image?.let(screen::showImage)
             screen.writeText(menu)
             var choice = input.readCommand() ?: return current
             while (choice == '!') {
@@ -1718,15 +1718,31 @@ class GameRuntime private constructor(
         town: rylween.compiled.CompiledTown,
         log: RuntimeLog,
     ): TownEntryTaxResult? {
-        val tax = systems.town?.entryTax ?: return TownEntryTaxResult(runtime)
+        val townSystem = systems.town ?: return TownEntryTaxResult(runtime)
+        val tax = townSystem.entryTax ?: return TownEntryTaxResult(runtime)
+        val formula = tax.amount ?: return TownEntryTaxResult(runtime)
         val leaderLevel = runtime.party.leaderLevel
-        if (leaderLevel < tax.minimumLeaderLevel) return TownEntryTaxResult(runtime)
-        val amount = runtime.runtimeTownTaxAmount(content)?.takeIf { gold -> gold > 0 } ?: return TownEntryTaxResult(runtime)
-        val lines = townEntryTaxLines(runtime, tax, screen)
-        log.event("town.tax.prompt town=${slug(town.id)} level=$leaderLevel amount=$amount gold=${runtime.party.resources.gold}")
-        screen.showImage(TOWN_MAIN_STREET_IMAGE)
-        screen.writeText(lines)
+        val taxed = mapOf("gold" to runtime.party.resources.gold, "tax_percent" to town.taxPercent, "first_level" to leaderLevel)
+        val amount =
+            content.evalFormula(formula, runtime.party, taxed).value.takeIf { gold -> gold > 0 } ?: return TownEntryTaxResult(runtime)
+        townSystem.image?.let(screen::showImage)
         val audio = RuntimeAudio(systems.audio, screen)
+        val shortfall = amount - runtime.party.resources.gold
+        if (shortfall > 0) {
+            log.event("town.tax.short town=${slug(town.id)} amount=$amount gold=${runtime.party.resources.gold}")
+            screen.writeText(
+                systems.prompts.town.entryTaxShortfall
+                    .renderRuntimeText(content, runtime, screen.textColumns) { kind -> taxValue(kind, amount, shortfall) }
+                    .withPausePrompt(PausePrompts(systems.prompts)),
+            )
+            input.readCommand() ?: return null
+            audio.cue(AudioCue.LeaveTown)
+            screen.renderWilderness(runtime.leaveTown(), world)
+            return null
+        }
+        val lines = townEntryTaxLines(runtime, tax, amount, screen)
+        log.event("town.tax.prompt town=${slug(town.id)} level=$leaderLevel amount=$amount gold=${runtime.party.resources.gold}")
+        screen.writeText(lines)
         val choice =
             input.readValidChoice(screen, lines, audio) { candidate ->
                 tax.pay.matches(candidate) || tax.leave.matches(candidate)
@@ -1751,16 +1767,29 @@ class GameRuntime private constructor(
     private fun townEntryTaxLines(
         runtime: RuntimeState,
         tax: ExternalTownEntryTax,
+        amount: Int,
         screen: RuntimeScreenPort,
     ): List<String> =
         screen.choiceMenuLines(
             systems.prompts.town.entryTax
-                .renderRuntimeText(content, runtime, screen.textColumns),
+                .renderRuntimeText(content, runtime, screen.textColumns) { kind -> taxValue(kind, amount) },
             listOf(
                 tax.pay.mnemonicLine(tax.pay.label),
                 tax.leave.mnemonicLine(tax.leave.label),
             ),
         )
+
+    /** The tax text values only the tax gate knows: the [amount] asked, and the gold the party lacks to pay it. */
+    private fun taxValue(
+        kind: String,
+        amount: Int,
+        shortfall: Int = 0,
+    ): String? =
+        when (kind) {
+            "townTaxAmount" -> amount.toString()
+            "townTaxShortfall" -> shortfall.toString()
+            else -> null
+        }
 
     private fun runService(
         runtime: RuntimeState,
@@ -1803,7 +1832,6 @@ class GameRuntime private constructor(
     ): RuntimeState {
         var current = this
         var placementParty = current.party.copy(rngState = current.party.rngState ?: 1L)
-        val placements = current.npcs.toMutableList()
         content.characters.forEach { character ->
             if (character.position(current) != null) return@forEach
             if (character.placement == CompiledCharacterPlacement.Unplaced) {
@@ -1824,8 +1852,7 @@ class GameRuntime private constructor(
             }
             placementParty = draw.party
             val position = draw.position
-            placements += CompiledNpcPlacement(character.id, position)
-            current = current.copy(npcs = placements.toList())
+            current = current.copy(npcs = current.npcs + CompiledNpcPlacement(character.id, position))
             log.event(
                 "npc.placement.generated npc=${slug(character.id)} " +
                     "name=${logValue(string(character.nameString))} job=${slug(character.job)} " +
@@ -1902,12 +1929,8 @@ class GameRuntime private constructor(
         val shareTotal = policy.options.sumOf(CompiledRandomNpcPlacementOption::chanceShares)
         if (shareTotal <= 0) return null
         val optionDraw = drawRandom(1, shareTotal)
-        var remaining = optionDraw.value
-        val option =
-            policy.options.firstOrNull { candidate ->
-                remaining -= candidate.chanceShares
-                remaining <= 0
-            } ?: return null
+        val cumulativeShares = policy.options.map(CompiledRandomNpcPlacementOption::chanceShares).runningReduce(Int::plus)
+        val option = policy.options.getOrNull(cumulativeShares.indexOfFirst { shares -> shares >= optionDraw.value }) ?: return null
         return optionDraw.party.drawNpcPlacementOption(option, world, occupiedPositions)
     }
 
@@ -2342,6 +2365,15 @@ private fun CompiledContentBundle.journalEntryText(entry: CompiledJournalEntry):
  * via `chunked`.
  */
 internal fun wrapTextLine(
+    line: String,
+    width: Int,
+): List<String> {
+    // A colored line keeps its color on every row it wraps to.
+    val color = line.lineColor() ?: return wrapPlainTextLine(line, width)
+    return wrapPlainTextLine(line.withoutLineColor(), width).map { row -> color.escape + row }
+}
+
+private fun wrapPlainTextLine(
     line: String,
     width: Int,
 ): List<String> {

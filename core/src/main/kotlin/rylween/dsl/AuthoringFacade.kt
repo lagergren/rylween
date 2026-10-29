@@ -44,6 +44,7 @@
 
 package rylween.dsl
 
+import rylween.dsl.impl.declareFlag as implDeclareFlag
 import rylween.dsl.impl.item as implShopItem
 import rylween.dsl.impl.withStateModule as implWithStateModule
 
@@ -106,6 +107,8 @@ val BattleText: rylween.dsl.impl.BattleText get() = rylween.dsl.impl.BattleText
 val HuntText: rylween.dsl.impl.HuntText get() = rylween.dsl.impl.HuntText
 val UpkeepText: rylween.dsl.impl.UpkeepText get() = rylween.dsl.impl.UpkeepText
 val CampText: rylween.dsl.impl.CampText get() = rylween.dsl.impl.CampText
+val PartyText: rylween.dsl.impl.PartyText get() = rylween.dsl.impl.PartyText
+val CastleText: rylween.dsl.impl.CastleText get() = rylween.dsl.impl.CastleText
 val InventoryText: rylween.dsl.impl.InventoryText get() = rylween.dsl.impl.InventoryText
 val TownText: rylween.dsl.impl.TownText get() = rylween.dsl.impl.TownText
 val ShopResources: rylween.dsl.impl.ShopResources get() = rylween.dsl.impl.ShopResources
@@ -143,7 +146,7 @@ infix fun Int.of(max: Int): StatPool = StatPool(this, max)
 
 fun shopText(body: ShopTextBuilder.() -> Unit): TextBlock = rylween.dsl.impl.shopText(body)
 
-fun <F : FlagRef> F.declareFlag(): F = also { flag -> rylween.dsl.impl.declaredFlags += flag }
+fun <F : FlagRef> F.declareFlag(): F = implDeclareFlag()
 
 fun ShopItemSink.item(
     binding: InputBindingModel,

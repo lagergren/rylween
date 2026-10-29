@@ -28,52 +28,57 @@ class PrerolledPartyTest {
     @Test
     fun generatedPartiesMeetClassRequirementsAndKeepTheirRollsOnReload() =
         withSaveFile { file ->
-            val rolls = mutableSetOf<List<Int>>()
-            repeat(16) { seed ->
-                val user = "player-$seed"
-                val output = runSession(file, user, "x N 2 \"Dawnward $seed\"", seed.toLong())
-                assertContains(output, "(1) Roll your own")
-                assertContains(output, "(2) Pre-rolled")
-                assertFalse("Reroll (y/N)" in output)
+            val rolls =
+                buildSet {
+                    repeat(16) { seed ->
+                        val user = "player-$seed"
+                        val output = runSession(file, user, "x N 2 \"Dawnward $seed\"", seed.toLong())
+                        assertContains(output, "(1) Roll your own")
+                        assertContains(output, "(2) Pre-rolled")
+                        assertFalse("Reroll (y/N)" in output)
 
-                val runtime = read(file, user)
-                val party = runtime.party
-                assertEquals("Dawnward $seed", party.name)
-                assertEquals(listOf("Ronan", "Brynja", "Elowen", "Walter"), party.memberNames)
-                assertEquals(listOf(Gender.Male, Gender.Female, Gender.Female, Gender.Male), party.members.map { it.gender })
-                assertEquals(listOf(Race.Human, Race.Dwarf, Race.Elf, Race.Human), party.members.map { it.race })
-                assertEquals(listOf(PcClass.Fighter, PcClass.Ranger, PcClass.Mage, PcClass.Priest), party.members.map { it.pcClass })
-                assertTrue(party.members[0].weaponSkill >= 50)
-                assertTrue(party.members[2].wisdom >= 50)
-                assertTrue(party.members[3].wisdom >= 50)
-                party.members.forEach { member ->
-                    val stats = listOf(member.weaponSkill, member.wisdom, member.health, member.charisma, member.dexterity)
-                    assertTrue(stats.all { it in 15..70 }, "all generated stats must use the normal starting range")
-                    rolls += stats
-                    assertEquals(1, member.level)
-                    assertEquals(0, member.experience)
-                    assertFalse(member.dead)
-                    assertEquals(member.health, member.hitPoints.current)
-                    assertEquals(member.health, member.hitPoints.max)
-                    val expectedMana = if (member.pcClass in setOf(PcClass.Mage, PcClass.Priest)) member.wisdom else 0
-                    assertEquals(expectedMana, member.mana.current)
-                    assertEquals(member.wisdom, member.mana.max)
-                    assertEquals("blank", bundle.content.slug(member.equipment.weapon))
-                    assertEquals("blank", bundle.content.slug(member.equipment.armor))
+                        val runtime = read(file, user)
+                        val party = runtime.party
+                        assertEquals("Dawnward $seed", party.name)
+                        assertEquals(listOf("Ronan", "Brynja", "Elowen", "Walter"), party.memberNames)
+                        assertEquals(listOf(Gender.Male, Gender.Female, Gender.Female, Gender.Male), party.members.map { it.gender })
+                        assertEquals(listOf(Race.Human, Race.Dwarf, Race.Elf, Race.Human), party.members.map { it.race })
+                        assertEquals(
+                            listOf(PcClass.Fighter, PcClass.Ranger, PcClass.Mage, PcClass.Priest),
+                            party.members.map { it.pcClass },
+                        )
+                        assertTrue(party.members[0].weaponSkill >= 50)
+                        assertTrue(party.members[2].wisdom >= 50)
+                        assertTrue(party.members[3].wisdom >= 50)
+                        party.members.forEach { member ->
+                            val stats = listOf(member.weaponSkill, member.wisdom, member.health, member.charisma, member.dexterity)
+                            assertTrue(stats.all { it in 15..70 }, "all generated stats must use the normal starting range")
+                            add(stats)
+                            assertEquals(1, member.level)
+                            assertEquals(0, member.experience)
+                            assertFalse(member.dead)
+                            assertEquals(member.health, member.hitPoints.current)
+                            assertEquals(member.health, member.hitPoints.max)
+                            val expectedMana = if (member.pcClass in setOf(PcClass.Mage, PcClass.Priest)) member.wisdom else 0
+                            assertEquals(expectedMana, member.mana.current)
+                            assertEquals(member.wisdom, member.mana.max)
+                            assertEquals("blank", bundle.content.slug(member.equipment.weapon))
+                            assertEquals("blank", bundle.content.slug(member.equipment.armor))
+                        }
+                        assertEquals(GridPoint(12, 9), party.position)
+                        assertEquals(2_000, party.resources.gold)
+                        assertEquals(5, party.resources.torches)
+                        assertEquals(100, party.resources.food)
+                        assertTrue(party.inventory.all { it.item == null })
+                        assertTrue(party.journal.isEmpty())
+                        assertTrue(party.milestones.isEmpty())
+                        assertEquals(0, party.counters.kills)
+
+                        val resumed = runSession(file, user, "x L")
+                        assertContains(resumed, "Wilderness")
+                        assertEquals(party, read(file, user).party, "continuing must keep the saved names, stats, and resources")
+                    }
                 }
-                assertEquals(GridPoint(12, 9), party.position)
-                assertEquals(2_000, party.resources.gold)
-                assertEquals(5, party.resources.torches)
-                assertEquals(100, party.resources.food)
-                assertTrue(party.inventory.all { it.item == null })
-                assertTrue(party.journal.isEmpty())
-                assertTrue(party.milestones.isEmpty())
-                assertEquals(0, party.counters.kills)
-
-                val resumed = runSession(file, user, "x L")
-                assertContains(resumed, "Wilderness")
-                assertEquals(party, read(file, user).party, "continuing must keep the saved names, stats, and resources")
-            }
             assertTrue(rolls.size > 16, "the generator should draw fresh stats rather than reuse a fixed test party")
             assertEquals("16", SaveCodec.decodeValues(file.readLines())["users.count"])
             assertEquals("Dawnward 0", read(file, "player-0").party.name)
@@ -84,8 +89,14 @@ class PrerolledPartyTest {
         withSaveFile { file ->
             val systems = bundleFile.readExternalRuntimeSystems()
             val rules = checkNotNull(systems.characterCreation)
-            val members = rules.prerolledMembers.reversed().toMutableList()
-            members[0] = members[0].copy(name = "Fenn", gender = Gender.Female, race = Race.Halfling, pcClass = PcClass.Thief)
+            val members =
+                rules.prerolledMembers.reversed().mapIndexed { index, member ->
+                    if (index == 0) {
+                        member.copy(name = "Fenn", gender = Gender.Female, race = Race.Halfling, pcClass = PcClass.Thief)
+                    } else {
+                        member
+                    }
+                }
             val configuredSystems =
                 systems.copy(
                     characterCreation =

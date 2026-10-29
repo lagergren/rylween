@@ -187,8 +187,17 @@ internal class CastleRuntime(
     ): RuntimeState {
         screen.writeText(castle.text.roomMonster.renderCastle(screen.textColumns))
         val battle =
-            BattleRunner(content, systems.combat, systems.pacing.battle, input, screen, log, PausePrompts(systems.prompts), systems.audio)
-                .runTier(runtime, castle.monsterTier)
+            BattleRunner(
+                content,
+                systems.combat,
+                systems.realm.spellCost,
+                systems.pacing.battle,
+                input,
+                screen,
+                log,
+                PausePrompts(systems.prompts),
+                systems.audio,
+            ).runTier(runtime, castle.monsterTier)
         if (battle.messages.isNotEmpty()) screen.writeText(battle.messages)
         return battle.runtime.copy(
             currentMode =
@@ -211,10 +220,10 @@ internal class CastleRuntime(
                 .takeIf { index -> index >= 0 }
                 ?.let { index ->
                     val thief = next.party.members[index]
-                    // The suffix continues the thief's name, so the first of its lines joins the name's.
-                    val suffix = castle.text.trapTriesDisarmSuffix.renderCastle(screen.textColumns)
-                    val tries = next.party.memberName(content, index) + suffix.firstOrNull()?.let { line -> " $line" }.orEmpty()
-                    screen.writeText(listOf(tries) + suffix.drop(1))
+                    val thiefName = next.party.memberName(content, index)
+                    screen.writeText(
+                        castle.text.trapTriesDisarm.render({ kind -> thiefName.takeIf { kind == "castleThiefName" } }, screen.textColumns),
+                    )
                     val disarmChance = content.evalFormula(castle.pitfall.disarmChance, next.party, thief.statBindings())
                     val draw = disarmChance.party.drawRandom(0, 99)
                     next = next.withParty(draw.party)
@@ -341,11 +350,18 @@ internal class CastleRuntime(
         runtime: RuntimeState,
         castle: ExternalRuntimeCastle,
     ): RuntimeState {
-        val lines = castle.text.giveMenu.renderCastle(screen.textColumns)
+        val lines =
+            screen.choiceMenuLines(
+                castle.text.givePrompt.renderCastle(screen.textColumns),
+                castle.stairs.items.map { stair -> choiceLine(stair.digit, stair.itemName) },
+                listOf(systems.prompts.returnLeavesLine()),
+            )
         screen.writeText(lines)
-        val digits = castle.stairs.items.mapTo(mutableSetOf()) { stair -> stair.digit } + 5
-        val digit = input.readValidDigitChoice(screen, lines, digits, audio = audio) ?: return runtime
-        if (digit == 5) return runtime
+        val digits =
+            castle.stairs.items
+                .map { stair -> stair.digit }
+                .toSet()
+        val digit = input.readValidDigitChoice(screen, lines, digits, cancelKeys = setOf('\n'), audio = audio) ?: return runtime
         val item = castle.stairs.items.firstOrNull { stair -> stair.digit == digit } ?: return runtime
         val milestone = content.ref(CompiledHandleKind.Milestone, item.milestone)
         if (milestone !in runtime.party.milestones) {
