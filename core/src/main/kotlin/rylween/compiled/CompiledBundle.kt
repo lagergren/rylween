@@ -894,6 +894,7 @@ enum class CompiledRuntimeTextPart {
     CurrentTownName,
     TownTaxPercent,
     TownTaxAmount,
+    TownTaxShortfall,
     CreationMemberNumber,
     CreationMemberName,
     CreationWeaponSkill,
@@ -2222,6 +2223,7 @@ private class CompiledBundleCompiler(
             TextPart.CurrentTownName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CurrentTownName)
             TextPart.TownTaxPercent -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.TownTaxPercent)
             TextPart.TownTaxAmount -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.TownTaxAmount)
+            TextPart.TownTaxShortfall -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.TownTaxShortfall)
             TextPart.CreationMemberNumber -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationMemberNumber)
             TextPart.CreationMemberName -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationMemberName)
             TextPart.CreationWeaponSkill -> CompiledTextPart.Runtime(CompiledRuntimeTextPart.CreationWeaponSkill)

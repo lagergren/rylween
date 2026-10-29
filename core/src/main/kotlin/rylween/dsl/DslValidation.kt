@@ -180,6 +180,7 @@ private val townEntryTaxTextBindings: Set<TextPart> =
         TextPart.TownTaxPercent,
         TextPart.TownTaxAmount,
     )
+private val townEntryTaxShortfallTextBindings: Set<TextPart> = townEntryTaxTextBindings + TextPart.TownTaxShortfall
 private val battleTextBindings: Set<TextPart> =
     setOf(
         TextPart.BattleFoeDisplayName,
@@ -1313,6 +1314,7 @@ private fun validateTextBlock(
             TextPart.CurrentTownName,
             TextPart.TownTaxPercent,
             TextPart.TownTaxAmount,
+            TextPart.TownTaxShortfall,
             TextPart.CreationMemberNumber,
             TextPart.CreationMemberName,
             TextPart.CreationWeaponSkill,
@@ -3099,6 +3101,11 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.town.entryWelcome, "town entry welcome prompt", allowedRuntimeBindings = townEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTax, "town entry tax prompt", allowedRuntimeBindings = townEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTaxThanks, "town entry tax thanks prompt")
+    validateTextBlock(
+        prompts.town.entryTaxShortfall,
+        "town entry tax shortfall prompt",
+        allowedRuntimeBindings = townEntryTaxShortfallTextBindings,
+    )
     validateTextBlock(prompts.wilderness.pass, "wilderness pass prompt")
     validateTextBlock(prompts.wilderness.noMoves, "wilderness no-moves prompt")
     validateTextBlock(prompts.wilderness.outOfMoves, "wilderness out-of-moves prompt")

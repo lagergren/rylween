@@ -136,6 +136,8 @@ sealed interface TextPart {
 
     object TownTaxAmount : TextPart
 
+    object TownTaxShortfall : TextPart
+
     object CreationMemberNumber : TextPart
 
     object CreationMemberName : TextPart
@@ -211,6 +213,7 @@ fun TextPart.fallbackText(): String =
         TextPart.CurrentTownName -> "{town}"
         TextPart.TownTaxPercent -> "{pct}"
         TextPart.TownTaxAmount -> "{amount}"
+        TextPart.TownTaxShortfall -> "{shortfall}"
         TextPart.CreationMemberNumber -> "{char_num}"
         TextPart.CreationMemberName -> "{name}"
         TextPart.CreationWeaponSkill -> "{weapon_skill}"

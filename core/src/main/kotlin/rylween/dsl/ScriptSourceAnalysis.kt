@@ -481,6 +481,7 @@ private class NativePathCollector {
             TextPart.CurrentTownName,
             TextPart.TownTaxPercent,
             TextPart.TownTaxAmount,
+            TextPart.TownTaxShortfall,
             TextPart.CreationMemberNumber,
             TextPart.CreationMemberName,
             TextPart.CreationWeaponSkill,

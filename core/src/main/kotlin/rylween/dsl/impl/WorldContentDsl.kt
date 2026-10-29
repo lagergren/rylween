@@ -445,6 +445,9 @@ object TownText {
     val name: TextPart = TextPart.CurrentTownName
     val taxPercent: TextPart = TextPart.TownTaxPercent
     val taxAmount: TextPart = TextPart.TownTaxAmount
+
+    /** The gold the party lacks to pay the entry tax. */
+    val taxShortfall: TextPart = TextPart.TownTaxShortfall
 }
 
 data class RewardBundleModel(

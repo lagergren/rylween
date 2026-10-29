@@ -430,6 +430,7 @@ data class ExternalTownPrompts(
     val entryWelcome: ExternalRuntimeTextBlock,
     val entryTax: ExternalRuntimeTextBlock,
     val entryTaxThanks: ExternalRuntimeTextBlock,
+    val entryTaxShortfall: ExternalRuntimeTextBlock,
 )
 
 /** Town-system runtime rows consumed by direct runtimes. */
@@ -1877,6 +1878,7 @@ private class ExternalBundleArtifactWriter {
                             textField("entryWelcome", prompts.town.entryWelcome),
                             textField("entryTax", prompts.town.entryTax),
                             textField("entryTaxThanks", prompts.town.entryTaxThanks),
+                            textField("entryTaxShortfall", prompts.town.entryTaxShortfall),
                         ),
                         promptGroupJson(
                             "party",
@@ -2597,6 +2599,7 @@ private class ExternalBundleArtifactWriter {
             TextPart.CurrentTownName -> textTokenJson("currentTownName")
             TextPart.TownTaxPercent -> textTokenJson("townTaxPercent")
             TextPart.TownTaxAmount -> textTokenJson("townTaxAmount")
+            TextPart.TownTaxShortfall -> textTokenJson("townTaxShortfall")
             TextPart.CreationMemberNumber -> textTokenJson("creationMemberNumber")
             TextPart.CreationMemberName -> textTokenJson("creationMemberName")
             TextPart.CreationWeaponSkill -> textTokenJson("creationWeaponSkill")
@@ -3138,6 +3141,7 @@ private class ExternalRuntimeSystemsReader(
                     entryWelcome = town.requiredTextPrompt("entryWelcome"),
                     entryTax = town.requiredTextPrompt("entryTax"),
                     entryTaxThanks = town.requiredTextPrompt("entryTaxThanks"),
+                    entryTaxShortfall = town.requiredTextPrompt("entryTaxShortfall"),
                 ),
             party =
                 ExternalPartyPrompts(

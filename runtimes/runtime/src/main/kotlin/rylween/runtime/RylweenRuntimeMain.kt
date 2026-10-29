@@ -1725,11 +1725,24 @@ class GameRuntime private constructor(
         val taxed = mapOf("gold" to runtime.party.resources.gold, "tax_percent" to town.taxPercent, "first_level" to leaderLevel)
         val amount =
             content.evalFormula(formula, runtime.party, taxed).value.takeIf { gold -> gold > 0 } ?: return TownEntryTaxResult(runtime)
+        townSystem.image?.let(screen::showImage)
+        val audio = RuntimeAudio(systems.audio, screen)
+        val shortfall = amount - runtime.party.resources.gold
+        if (shortfall > 0) {
+            log.event("town.tax.short town=${slug(town.id)} amount=$amount gold=${runtime.party.resources.gold}")
+            screen.writeText(
+                systems.prompts.town.entryTaxShortfall
+                    .renderRuntimeText(content, runtime, screen.textColumns) { kind -> taxValue(kind, amount, shortfall) }
+                    .withPausePrompt(PausePrompts(systems.prompts)),
+            )
+            input.readCommand() ?: return null
+            audio.cue(AudioCue.LeaveTown)
+            screen.renderWilderness(runtime.leaveTown(), world)
+            return null
+        }
         val lines = townEntryTaxLines(runtime, tax, amount, screen)
         log.event("town.tax.prompt town=${slug(town.id)} level=$leaderLevel amount=$amount gold=${runtime.party.resources.gold}")
-        townSystem.image?.let(screen::showImage)
         screen.writeText(lines)
-        val audio = RuntimeAudio(systems.audio, screen)
         val choice =
             input.readValidChoice(screen, lines, audio) { candidate ->
                 tax.pay.matches(candidate) || tax.leave.matches(candidate)
@@ -1759,12 +1772,24 @@ class GameRuntime private constructor(
     ): List<String> =
         screen.choiceMenuLines(
             systems.prompts.town.entryTax
-                .renderRuntimeText(content, runtime, screen.textColumns) { kind -> amount.toString().takeIf { kind == "townTaxAmount" } },
+                .renderRuntimeText(content, runtime, screen.textColumns) { kind -> taxValue(kind, amount) },
             listOf(
                 tax.pay.mnemonicLine(tax.pay.label),
                 tax.leave.mnemonicLine(tax.leave.label),
             ),
         )
+
+    /** The tax text values only the tax gate knows: the [amount] asked, and the gold the party lacks to pay it. */
+    private fun taxValue(
+        kind: String,
+        amount: Int,
+        shortfall: Int = 0,
+    ): String? =
+        when (kind) {
+            "townTaxAmount" -> amount.toString()
+            "townTaxShortfall" -> shortfall.toString()
+            else -> null
+        }
 
     private fun runService(
         runtime: RuntimeState,

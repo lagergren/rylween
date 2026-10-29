@@ -2108,7 +2108,7 @@ class CharacterCreationPromptsBuilder(
  * Receiver for town-entry and town-menu prompt text.
  *
  * Designers author the reusable town menu title and entry/tax messages shared
- * by the town session.
+ * by the town session, including the one a party that can't pay the tax sees.
  */
 @RylNextDsl
 class TownPromptsBuilder(
@@ -2118,6 +2118,7 @@ class TownPromptsBuilder(
     var entryWelcome: TextBlock = initial.entryWelcome
     var entryTax: TextBlock = initial.entryTax
     var entryTaxThanks: TextBlock = initial.entryTaxThanks
+    var entryTaxShortfall: TextBlock = initial.entryTaxShortfall
 
     fun menuTitle(body: StructuredTextBlockBuilder.() -> Unit) {
         menuTitleText = literalText(body)
@@ -2129,6 +2130,7 @@ class TownPromptsBuilder(
             entryWelcome = entryWelcome,
             entryTax = entryTax,
             entryTaxThanks = entryTaxThanks,
+            entryTaxShortfall = entryTaxShortfall,
         )
 }
 

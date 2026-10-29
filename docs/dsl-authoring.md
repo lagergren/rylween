@@ -551,8 +551,10 @@ cast, the hit points a defending member regains, how encounters grow with the
 leader's level (`encounterFoeCountMaxFormula`, `encounterWeaponSkillFormula`,
 and the hit point range), battle experience and gold, level-up hit points, the
 food the party eats (`upkeep { foodCost }`), the town entry tax
-(`entryTax { amount }`), shop prices, the hunting and trap-disarm chances, and
-the haggle bonus. Inside a priest spell, `withCurrentCasterCost { caster, cost -> }`
+(`entryTax { amount }`; a party with less gold than the tax is shown the
+`entryTaxShortfall` prompt, with `TownText.taxShortfall`, and stays outside),
+shop prices, the hunting and trap-disarm chances, and the haggle bonus. Inside a
+priest spell, `withCurrentCasterCost { caster, cost -> }`
 hands over the cost the formula works out; the spell's `baseCost` is declared
 once, in its `spell(...)` header.
 

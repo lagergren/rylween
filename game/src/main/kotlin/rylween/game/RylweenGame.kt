@@ -778,6 +778,16 @@ val authoredRylween: RylweenModel =
                             " au.",
                         )
                     entryTaxThanks = literalText("Thank you!")
+                    entryTaxShortfall =
+                        flowText(
+                            "There is a tax of ",
+                            TownText.taxPercent,
+                            "% to enter ",
+                            TownText.name,
+                            ". You need ",
+                            TownText.taxShortfall,
+                            " additional au to be able to pay.",
+                        )
                 }
                 party {
                     journalHeader =
