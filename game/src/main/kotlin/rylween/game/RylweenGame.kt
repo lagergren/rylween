@@ -4245,10 +4245,11 @@ val authoredRylween: RylweenModel =
                 loop {
                     localInt((party.leader.level * party.leader.level) * 15) { cost ->
                         writeText(
-                            flowText {
-                                paragraph(townNpcName(NpcJobs.innkeeper), ", the Innkeeper welcomes you.")
-                                paragraph("Do you want supper, travelers?")
-                            },
+                            flowText(
+                                townNpcName(NpcJobs.innkeeper),
+                                ", the Innkeeper welcomes you.",
+                                "\n\nDo you want supper, travelers?",
+                            ),
                         )
                         choice.yesNo(
                             "(Y)es",
@@ -4535,10 +4536,11 @@ val authoredRylween: RylweenModel =
                                         writeText("Dead men tell no stories... {pause 2s}")
                                     } otherwise {
                                         writeText(
-                                            flowText {
-                                                paragraph(partyName(storyteller), " stands up and screams:")
-                                                paragraph("- ANYONE WHO WANNA HEAR A TRAVELER'S STORY? {pause 2s}")
-                                            },
+                                            flowText(
+                                                partyName(storyteller),
+                                                " stands up and screams:",
+                                                "\n\n- ANYONE WHO WANNA HEAR A TRAVELER'S STORY? {pause 2s}",
+                                            ),
                                         )
 
                                         playSound(Sounds.Town.crowdCheer)
@@ -5830,14 +5832,12 @@ val authoredRylween: RylweenModel =
                 encounter(Monsters.ridingHobgoblin, mandatory = true)
                 renderMap()
                 showTextAndWait(
-                    flowText {
-                        paragraph("Before you kill the last hobgoblin you ask him about the key. The foul creature blurts:")
-                        paragraph(
-                            "- Boss has it! In ze cave! at home, yess, ",
-                            location(Locations.hobgoblinCave).coordinates,
-                            "... pleeez sirs, don't kill me...",
-                        )
-                    },
+                    flowText(
+                        "Before you kill the last hobgoblin you ask him about the key. The foul creature blurts:",
+                        "\n\n- Boss has it! In ze cave! at home, yess, ",
+                        location(Locations.hobgoblinCave).coordinates,
+                        "... pleeez sirs, don't kill me...",
+                    ),
                 )
                 showTextAndWait(
                     "(at this point you sever his carotid artery).",
@@ -6027,16 +6027,14 @@ val authoredRylween: RylweenModel =
                 npc(Npcs.gorm) {
                     whenState(Story.fighter.priestBook.priestTold) {
                         showTextAndWait(
-                            flowText {
-                                paragraph("When you mention the book, he nods and looks a bit embarrassed.")
-                                paragraph(
-                                    "- Yes, I know. I happened to lose it. A ",
-                                    character(Roles.wizardRobbed).job,
-                                    " called ",
-                                    character(Roles.wizardRobbed).name,
-                                    " stole it from my bedroom a week ago...",
-                                )
-                            },
+                            flowText(
+                                "When you mention the book, he nods and looks a bit embarrassed.",
+                                "\n\n- Yes, I know. I happened to lose it. A ",
+                                character(Roles.wizardRobbed).job,
+                                " called ",
+                                character(Roles.wizardRobbed).name,
+                                " stole it from my bedroom a week ago...",
+                            ),
                         )
                         showTextAndWait(
                             """
@@ -6304,16 +6302,14 @@ val authoredRylween: RylweenModel =
                             ),
                         )
                         writeText(
-                            flowText {
-                                paragraph(
-                                    "After breaking a few of his teeth, he also willingly reveals that the ",
-                                    character(Roles.silverKeySmith).job,
-                                    " went by the name of ",
-                                    character(Roles.silverKeySmith).name,
-                                    "... {pause}",
-                                )
-                                paragraph("You let go of your grip on his collar, and he falls to the floor.")
-                            },
+                            flowText(
+                                "After breaking a few of his teeth, he also willingly reveals that the ",
+                                character(Roles.silverKeySmith).job,
+                                " went by the name of ",
+                                character(Roles.silverKeySmith).name,
+                                "... {pause}",
+                                "\n\nYou let go of your grip on his collar, and he falls to the floor.",
+                            ),
                         )
                         waitInput("after Gotharp talks")
                     }
@@ -6514,14 +6510,12 @@ val authoredRylween: RylweenModel =
 
                     whenState(Story.masterCrown.borinPaid) {
                         writeText(
-                            flowText {
-                                paragraph("- I JUST CAN'T TELL YOU HOW GRATEFUL I AM! He takes the stone and smiles broadly at you.")
-                                paragraph(
-                                    "- Very well, seekers! The Master Crown is hidden in a dungeon near ",
-                                    location(Locations.masterCrownDungeon).coordinates,
-                                    "! Fare thee well.",
-                                )
-                            },
+                            flowText(
+                                "- I JUST CAN'T TELL YOU HOW GRATEFUL I AM! He takes the stone and smiles broadly at you.",
+                                "\n\n- Very well, seekers! The Master Crown is hidden in a dungeon near ",
+                                location(Locations.masterCrownDungeon).coordinates,
+                                "! Fare thee well.",
+                            ),
                         )
                         journal {
                             line("The Master Crown dungeon is at ", location(Locations.masterCrownDungeon).coordinates, ".")
@@ -6580,14 +6574,12 @@ val authoredRylween: RylweenModel =
 
                     whenState(Story.hermit.trollTooth.extracted) {
                         writeText(
-                            flowText {
-                                paragraph("You hand him the troll tooth.")
-                                paragraph(
-                                    "- Oh YES! He cackles. At areas uncharted, near ",
-                                    location(Locations.hermitDungeon).coordinates,
-                                    " is the cave you seek. Beware of the guardian the ancients gave birth to...",
-                                )
-                            },
+                            flowText(
+                                "You hand him the troll tooth.",
+                                "\n\n- Oh YES! He cackles. At areas uncharted, near ",
+                                location(Locations.hermitDungeon).coordinates,
+                                " is the cave you seek. Beware of the guardian the ancients gave birth to...",
+                            ),
                         )
                         journal {
                             line("The Fire Shield Dungeon is at ", location(Locations.hermitDungeon).coordinates, ".")

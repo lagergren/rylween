@@ -278,16 +278,48 @@ fun literalText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock = Struct
 
 /**
  * Creates flow text: prose the renderer wraps to its own column or pixel
- * width. Single newlines in the source are spaces; a blank line starts a new
- * paragraph, which renderers show with a blank line above it.
+ * width, from strings and runtime values, as in
+ * `flowText("You find ", amount, " gold.")`. A newline in a string is a
+ * space; a blank line starts a new paragraph, which renderers show with a
+ * blank line above it.
  */
-fun flowText(text: String): TextBlock = TextBlock.Flow(flowParagraphs(text))
+fun flowText(vararg parts: Any): TextBlock =
+    TextBlock.Flow(
+        parts
+            .flatMap { part -> if (part is String) part.flowPieces() else listOf(part) }
+            .splitAtParagraphBreaks()
+            .map { paragraph -> TextLine(paragraph.flatMap(::textParts).trimmedEnds()) }
+            .filter { paragraph -> paragraph.parts.isNotEmpty() },
+    )
 
-/** Creates a single deferred-wrap paragraph from literal and dynamic parts. */
-fun flowText(vararg parts: Any): TextBlock = TextBlock.Flow(listOf(TextLine(parts.flatMap(::textParts))))
+/** Where a blank line in flow text starts a new paragraph. */
+private object ParagraphBreak
 
-/** Creates deferred-wrap text with multiple paragraphs and optional dynamic parts. */
-fun flowText(body: FlowTextBlockBuilder.() -> Unit): TextBlock = FlowTextBlockBuilder().apply(body).build()
+private val blankLine = Regex("""\n\s*\n""")
+private val lineBreak = Regex("""\s*\n\s*""")
+
+/** This string's paragraphs with a [ParagraphBreak] between them, each newline and the indentation around it a space. */
+private fun String.flowPieces(): List<Any> =
+    split(blankLine)
+        .map { piece -> piece.replace(lineBreak, " ") }
+        .flatMapIndexed { index, piece -> if (index == 0) listOf(piece) else listOf(ParagraphBreak, piece) }
+
+private fun List<Any>.splitAtParagraphBreaks(): List<List<Any>> {
+    val breaks = indices.filter { index -> this[index] == ParagraphBreak }
+    return (listOf(-1) + breaks).zip(breaks + size) { start, end -> subList(start + 1, end) }
+}
+
+/** A paragraph's parts without the spaces at its start and end. */
+private fun List<TextPart>.trimmedEnds(): List<TextPart> =
+    mapIndexed { index, part ->
+        when {
+            part !is TextPart.Literal -> part
+            index == 0 && index == lastIndex -> TextPart.Literal(part.text.trim())
+            index == 0 -> TextPart.Literal(part.text.trimStart())
+            index == lastIndex -> TextPart.Literal(part.text.trimEnd())
+            else -> part
+        }
+    }.filterNot { part -> part == TextPart.Literal("") }
 
 /**
  * Detection rule for triple-quoted multi-line authoring: if the caller
@@ -315,11 +347,6 @@ fun TextLineSink.line(vararg parts: Any) {
 /** Adds multiple literal lines to a text-line sink. */
 fun TextLineSink.lines(vararg lines: String) {
     expandMultiline(lines).forEach { line(it) }
-}
-
-/** Executes a nested structured-text builder block against this sink. */
-fun <T : TextLineSink> T.lines(body: T.() -> Unit) {
-    body()
 }
 
 /** Concatenates text blocks into one structured block. */
@@ -468,36 +495,6 @@ class StructuredTextBlockBuilder : TextLineSink {
     }
 
     fun build(): TextBlock = TextBlock.Structured(lines.toList())
-}
-
-/** Builder for deferred-wrap prose paragraphs that may include dynamic text parts. */
-@RylNextDsl
-class FlowTextBlockBuilder {
-    private val paragraphs = mutableListOf<TextLine>()
-
-    /**
-     * Adds one paragraph. String newlines inside [parts] are normalized by the
-     * renderer, so use another [paragraph] call for intentional paragraph breaks.
-     */
-    fun paragraph(vararg parts: Any) {
-        paragraphs += TextLine(parts.flatMap(::textParts))
-    }
-
-    /** Adds one or more literal paragraphs from triple-quoted prose. */
-    fun paragraphs(text: String) {
-        flowParagraphs(text).forEach(paragraphs::add)
-    }
-
-    fun build(): TextBlock = TextBlock.Flow(paragraphs.toList())
-}
-
-private fun flowParagraphs(text: String): List<TextLine> {
-    val trimmed = text.trimIndent()
-    return trimmed
-        .split(Regex("\\n\\s*\\n"))
-        .map { paragraph -> paragraph.trim().replace('\n', ' ') }
-        .filter(String::isNotEmpty)
-        .map { paragraph -> TextLine(literalParts(paragraph)) }
 }
 
 /** Text-placeholder helper for NPC name, job, and location. */

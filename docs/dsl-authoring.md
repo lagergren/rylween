@@ -135,11 +135,12 @@ notes:
   `Towns.thord`, and `Terrain.forest` instead of raw strings.
 - Put game prose in `writeText`, `appendText`, `showTextAndWait`, or
   runtime-system prompt rows. Text comes in two kinds: `flowText(...)` is prose
-  the renderer wraps to its own width (a plain string is flow text, and a blank
-  line starts a new paragraph), and `literalText(...)` is lines kept exactly as
-  written. Use literal lines only when each row is an intentional menu, layout,
-  sign or verse row; `literalText { line("You find ", amount) }` mixes in
-  runtime values the same way `flowText("You find ", amount, " gold.")` does.
+  the renderer wraps to its own width (a plain string is flow text; in its
+  strings a newline is a space, and a blank line or `\n\n` starts a new
+  paragraph), and `literalText(...)` is lines kept exactly as written. Use
+  literal lines only when each row is an intentional menu, layout, sign or verse
+  row; `literalText { line("You find ", amount) }` mixes in runtime values the
+  same way `flowText("You find ", amount, " gold.\n\nThe chest is empty.")` does.
 - Use block helpers such as `localInt { ... }`, `ask.member { ... }`,
   `ask.monsterAlive { ... }`, and `withCurrentCasterCost { ... }` instead of
   raw Kotlin temporaries in script bodies.
