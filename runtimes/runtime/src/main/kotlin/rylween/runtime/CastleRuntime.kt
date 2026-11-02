@@ -120,7 +120,7 @@ internal class CastleRuntime(
             navigation.matches(RuntimeCommandActionId.MoveSouth, command) -> move(runtime, castle, dx = 0, dy = 1, castle.text.moveSouth)
             navigation.matches(RuntimeCommandActionId.MoveWest, command) -> move(runtime, castle, dx = -1, dy = 0, castle.text.moveWest)
             navigation.matches(RuntimeCommandActionId.MoveEast, command) -> move(runtime, castle, dx = 1, dy = 0, castle.text.moveEast)
-            navigation.matches(RuntimeCommandActionId.Save, command) -> runtime.also { saveRuntime(it) }
+            navigation.matches(RuntimeCommandActionId.Save, command) -> saveRuntime(runtime)
             navigation.matches(RuntimeCommandActionId.Help, command) -> runtime.also { showNavigationHelp(castle) }
             navigation.matches(
                 RuntimeCommandActionId.ViewParty,
@@ -437,9 +437,7 @@ internal class CastleRuntime(
         if (runtime.currentMode == RuntimeMode.Castle) screen.renderCastle(runtime, castle)
     }
 
-    private fun saveRuntime(runtime: RuntimeState) {
-        saveRuntimeForPlayer(runtime, content, systems, save, screen, log)
-    }
+    private fun saveRuntime(runtime: RuntimeState): RuntimeState = saveRuntimeForPlayer(runtime, content, systems, save, screen, log)
 
     private fun seedRooms(
         runtime: RuntimeState,

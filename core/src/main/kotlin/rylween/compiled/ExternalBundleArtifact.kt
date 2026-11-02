@@ -89,7 +89,7 @@ import kotlin.reflect.typeOf
 
 private const val EXTERNAL_BUNDLE_FORMAT = "rylween.compiled.bundle"
 private const val EXTERNAL_BUNDLE_VERSION = 3
-private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 14
+private const val EXTERNAL_RUNTIME_SYSTEMS_VERSION = 15
 private const val GRID_CASTLE_KIND = "gridCastle"
 
 /** Serializes this game into the canonical strict JSON J1 artifact bytes. */
@@ -585,6 +585,8 @@ data class ExternalRuntimeRealm(
     val timeOfDay: List<ExternalTimeOfDayBand>,
     /** Slug of the formula that prices a spell for its caster, or null when a spell costs its base cost. */
     val spellCost: String?,
+    /** Slug of the formula for how many squares a party sees other parties, or null when parties never see each other. */
+    val partySight: String?,
 )
 
 /** One status-line time label exported for direct runtimes. */
@@ -1710,6 +1712,7 @@ private class ExternalBundleArtifactWriter {
             "camp" to campJson(realm.camp),
             "hunt" to realm.hunt?.let(::huntJson).orJsonNull(),
             "spellCost" to realm.spellCost?.let { formula -> JsonString(formula.slug) }.orJsonNull(),
+            "partySight" to realm.partySight?.let { formula -> JsonString(formula.slug) }.orJsonNull(),
             "timeOfDay" to
                 JsonArray(
                     realm.timeOfDay.map { band ->
@@ -3815,6 +3818,7 @@ private class ExternalRuntimeSystemsReader(
             camp = requiredObject("camp").readCamp(),
             hunt = optional("hunt")?.takeUnless { it is JsonNull }?.asObject("hunt")?.readHunt(),
             spellCost = optional("spellCost")?.takeUnless { it is JsonNull }?.asString("spellCost"),
+            partySight = optional("partySight")?.takeUnless { it is JsonNull }?.asString("partySight"),
             timeOfDay =
                 requiredArray("timeOfDay")
                     .values

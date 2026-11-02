@@ -3521,6 +3521,9 @@ class FormulaBuilder(
     // The spell being cast, for the spell cost formula; the caster's stats are bound above.
     val spellBaseCost: IntExpr = v("spell_base_cost")
 
+    // The hour of the party's day, 0-23, for party sight.
+    val hour: IntExpr = v("hour")
+
     // Upkeep and town entry: the party's living members and the gold it
     // carries, and the tax rate of the town it enters.
     val livingMembers: IntExpr = v("living_members")

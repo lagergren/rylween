@@ -398,6 +398,7 @@ val authoredRylween: RylweenModel =
             realm {
                 baseResourceCapacity(Resource.Food, 150)
                 spellCost = Formulas.spellCost
+                partySight = Formulas.partySight
                 // Upkeep runs during wilderness turns. These fields control food
                 // ticking, fatigue labels/drain, mana recovery, and starvation.
                 upkeep {
@@ -411,9 +412,9 @@ val authoredRylween: RylweenModel =
                         line(UpkeepText.memberName, " starved to death!!!")
                     }
                     fatigueAt(0, literalText("You begin to feel tired"), statusLabel = "TIRED")
-                    fatigueAt(-4, literalText("You are exhausted!!!"), drain = true, statusLabel = "EXHAUSTED")
-                    fatigueAt(-8, flowText("You begin to feel weak from lack of sleep."), drain = true, statusLabel = "WEAK")
-                    fatigueBelow(-8, flowText("You faint from lack of much-needed sleep."), drain = true, statusLabel = "FAINT")
+                    fatigueAt(-6, literalText("You are exhausted!!!"), drain = true, statusLabel = "EXHAUSTED")
+                    fatigueAt(-12, flowText("You begin to feel weak from lack of sleep."), drain = true, statusLabel = "WEAK")
+                    fatigueBelow(-12, flowText("You faint from lack of much-needed sleep."), drain = true, statusLabel = "FAINT")
                 }
                 // Hunt is a reusable ranger action. The fields define chance,
                 // move cost, food range, target prompts, and result text.
@@ -450,7 +451,7 @@ val authoredRylween: RylweenModel =
                     healthGain = 15
                     foodCostPerMember = 4
                     hoursAdvanced = 8
-                    hoursRestedReset = 14
+                    hoursRestedReset = 21
                     temperatureMax = 15
                     ambushChancePercent = 19
                     ambushTier = EncounterTiers.weak
@@ -1217,7 +1218,7 @@ val authoredRylween: RylweenModel =
                         torches = 5
                         food = 100
                         timeLeft = 200
-                        restedHours = 14
+                        restedHours = 21
                     }
                 }
 
@@ -1364,6 +1365,11 @@ val authoredRylween: RylweenModel =
                 }
                 formula(Formulas.spellCost) {
                     value = spellBaseCost + level
+                }
+                // Players' parties see each other three squares away, and one
+                // square at night.
+                formula(Formulas.partySight) {
+                    value = whenValue(hour lt 6, 1, 3)
                 }
                 // Battle arithmetic. A chance is a percentage, rolled against
                 // 0-99. A confused party fights at a third of its weapon skill,
@@ -4317,7 +4323,7 @@ val authoredRylween: RylweenModel =
                                             ok = {
                                                 writeText("You go to bed... {pause 1s}")
                                                 playSound(Sounds.Explore.rest)
-                                                party.restedHours set 14
+                                                party.restedHours set 21
                                                 writeText("Zzzz... {pause}")
                                                 writeText(
                                                     flowText(

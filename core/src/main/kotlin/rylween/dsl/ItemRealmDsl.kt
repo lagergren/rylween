@@ -138,6 +138,12 @@ class RealmContentBuilder {
     /** What a spell costs its caster, mage spells in battle and priest spells alike; without it a spell costs its base cost. */
     var spellCost: FormulaId? = null
 
+    /**
+     * How many squares away a party in the wilderness sees other players' parties on the same map; without it
+     * parties never see each other.
+     */
+    var partySight: FormulaId? = null
+
     fun baseResourceCapacity(
         resource: Resource,
         amount: Int,
@@ -169,6 +175,7 @@ class RealmContentBuilder {
             hunt = hunt,
             timeOfDay = timeOfDayBands,
             spellCost = spellCost,
+            partySight = partySight,
         )
 }
 

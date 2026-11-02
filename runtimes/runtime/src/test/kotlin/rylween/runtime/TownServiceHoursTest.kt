@@ -62,7 +62,7 @@ class TownServiceHoursTest {
             SaveCodec.encodeValues(
                 values +
                     mapOf(
-                        "realm.hour" to hour.toString(),
+                        "${prefix}realm.hour" to hour.toString(),
                         "${prefix}party.x" to town.position.x.toString(),
                         "${prefix}party.y" to town.position.y.toString(),
                     ),

@@ -34,6 +34,7 @@ private const val SAVE_MODEL = "shared-world"
 private const val PARTY_MEMBER_RECORD_COUNT = "party.members"
 private const val USERS_COUNT = "users.count"
 private const val HEROES_COUNT = "heroes.count"
+private val clockKeys = listOf("realm.day", "realm.hour", "realm.minute")
 
 private val memberFieldKey = Regex("""^member\.(\d+)\.""")
 
@@ -177,6 +178,11 @@ internal object SaveCodec {
 
 /** Reads and writes runtime shared-world saves. */
 internal object SaveFile {
+    /**
+     * Writes the active user's party and the world into [file], and returns [runtime] with the world as written.
+     * Other sessions may have saved since this one read the file, so the world keeps the missions they completed and
+     * the NPC places they drew first.
+     */
     fun write(
         file: File,
         runtime: RuntimeState,
@@ -184,28 +190,35 @@ internal object SaveFile {
         content: CompiledContentBundle,
         userId: String,
         hallOfHeroesCompletedBy: String?,
-    ) = SaveFileStorage.update(file) { target ->
-        val activeUser = userId.normalizedSaveUser()
-        val existingValues = target.existingSaveValuesOrEmpty()
-        if (target.isFile) existingValues.requireReadableSave()
-        val preservedUsers = existingValues.userRecords().filterNot { record -> record.id == activeUser }
-        val userRecords = preservedUsers + UserSaveRecord(activeUser, runtime.userSaveValues(content))
-        val scoreParties =
-            runtime.scoreParties
-                .filterNot { party -> party.userId == activeUser } +
-                runtime.party.toRuntimeScoreParty(activeUser)
-        val heroes =
-            existingValues
-                .heroEntries()
-                .withDerivedHeroes(scoreParties, hallOfHeroesCompletedBy, content)
-        val values =
-            buildMap {
-                putAll(runtime.worldSaveValues(bundleHash, content))
-                putHeroEntries(heroes)
-                putUserRecords(userRecords)
-            }
-        SaveFileStorage.replace(target, SaveCodec.encodeValues(values))
-    }
+    ): RuntimeState =
+        SaveFileStorage.update(file) { target ->
+            val activeUser = userId.normalizedSaveUser()
+            val existingValues = target.existingSaveValuesOrEmpty()
+            if (target.isFile) existingValues.requireReadableSave()
+            val world = runtime.withSavedWorld(existingValues, content)
+            val preservedUsers =
+                existingValues
+                    .userRecords()
+                    .filterNot { record -> record.id == activeUser }
+                    .map { record -> record.withWorldClock(existingValues) }
+            val userRecords = preservedUsers + UserSaveRecord(activeUser, runtime.userSaveValues(content))
+            val scoreParties =
+                runtime.scoreParties
+                    .filterNot { party -> party.userId == activeUser } +
+                    runtime.party.toRuntimeScoreParty(activeUser)
+            val heroes =
+                existingValues
+                    .heroEntries()
+                    .withDerivedHeroes(scoreParties, hallOfHeroesCompletedBy, content)
+            val values =
+                buildMap {
+                    putAll(world.worldSaveValues(bundleHash, content))
+                    putHeroEntries(heroes)
+                    putUserRecords(userRecords)
+                }
+            SaveFileStorage.replace(target, SaveCodec.encodeValues(values))
+            world
+        }
 
     fun read(
         file: File,
@@ -224,9 +237,10 @@ internal object SaveFile {
         val activeParty = userValues.readParty(baseState.party, content)
         val scoreParties = values.scoreParties(baseState.party, content, saveUser)
         return baseState.copy(
-            day = values.intOrDefault("realm.day", baseState.day),
-            hour = values.intOrDefault("realm.hour", baseState.hour),
-            minute = values.intOrDefault("realm.minute", baseState.minute),
+            // Each party keeps its own clock. Saves from before that kept one clock in the world rows.
+            day = userValues.optionalInt("realm.day") ?: values.intOrDefault("realm.day", baseState.day),
+            hour = userValues.optionalInt("realm.hour") ?: values.intOrDefault("realm.hour", baseState.hour),
+            minute = userValues.optionalInt("realm.minute") ?: values.intOrDefault("realm.minute", baseState.minute),
             currentMap = userValues.handleOrDefault("realm.currentMap", CompiledHandleKind.WorldMap, content, baseState.currentMap),
             currentMode = userValues.runtimeModeOrDefault("realm.currentMode", baseState.currentMode),
             currentTown = userValues.optionalHandle("realm.currentTown", CompiledHandleKind.Town, content) ?: baseState.currentTown,
@@ -295,9 +309,6 @@ internal object SaveFile {
             put("saveModel", SAVE_MODEL)
             put("bundleHash", bundleHash)
             put("state", stateSlug)
-            put("realm.day", day.toString())
-            put("realm.hour", hour.toString())
-            put("realm.minute", minute.toString())
             put("realm.lastPlayedDate", lastPlayedDate?.toString().orEmpty())
             put("realm.partyMemberMax", partyMemberMax.toString())
             put("missions.completed", completedMissions.joinToString(",") { mission -> content.slug(mission) })
@@ -305,8 +316,30 @@ internal object SaveFile {
             putNpcs(npcs, content)
         }
 
+    // A session reads the world once, when it starts. Completed missions only grow, and an NPC stays where the
+    // first save put it, so merging what other sessions saved since loses nothing of theirs.
+    private fun RuntimeState.withSavedWorld(
+        saved: Map<String, String>,
+        content: CompiledContentBundle,
+    ): RuntimeState {
+        val savedNpcs = saved.readNpcs(emptyList(), content)
+        val savedNpcIds = savedNpcs.map(CompiledNpcPlacement::npc).toSet()
+        val savedMissions = saved.handleListOrDefault("missions.completed", CompiledHandleKind.Mission, content, emptyList())
+        return copy(
+            npcs = savedNpcs + npcs.filterNot { placement -> placement.npc in savedNpcIds },
+            completedMissions = (savedMissions + completedMissions).distinct(),
+        )
+    }
+
+    /** Gives a record saved before parties kept their own clock the one clock the world rows kept then. */
+    private fun UserSaveRecord.withWorldClock(world: Map<String, String>): UserSaveRecord =
+        copy(values = clockKeys.mapNotNull { key -> world[key]?.let { value -> key to value } }.toMap() + values)
+
     private fun RuntimeState.userSaveValues(content: CompiledContentBundle): Map<String, String> =
         buildMap {
+            put("realm.day", day.toString())
+            put("realm.hour", hour.toString())
+            put("realm.minute", minute.toString())
             put("realm.currentMap", content.slug(currentMap))
             put("realm.currentMode", currentMode.name)
             put("realm.currentTown", currentTown?.let(content::slug).orEmpty())

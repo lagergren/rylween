@@ -541,10 +541,11 @@ The system that uses a formula binds its variables: the member it is about
 (`weaponSkill`, `weaponDamage`, `hitPoints`, `armorClass`, `level`, `charisma`,
 `dexterity`), the monster (`monsterWeaponSkill`, `monsterHitPoints`,
 `monsterSpellPower`), the encounter, the party (`firstLevel`, `livingMembers`,
-`gold`), a town's `taxPercent`, a shop item's `itemCost`, or a spell's
-`spellBaseCost`. `atLeast` and `atMost` clamp a value, `whenValue(condition, a, b)`
-picks one, and `random(lo..hi)` draws from the game's own random numbers. A
-chance is a percentage the runtime rolls 0-99 against.
+`gold`, and the `hour` of its day), a town's `taxPercent`, a shop item's
+`itemCost`, or a spell's `spellBaseCost`. `atLeast` and `atMost` clamp a value,
+`whenValue(condition, a, b)` picks one, and `random(lo..hi)` draws from the
+game's own random numbers. A chance is a percentage the runtime rolls 0-99
+against.
 
 This game's rules that are formulas: what a spell costs (`realm { spellCost }`),
 a party member's and a monster's chance to hit and damage, a monster's chance to
@@ -554,7 +555,9 @@ and the hit point range), battle experience and gold, level-up hit points, the
 food the party eats (`upkeep { foodCost }`), the town entry tax
 (`entryTax { amount }`; a party with less gold than the tax is shown the
 `entryTaxShortfall` prompt, with `TownText.taxShortfall`, and stays outside),
-shop prices, the hunting and trap-disarm chances, and the haggle bonus. Inside a
+shop prices, the hunting and trap-disarm chances, the haggle bonus, and how many
+squares away players' parties see each other in the wilderness
+(`realm { partySight }`; without it they never do). Inside a
 priest spell, `withCurrentCasterCost { caster, cost -> }`
 hands over the cost the formula works out; the spell's `baseCost` is declared
 once, in its `spell(...)` header.
@@ -790,7 +793,7 @@ Use this placement rule during design review:
 
 A change to the shape of the `runtimeSystems` rows also bumps
 `EXTERNAL_RUNTIME_SYSTEMS_VERSION` in
-`core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt` (14 today), so
+`core/src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt` (15 today), so
 a runtime refuses a bundle written for another shape.
 
 If a rule mentions Rylween story content, item names, NPCs, mission prose,

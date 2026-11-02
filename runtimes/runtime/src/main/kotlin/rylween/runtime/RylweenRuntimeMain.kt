@@ -285,20 +285,24 @@ private fun RuntimeState.logPosition(): String = "${party.position.x},${party.po
 
 private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
-/** Writes [runtime] to the save and logs it, line by line. Throws when the write fails. */
+/**
+ * Writes [runtime] to the save and logs it, line by line. Returns [runtime] with the world as saved. Throws when the
+ * write fails.
+ */
 internal fun persistRuntime(
     runtime: RuntimeState,
     content: CompiledContentBundle,
     save: RuntimeSaveContext,
     log: RuntimeLog,
     reason: String,
-) {
-    save.write(runtime, content)
+): RuntimeState {
+    val saved = save.write(runtime, content)
     log.event(
         "runtime.save reason=$reason user=${save.userId} file=${save.file.path} position=${runtime.logPosition()} " +
             "mode=${runtime.currentMode} lastPlayedDate=${runtime.lastPlayedDate ?: ""}",
     )
     logSaveFileLines("runtime.save", save.file, log)
+    return saved
 }
 
 private fun logSaveFileLines(
@@ -495,6 +499,7 @@ class GameRuntime private constructor(
         debugSecrets: Boolean = false,
         sessionDate: LocalDate = LocalDate.now(),
         log: RuntimeLog,
+        presence: RuntimePresencePort = RuntimePresencePort.None,
     ): RuntimeSessionResult {
         listOfNotNull(loadFile, saveFile).distinct().forEach { file ->
             SaveFile.savedBundleHash(file)?.takeIf { saved -> saved != bundleContentHash }?.let { saved ->
@@ -527,7 +532,7 @@ class GameRuntime private constructor(
         flashLogSink.use {
             log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
             val saveContext = RuntimeSaveContext(saveFile, bundleContentHash, userId, systems.score.completedBy)
-            val loopContext = RuntimeLoopContext(content, systems, input, screen, saveContext, log)
+            val loopContext = RuntimeLoopContext(content, systems, input, screen, saveContext, log, presence)
             if (showTitleMenu || loadFile != null && !hasLoadUserSave) {
                 runtime =
                     runTitleMenu(runtime, stateSlug, seed, loopContext)
@@ -538,6 +543,7 @@ class GameRuntime private constructor(
             runtime = runtime.materializeMissingNpcPlacements(world, log)
             runtime = runtime.applySessionDate(sessionDate, log)
             val sessionStartSaved = persistSessionStartIfChanged(sessionStartRuntime, runtime, saveContext, log)
+            runtime = sessionStartSaved ?: runtime
             logNpcPlacements(runtime, log)
             val commands = WildernessCommands.from(systems)
             val debugCommands = WildernessCommands.from(systems, RuntimeCommandGroupId.WildernessDebug)
@@ -559,8 +565,9 @@ class GameRuntime private constructor(
             var wildernessTrack: String? = null
             screen.bootFrame()
             screen.renderWilderness(runtime, world)
-            if (!sessionStartSaved && !showSaveFailed(screen, input)) return input.exitResult()
+            if (sessionStartSaved == null && !showSaveFailed(screen, input)) return input.exitResult()
             while (true) {
+                presence.update(runtime.presence(content, systems))
                 when (runtime.currentMode) {
                     RuntimeMode.Dungeon -> {
                         wildernessTrack = null
@@ -677,7 +684,7 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches(RuntimeCommandActionId.Save, command) -> {
-                            saveRuntimeForPlayer(runtime, content, systems, saveContext, screen, log)
+                            runtime = saveRuntimeForPlayer(runtime, content, systems, saveContext, screen, log)
                             false
                         }
 
@@ -1565,15 +1572,18 @@ class GameRuntime private constructor(
         return quitting
     }
 
-    /** Saves the session's starting state when it changed. Returns false when that save failed; the log has why. */
+    /**
+     * Saves the session's starting state when it changed, and returns it with the world as saved. Null when that save
+     * failed; the log has why.
+     */
     private fun persistSessionStartIfChanged(
         before: RuntimeState,
         after: RuntimeState,
         save: RuntimeSaveContext,
         log: RuntimeLog,
-    ): Boolean {
+    ): RuntimeState? {
         val hasUserSave = SaveFile.hasUserParty(save.file, save.userId)
-        if (before == after && save.file.isFile && hasUserSave) return true
+        if (before == after && save.file.isFile && hasUserSave) return after
         return persistRuntimeOrLogFailure(after, content, save, log, "session_start")
     }
 
@@ -1602,7 +1612,7 @@ class GameRuntime private constructor(
         val screen = context.screen
         log.event("wilderness.enter position=${runtime.logPosition()}")
         val town = content.towns.firstOrNull { it.position == runtime.party.position }
-        if (town != null) return enterTown(runtime, world, input, screen, town, log)
+        if (town != null) return enterTown(runtime, world, input, screen, context.presence, town, log)
         val castle = systems.castleRows.firstOrNull { castle -> castle.entry == runtime.party.position }
         if (castle != null) {
             log.event("wilderness.enter_castle castle=${castle.id}")
@@ -1628,6 +1638,7 @@ class GameRuntime private constructor(
         world: WorldMap,
         input: RuntimeInputPort,
         screen: RuntimeScreenPort,
+        presence: RuntimePresencePort,
         town: rylween.compiled.CompiledTown,
         log: RuntimeLog,
     ): RuntimeState {
@@ -1658,6 +1669,7 @@ class GameRuntime private constructor(
         audio.cue(AudioCue.EnterTown)
         val taxResult = collectTownEntryTaxIfNeeded(current, world, input, screen, town, log) ?: return runtime
         current = taxResult.runtime
+        presence.update(current.presence(content, systems))
         var menuNotice = taxResult.noticeLines
 
         fun menuLines(noticeLines: List<String>): List<String> =
