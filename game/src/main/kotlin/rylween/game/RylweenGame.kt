@@ -398,6 +398,7 @@ val authoredRylween: RylweenModel =
             realm {
                 baseResourceCapacity(Resource.Food, 150)
                 spellCost = Formulas.spellCost
+                partySight = Formulas.partySight
                 // Upkeep runs during wilderness turns. These fields control food
                 // ticking, fatigue labels/drain, mana recovery, and starvation.
                 upkeep {
@@ -1364,6 +1365,11 @@ val authoredRylween: RylweenModel =
                 }
                 formula(Formulas.spellCost) {
                     value = spellBaseCost + level
+                }
+                // Players' parties see each other three squares away, and one
+                // square at night.
+                formula(Formulas.partySight) {
+                    value = whenValue(hour lt 6, 1, 3)
                 }
                 // Battle arithmetic. A chance is a percentage, rolled against
                 // 0-99. A confused party fights at a third of its weapon skill,

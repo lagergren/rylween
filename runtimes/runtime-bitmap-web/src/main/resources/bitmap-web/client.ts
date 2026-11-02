@@ -290,6 +290,7 @@ const connectionDot = requireElement("connectionDot", HTMLElement);
 const connectionText = requireElement("connectionText", HTMLElement);
 let socket: WebSocket | null = null;
 let frame: BitmapFrame | null = null;
+let seenParties: SeenParty[] = [];
 let currentCommands: BitmapCommand[] = [];
 let statusHotspots: StatusHotspot[] = [];
 let choiceTargets: ChoiceTarget[] = [];
@@ -361,6 +362,20 @@ type SoundMessage = {
 type MusicMessage = {
     type: "music";
     id: string | null;
+};
+
+// Another player's party this player sees; color indexes seenPartyColors.
+type SeenParty = {
+    name: string;
+    x: number;
+    y: number;
+    color: number;
+};
+
+// Sent whenever the parties this player sees change, sorted by square and then name.
+type PartiesMessage = {
+    type: "parties";
+    parties: SeenParty[];
 };
 
 type PlayingMusic = {
@@ -1043,6 +1058,7 @@ function connect(): void {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     socket = new WebSocket(protocol + "//" + location.host + "/ws/play");
     socket.addEventListener("open", () => {
+        seenParties = [];
         connectionDot.classList.add("connected");
         connectionText.textContent = "Connected";
         refreshServerInfo().catch(() => undefined);
@@ -1061,6 +1077,11 @@ function connect(): void {
         }
         if (message.type === "music") {
             gameAudio.setMusic((message as unknown as MusicMessage).id);
+            return;
+        }
+        if (message.type === "parties") {
+            seenParties = (message as unknown as PartiesMessage).parties;
+            if (frame?.mode === "wilderness") requestPointerRedraw();
             return;
         }
         const nextFrame = message as unknown as BitmapFrame;
@@ -2412,9 +2433,11 @@ function drawMap(map: BitmapMap): void {
             drawTile(rows[row][col], x + col * size, y + row * size, size, !transitionLayer);
         }
     }
-    if (!transitionLayer) return;
-    drawTerrainTransitions(rows, x, y, size);
-    drawWildernessMapMarkers(rows, x, y, size);
+    if (transitionLayer) {
+        drawTerrainTransitions(rows, x, y, size);
+        drawWildernessMapMarkers(rows, x, y, size);
+    }
+    if (frame?.mode === "wilderness") drawSeenParties(rows, x, y, size);
 }
 
 function drawPerspectiveMap(map: BitmapMap): boolean {
@@ -3622,13 +3645,93 @@ function drawSettlementOverlay(settlement: string, x: number, y: number, size: n
 function drawPartyMarker(cx: number, cy: number, size: number): void {
     const marker = bitmapAssets.partyMarker;
     if (!marker.complete || marker.naturalWidth === 0) return;
+    drawMarkerImage(marker, cx, cy, size * 1.12);
+}
+
+function drawMarkerImage(marker: CanvasImageSource, cx: number, cy: number, markerSize: number): void {
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.shadowColor = "rgba(0, 0, 0, 0.72)";
     ctx.shadowBlur = 8;
     ctx.shadowOffsetY = 2;
-    const markerSize = size * 1.12;
     ctx.drawImage(marker, cx - markerSize / 2, cy - markerSize / 2, markerSize, markerSize);
+    ctx.restore();
+}
+
+// Horse colors for other players' parties. The server gives players online together different ones while it can.
+const seenPartyColors = ["#d8402c", "#2f7fe0", "#34343c", "#8a53e0", "#2fb46c", "#e85fa9", "#e8741c", "#2fc0c8"];
+const tintedPartyMarkers = new Map<number, HTMLCanvasElement>();
+// Small horses go in three corners of a square; the top right one holds a settlement's badge.
+const seenPartyCorners: [number, number][] = [
+    [0.27, 0.73],
+    [0.73, 0.73],
+    [0.27, 0.27],
+];
+
+// A party alone on a square is drawn full size. Beside this party's horse, or with other parties, each is drawn small
+// in a corner, and when there are more than the corners hold, the last corner counts the rest ("+2").
+function drawSeenParties(rows: BitmapTile[][], startX: number, startY: number, size: number): void {
+    rows.forEach((row, rowIndex) => {
+        row.forEach((tile, colIndex) => {
+            const here = seenParties.filter((party) => party.x === tile.x && party.y === tile.y);
+            if (here.length === 0) return;
+            const x = startX + colIndex * size;
+            const y = startY + rowIndex * size;
+            if (here.length === 1 && !tile.center) {
+                drawSeenPartyMarker(here[0], x + size / 2, y + size / 2, size * 1.12);
+                return;
+            }
+            const crowded = here.length > seenPartyCorners.length;
+            const shown = crowded ? here.slice(0, seenPartyCorners.length - 1) : here;
+            shown.forEach((party, index) => {
+                const [cornerX, cornerY] = seenPartyCorners[index];
+                drawSeenPartyMarker(party, x + size * cornerX, y + size * cornerY, size * 0.56);
+            });
+            if (crowded) {
+                const [cornerX, cornerY] = seenPartyCorners[shown.length];
+                drawSeenPartyCount(here.length - shown.length, x + size * cornerX, y + size * cornerY, size * 0.4);
+            }
+        });
+    });
+}
+
+function drawSeenPartyMarker(party: SeenParty, cx: number, cy: number, markerSize: number): void {
+    const marker = tintedPartyMarker(party.color);
+    if (marker) drawMarkerImage(marker, cx, cy, markerSize);
+}
+
+function tintedPartyMarker(color: number): HTMLCanvasElement | null {
+    const cached = tintedPartyMarkers.get(color);
+    if (cached) return cached;
+    const marker = bitmapAssets.partyMarker;
+    if (!marker.complete || marker.naturalWidth === 0) return null;
+    const tinted = document.createElement("canvas");
+    tinted.width = marker.naturalWidth;
+    tinted.height = marker.naturalHeight;
+    const tint = tinted.getContext("2d");
+    if (!tint) return null;
+    tint.drawImage(marker, 0, 0);
+    // The color covers only the rider's own pixels, and lets enough of the drawing through to read as a horse.
+    tint.globalCompositeOperation = "source-atop";
+    tint.globalAlpha = 0.8;
+    tint.fillStyle = seenPartyColors[color % seenPartyColors.length];
+    tint.fillRect(0, 0, tinted.width, tinted.height);
+    tintedPartyMarkers.set(color, tinted);
+    return tinted;
+}
+
+function drawSeenPartyCount(count: number, cx: number, cy: number, badge: number): void {
+    ctx.save();
+    ctx.fillStyle = "rgba(9, 7, 4, 0.82)";
+    ctx.fillRect(cx - badge / 2, cy - badge / 2, badge, badge);
+    ctx.strokeStyle = "#f2e3a0";
+    ctx.lineWidth = Math.max(1, Math.floor(badge * 0.06));
+    ctx.strokeRect(cx - badge / 2 + 0.5, cy - badge / 2 + 0.5, badge - 1, badge - 1);
+    ctx.fillStyle = "#f2e3a0";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold " + Math.floor(badge * 0.5) + "px Menlo, Monaco, Consolas, monospace";
+    ctx.fillText("+" + count, cx, cy + 1);
     ctx.restore();
 }
 

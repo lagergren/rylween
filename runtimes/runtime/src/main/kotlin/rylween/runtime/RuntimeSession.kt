@@ -30,6 +30,7 @@ internal data class RuntimeLoopContext(
     val screen: RuntimeScreenPort,
     val save: RuntimeSaveContext,
     val log: RuntimeLog,
+    val presence: RuntimePresencePort = RuntimePresencePort.None,
 )
 
 /**
@@ -138,15 +139,18 @@ class RuntimeSessionFactory private constructor(
             log = log,
         )
 
+    /** Runs a session through [input] and [screen], and tells [presence] where the party is as it plays. */
     fun start(
         input: RuntimeInputPort,
         screen: RuntimeScreenPort,
         config: RuntimeSessionConfig,
         log: RuntimeLog,
+        presence: RuntimePresencePort = RuntimePresencePort.None,
     ): RuntimeSessionResult =
         runtime.runWilderness(
             input = input,
             screen = screen,
+            presence = presence.changesOnly(),
             userId = config.userId,
             stateSlug = config.stateSlug,
             loadFile = config.loadFile,

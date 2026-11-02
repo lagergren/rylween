@@ -117,8 +117,9 @@ class RylweenCompiledGameLedgerTest {
         val externalBundleText = externalBundle.decodeToString()
         val runtimeSystems = externalBundle.readExternalRuntimeSystems()
 
-        check(runtimeSystems.schemaVersion == 14)
+        check(runtimeSystems.schemaVersion == 15)
         check(runtimeSystems.realm.spellCost == Formulas.spellCost.slug)
+        check(runtimeSystems.realm.partySight == Formulas.partySight.slug)
         check("\"dexterity\"" in externalBundleText)
         check(nextDsl.flags.size == 14)
         check(nextDsl.authoredFlags.size == 14)
@@ -199,7 +200,7 @@ class RylweenCompiledGameLedgerTest {
                 it.requiredStat == CharacterCreationStat.Dexterity && it.minimum == 50
             },
         )
-        check(nextDsl.formulas.size == 22)
+        check(nextDsl.formulas.size == 23)
         check(nextDsl.rewards.size == 1)
         check(
             nextDsl.rewards

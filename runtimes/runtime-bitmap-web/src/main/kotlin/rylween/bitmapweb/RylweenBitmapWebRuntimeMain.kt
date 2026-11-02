@@ -380,6 +380,7 @@ private class BitmapWebServer(
             }.associateBy { image -> image.id }
     private val audioCatalog = BitmapAudioCatalog.load(game.systems.audio, javaClass.classLoader)
     private val executor: ExecutorService = Executors.newCachedThreadPool()
+    private val partyPresence = BitmapPartyPresence(executor::execute)
     private val serverSocket = ServerSocket()
     private val clientIds = AtomicLong(0)
 
@@ -988,6 +989,7 @@ private class BitmapWebServer(
                 tileSize = config.tileSize,
             )
         runtimeInput.textInputChanged = screen::setTextInput
+        val presenceSeat = partyPresence.join(account.slug, connection::sendText)
         val logFile = config.logFile(account)
         val saveFile = config.worldSaveFile
         val loadFile = sessionLoadFile(saveFile, account)
@@ -1023,7 +1025,9 @@ private class BitmapWebServer(
                                                 debugSecrets = config.debugSecrets,
                                             ),
                                         log = runtimeLog,
+                                        presence = presenceSeat,
                                     )
+                                presenceSeat.hide()
                                 runtimeLog.event("bitmap.session.end user=${account.slug} reason=${result.reason}")
                                 // Quitting goes back to the title screen, as in the original; the browser stays connected.
                                 if (result.reason != RuntimeSessionExitReason.Quit || !showTitleMenu) {
@@ -1055,6 +1059,7 @@ private class BitmapWebServer(
         } finally {
             runtimeInput.close()
             runCatching { runtime.get(5, TimeUnit.SECONDS) }
+            presenceSeat.leave()
             activeUsers.remove(account.slug)
         }
         serverLog.event("bitmap.websocket.close id=$clientId user=${account.slug}")

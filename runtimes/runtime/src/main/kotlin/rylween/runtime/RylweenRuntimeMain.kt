@@ -499,6 +499,7 @@ class GameRuntime private constructor(
         debugSecrets: Boolean = false,
         sessionDate: LocalDate = LocalDate.now(),
         log: RuntimeLog,
+        presence: RuntimePresencePort = RuntimePresencePort.None,
     ): RuntimeSessionResult {
         listOfNotNull(loadFile, saveFile).distinct().forEach { file ->
             SaveFile.savedBundleHash(file)?.takeIf { saved -> saved != bundleContentHash }?.let { saved ->
@@ -531,7 +532,7 @@ class GameRuntime private constructor(
         flashLogSink.use {
             log.event("wilderness.boot state=$stateSlug position=${runtime.logPosition()} mode=${runtime.currentMode}")
             val saveContext = RuntimeSaveContext(saveFile, bundleContentHash, userId, systems.score.completedBy)
-            val loopContext = RuntimeLoopContext(content, systems, input, screen, saveContext, log)
+            val loopContext = RuntimeLoopContext(content, systems, input, screen, saveContext, log, presence)
             if (showTitleMenu || loadFile != null && !hasLoadUserSave) {
                 runtime =
                     runTitleMenu(runtime, stateSlug, seed, loopContext)
@@ -566,6 +567,7 @@ class GameRuntime private constructor(
             screen.renderWilderness(runtime, world)
             if (sessionStartSaved == null && !showSaveFailed(screen, input)) return input.exitResult()
             while (true) {
+                presence.update(runtime.presence(content, systems))
                 when (runtime.currentMode) {
                     RuntimeMode.Dungeon -> {
                         wildernessTrack = null
@@ -1610,7 +1612,7 @@ class GameRuntime private constructor(
         val screen = context.screen
         log.event("wilderness.enter position=${runtime.logPosition()}")
         val town = content.towns.firstOrNull { it.position == runtime.party.position }
-        if (town != null) return enterTown(runtime, world, input, screen, town, log)
+        if (town != null) return enterTown(runtime, world, input, screen, context.presence, town, log)
         val castle = systems.castleRows.firstOrNull { castle -> castle.entry == runtime.party.position }
         if (castle != null) {
             log.event("wilderness.enter_castle castle=${castle.id}")
@@ -1636,6 +1638,7 @@ class GameRuntime private constructor(
         world: WorldMap,
         input: RuntimeInputPort,
         screen: RuntimeScreenPort,
+        presence: RuntimePresencePort,
         town: rylween.compiled.CompiledTown,
         log: RuntimeLog,
     ): RuntimeState {
@@ -1666,6 +1669,7 @@ class GameRuntime private constructor(
         audio.cue(AudioCue.EnterTown)
         val taxResult = collectTownEntryTaxIfNeeded(current, world, input, screen, town, log) ?: return runtime
         current = taxResult.runtime
+        presence.update(current.presence(content, systems))
         var menuNotice = taxResult.noticeLines
 
         fun menuLines(noticeLines: List<String>): List<String> =

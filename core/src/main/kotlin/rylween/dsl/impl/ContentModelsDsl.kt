@@ -65,6 +65,7 @@ data class RealmContentModel(
     val hunt: HuntRulesModel? = null,
     val timeOfDay: List<TimeOfDayBandModel> = defaultTimeOfDayBands(),
     val spellCost: FormulaId? = null,
+    val partySight: FormulaId? = null,
 )
 
 /** Authored label for an inclusive hour span in the status line. */
