@@ -159,7 +159,7 @@ class RylweenCompiledGameLedgerTest {
                     torches = 5,
                     food = 100,
                     timeLeft = 200,
-                    restedHours = 14,
+                    restedHours = 21,
                 ),
         )
         check(characterCreation.races.map { it.race } == listOf(Race.Human, Race.Dwarf, Race.Elf, Race.Halfling))
@@ -1146,7 +1146,7 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.realm.camp.healthGain == 15)
         check(nextDsl.realm.camp.foodCostPerMember == 4)
         check(nextDsl.realm.camp.hoursAdvanced == 8)
-        check(nextDsl.realm.camp.hoursRestedReset == 14)
+        check(nextDsl.realm.camp.hoursRestedReset == 21)
         check(
             nextDsl.realm.camp.temperatureBands ==
                 listOf(
