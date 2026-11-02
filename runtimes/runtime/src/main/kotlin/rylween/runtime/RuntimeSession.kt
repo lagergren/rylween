@@ -16,12 +16,11 @@ internal data class RuntimeSaveContext(
     val userId: String,
     val hallOfHeroesCompletedBy: String?,
 ) {
+    /** Writes [runtime] and returns it with the world as saved, which may hold what other sessions saved. */
     fun write(
         runtime: RuntimeState,
         content: CompiledContentBundle,
-    ) {
-        SaveFile.write(file, runtime, bundleContentHash, content, userId, hallOfHeroesCompletedBy)
-    }
+    ): RuntimeState = SaveFile.write(file, runtime, bundleContentHash, content, userId, hallOfHeroesCompletedBy)
 }
 
 internal data class RuntimeLoopContext(
@@ -36,7 +35,8 @@ internal data class RuntimeLoopContext(
 /**
  * Saves the game when the player asks to, in any mode: shows the authored saving text, writes the save, then shows
  * the done text, or the failed text when the write fails. A failed save is logged and play goes on. Players never
- * see where the save is stored; the log records it.
+ * see where the save is stored; the log records it. Returns [runtime] with the world as saved, or unchanged when the
+ * save failed.
  */
 internal fun saveRuntimeForPlayer(
     runtime: RuntimeState,
@@ -45,28 +45,31 @@ internal fun saveRuntimeForPlayer(
     save: RuntimeSaveContext,
     screen: RuntimeScreenPort,
     log: RuntimeLog,
-) {
+): RuntimeState {
     val prompts = systems.prompts.save
     screen.writeText(prompts.saving.render({ null }, screen.textColumns))
     val saved = persistRuntimeOrLogFailure(runtime, content, save, log, "command")
-    if (saved) RuntimeAudio(systems.audio, screen).cue(AudioCue.GameSaved)
-    screen.appendText((if (saved) prompts.done else prompts.failed).render({ null }, screen.textColumns))
+    if (saved != null) RuntimeAudio(systems.audio, screen).cue(AudioCue.GameSaved)
+    screen.appendText((if (saved != null) prompts.done else prompts.failed).render({ null }, screen.textColumns))
+    return saved ?: runtime
 }
 
-/** Writes the save like [persistRuntime], but logs a failed write instead of throwing. Returns whether it worked. */
+/**
+ * Writes the save like [persistRuntime], but logs a failed write instead of throwing. Returns [runtime] with the world
+ * as saved, or null when the write failed.
+ */
 internal fun persistRuntimeOrLogFailure(
     runtime: RuntimeState,
     content: CompiledContentBundle,
     save: RuntimeSaveContext,
     log: RuntimeLog,
     reason: String,
-): Boolean =
+): RuntimeState? =
     try {
         persistRuntime(runtime, content, save, log, reason)
-        true
     } catch (error: Exception) {
         log.failure("runtime.save.failed reason=$reason user=${save.userId} file=${save.file.path} mode=${runtime.currentMode}", error)
-        false
+        null
     }
 
 /** Programmatic configuration for one interactive runtime session. */

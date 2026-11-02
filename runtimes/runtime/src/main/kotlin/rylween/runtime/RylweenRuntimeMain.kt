@@ -285,20 +285,24 @@ private fun RuntimeState.logPosition(): String = "${party.position.x},${party.po
 
 private fun logValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
-/** Writes [runtime] to the save and logs it, line by line. Throws when the write fails. */
+/**
+ * Writes [runtime] to the save and logs it, line by line. Returns [runtime] with the world as saved. Throws when the
+ * write fails.
+ */
 internal fun persistRuntime(
     runtime: RuntimeState,
     content: CompiledContentBundle,
     save: RuntimeSaveContext,
     log: RuntimeLog,
     reason: String,
-) {
-    save.write(runtime, content)
+): RuntimeState {
+    val saved = save.write(runtime, content)
     log.event(
         "runtime.save reason=$reason user=${save.userId} file=${save.file.path} position=${runtime.logPosition()} " +
             "mode=${runtime.currentMode} lastPlayedDate=${runtime.lastPlayedDate ?: ""}",
     )
     logSaveFileLines("runtime.save", save.file, log)
+    return saved
 }
 
 private fun logSaveFileLines(
@@ -538,6 +542,7 @@ class GameRuntime private constructor(
             runtime = runtime.materializeMissingNpcPlacements(world, log)
             runtime = runtime.applySessionDate(sessionDate, log)
             val sessionStartSaved = persistSessionStartIfChanged(sessionStartRuntime, runtime, saveContext, log)
+            runtime = sessionStartSaved ?: runtime
             logNpcPlacements(runtime, log)
             val commands = WildernessCommands.from(systems)
             val debugCommands = WildernessCommands.from(systems, RuntimeCommandGroupId.WildernessDebug)
@@ -559,7 +564,7 @@ class GameRuntime private constructor(
             var wildernessTrack: String? = null
             screen.bootFrame()
             screen.renderWilderness(runtime, world)
-            if (!sessionStartSaved && !showSaveFailed(screen, input)) return input.exitResult()
+            if (sessionStartSaved == null && !showSaveFailed(screen, input)) return input.exitResult()
             while (true) {
                 when (runtime.currentMode) {
                     RuntimeMode.Dungeon -> {
@@ -677,7 +682,7 @@ class GameRuntime private constructor(
                         }
 
                         commands.matches(RuntimeCommandActionId.Save, command) -> {
-                            saveRuntimeForPlayer(runtime, content, systems, saveContext, screen, log)
+                            runtime = saveRuntimeForPlayer(runtime, content, systems, saveContext, screen, log)
                             false
                         }
 
@@ -1565,15 +1570,18 @@ class GameRuntime private constructor(
         return quitting
     }
 
-    /** Saves the session's starting state when it changed. Returns false when that save failed; the log has why. */
+    /**
+     * Saves the session's starting state when it changed, and returns it with the world as saved. Null when that save
+     * failed; the log has why.
+     */
     private fun persistSessionStartIfChanged(
         before: RuntimeState,
         after: RuntimeState,
         save: RuntimeSaveContext,
         log: RuntimeLog,
-    ): Boolean {
+    ): RuntimeState? {
         val hasUserSave = SaveFile.hasUserParty(save.file, save.userId)
-        if (before == after && save.file.isFile && hasUserSave) return true
+        if (before == after && save.file.isFile && hasUserSave) return after
         return persistRuntimeOrLogFailure(after, content, save, log, "session_start")
     }
 

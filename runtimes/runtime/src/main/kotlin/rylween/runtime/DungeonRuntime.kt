@@ -70,7 +70,7 @@ internal class DungeonRuntime(
                         RuntimeCommandActionId.ViewParty,
                         command,
                     ) -> runtime.also(::showDungeonPageViews)
-                    commands.matches(RuntimeCommandActionId.Save, command) -> runtime.also { saveRuntime(it) }
+                    commands.matches(RuntimeCommandActionId.Save, command) -> saveRuntime(runtime)
                     commands.matches(RuntimeCommandActionId.Drop, command) -> utility.drop(runtime).also(::redrawDungeonIfCurrent)
                     commands.matches(
                         RuntimeCommandActionId.RemoveArmor,
@@ -254,9 +254,7 @@ internal class DungeonRuntime(
         if (runtime.currentMode == RuntimeMode.Dungeon) screen.renderDungeon(runtime)
     }
 
-    private fun saveRuntime(runtime: RuntimeState) {
-        saveRuntimeForPlayer(runtime, content, systems, save, screen, log)
-    }
+    private fun saveRuntime(runtime: RuntimeState): RuntimeState = saveRuntimeForPlayer(runtime, content, systems, save, screen, log)
 
     private fun eventByRef(ref: CompiledHandleRef): CompiledDungeonEvent =
         content.dungeonEvents.firstOrNull { event -> event.id == ref }
