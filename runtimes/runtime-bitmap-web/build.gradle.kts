@@ -142,6 +142,14 @@ val installRuntimeBitmapWeb: TaskProvider<Sync> =
         }
     }
 
+// The name Gradle's application plugin gives this task, for the project's default distribution.
+tasks.register("installDist") {
+    group = "application"
+    description = "Installs the bitmap web runtime, the project's default distribution. Same as installRuntimeBitmapWeb."
+
+    dependsOn(installRuntimeBitmapWeb)
+}
+
 val installBitmapSmokeBrowser: TaskProvider<JavaExec> =
     tasks.register<JavaExec>("installBitmapSmokeBrowser") {
         group = "verification"
