@@ -7,6 +7,11 @@ style game for BBSes that I wrote in 1992-1993. The same game plays in two
 ways: as the original ANSI version in a terminal, and as a repainted bitmap
 version in the browser.
 
+[Play it](#running-the-game) in a browser or a terminal, host it for others
+with [`deploy/README.md`](deploy/README.md), change the game with the
+[DSL authoring guide](docs/dsl-authoring.md), or start on the code at
+[The Code](#the-code).
+
 <p align="center">
   <img src="docs/images/bitmap-thord.jpg" alt="The bitmap version in the town of Thord: a painting of the lamplit main street at night next to the town menu, in a carved bronze frame with torches, skulls, and a scorpion">
 </p>
@@ -82,45 +87,21 @@ brew install --cask docker                          # or Docker Desktop; start i
 ./deploy.sh
 ```
 
-This is the one command for hosting the game. `deploy.sh` is a link to
-`deploy/deploy-rylween.sh`, so inside `deploy/` the same command is
-`./deploy-rylween.sh`; either works from any directory. It builds the bitmap web
-game's image and starts it with Docker Compose (Podman Compose when Docker is
-missing), published on this machine's private LAN address, port 8081. After the
-build output it waits until the server answers, then prints the address and the
-commands for the sysop password, the server log, and stopping the server:
+From a checkout, this builds the bitmap game's image, starts it with Docker
+Compose (Podman Compose when Docker is missing) on this machine's LAN address,
+port 8081, and waits until it answers. Then it prints the address to open on any
+machine on the network, with the commands for the sysop password, the server
+log, and stopping it. Saves and accounts survive rebuilds.
 
-```text
-Rylween is up on http://192.168.1.20:8081/
-  Sysop password: docker compose -f /path/to/rylween/deploy/compose.yaml exec rylween cat /data/auth/admin-password.txt
-  Server log:     docker compose -f /path/to/rylween/deploy/compose.yaml logs -f rylween
-  Stop:           docker compose -f /path/to/rylween/deploy/compose.yaml down
-```
+### On The Internet, Over HTTPS
 
-Open the address in a browser on any machine on the network and register an
-account. The build runs inside the image, so the host needs only Docker or
-Podman, not a JDK.
+On a machine with a public address and a domain name, `./deploy.sh --https`,
+or `deploy/compose.https.yaml` on its own, runs the released game behind Caddy,
+which gets a Let's Encrypt certificate for the name.
 
-Run `./deploy.sh` again after pulling changes to rebuild and restart; a plain
-`docker compose up` would publish on 127.0.0.1 only. Saves, accounts, and logs
-live on the `rylween_data` volume and survive rebuilds; `down` stops the server
-and keeps them.
-
-On first start the server creates the sysop account, `admin`, which gets the
-game's secret wilderness keys. Unless `RYLWEEN_ADMIN_PASSWORD` is set, its
-password is generated, and the `Sysop password` command prints it. From the
-repository root (inside `deploy/`, leave out `-f deploy/compose.yaml`):
-
-```sh
-docker compose -f deploy/compose.yaml exec rylween cat /data/auth/admin-password.txt
-```
-
-To change the port, the data location, or the accounts, copy
-`deploy/.env.example` to `deploy/.env` and edit it.
-[`deploy/docker/README.md`](deploy/docker/README.md) covers the settings,
-backups, and the production images, and
-[`runtimes/runtime-web/README.md`](runtimes/runtime-web/README.md#exposing-a-production-docker-deployment)
-covers putting the game on the internet behind an HTTPS reverse proxy.
+[`deploy/README.md`](deploy/README.md) covers all three ways: the settings,
+data and backups, and the images, and, step by step, everything an HTTPS server
+needs, from DNS and ports on.
 
 ### In A Terminal: `./bin/run.sh`
 
@@ -130,7 +111,11 @@ covers putting the game on the internet behind an HTTPS reverse proxy.
 
 This builds the game and plays the ANSI version in the current terminal. It
 needs JDK 23 or newer; Gradle downloads the JDK 25 toolchain the modules build
-with if none is installed. Size the terminal to at least 80 columns by 25 rows.
+with if none is installed. Without a checkout, download
+`rylween-terminal-X.Y.Z.zip` from the
+[latest release](https://github.com/lagergren/rylween/releases/latest), unzip
+it, and run its `bin/rylween`, which takes the same options and needs Java 25
+or newer. Size the terminal to at least 80 columns by 25 rows.
 At the splash screen press RETURN, then `N` to create a party. Move with the
 arrow keys or the keypad digits 8, 2, 4, and 6; press `?` in the wilderness for
 the full list of commands, and `X` to quit. The save and logs go to
@@ -189,7 +174,7 @@ Module guides:
 - [`support/audio`](support/audio) - Python scripts that synthesize the sound effects, music, and ambient loops.
 - [`build-logic`](build-logic/README.md) - Gradle conventions and custom tasks.
 - [`bin`](bin/README.md) - local developer/operator launcher scripts.
-- [`deploy/docker`](deploy/docker/README.md) - Docker images, compose, the LAN deploy script, and reverse-proxy notes.
+- [`deploy`](deploy/README.md) - running the game as a server: compose files, Docker images, the deploy script, and HTTPS.
 
 The old interpreted Kotlin ANSI project and the historical C/JSON5 port are no
 longer part of this repository. The original Amiga release is kept as described

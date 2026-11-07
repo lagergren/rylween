@@ -1,0 +1,86 @@
+# Runs the bitmap web game on the internet over HTTPS. Caddy answers on ports 80
+# and 443, gets a certificate for RYLWEEN_DOMAIN from Let's Encrypt and renews
+# it, and forwards to the game, which publishes no port of its own. It runs the
+# released image, so the host needs only Docker or Podman, this file, and a
+# .env file next to it. deploy/README.md walks through it all, from DNS on.
+#
+#   docker compose -f compose.https.yaml up -d      # or: podman compose ...
+#   open https://<RYLWEEN_DOMAIN>/ and register an account
+#
+# From a checkout, ./deploy.sh --https runs it and waits until it answers.
+#
+# Settings, from the shell environment or .env next to this file:
+#   RYLWEEN_DOMAIN              Required. The name players open, whose DNS points
+#                               at this host, such as rylween.example.net.
+#   RYLWEEN_ADMIN_PASSWORD      Password for a newly created sysop account. When
+#                               unset, the server generates one and saves it in
+#                               /data/auth/admin-password.txt.
+#   RYLWEEN_ADMIN_ACCOUNT       The sysop account. Default: admin
+#   RYLWEEN_VERSION             The release to run. Default: latest
+#   RYLWEEN_DATA_VOLUME         Named volume or host directory for saves,
+#                               accounts, and logs. Default: the `data` volume.
+#   RYLWEEN_BITMAP_STATE        Initial compiled state slug. Default: fresh-replay
+#   RYLWEEN_BITMAP_MAP_TILES    Wilderness viewport edge length. Default: 6
+#   RYLWEEN_BITMAP_TILE_SIZE    Wilderness tile size in px. Default: 68
+#   RYLWEEN_VICTIM_ACCOUNT      An account the sysop gods hunt down every 101
+#                               moves. Default: none
+
+name: rylween-https
+
+services:
+    rylween:
+        image: ghcr.io/lagergren/rylween:${RYLWEEN_VERSION:-latest}
+        restart: unless-stopped
+        environment:
+            # The link the server prints, and the origin the browser must send.
+            RYLWEEN_PUBLIC_URL: https://${RYLWEEN_DOMAIN:?set RYLWEEN_DOMAIN, the name players open, in .env}
+            RYLWEEN_AUTH_SECURE_COOKIES: "true"
+            # Only Caddy reaches the game, over this project's private network, so
+            # its X-Forwarded-For is believed: it names the player in logs and in
+            # the failed-login limit.
+            RYLWEEN_TRUSTED_PROXIES: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7
+            RYLWEEN_BITMAP_STATE: ${RYLWEEN_BITMAP_STATE:-fresh-replay}
+            RYLWEEN_BITMAP_MAP_TILES: ${RYLWEEN_BITMAP_MAP_TILES:-6}
+            RYLWEEN_BITMAP_TILE_SIZE: ${RYLWEEN_BITMAP_TILE_SIZE:-68}
+            RYLWEEN_ADMIN_ACCOUNT: ${RYLWEEN_ADMIN_ACCOUNT:-admin}
+            RYLWEEN_ADMIN_PASSWORD: ${RYLWEEN_ADMIN_PASSWORD:-}
+            RYLWEEN_VICTIM_ACCOUNT: ${RYLWEEN_VICTIM_ACCOUNT:-}
+        volumes:
+            - ${RYLWEEN_DATA_VOLUME:-data}:/data
+
+    caddy:
+        image: docker.io/library/caddy:2
+        restart: unless-stopped
+        depends_on:
+            - rylween
+        ports:
+            - "80:80"
+            - "443:443"
+            # HTTP/3.
+            - "443:443/udp"
+        # Caddy's reverse-proxy command needs no Caddyfile. It keeps the Host
+        # header, passes the game's WebSocket through, and redirects HTTP to HTTPS.
+        command:
+            - caddy
+            - reverse-proxy
+            - --from
+            - ${RYLWEEN_DOMAIN}
+            - --to
+            - rylween:8081
+            - --header-down
+            - "Strict-Transport-Security: max-age=31536000"
+            - --header-down
+            - "X-Content-Type-Options: nosniff"
+            - --header-down
+            - "Referrer-Policy: no-referrer"
+            - --access-log
+        volumes:
+            # The certificates and the ACME account, kept across restarts so
+            # Let's Encrypt is not asked again for every start.
+            - caddy-data:/data
+            - caddy-config:/config
+
+volumes:
+    data:
+    caddy-data:
+    caddy-config:

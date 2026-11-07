@@ -8,7 +8,9 @@
 # same command, and either works from any directory.
 #
 # --launcher skips Docker and starts the installed bitmap launcher in the
-# background instead. --compose names the default explicitly.
+# background instead. --compose names the default explicitly. --https runs the
+# released image on the internet behind Caddy and HTTPS instead, with
+# compose.https.yaml; deploy/README.md explains what that needs.
 set -euo pipefail
 
 # Follow symlinks such as the root deploy.sh, so DEPLOY_DIR is the directory
@@ -35,8 +37,9 @@ MAIN_CLASS="${RYLWEEN_DEPLOY_MAIN_CLASS:-rylween.bitmapweb.RylweenBitmapWebRunti
 case "$#:${1-}" in
     0: | 1:--compose) MODE=compose ;;
     1:--launcher) MODE=launcher ;;
+    1:--https) MODE=https ;;
     *)
-        echo "usage: $0 [--compose | --launcher]" >&2
+        echo "usage: $0 [--compose | --launcher | --https]" >&2
         exit 2
         ;;
 esac
@@ -165,19 +168,55 @@ stop_existing_server() {
     kill -9 $pids
 }
 
-# Waits up to a minute for any HTTP answer from the URL in $1; /api/status
-# answers 401 without a login, which is enough. `compose up -d` returns as soon
+# Waits up to a minute, or $2 seconds, for any HTTP answer from the URL in $1;
+# /api/status answers 401 without a login, which is enough. An HTTPS URL counts
+# only once its certificate checks out. `compose up -d` returns as soon
 # as the container starts, seconds before the server in it listens, and the
 # container port forwarder may accept connections before then, so only an HTTP
 # response shows the server is up. Without curl it cannot tell and does not wait.
 wait_for_http() {
-    local url="$1" deadline=$((SECONDS + 60))
+    local url="$1" deadline=$((SECONDS + ${2:-60}))
     command -v curl >/dev/null 2>&1 || return 0
     until curl --noproxy '*' --silent --output /dev/null --max-time 2 "$url"; do
         [ "$SECONDS" -lt "$deadline" ] || return 1
         sleep 1
     done
 }
+
+# HTTPS mode runs compose.https.yaml: the released image, behind Caddy, which
+# gets a certificate for RYLWEEN_DOMAIN from Let's Encrypt. It waits until the
+# site answers over HTTPS, which includes the time the first certificate takes.
+if [ "$MODE" = https ]; then
+    cd "$DEPLOY_DIR"
+    domain="${RYLWEEN_DOMAIN-}"
+    if [ -z "$domain" ] && [ -f .env ]; then
+        domain="$(sed -n 's/^[[:space:]]*RYLWEEN_DOMAIN=//p' .env | tail -n 1 | tr -d "\"' ")"
+    fi
+    if [ -z "$domain" ]; then
+        echo "Set RYLWEEN_DOMAIN, the name players open, in $DEPLOY_DIR/.env or the shell." >&2
+        echo "$DEPLOY_DIR/README.md explains what the name needs." >&2
+        exit 2
+    fi
+    engine=(docker compose)
+    command -v docker >/dev/null 2>&1 || engine=(podman compose)
+    compose=("${engine[@]}" -f "$DEPLOY_DIR/compose.https.yaml")
+    "${compose[@]}" pull
+    "${compose[@]}" up -d
+
+    printf -v manage '%s -f %q' "${engine[*]}" "$DEPLOY_DIR/compose.https.yaml"
+    if ! wait_for_http "https://$domain/healthz" 180; then
+        echo "https://$domain/ did not answer within 3 minutes. Check that DNS for $domain" >&2
+        echo "points at this host and that ports 80 and 443 reach it. Caddy's log says why:" >&2
+        echo "  $manage logs caddy" >&2
+        exit 1
+    fi
+    echo "Rylween is up on https://$domain/"
+    echo "  Sysop password: $manage exec rylween cat /data/auth/admin-password.txt"
+    echo "  Server log:     $manage logs -f rylween"
+    echo "  Proxy log:      $manage logs -f caddy"
+    echo "  Stop:           $manage down"
+    exit 0
+fi
 
 # Compose mode builds and runs the image instead of the installed launcher. It
 # publishes on the detected LAN address unless RYLWEEN_PUBLISH_HOST is set in
