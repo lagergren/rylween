@@ -1457,7 +1457,6 @@ class RylweenCompiledGameLedgerTest {
         val runtimeSourceRoots =
             listOf(
                 "core/src/main/kotlin",
-                "support/terminal/src/main/kotlin",
                 "runtimes/runtime/src/main/kotlin",
             )
         val offenders =
@@ -1550,12 +1549,11 @@ class RylweenCompiledGameLedgerTest {
             "legacy ANSI runtime must be outside the active Gradle graph"
         }
         check(
-            """include("terminal")""" in settings &&
-                """include("runtime")""" in settings &&
-                "dependsOn(\":terminal:check\")" in rootBuild &&
-                "dependsOn(\":runtime:check\")" in rootBuild,
+            """include("runtime")""" in settings &&
+                "dependsOn(\":runtime:check\")" in rootBuild &&
+                File("runtimes/runtime/src/main/kotlin/rylween/terminal/AnsiTerminal.kt").exists(),
         ) {
-            "active Gradle graph must keep only shared terminal primitives and the runtime as runtime subprojects"
+            "active Gradle graph must keep the runtime, with the shared terminal primitives inside it"
         }
         check(
             ":runtime:installRuntime" in launcher &&
@@ -2182,8 +2180,7 @@ class RylweenCompiledGameLedgerTest {
                 "build.gradle.kts",
                 "core/build.gradle.kts",
                 "game/build.gradle.kts",
-                "support/tools/build.gradle.kts",
-                "support/terminal/build.gradle.kts",
+                "tools/build.gradle.kts",
                 "runtimes/runtime/build.gradle.kts",
             )
         val hardcodedVersion = Regex("""(jvmToolchain|JavaLanguageVersion\.of)\(\s*\d+\s*\)""")
@@ -2205,8 +2202,8 @@ class RylweenCompiledGameLedgerTest {
 
     @Test
     fun compiledBundleDiagnosticsStayToolOwned() {
-        val toolsBuild = File("support/tools/build.gradle.kts").readText()
-        val toolMain = File("support/tools/src/main/kotlin/rylween/tools/CompiledBundleArtifactMain.kt").readText()
+        val toolsBuild = File("tools/build.gradle.kts").readText()
+        val toolMain = File("tools/src/main/kotlin/rylween/tools/CompiledBundleArtifactMain.kt").readText()
         val compiledCoreSources =
             File("core/src/main/kotlin/rylween/compiled")
                 .walkTopDown()
@@ -2276,8 +2273,8 @@ class RylweenCompiledGameLedgerTest {
         check("dependsOn(\":runtime:check\")" in build) {
             "root check must keep the runtime subproject in verification"
         }
-        check("implementation(project(\":terminal\"))" in runtimeBuild) {
-            "runtime may share ANSI primitives only through :terminal"
+        check("implementation(libs.jline)" in runtimeBuild && "project(\":terminal\")" !in runtimeBuild) {
+            "runtime owns the ANSI terminal primitives and their JLine dependency"
         }
         check("runtimeOnly(project(\":game\"))" in runtimeBuild) {
             "runtime must receive game resources through the normal :game runtime artifact"
@@ -2552,8 +2549,7 @@ class RylweenCompiledGameLedgerTest {
                 "runtimes/runtime/src/main/kotlin",
                 "runtimes/runtime-web/src/main/kotlin",
                 "runtimes/runtime-bitmap-web/src/main/kotlin",
-                "support/terminal/src/main/kotlin",
-                "support/web-common/src/main/kotlin",
+                "runtimes/web-common/src/main/kotlin",
             )
         val bannedTokens =
             listOf(
@@ -2649,8 +2645,7 @@ class RylweenCompiledGameLedgerTest {
                 "runtimes/runtime/src/main/kotlin",
                 "runtimes/runtime-web/src/main/kotlin",
                 "runtimes/runtime-bitmap-web/src/main/kotlin",
-                "support/terminal/src/main/kotlin",
-                "support/web-common/src/main/kotlin",
+                "runtimes/web-common/src/main/kotlin",
             ).flatMap { root ->
                 File(root)
                     .walkTopDown()

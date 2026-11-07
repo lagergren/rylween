@@ -39,7 +39,7 @@ jobs:
       - name: Check
         run: >-
           ./gradlew --console=plain
-          :core:check :game:check :tools:check :terminal:check :web-common:check
+          :core:check :game:check :tools:check :web-common:check
           :runtime:check :runtime-web:check :runtime-bitmap-web:check
 
       - name: Upload test reports

@@ -96,5 +96,5 @@ creates or verifies a persisted web account before the server starts.
 The data directory is split by ownership: `saves/world.rsave` is game state,
 `auth/users` is account state, and `logs` is operational history. The exact file
 layout and field meanings are documented in
-[`support/web-common/README.md`](../support/web-common/README.md) and
+[`runtimes/web-common/README.md`](../runtimes/web-common/README.md) and
 [`runtimes/runtime/README.md`](../runtimes/runtime/README.md).

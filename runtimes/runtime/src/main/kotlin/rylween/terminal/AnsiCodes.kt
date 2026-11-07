@@ -3,7 +3,7 @@
  *
  * Runtime launchers need
  * cursor control and foreground/background colors. Keeping the escape values in
- * `:terminal` prevents each runtime from carrying its own numeric ANSI
+ * `rylween.terminal` prevents each runtime from carrying its own numeric ANSI
  * table.
  */
 package rylween.terminal

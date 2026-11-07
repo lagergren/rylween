@@ -617,8 +617,8 @@ The handle generator reads every file in that directory, so handles such as
 Sounds are one-shot effects; music tracks are seamless loops, which covers
 background music and ambient loops alike. Files live under
 `game/src/main/resources/audio` and may be MP3, Ogg, WAV, or M4A; the game ships
-MP3 because every browser can decode it. `support/audio` synthesizes the
-shipped files: run `uv run --project support/audio support/audio/render_all.py`
+MP3 because every browser can decode it. `game/audio-tools` synthesizes the
+shipped files: run `uv run --project game/audio-tools game/audio-tools/render_all.py`
 from the repository root.
 
 ```kotlin
@@ -789,7 +789,7 @@ Use this placement rule during design review:
   state.
 - `runtimes/runtime-bitmap-web` or `runtimes/runtime-web`: frontend
   presentation, browser transport, preferences, and canvas/ANSI rendering.
-- `support/tools`: artifact emission, readers, and non-playable probes.
+- `tools`: artifact emission, readers, and non-playable probes.
 
 A change to the shape of the `runtimeSystems` rows also bumps
 `EXTERNAL_RUNTIME_SYSTEMS_VERSION` in

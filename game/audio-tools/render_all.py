@@ -4,7 +4,7 @@ and installs them into the game's resources (game/src/main/resources/audio).
 
 Usage, from the repository root:
 
-    uv run --project support/audio support/audio/render_all.py [sfx|music|ambience ...]
+    uv run --project game/audio-tools game/audio-tools/render_all.py [sfx|music|ambience ...]
 
 With no arguments it renders everything. MP3 encoding needs `lame` on the
 PATH. WAV masters and render reports stay in build/audio, which git ignores.

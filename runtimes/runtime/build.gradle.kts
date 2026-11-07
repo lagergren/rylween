@@ -28,7 +28,8 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
-    implementation(project(":terminal"))
+    // Raw-mode terminal input for the ANSI game, in rylween.terminal.
+    implementation(libs.jline)
     runtimeOnly(project(":game"))
 }
 

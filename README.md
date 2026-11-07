@@ -149,7 +149,7 @@ of the next patch release, `X.Y.Z-SNAPSHOT`; see [Releasing](#releasing).
 The current runnable Kotlin game is the `:runtime` project. Shared
 DSL/compiler and compiled-bundle contracts live under `:core`, authored game
 DSL and resources live under `:game`, the compiled-bundle emitter and its checks
-live under `:tools`, and ANSI terminal primitives live under `:terminal`.
+live under `:tools`, and ANSI terminal primitives live in `:runtime`.
 
 The complete game DSL, the whole authored game from the world map and monsters
 to every mission script, is
@@ -168,10 +168,9 @@ Module guides:
 - [`:runtime`](runtimes/runtime/README.md) - shared game runtime and direct ANSI terminal.
 - [`:runtime-web`](runtimes/runtime-web/README.md) - browser-served ANSI runtime.
 - [`:runtime-bitmap-web`](runtimes/runtime-bitmap-web/README.md) - canvas bitmap runtime.
-- [`:web-common`](support/web-common/README.md) - shared web HTTP, WebSocket, auth, status.
-- [`:terminal`](support/terminal/README.md) - ANSI terminal primitives.
-- [`:tools`](support/tools/README.md) - emits, checks, and inspects the compiled bundle.
-- [`support/audio`](support/audio) - Python scripts that synthesize the sound effects, music, and ambient loops.
+- [`:web-common`](runtimes/web-common/README.md) - shared web HTTP, WebSocket, auth, status.
+- [`:tools`](tools/README.md) - emits, checks, and inspects the compiled bundle.
+- [`game/audio-tools`](game/audio-tools) - Python scripts that synthesize the sound effects, music, and ambient loops.
 - [`build-logic`](build-logic/README.md) - Gradle conventions and custom tasks.
 - [`bin`](bin/README.md) - local developer/operator launcher scripts.
 - [`deploy`](deploy/README.md) - running the game as a server: compose files, Docker images, the deploy script, and HTTPS.
@@ -200,7 +199,7 @@ CI (`.github/workflows/ci.yml`) runs the module checks on every push to `main`
 and every pull request, leaving out the root dependency-update report:
 
 ```sh
-./gradlew --console=plain :core:check :game:check :tools:check :terminal:check :web-common:check :runtime:check :runtime-web:check :runtime-bitmap-web:check
+./gradlew --console=plain :core:check :game:check :tools:check :web-common:check :runtime:check :runtime-web:check :runtime-bitmap-web:check
 ```
 
 ktlint findings fail `check`; `./gradlew ktlintFormat --console=plain` fixes
