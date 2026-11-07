@@ -1838,7 +1838,7 @@ commandToggle.addEventListener("click", () => {
 });
 
 preferencesToggle.addEventListener("click", () => {
-    const opening = preferencesPopover.hidden;
+    const opening = Boolean(preferencesPopover.hidden);
     closeCommandPalette();
     closeServerInfoPopover();
     setPreferencesOpen(opening);
@@ -1846,7 +1846,7 @@ preferencesToggle.addEventListener("click", () => {
 });
 
 serverInfoToggle.addEventListener("click", () => {
-    const opening = serverInfoPopover.hidden;
+    const opening = Boolean(serverInfoPopover.hidden);
     closeCommandPalette();
     closePreferencesPopover();
     setServerInfoOpen(opening);
@@ -1896,7 +1896,7 @@ function renderCommandPalette(commands: BitmapCommand[]): void {
 
 function toggleCommandPalette(): void {
     if (currentCommands.length === 0) return;
-    const opening = commandPopover.hidden;
+    const opening = Boolean(commandPopover.hidden);
     closePreferencesPopover();
     closeServerInfoPopover();
     setCommandPaletteOpen(opening);
