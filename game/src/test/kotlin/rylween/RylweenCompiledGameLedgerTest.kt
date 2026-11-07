@@ -1457,7 +1457,6 @@ class RylweenCompiledGameLedgerTest {
         val runtimeSourceRoots =
             listOf(
                 "core/src/main/kotlin",
-                "support/terminal/src/main/kotlin",
                 "runtimes/runtime/src/main/kotlin",
             )
         val offenders =
@@ -1484,9 +1483,8 @@ class RylweenCompiledGameLedgerTest {
         val rootBuild = File("build.gradle.kts").readText()
         val settings = File("settings.gradle.kts").readText()
         val coreBuild = File("core/build.gradle.kts").readText()
-        val launcher = File("bin/run.sh").readText()
-        val serverLauncher = File("bin/run-server.sh").readText()
-        val dockerfile = File("deploy/docker/Dockerfile").readText()
+        val launcher = File("deploy/rylween").readText()
+        val dockerfile = File("deploy/docker/Dockerfile.ansi").readText()
         val gitIgnore = File(".gitignore").readText()
         val dockerIgnore = File(".dockerignore").readText()
         val gameBuild = File("game/build.gradle.kts").readText()
@@ -1550,22 +1548,21 @@ class RylweenCompiledGameLedgerTest {
             "legacy ANSI runtime must be outside the active Gradle graph"
         }
         check(
-            """include("terminal")""" in settings &&
-                """include("runtime")""" in settings &&
-                "dependsOn(\":terminal:check\")" in rootBuild &&
-                "dependsOn(\":runtime:check\")" in rootBuild,
+            """include("runtime")""" in settings &&
+                "dependsOn(\":runtime:check\")" in rootBuild &&
+                File("runtimes/runtime/src/main/kotlin/rylween/terminal/AnsiTerminal.kt").exists(),
         ) {
-            "active Gradle graph must keep only shared terminal primitives and the runtime as runtime subprojects"
+            "active Gradle graph must keep the runtime, with the shared terminal primitives inside it"
         }
         check(
             ":runtime:installRuntime" in launcher &&
                 "runtimes/runtime/build/install/rylween" in launcher &&
-                "RUN_LAUNCHER" in launcher,
+                "TERMINAL_LAUNCHER" in launcher,
         ) {
-            "bin/run.sh must launch the runtime"
+            "rylween must launch the runtime"
         }
         check(listOf("installBundleAnsi", "installKotlinAnsi", "ansi-runtime/").none { token -> token in launcher }) {
-            "bin/run.sh must not fall back to the archived interpreted ANSI runtime"
+            "rylween must not fall back to the archived interpreted ANSI runtime"
         }
         check(
             ":runtime-web:installRuntimeWeb" in dockerfile &&
@@ -1578,13 +1575,13 @@ class RylweenCompiledGameLedgerTest {
             "Dockerfile must not wire archived or probe launchers into the playable image"
         }
         check("--title" in launcher && "--no-title" in launcher && "title_seen=false" in launcher) {
-            "bin/run.sh must show the title screen by default and require --no-title to skip it"
+            "rylween must show the title screen by default and require --no-title to skip it"
         }
         check("--name" in launcher && "RYLWEEN_DATA_DIR" in launcher && "world.rsave" in launcher && "strong-endgame-replay" in launcher) {
-            "bin/run.sh must expose named local save loading from the default data directory"
+            "rylween must expose named local save loading from the default data directory"
         }
-        check("--name" in serverLauncher && "RYLWEEN_NAME" in serverLauncher && "bin/run.sh\" --build --name" in serverLauncher) {
-            "bin/run-server.sh must seed named local saves through the same bin/run.sh path"
+        check("RYLWEEN_NAME" in launcher && launcher.split("seed_named_save \"\$name\" \"\$save\"").size == 3) {
+            "rylween play and serve must seed named local saves through the same seed_named_save path"
         }
         check("--no-title" in runtimeMain && "skipTitleMenu" in runtimeMain && "!skipTitleMenu" in runtimeMain) {
             "runtime must support an explicit --no-title title-screen skip"
@@ -2182,8 +2179,7 @@ class RylweenCompiledGameLedgerTest {
                 "build.gradle.kts",
                 "core/build.gradle.kts",
                 "game/build.gradle.kts",
-                "support/tools/build.gradle.kts",
-                "support/terminal/build.gradle.kts",
+                "tools/build.gradle.kts",
                 "runtimes/runtime/build.gradle.kts",
             )
         val hardcodedVersion = Regex("""(jvmToolchain|JavaLanguageVersion\.of)\(\s*\d+\s*\)""")
@@ -2205,8 +2201,8 @@ class RylweenCompiledGameLedgerTest {
 
     @Test
     fun compiledBundleDiagnosticsStayToolOwned() {
-        val toolsBuild = File("support/tools/build.gradle.kts").readText()
-        val toolMain = File("support/tools/src/main/kotlin/rylween/tools/CompiledBundleArtifactMain.kt").readText()
+        val toolsBuild = File("tools/build.gradle.kts").readText()
+        val toolMain = File("tools/src/main/kotlin/rylween/tools/CompiledBundleArtifactMain.kt").readText()
         val compiledCoreSources =
             File("core/src/main/kotlin/rylween/compiled")
                 .walkTopDown()
@@ -2276,8 +2272,8 @@ class RylweenCompiledGameLedgerTest {
         check("dependsOn(\":runtime:check\")" in build) {
             "root check must keep the runtime subproject in verification"
         }
-        check("implementation(project(\":terminal\"))" in runtimeBuild) {
-            "runtime may share ANSI primitives only through :terminal"
+        check("implementation(libs.jline)" in runtimeBuild && "project(\":terminal\")" !in runtimeBuild) {
+            "runtime owns the ANSI terminal primitives and their JLine dependency"
         }
         check("runtimeOnly(project(\":game\"))" in runtimeBuild) {
             "runtime must receive game resources through the normal :game runtime artifact"
@@ -2496,8 +2492,8 @@ class RylweenCompiledGameLedgerTest {
             "runtime must not leak implementation status text into player screens: " +
                 statusTextOffenders.joinToString()
         }
-        check(File("bin/run.sh").readText().contains(":runtime:installRuntime")) {
-            "bin/run.sh must launch the runtime"
+        check(File("deploy/rylween").readText().contains(":runtime:installRuntime")) {
+            "rylween must launch the runtime"
         }
     }
 
@@ -2552,8 +2548,7 @@ class RylweenCompiledGameLedgerTest {
                 "runtimes/runtime/src/main/kotlin",
                 "runtimes/runtime-web/src/main/kotlin",
                 "runtimes/runtime-bitmap-web/src/main/kotlin",
-                "support/terminal/src/main/kotlin",
-                "support/web-common/src/main/kotlin",
+                "runtimes/web-common/src/main/kotlin",
             )
         val bannedTokens =
             listOf(
@@ -2649,8 +2644,7 @@ class RylweenCompiledGameLedgerTest {
                 "runtimes/runtime/src/main/kotlin",
                 "runtimes/runtime-web/src/main/kotlin",
                 "runtimes/runtime-bitmap-web/src/main/kotlin",
-                "support/terminal/src/main/kotlin",
-                "support/web-common/src/main/kotlin",
+                "runtimes/web-common/src/main/kotlin",
             ).flatMap { root ->
                 File(root)
                     .walkTopDown()

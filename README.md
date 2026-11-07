@@ -21,7 +21,7 @@ with [`deploy/README.md`](deploy/README.md), change the game with the
 Each pair below is the same moment in the same game: the title screen, a
 party at dawn in the wilderness just north of Thord, and the tavern in Thord.
 The ANSI version keeps the look of the 1993 original and plays in a terminal
-with `./bin/run.sh`; the bitmap version is what `./deploy.sh` serves to browsers.
+with `./rylween`; the bitmap version is what `./rylween serve` serves to browsers.
 
 <table>
   <tr>
@@ -81,32 +81,34 @@ brew install podman && podman machine init --now   # Podman, and the Linux VM it
 brew install --cask docker                          # or Docker Desktop; start it once from Applications
 ```
 
-### On Your Network: `./deploy.sh`
+### On This Machine Or Your Network: `./rylween serve`
 
 ```sh
-./deploy.sh
+./rylween serve          # this machine only, http://127.0.0.1:8081/
+./rylween serve --lan    # every machine on the local network
 ```
 
 From a checkout, this builds the bitmap game's image, starts it with Docker
-Compose (Podman Compose when Docker is missing) on this machine's LAN address,
-port 8081, and waits until it answers. Then it prints the address to open on any
-machine on the network, with the commands for the sysop password, the server
-log, and stopping it. Saves and accounts survive rebuilds.
+Compose (Podman Compose when Docker is missing) on port 8081, and waits until it
+answers. Then it prints the address to open, with the commands for the sysop
+password, the server log, and stopping it. Saves and accounts survive rebuilds.
+It serves only this machine (`--local`) unless `--lan` shares it on this
+machine's LAN address; `./rylween stop` stops it.
 
 ### On The Internet, Over HTTPS
 
-On a machine with a public address and a domain name, `./deploy.sh --https`,
+On a machine with a public address and a domain name, `./rylween serve --https`,
 or `deploy/compose.https.yaml` on its own, runs the released game behind Caddy,
 which gets a Let's Encrypt certificate for the name.
 
-[`deploy/README.md`](deploy/README.md) covers all three ways: the settings,
-data and backups, and the images, and, step by step, everything an HTTPS server
-needs, from DNS and ports on.
+[`deploy/README.md`](deploy/README.md) covers all three ways: the `./rylween`
+command and its defaults, the settings, data and backups, and the images, and,
+step by step, everything an HTTPS server needs, from DNS and ports on.
 
-### In A Terminal: `./bin/run.sh`
+### In A Terminal: `./rylween`
 
 ```sh
-./bin/run.sh --build
+./rylween
 ```
 
 This builds the game and plays the ANSI version in the current terminal. It
@@ -121,8 +123,9 @@ arrow keys or the keypad digits 8, 2, 4, and 6; press `?` in the wilderness for
 the full list of commands, and `X` to quit. The save and logs go to
 `~/.rylween/data`.
 
-[`bin/README.md`](bin/README.md) lists the other launchers and their options,
-such as starting with a seeded Strong party, and the local web servers.
+[`deploy/README.md`](deploy/README.md#playing-in-a-terminal) lists its options,
+such as starting with a seeded Strong party, and `./rylween help` lists every
+option of every command.
 
 The game streams ANSI escape codes (color, cursor positioning) and uses
 ambiguous-width Unicode characters in some art. How those characters are
@@ -149,7 +152,7 @@ of the next patch release, `X.Y.Z-SNAPSHOT`; see [Releasing](#releasing).
 The current runnable Kotlin game is the `:runtime` project. Shared
 DSL/compiler and compiled-bundle contracts live under `:core`, authored game
 DSL and resources live under `:game`, the compiled-bundle emitter and its checks
-live under `:tools`, and ANSI terminal primitives live under `:terminal`.
+live under `:tools`, and ANSI terminal primitives live in `:runtime`.
 
 The complete game DSL, the whole authored game from the world map and monsters
 to every mission script, is
@@ -168,13 +171,11 @@ Module guides:
 - [`:runtime`](runtimes/runtime/README.md) - shared game runtime and direct ANSI terminal.
 - [`:runtime-web`](runtimes/runtime-web/README.md) - browser-served ANSI runtime.
 - [`:runtime-bitmap-web`](runtimes/runtime-bitmap-web/README.md) - canvas bitmap runtime.
-- [`:web-common`](support/web-common/README.md) - shared web HTTP, WebSocket, auth, status.
-- [`:terminal`](support/terminal/README.md) - ANSI terminal primitives.
-- [`:tools`](support/tools/README.md) - emits, checks, and inspects the compiled bundle.
-- [`support/audio`](support/audio) - Python scripts that synthesize the sound effects, music, and ambient loops.
+- [`:web-common`](runtimes/web-common/README.md) - shared web HTTP, WebSocket, auth, status.
+- [`:tools`](tools/README.md) - emits, checks, and inspects the compiled bundle.
+- [`game/audio-tools`](game/audio-tools) - Python scripts that synthesize the sound effects, music, and ambient loops.
 - [`build-logic`](build-logic/README.md) - Gradle conventions and custom tasks.
-- [`bin`](bin/README.md) - local developer/operator launcher scripts.
-- [`deploy`](deploy/README.md) - running the game as a server: compose files, Docker images, the deploy script, and HTTPS.
+- [`deploy`](deploy/README.md) - running the game: the `rylween` command, compose files, Docker images, and HTTPS.
 
 The old interpreted Kotlin ANSI project and the historical C/JSON5 port are no
 longer part of this repository. The original Amiga release is kept as described
@@ -200,7 +201,7 @@ CI (`.github/workflows/ci.yml`) runs the module checks on every push to `main`
 and every pull request, leaving out the root dependency-update report:
 
 ```sh
-./gradlew --console=plain :core:check :game:check :tools:check :terminal:check :web-common:check :runtime:check :runtime-web:check :runtime-bitmap-web:check
+./gradlew --console=plain :core:check :game:check :tools:check :web-common:check :runtime:check :runtime-web:check :runtime-bitmap-web:check
 ```
 
 ktlint findings fail `check`; `./gradlew ktlintFormat --console=plain` fixes
@@ -229,11 +230,12 @@ bitmap web game as the image `ghcr.io/lagergren/rylween:X.Y.Z` (also `:latest`)
 for linux/amd64 and linux/arm64, and the terminal game as
 `rylween-terminal-X.Y.Z.zip` (`./gradlew :runtime:terminalDistZip`), which runs
 with `bin/rylween` on Java 25 or newer. It then moves `main` to
-`X.Y.(Z+1)-SNAPSHOT` and publishes the GitHub release with the zip and a
-`compose.yaml` that pulls the image. It refuses a version without `-SNAPSHOT`
-and a version that is tagged already. For a minor or major release, first set
-`rylween.version` to its snapshot, such as `X.(Y+1).0-SNAPSHOT`, in a pull
-request.
+`X.Y.(Z+1)-SNAPSHOT` and publishes the GitHub release with the zip, a
+`compose.yaml` that pulls the image, and a `compose.https.yaml` that runs it
+behind Caddy and HTTPS, both pinned to the release. It refuses a version
+without `-SNAPSHOT` and a version that is tagged already. For a minor or major
+release, first set `rylween.version` to its snapshot, such as
+`X.(Y+1).0-SNAPSHOT`, in a pull request.
 
 `main` takes only pull requests, so the workflow pushes its commits with a
 deploy key that the "Require PRs and CI on main" ruleset lets bypass that, kept
@@ -244,7 +246,7 @@ in the `RELEASE_DEPLOY_KEY` repository secret.
 Generated files are Gradle build output, local Kotlin compiler caches, the
 direct launcher's default saves and logs under `build/`, and the bitmap web
 client's `node_modules` and downloaded Node.js under `runtimes/runtime-bitmap-web/`.
-The `bin/` scripts keep saves and logs in `~/.rylween/data`. From the repo root:
+`./rylween` keeps saves and logs in `~/.rylween/data`. From the repo root:
 
 ```sh
 ./gradlew clean --console=plain

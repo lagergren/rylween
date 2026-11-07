@@ -11,8 +11,10 @@ It contains:
 - Renderer-neutral input/screen ports used by both terminal and bitmap web
   hosts.
 - The ANSI `RuntimeScreen` implementation for the local terminal runtime.
+- The ANSI terminal primitives in `rylween.terminal`; see
+  [Terminal Primitives](#terminal-primitives).
 - The installed `rylween` launcher (`:runtime:installRuntime`, under
-  `runtimes/runtime/build/install/rylween`) used by `bin/run.sh`, the scripted
+  `runtimes/runtime/build/install/rylween`) used by `./rylween`, the scripted
   `checkRuntime*` checks, the runtime tests, and the bitmap browser smoke's seed
   step. It, and the terminal game's release zip, run with a copy of `:game`'s
   jar without the bitmap paintings, which the terminal never shows.
@@ -30,6 +32,16 @@ wilderness frames, and runs the wilderness, town, service, battle, dungeon, and
 castle flows from compiled tables. Long acceptance routes are generated from
 test-only replay plans and fed to the installed launcher through `--script`; the
 shipped launcher has no replay-planning mode.
+
+## Terminal Primitives
+
+The `rylween.terminal` package holds the terminal-shaped IO that the direct
+terminal runtime and the browser ANSI runtime share: the `AnsiTerminal` I/O
+contract, with a JLine raw-mode implementation for play and a plain stdout one
+for scripted runs, ANSI escape constants (`AnsiCodes`), and raw key and line
+decoding (`AnsiInput`, which maps arrow keys to the keypad movement digits).
+Keep it small: game rules, screen layout decisions, and browser rendering do
+not belong there.
 
 ## Save File
 
@@ -64,7 +76,7 @@ previous save intact. Run without `--save`, the bare `rylween` launcher writes
 
 Web account credentials are deliberately not stored in the save file. They live
 under `<data-dir>/auth` and are documented in
-[`web-common`](../../support/web-common/README.md).
+[`web-common`](../web-common/README.md).
 
 ## Checks And Test Logs
 

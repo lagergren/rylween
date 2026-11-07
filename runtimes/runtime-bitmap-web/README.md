@@ -12,8 +12,8 @@ It contains:
 - the renderer-neutral runtime port implementation that emits bitmap frames,
 - the canvas client TypeScript, HTML, and CSS resources,
 - bitmap frame protocol data classes,
-- the installed `rylween-bitmap-web` launcher used by
-  `bin/run-bitmap-server.sh`.
+- the installed `rylween-bitmap-web` launcher used by the Docker image and
+  `./rylween serve --no-docker`.
 
 Renderer-specific layout, art selection, transitions, and canvas presentation
 belong here. Shared gameplay behavior, command semantics, battle targeting,
@@ -25,12 +25,12 @@ The bitmap wilderness map defaults to a 6x6 viewport at 68 px per tile. The
 server keeps this configurable for quick visual tuning:
 
 ```sh
-./bin/run-bitmap-server.sh --build --name Strong --map-tiles 8 --tile-size 64
+./rylween serve --no-docker --build --name Strong --map-tiles 8 --tile-size 64
 ```
 
 The same settings can be supplied with `RYLWEEN_BITMAP_MAP_TILES` and
 `RYLWEEN_BITMAP_TILE_SIZE`. Use `8` and `64` to return to the previous 8x8
-layout. The production image (`deploy/docker/Dockerfile.bitmap-production`)
+layout. The production image (`deploy/docker/Dockerfile.bitmap`)
 still sets 8 and 64 when run with `docker run`; `deploy/compose.yaml` sets 6 and
 68.
 
@@ -95,8 +95,9 @@ require a login unless the server runs with the `--user` development bypass.
 ## Running It As A Server
 
 [`deploy/README.md`](../../deploy/README.md) covers running this server for
-players: `./deploy.sh` on the local network, its `--launcher` mode, which runs
-this launcher without Docker, and HTTPS on the internet.
+players: `./rylween serve` on this machine or the local network, its
+`--no-docker` mode, which runs this launcher without Docker, and HTTPS on the
+internet.
 
 ## Browser Smoke
 

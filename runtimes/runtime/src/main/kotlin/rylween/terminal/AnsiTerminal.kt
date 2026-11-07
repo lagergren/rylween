@@ -3,8 +3,8 @@
  *
  * This file owns only terminal transport: JLine raw
  * mode for interactive play and stdout for scripted smoke runs. Escape
- * constants and key decoding live in the `:terminal` module, so this
- * source set does not fork that protocol.
+ * constants and key decoding live in `AnsiCodes` and `AnsiInput`, so this
+ * file does not fork that protocol.
  */
 @file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
 

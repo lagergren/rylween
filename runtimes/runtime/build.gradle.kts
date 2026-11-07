@@ -28,7 +28,8 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
-    implementation(project(":terminal"))
+    // Raw-mode terminal input for the ANSI game, in rylween.terminal.
+    implementation(libs.jline)
     runtimeOnly(project(":game"))
 }
 
@@ -178,8 +179,8 @@ val installRuntime: TaskProvider<Sync> =
         }
     }
 
-// The terminal game as a release download. Its bin/rylween is bin/run.sh, which finds the runtime's own start script,
-// renamed bin/rylween-runtime, and the compiled bundle beside it, and keeps saves and logs under ~/.rylween/data.
+// The terminal game as a release download. Its bin/rylween is deploy/rylween, which plays from the runtime's own start
+// script, renamed bin/rylween-runtime, and the compiled bundle beside it, and keeps saves and logs under ~/.rylween/data.
 val terminalDistZip: TaskProvider<Zip> =
     tasks.register<Zip>("terminalDistZip") {
         group = "distribution"
@@ -190,7 +191,7 @@ val terminalDistZip: TaskProvider<Zip> =
         archiveFileName.set("$distributionName.zip")
         destinationDirectory.set(layout.buildDirectory.dir("distributions"))
         into(distributionName) {
-            from(rootProject.layout.projectDirectory.file("bin/run.sh")) {
+            from(rootProject.layout.projectDirectory.file("deploy/rylween")) {
                 into("bin")
                 rename { "rylween" }
                 filePermissions {

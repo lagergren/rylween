@@ -1,156 +1,204 @@
-# Deploying Rylween
+# Running Rylween
 
-`deploy/` holds everything for running the bitmap game as a server, for
-players who open it in a browser. The ANSI terminal game needs no server; see
-[`bin/README.md`](../bin/README.md).
+`./rylween`, in the repository root, runs the game every way it runs: the ANSI
+game in a terminal, and either game as a server for browsers, on this machine,
+your local network, or the internet over HTTPS. It is a link to
+`deploy/rylween`, which lives here with the compose files and images it uses.
 
-## Which Way
+## The `rylween` Command
 
-| Players are | Over | Run | The machine needs |
-|---|---|---|---|
-| On this machine | HTTP | the one `docker run` in the [README](../README.md#with-only-docker-or-podman) | Docker or Podman |
-| On your local network | HTTP | `./deploy.sh`, with `compose.yaml` | a checkout, and Docker or Podman |
-| On the internet | HTTPS | `compose.https.yaml`, or `./deploy.sh --https` | a public address, a domain name, ports 80 and 443, and Docker or Podman |
+| Command | What it does |
+|---|---|
+| `./rylween` | Plays the ANSI game in this terminal. |
+| `./rylween serve` | Hosts the bitmap game for browsers on this machine, at `http://127.0.0.1:8081/`, in a container built from the checkout. |
+| `./rylween serve --lan` | The same, for every machine on your local network. |
+| `./rylween serve --https` | The released bitmap game on the internet, behind Caddy and HTTPS; see [On The Internet, Over HTTPS](#on-the-internet-over-https). |
+| `./rylween stop` | Stops whatever `serve` started. |
+| `./rylween backup` | Archives saves and accounts; see [Backups](#backups). |
+| `./rylween help` | Lists every option. |
 
-Never put the plain HTTP setups on the internet: passwords and cookies would
-cross it in plain text.
+`serve` takes one choice from each row; with none given it uses the defaults:
+
+| Choice | Options | Default |
+|---|---|---|
+| The game | `--bitmap`, the painted version, or `--ansi`, the ANSI version in the browser | `--bitmap` |
+| Where it runs | `--docker`, in a container (Docker or Podman), or `--no-docker`, with the launcher built from the checkout, which needs a JDK | `--docker` |
+| The protocol | `--http`, or `--https` for the internet | `--http` |
+| Who can connect | `--local`, this machine only; `--lan`, the local network, on this machine's LAN address; or `--host ADDRESS` | `--local` |
+| The port | `--port PORT` | 8081 for the bitmap game, 8080 for the ANSI game |
+
+`--local` is the default so that nothing is reachable from other machines
+unless you ask for it with `--lan`. (The `./deploy.sh` this command replaces
+published on the LAN by default.) `serve` returns once the server answers and
+prints its address; `--foreground` stays attached to the server's output
+instead, and Ctrl-C stops it. `--https` works with the bitmap game in
+containers only, for now.
+
+Without a checkout there is no `rylween` command, and none is needed: the
+[README](../README.md#with-only-docker-or-podman) runs the released game with
+one `docker run`, each release's terminal zip plays with its `bin/rylween`
+(this same script, which there only plays), and an HTTPS server needs only
+[`compose.https.yaml`](#4-get-the-compose-file).
 
 ## What Is Here
 
-- **`compose.yaml`** builds the bitmap game's image from the checkout and runs
-  it over plain HTTP, with its data on a persistent volume, published on
-  `127.0.0.1:8081` or, through `./deploy.sh`, on the LAN address.
-- **`compose.https.yaml`** runs the released image behind Caddy, which gets the
-  certificate and serves HTTPS. Each GitHub release attaches a copy pinned to
-  that release, so an HTTPS server needs no checkout.
-- **`deploy-rylween.sh`**, also `./deploy.sh` in the repository root, starts
-  either one and waits until it answers: `--compose`, the default, for the LAN;
-  `--https` for the internet; `--launcher` for the installed launcher without
-  Docker.
+- **`rylween`**, the command above.
+- **`compose.yaml`** builds and runs the game for `serve` over plain HTTP: the
+  bitmap game, and the ANSI game in its `ansi` profile. Its header lists every
+  setting.
+- **`compose.https.yaml`** runs the released bitmap image behind Caddy for
+  `serve --https`. Each GitHub release attaches a copy pinned to that release, so
+  an HTTPS server needs no checkout.
 - **`.env.example`** shows the settings both compose files read from a `.env`
-  file next to them.
-- **`docker/`** holds the Dockerfiles:
-  - `Dockerfile.bitmap-production` builds the bitmap game, serving port 8081.
-    Releases publish it as `ghcr.io/lagergren/rylween:X.Y.Z` and `:latest`,
-    for linux/amd64 and linux/arm64. Its builder stage runs on the build
-    machine's own platform, so an image for another platform needs no
-    emulation.
-  - `Dockerfile.production` builds the ANSI game for the browser, serving port
-    8080, and `Dockerfile` the same for `bin/run-server.sh`.
+  file here.
+- **`docker/Dockerfile.bitmap`** builds the bitmap game, serving port 8081.
+  Releases publish it as `ghcr.io/lagergren/rylween:X.Y.Z` and `:latest`, for
+  linux/amd64 and linux/arm64. Its builder stage runs on the build machine's
+  own platform, so an image for another platform needs no emulation.
+- **`docker/Dockerfile.ansi`** builds the ANSI game for the browser, serving
+  port 8080.
 
-Build them from the repository root, which Gradle, the sources, and the root
-`.dockerignore` need as the build context:
+Both images serve plain HTTP inside the container and keep saves, accounts, and
+logs under their `/data` volume. They mark the login cookie `Secure`, for
+HTTPS (`RYLWEEN_AUTH_SECURE_COOKIES=true`), so browsers keep it only over HTTPS;
+the plain HTTP setups here set it to `false`. Once the bitmap server accepts
+connections it prints the link to open, taken from `RYLWEEN_PUBLIC_URL`, or
+`localhost` and its port. Build an image by hand from the repository root, which
+Gradle, the sources, and the root `.dockerignore` need as the build context:
 
 ```sh
-docker build -f deploy/docker/Dockerfile.bitmap-production -t rylween-bitmap-prod .
-docker build -f deploy/docker/Dockerfile.production -t rylween-web-prod .
+docker build -f deploy/docker/Dockerfile.bitmap -t rylween-bitmap .
 ```
 
-Every image serves plain HTTP inside the container and keeps saves, accounts,
-and logs under its `/data` volume. The production images mark the login cookie
-`Secure` (`RYLWEEN_AUTH_SECURE_COOKIES=true`), so browsers keep it only over
-HTTPS; plain HTTP setups set it to `false`. Run directly, the bitmap image uses
-an 8x8 wilderness view at 64 px per tile, while the compose files and the
-launcher default to 6x6 at 68 px. Once the bitmap server accepts connections it
-prints the link to open, taken from `RYLWEEN_PUBLIC_URL`, or `localhost` and its
-port.
+## Playing In A Terminal
 
-## On Your Network, Over HTTP
+```sh
+./rylween
+./rylween --name Strong
+./rylween --name StrongEndgame
+```
 
-`compose.yaml` builds `Dockerfile.bitmap-production` and runs the game. Run
-compose from `deploy/`, or pass `-f deploy/compose.yaml` from the repository
-root:
+The first run builds the game, `build/compiled/rylween-bundle.json` and
+`:runtime:installRuntime`, and `--build` rebuilds it; it needs JDK 23 or newer,
+and Gradle downloads the JDK 25 toolchain the modules build with. The game runs
+outside Gradle, from a private copy of the install, so Gradle's output does not
+share the game screen and a rebuild cannot pull jars from under a running game.
+The shared save is `~/.rylween/data/saves/world.rsave` and the log
+`~/.rylween/data/logs/runtime/latest.log`, unless `RYLWEEN_DATA_DIR`,
+`RYLWEEN_SAVE_FILE`, or `RYLWEEN_LOG_FILE` say otherwise.
+
+It shows the title screen by default. `--name Strong` loads a seeded party
+outside Thord, and `--name StrongEndgame` one two steps north of Castle Ydarg
+with the five power artifacts. `--no-title` skips the title screen to boot a
+state or feed a script. Other options go to the game: `--seed N`, `--state SLUG`,
+`--script KEYS`, `--load FILE`, `--save FILE`, and `--log FILE`, which keeps a
+named capture instead of replacing `latest.log`. For forensics, `--debug-log`
+flashes the latest log line below the game frame, and `--debug-secrets` enables
+hidden wilderness keys: `[` forces a cave discovery, `]` a random encounter, and
+`M` shows the whole world map.
+
+```sh
+./rylween --screen title
+./rylween --no-title --script 22SX --save build/saves/runtime.rsave
+./rylween --name Strong --debug-log --debug-secrets
+```
+
+The installed launcher also runs by itself, with every option spelled out:
+
+```sh
+runtimes/runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylween-bundle.json --user local --state fresh-replay --seed 1
+```
+
+## On This Machine Or Your Network, Over HTTP
+
+### In A Container: The Default
+
+```sh
+./rylween serve              # this machine only
+./rylween serve --lan        # every machine on the local network
+./rylween serve --ansi       # the ANSI game for the browser, on port 8080
+```
+
+`serve` builds the image from the checkout with Docker Compose (Podman Compose
+when Docker is missing), starts it with `compose.yaml`, waits until the server
+answers, and prints the address with the commands for the sysop password, the
+log, and stopping it:
+
+```text
+Rylween is up on http://127.0.0.1:8081/
+  Sysop password: docker compose -f /path/to/rylween/deploy/compose.yaml exec rylween cat /data/auth/admin-password.txt
+  Server log:     docker compose -f /path/to/rylween/deploy/compose.yaml logs -f rylween
+  Stop:           /path/to/rylween/rylween stop
+```
+
+The build runs inside the image, so the machine needs only Docker or Podman,
+not a JDK. Run `serve` again after pulling changes to rebuild and restart. On
+macOS with Podman, start its VM first with `podman machine start`.
+
+`--lan` publishes on this machine's private LAN address, for example
+`http://192.168.1.20:8081/`, and refuses to pick a public one. `--host ADDRESS`
+publishes on the address given, such as `0.0.0.0` for every interface, and
+`--port PORT` on another port. Without any of them, `RYLWEEN_PUBLISH_HOST` in
+the shell or `deploy/.env` decides, and otherwise `127.0.0.1`.
+
+Settings come from `deploy/.env`, which `compose.yaml`'s header and
+`.env.example` describe: copy `.env.example` to start one. Saves, accounts,
+and logs live on the `rylween_data` volume (`rylween_ansi-data` for the ANSI
+game). They survive restarts, rebuilds, and image updates; only
+`docker compose down -v` or `volume rm` deletes them. To keep them in a host
+directory instead, point `RYLWEEN_DATA_VOLUME` at it; a relative path such as
+`./data` is relative to `deploy/`. Compose can also run directly from `deploy/`:
 
 ```sh
 cd deploy
 docker compose up --build -d     # or: podman compose up --build -d
 docker compose logs -f rylween
-docker compose down              # keeps the volume
-```
-
-On macOS with Podman, start its VM first with `podman machine start`.
-
-The container publishes on `127.0.0.1:8081` by default. To let other machines
-on the local network connect, run it through the deploy script. It builds the
-image, detects this machine's private LAN address, publishes on it, waits
-until the server answers, and prints the address with the commands for the
-sysop password, the log, and `down`:
-
-```sh
-./deploy.sh                      # from the repository root
-./deploy-rylween.sh              # from deploy/; the same script
-```
-
-```text
-Rylween is up on http://192.168.1.20:8081/
-  Sysop password: docker compose -f /path/to/rylween/deploy/compose.yaml exec rylween cat /data/auth/admin-password.txt
-  Server log:     docker compose -f /path/to/rylween/deploy/compose.yaml logs -f rylween
-  Stop:           docker compose -f /path/to/rylween/deploy/compose.yaml down
-```
-
-The build runs inside the image, so the host needs only Docker or Podman, not
-a JDK. Run `./deploy.sh` again after pulling changes to rebuild and restart; a
-plain `docker compose up` would publish on `127.0.0.1` only.
-
-Or set `RYLWEEN_PUBLISH_HOST` yourself, to a LAN address such as `192.168.x.y`
-or to `0.0.0.0`; `RYLWEEN_HOST_PORT` changes the port. When `deploy/.env` sets
-`RYLWEEN_PUBLISH_HOST`, the deploy script uses that address instead of
-detecting one. Compose sets `RYLWEEN_AUTH_SECURE_COOKIES=false`, so logins work
-over plain HTTP. All settings are listed at the top of `compose.yaml` and can
-be kept in an uncommitted `deploy/.env`; copy `deploy/.env.example`, which
-shows each one at its default.
-
-Saves, accounts, and logs live on the `rylween_data` volume. They survive
-`down`, rebuilds, and image updates; only `down -v` or `volume rm` deletes
-them. To keep them in a host directory instead, for example to back them up
-with `bin/backup-web-data.sh`, point `RYLWEEN_DATA_VOLUME` at it. A relative
-path such as `./data` is relative to `deploy/`. From the repository root:
-
-```sh
-mkdir -p ~/.rylween/compose-data
-echo 'RYLWEEN_DATA_VOLUME=~/.rylween/compose-data' >> deploy/.env
-./deploy.sh
-bin/backup-web-data.sh --data ~/.rylween/compose-data --output rylween-backup.tar.gz
+docker compose down              # keeps the volumes
 ```
 
 On first start the server creates the sysop account (`RYLWEEN_ADMIN_ACCOUNT`,
 default `admin`), which gets the game's secret wilderness keys and which
 players cannot register. Unless `RYLWEEN_ADMIN_PASSWORD` is set, its generated
-password is saved in `/data/auth/admin-password.txt`:
+password is saved in `/data/auth/admin-password.txt`, which the
+`Sysop password` command prints.
+
+### Without Docker: `--no-docker`
 
 ```sh
-docker compose exec rylween cat /data/auth/admin-password.txt
+./rylween serve --no-docker
+./rylween serve --no-docker --name StrongEndgame --debug-secrets
+./rylween serve --no-docker --ansi --name Strong
+./rylween serve --no-docker --account Strong --email strong@example.test --password 'change-this-password'
 ```
 
-### Without Docker: `--launcher`
+This runs the launcher built from the checkout, `--build` rebuilds it, and it
+needs a JDK. It keeps its data in `~/.rylween/data`, the terminal game's, or in
+`--data DIR`, and its output in `logs/serve-bitmap.console.log` (or
+`serve-ansi`) there. `--name Strong` or `--name StrongEndgame` seeds that test
+party into the shared save first and logs the browser in as it, without an
+account. `--account` with `--password` (and optionally `--email`) creates or
+verifies an account before the server starts. Other options go to the server,
+such as `--debug-secrets`, `--map-tiles N`, and `--tile-size PX` for the bitmap
+game; `--help` on the installed launchers lists them all. `--lan`, `--host`, and
+`--port` work as with containers. The server keeps running in the background
+until `./rylween stop`, and a new `serve` replaces the earlier one.
 
-`./deploy.sh --launcher` starts the installed bitmap launcher in the background
-instead, with its own data directory, `~/.rylween/deploy`, and its log in
-`/tmp/rylween-bitmap-web-deploy.log`. Build the launcher first:
+## Backups
 
 ```sh
-./gradlew :runtime-bitmap-web:installRuntimeBitmapWeb --console=plain
-./deploy.sh --launcher
+./rylween backup                                   # ~/.rylween/data: the terminal game and --no-docker
+./rylween backup --volume rylween_data             # ./rylween serve
+./rylween backup --volume rylween-https_data       # ./rylween serve --https
+./rylween backup --data DIR --output rylween-backup.tar.gz --include-logs
 ```
 
-It binds to the private LAN address of the interface carrying the default
-route, so other machines on the network can connect without it listening on
-every interface, and it refuses to pick a public address on its own. It prints
-the address, for example `http://192.168.1.20:8081`. Rerunning it stops the
-server it started before, and it refuses to start when the launcher is not
-installed. On Linux it uses `ip`, `/proc`, and `setsid`; on macOS, `route`,
-`ifconfig`, `ps`, and `nohup`.
-
-`RYLWEEN_DEPLOY_HOST` sets the bind address instead, such as `127.0.0.1`. Use
-`0.0.0.0` only when the server should listen on every IPv4 interface.
-`RYLWEEN_DEPLOY_PORT`, `RYLWEEN_DEPLOY_DATA_DIR`, and `RYLWEEN_DEPLOY_LOG_FILE`
-set the port (default `8081`), the data directory, and the log file, and
-`RYLWEEN_DEPLOY_APP` points the script at another installed launcher. The
-sysop account's generated password is in
-`~/.rylween/deploy/auth/admin-password.txt`. Without `--launcher`,
-`RYLWEEN_DEPLOY_HOST` still picks the address, and compose's
-`RYLWEEN_HOST_PORT` and `RYLWEEN_DATA_VOLUME` take the place of the port and
-data settings.
+The archive holds the shared save (`saves/`) and the accounts (`auth/users/`),
+and with `--include-logs` the logs, which can be large and record players'
+activity. The generated sysop password is left out; the sysop account itself
+survives a restore. A volume is read through a throwaway `alpine` container.
+Restore by unpacking the archive into the data directory, or into the volume,
+while the server is stopped. [`runtimes/web-common/README.md`](../runtimes/web-common/README.md)
+describes what each file holds.
 
 ## On The Internet, Over HTTPS
 
@@ -179,7 +227,7 @@ The pieces:
 - **`compose.https.yaml`** runs the released game image behind Caddy. The game
   publishes no port; only Caddy listens on 80 and 443. Its header lists every
   setting.
-- **`./deploy.sh --https`**, from a checkout, pulls the latest release, starts
+- **`./rylween serve --https`**, from a checkout, pulls the latest release, starts
   `compose.https.yaml`, waits until the site answers over HTTPS with a valid
   certificate, and prints the address and the commands to manage it.
 - **A `compose.https.yaml` attached to each release**, pinned to that release's
@@ -245,7 +293,7 @@ What Caddy does:
 5. **Docker or Podman.** Docker Engine with the Compose plugin is the
    recommended choice: run as root, it lets the game see players' real
    addresses (see [step 9](#9-check-players-addresses)). Podman 4 or newer, with
-   `podman compose`, works too. git is needed only for `./deploy.sh --https` from
+   `podman compose`, works too. git is needed only for `./rylween serve --https` from
    a checkout.
 6. **Certificates: nothing to do.** You don't buy, create, or copy any. Caddy
    gets them from Let's Encrypt, which first checks that you control the name by
@@ -341,7 +389,7 @@ applies to both.
 docker compose -f compose.https.yaml up -d
 ```
 
-Or, from a checkout, `./deploy.sh --https`. It pulls the latest release,
+Or, from a checkout, `./rylween serve --https`. It pulls the latest release,
 starts both containers, waits up to three minutes for a valid certificate, and
 prints:
 
@@ -350,7 +398,7 @@ Rylween is up on https://rylween.example.net/
   Sysop password: docker compose -f .../deploy/compose.https.yaml exec rylween cat /data/auth/admin-password.txt
   Server log:     docker compose -f .../deploy/compose.https.yaml logs -f rylween
   Proxy log:      docker compose -f .../deploy/compose.https.yaml logs -f caddy
-  Stop:           docker compose -f .../deploy/compose.https.yaml down
+  Stop:           .../rylween stop
 ```
 
 #### 7. Watch the certificate arrive
@@ -418,11 +466,13 @@ everyone for 15 minutes. Run Docker or Podman as root to fix it.
   `/data/logs/runtime-bitmap-web/`. `docker compose -f compose.https.yaml logs caddy`
   shows Caddy's access log.
 - **Backups.** Archive the game's volume, which Compose names
-  `rylween-https_data`:
+  `rylween-https_data`: from a checkout with
+  `./rylween backup --volume rylween-https_data` (see [Backups](#backups)), or
+  without one:
 
   ```sh
   docker run --rm -v rylween-https_data:/data:ro -v "$PWD":/backup alpine \
-      tar czf /backup/rylween-$(date +%F).tar.gz -C /data .
+      tar czf /backup/rylween-$(date +%F).tar.gz -C /data saves auth/users
   ```
 
 - **Stopping.** `docker compose -f compose.https.yaml down` stops both and keeps
@@ -446,7 +496,7 @@ It does not cover:
   passwords still matter, the sysop's most of all.
 - Failed-login counts across restarts. They live in memory.
 - A second factor. Accounts are a name, an email, and a password.
-- The ANSI game for the browser (`docker/Dockerfile.production`). It has none of
+- The ANSI game for the browser (`docker/Dockerfile.ansi`). It has none of
   the same-origin check, the login limit, or the proxy trust, so put the bitmap
   game on the internet instead.
 - The machine itself. Keep it updated, log in with SSH keys, and open no ports
@@ -454,7 +504,7 @@ It does not cover:
 
 ### Troubleshooting
 
-- **No certificate, or `./deploy.sh --https` times out.** Caddy's log says why:
+- **No certificate, or `./rylween serve --https` times out.** Caddy's log says why:
   `docker compose -f compose.https.yaml logs caddy`. Usually DNS does not yet
   point at the machine (`dig +short rylween.example.net`), or port 80 or 443
   does not reach it. Check from outside your network, for example
@@ -530,25 +580,18 @@ image without Caddy, published only to `127.0.0.1` or a private network, and:
 
 ### The ANSI Game In The Browser
 
-`docker/Dockerfile.production` packages the ANSI game for the browser, which
-serves port 8080 and lets one player at a time play. It has none of the bitmap
-server's same-origin check, failed-login limit, or proxy trust, so keep it to
-players you know. Publish it only to `127.0.0.1`, and keep its secrets in a file
-rather than on the command line, where shell history and process listings would
-keep them:
+The ANSI game for the browser lets one player at a time play, and has none of
+the bitmap server's same-origin check, failed-login limit, or proxy trust, so
+keep it to players you know. To serve it over HTTPS, run it on this machine
+only, with secure cookies, by setting `RYLWEEN_AUTH_SECURE_COOKIES=true` in
+`deploy/.env` (which applies to the bitmap game in `compose.yaml` too):
 
 ```sh
-docker build -f deploy/docker/Dockerfile.production -t rylween-web-prod .
-sudo install -d -m 700 /etc/rylween
-sudo install -m 600 /dev/null /etc/rylween/rylween.env
-sudoedit /etc/rylween/rylween.env      # RYLWEEN_ADMIN_PASSWORD=...
-docker run -d --name rylween-web --restart unless-stopped \
-    --env-file /etc/rylween/rylween.env -p 127.0.0.1:8080:8080 \
-    -v rylween-web-data:/data rylween-web-prod
+./rylween serve --ansi       # publishes on 127.0.0.1:8080
 ```
 
-Then serve it over HTTPS from Caddy installed on the machine, with a
-`Caddyfile` such as:
+Then put Caddy, installed on the machine, in front of it, with a `Caddyfile`
+such as:
 
 ```caddyfile
 rylween.example.net {
@@ -564,7 +607,7 @@ rylween.example.net {
 
 Its server log is `/data/logs/web-server.log`, and each session writes
 `/data/logs/<account>-<epoch-millis>.log`. Both are echoed to its standard
-output, so `docker logs rylween-web` shows them.
+output, which `docker compose -f deploy/compose.yaml logs rylween-ansi` shows.
 
 ### Without A Public Address: Tailscale
 

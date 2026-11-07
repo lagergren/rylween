@@ -25,7 +25,6 @@ kotlin {
 dependencies {
     implementation(project(":web-common"))
     implementation(project(":runtime"))
-    implementation(project(":terminal"))
     runtimeOnly(project(":game"))
 }
 

@@ -14,7 +14,7 @@ gradle-versions = "0.67.0"
 # Java toolchain for every Kotlin/JVM module (`kotlin { jvmToolchain(...) }`). Kept on the
 # current LTS release; foojay downloads it when no local JDK matches.
 jdk = "25"
-# Terminal I/O for the interactive ANSI runtime (:terminal).
+# Terminal I/O for the interactive ANSI runtime (:runtime).
 jline = "4.5.0"
 # Kotlin compiler, standard library, and the Kotlin JVM Gradle plugin for all modules.
 kotlin = "2.4.21"

@@ -147,12 +147,12 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: deploy/docker/Dockerfile.bitmap-production
+          file: deploy/docker/Dockerfile.bitmap
           platforms: linux/amd64
           load: true
           tags: rylween:smoke
 
-      # Waits for the server to answer, as deploy.sh does (/api/status answers 401 without a
+      # Waits for the server to answer, as ./rylween serve does (/api/status answers 401 without a
       # login), and checks the version in the server log's first line.
       - name: Smoke-test the image
         run: |
@@ -191,7 +191,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: deploy/docker/Dockerfile.bitmap-production
+          file: deploy/docker/Dockerfile.bitmap
           platforms: linux/amd64,linux/arm64
           push: ${{ !inputs.dry-run }}
           tags: |
@@ -217,16 +217,19 @@ jobs:
         if: ${{ !inputs.dry-run }}
         run: git push --atomic origin HEAD:refs/heads/main "refs/tags/v$RELEASE"
 
-      # The checked-in compose.yaml builds the image from a checkout. The release's copy pulls
-      # this release's image instead, and its compose.https.yaml pins that image too.
+      # The checked-in compose.yaml builds the images from a checkout. The release's copy pulls
+      # this release's bitmap image instead, without the ANSI game, which releases do not
+      # publish, and its compose.https.yaml pins the same image.
       - name: Write the release's compose files
         run: |
           {
             echo "# Adventurers of Rylween $RELEASE. \`docker compose up -d\` next to this file pulls"
-            echo "# $IMAGE:$RELEASE; the notes below on --build and deploy.sh are for a source checkout."
+            echo "# $IMAGE:$RELEASE; the notes below on --build, the ANSI game, and ./rylween are for a"
+            echo "# source checkout."
             echo "#"
             yq --indent 4 \
-              '.services.rylween.image = strenv(IMAGE) + ":" + strenv(RELEASE) | del(.services.rylween.build)' \
+              '.services.rylween.image = strenv(IMAGE) + ":" + strenv(RELEASE) | del(.services.rylween.build)
+                | del(.services.rylween-ansi) | del(.volumes.ansi-data)' \
               deploy/compose.yaml
           } > "$DIST/compose.yaml"
           {

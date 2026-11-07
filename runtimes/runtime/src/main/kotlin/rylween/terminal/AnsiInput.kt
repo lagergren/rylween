@@ -3,7 +3,7 @@
  *
  * Runtime launchers normalize arrow keys to the original numeric keypad
  * movement tokens and need the same simple editable line reader. This file
- * keeps that protocol in the `:terminal` module while each launcher owns its
+ * keeps that protocol in the `rylween.terminal` package while each launcher owns its
  * terminal transport.
  */
 package rylween.terminal

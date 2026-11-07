@@ -29,7 +29,6 @@ tasks.check {
     dependsOn(":core:check")
     dependsOn(":game:check")
     dependsOn(":tools:check")
-    dependsOn(":terminal:check")
     dependsOn(":runtime:check")
     dependsOn(":runtime-web:check")
     dependsOn(":runtime-bitmap-web:check")
