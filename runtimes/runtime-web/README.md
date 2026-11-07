@@ -8,7 +8,7 @@ It wraps the shared `:runtime` backend with:
 - authentication/session wiring from `:web-common`,
 - `BrowserAnsiTerminal`, which forwards ANSI output to a browser terminal view,
 - the installed `rylween-web` launcher used by the Docker image and
-  `bin/run-server.sh`.
+  `./rylween serve --ansi --no-docker`.
 
 This module should not own game mechanics, key-command meaning, password
 storage, or generic WebSocket protocol code. Those belong in `:runtime` or
@@ -29,7 +29,8 @@ data directory `/data`, host `0.0.0.0`, port `8080`, and state `fresh-replay`.
 `rylween-web --help` lists every flag and environment variable, including
 `RYLWEEN_BUNDLE`, `RYLWEEN_DATA_DIR`, `RYLWEEN_HOST`, `RYLWEEN_PORT`, the
 `RYLWEEN_AUTH_*` settings, and the sysop settings described below.
-`bin/run-server.sh` runs the same server in Docker.
+`./rylween serve --ansi` runs the same server in a container, and
+`./rylween serve --ansi --no-docker` runs this launcher for you.
 
 ## Sessions
 
@@ -42,5 +43,5 @@ returns to its title screen instead.)
 ## Running It On A Server
 
 [`deploy/README.md`](../../deploy/README.md#the-ansi-game-in-the-browser) covers
-its production image, `deploy/docker/Dockerfile.production`, and putting a
+its image, `deploy/docker/Dockerfile.ansi`, and putting a
 server on the internet behind HTTPS, with port forwarding and network advice.

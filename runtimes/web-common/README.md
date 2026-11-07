@@ -43,8 +43,8 @@ Both web servers can create or verify a startup account before accepting
 connections:
 
 ```sh
-./bin/run-bitmap-server.sh --account Strong --email strong@example.test --password 'change-this-password'
-./bin/run-server.sh --account Strong --email strong@example.test --password 'change-this-password'
+./rylween serve --no-docker --account Strong --email strong@example.test --password 'change-this-password'
+./rylween serve --no-docker --ansi --account Strong --email strong@example.test --password 'change-this-password'
 ```
 
 Equivalent environment variables are:
@@ -82,10 +82,10 @@ secret manager to set `RYLWEEN_AUTH_PASSWORD` and `RYLWEEN_ADMIN_PASSWORD`.
 
 ## Data Directory Layout
 
-All web runtimes are configured around one data directory. The `bin/` scripts
-default to `~/.rylween/data`, `./deploy.sh --launcher` to `~/.rylween/deploy`,
-and containers (including `deploy/compose.yaml`) to `/data`. Run bare, the
-`rylween-bitmap-web` launcher uses `build/rylween-data`.
+All web runtimes are configured around one data directory. `./rylween` and
+`./rylween serve --no-docker` default to `~/.rylween/data` (`--data DIR` picks
+another), and containers (including `deploy/compose.yaml`) to `/data`. Run
+bare, the `rylween-bitmap-web` launcher uses `build/rylween-data`.
 
 ```text
 <data-dir>/
@@ -219,12 +219,13 @@ world data.
 
 Putting password hashes directly in `world.rsave` would make every save copy,
 bug-report attachment, and save-format migration security-sensitive. It would
-also make the core runtime save format own web-server policy. Instead, use the
-backup helper from the repo root when you want one portable artifact:
+also make the core runtime save format own web-server policy. Instead, use
+`./rylween backup` from the repo root when you want one portable artifact:
 
 ```sh
-./bin/backup-web-data.sh --data ~/.rylween/data --output rylween-backup.tar.gz
-./bin/backup-web-data.sh --include-logs --output rylween-backup-with-logs.tar.gz
+./rylween backup --data ~/.rylween/data --output rylween-backup.tar.gz
+./rylween backup --include-logs --output rylween-backup-with-logs.tar.gz
+./rylween backup --volume rylween_data      # the data of ./rylween serve
 ```
 
 The default archive includes `saves/` and `auth/users/`. Logs are optional
@@ -256,8 +257,8 @@ default `RYLWEEN_AUTH_SECURE_COOKIES` to `true`; `deploy/compose.yaml` sets it t
 For HTTPS deployments, start the server with secure cookies enabled:
 
 ```sh
-RYLWEEN_AUTH_SECURE_COOKIES=true ./bin/run-bitmap-server.sh
-./bin/run-bitmap-server.sh --secure-cookies
+RYLWEEN_AUTH_SECURE_COOKIES=true ./rylween serve --no-docker
+./rylween serve --no-docker --secure-cookies
 ```
 
 Local plain-HTTP development must not use `Secure` cookies because browsers will
@@ -270,10 +271,11 @@ authenticated account to its own runtime policy:
 
 - Normal browser sessions authenticate through the shared account store.
 - Existing local shortcuts keep working through a dev bypass user:
-  - bitmap: `bin/run-bitmap-server.sh --name Strong` and `--name StrongEndgame`
-    pass the selected name as `--user`
-  - ANSI web: `bin/run-server.sh --name Strong` and `--name StrongEndgame`
-    forward the selected name as `RYLWEEN_AUTH_DEV_USER`
+  - bitmap: `./rylween serve --no-docker --name Strong` and
+    `--name StrongEndgame` pass the selected name as `--user`
+  - ANSI web: `./rylween serve --no-docker --ansi --name Strong` and
+    `--name StrongEndgame` pass the selected name as `--dev-user`
+    (`RYLWEEN_AUTH_DEV_USER`)
 - The web runtime then decides whether to show the title screen or resume a
   saved user party.
 - On quit, the bitmap server returns the player to the title screen and keeps

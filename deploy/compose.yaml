@@ -1,25 +1,33 @@
-# Runs the bitmap web game. Saves, accounts, and logs live on a persistent
-# volume mounted at /data, so they survive `down`, rebuilds, and image updates.
+# Runs the game for browsers over plain HTTP, built from this checkout: the
+# bitmap game, and, with the `ansi` profile, the ANSI game. Saves, accounts, and
+# logs live on persistent volumes mounted at /data, so they survive `down`,
+# rebuilds, and image updates.
 #
-#   docker compose -f deploy/compose.yaml up --build -d   # or: podman compose ...
-#   open http://127.0.0.1:8081/ and register an account
+#   ./rylween serve [--ansi] [--lan]       # from the repository root; see deploy/README.md
 #
-# From inside deploy/, plain `docker compose up --build -d` works too.
+# or compose itself, from deploy/:
 #
-# Rebuild with --build after pulling new game code. `down -v` deletes the volume
-# and with it every save and account.
+#   docker compose up --build -d                              # the bitmap game
+#   docker compose --profile ansi up --build -d rylween-ansi  # the ANSI game
+#   open http://127.0.0.1:8081/ (ANSI: 8080) and register an account
+#
+# Rebuild with --build after pulling new game code. `down -v` deletes the volumes
+# and with them every save and account.
 #
 # Settings come from the shell environment or a .env file next to this file
 # (copy .env.example to start one):
-#   RYLWEEN_PUBLISH_HOST        Host address to publish on. Default: 127.0.0.1.
-#                               The root ./deploy.sh (deploy-rylween.sh here)
-#                               sets it to this machine's LAN address so others
-#                               on the local network can connect; 0.0.0.0
-#                               publishes on every interface.
-#   RYLWEEN_HOST_PORT           Host port. Default: 8081
+#   RYLWEEN_PUBLISH_HOST        Host address to publish on. Default: 127.0.0.1,
+#                               this machine only. `./rylween serve --lan` sets it
+#                               to this machine's LAN address so others on the
+#                               local network can connect; 0.0.0.0 publishes on
+#                               every interface.
+#   RYLWEEN_HOST_PORT           The bitmap game's host port. Default: 8081
+#   RYLWEEN_ANSI_HOST_PORT      The ANSI game's host port. Default: 8080
 #   RYLWEEN_DATA_VOLUME         Named volume or host directory (./path, ~/path, /path)
-#                               mounted at /data; ./path is relative to deploy/.
-#                               Default: the `data` named volume.
+#                               mounted at /data for the bitmap game; ./path is
+#                               relative to deploy/. Default: the `data` volume.
+#   RYLWEEN_ANSI_DATA_VOLUME    The same for the ANSI game. Default: the
+#                               `ansi-data` volume.
 #   RYLWEEN_BITMAP_STATE        Initial compiled state slug. Default: fresh-replay
 #   RYLWEEN_BITMAP_MAP_TILES    Wilderness viewport edge length. Default: 6
 #   RYLWEEN_BITMAP_TILE_SIZE    Wilderness tile size in px. Default: 68
@@ -43,11 +51,13 @@ services:
         build:
             # The repository root, which the Dockerfile copies the sources from.
             context: ..
-            dockerfile: deploy/docker/Dockerfile.bitmap-production
+            dockerfile: deploy/docker/Dockerfile.bitmap
         restart: unless-stopped
         ports:
             - "${RYLWEEN_PUBLISH_HOST:-127.0.0.1}:${RYLWEEN_HOST_PORT:-8081}:8081"
         environment:
+            # The link the server prints once it is up.
+            RYLWEEN_PUBLIC_URL: http://${RYLWEEN_PUBLISH_HOST:-127.0.0.1}:${RYLWEEN_HOST_PORT:-8081}
             RYLWEEN_BITMAP_STATE: ${RYLWEEN_BITMAP_STATE:-fresh-replay}
             RYLWEEN_BITMAP_MAP_TILES: ${RYLWEEN_BITMAP_MAP_TILES:-6}
             RYLWEEN_BITMAP_TILE_SIZE: ${RYLWEEN_BITMAP_TILE_SIZE:-68}
@@ -62,5 +72,28 @@ services:
         volumes:
             - ${RYLWEEN_DATA_VOLUME:-data}:/data
 
+    # The ANSI game for the browser, started only with the `ansi` profile, which
+    # `./rylween serve --ansi` passes. One player plays at a time.
+    rylween-ansi:
+        profiles:
+            - ansi
+        build:
+            context: ..
+            dockerfile: deploy/docker/Dockerfile.ansi
+        restart: unless-stopped
+        ports:
+            - "${RYLWEEN_PUBLISH_HOST:-127.0.0.1}:${RYLWEEN_ANSI_HOST_PORT:-8080}:8080"
+        environment:
+            RYLWEEN_AUTH_SECURE_COOKIES: ${RYLWEEN_AUTH_SECURE_COOKIES:-false}
+            RYLWEEN_AUTH_ACCOUNT: ${RYLWEEN_AUTH_ACCOUNT:-}
+            RYLWEEN_AUTH_EMAIL: ${RYLWEEN_AUTH_EMAIL:-}
+            RYLWEEN_AUTH_PASSWORD: ${RYLWEEN_AUTH_PASSWORD:-}
+            RYLWEEN_ADMIN_ACCOUNT: ${RYLWEEN_ADMIN_ACCOUNT:-admin}
+            RYLWEEN_ADMIN_PASSWORD: ${RYLWEEN_ADMIN_PASSWORD:-}
+            RYLWEEN_VICTIM_ACCOUNT: ${RYLWEEN_VICTIM_ACCOUNT:-}
+        volumes:
+            - ${RYLWEEN_ANSI_DATA_VOLUME:-ansi-data}:/data
+
 volumes:
     data:
+    ansi-data:

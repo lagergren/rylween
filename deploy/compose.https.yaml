@@ -7,7 +7,7 @@
 #   docker compose -f compose.https.yaml up -d      # or: podman compose ...
 #   open https://<RYLWEEN_DOMAIN>/ and register an account
 #
-# From a checkout, ./deploy.sh --https runs it and waits until it answers.
+# From a checkout, ./rylween serve --https runs it and waits until it answers.
 #
 # Settings, from the shell environment or .env next to this file:
 #   RYLWEEN_DOMAIN              Required. The name players open, whose DNS points

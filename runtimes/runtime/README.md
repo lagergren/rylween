@@ -14,7 +14,7 @@ It contains:
 - The ANSI terminal primitives in `rylween.terminal`; see
   [Terminal Primitives](#terminal-primitives).
 - The installed `rylween` launcher (`:runtime:installRuntime`, under
-  `runtimes/runtime/build/install/rylween`) used by `bin/run.sh`, the scripted
+  `runtimes/runtime/build/install/rylween`) used by `./rylween`, the scripted
   `checkRuntime*` checks, the runtime tests, and the bitmap browser smoke's seed
   step. It, and the terminal game's release zip, run with a copy of `:game`'s
   jar without the bitmap paintings, which the terminal never shows.

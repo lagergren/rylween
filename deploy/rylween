@@ -1,0 +1,585 @@
+#!/usr/bin/env bash
+# The one command for running Rylween: play the ANSI game in a terminal, host the
+# game for browsers, stop what it started, and back up its data. It runs from a
+# checkout, where ./rylween in the repository root links to it, and from the
+# terminal game's release download, where it is bin/rylween and only plays.
+# deploy/README.md describes every mode; `rylween help` lists the options.
+set -euo pipefail
+
+# Follow links such as the root ./rylween, so HERE is deploy/ (or the download's bin/).
+script="${BASH_SOURCE[0]}"
+while [[ -L "$script" ]]; do
+    target="$(readlink "$script")"
+    case "$target" in
+        /*) script="$target" ;;
+        *) script="$(dirname "$script")/$target" ;;
+    esac
+done
+HERE="$(cd "$(dirname "$script")" && pwd -P)"
+ROOT="$(dirname "$HERE")"
+
+# The terminal game's release download keeps the runtime's start script and the
+# compiled bundle beside this script; a checkout builds both when needed.
+if [[ -x "$HERE/rylween-runtime" && -f "$ROOT/rylween-bundle.json" ]]; then
+    DISTRIBUTION=true
+    TERMINAL_LAUNCHER="$HERE/rylween-runtime"
+    TERMINAL_BUNDLE="$ROOT/rylween-bundle.json"
+else
+    DISTRIBUTION=false
+    TERMINAL_INSTALL="$ROOT/runtimes/runtime/build/install/rylween"
+    TERMINAL_LAUNCHER="$TERMINAL_INSTALL/bin/rylween"
+    TERMINAL_BUNDLE="$ROOT/build/compiled/rylween-bundle.json"
+fi
+
+DATA_DIR="${RYLWEEN_DATA_DIR:-$HOME/.rylween/data}"
+# Where `serve --no-docker` records the servers it started, for `stop`.
+STATE_DIR="$HOME/.rylween"
+
+usage() {
+    cat <<'EOF'
+Usage: rylween [play] [options]        Play the ANSI game in this terminal. The default.
+       rylween serve [options]         Host the game for browsers.
+       rylween stop                    Stop what serve started.
+       rylween backup [options]        Archive saves and accounts.
+       rylween help                    Show this.
+
+play:
+  --name NAME          Load a named test party: Strong, or StrongEndgame.
+  --no-title           Skip the title screen.
+  --build              Rebuild the game first (checkout only).
+  Other options, such as --seed N, --state SLUG, --script KEYS, --debug-log,
+  and --debug-secrets, go to the game. Saves and logs go to ~/.rylween/data
+  (RYLWEEN_DATA_DIR).
+
+serve:
+  --bitmap | --ansi    The game: the painted bitmap version (default), or the
+                       ANSI version in the browser.
+  --docker | --no-docker
+                       Run it in a container (default), or with the launcher
+                       built from the checkout, which needs a JDK.
+  --http | --https     Plain HTTP (default), or HTTPS behind Caddy for the
+                       internet: needs RYLWEEN_DOMAIN, --bitmap, and --docker.
+  --local | --lan | --host ADDRESS
+                       Who can connect: this machine only (default), the
+                       local network (this machine's LAN address), or the
+                       given address.
+  --port PORT          Port. Default: 8081 for --bitmap, 8080 for --ansi.
+  --foreground         Stay attached, with the server's output; Ctrl-C stops it.
+  --build              Rebuild the launcher (--no-docker); containers always
+                       build from the checkout.
+  With --no-docker only:
+  --data DIR           Data directory. Default: ~/.rylween/data
+  --name NAME          Start with a named test party, logged in as it.
+  Other options, such as --debug-secrets, --map-tiles N, --account NAME
+  --password PASSWORD, go to the server. In a container, settings come from
+  deploy/.env instead; see deploy/.env.example.
+
+backup:
+  --data DIR | --volume NAME
+                       The data to archive: a directory (default
+                       ~/.rylween/data) or a container volume, such as
+                       rylween_data for `serve` or rylween-https_data for
+                       `serve --https`.
+  --output FILE        The archive. Default: rylween-backup-<time>.tar.gz
+  --include-logs       Include the logs, which can be large.
+EOF
+}
+
+die() {
+    echo "rylween: $*" >&2
+    exit 2
+}
+
+need_value() {
+    [[ $# -ge 2 ]] || die "$1 needs a value"
+}
+
+need_checkout() {
+    [[ "$DISTRIBUTION" == false ]] ||
+        die "$1 needs a source checkout; this download plays the terminal game."
+}
+
+gradle() {
+    (cd "$ROOT" && ./gradlew --console=plain "$@")
+}
+
+container_engine() {
+    if command -v docker >/dev/null 2>&1; then
+        echo docker
+    elif command -v podman >/dev/null 2>&1; then
+        echo podman
+    else
+        die "this needs Docker or Podman; serve --no-docker runs without them."
+    fi
+}
+
+# The address of the interface carrying the default route, which other machines
+# on the local network can reach, if it is a private (RFC 1918) one.
+detect_lan_host() {
+    local host="" iface
+    if command -v ip >/dev/null 2>&1; then
+        host="$(
+            ip -4 route get 1.1.1.1 2>/dev/null |
+                awk '{ for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit } }'
+        )"
+    fi
+    # macOS has no `ip`; ask the routing table for the default interface instead.
+    if [[ -z "$host" ]] && command -v route >/dev/null 2>&1; then
+        iface="$(route -n get default 2>/dev/null | awk '$1 == "interface:" { print $2; exit }')"
+        if [[ -n "$iface" ]]; then
+            host="$(ifconfig "$iface" 2>/dev/null | awk '$1 == "inet" { print $2; exit }')"
+        fi
+    fi
+    case "$host" in
+        10.* | 192.168.* | 172.1[6-9].* | 172.2[0-9].* | 172.3[01].*) echo "$host" ;;
+        *) return 1 ;;
+    esac
+}
+
+# Waits up to $2 seconds (default 60) for any HTTP answer from $1. An HTTPS URL
+# counts only once its certificate checks out. Without curl it cannot tell, and
+# does not wait.
+wait_for_http() {
+    local url="$1" deadline=$((SECONDS + ${2:-60}))
+    command -v curl >/dev/null 2>&1 || return 0
+    until curl --noproxy '*' --silent --output /dev/null --max-time 2 "$url"; do
+        [[ "$SECONDS" -lt "$deadline" ]] || return 1
+        sleep 1
+    done
+}
+
+# ---------------------------------------------------------------------------
+# play
+
+ensure_terminal_game() {
+    if [[ "$1" == true || ! -x "$TERMINAL_LAUNCHER" || ! -f "$TERMINAL_BUNDLE" ]]; then
+        need_checkout "--build"
+        gradle :tools:emitExternalCompiledBundle :runtime:installRuntime
+    fi
+}
+
+# Seeds the named test party Strong or StrongEndgame into the save $2, unless the
+# save already holds it for the current game. Other names seed nothing.
+seed_named_save() {
+    local name="$1" save="$2" state party user bundle_hash save_hash=""
+    case "$name" in
+        Strong | strong) state=strong-replay party="Strong" ;;
+        StrongEndgame | strong-endgame | strong_endgame | Endgame | endgame | Ydarg | ydarg)
+            state=strong-endgame-replay party="Strong Endgame" ;;
+        *) return 0 ;;
+    esac
+    user="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')"
+    bundle_hash="$(sed -n 's/.*"bundleContentHash": "\([^"]*\)".*/\1/p' "$TERMINAL_BUNDLE" | head -n 1)"
+    [[ -f "$save" ]] && save_hash="$(sed -n 's/^bundleHash=//p' "$save" | head -n 1)"
+    if [[ -f "$save" && -n "$bundle_hash" && "$save_hash" == "$bundle_hash" ]] &&
+        grep -q "^user\.[0-9][0-9]*\.id=$user$" "$save" &&
+        grep -q "^user\.[0-9][0-9]*\.party\.name=$party$" "$save"; then
+        return 0
+    fi
+    mkdir -p "$(dirname "$save")" "$DATA_DIR/logs/runtime"
+    "$TERMINAL_LAUNCHER" --bundle "$TERMINAL_BUNDLE" --user "$name" --state "$state" --save "$save" \
+        --script SX --no-title --log "$DATA_DIR/logs/runtime/seed-$name.log" >/dev/null
+}
+
+cmd_play() {
+    local build=false title_seen=false bundle_seen=false user_seen=false load_seen=false
+    local save_seen=false log_seen=false name="${RYLWEEN_NAME:-}" arg option args=()
+    while [[ $# -gt 0 ]]; do
+        arg="$1"
+        shift
+        case "$arg" in
+            --build) build=true ;;
+            --title | --no-title)
+                title_seen=true
+                args+=("$arg")
+                ;;
+            --name)
+                need_value "$arg" "$@"
+                name="$1"
+                shift
+                ;;
+            --name=*) name="${arg#--name=}" ;;
+            --bundle* | --user* | --load* | --save* | --log* | --state* | --screen* | --script* | --seed*)
+                option="${arg%%=*}"
+                case "$option" in
+                    --bundle) bundle_seen=true ;;
+                    --user) user_seen=true ;;
+                    --load) load_seen=true ;;
+                    --save) save_seen=true ;;
+                    --log) log_seen=true ;;
+                esac
+                if [[ "$arg" == *=* ]]; then
+                    args+=("$arg")
+                else
+                    need_value "$arg" "$@"
+                    args+=("$arg" "$1")
+                    shift
+                fi
+                ;;
+            --help | -h)
+                usage
+                return 0
+                ;;
+            --*) args+=("$arg") ;;
+            *) die "unknown argument $arg; --name Strong or --name StrongEndgame loads a named test party." ;;
+        esac
+    done
+
+    local save="${RYLWEEN_SAVE_FILE:-$DATA_DIR/saves/world.rsave}"
+    local log="${RYLWEEN_LOG_FILE:-$DATA_DIR/logs/runtime/latest.log}"
+    mkdir -p "$(dirname "$save")" "$(dirname "$log")"
+    ensure_terminal_game "$build"
+
+    [[ "$bundle_seen" == true ]] || args=(--bundle "$TERMINAL_BUNDLE" ${args[@]+"${args[@]}"})
+    [[ "$save_seen" == true ]] || args=(--save "$save" ${args[@]+"${args[@]}"})
+    [[ "$log_seen" == true ]] || args=(--log "$log" ${args[@]+"${args[@]}"})
+    if [[ -n "$name" ]]; then
+        [[ "$user_seen" == false ]] || die "use either --name or --user, not both."
+        seed_named_save "$name" "$save"
+        args=(--user "$name" ${args[@]+"${args[@]}"})
+        [[ "$load_seen" == true ]] || args=(--load "$save" ${args[@]+"${args[@]}"})
+        if [[ "$title_seen" == false ]]; then
+            args=(--no-title ${args[@]+"${args[@]}"})
+            title_seen=true
+        fi
+    elif [[ "$user_seen" == false ]]; then
+        args=(--user "${RYLWEEN_USER:-local}" ${args[@]+"${args[@]}"})
+    fi
+    [[ "$title_seen" == true ]] || args=(--title ${args[@]+"${args[@]}"})
+
+    # A release download is never rebuilt, so it runs in place.
+    if [[ "$DISTRIBUTION" == true ]]; then
+        exec "$TERMINAL_LAUNCHER" "${args[@]}"
+    fi
+    # A checkout runs a private copy, so a Gradle build cannot rewrite the jars
+    # under a running game and break its lazy class loading.
+    local copy status=0
+    copy="$(mktemp -d "${TMPDIR:-/tmp}/rylween-play.XXXXXX")"
+    trap 'rm -rf "$copy"' EXIT
+    cp -R "$TERMINAL_INSTALL" "$copy/"
+    "$copy/rylween/bin/rylween" "${args[@]}" || status=$?
+    exit "$status"
+}
+
+# ---------------------------------------------------------------------------
+# serve
+
+cmd_serve() {
+    local game=bitmap runner=docker scheme=http reach="" host="" port="" foreground=false build=false
+    local name="" data_seen=false arg args=()
+    while [[ $# -gt 0 ]]; do
+        arg="$1"
+        shift
+        case "$arg" in
+            --bitmap | --ansi) game="${arg#--}" ;;
+            --docker) runner=docker ;;
+            --no-docker) runner=local ;;
+            --http | --https) scheme="${arg#--}" ;;
+            --local | --lan) reach="${arg#--}" ;;
+            --host)
+                need_value "$arg" "$@"
+                reach=host
+                host="$1"
+                shift
+                ;;
+            --port)
+                need_value "$arg" "$@"
+                port="$1"
+                shift
+                ;;
+            --data)
+                need_value "$arg" "$@"
+                DATA_DIR="$1"
+                data_seen=true
+                shift
+                ;;
+            --name)
+                need_value "$arg" "$@"
+                name="$1"
+                shift
+                ;;
+            --foreground) foreground=true ;;
+            --build) build=true ;;
+            --help | -h)
+                usage
+                return 0
+                ;;
+            *) args+=("$arg") ;;
+        esac
+    done
+    need_checkout serve
+
+    if [[ "$scheme" == https ]]; then
+        [[ "$game" == bitmap && "$runner" == docker ]] ||
+            die "--https runs the bitmap game in containers; leave out --ansi and --no-docker."
+        [[ -z "$reach" && -z "$port" ]] ||
+            die "--https serves on ports 80 and 443 of every interface; leave out --local, --lan, --host, and --port."
+    fi
+    if [[ "$runner" == docker ]]; then
+        [[ -z "$name" && ${#args[@]} -eq 0 && "$data_seen" == false ]] ||
+            die "--name, --data, and server options need --no-docker; in a container, set them in deploy/.env."
+    fi
+
+    case "$scheme:$runner" in
+        https:*) serve_https "$foreground" ;;
+        http:docker) serve_container "$game" "$reach" "$host" "$port" "$foreground" ;;
+        http:local) serve_launcher "$game" "$reach" "$host" "$port" "$foreground" "$build" "$name" ${args[@]+"${args[@]}"} ;;
+    esac
+}
+
+# The address to listen on for $1, the reach: local, lan, or host with $2.
+bind_address() {
+    case "$1" in
+        "" | local) echo 127.0.0.1 ;;
+        lan) detect_lan_host || die "found no private LAN IPv4 address on the default route; give one with --host." ;;
+        host) echo "$2" ;;
+    esac
+}
+
+serve_container() {
+    local game="$1" reach="$2" host="$3" port="$4" foreground="$5" engine
+    engine="$(container_engine)"
+    local compose=("$engine" compose -f "$HERE/compose.yaml")
+    local service=rylween internal=8081 port_variable=RYLWEEN_HOST_PORT
+    if [[ "$game" == ansi ]]; then
+        compose+=(--profile ansi)
+        service=rylween-ansi
+        internal=8080
+        port_variable=RYLWEEN_ANSI_HOST_PORT
+    fi
+    [[ -z "$port" ]] || export "$port_variable=$port"
+    # A flag decides the address; without one, RYLWEEN_PUBLISH_HOST from the shell
+    # or deploy/.env does, and otherwise compose.yaml publishes on 127.0.0.1.
+    if [[ -n "$reach" ]]; then
+        RYLWEEN_PUBLISH_HOST="$(bind_address "$reach" "$host")"
+        export RYLWEEN_PUBLISH_HOST
+    fi
+    if [[ "$foreground" == true ]]; then
+        exec "${compose[@]}" up --build "$service"
+    fi
+    "${compose[@]}" up --build -d "$service"
+
+    local address
+    address="$("${compose[@]}" port "$service" "$internal" 2>/dev/null)" || address=""
+    [[ -n "$address" ]] || die "compose reports no published port; see: ${compose[*]} logs $service"
+    wait_for_http "http://$address/healthz" ||
+        die "http://$address/ did not answer within a minute; see: ${compose[*]} logs $service"
+    echo "Rylween is up on http://$address/"
+    echo "  Sysop password: ${compose[*]} exec $service cat /data/auth/admin-password.txt"
+    echo "  Server log:     ${compose[*]} logs -f $service"
+    echo "  Stop:           $ROOT/rylween stop"
+}
+
+serve_https() {
+    local foreground="$1" engine domain
+    engine="$(container_engine)"
+    domain="${RYLWEEN_DOMAIN-}"
+    if [[ -z "$domain" && -f "$HERE/.env" ]]; then
+        domain="$(sed -n 's/^[[:space:]]*RYLWEEN_DOMAIN=//p' "$HERE/.env" | tail -n 1 | tr -d "\"' ")"
+    fi
+    [[ -n "$domain" ]] ||
+        die "set RYLWEEN_DOMAIN, the name players open, in $HERE/.env or the shell; $HERE/README.md explains what it needs."
+    local compose=("$engine" compose -f "$HERE/compose.https.yaml")
+    "${compose[@]}" pull
+    if [[ "$foreground" == true ]]; then
+        exec "${compose[@]}" up
+    fi
+    "${compose[@]}" up -d
+    # The first certificate can take a while.
+    if ! wait_for_http "https://$domain/healthz" 180; then
+        echo "https://$domain/ did not answer within 3 minutes. Check that DNS for $domain" >&2
+        echo "points at this machine and that ports 80 and 443 reach it. Caddy's log says why:" >&2
+        echo "  ${compose[*]} logs caddy" >&2
+        exit 1
+    fi
+    echo "Rylween is up on https://$domain/"
+    echo "  Sysop password: ${compose[*]} exec rylween cat /data/auth/admin-password.txt"
+    echo "  Server log:     ${compose[*]} logs -f rylween"
+    echo "  Proxy log:      ${compose[*]} logs -f caddy"
+    echo "  Stop:           $ROOT/rylween stop"
+}
+
+# The main class each launcher runs, which `stop` checks before it signals a pid.
+main_class() {
+    case "$1" in
+        bitmap) echo rylween.bitmapweb.RylweenBitmapWebRuntimeMainKt ;;
+        ansi) echo rylween.web.RylweenWebRuntimeMainKt ;;
+    esac
+}
+
+serve_launcher() {
+    local game="$1" reach="$2" host="$3" port="$4" foreground="$5" build="$6" name="$7"
+    shift 7
+    local bind launcher save="$DATA_DIR/saves/world.rsave" server_args=()
+    bind="$(bind_address "$reach" "$host")"
+    if [[ "$game" == bitmap ]]; then
+        port="${port:-8081}"
+        launcher="$ROOT/runtimes/runtime-bitmap-web/build/install/rylween-bitmap-web/bin/rylween-bitmap-web"
+        if [[ "$build" == true || ! -x "$launcher" ]]; then
+            gradle :runtime-bitmap-web:installRuntimeBitmapWeb
+        fi
+    else
+        port="${port:-8080}"
+        launcher="$ROOT/runtimes/runtime-web/build/install/rylween-web/bin/rylween-web"
+        if [[ "$build" == true || ! -x "$launcher" || ! -f "$TERMINAL_BUNDLE" ]]; then
+            gradle :tools:emitExternalCompiledBundle :runtime-web:installRuntimeWeb
+        fi
+        server_args+=(--bundle "$TERMINAL_BUNDLE")
+    fi
+    server_args+=(--host "$bind" --port "$port" --data "$DATA_DIR")
+    if [[ -n "$name" ]]; then
+        ensure_terminal_game false
+        seed_named_save "$name" "$save"
+        if [[ "$game" == bitmap ]]; then
+            server_args+=(--user "$name" --load "$save" --save "$save")
+        else
+            server_args+=(--dev-user "$name" --save "$save")
+        fi
+    fi
+    server_args+=("$@")
+    mkdir -p "$DATA_DIR/logs"
+
+    if [[ "$foreground" == true ]]; then
+        exec "$launcher" "${server_args[@]}"
+    fi
+    # Replace a server started earlier; none is fine too.
+    stop_launcher "$game" || true
+    local console="$DATA_DIR/logs/serve-$game.console.log"
+    if command -v setsid >/dev/null 2>&1; then
+        setsid "$launcher" "${server_args[@]}" </dev/null >"$console" 2>&1 &
+    else
+        # macOS has no setsid. nohup ignores SIGHUP, so the server outlives the
+        # terminal; a non-interactive shell starts `&` jobs with SIGINT ignored.
+        nohup "$launcher" "${server_args[@]}" </dev/null >"$console" 2>&1 &
+    fi
+    mkdir -p "$STATE_DIR"
+    echo "$!" >"$STATE_DIR/serve-$game.pid"
+    wait_for_http "http://$bind:$port/healthz" ||
+        die "http://$bind:$port/ did not answer within a minute; see $console"
+    echo "Rylween is up on http://$bind:$port/"
+    echo "  Data:           $DATA_DIR"
+    echo "  Server output:  $console"
+    echo "  Stop:           $ROOT/rylween stop"
+}
+
+# ---------------------------------------------------------------------------
+# stop
+
+# Stops the launcher `serve --no-docker` started for game $1, if it still runs.
+stop_launcher() {
+    local game="$1" pidfile="$STATE_DIR/serve-$1.pid" pid
+    [[ -f "$pidfile" ]] || return 1
+    pid="$(cat "$pidfile")"
+    rm -f "$pidfile"
+    # The pid may have been reused since; signal it only if it still runs the server.
+    ps -p "$pid" -o command= 2>/dev/null | grep -q "$(main_class "$game")" || return 1
+    kill "$pid"
+    local _
+    for _ in {1..30}; do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.2
+    done
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid"
+    echo "Stopped the $game server (pid $pid)."
+}
+
+cmd_stop() {
+    need_checkout stop
+    local stopped=false game engine
+    for game in bitmap ansi; do
+        stop_launcher "$game" && stopped=true
+    done
+    if engine="$(container_engine 2>/dev/null)"; then
+        local lan=("$engine" compose -f "$HERE/compose.yaml" --profile ansi)
+        if [[ -n "$("${lan[@]}" ps -q 2>/dev/null)" ]]; then
+            "${lan[@]}" down
+            stopped=true
+        fi
+        # compose.https.yaml needs RYLWEEN_DOMAIN set even to stop it.
+        local https=(env "RYLWEEN_DOMAIN=${RYLWEEN_DOMAIN:-stopping}" "$engine" compose -f "$HERE/compose.https.yaml")
+        if [[ -n "$("${https[@]}" ps -q 2>/dev/null)" ]]; then
+            "${https[@]}" down
+            stopped=true
+        fi
+    fi
+    [[ "$stopped" == true ]] || echo "Nothing that rylween serve starts was running."
+}
+
+# ---------------------------------------------------------------------------
+# backup
+
+cmd_backup() {
+    local data="$DATA_DIR" volume="" output="" include_logs=false arg
+    while [[ $# -gt 0 ]]; do
+        arg="$1"
+        shift
+        case "$arg" in
+            --data)
+                need_value "$arg" "$@"
+                data="$1"
+                shift
+                ;;
+            --volume)
+                need_value "$arg" "$@"
+                volume="$1"
+                shift
+                ;;
+            --output)
+                need_value "$arg" "$@"
+                output="$1"
+                shift
+                ;;
+            --include-logs) include_logs=true ;;
+            --help | -h)
+                usage
+                return 0
+                ;;
+            *) die "unknown backup option $arg" ;;
+        esac
+    done
+    output="${output:-rylween-backup-$(date -u +%Y%m%dT%H%M%SZ).tar.gz}"
+    mkdir -p "$(dirname "$output")"
+    local directory file
+    directory="$(cd "$(dirname "$output")" && pwd -P)"
+    file="$(basename "$output")"
+    # The saves and the accounts; the logs only when asked, since they can be large
+    # and hold players' activity.
+    local entries="saves auth/users"
+    [[ "$include_logs" == false ]] || entries="$entries logs"
+
+    if [[ -n "$volume" ]]; then
+        local engine
+        engine="$(container_engine)"
+        # The single-quoted program runs in the container's shell, which expands it there.
+        # shellcheck disable=SC2016
+        "$engine" run --rm -v "$volume:/data:ro" -v "$directory:/backup" docker.io/library/alpine:3 sh -c '
+            cd /data && set -- && for entry in '"$entries"'; do [ -e "$entry" ] && set -- "$@" "$entry"; done
+            [ $# -gt 0 ] || { echo "rylween: nothing to back up in the volume." >&2; exit 1; }
+            tar -czf "/backup/'"$file"'" "$@"'
+        echo "Wrote $directory/$file from the $volume volume."
+        return 0
+    fi
+    [[ -d "$data" ]] || die "no data directory at $data"
+    local present=() entry
+    for entry in $entries; do
+        [[ ! -e "$data/$entry" ]] || present+=("$entry")
+    done
+    [[ ${#present[@]} -gt 0 ]] || die "nothing to back up in $data"
+    tar -C "$data" -czf "$directory/$file" "${present[@]}"
+    echo "Wrote $directory/$file from $data."
+}
+
+# ---------------------------------------------------------------------------
+
+case "${1:-}" in
+    play | serve | stop | backup)
+        command="$1"
+        shift
+        ;;
+    help | --help | -h)
+        usage
+        exit 0
+        ;;
+    *) command=play ;;
+esac
+"cmd_$command" "$@"

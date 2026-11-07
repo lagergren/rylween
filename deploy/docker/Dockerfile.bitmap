@@ -1,18 +1,12 @@
-# Production-oriented bitmap web runtime image for running behind a reverse proxy.
+# The bitmap game for the browser, serving plain HTTP and its WebSocket on port
+# 8081. Releases publish it as ghcr.io/lagergren/rylween. `./rylween serve` runs
+# it through deploy/compose.yaml, and deploy/compose.https.yaml puts the released
+# image behind Caddy for HTTPS; deploy/README.md covers both.
 #
-# This image serves plain HTTP/WebSocket internally. Terminate TLS at nginx,
-# Caddy, HAProxy, or a managed load balancer, and connect the proxy to this
-# container over loopback or a private network.
-#
-# Example:
-#   docker build -f deploy/docker/Dockerfile.bitmap-production -t rylween-bitmap-prod .
-#   docker run --rm \
-#     -e RYLWEEN_AUTH_ACCOUNT=admin \
-#     -e RYLWEEN_AUTH_EMAIL=admin@example.test \
-#     -e RYLWEEN_AUTH_PASSWORD='change-this-password' \
-#     -p 127.0.0.1:8081:8081 \
-#     -v rylween-data:/data \
-#     rylween-bitmap-prod
+# By hand, from the repository root:
+#   docker build -f deploy/docker/Dockerfile.bitmap -t rylween-bitmap .
+#   docker run --rm -it -p 127.0.0.1:8081:8081 -v rylween-data:/data \
+#     -e RYLWEEN_AUTH_SECURE_COOKIES=false rylween-bitmap
 
 # The builder runs on the build machine's own platform even when the image is for
 # another: Gradle's output is platform-independent jars and JavaScript, so a

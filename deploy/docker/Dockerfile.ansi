@@ -1,19 +1,12 @@
-# Production-oriented ANSI web runtime image for running behind a reverse proxy.
+# The ANSI game for the browser, serving plain HTTP and its WebSocket on port
+# 8080. `./rylween serve --ansi` runs it through deploy/compose.yaml. It marks
+# the login cookie Secure, for HTTPS behind a proxy, unless
+# RYLWEEN_AUTH_SECURE_COOKIES=false; deploy/README.md covers both.
 #
-# This image still serves plain HTTP internally. TLS, HSTS, request/body limits,
-# and public internet hardening belong at the reverse proxy or load balancer.
-#
-# Example:
-#   docker build -f deploy/docker/Dockerfile.production -t rylween-web-prod .
-#   docker run --rm \
-#     -e RYLWEEN_AUTH_ACCOUNT=admin \
-#     -e RYLWEEN_AUTH_EMAIL=admin@example.test \
-#     -e RYLWEEN_AUTH_PASSWORD='change-this-password' \
-#     -p 127.0.0.1:8080:8080 \
-#     -v rylween-data:/data \
-#     rylween-web-prod
-#
-# Point nginx/Caddy/HAProxy at http://127.0.0.1:8080 and terminate HTTPS there.
+# By hand, from the repository root:
+#   docker build -f deploy/docker/Dockerfile.ansi -t rylween-ansi .
+#   docker run --rm -it -p 127.0.0.1:8080:8080 -v rylween-ansi-data:/data \
+#     -e RYLWEEN_AUTH_SECURE_COOKIES=false rylween-ansi
 
 FROM eclipse-temurin:25-jdk AS builder
 
