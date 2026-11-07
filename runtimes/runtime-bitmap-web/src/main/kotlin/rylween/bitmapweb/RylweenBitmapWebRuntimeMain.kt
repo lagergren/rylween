@@ -22,10 +22,12 @@ import rylween.runtime.RuntimeSessionExitReason
 import rylween.runtime.RuntimeSessionFactory
 import rylween.runtime.WorldMap
 import rylween.runtime.rylweenVersion
+import rylween.webcommon.WebHttpHeader
 import rylween.webcommon.WebHttpRequest
 import rylween.webcommon.WebServerStatus
 import rylween.webcommon.WebSocketConnection
 import rylween.webcommon.WebSocketProtocol
+import rylween.webcommon.WebTrustedProxies
 import rylween.webcommon.auth.WebAccount
 import rylween.webcommon.auth.WebAuthAvailability
 import rylween.webcommon.auth.WebAuthBootstrapAccount
@@ -34,11 +36,13 @@ import rylween.webcommon.auth.WebAuthCookies
 import rylween.webcommon.auth.WebAuthFieldAvailability
 import rylween.webcommon.auth.WebAuthPageMode
 import rylween.webcommon.auth.WebAuthResult
+import rylween.webcommon.auth.WebLoginThrottle
 import rylween.webcommon.auth.WebSessionStore
 import rylween.webcommon.auth.WebSysopAccountResult
 import rylween.webcommon.auth.WebUserStore
 import rylween.webcommon.auth.slugFrom
 import rylween.webcommon.auth.webAuthPageHtml
+import rylween.webcommon.isSameOrigin
 import rylween.webcommon.readHttpRequest
 import rylween.webcommon.redirect
 import rylween.webcommon.respondBytes
@@ -159,6 +163,8 @@ private data class BitmapWebConfig(
     val tileSize: Int,
     /** Where players reach the server, ending in `/`: what a link to it starts with. */
     val publicUrl: String,
+    /** The reverse proxies, such as the Caddy that terminates HTTPS, whose `X-Forwarded-For` names the client. */
+    val trustedProxies: WebTrustedProxies,
 ) {
     val saveDir: File get() = dataDir.resolve("saves")
     val logDir: File get() = dataDir.resolve("logs/runtime-bitmap-web")
@@ -198,6 +204,7 @@ private data class BitmapWebConfig(
             var mapTiles = envOrDefault("RYLWEEN_BITMAP_MAP_TILES", DEFAULT_BITMAP_VIEWPORT_TILES.toString()).toInt()
             var tileSize = envOrDefault("RYLWEEN_BITMAP_TILE_SIZE", DEFAULT_BITMAP_TILE_SIZE.toString()).toInt()
             var publicUrl = optionalEnv("RYLWEEN_PUBLIC_URL")
+            var trustedProxies = optionalEnv("RYLWEEN_TRUSTED_PROXIES").orEmpty()
             var index = 0
             while (index < args.size) {
                 when (val arg = args[index]) {
@@ -269,6 +276,10 @@ private data class BitmapWebConfig(
                         index += 1
                         publicUrl = requiredValue(args, index, arg)
                     }
+                    "--trusted-proxies" -> {
+                        index += 1
+                        trustedProxies = requiredValue(args, index, arg)
+                    }
                     "--help", "-h" -> {
                         printUsage()
                         exitProcess(0)
@@ -294,6 +305,7 @@ private data class BitmapWebConfig(
                 mapTiles,
                 tileSize,
                 publicUrl?.let { url -> url.trimEnd('/') + "/" } ?: defaultPublicUrl(host, port),
+                WebTrustedProxies.parse(trustedProxies),
             )
         }
 
@@ -346,7 +358,7 @@ private data class BitmapWebConfig(
         private fun printUsage() {
             println(
                 """
-                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--data DIR] [--state SLUG] [--bundle FILE] [--user ID] [--load FILE] [--save FILE] [--account NAME --password PASSWORD [--email EMAIL]] [--secure-cookies] [--title|--no-title] [--debug-secrets] [--map-tiles N] [--tile-size PX] [--public-url URL]
+                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--data DIR] [--state SLUG] [--bundle FILE] [--user ID] [--load FILE] [--save FILE] [--account NAME --password PASSWORD [--email EMAIL]] [--secure-cookies] [--title|--no-title] [--debug-secrets] [--map-tiles N] [--tile-size PX] [--public-url URL] [--trusted-proxies RANGES]
 
                 The bitmap runtime uses the embedded :game bundle by default. --bundle can point
                 at build/compiled/rylween-bundle.json to exercise an emitted artifact instead.
@@ -356,6 +368,8 @@ private data class BitmapWebConfig(
                 --debug-secrets enables hidden manual-test wilderness commands, including M for the annotated full map.
                 --public-url (RYLWEEN_PUBLIC_URL) is the address players open, which the server prints once it is up.
                 It defaults to the bind address, with a wildcard read as localhost.
+                --trusted-proxies (RYLWEEN_TRUSTED_PROXIES) lists the reverse proxies, as addresses or CIDR ranges,
+                whose X-Forwarded-For names the client in logs and in the failed-login limit. Default: none.
                 Map defaults: ${DEFAULT_BITMAP_VIEWPORT_TILES}x${DEFAULT_BITMAP_VIEWPORT_TILES} tiles at ${DEFAULT_BITMAP_TILE_SIZE}px.
                 """.trimIndent(),
             )
@@ -402,6 +416,7 @@ private class BitmapWebServer(
     // Players cannot register the sysop account; the server creates it at startup.
     private val userStore = WebUserStore(config.authDir, reservedNames = setOf(secretAccounts.admin))
     private val sessions = WebSessionStore()
+    private val loginThrottle = WebLoginThrottle()
     private val activeUsers = ConcurrentHashMap.newKeySet<String>()
     private val bitmapImageById =
         game.systems.presentation.images
@@ -429,7 +444,7 @@ private class BitmapWebServer(
                 "devUser=${config.userId.orEmpty()} load=${config.loadFile?.path.orEmpty()} " +
                 "save=${config.worldSaveFile.path} title=${config.showTitleMenu} " +
                 "debugSecrets=${config.debugSecrets} mapTiles=${config.mapTiles} tileSize=${config.tileSize} " +
-                "bundle=${game.source} url=${config.entryUrl}",
+                "bundle=${game.source} url=${config.entryUrl} trustedProxies=${serverLogValue(config.trustedProxies.toString())}",
         )
         announceEntry(game.bundle.content.let { content -> content.strings.value(content.universe.nameString) }, config.entryUrl)
         while (!serverSocket.isClosed) {
@@ -499,10 +514,20 @@ private class BitmapWebServer(
     ) {
         val input = socket.getInputStream()
         val request = readHttpRequest(input) ?: return
-        serverLog.event("bitmap.http.request id=$clientId method=${request.method} path=${request.path}")
+        val client = config.trustedProxies.clientAddress(socket.inetAddress, request.header("x-forwarded-for")).hostAddress
+        serverLog.event("bitmap.http.request id=$clientId method=${request.method} path=${request.path} client=$client")
         if (request.method !in setOf("GET", "POST")) {
             serverLog.event("bitmap.http.response id=$clientId status=405 path=${request.path}")
             respondText(socket, "405 Method Not Allowed", "text/plain; charset=utf-8", "GET required\n")
+            return
+        }
+        // A POST or the game's socket, sent by a page from another site, would carry the player's cookies.
+        if ((request.method == "POST" || request.path == "/ws/play") && !request.isSameOrigin(config.publicUrl)) {
+            serverLog.event(
+                "bitmap.http.reject id=$clientId client=$client path=${request.path} reason=cross_origin " +
+                    "origin=${serverLogValue(request.header("origin").orEmpty())}",
+            )
+            respondText(socket, "403 Forbidden", "text/plain; charset=utf-8", "cross-origin request refused\n")
             return
         }
         when (request.path) {
@@ -512,7 +537,7 @@ private class BitmapWebServer(
             "/tools/art-gallery" -> routeArtGallery(socket, request, clientId)
             "/login" -> routeLoginPage(socket, request, clientId)
             "/register" -> routeRegisterPage(socket, request, clientId)
-            "/api/login" -> routeLogin(socket, request, clientId)
+            "/api/login" -> routeLogin(socket, request, clientId, client)
             "/api/register" -> routeRegister(socket, request, clientId)
             "/api/logout" -> routeLogout(socket, request, clientId)
             "/api/auth/availability" -> routeAuthAvailability(socket, request, clientId)
@@ -673,11 +698,35 @@ private class BitmapWebServer(
         socket: Socket,
         request: WebHttpRequest,
         clientId: Long,
+        client: String,
     ) {
         val form = request.formFields()
         val email = form["email"].orEmpty()
+        val wait = loginThrottle.retryAfter(client)
+        if (!wait.isZero) {
+            val minutes = (wait.seconds + 59) / 60
+            serverLog.event(
+                "bitmap.auth.login_throttled id=$clientId client=$client email=${serverLogValue(email)} " +
+                    "retryAfter=${wait.seconds}s",
+            )
+            serverLog.event("bitmap.http.response id=$clientId status=429 path=${request.path}")
+            respondText(
+                socket,
+                "429 Too Many Requests",
+                "text/html; charset=utf-8",
+                webAuthPageHtml(
+                    WebAuthPageMode.Login,
+                    "Too many failed logins. Try again in $minutes minute${if (minutes == 1L) "" else "s"}.",
+                    email,
+                    backgroundImage = "/assets/title/title-rider.png",
+                ),
+                headers = listOf(WebHttpHeader("Retry-After", wait.seconds.toString())),
+            )
+            return
+        }
         when (val result = userStore.authenticate(email, form["password"].orEmpty())) {
             is WebAuthResult.Success -> {
+                loginThrottle.recordSuccess(client)
                 val token = sessions.create(result.account)
                 serverLog.event("bitmap.auth.login id=$clientId user=${result.account.slug} email=${serverLogValue(result.account.email)}")
                 serverLog.event("bitmap.http.response id=$clientId status=303 path=${request.path} location=/play")
@@ -691,8 +740,10 @@ private class BitmapWebServer(
                 )
             }
             is WebAuthResult.Failure -> {
+                loginThrottle.recordFailure(client)
                 serverLog.event(
-                    "bitmap.auth.login_failed id=$clientId email=${serverLogValue(email)} reason=${serverLogValue(result.message)}",
+                    "bitmap.auth.login_failed id=$clientId client=$client email=${serverLogValue(email)} " +
+                        "reason=${serverLogValue(result.message)}",
                 )
                 serverLog.event("bitmap.http.response id=$clientId status=401 path=${request.path}")
                 respondText(

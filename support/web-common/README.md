@@ -4,7 +4,9 @@
 runtimes. Server-specific modules keep their renderer, launcher policy, save
 loading, and game-loop wiring local, but reuse this module for HTTP parsing,
 WebSocket handshakes, authentication, session cookies, shared auth pages, and
-status responses.
+status responses. It also holds the pieces a server on the internet needs: client
+addresses behind a reverse proxy, the same-origin check, and the failed-login
+limit, which only the bitmap server uses so far.
 
 ## Authentication Flow
 
@@ -315,7 +317,28 @@ the browser UI. It currently reports:
 The popover is UI-specific, but the response shape belongs here so both web
 runtimes report the same operational information.
 
+## Behind A Proxy
+
+These are what `deploy/compose.https.yaml` relies on. The bitmap server applies
+them; the ANSI web server does not yet.
+
+- `WebTrustedProxies` turns the connecting address and `X-Forwarded-For` into
+  the client's address. It believes `X-Forwarded-For` only from the configured
+  proxies (`RYLWEEN_TRUSTED_PROXIES`, addresses and CIDR ranges), takes the
+  nearest hop that is not a trusted proxy, and never looks a name up in DNS.
+  The bitmap server logs it as `client=` on every request and failed login.
+- `WebHttpRequest.isSameOrigin` checks a request's `Origin` against the server's
+  public URL (`RYLWEEN_PUBLIC_URL`) or, for any other name, its `Host`. The
+  bitmap server refuses every POST and the `/ws/play` handshake that fail it,
+  with 403. Requests without `Origin` come from outside a browser and pass.
+- `WebLoginThrottle` refuses a client's logins, with 429 and `Retry-After`, after
+  10 failures within 15 minutes, until 15 minutes after the first. A successful
+  login clears the count; counts live in memory.
+
 ## Production Hardening
+
+`deploy/README.md` sets up items 1 to 5 below, and the headers of item 16 other
+than `Content-Security-Policy`, with Caddy in `deploy/compose.https.yaml`.
 
 The current implementation is suitable for local development and small
 self-hosted testing. To turn it into a commercial-strength HTTPS web app, do the
@@ -347,13 +370,16 @@ following before exposing it publicly.
    environment file with locked permissions, Docker/Kubernetes secret, or cloud
    secret manager.
 
-6. Add CSRF protection for `POST /api/login`, `POST /api/register`, and
-   `POST /api/logout`. `SameSite=Lax` is useful, but commercial deployments
-   should use explicit CSRF tokens for state-changing forms. The routes do not
-   check the HTTP method today, so `GET /api/logout` also logs out.
+6. Strengthen CSRF protection. The bitmap server refuses POSTs from another
+   site's page by their `Origin` (see Behind A Proxy), and `SameSite=Lax` keeps
+   the session cookie off cross-site POSTs. Explicit CSRF tokens would add a
+   second layer, and the ANSI web server needs the `Origin` check too. The
+   routes do not check the HTTP method today, so `GET /api/logout` also logs
+   out.
 
-7. Add login throttling and abuse controls: per-IP and per-account rate limits,
-   temporary lockout/backoff, and alerting for repeated failures. OWASP's
+7. Extend login throttling. The bitmap server limits failed logins per client
+   address (see Behind A Proxy). Per-account limits, alerting on repeated
+   failures, and the same limit in the ANSI web server remain. OWASP's
    authentication guidance calls out protections against automated attacks:
    <https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html>.
 
