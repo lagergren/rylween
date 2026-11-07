@@ -8,9 +8,13 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # The release workflow runs these checks before it releases.
+  workflow_call:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # Called from the release workflow, github.workflow is that workflow's name, so a
+  # push to main cannot cancel a release's checks.
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

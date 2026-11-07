@@ -130,9 +130,10 @@ borders and decorative art. Gameplay text is unaffected.
 
 ## The Code
 
-The current version is 0.9.1, set by `rylween.version` in `gradle.properties`.
-It shows on the title menu, in the bitmap page's title bar, in `/api/status`,
-and in the `log.open` line of every runtime log.
+The version is set in one place, `rylween.version` in `gradle.properties`, and
+shows on the title menu, in the bitmap page's title bar, in `/api/status`, and
+in the `log.open` line of every runtime log. Between releases it is the snapshot
+of the next patch release, `X.Y.Z-SNAPSHOT`; see [Releasing](#releasing).
 
 The current runnable Kotlin game is the `:runtime` project. Shared
 DSL/compiler and compiled-bundle contracts live under `:core`, authored game
@@ -199,6 +200,33 @@ tests keep their logs, saves, and autopilot reports in
 `runtimes/runtime/build/test-logs/<TestClass>/<testMethod>/`. CI uploads both as
 the `test-logs` artifact. The browser smoke check is not part of `check`; run it
 with `./gradlew :runtime-bitmap-web:checkBitmapBrowserSmoke --console=plain`.
+
+## Releasing
+
+Releases come from `main`, through the release workflow
+(`.github/workflows/release.yml`), which only ever starts by hand. To start it
+from a checkout, with the GitHub CLI `gh` logged in:
+
+```sh
+./gradlew releaseDist --console=plain
+./gradlew releaseDist -Prylween.release.dryRun=true --console=plain   # pushes and publishes nothing
+```
+
+With `main` at `X.Y.Z-SNAPSHOT`, the workflow runs the CI checks, commits
+`X.Y.Z` and tags it `vX.Y.Z`, and builds and smoke-tests the two downloads: the
+bitmap web game as the image `ghcr.io/lagergren/rylween:X.Y.Z` (also `:latest`)
+for linux/amd64 and linux/arm64, and the terminal game as
+`rylween-terminal-X.Y.Z.zip` (`./gradlew :runtime:terminalDistZip`), which runs
+with `bin/rylween` on Java 25 or newer. It then moves `main` to
+`X.Y.(Z+1)-SNAPSHOT` and publishes the GitHub release with the zip and a
+`compose.yaml` that pulls the image. It refuses a version without `-SNAPSHOT`
+and a version that is tagged already. For a minor or major release, first set
+`rylween.version` to its snapshot, such as `X.(Y+1).0-SNAPSHOT`, in a pull
+request.
+
+`main` takes only pull requests, so the workflow pushes its commits with a
+deploy key that the "Require PRs and CI on main" ruleset lets bypass that, kept
+in the `RELEASE_DEPLOY_KEY` repository secret.
 
 ## Cleanup
 

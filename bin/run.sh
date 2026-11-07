@@ -2,9 +2,19 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-INSTALL_HOME="$ROOT_DIR/runtimes/runtime/build/install/rylween"
-LAUNCHER="$INSTALL_HOME/bin/rylween"
-BUNDLE="$ROOT_DIR/build/compiled/rylween-bundle.json"
+# In the terminal game's release download (./gradlew :runtime:terminalDistZip)
+# this script is bin/rylween, next to the runtime's own start script and the
+# compiled bundle. In a checkout it builds both when needed.
+if [[ -f "$ROOT_DIR/rylween-bundle.json" ]]; then
+  distribution=true
+  LAUNCHER="$ROOT_DIR/bin/rylween-runtime"
+  BUNDLE="$ROOT_DIR/rylween-bundle.json"
+else
+  distribution=false
+  INSTALL_HOME="$ROOT_DIR/runtimes/runtime/build/install/rylween"
+  LAUNCHER="$INSTALL_HOME/bin/rylween"
+  BUNDLE="$ROOT_DIR/build/compiled/rylween-bundle.json"
+fi
 DATA_DIR="${RYLWEEN_DATA_DIR:-$HOME/.rylween/data}"
 DEFAULT_SAVE_FILE="${RYLWEEN_SAVE_FILE:-$DATA_DIR/saves/world.rsave}"
 DEFAULT_LOG_FILE="${RYLWEEN_LOG_FILE:-$DATA_DIR/logs/runtime/latest.log}"
@@ -118,6 +128,10 @@ done
 mkdir -p "$(dirname "$DEFAULT_SAVE_FILE")" "$(dirname "$DEFAULT_LOG_FILE")"
 
 if [[ "$build" == true || ! -x "$LAUNCHER" || ! -f "$BUNDLE" ]]; then
+  if [[ "$distribution" == true ]]; then
+    echo "--build needs a source checkout; this download comes built." >&2
+    exit 2
+  fi
   (cd "$ROOT_DIR" && ./gradlew :tools:emitExternalCompiledBundle :runtime:installRuntime --console=plain)
 fi
 
@@ -217,6 +231,11 @@ ensure_named_save
 
 if [[ "$title_seen" == false ]]; then
   args=("--title" "${args[@]}")
+fi
+
+# A release download is never rebuilt, so it runs in place.
+if [[ "$distribution" == true ]]; then
+  exec "$LAUNCHER" "${args[@]}"
 fi
 
 RUN_PARENT="$(mktemp -d "${TMPDIR:-/tmp}/rylween-run.XXXXXX")"

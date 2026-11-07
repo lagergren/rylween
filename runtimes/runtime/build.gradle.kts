@@ -53,6 +53,36 @@ val runtimeClasspathConfig: Configuration = configurations.runtimeClasspath.get(
 val runtimeJars: FileCollection =
     runtimeClasspathConfig.filter { file -> file.isFile && file.extension == "jar" }
 
+/** Gives build-script providers a configuration-cache-safe way to open jars. */
+interface InjectedArchives {
+    @get:Inject
+    val archives: ArchiveOperations
+}
+
+// The terminal game never shows the bitmap paintings that make up most of :game's jar, so its launcher, installed and
+// in the release zip, runs with a copy of that jar without them.
+val gameJars: FileCollection =
+    runtimeClasspathConfig.incoming
+        .artifactView {
+            componentFilter { id -> id is ProjectComponentIdentifier && id.projectPath == ":game" }
+        }.files
+val terminalGameJar: TaskProvider<Jar> =
+    tasks.register<Jar>("terminalGameJar") {
+        group = "build"
+        description = "Copies :game's jar without the bitmap paintings, which the terminal game never shows."
+
+        // A local, so the lambda below captures only the service and not this build script.
+        val archives = objects.newInstance<InjectedArchives>().archives
+        archiveBaseName.set("rylween-game-terminal")
+        destinationDirectory.set(layout.buildDirectory.dir("terminal-game"))
+        from(gameJars.elements.map { jars -> jars.map { jar -> archives.zipTree(jar.asFile) } }) {
+            // The copy gets a manifest of its own.
+            exclude("META-INF/MANIFEST.MF")
+            exclude("bitmap/**")
+        }
+    }
+val launcherJars: FileCollection = files(runtimeJarFile, terminalGameJar) + (runtimeJars - gameJars)
+
 tasks.processResources {
     // Stamps rylween.version into the runtime, which shows it on the title menu and in every log.
     val rylweenVersion = project.version.toString()
@@ -127,7 +157,7 @@ val runtimeStartScripts: TaskProvider<CreateStartScripts> =
                 .dir("scripts/runtimeApp")
                 .get()
                 .asFile
-        classpath = files(runtimeJarFile) + runtimeJars
+        classpath = launcherJars
     }
 
 val installRuntime: TaskProvider<Sync> =
@@ -143,8 +173,43 @@ val installRuntime: TaskProvider<Sync> =
                 unix("rwxr-xr-x")
             }
         }
-        from(files(runtimeJarFile) + runtimeJars) {
+        from(launcherJars) {
             into("lib")
+        }
+    }
+
+// The terminal game as a release download. Its bin/rylween is bin/run.sh, which finds the runtime's own start script,
+// renamed bin/rylween-runtime, and the compiled bundle beside it, and keeps saves and logs under ~/.rylween/data.
+val terminalDistZip: TaskProvider<Zip> =
+    tasks.register<Zip>("terminalDistZip") {
+        group = "distribution"
+        description = "Packages the terminal game, its launcher, and the compiled bundle as the release download."
+
+        dependsOn(":tools:emitExternalCompiledBundle")
+        val distributionName = "rylween-terminal-${project.version}"
+        archiveFileName.set("$distributionName.zip")
+        destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+        into(distributionName) {
+            from(rootProject.layout.projectDirectory.file("bin/run.sh")) {
+                into("bin")
+                rename { "rylween" }
+                filePermissions {
+                    unix("rwxr-xr-x")
+                }
+            }
+            from(runtimeStartScripts) {
+                into("bin")
+                include("rylween")
+                rename { "rylween-runtime" }
+                filePermissions {
+                    unix("rwxr-xr-x")
+                }
+            }
+            from(launcherJars) {
+                into("lib")
+            }
+            from(externalBundleArtifact)
+            from(rootProject.layout.projectDirectory.files("LICENSE", "NOTICE"))
         }
     }
 

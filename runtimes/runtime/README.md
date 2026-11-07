@@ -14,11 +14,12 @@ It contains:
 - The installed `rylween` launcher (`:runtime:installRuntime`, under
   `runtimes/runtime/build/install/rylween`) used by `bin/run.sh`, the scripted
   `checkRuntime*` checks, the runtime tests, and the bitmap browser smoke's seed
-  step.
+  step. It, and the terminal game's release zip, run with a copy of `:game`'s
+  jar without the bitmap paintings, which the terminal never shows.
 
 The build stamps `rylween.version` from `gradle.properties` into the runtime.
-The title menu shows it (for example `v0.9.1`), and every runtime log opens with
-`log.open path=... version=0.9.1`.
+The title menu shows it as `vX.Y.Z` (`vX.Y.Z-SNAPSHOT` between releases), and
+every runtime log opens with `log.open path=... version=X.Y.Z`.
 
 The bitmap and browser ANSI servers reuse this backend. Keep game mechanics and
 input-command semantics here when they should behave identically across views.
