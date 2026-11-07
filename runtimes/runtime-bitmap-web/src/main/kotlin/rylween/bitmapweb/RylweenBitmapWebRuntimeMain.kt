@@ -157,6 +157,8 @@ private data class BitmapWebConfig(
     val debugSecrets: Boolean,
     val mapTiles: Int,
     val tileSize: Int,
+    /** Where players reach the server, ending in `/`: what a link to it starts with. */
+    val publicUrl: String,
 ) {
     val saveDir: File get() = dataDir.resolve("saves")
     val logDir: File get() = dataDir.resolve("logs/runtime-bitmap-web")
@@ -164,6 +166,9 @@ private data class BitmapWebConfig(
     val serverLogFile: File get() = logDir.resolve("server.log")
     val worldSaveFile: File get() = saveFile ?: saveDir.resolve("world.rsave")
     val authRequired: Boolean get() = userId == null
+
+    /** The link to play: the login page, or the game itself in a --user session, which needs no login. */
+    val entryUrl: String get() = publicUrl + if (authRequired) "login" else ""
 
     fun ensureDataDirectories() {
         Files.createDirectories(saveDir.toPath())
@@ -192,6 +197,7 @@ private data class BitmapWebConfig(
             var debugSecrets = optionalEnv("RYLWEEN_BITMAP_DEBUG_SECRETS") == "true"
             var mapTiles = envOrDefault("RYLWEEN_BITMAP_MAP_TILES", DEFAULT_BITMAP_VIEWPORT_TILES.toString()).toInt()
             var tileSize = envOrDefault("RYLWEEN_BITMAP_TILE_SIZE", DEFAULT_BITMAP_TILE_SIZE.toString()).toInt()
+            var publicUrl = optionalEnv("RYLWEEN_PUBLIC_URL")
             var index = 0
             while (index < args.size) {
                 when (val arg = args[index]) {
@@ -259,6 +265,10 @@ private data class BitmapWebConfig(
                         index += 1
                         tileSize = requiredValue(args, index, arg).toInt()
                     }
+                    "--public-url" -> {
+                        index += 1
+                        publicUrl = requiredValue(args, index, arg)
+                    }
                     "--help", "-h" -> {
                         printUsage()
                         exitProcess(0)
@@ -283,7 +293,25 @@ private data class BitmapWebConfig(
                 debugSecrets,
                 mapTiles,
                 tileSize,
+                publicUrl?.let { url -> url.trimEnd('/') + "/" } ?: defaultPublicUrl(host, port),
             )
+        }
+
+        /**
+         * The address to advertise when none is given: the bind address, where a wildcard means this machine. In a
+         * container that is localhost with the same port, as the documented `docker run -p 127.0.0.1:8081:8081` maps it.
+         */
+        private fun defaultPublicUrl(
+            host: String,
+            port: Int,
+        ): String {
+            val reachableHost =
+                when {
+                    host == "0.0.0.0" || host == "::" -> "localhost"
+                    ':' in host -> "[$host]"
+                    else -> host
+                }
+            return "http://$reachableHost:$port/"
         }
 
         private fun envOrDefault(
@@ -318,7 +346,7 @@ private data class BitmapWebConfig(
         private fun printUsage() {
             println(
                 """
-                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--data DIR] [--state SLUG] [--bundle FILE] [--user ID] [--load FILE] [--save FILE] [--account NAME --password PASSWORD [--email EMAIL]] [--secure-cookies] [--title|--no-title] [--debug-secrets] [--map-tiles N] [--tile-size PX]
+                Usage: rylween-bitmap-web [--host HOST] [--port PORT] [--data DIR] [--state SLUG] [--bundle FILE] [--user ID] [--load FILE] [--save FILE] [--account NAME --password PASSWORD [--email EMAIL]] [--secure-cookies] [--title|--no-title] [--debug-secrets] [--map-tiles N] [--tile-size PX] [--public-url URL]
 
                 The bitmap runtime uses the embedded :game bundle by default. --bundle can point
                 at build/compiled/rylween-bundle.json to exercise an emitted artifact instead.
@@ -326,6 +354,8 @@ private data class BitmapWebConfig(
                 --account/--password ensures an auth account exists before the server starts.
                 --secure-cookies adds the Secure cookie attribute for HTTPS deployments.
                 --debug-secrets enables hidden manual-test wilderness commands, including M for the annotated full map.
+                --public-url (RYLWEEN_PUBLIC_URL) is the address players open, which the server prints once it is up.
+                It defaults to the bind address, with a wildcard read as localhost.
                 Map defaults: ${DEFAULT_BITMAP_VIEWPORT_TILES}x${DEFAULT_BITMAP_VIEWPORT_TILES} tiles at ${DEFAULT_BITMAP_TILE_SIZE}px.
                 """.trimIndent(),
             )
@@ -399,8 +429,9 @@ private class BitmapWebServer(
                 "devUser=${config.userId.orEmpty()} load=${config.loadFile?.path.orEmpty()} " +
                 "save=${config.worldSaveFile.path} title=${config.showTitleMenu} " +
                 "debugSecrets=${config.debugSecrets} mapTiles=${config.mapTiles} tileSize=${config.tileSize} " +
-                "bundle=${game.source}",
+                "bundle=${game.source} url=${config.entryUrl}",
         )
+        announceEntry(game.bundle.content.let { content -> content.strings.value(content.universe.nameString) }, config.entryUrl)
         while (!serverSocket.isClosed) {
             val socket = serverSocket.accept()
             executor.execute { handleClient(socket) }
@@ -1106,6 +1137,25 @@ private fun String.jsonString(): String =
 
 private fun streamServerLog(line: String) {
     println("[rylween-bitmap] $line")
+}
+
+/**
+ * Tells whoever started the server where to play, once it accepts connections. The link has a line of its own, so
+ * terminals make all of it, and nothing more, clickable.
+ */
+private fun announceEntry(
+    gameName: String,
+    url: String,
+) {
+    println(
+        """
+        |
+        |$gameName $rylweenVersion is up. To play, open:
+        |
+        |    $url
+        |
+        """.trimMargin(),
+    )
 }
 
 private fun serverLogValue(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""

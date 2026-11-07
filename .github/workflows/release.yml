@@ -237,13 +237,14 @@ jobs:
           cat > "$RUNNER_TEMP/notes.md" <<EOF
           ## Host the bitmap game
 
-          With Docker or Podman, on linux/amd64 or linux/arm64:
+          With Docker or Podman, on linux/amd64 or linux/arm64, one command downloads and starts it:
 
-              docker run -d --name rylween -p 127.0.0.1:8081:8081 -v rylween-data:/data -e RYLWEEN_AUTH_SECURE_COOKIES=false $IMAGE:$RELEASE
+              docker run --rm -it --name rylween -p 127.0.0.1:8081:8081 -v rylween-data:/data -e RYLWEEN_AUTH_SECURE_COOKIES=false $IMAGE:$RELEASE
 
-          Then open http://127.0.0.1:8081/ and register an account. The sysop account's generated password is in
-          \`/data/auth/admin-password.txt\`: \`docker exec rylween cat /data/auth/admin-password.txt\`. Saves,
-          accounts, and logs live on the \`/data\` volume. Behind an HTTPS proxy, leave out the secure cookies setting.
+          Once it is up it prints the link to open, http://localhost:8081/login, where you register an account.
+          Ctrl-C stops it. The sysop account's generated password is in \`/data/auth/admin-password.txt\`:
+          \`docker exec rylween cat /data/auth/admin-password.txt\`. Saves, accounts, and logs live on the
+          \`/data\` volume. Behind an HTTPS proxy, leave out the secure cookies setting.
 
           Or download \`compose.yaml\` and run \`docker compose up -d\` next to it. Its header lists the settings.
 

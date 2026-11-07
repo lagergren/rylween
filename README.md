@@ -50,6 +50,32 @@ from [`game/src/main/resources/bitmap/assets`](game/src/main/resources/bitmap/as
 
 ## Running The Game
 
+### With Only Docker or Podman
+
+Each release is published as an image, so a machine with Docker or Podman and
+internet access needs nothing else: no checkout, no git, no JDK. One command
+downloads the latest release and starts the bitmap game:
+
+```sh
+docker run --rm -it --pull always --name rylween -p 127.0.0.1:8081:8081 -v rylween-data:/data -e RYLWEEN_AUTH_SECURE_COOKIES=false ghcr.io/lagergren/rylween
+```
+
+With Podman, write `podman` for `docker`. Once the server is up it prints the
+link to open, `http://localhost:8081/login`, where you register an account.
+Ctrl-C stops it. Saves and accounts stay on the `rylween-data` volume, and the
+next run picks up any newer release. The image expects HTTPS by default;
+`RYLWEEN_AUTH_SECURE_COOKIES=false` lets logins work over plain HTTP on this
+machine. On another port, say 9000, publish `-p 127.0.0.1:9000:8081` and add
+`-e RYLWEEN_PUBLIC_URL=http://localhost:9000` so the printed link matches.
+
+On a Mac, Homebrew installs either one. `brew install docker` alone installs
+only the client, without the engine that runs the containers:
+
+```sh
+brew install podman && podman machine init --now   # Podman, and the Linux VM it runs containers in
+brew install --cask docker                          # or Docker Desktop; start it once from Applications
+```
+
 ### On Your Network: `./deploy.sh`
 
 ```sh
