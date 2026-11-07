@@ -19,6 +19,12 @@
 # multi-platform build compiles once, and only the JRE stage below differs.
 FROM --platform=$BUILDPLATFORM eclipse-temurin:25-jdk AS builder
 
+# The Node.js that Gradle downloads to compile the TypeScript client (nodejs in
+# gradle/libs.versions.toml) needs libatomic, which the JDK image leaves out.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src
 
 COPY gradle/wrapper gradle/wrapper
