@@ -52,7 +52,7 @@ Run bare, the server plays the game built into its jar unless `--bundle` or
 
 ## Play Page
 
-The title bar reads "Adventurers of Rylween (v0.9.1)", with the version from
+The title bar reads "Adventurers of Rylween (vX.Y.Z)", with the version from
 `/api/status`, which the Status panel also lists; the title menu shows the
 version in its bottom-right corner.
 

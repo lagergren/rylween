@@ -14,7 +14,10 @@
 #     -v rylween-data:/data \
 #     rylween-bitmap-prod
 
-FROM eclipse-temurin:25-jdk AS builder
+# The builder runs on the build machine's own platform even when the image is for
+# another: Gradle's output is platform-independent jars and JavaScript, so a
+# multi-platform build compiles once, and only the JRE stage below differs.
+FROM --platform=$BUILDPLATFORM eclipse-temurin:25-jdk AS builder
 
 WORKDIR /src
 

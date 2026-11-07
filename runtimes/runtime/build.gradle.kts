@@ -148,6 +148,41 @@ val installRuntime: TaskProvider<Sync> =
         }
     }
 
+// The terminal game as a release download. Its bin/rylween is bin/run.sh, which finds the runtime's own start script,
+// renamed bin/rylween-runtime, and the compiled bundle beside it, and keeps saves and logs under ~/.rylween/data.
+val terminalDistZip: TaskProvider<Zip> =
+    tasks.register<Zip>("terminalDistZip") {
+        group = "distribution"
+        description = "Packages the terminal game, its launcher, and the compiled bundle as the release download."
+
+        dependsOn(":tools:emitExternalCompiledBundle")
+        val distributionName = "rylween-terminal-${project.version}"
+        archiveFileName.set("$distributionName.zip")
+        destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+        into(distributionName) {
+            from(rootProject.layout.projectDirectory.file("bin/run.sh")) {
+                into("bin")
+                rename { "rylween" }
+                filePermissions {
+                    unix("rwxr-xr-x")
+                }
+            }
+            from(runtimeStartScripts) {
+                into("bin")
+                include("rylween")
+                rename { "rylween-runtime" }
+                filePermissions {
+                    unix("rwxr-xr-x")
+                }
+            }
+            from(files(runtimeJarFile) + runtimeJars) {
+                into("lib")
+            }
+            from(externalBundleArtifact)
+            from(rootProject.layout.projectDirectory.files("LICENSE", "NOTICE"))
+        }
+    }
+
 tasks.withType<RunInstalledLauncherWithJavaTask>().configureEach {
     dependsOn(":tools:emitExternalCompiledBundle")
     executableFile.set(runtimeExecutable)

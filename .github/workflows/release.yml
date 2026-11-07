@@ -1,0 +1,270 @@
+# Releases the -SNAPSHOT version on main. Only ever started by hand: `./gradlew releaseDist`,
+# or "Run workflow" on the Actions tab. With rylween.version X.Y.Z-SNAPSHOT in gradle.properties it
+#   1. fails unless the version is a snapshot whose release is not tagged yet,
+#   2. runs the CI checks,
+#   3. commits X.Y.Z as "Release X.Y.Z" and tags that commit vX.Y.Z,
+#   4. builds the terminal game zip and the bitmap web image from it, and smoke-tests both,
+#   5. pushes ghcr.io/<owner>/rylween:X.Y.Z and :latest, for linux/amd64 and linux/arm64,
+#   6. commits X.Y.(Z+1)-SNAPSHOT as "Start X.Y.(Z+1)-SNAPSHOT", and pushes both commits to
+#      main together with the tag,
+#   7. publishes the GitHub release vX.Y.Z with the zip and a compose.yaml that runs the image.
+# A dry run, which works from any branch, does all of that but push and publish, and keeps the
+# zip and compose.yaml as workflow artifacts instead.
+#
+# main takes only pull requests, so the release pushes over SSH with a deploy key, kept in the
+# RELEASE_DEPLOY_KEY secret, that the "Require PRs and CI on main" ruleset lets bypass that.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build and smoke-test everything, but push and publish nothing.
+        type: boolean
+        default: false
+
+# One release at a time, and never cancelled halfway.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      release: ${{ steps.version.outputs.release }}
+    steps:
+      - name: Refuse to release from a branch other than main
+        if: ${{ !inputs.dry-run && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::Releases come from main, not $GITHUB_REF_NAME. A dry run works from any branch."
+          exit 1
+
+      - name: Require the deploy key that pushes to main
+        if: ${{ !inputs.dry-run }}
+        env:
+          RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
+        run: |
+          if [ -z "$RELEASE_DEPLOY_KEY" ]; then
+            echo "::error::Without the RELEASE_DEPLOY_KEY secret the release cannot push to main."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # setReleaseVersion fails unless rylween.version is a snapshot.
+      - name: Work out the release version
+        id: version
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          ./gradlew --console=plain setReleaseVersion
+          release="$(sed -n 's/^rylween\.version=//p' gradle.properties)"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$release" > /dev/null; then
+            echo "::error::v$release is tagged already, so main should be past $release-SNAPSHOT."
+            exit 1
+          fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          dry_run_note=""
+          [ "$DRY_RUN" = true ] && dry_run_note=" (dry run)"
+          echo "Releasing $release from ${GITHUB_SHA::8}$dry_run_note." >> "$GITHUB_STEP_SUMMARY"
+
+  check:
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: [version, check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write # the tag and the GitHub release
+      packages: write # the image on ghcr.io
+    env:
+      RELEASE: ${{ needs.version.outputs.release }}
+      IMAGE: ghcr.io/${{ github.repository }}
+      # The downloads attached to the release. Inside build/, so the image build ignores them.
+      DIST: build/release
+    steps:
+      # With the deploy key, git pushes over SSH as that key. Without it (a dry run) the checkout
+      # uses the workflow's token, and nothing is pushed.
+      - uses: actions/checkout@v7
+        with:
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Commit and tag the release version
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          ./gradlew --console=plain setReleaseVersion
+          git commit --message "Release $RELEASE" -- gradle.properties
+          git tag --annotate "v$RELEASE" --message "Adventurers of Rylween $RELEASE"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build the terminal game zip
+        run: |
+          ./gradlew --console=plain :runtime:terminalDistZip
+          mkdir -p "$DIST"
+          cp "runtimes/runtime/build/distributions/rylween-terminal-$RELEASE.zip" "$DIST/"
+
+      # Unpacks the zip and leaves from its title menu, which must show the release version.
+      - name: Smoke-test the terminal game zip
+        run: |
+          work="$(mktemp -d)"
+          unzip -q "$DIST/rylween-terminal-$RELEASE.zip" -d "$work"
+          HOME="$work" "$work/rylween-terminal-$RELEASE/bin/rylween" --script X > "$work/screen.txt"
+          if ! grep -q "v$RELEASE" "$work/screen.txt" || grep -q SNAPSHOT "$work/screen.txt"; then
+            cat "$work/screen.txt"
+            echo "::error::The zip's title menu does not show v$RELEASE."
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build the image for the smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.bitmap-production
+          platforms: linux/amd64
+          load: true
+          tags: rylween:smoke
+
+      # Waits for the server to answer, as deploy.sh does (/api/status answers 401 without a
+      # login), and checks the version in the server log's first line.
+      - name: Smoke-test the image
+        run: |
+          docker run --detach --name rylween-smoke --publish 127.0.0.1:8081:8081 rylween:smoke
+          up=false
+          for _ in $(seq 60); do
+            if curl --silent --output /dev/null --max-time 2 http://127.0.0.1:8081/api/status; then
+              up=true
+              break
+            fi
+            sleep 1
+          done
+          docker logs rylween-smoke > "$RUNNER_TEMP/smoke.log" 2>&1
+          docker rm --force rylween-smoke > /dev/null
+          cat "$RUNNER_TEMP/smoke.log"
+          if [ "$up" != true ]; then
+            echo "::error::The image's server did not answer within a minute."
+            exit 1
+          fi
+          if ! grep -q "log.open .*version=$RELEASE" "$RUNNER_TEMP/smoke.log" || grep -q SNAPSHOT "$RUNNER_TEMP/smoke.log"; then
+            echo "::error::The image's server does not log version $RELEASE."
+            exit 1
+          fi
+
+      - name: Log in to the GitHub container registry
+        if: ${{ !inputs.dry-run }}
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Reuses the smoke test's amd64 build. The arm64 image needs no emulation: its stage only
+      # copies the builder's platform-independent output onto the arm64 JRE.
+      - name: Build the image for both platforms, and push it
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.bitmap-production
+          platforms: linux/amd64,linux/arm64
+          push: ${{ !inputs.dry-run }}
+          tags: |
+            ${{ env.IMAGE }}:${{ env.RELEASE }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.title=Adventurers of Rylween
+            org.opencontainers.image.version=${{ env.RELEASE }}
+            org.opencontainers.image.revision=${{ steps.commit.outputs.revision }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Commit the next snapshot version
+        run: |
+          ./gradlew --console=plain setNextSnapshotVersion
+          next="$(sed -n 's/^rylween\.version=//p' gradle.properties)"
+          git commit --message "Start $next" -- gradle.properties
+          echo "main moves on to $next." >> "$GITHUB_STEP_SUMMARY"
+
+      # All or nothing. When main has moved on since the release started, nothing is pushed, and
+      # running the release again rebuilds the same version and pushes its image over this one.
+      - name: Push both commits to main, and the tag
+        if: ${{ !inputs.dry-run }}
+        run: git push --atomic origin HEAD:refs/heads/main "refs/tags/v$RELEASE"
+
+      # The checked-in compose.yaml builds the image from a checkout. The release's copy pulls
+      # this release's image instead.
+      - name: Write the release's compose.yaml
+        run: |
+          {
+            echo "# Adventurers of Rylween $RELEASE. \`docker compose up -d\` next to this file pulls"
+            echo "# $IMAGE:$RELEASE; the notes below on --build and deploy.sh are for a source checkout."
+            echo "#"
+            yq --indent 4 \
+              '.services.rylween.image = strenv(IMAGE) + ":" + strenv(RELEASE) | del(.services.rylween.build)' \
+              deploy/compose.yaml
+          } > "$DIST/compose.yaml"
+
+      - name: Publish the GitHub release
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          ## Host the bitmap game
+
+          With Docker or Podman, on linux/amd64 or linux/arm64:
+
+              docker run -d --name rylween -p 127.0.0.1:8081:8081 -v rylween-data:/data -e RYLWEEN_AUTH_SECURE_COOKIES=false $IMAGE:$RELEASE
+
+          Then open http://127.0.0.1:8081/ and register an account. The sysop account's generated password is in
+          \`/data/auth/admin-password.txt\`: \`docker exec rylween cat /data/auth/admin-password.txt\`. Saves,
+          accounts, and logs live on the \`/data\` volume. Behind an HTTPS proxy, leave out the secure cookies setting.
+
+          Or download \`compose.yaml\` and run \`docker compose up -d\` next to it. Its header lists the settings.
+
+          ## Play the ANSI game in a terminal
+
+          Download \`rylween-terminal-$RELEASE.zip\`, unzip it, and run \`rylween-terminal-$RELEASE/bin/rylween\`.
+          It needs Java 25 or newer, and a terminal of at least 80 columns by 25 rows. Saves and logs go to
+          \`~/.rylween/data\`.
+          EOF
+          gh release create "v$RELEASE" \
+            --verify-tag \
+            --title "Adventurers of Rylween $RELEASE" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes \
+            "$DIST/rylween-terminal-$RELEASE.zip" \
+            "$DIST/compose.yaml"
+
+      - name: Keep the dry run's downloads
+        if: ${{ inputs.dry-run }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ env.RELEASE }}-dry-run
+          path: ${{ env.DIST }}/
+          retention-days: 7

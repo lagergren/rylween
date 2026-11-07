@@ -6,7 +6,9 @@
   `bin/run-server.sh --build`.
 - `Dockerfile.production` builds the production-oriented ANSI web runtime image.
 - `Dockerfile.bitmap-production` builds the production-oriented bitmap web
-  runtime image.
+  runtime image. Each release publishes it as `ghcr.io/lagergren/rylween:X.Y.Z`
+  and `:latest`, for linux/amd64 and linux/arm64; see Releasing in the root
+  README.
 
 `Dockerfile` and `Dockerfile.production` serve the ANSI web runtime on port
 8080; `Dockerfile.bitmap-production` serves the bitmap runtime on port 8081. All

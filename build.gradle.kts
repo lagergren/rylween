@@ -1,16 +1,20 @@
-// Root build aggregation for shared versioning, verification wiring, and cleanup.
+// Root build aggregation for shared versioning, verification wiring, release tasks, and cleanup.
+import rylween.gradle.RYLWEEN_VERSION_PROPERTY
+import rylween.gradle.RylweenVersion
+
 plugins {
     base
+    id("rylween.release-conventions")
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.gradle.versions)
     alias(libs.plugins.version.catalog.update)
 }
 
 group = "org.rylween"
-version =
-    providers
-        .gradleProperty("rylween.version")
-        .get()
+
+// rylween.version in gradle.properties is the one place the version is set, and anything but X.Y.Z or
+// X.Y.Z-SNAPSHOT fails the build here. The subprojects take it from this project.
+version = RylweenVersion.parse(providers.gradleProperty(RYLWEEN_VERSION_PROPERTY).get()).toString()
 
 versionCatalogUpdate {
     // jdk, nodejs and ktlint are read as plain versions rather than through a library or

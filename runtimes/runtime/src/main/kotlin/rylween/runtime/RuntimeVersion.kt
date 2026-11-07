@@ -1,11 +1,11 @@
-/** Release version the build stamps into the runtime from `rylween.version` in gradle.properties. */
+/** The version the build stamps into the runtime from `rylween.version` in gradle.properties. */
 
 package rylween.runtime
 
 private const val VERSION_RESOURCE = "rylween/runtime/version.txt"
 
-/** The release version, e.g. `0.9`. */
+/** The version: `X.Y.Z` in a release, `X.Y.Z-SNAPSHOT` between releases. */
 val rylweenVersion: String = runtimeResourceText(VERSION_RESOURCE).trim()
 
-/** The release version as players see it, e.g. `v0.9`. */
+/** The version as players see it, `v` and [rylweenVersion]. */
 val rylweenVersionLabel: String = "v$rylweenVersion"

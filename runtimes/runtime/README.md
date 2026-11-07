@@ -17,8 +17,8 @@ It contains:
   step.
 
 The build stamps `rylween.version` from `gradle.properties` into the runtime.
-The title menu shows it (for example `v0.9.1`), and every runtime log opens with
-`log.open path=... version=0.9.1`.
+The title menu shows it as `vX.Y.Z` (`vX.Y.Z-SNAPSHOT` between releases), and
+every runtime log opens with `log.open path=... version=X.Y.Z`.
 
 The bitmap and browser ANSI servers reuse this backend. Keep game mechanics and
 input-command semantics here when they should behave identically across views.

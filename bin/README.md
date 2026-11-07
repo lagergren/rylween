@@ -48,6 +48,11 @@ runtimes/runtime/build/install/rylween/bin/rylween --bundle build/compiled/rylwe
 to `~/.rylween/data/logs/runtime/latest.log` unless `RYLWEEN_DATA_DIR`,
 `RYLWEEN_SAVE_FILE`, or `RYLWEEN_LOG_FILE` override those paths.
 
+The terminal game's release download, `rylween-terminal-X.Y.Z.zip` from
+`./gradlew :runtime:terminalDistZip`, ships this script as `bin/rylween`. There
+it runs the launcher (`bin/rylween-runtime`) and the bundle beside it, with the
+same options and data paths, and refuses `--build`.
+
 It shows the title flow by default. Use `--name Strong` to load the seeded
 Strong party outside Thord, or `--name StrongEndgame` to load a Strong party two
 steps north of Castle Ydarg with the five required power artifacts. Use
