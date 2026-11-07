@@ -230,11 +230,12 @@ bitmap web game as the image `ghcr.io/lagergren/rylween:X.Y.Z` (also `:latest`)
 for linux/amd64 and linux/arm64, and the terminal game as
 `rylween-terminal-X.Y.Z.zip` (`./gradlew :runtime:terminalDistZip`), which runs
 with `bin/rylween` on Java 25 or newer. It then moves `main` to
-`X.Y.(Z+1)-SNAPSHOT` and publishes the GitHub release with the zip and a
-`compose.yaml` that pulls the image. It refuses a version without `-SNAPSHOT`
-and a version that is tagged already. For a minor or major release, first set
-`rylween.version` to its snapshot, such as `X.(Y+1).0-SNAPSHOT`, in a pull
-request.
+`X.Y.(Z+1)-SNAPSHOT` and publishes the GitHub release with the zip, a
+`compose.yaml` that pulls the image, and a `compose.https.yaml` that runs it
+behind Caddy and HTTPS, both pinned to the release. It refuses a version
+without `-SNAPSHOT` and a version that is tagged already. For a minor or major
+release, first set `rylween.version` to its snapshot, such as
+`X.(Y+1).0-SNAPSHOT`, in a pull request.
 
 `main` takes only pull requests, so the workflow pushes its commits with a
 deploy key that the "Require PRs and CI on main" ruleset lets bypass that, kept
